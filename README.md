@@ -1,6 +1,6 @@
 # SpecStory
 
-SpecStory is a VSCode extension for Cursor users. 
+SpecStory is a VSCode extension for Cursor users that makes it easy to capture, search and learn from every AI coding journey.
 
 To learn more, check out our [website](https://specstory.com/) and read our launch announcement here.
 
