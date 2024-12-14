@@ -8,11 +8,16 @@ To learn more, check out our [website](https://specstory.com/) and read our laun
 
 ## Getting Started
 
-You can install the extension from Visual Studio Code Marketplace here (or directly through your IDE)
+1️⃣ Install it from [VS Code Marketplace here](https://marketplace.visualstudio.com/items?itemName=SpecStory.specstory-vscode), or from the Extensions side bar in Cursor / VS Code by searching for SpecStory.
 
-Read our docs here.
+2️⃣ Take a quick spin through our docs: [docs.spectstory.com](docs.spectstory.com).
+
+3️⃣ Love the extension? Help others discover their AI assistant's memory upgrade by dropping a quick [review](https://marketplace.visualstudio.com/items?itemName=SpecStory.specstory-vscode&ssr=false#review-details)! 🧠
 
 ## Filing issues
 
-We are actively monitoring this repo. Please use it to file bugs and feature enhancements.
+> [!NOTE]
+The extension is in rapid, active development.
+
+We are actively monitoring this repo. Please use it to file bugs and feature enhancements. We'd love to hear from you!
 
