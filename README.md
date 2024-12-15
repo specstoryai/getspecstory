@@ -21,3 +21,6 @@ The extension is in rapid, active development.
 
 We are actively monitoring this repo. Please use it to file bugs and feature enhancements. We'd love to hear from you!
 
+## Contributing to the docs
+
+We welcome edits and contribution to our documentation. Just issue a pull request against our [docs repo](https://github.com/specstoryai/docs/).
