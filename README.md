@@ -4,7 +4,7 @@ SpecStory is a Visual Studio Code extension for the [Cursor IDE](https://www.cur
 
 We make it easy to capture, search and learn from every AI coding journey.
 
-To learn more, check out our [website](https://specstory.com/) and read our launch announcement here.
+To learn more, check out our [website](https://specstory.com/), see our [launch announcement](https://specstory.com/blog/specstory-launch) and [read our CEO Jake's reflection and journey](https://specstory.com/blog/a-ceos-journey-back-to-code) back to returning to code.
 
 ## Getting Started
 
