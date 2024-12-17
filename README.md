@@ -8,7 +8,7 @@ To learn more, check out our [website](https://specstory.com/), see our [launch 
 
 ## Getting Started
 
-1️⃣ Install it from [VS Code Marketplace here](get.specstory.com/cursor-extension), or from the Extensions side bar in Cursor / VS Code by searching for SpecStory.
+1️⃣ Install it from [VS Code Marketplace here](http://get.specstory.com/cursor-extension), or from the Extensions side bar in Cursor / VS Code by searching for SpecStory.
 
 2️⃣ Take a quick spin through our [docs](https://docs.specstory.com/introduction).
 
