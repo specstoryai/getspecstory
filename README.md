@@ -8,9 +8,9 @@ To learn more, check out our [website](https://specstory.com/), see our [launch 
 
 ## Getting Started
 
-1️⃣ Install it from [VS Code Marketplace here](http://get.specstory.com/cursor-extension), or from the Extensions side bar in Cursor / VS Code by searching for SpecStory.
+1️⃣ The preferred way to install it is from the Extensions side bar in the Cursor IDE by searching for SpecStory. You can also get it from [VS Code Marketplace here](http://get.specstory.com/cursor-extension). 
 
-2️⃣ Take a quick spin through our [docs](https://docs.specstory.com/introduction).
+2️⃣ Take a quick spin through our [docs](https://docs.specstory.com/introduction), they explain installation details in more depth. 
 
 3️⃣ Love the extension? Help others discover their AI assistant's memory upgrade by dropping a quick [review](https://marketplace.visualstudio.com/items?itemName=SpecStory.specstory-vscode&ssr=false#review-details)! 🧠
 
