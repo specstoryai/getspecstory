@@ -8,7 +8,16 @@ To learn more, check out our [website](https://specstory.com/), see our [launch 
 
 ## Getting Started
 
-1️⃣ The preferred way to install it is from the Extensions side bar in the Cursor IDE by searching for SpecStory. You can also get it from [VS Code Marketplace here](http://get.specstory.com/cursor-extension). 
+_Note: This extension only works with the [Cursor](https://www.cursor.com/) fork of Visual Studio Code._
+
+**Installing the extension directly from the VSC Marketplace will install it into VSC, and not into Cursor.**
+
+**Instead, to install SpecStory into Cursor:**
+
+- Download the VSIX file directly from our release bucket: [specstory-vscode-latest.vsix](https://static.specstory.com/vscode-extension/releases/specstory-vscode-latest.vsix)
+- Next, open the Command Palette (CMD/Ctrl-Shift-P) and choose `Extensions: Install from VSIX…`
+- Select the VSIX file that you downloaded above
+- Verify that "SpecStory (Cursor Extension)" appears in Extensions sidebar
 
 2️⃣ Take a quick spin through our [docs](https://docs.specstory.com/introduction), they explain installation details in more depth. 
 
