@@ -36,3 +36,7 @@ We are actively monitoring this repo. Please use it to file bugs and feature enh
 ## Contributing to the docs
 
 We welcome edits and contribution to our documentation. Just issue a pull request against our [docs repo](https://github.com/specstoryai/docs/).
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=specstoryai/getspecstory&type=Date)](https://star-history.com/#specstoryai/getspecstory&Date)
