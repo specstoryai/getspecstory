@@ -44,7 +44,7 @@ In the video we walk through this scenario and its here for your reference:
 
 Without git:
 
-| Change | Prior      | File        | Line | GitHub Commit | Shadow Commit |
+| Change | Prior      | File        | Line | Git Commit | Shadow Commit |
 |--------|------------|-------------|------|---------------|---------------|
 | AI     | New        | ai-1.txt    | 1    | No            | a0 a1         |
 | AI     | AI         | ai-1.txt    | 2    | No            | a0 a1         |
@@ -54,7 +54,7 @@ Without git:
 
 With git:
 
-| Change | Prior  | File                    | Line | GitHub Commit | Shadow Commit |
+| Change | Prior  | File                    | Line | Git Commit | Shadow Commit |
 |--------|--------|-------------------------|------|---------------|---------------|
 | AI     | New    | ./with-git/ai-2.txt     | 1    | g0 g1         | a3 a4 a5      |
 | AI     | AI     | ./with-git/ai-2.txt     | 2    | g0 g1         | a3 a4 a5      |
