@@ -39,4 +39,4 @@ We welcome edits and contribution to our documentation. Just issue a pull reques
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=specstoryai/getspecstory&type=Date)](https://star-history.com/#specstoryai/getspecstory&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=specstoryai/getspecstory&type=Date)
