@@ -1,9 +1,6 @@
 # SpecStory
 
-SpecStory is a Visual Studio Code extension for the [Cursor IDE](https://www.cursor.com/). It is tested and confirmed to work for Cursor `Version: 0.43.6` through `Version: 0.48.9`.
-
-> [!NOTE]
-> On **4/17/2025**, Cursor introduced 0.49.X, this release currently breaks SpecStory 0.10+. We're working on a fix in this tracking issue: https://github.com/specstoryai/getspecstory/issues/53
+SpecStory is a Visual Studio Code extension for the [Cursor IDE](https://www.cursor.com/). It is tested and confirmed to work for Cursor `Version: 0.43.6` through now.
 
 We make it easy to capture, search and learn from every AI coding journey. When enabled, SpecStory automatically saves every Cursor chat and composer session to your local project's `.specstory` directory.
 
