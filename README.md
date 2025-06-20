@@ -56,7 +56,7 @@ Try [BearClaude](https://bearclaude.specstory.com) our new macOS-specific editor
 - **Integration**: Works directly with Claude Code for auto-saving docs and chats locally
 - **Focus**: Preserves development intent and context throughout your coding sessions
 
-We think its just right for minimalist AI-first developers that want to focus on maintaining specs, chats and documentation alongside code. Read more about [why we are making this](https://bearclaude.specstory.com/mindfulmaking). 
+We think its just right for minimalist AI-first developers that want to focus on maintaining specs, chats and documentation alongside code. Read more about [why we are making this](https://bearclaude.specstory.com/mindfulmaking) and follow along as we do (read the [changelog](https://bearclaude.specstory.com/changelog))
 
 Take a look at [our docs](https://docs.specstory.com/bearclaude/introduction) for more details about configuration, features and settings.
 
