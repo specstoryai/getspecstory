@@ -1,4 +1,4 @@
-![spst](https://github.com/user-attachments/assets/4f38af69-5892-4abd-b19f-6acf42b40ad3)
+![spst](https://github.com/user-attachments/assets/d12ec377-acea-4945-8587-221f30c426ce)
 
 
 *You don’t write prompts. You author intent. Enhance your AI development workflow with SpecStory.*
