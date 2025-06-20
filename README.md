@@ -1,4 +1,5 @@
-<img width="540" alt="SpecStory" src="https://github.com/user-attachments/assets/0e6844db-aaa0-4b0d-99ce-911ba237acfe" />
+![spst](https://github.com/user-attachments/assets/4f38af69-5892-4abd-b19f-6acf42b40ad3)
+
 
 *You don’t write prompts. You author intent. Enhance your AI development workflow with SpecStory.*
 
