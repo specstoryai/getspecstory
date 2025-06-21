@@ -13,7 +13,7 @@
 [![Sessions Saved](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square)](https://specstory.com/api/badge?stat=sessionsSaved)
 [![Rules Generated](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square)](https://specstory.com/api/badge?stat=rulesGenerated)
 
-Join the developers using our VSC extensions and CLI wrapper in their favorite IDEs.
+Join the developers using our extensions in their favorite IDEs.
 
 - They export your AI chats in searchable structured Markdown that you can version.
 - Never lose a great solution, easily share interactions, and use conversation history to refine custom instructions and project rules.
@@ -45,10 +45,10 @@ To learn about additional features, check out our [website](https://specstory.co
 
 # Spec-First Development
 
-Don't quite need an AI IDE? Try a simpler way. Rushing into code gen without clear intent and requirements leads to wasted effort.
+Don't quite need a full AI IDE? Try a simpler way. Rushing into code gen without clear intent and requirements leads to wasted effort.
 
 
-Try [BearClaude](https://bearclaude.specstory.com) our new macOS-specific editor in Alpha. It features:
+Try [BearClaude](https://bearclaude.specstory.com) our new macOS-specific tool in Alpha. It features:
 
 - **Three-pane layout**: Document sidebar, editor, and Claude Code terminal for seamless workflow
 - **Requirements**: macOS 15+ on Apple Silicon
