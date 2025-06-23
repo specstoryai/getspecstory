@@ -1,19 +1,17 @@
-## v0.1.0 (alpha) - 2025-06-22
+## v0.1.0 (alpha) - 2025-06-23
 
 ### New
 
-SpecFlow Templates
-- New projects include [SpecFlow](https://www.specflow.com/) template files to help you turn your intent into software through structured planning and iterative execution with Claude Code
-- A "sticky" option to toggle off templates in new projects
-
-Multiple Window Support
-- Open multiple BearClaude windows with Cmd-Shift-N (or File → New BearClaude Window)
-- Work on the same project in multiple windows, or manage different projects simultaneously
-
-Claude Code
-- BearClaude now detects when Claude Code fails to start and provides helpful resources when it doesn't
-- Claude Code help is now available in the help menu
-- Claude Code best practices are now available in the help menu
+- SpecFlow Templates
+  - New projects include [SpecFlow](https://www.specflow.com/) template files to help you turn your intent into software through structured planning and iterative execution with Claude Code
+  - A "sticky" option to toggle off templates in new projects
+- Multiple Window Support
+  - Open multiple BearClaude windows with Cmd-Shift-N (or File → New BearClaude Window)
+  - Work on the same project in multiple windows, or manage different projects simultaneously
+- Claude Code
+  - BearClaude now detects when Claude Code fails to start and provides helpful resources when it doesn't
+  - Claude Code help is now available in the help menu
+  - Claude Code best practices are now available in the help menu
 
 ### Fixed
 
