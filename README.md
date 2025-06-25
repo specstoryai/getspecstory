@@ -32,7 +32,7 @@ To learn about additional features, check out our [website](https://specstory.co
 | Step | GitHub Copilot | Cursor | Claude Code |
 |------|---------------|--------|-------------|
 | 1 | Open VSCode with GitHub Copilot installed and activated. | Open Cursor. | Install via Homebrew: `brew tap specstoryai/tap && brew install specstory` |
-| 2 | Search for **SpecStory** in the Extensions Marketplace (Ctrl/CMD-Shift-X). | Search for **SpecStory** in the Extensions Marketplace (Ctrl/CMD-Shift-X). | Run `specstory claude` to launch Claude Code with automatic session saving. |
+| 2 | Search for **SpecStory** in the Extensions Marketplace (Ctrl/CMD-Shift-X). | Search for **SpecStory** in the Extensions Marketplace (Ctrl/CMD-Shift-X). | Run `specstory` to launch Claude Code with automatic session saving. |
 | 3 | Click **Install**. Consult our [Changelog](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) to make sure you're on the latest version. | Click **Install**. Consult our [Changelog](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) to make sure you're on the latest version. | Your sessions are automatically saved to `.specstory/history/` in your current project directory. |
 | 4 | Once installed, SpecStory automatically saves your Copilot chats to the `.specstory` folder in your project. | Once installed, SpecStory automatically saves your Cursor chats to the `.specstory` folder in your project. | Use `-s` flag to sync sessions or `-u` to convert specific sessions to markdown. |
 
