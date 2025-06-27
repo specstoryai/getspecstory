@@ -9,8 +9,11 @@
 ### Fixed
 
 - All the latest Claude Code auto-save fixes of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
+- Fixed ability to pass arguments to Claude Code via the Claude Code command in settings
+- Fixed some styling issues in the Settings with the Claude Code command
 - Fixed the issue where the toolbar at the top of the Claude Code terminal would disappear when the app window was resized
-
+- Fixed a failure mode when the first time Claude Code has ever been run is in BearClaude
+  
 ### Known Issues 
 
 - Markdown formatting inconsistencies 
