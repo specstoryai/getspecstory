@@ -13,6 +13,7 @@
 - Fixed some styling issues in the Settings with the Claude Code command
 - Fixed the issue where the toolbar at the top of the Claude Code terminal would disappear when the app window was resized
 - Fixed a failure mode when the first time Claude Code has ever been run is in BearClaude
+- Better window sizing for first ever BearClaude launch
   
 ### Known Issues 
 
