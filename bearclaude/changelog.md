@@ -4,6 +4,7 @@
 
 - All the latest Claude Code auto-save features of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
 - Home and End keys now work in the Claude Code terminal
+- Add File → Save (Cmd-S), even though BearClaude uses auto-save, Cmd-S is muscle memory to many people
 
 ### Fixed
 
