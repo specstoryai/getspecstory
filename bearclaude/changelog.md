@@ -1,3 +1,21 @@
+## v0.2.0 (alpha) - 2025-06-27
+
+### New
+
+- All the latest Claude Code auto-save features of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
+- Home and End keys now work in the Claude Code terminal
+
+### Fixed
+
+- All the latest Claude Code auto-save fixes of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
+
+### Known Issues 
+
+- Markdown formatting inconsistencies 
+- Cross-file search not yet implemented
+- Registration may not work for some users
+
+
 ## v0.1.0 (alpha) - 2025-06-23
 
 ### New
@@ -17,12 +35,6 @@
 
 - Removed inoperable default SwiftUI tab menu items
 
-### Known Issues 
-
-- Markdown formatting inconsistencies 
-- Cross-file search not yet implemented
-- Terminal cannot Home/End and PageUp/PageDown
-- Registration may not work for some users
 
 ## v0.0.2 (alpha) - 2025-06-20
 
