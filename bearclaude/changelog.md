@@ -8,6 +8,7 @@
 ### Fixed
 
 - All the latest Claude Code auto-save fixes of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
+- Fixed the issue where the toolbar at the top of the Claude Code terminal would disappear when the app window was resized
 
 ### Known Issues 
 
