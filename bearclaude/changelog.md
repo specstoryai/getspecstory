@@ -1,3 +1,29 @@
+## v0.2.0 (alpha) - 2025-06-27
+
+### New
+
+- Launching BearClaude now works in the terminal, you can install `bearclaude` in BearClaude → Settings
+- All the latest Claude Code auto-save features of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
+- Home and End keys now work in the Claude Code terminal
+- Add File → Save (Cmd-S), even though BearClaude uses auto-save, Cmd-S is muscle memory to many people
+- Update the default markdown editor to be the Editor Only mode
+- Make the toggle between Editor Only and Live Preview mode "sticky" when BearClaude is restarted
+
+### Fixed
+
+- All the latest Claude Code auto-save fixes of [SpecStory 0.1.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.1.0)
+- Fixed ability to pass arguments to Claude Code via the Claude Code command in settings
+- Fixed the issue where the toolbar at the top of the Claude Code terminal would disappear when the app window was resized
+- Fixed a failure mode when the first time Claude Code has ever been run is in BearClaude
+- Better window sizing for first ever BearClaude launch
+  
+### Known Issues 
+
+- Markdown formatting inconsistencies 
+- Cross-file search not yet implemented
+- Registration may not work for some users
+
+
 ## v0.1.0 (alpha) - 2025-06-23
 
 ### New
@@ -17,12 +43,6 @@
 
 - Removed inoperable default SwiftUI tab menu items
 
-### Known Issues 
-
-- Markdown formatting inconsistencies 
-- Cross-file search not yet implemented
-- Terminal cannot Home/End and PageUp/PageDown
-- Registration may not work for some users
 
 ## v0.0.2 (alpha) - 2025-06-20
 
