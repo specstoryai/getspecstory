@@ -9,11 +9,12 @@
 
 ### Fixed
 
-- 
+- Fixed problems starting Claude Code within BearClaude for some users with environments that rely on the contents of `.zshrc` or `.bashrc`.
 
 ### Known Issues 
 
-- Markdown formatting inconsistencies 
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
+- Markdown formatting inconsistencies
 - Cross-file search not yet implemented
 - Registration may not work for some users
 
