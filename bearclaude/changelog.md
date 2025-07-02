@@ -37,13 +37,7 @@
 - Fixed the issue where the toolbar at the top of the Claude Code terminal would disappear when the app window was resized
 - Fixed a failure mode when the first time Claude Code has ever been run is in BearClaude
 - Better window sizing for first ever BearClaude launch
-  
-### Known Issues 
-
-- Markdown formatting inconsistencies 
-- Cross-file search not yet implemented
-- Registration may not work for some users
-
+ 
 
 ## v0.1.0 (alpha) - 2025-06-23
 
