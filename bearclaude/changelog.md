@@ -10,6 +10,8 @@
 ### Fixed
 
 - Fixed problems starting Claude Code within BearClaude for some users with environments that rely on the contents of `.zshrc` or `.bashrc`.
+- All the latest Claude Code auto-save fixes of [SpecStory 0.2.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.2.0)
+
 
 ### Known Issues 
 
