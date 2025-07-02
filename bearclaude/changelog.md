@@ -1,8 +1,11 @@
-## v0.3.0 (alpha) - 2025-06-30
+## v0.3.0 (alpha) - 2025-07-02
 
 ### New
 
+- You can jump straight to open a file with Cmd-P or File → Go to File...
+- BearClaude will play a system sound when Claude Code needs your attention to approve an action. You can select the sound, or turn this off in BearClaude → Settings.
 - Active panel highlighting to make it easier to see if the markdown editor or Claude Code terminal is the active panel
+- All the latest Claude Code auto-save features of [SpecStory 0.2.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.2.0)
 
 ### Fixed
 
