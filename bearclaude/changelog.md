@@ -1,3 +1,24 @@
+## v0.4.0 (alpha) - 2025-07-04
+
+### New
+
+- BearClaude now uses [Sparkle](https://sparkle-project.org/) for automatic updates.
+- Settings now has a "Help Us Improve" toggle to opt-out of app analytics.
+- All the latest Claude Code auto-save features of [SpecStory 0.3.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.3.0)
+
+### Fixed
+
+- All the latest Claude Code auto-save fixes of [SpecStory 0.3.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.3.0)
+
+
+### Known Issues 
+
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
+- Markdown formatting inconsistencies
+- Cross-file search not yet implemented
+- Registration may not work for some users
+
+
 ## v0.3.0 (alpha) - 2025-07-02
 
 ### New
@@ -11,14 +32,6 @@
 
 - Fixed problems starting Claude Code within BearClaude for some users with environments that rely on the contents of `.zshrc` or `.bashrc`.
 - All the latest Claude Code auto-save fixes of [SpecStory 0.2.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.2.0)
-
-
-### Known Issues 
-
-- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
-- Markdown formatting inconsistencies
-- Cross-file search not yet implemented
-- Registration may not work for some users
 
 
 ## v0.2.0 (alpha) - 2025-06-27
