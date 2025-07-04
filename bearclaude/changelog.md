@@ -2,6 +2,7 @@
 
 ### New
 
+- BearClaude now uses [Sparkle](https://sparkle-project.org/) for automatic updates.
 - All the latest Claude Code auto-save features of [SpecStory 0.3.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.3.0)
 
 ### Fixed
