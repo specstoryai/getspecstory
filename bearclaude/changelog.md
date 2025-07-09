@@ -2,6 +2,8 @@
 
 ### New
 
+- Right-click in the document sidebar for "Copy Path" and "Copy Relative Path"
+- Right-click in the document sidebar for "New Document"
 - All the latest Claude Code auto-save features of [SpecStory 0.4.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.4.0)
 
 ### Fixed
