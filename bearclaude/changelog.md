@@ -2,6 +2,7 @@
 
 ### New
 
+- Drag and drop files (e.g. screenshots) into the Claude Code Terminal to share them with the agent
 - Right-click on a document in the document sidebar for "Copy Path" and "Copy Relative Path"
 - Right-click in the document sidebar for "New Document"
 - All the latest Claude Code auto-save features of [SpecStory 0.4.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.4.0)
