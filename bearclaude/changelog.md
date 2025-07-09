@@ -1,3 +1,20 @@
+## v0.5.0 (alpha) - 2025-07-09
+
+### New
+
+- All the latest Claude Code auto-save features of [SpecStory 0.4.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.4.0)
+
+### Fixed
+
+- All the latest Claude Code auto-save fixes of [SpecStory 0.4.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.4.0)
+
+### Known Issues 
+
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
+- Markdown formatting inconsistencies
+- Registration may not work for some users
+
+
 ## v0.4.0 (alpha) - 2025-07-04
 
 ### New
@@ -9,14 +26,6 @@
 ### Fixed
 
 - All the latest Claude Code auto-save fixes of [SpecStory 0.3.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.3.0)
-
-
-### Known Issues 
-
-- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
-- Markdown formatting inconsistencies
-- Cross-file search not yet implemented
-- Registration may not work for some users
 
 
 ## v0.3.0 (alpha) - 2025-07-02
