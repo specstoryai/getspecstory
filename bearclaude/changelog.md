@@ -9,6 +9,7 @@
 
 ### Fixed
 
+- It took 2 clicks to change focus from the editor to the Claude Code terminal, and vice versa. Now it's 1 click.
 - The relative timestamps displayed on documents in the document sidebar now "age" with the passage of time
 - All the latest Claude Code auto-save fixes of [SpecStory 0.4.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.4.0)
 
