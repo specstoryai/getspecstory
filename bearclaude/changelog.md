@@ -5,6 +5,7 @@
 - Right-click on any of your chat history and click "Resume Session" to continue that specific chat in a Claude Code session
 - New typography for the markdown editor
 - New typography for the Claude Code terminal
+- Add hover effect to Generate File Tree, Open in Finder, Open in Terminal, and Restart Claude Code buttons
 - All the latest Claude Code auto-save features of [SpecStory 0.5.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.5.0)
 
 ### Fixed
