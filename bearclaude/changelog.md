@@ -1,3 +1,20 @@
+## v0.7.0 (alpha) - 2025-07-17
+
+### New
+
+- All the latest Claude Code auto-save features of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
+
+### Fixed
+
+- All the latest Claude Code auto-save fixes of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
+
+### Known Issues
+
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
+- Markdown formatting inconsistencies
+- Registration may not work for some users
+
+
 ## v0.6.0 (alpha) - 2025-07-15
 
 ### New
@@ -13,12 +30,6 @@
 - If nothing has been done in a Claude Code session, there is now no confirmation before a session is restarted with the restart button
 - If Claude Code had keyboard focus before a restart, it retains keyboard focus after the restart
 - All the latest Claude Code auto-save fixes of [SpecStory 0.5.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.5.0)
-
-### Known Issues
-
-- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
-- Markdown formatting inconsistencies
-- Registration may not work for some users
 
 
 ## v0.5.0 (alpha) - 2025-07-09
