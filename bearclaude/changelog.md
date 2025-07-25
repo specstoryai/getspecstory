@@ -6,6 +6,7 @@
 
 ### Fixed
 
+- When the BearClaude window is especially short and wide, the right panel empty state scrollbar was positioned incorrectly
 - All the latest Claude Code auto-save fixes of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
 
 ### Known Issues
