@@ -2,6 +2,7 @@
 
 ### New
 
+- Shows the user and agent message count in the document sidebar for AI chat histories
 - The last opened file per project is now remembered and opened when the project is reopened
 - All the latest Claude Code auto-save features of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
 
