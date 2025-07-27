@@ -1,11 +1,13 @@
-## v0.7.0 (alpha) - 2025-07-17
+## v0.7.0 (alpha) - 2025-07-27
 
 ### New
 
+- The last opened file per project is now remembered and opened when the project is reopened
 - All the latest Claude Code auto-save features of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
 
 ### Fixed
 
+- When creating a new project, and choosing to use the template files,the template files were not getting timestamped correctly
 - When the BearClaude window is especially short and wide, the right panel empty state scrollbar was positioned incorrectly
 - All the latest Claude Code auto-save fixes of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
 
