@@ -10,6 +10,7 @@
 
 - When creating a new project, and choosing to use the template files,the template files were not getting timestamped correctly
 - When the BearClaude window is especially short and wide, the right panel empty state scrollbar was positioned incorrectly
+- Settings dialog now has correct height
 - All the latest Claude Code auto-save fixes of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
 
 ### Known Issues
