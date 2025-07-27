@@ -1,3 +1,25 @@
+## v0.7.0 (alpha) - 2025-07-27
+
+### New
+
+- Shows the user and agent message count in the document sidebar for AI chat histories
+- The last opened file per project is now remembered and opened when the project is reopened
+- All the latest Claude Code auto-save features of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
+
+### Fixed
+
+- When creating a new project, and choosing to use the template files,the template files were not getting timestamped correctly
+- When the BearClaude window is especially short and wide, the right panel empty state scrollbar was positioned incorrectly
+- Setting dialog now has the correct height
+- All the latest Claude Code auto-save fixes of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
+
+### Known Issues
+
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
+- Markdown formatting inconsistencies
+- Registration may not work for some users
+
+
 ## v0.6.0 (alpha) - 2025-07-15
 
 ### New
@@ -13,12 +35,6 @@
 - If nothing has been done in a Claude Code session, there is now no confirmation before a session is restarted with the restart button
 - If Claude Code had keyboard focus before a restart, it retains keyboard focus after the restart
 - All the latest Claude Code auto-save fixes of [SpecStory 0.5.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.5.0)
-
-### Known Issues
-
-- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
-- Markdown formatting inconsistencies
-- Registration may not work for some users
 
 
 ## v0.5.0 (alpha) - 2025-07-09
