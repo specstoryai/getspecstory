@@ -2,7 +2,7 @@
 
 ### New
 
-- New & improved markdown editor built with [CodeMirror](https://codemirror.net/)
+- New & vastly improved markdown editor built with [CodeMirror](https://codemirror.net/)
 - All the latest Claude Code auto-save features of [SpecStory 0.7.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.7.0)
 
 ### Fixed
@@ -11,7 +11,7 @@
 
 ### Known Issues
 
-- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal
 - Registration may not work for some users
 - Collapsing code blocks doesn't work in the preview mode of the markdown editor
 
