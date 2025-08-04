@@ -1,3 +1,21 @@
+## v0.8.0 (alpha) - 2025-08-04
+
+### New
+
+- New & vastly improved markdown editor built with [CodeMirror](https://codemirror.net/)
+- All the latest Claude Code auto-save features of [SpecStory 0.7.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.7.0)
+
+### Fixed
+
+- All the latest Claude Code auto-save fixes of [SpecStory 0.7.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.7.0)
+
+### Known Issues
+
+- Some output from Claude Code might be low/no contrast in the Claude Code Terminal
+- Registration may not work for some users
+- Collapsing code blocks doesn't work in the preview mode of the markdown editor
+
+
 ## v0.7.0 (alpha) - 2025-07-27
 
 ### New
@@ -12,12 +30,6 @@
 - When the BearClaude window is especially short and wide, the right panel empty state scrollbar was positioned incorrectly
 - Setting dialog now has the correct height
 - All the latest Claude Code auto-save fixes of [SpecStory 0.6.0](https://github.com/specstoryai/getspecstory/releases/tag/v0.6.0)
-
-### Known Issues
-
-- Some output from Claude Code might be low/no contrast in the Claude Code Terminal 
-- Markdown formatting inconsistencies
-- Registration may not work for some users
 
 
 ## v0.6.0 (alpha) - 2025-07-15
