@@ -13,7 +13,7 @@
 [![Sessions Saved](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square)](https://specstory.com/api/badge?stat=sessionsSaved)
 [![Rules Generated](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square)](https://specstory.com/api/badge?stat=rulesGenerated)
 
-Join the developers using our extensions in their favorite IDEs.
+Join the developers using our extensions in their favorite AI coding tools.
 
 - They export your AI chats in searchable structured Markdown that you can version.
 - Never lose a great solution, easily share interactions, and use conversation history to refine custom instructions and project rules.
