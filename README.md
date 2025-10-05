@@ -1,4 +1,5 @@
-![spst](https://github.com/user-attachments/assets/d12ec377-acea-4945-8587-221f30c426ce)
+<img width="1551" height="158" alt="spst_logo" src="https://github.com/user-attachments/assets/de7fc781-3f37-49f1-a847-b9bbadc05091" />
+
 
 # Intent is the new source code
 
