@@ -3,7 +3,7 @@
 
 *You don’t write prompts. You author intent. Enhance your AI development workflow with SpecStory.*
 
-- **Enhance Current Workflows:** Use our free extensions for [Cursor IDE](https://www.cursor.com/), [GitHub Copilot](https://github.com/features/copilot) and [Claude Code](https://claude.ai/code) to save, search and share your AI chat history.
+- **Enhance Current Workflows:** Use our free extensions for [Cursor IDE](https://www.cursor.com/), [Cursor CLI](https://cursor.com/cli), [GitHub Copilot](https://github.com/features/copilot), [Claude Code](https://claude.ai/code), and [Codex CLI](https://www.openai.com/codex/cli/) to save, search and share your AI chat history.
 - **Spec-First Development:** Try our new macOS desktop app [BearClaude](www.bearclaude.com) (Alpha) that helps you write specs to generate code.
 
 ## Getting Started
