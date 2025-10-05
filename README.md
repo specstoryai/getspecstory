@@ -20,6 +20,8 @@ Join the developers using our extensions in their favorite IDEs.
     - **For Cursor**: It is tested to work for `Version: 0.43.6` and later. [(Read changelog)](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog)
     - **For Copilot**: It is tested to work for `Version: 1.300.0` and later [(Read cangelog)](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog)
     - **For Claude Code**: It is tested to work for `Version: 1.0.27` and later [(Read changelog)](https://github.com/specstoryai/getspecstory/releases)
+    - **For Cursor CLI**: It is tested to work for `Version: 2025.09.18-7ae6800` and later [(Read changelog)](https://github.com/specstoryai/getspecstory/releases)
+    - **For Codex CLI**: It is tested to work for `Version: 0.42.0` and later [(Read changelog)](https://github.com/specstoryai/getspecstory/releases)
 
 When enabled, our extensions automatically save your AI chats to your local project's `.specstory` directory.
 
