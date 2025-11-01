@@ -1,8 +1,8 @@
 ---
-name: BearClaude Bug/Feature
-about: Report a bug or request a feature for BearClaude
-title: "[BEARCLAUDE] "
-labels: bearclaude
+name: Cloud Bug/Feature
+about: Report a bug or request a feature for SpecStory Cloud
+title: "[CLOUD] "
+labels: ''
 assignees: belucid, tenpaiyomi
 
 ---
@@ -16,7 +16,7 @@ A clear and concise description of the bug or feature request.
 
 **To Reproduce (for bugs)**
 Steps to reproduce the behavior:
-1. Open BearClaude
+1. Visit cloud.specstory.com
 2. Click on '....'
 3. Type '....'
 4. See error
@@ -28,10 +28,7 @@ A clear and concise description of what you expected to happen.
 If applicable, add screenshots or logs to help explain your problem.
 
 **Your System (please complete the following information):**
-- BearClaude Version: 
-- macOS Version: 
-- Mac Model: [e.g. MacBook Pro M3]
-- Claude Code Version: 
+- Browser / Browser Version
 
 **Additional context**
 Add any other context about the problem or feature request here.
