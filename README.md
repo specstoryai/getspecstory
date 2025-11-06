@@ -12,6 +12,15 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
 [![Sessions Saved](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square)](https://specstory.com/api/badge?stat=sessionsSaved)
 [![Rules Generated](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square)](https://specstory.com/api/badge?stat=rulesGenerated)
 
+<p align="left">
+  <strong>Connect with us ──▶</strong>&nbsp;
+  <a href="https://twitter.com/specstoryai"><img src="https://img.shields.io/badge/X-000000?style=flat-square&logo=x&logoColor=white" alt="X" style="vertical-align: middle;"></a>
+  <a href="https://www.linkedin.com/company/specstory"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white" alt="LinkedIn" style="vertical-align: middle;"></a>
+  <a href="https://specstory.slack.com/join/shared_invite/zt-2vq0274ck-MYS39rgOpDSmgfE1IeK9gg#/shared-invite/email"><img src="https://img.shields.io/badge/Slack-4A154B?style=flat-square&logo=slack&logoColor=white" alt="Slack" style="vertical-align: middle;"></a>
+  <a href="https://discord.gg/E47yQyEUd3"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord" style="vertical-align: middle;"></a>
+  <a href="https://www.youtube.com/@specstory"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube" style="vertical-align: middle;"></a>
+</p>
+
 ## How It Works
 ```
 AI Coding Tools              Local First                  Cloud Platform
@@ -106,12 +115,6 @@ For those who prefer a dedicated spec-writing environment, [BearClaude](https://
 - 📚 **[Full Documentation](https://docs.specstory.com/overview)** - Complete guides and [Cloud API reference](https://docs.specstory.com/api-reference/introduction)
 - 🐛 **[Report Issues](https://github.com/specstoryai/getspecstory/issues)** - We actively monitor and respond
 - 📖 **[Contribute to Docs](https://github.com/specstoryai/docs/)** - PRs welcome!
-
-## Connect with Us
-
-- **X/Twitter**: [@specstoryai](https://twitter.com/specstoryai)
-- **LinkedIn**: [SpecStory](https://www.linkedin.com/company/specstory)
-- **Slack**: [Join our community](https://specstory.slack.com/join/shared_invite/zt-2vq0274ck-MYS39rgOpDSmgfE1IeK9gg#/shared-invite/email)
 
 ## Reviews & Feedback
 
