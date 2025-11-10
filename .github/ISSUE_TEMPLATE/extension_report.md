@@ -3,7 +3,6 @@ name: Extension/CLI Bug or Feature
 about: Report a bug or request a feature for SpecStory extensions or CLI
 title: "[EXTENSION/CLI] "
 labels: ''
-assignees: belucid, tenpaiyomi
 
 ---
 
