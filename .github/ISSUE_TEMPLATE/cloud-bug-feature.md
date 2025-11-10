@@ -3,7 +3,6 @@ name: Cloud Bug/Feature
 about: Report a bug or request a feature for SpecStory Cloud
 title: "[CLOUD] "
 labels: ''
-assignees: belucid, tenpaiyomi
 
 ---
 
