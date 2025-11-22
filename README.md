@@ -1,4 +1,5 @@
-<img width="1551" height="158" alt="spst_logo" src="https://github.com/user-attachments/assets/de7fc781-3f37-49f1-a847-b9bbadc05091" />
+
+<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
 
 
 # Intent is the new source code
@@ -30,7 +31,8 @@ Cursor IDE         ┐
 Copilot IDE        │
 Claude Code CLI    ├──────►  .specstory/history/  ──────►  cloud.specstory.com
 Cursor CLI         │          (Auto-Saved Locally)          (Search & Share)
-Codex CLI          ┘
+Codex CLI          │
+Gemini CLI         ┘
 ```
 
 ## Workflow
@@ -50,7 +52,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 |---------|------|------------------|-------------|--------------|-----------|
 | **[Cursor Extension](https://www.cursor.com/)** | IDE | [Cursor AI](https://www.cursor.com/) | v0.43.6+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
 | **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE | [GitHub Copilot](https://github.com/features/copilot) | v1.300.0+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)** | CLI | [Claude Code](https://claude.ai/claude-code)<br/>[Cursor CLI](https://cursor.com/cli)<br/>[Codex CLI](https://www.openai.com/codex) | v1.0.27+<br/>v2025.09.18+<br/>v0.42.0+ | `brew tap specstoryai/tap`<br/>`brew install specstory` | [📋 View](https://github.com/specstoryai/getspecstory/releases) |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)** | CLI | [Claude Code](https://claude.ai/claude-code)<br/>[Cursor CLI](https://cursor.com/cli)<br/>[Codex CLI](https://www.openai.com/codex)<br/>[Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | v1.0.27+<br/>v2025.09.18+<br/>v0.42.0+<br/>0.15.1+ | `brew tap specstoryai/tap`<br/>`brew install specstory` | [📋 View](https://github.com/specstoryai/getspecstory/releases) |
 
 > [!NOTE]
 > For Cursor users: Install from within Cursor, not from the Visual Studio Marketplace website. [Learn why](https://github.com/specstoryai/getspecstory/issues/8)
@@ -67,6 +69,7 @@ specstory check
 specstory run claude    # Launch Claude Code
 specstory run cursor    # Launch Cursor CLI
 specstory run codex     # Launch Codex CLI
+specstory run gemini    # Launch Gemini CLI
 specstory run           # Launch default agent
 ```
 
