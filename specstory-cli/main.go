@@ -573,174 +573,93 @@ By default, watches all registered agents concurrently. Specify a specific agent
 			// Check authentication for cloud sync
 			checkAndWarnAuthentication()
 
-			// Check if user specified a provider
-			if len(args) > 0 {
-				// Watch specific provider
-				return watchSingleProvider(registry, args[0], config, cwd, debugRaw)
-			} else {
-				// Watch all providers
-				return watchAllProviders(registry, config, cwd, debugRaw)
+			providerIDs := registry.ListIDs()
+			if len(providerIDs) == 0 {
+				return fmt.Errorf("no providers registered")
 			}
+			if len(args) > 0 {
+				providerIDs = []string{args[0]}
+			}
+
+			// Collect provider names for analytics
+			var providerNames []string
+			for _, id := range providerIDs {
+				if provider, err := registry.Get(id); err == nil {
+					providerNames = append(providerNames, provider.Name())
+				}
+			}
+			analytics.SetAgentProviders(providerNames)
+
+			// Create context for cancellation (Ctrl+C handling)
+			ctx := context.Background()
+
+			if !silent {
+				fmt.Println()
+				fmt.Println("👀 Watching for activity from agents: " + strings.Join(providerNames, ", "))
+				fmt.Println("   Press Ctrl+C to stop watching")
+				fmt.Println()
+			}
+
+			// Watch each provider concurrently
+			errChan := make(chan error, len(providerIDs))
+			for _, id := range providerIDs {
+				provider, err := registry.Get(id)
+				if err != nil {
+					continue
+				}
+
+				// Launch a goroutine for each provider
+				go func(p spi.Provider) {
+					slog.Info("Starting agent monitoring", "provider", p.Name())
+
+					// Create session callback for this provider
+					sessionCallback := func(session *spi.AgentChatSession) {
+						if session == nil {
+							return
+						}
+
+						// Process the session (write markdown and sync to cloud)
+						// Don't show output during watch mode
+						// This is autosave mode (true)
+						err := processSingleSession(session, p, config, false, true, debugRaw)
+						if err != nil {
+							// Log error but continue - don't fail the whole watch
+							// In watch mode, we prioritize keeping the watcher running.
+							// Failed markdown writes or cloud syncs can be retried later via
+							// the sync command, so we just log and continue.
+							slog.Error("Failed to process session update",
+								"sessionId", session.SessionID,
+								"provider", p.Name(),
+								"error", err)
+						}
+					}
+
+					err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
+					if err != nil {
+						slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
+						errChan <- fmt.Errorf("%s: %w", p.Name(), err)
+					} else {
+						errChan <- nil
+					}
+				}(provider)
+			}
+
+			// Wait for all watchers to complete (or error)
+			// In practice, they should run indefinitely until Ctrl+C
+			var lastError error
+			for i := 0; i < len(providerIDs); i++ {
+				if err := <-errChan; err != nil {
+					lastError = err
+					slog.Error("Provider watch error", "error", err)
+				}
+			}
+
+			return lastError
 		},
 	}
 }
 
 var watchCmd *cobra.Command
-
-// watchSingleProvider watches a specific provider
-func watchSingleProvider(registry *factory.Registry, providerID string, config utils.OutputConfig, cwd string, debugRaw bool) error {
-	provider, err := registry.Get(providerID)
-	if err != nil {
-		// Provider not found - show helpful error
-		fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
-
-		ids := registry.ListIDs()
-		if len(ids) > 0 {
-			fmt.Println("The registered providers are:")
-			for _, id := range ids {
-				if p, _ := registry.Get(id); p != nil {
-					fmt.Printf("  • %s - %s\n", id, p.Name())
-				}
-			}
-			fmt.Println("\nExample: specstory watch " + ids[0])
-		}
-		return err
-	}
-
-	slog.Info("Watching agent", "provider", provider.Name())
-
-	// Set the agent provider for analytics
-	analytics.SetAgentProviders([]string{provider.Name()})
-
-	// This callback pattern enables real-time processing of agent sessions
-	// without blocking the agent's execution. As the agent writes updates to its
-	// data files, the provider's watcher detects changes and invokes this callback,
-	// allowing immediate markdown generation and cloud sync. Errors are logged but
-	// don't stop execution because transient failures (e.g., network issues) shouldn't
-	// interrupt the user's coding session.
-	sessionCallback := func(session *spi.AgentChatSession) {
-		if session == nil {
-			return
-		}
-
-		// Process the session (write markdown and sync to cloud)
-		// Don't show output during watch mode
-		// This is autosave mode (true)
-		err := processSingleSession(session, provider, config, false, true, debugRaw)
-		if err != nil {
-			// Log error but continue - don't fail the whole watch
-			// In watch mode, we prioritize keeping the watcher running.
-			// Failed markdown writes or cloud syncs can be retried later via
-			// the sync command, so we just log and continue.
-			slog.Error("Failed to process session update",
-				"sessionId", session.SessionID,
-				"error", err)
-		}
-	}
-
-	// Create context for cancellation (Ctrl+C handling)
-	ctx := context.Background()
-
-	// Watch for agent activity
-	slog.Info("Starting agent monitoring", "provider", provider.Name())
-	if !silent {
-		fmt.Println()
-		fmt.Printf("👀 Watching for %s activity...\n", provider.Name())
-		fmt.Println("   Press Ctrl+C to stop watching")
-		fmt.Println()
-	}
-
-	err = provider.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
-
-	if err != nil {
-		slog.Error("Agent watching failed", "provider", provider.Name(), "error", err)
-	}
-
-	return err
-}
-
-// watchAllProviders watches all registered providers concurrently
-func watchAllProviders(registry *factory.Registry, config utils.OutputConfig, cwd string, debugRaw bool) error {
-	providerIDs := registry.ListIDs()
-	if len(providerIDs) == 0 {
-		return fmt.Errorf("no providers registered")
-	}
-
-	// Collect provider names for analytics
-	var providerNames []string
-	for _, id := range providerIDs {
-		if provider, err := registry.Get(id); err == nil {
-			providerNames = append(providerNames, provider.Name())
-		}
-	}
-	analytics.SetAgentProviders(providerNames)
-
-	// Create context for cancellation (Ctrl+C handling)
-	ctx := context.Background()
-
-	if !silent {
-		fmt.Println()
-		fmt.Println("👀 Watching for activity from all agents...")
-		fmt.Println("   Press Ctrl+C to stop watching")
-		fmt.Println()
-	}
-
-	// Watch each provider concurrently
-	errChan := make(chan error, len(providerIDs))
-	for _, id := range providerIDs {
-		provider, err := registry.Get(id)
-		if err != nil {
-			continue
-		}
-
-		// Launch a goroutine for each provider
-		go func(p spi.Provider) {
-			slog.Info("Starting agent monitoring", "provider", p.Name())
-
-			// Create session callback for this provider
-			sessionCallback := func(session *spi.AgentChatSession) {
-				if session == nil {
-					return
-				}
-
-				// Process the session (write markdown and sync to cloud)
-				// Don't show output during watch mode
-				// This is autosave mode (true)
-				err := processSingleSession(session, p, config, false, true, debugRaw)
-				if err != nil {
-					// Log error but continue - don't fail the whole watch
-					// In watch mode, we prioritize keeping the watcher running.
-					// Failed markdown writes or cloud syncs can be retried later via
-					// the sync command, so we just log and continue.
-					slog.Error("Failed to process session update",
-						"sessionId", session.SessionID,
-						"provider", p.Name(),
-						"error", err)
-				}
-			}
-
-			err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
-			if err != nil {
-				slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
-				errChan <- fmt.Errorf("%s: %w", p.Name(), err)
-			} else {
-				errChan <- nil
-			}
-		}(provider)
-	}
-
-	// Wait for all watchers to complete (or error)
-	// In practice, they should run indefinitely until Ctrl+C
-	var lastError error
-	for i := 0; i < len(providerIDs); i++ {
-		if err := <-errChan; err != nil {
-			lastError = err
-			slog.Error("Provider watch error", "error", err)
-		}
-	}
-
-	return lastError
-}
 
 // createSyncCommand dynamically creates the sync command with provider information
 func createSyncCommand() *cobra.Command {
