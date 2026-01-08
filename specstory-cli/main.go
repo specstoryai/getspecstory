@@ -586,6 +586,8 @@ By default, watches all registered agents concurrently. Specify a specific agent
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
 					providerNames = append(providerNames, provider.Name())
+				} else {
+					return fmt.Errorf("no provider %s found", id)
 				}
 			}
 			analytics.SetAgentProviders(providerNames)
