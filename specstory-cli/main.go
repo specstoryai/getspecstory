@@ -629,8 +629,6 @@ By default, watches %s. Specify a specific agent ID to watch a different agent.`
 					return
 				}
 
-				slog.Info("Session callback called", "sessionId", session.SessionID)
-
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during watch mode
 				// This is autosave mode (true)
@@ -643,8 +641,6 @@ By default, watches %s. Specify a specific agent ID to watch a different agent.`
 					slog.Error("Failed to process session update",
 						"sessionId", session.SessionID,
 						"error", err)
-				} else {
-					slog.Info("Session callback processed successfully", "sessionId", session.SessionID)
 				}
 			}
 
