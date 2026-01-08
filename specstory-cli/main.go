@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/fang"
@@ -527,7 +529,7 @@ specstory watch --output-dir ~/my-sessions`
 Unlike 'run', this command does NOT launch the agent - it only monitors for activity.
 Use this when you want to run the agent separately but still get auto-saved markdown files.
 
-By default, watches all registered agents concurrently. Specify a specific agent ID to watch only that agent.`
+By default, watches all registered providers concurrently. Specify a specific agent ID to watch only that agent.`
 	if providerList != "No providers registered" {
 		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
 	}
@@ -592,8 +594,10 @@ By default, watches all registered agents concurrently. Specify a specific agent
 			}
 			analytics.SetAgentProviders(providerNames)
 
-			// Create context for cancellation (Ctrl+C handling)
-			ctx := context.Background()
+			// Create context for graceful cancellation (Ctrl+C handling)
+			// This allows providers to clean up resources when user presses Ctrl+C
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
 
 			if !silent {
 				fmt.Println()
@@ -638,8 +642,14 @@ By default, watches all registered agents concurrently. Specify a specific agent
 
 					err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
 					if err != nil {
-						slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
-						errChan <- fmt.Errorf("%s: %w", p.Name(), err)
+						// Context cancellation is expected when user presses Ctrl+C, not an error
+						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+							slog.Info("Agent monitoring stopped", "provider", p.Name())
+							errChan <- nil
+						} else {
+							slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
+							errChan <- fmt.Errorf("%s: %w", p.Name(), err)
+						}
 					} else {
 						errChan <- nil
 					}
@@ -651,8 +661,11 @@ By default, watches all registered agents concurrently. Specify a specific agent
 			var lastError error
 			for i := 0; i < len(providerIDs); i++ {
 				if err := <-errChan; err != nil {
-					lastError = err
-					slog.Error("Provider watch error", "error", err)
+					// Ignore context cancellation - it's expected on Ctrl+C
+					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						lastError = err
+						slog.Error("Provider watch error", "error", err)
+					}
 				}
 			}
 
