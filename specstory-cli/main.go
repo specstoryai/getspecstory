@@ -174,7 +174,10 @@ func createRootCommand() *cobra.Command {
 specstory check
 
 # Run the default agent with auto-saving
-specstory run`
+specstory run
+
+# Watch for agent activity without launching (auto-save only)
+specstory watch`
 
 	// Add provider-specific examples if we have providers
 	if len(ids) > 0 {
@@ -495,6 +498,180 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 }
 
 var runCmd *cobra.Command
+
+// createWatchCommand dynamically creates the watch command with provider information
+func createWatchCommand() *cobra.Command {
+	registry := factory.GetRegistry()
+	ids := registry.ListIDs()
+	providerList := registry.GetProviderList()
+
+	// Build dynamic examples
+	examples := `
+# Watch default agent for activity with auto-saving
+specstory watch`
+
+	if len(ids) > 0 {
+		examples += "\n\n# Watch specific agent"
+		for _, id := range ids {
+			examples += fmt.Sprintf("\nspecstory watch %s", id)
+		}
+	}
+
+	examples += `
+
+# Watch with custom output directory
+specstory watch --output-dir ~/my-sessions`
+
+	// Determine default agent name
+	defaultAgent := "the default agent"
+	if len(ids) > 0 {
+		if provider, err := registry.Get(ids[0]); err == nil {
+			defaultAgent = provider.Name()
+		}
+	}
+
+	longDesc := fmt.Sprintf(`Watch for terminal coding agent activity and auto-save markdown files.
+
+Unlike 'run', this command does NOT launch the agent - it only monitors for activity.
+Use this when you want to run the agent separately but still get auto-saved markdown files.
+
+By default, watches %s. Specify a specific agent ID to watch a different agent.`, defaultAgent)
+	if providerList != "No providers registered" {
+		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
+	}
+
+	return &cobra.Command{
+		Use:     "watch [provider-id]",
+		Aliases: []string{"w"},
+		Short:   "Watch for terminal coding agent activity with auto-save",
+		Long:    longDesc,
+		Example: examples,
+		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("Running in watch mode")
+
+			// Get the provider
+			registry := factory.GetRegistry()
+			var providerID string
+			if len(args) == 0 {
+				// Default to first registered provider
+				ids := registry.ListIDs()
+				if len(ids) > 0 {
+					providerID = ids[0]
+				} else {
+					return fmt.Errorf("no providers registered")
+				}
+			} else {
+				providerID = args[0]
+			}
+
+			provider, err := registry.Get(providerID)
+			if err != nil {
+				// Provider not found - show helpful error
+				fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
+
+				ids := registry.ListIDs()
+				if len(ids) > 0 {
+					fmt.Println("The registered providers are:")
+					for _, id := range ids {
+						if p, _ := registry.Get(id); p != nil {
+							fmt.Printf("  • %s - %s\n", id, p.Name())
+						}
+					}
+					fmt.Println("\nExample: specstory watch " + ids[0])
+				}
+				return err
+			}
+
+			slog.Info("Watching agent", "provider", provider.Name())
+
+			// Set the agent provider for analytics
+			analytics.SetAgentProviders([]string{provider.Name()})
+
+			// Setup output configuration
+			config, err := utils.SetupOutputConfig(outputDir)
+			if err != nil {
+				return err
+			}
+			// Ensure history directory exists for watch mode
+			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+				return err
+			}
+
+			// Initialize project identity
+			cwd, err := os.Getwd()
+			if err != nil {
+				slog.Error("Failed to get current working directory", "error", err)
+				return err
+			}
+			identityManager := utils.NewProjectIdentityManager(cwd)
+			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+				// Log error but don't fail the command
+				slog.Error("Failed to ensure project identity", "error", err)
+			}
+
+			// Check authentication for cloud sync
+			checkAndWarnAuthentication()
+			// Track extension activation
+			analytics.TrackEvent(analytics.EventExtensionActivated, nil)
+
+			// Get debug-raw flag value (must be before callback to capture in closure)
+			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+
+			// This callback pattern enables real-time processing of agent sessions
+			// without blocking the agent's execution. As the agent writes updates to its
+			// data files, the provider's watcher detects changes and invokes this callback,
+			// allowing immediate markdown generation and cloud sync. Errors are logged but
+			// don't stop execution because transient failures (e.g., network issues) shouldn't
+			// interrupt the user's coding session.
+			sessionCallback := func(session *spi.AgentChatSession) {
+				if session == nil {
+					return
+				}
+
+				slog.Info("Session callback called", "sessionId", session.SessionID)
+
+				// Process the session (write markdown and sync to cloud)
+				// Don't show output during watch mode
+				// This is autosave mode (true)
+				err := processSingleSession(session, provider, config, false, true, debugRaw)
+				if err != nil {
+					// Log error but continue - don't fail the whole watch
+					// In watch mode, we prioritize keeping the watcher running.
+					// Failed markdown writes or cloud syncs can be retried later via
+					// the sync command, so we just log and continue.
+					slog.Error("Failed to process session update",
+						"sessionId", session.SessionID,
+						"error", err)
+				} else {
+					slog.Info("Session callback processed successfully", "sessionId", session.SessionID)
+				}
+			}
+
+			// Create context for cancellation (Ctrl+C handling)
+			ctx := context.Background()
+
+			// Watch for agent activity
+			slog.Info("Starting agent monitoring", "provider", provider.Name())
+			if !silent {
+				fmt.Println()
+				fmt.Printf("👀 Watching for %s activity in watch mode...\n", provider.Name())
+				fmt.Println("   Press Ctrl+C to stop watching")
+				fmt.Println()
+			}
+
+			err = provider.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
+
+			if err != nil {
+				slog.Error("Agent watching failed", "provider", provider.Name(), "error", err)
+			}
+
+			return err
+		},
+	}
+}
+
+var watchCmd *cobra.Command
 
 // createSyncCommand dynamically creates the sync command with provider information
 func createSyncCommand() *cobra.Command {
@@ -1766,6 +1943,7 @@ func main() {
 	// NOW create the commands - after logging is configured
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
+	watchCmd = createWatchCommand()
 	syncCmd = createSyncCommand()
 	checkCmd = createCheckCommand()
 
@@ -1780,6 +1958,7 @@ func main() {
 
 	// Add the subcommands
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(checkCmd)
@@ -1813,6 +1992,13 @@ func main() {
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+
+	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
+	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 
 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 
