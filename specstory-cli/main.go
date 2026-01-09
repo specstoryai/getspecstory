@@ -979,7 +979,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			}
 		} else {
 			// In cloud-only mode, always count as updated (cloud will handle checking)
-			stats.SessionsUpdated++
+			stats.SessionsSkipped++
 			slog.Info("Skipping local file write (only-cloud-sync mode)",
 				"sessionId", session.SessionID)
 		}
