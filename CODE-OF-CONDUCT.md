@@ -1,0 +1,1 @@
+./specstory-cli/CODE-OF-CONDUCT.md

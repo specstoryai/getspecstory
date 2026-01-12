@@ -1,0 +1,43 @@
+project_name: SpecStoryCLI
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    binary: specstory
+    main: ./main.go
+    dir: ./
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X github.com/specstoryai/SpecStoryCLI/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}}
+
+archives:
+  - id: targz
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - none*
+  - id: zip
+    format: zip
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - none*
+
+release:
+  github:
+    owner: specstoryai
+    name: getspecstory  # This pushes to the PUBLIC repo

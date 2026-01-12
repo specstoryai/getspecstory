@@ -1,0 +1,80 @@
+name: Release to Public Repo
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      - uses: goreleaser/goreleaser-action@v5
+        with:
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+
+      - name: Collect release details
+        id: release_details
+        continue-on-error: true
+        run: |
+            # Extract version from git tag (github.ref_name will be like "v0.13.0")
+            VERSION="${{ github.ref_name }}"
+            # Extract changelog for this version from changelog.md
+            # The changelog format is: ## v0.13.0 2025-10-26
+            CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' changelog.md)
+            {
+              echo "version=$VERSION"
+              echo "changelog<<CHANGELOG_EOF"
+              echo "$CHANGELOG"
+              echo "CHANGELOG_EOF"
+            } >> "$GITHUB_OUTPUT"
+
+      - name: Notify Slack (#clients)
+        env:
+            SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_CLIENTS }}
+            VERSION: ${{ steps.release_details.outputs.version || 'unknown version' }}
+            CHANGELOG: ${{ steps.release_details.outputs.changelog || 'failed collecting release details' }}
+        run: |
+            {
+              printf "\n\nChangelog:\n%s\n" "$CHANGELOG"
+            } > message.txt
+
+            TITLE="*CLI $VERSION released*"
+            jq -n \
+              --rawfile text message.txt \
+              --arg title "$TITLE" \
+              --arg username "SpecStory Release Bot" \
+              --arg icon ":specstory:" \
+              '{
+                username: $username,
+                icon_emoji: $icon,
+                attachments: [
+                  {
+                    color: "#e35a2c",
+                    blocks: [
+                      {
+                        "type": "section",
+                        "text": { "type": "mrkdwn", "text": $title }
+                      },
+                      {
+                        "type": "section",
+                        "text": { "type": "mrkdwn", "text": $text }
+                      }
+                    ]
+                  }
+                ]
+              }' > payload.json
+            curl -X POST -H 'Content-type: application/json' --data @payload.json "$SLACK_WEBHOOK_URL"

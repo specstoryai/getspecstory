@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specstory.ai/schemas/session-data-v1.json",
+  "title": "Session Data",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "provider", "sessionId", "createdAt", "workspaceRoot", "exchanges"],
+  "properties": {
+    "schemaVersion": { "type": "string", "const": "1.0" },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "version"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "sessionId": { "type": "string" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "slug": { "type": "string" },
+    "workspaceRoot": { "type": "string" },
+    "exchanges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/exchange" }
+    }
+  },
+  "$defs": {
+    "userMessage": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["role", "content"],
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "role": { "const": "user" },
+        "content": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/contentPart" }
+        }
+      },
+      "allOf": [
+        { "not": { "required": ["tool"] } },
+        { "not": { "required": ["model"] } }
+      ]
+    },
+    "agentMessage": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["role"],
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "role": { "const": "agent" },
+        "model": { "type": "string" },
+        "content": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/contentPart" },
+          "default": []
+        },
+        "tool": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["name", "type"],
+          "properties": {
+            "name": { "type": "string" },
+            "type": { "type": "string", "enum": ["write", "read", "search", "shell", "task", "generic", "unknown"] },
+            "useId": { "type": "string" },
+            "input": {},
+            "output": {},
+            "summary": { "type": "string" },
+            "formattedMarkdown": { "type": "string" }
+          }
+        },
+        "pathHints": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "metadata": { "type": "object", "additionalProperties": true }
+      },
+      "anyOf": [
+        { "properties": { "content": { "minItems": 1 } } },
+        { "required": ["tool"] },
+        { "properties": { "pathHints": { "minItems": 1 } } }
+      ]
+    },
+    "contentPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "type": "string", "enum": ["text", "thinking"] },
+        "text": { "type": "string" }
+      }
+    },
+
+    "exchange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exchangeId", "messages"],
+      "properties": {
+        "exchangeId": { "type": "string" },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "messages": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/userMessage" },
+              { "$ref": "#/$defs/agentMessage" }
+            ]
+          }
+        },
+        "metadata": { "type": "object", "additionalProperties": true }
+      }
+    }
+  }
+}

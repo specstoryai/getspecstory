@@ -1,0 +1,1 @@
+./specstory-cli/LICENSE.txt
