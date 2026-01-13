@@ -4,7 +4,6 @@
 *.dll
 *.so
 *.dylib
-specstory
 
 # Test binary, built with `go test -c`
 *.test
@@ -49,6 +48,9 @@ dist/
 
 # Log files
 *.log
+
+# SpecStory explanation file
+.specstory/.what-is-this.md
 
 # Our binary
 specstory
