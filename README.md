@@ -108,11 +108,6 @@ SpecStory Cloud creates your personal AI coding knowledge base:
 > [!IMPORTANT]
 > **Local-First & Private by Default**: All sessions are saved locally to `.specstory/history/`. Nothing is ever sent to the cloud unless you explicitly login with. Even after logging in, you can control what gets synced.
 
-## Additional Tools
-
-### BearClaude (macOS)
-For those who prefer a dedicated spec-writing environment, [BearClaude](https://bearclaude.specstory.com) offers a three-pane interface combining documentation, editing, and Claude Code terminal. Perfect for maintaining specs alongside your code. ([Learn more](https://docs.specstory.com/bearclaude/introduction))
-
 ## Documentation & Support
 
 - 📚 **[Full Documentation](https://docs.specstory.com/overview)** - Complete guides and [Cloud API reference](https://docs.specstory.com/api-reference/introduction)
