@@ -8,7 +8,6 @@ require (
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
 	github.com/posthog/posthog-go v1.5.12 // Analytics tracking
 	github.com/spf13/cobra v1.9.1 // Command-line interface framework
-	github.com/swaggest/jsonschema-go v0.3.72 // JSON schema validation (and generation) for Go structs
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
 	golang.org/x/text v0.26.0 // Text processing and Unicode normalization
 	modernc.org/sqlite v1.39.1 // Pure Go SQLite database driver
@@ -36,7 +35,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	github.com/swaggest/refl v1.3.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
