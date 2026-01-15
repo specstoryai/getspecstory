@@ -8,6 +8,7 @@
 
 Never lose a brilliant solution, code snippet, or architectural decision again. SpecStory captures, indexes, and makes searchable every interaction you have with AI coding assistants across all your projects and tools.
 
+[![CLI Open Source](https://img.shields.io/badge/CLI-Open%20Source-brightgreen?style=flat-square)](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli)
 [![Installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3Dinstalls&style=flat-square)](https://specstory.com/api/badge?stat=installs)
 [![Active Users](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DactiveUsers&style=flat-square)](https://specstory.com/api/badge?stat=activeUsers)
 [![Sessions Saved](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square)](https://specstory.com/api/badge?stat=sessionsSaved)
@@ -48,11 +49,11 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Installation
 
-| Product | Type | Supported Agents | Min Version | Installation | Changelog |
-|---------|------|------------------|-------------|--------------|-----------|
-| **[Cursor Extension](https://www.cursor.com/)** | IDE | [Cursor AI](https://www.cursor.com/) | v0.43.6+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE | [GitHub Copilot](https://github.com/features/copilot) | v1.300.0+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)** | CLI | [Claude Code](https://claude.ai/claude-code)<br/>[Cursor CLI](https://cursor.com/cli)<br/>[Codex CLI](https://www.openai.com/codex)<br/>[Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | v1.0.27+<br/>v2025.09.18+<br/>v0.42.0+<br/>0.15.1+ | `brew tap specstoryai/tap`<br/>`brew install specstory` | [📋 View](https://github.com/specstoryai/getspecstory/releases) |
+| Product | Type | Source | Supported Agents | Min Version | Installation | Changelog |
+|---------|------|--------|------------------|-------------|--------------|-----------|
+| **[Cursor Extension](https://www.cursor.com/)** | IDE | Closed | [Cursor AI](https://www.cursor.com/) | v0.43.6+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
+| **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE | Closed | [GitHub Copilot](https://github.com/features/copilot) | v1.300.0+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)** | CLI | [Open](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli) | [Claude Code](https://claude.ai/claude-code)<br/>[Cursor CLI](https://cursor.com/cli)<br/>[Codex CLI](https://www.openai.com/codex)<br/>[Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | v1.0.27+<br/>v2025.09.18+<br/>v0.42.0+<br/>0.15.1+ | `brew tap specstoryai/tap`<br/>`brew install specstory` | [📋 View](https://github.com/specstoryai/getspecstory/releases) |
 
 > [!NOTE]
 > For Cursor users: Install from within Cursor, not from the Visual Studio Marketplace website. [Learn why](https://github.com/specstoryai/getspecstory/issues/8)
