@@ -1606,3 +1606,175 @@ All three checks passed:
 The "no files matched" warnings are expected - that's the intentional `files: none*` pattern to exclude extra files from archives (only the binary is included).
 
 The release workflow is ready. The `dist/` directory now has the test artifacts if you want to inspect them.
+
+---
+
+_**User (2026-01-16T17:12:11.374Z)**_
+
+Run goreleaser/goreleaser-action@v5
+Downloading https://github.com/goreleaser/goreleaser/releases/download/v1.26.2/goreleaser_Linux_x86_64.tar.gz
+Extracting GoReleaser
+/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/82bfa085-2e49-4bd9-b98e-76bc5ee29ca5 -f /home/runner/work/_temp/0fd8ebad-0762-4b9b-8265-fd76b60547e3
+GoReleaser ~> v1 installed successfully
+/opt/hostedtoolcache/goreleaser-action/1.26.2/x64/goreleaser release --clean
+  • starting release...
+  ⨯ release failed after 0s                  error=only configurations files on  version: 1  are supported, yours is  version: 2 , please update your configuration
+Error: The process '/opt/hostedtoolcache/goreleaser-action/1.26.2/x64/goreleaser' failed with exit code 1
+
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:15.831Z)**_
+
+<think><details><summary>Thought Process</summary>
+The GitHub Action is using goreleaser-action@v5 which downloads goreleaser v1.26.2, but our config is version 2 format which requires goreleaser v2. We need to update the action to use goreleaser v2.
+
+Looking at the goreleaser-action documentation, we can specify the version using the `version` input parameter.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:16.255Z)**_
+
+The GitHub Action is pulling goreleaser v1.x, but our config requires v2. Need to specify the goreleaser version in the workflow.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:17.285Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./.github/workflows/release.yml`
+```
+     1→name: Release CLI
+     2→
+     3→on:
+     4→  push:
+     5→    tags:
+     6→      - 'v*'
+     7→
+     8→permissions:
+     9→  contents: write
+    10→
+    11→jobs:
+    12→  goreleaser:
+    13→    runs-on: ubuntu-latest
+    14→    environment: production
+    15→    steps:
+    16→      - uses: actions/checkout@v4
+    17→        with:
+    18→          fetch-depth: 0
+    19→      - uses: actions/setup-go@v4
+    20→        with:
+    21→          go-version: '1.21'
+    22→      - uses: goreleaser/goreleaser-action@v5
+    23→        with:
+    24→          args: release --clean
+    25→        env:
+    26→          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    27→          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+    28→
+    29→      - name: Collect release details
+    30→        id: release_details
+    31→        continue-on-error: true
+    32→        run: |
+    33→            # Extract version from git tag (github.ref_name will be like "v0.13.0")
+    34→            VERSION="${{ github.ref_name }}"
+    35→            # Extract changelog for this version from specstory-cli/changelog.md
+    36→            # The changelog format is: ## v0.13.0 2025-10-26
+    37→            CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' specstory-cli/changelog.md)
+    38→            {
+    39→              echo "version=$VERSION"
+    40→              echo "changelog<<CHANGELOG_EOF"
+    41→              echo "$CHANGELOG"
+    42→              echo "CHANGELOG_EOF"
+    43→            } >> "$GITHUB_OUTPUT"
+    44→
+    45→      - name: Notify Slack (#clients)
+    46→        env:
+    47→            SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_CLIENTS }}
+    48→            VERSION: ${{ steps.release_details.outputs.version || 'unknown version' }}
+    49→            CHANGELOG: ${{ steps.release_details.outputs.changelog || 'failed collecting release details' }}
+    50→        run: |
+    51→            {
+    52→              printf "\n\nChangelog:\n%s\n" "$CHANGELOG"
+    53→            } > message.txt
+    54→
+    55→            TITLE="*CLI $VERSION released*"
+    56→            jq -n \
+    57→              --rawfile text message.txt \
+    58→              --arg title "$TITLE" \
+    59→              --arg username "SpecStory Release Bot" \
+    60→              --arg icon ":specstory:" \
+    61→              '{
+    62→                username: $username,
+    63→                icon_emoji: $icon,
+    64→                attachments: [
+    65→                  {
+    66→                    color: "#e35a2c",
+    67→                    blocks: [
+    68→                      {
+    69→                        "type": "section",
+    70→                        "text": { "type": "mrkdwn", "text": $title }
+    71→                      },
+    72→                      {
+    73→                        "type": "section",
+    74→                        "text": { "type": "mrkdwn", "text": $text }
+    75→                      }
+    76→                    ]
+    77→                  }
+    78→                ]
+    79→              }' > payload.json
+    80→            curl -X POST -H 'Content-type: application/json' --data @payload.json "$SLACK_WEBHOOK_URL"
+    81→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:21.513Z)**_
+
+<think><details><summary>Thought Process</summary>
+I need to add `version: ~> v2` to the goreleaser-action to use goreleaser v2. Also, I should update goreleaser-action to v6 since that's the latest.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:22.876Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/.github/workflows/release.yml has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+    18→          fetch-depth: 0
+    19→      - uses: actions/setup-go@v4
+    20→        with:
+    21→          go-version: '1.21'
+    22→      - uses: goreleaser/goreleaser-action@v6
+    23→        with:
+    24→          version: "~> v2"
+    25→          args: release --clean
+    26→        env:
+    27→          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    28→          POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+    29→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:30.826Z)**_
+
+<think><details><summary>Thought Process</summary>
+Done. Updated to goreleaser-action@v6 with `version: "~> v2"` to use goreleaser v2.x.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16T17:12:31.390Z)**_
+
+Updated the workflow to use `goreleaser-action@v6` with `version: "~> v2"`. Push and re-run should work now.
+
+---
+
+_**User (2026-01-16T22:14:14.051Z)**_
+
+<command-name>/exit</command-name>
+            <command-message>exit</command-message>
+            <command-args></command-args>
+
+_**User (2026-01-16T22:14:14.051Z)**_
+
+<local-command-stdout>Catch you later!</local-command-stdout>
+
+_**User (2026-01-16T22:14:14.053Z)**_
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
