@@ -1,4 +1,4 @@
-package gemini
+package geminicli
 
 import (
 	"encoding/json"
