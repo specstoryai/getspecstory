@@ -48,13 +48,14 @@ type toolFormatter func(toolName string, input map[string]interface{}, descripti
 
 // toolFormatters is a registry of tool-specific formatters
 var toolFormatters = map[string]toolFormatter{
-	"Bash":      formatBashTool,
-	"Write":     formatWriteTool,
-	"Read":      formatReadTool,
-	"Grep":      formatGrepTool,
-	"Glob":      formatGrepTool,
-	"MultiEdit": formatMultiEditTool,
-	"TodoWrite": formatTodoWriteTool,
+	"Bash":            formatBashTool,
+	"Write":           formatWriteTool,
+	"Read":            formatReadTool,
+	"Grep":            formatGrepTool,
+	"Glob":            formatGrepTool,
+	"MultiEdit":       formatMultiEditTool,
+	"TodoWrite":       formatTodoWriteTool,
+	"AskUserQuestion": formatAskUserQuestionTool,
 }
 
 // Pre-compiled regular expressions for performance
@@ -331,6 +332,109 @@ func formatTodoList(todos []interface{}) string {
 	}
 
 	return result.String()
+}
+
+// formatAskUserQuestionTool formats AskUserQuestion tool usage showing the question and options
+func formatAskUserQuestionTool(toolName string, input map[string]interface{}, description string) string {
+	if input == nil {
+		return ""
+	}
+
+	questions, ok := input["questions"].([]interface{})
+	if !ok || len(questions) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+
+	for i, q := range questions {
+		questionMap, ok := q.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		// Extract question text
+		questionText, _ := questionMap["question"].(string)
+		if questionText == "" {
+			continue
+		}
+
+		// Add separator between multiple questions
+		if i > 0 {
+			result.WriteString("\n")
+		}
+
+		// Write question with multi-select indicator if applicable
+		multiSelect, _ := questionMap["multiSelect"].(bool)
+		if multiSelect {
+			result.WriteString(fmt.Sprintf("**%s** _(select multiple)_\n", questionText))
+		} else {
+			result.WriteString(fmt.Sprintf("**%s**\n", questionText))
+		}
+
+		// Extract and format options
+		options, ok := questionMap["options"].([]interface{})
+		if ok && len(options) > 0 {
+			result.WriteString("\nOptions:\n")
+			for _, opt := range options {
+				optMap, ok := opt.(map[string]interface{})
+				if !ok {
+					continue
+				}
+
+				label, _ := optMap["label"].(string)
+				desc, _ := optMap["description"].(string)
+
+				if label != "" {
+					if desc != "" {
+						result.WriteString(fmt.Sprintf("- **%s** - %s\n", label, desc))
+					} else {
+						result.WriteString(fmt.Sprintf("- **%s**\n", label))
+					}
+				}
+			}
+		}
+	}
+
+	return result.String()
+}
+
+// parseAskUserQuestionAnswer extracts the answer(s) from the AskUserQuestion output content
+// The format is: User has answered your questions: "Question"="Answer". You can now continue...
+func parseAskUserQuestionAnswer(content string) string {
+	// Find the answers portion between the colon and the final period sentence
+	start := strings.Index(content, ": \"")
+	if start == -1 {
+		return ""
+	}
+
+	// Find the end - look for ". You can now continue"
+	end := strings.Index(content, ". You can now continue")
+	if end == -1 {
+		end = len(content)
+	}
+
+	answerPart := content[start+2 : end]
+
+	// Parse the Q="A" pairs
+	// Format: "Question1"="Answer1", "Question2"="Answer2"
+	var answers []string
+	pairs := strings.Split(answerPart, ", \"")
+	for _, pair := range pairs {
+		pair = strings.TrimPrefix(pair, "\"")
+		// Split on "="
+		parts := strings.SplitN(pair, "\"=\"", 2)
+		if len(parts) == 2 {
+			answer := strings.TrimSuffix(parts[1], "\"")
+			answers = append(answers, answer)
+		}
+	}
+
+	if len(answers) == 0 {
+		return ""
+	}
+
+	return strings.Join(answers, ", ")
 }
 
 // stripANSIEscapeSequences converts ANSI escape sequences to markdown formatting

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/xeipuuv/gojsonschema"
@@ -177,6 +178,80 @@ func TestClassifyToolType(t *testing.T) {
 			result := classifyToolType(tt.toolName)
 			if result != tt.expected {
 				t.Errorf("classifyToolType(%q) = %q, want %q", tt.toolName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatToolAsMarkdown_AskUserQuestion(t *testing.T) {
+	tests := []struct {
+		name        string
+		tool        *ToolInfo
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "Parseable answer formats nicely",
+			tool: &ToolInfo{
+				Name:  "AskUserQuestion",
+				Input: map[string]interface{}{},
+				Output: map[string]interface{}{
+					"content": `User has answered your questions: "What color?"="Blue". You can now continue with the user's answers in mind.`,
+				},
+			},
+			contains:    []string{"**Answer:** Blue"},
+			notContains: []string{"```"},
+		},
+		{
+			name: "Unparseable content falls back to code block",
+			tool: &ToolInfo{
+				Name:  "AskUserQuestion",
+				Input: map[string]interface{}{},
+				Output: map[string]interface{}{
+					"content": "Some unexpected format that cannot be parsed",
+				},
+			},
+			contains:    []string{"```", "Some unexpected format that cannot be parsed"},
+			notContains: []string{"**Answer:**"},
+		},
+		{
+			name: "Empty content produces no output",
+			tool: &ToolInfo{
+				Name:  "AskUserQuestion",
+				Input: map[string]interface{}{},
+				Output: map[string]interface{}{
+					"content": "",
+				},
+			},
+			contains:    []string{},
+			notContains: []string{"**Answer:**", "```"},
+		},
+		{
+			name: "Whitespace-only content produces no output",
+			tool: &ToolInfo{
+				Name:  "AskUserQuestion",
+				Input: map[string]interface{}{},
+				Output: map[string]interface{}{
+					"content": "   \t  ",
+				},
+			},
+			contains:    []string{},
+			notContains: []string{"**Answer:**", "```"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatToolAsMarkdown(tt.tool, "/workspace")
+			for _, substr := range tt.contains {
+				if !strings.Contains(result, substr) {
+					t.Errorf("formatToolAsMarkdown() result doesn't contain %q\nGot: %q", substr, result)
+				}
+			}
+			for _, substr := range tt.notContains {
+				if strings.Contains(result, substr) {
+					t.Errorf("formatToolAsMarkdown() result should not contain %q\nGot: %q", substr, result)
+				}
 			}
 		})
 	}

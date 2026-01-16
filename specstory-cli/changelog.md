@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v0.18.0 2026-01-16
+
+### ⚙️ Improvements
+
+- Include the agent's question in the markdown output from `AskUserQuestion` tool use with the Claude Code provider.
+
 ## v0.17.0 2026-01-07
 
 ### ⚙️ Improvements

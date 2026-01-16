@@ -342,3 +342,209 @@ func TestStripANSIEscapeSequences(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatAskUserQuestionTool(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       map[string]interface{}
+		description string
+		contains    []string
+		notContains []string
+	}{
+		{
+			name: "Single select question with options",
+			input: map[string]interface{}{
+				"questions": []interface{}{
+					map[string]interface{}{
+						"question":    "What type of project would you like to work on today?",
+						"header":      "Project type",
+						"multiSelect": false,
+						"options": []interface{}{
+							map[string]interface{}{
+								"label":       "Web application",
+								"description": "Build or modify a frontend web app",
+							},
+							map[string]interface{}{
+								"label":       "CLI tool",
+								"description": "Create a command-line interface tool",
+							},
+						},
+					},
+				},
+			},
+			description: "",
+			contains: []string{
+				"**What type of project would you like to work on today?**",
+				"Options:",
+				"- **Web application** - Build or modify a frontend web app",
+				"- **CLI tool** - Create a command-line interface tool",
+			},
+			notContains: []string{
+				"select multiple",
+			},
+		},
+		{
+			name: "Multi-select question",
+			input: map[string]interface{}{
+				"questions": []interface{}{
+					map[string]interface{}{
+						"question":    "Which features would you like?",
+						"header":      "Features",
+						"multiSelect": true,
+						"options": []interface{}{
+							map[string]interface{}{
+								"label":       "Authentication",
+								"description": "User login and sessions",
+							},
+							map[string]interface{}{
+								"label":       "Database",
+								"description": "Database integration",
+							},
+						},
+					},
+				},
+			},
+			description: "",
+			contains: []string{
+				"**Which features would you like?** _(select multiple)_",
+				"- **Authentication** - User login and sessions",
+				"- **Database** - Database integration",
+			},
+			notContains: []string{},
+		},
+		{
+			name: "Option without description",
+			input: map[string]interface{}{
+				"questions": []interface{}{
+					map[string]interface{}{
+						"question":    "Pick a color",
+						"multiSelect": false,
+						"options": []interface{}{
+							map[string]interface{}{
+								"label": "Red",
+							},
+							map[string]interface{}{
+								"label": "Blue",
+							},
+						},
+					},
+				},
+			},
+			description: "",
+			contains: []string{
+				"**Pick a color**",
+				"- **Red**",
+				"- **Blue**",
+			},
+			notContains: []string{},
+		},
+		{
+			name:        "Nil input returns empty string",
+			input:       nil,
+			description: "",
+			contains:    []string{},
+			notContains: []string{},
+		},
+		{
+			name:        "Empty questions array returns empty string",
+			input:       map[string]interface{}{"questions": []interface{}{}},
+			description: "",
+			contains:    []string{},
+			notContains: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatAskUserQuestionTool("AskUserQuestion", tt.input, tt.description)
+			for _, substr := range tt.contains {
+				if !strings.Contains(result, substr) {
+					t.Errorf("formatAskUserQuestionTool() result doesn't contain %q\nGot: %q", substr, result)
+				}
+			}
+			for _, substr := range tt.notContains {
+				if strings.Contains(result, substr) {
+					t.Errorf("formatAskUserQuestionTool() result should not contain %q\nGot: %q", substr, result)
+				}
+			}
+		})
+	}
+}
+
+func TestParseAskUserQuestionAnswer(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Single answer",
+			input:    `User has answered your questions: "What type of project would you like to work on today?"="API/Backend". You can now continue with the user's answers in mind.`,
+			expected: "API/Backend",
+		},
+		{
+			name:     "Multi-select answer",
+			input:    `User has answered your questions: "Which features would you like to include in your API/Backend project?"="REST endpoints, Testing, And my own thing". You can now continue with the user's answers in mind.`,
+			expected: "REST endpoints, Testing, And my own thing",
+		},
+		{
+			name:     "No colon found",
+			input:    "Some random text without the expected format",
+			expected: "",
+		},
+		{
+			name:     "Empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "Truncated content without continuation sentence",
+			input:    `User has answered your questions: "Pick a color"="Blue"`,
+			expected: "Blue",
+		},
+		{
+			name:     "Answer containing equals sign",
+			input:    `User has answered your questions: "When configuring environment variables, which format do you prefer?"="KEY=value pairs". You can now continue with the user's answers in mind.`,
+			expected: "KEY=value pairs",
+		},
+		{
+			name:     "Answer containing commas",
+			input:    `User has answered your questions: "Which format do you prefer?"="YAML, TOML, or similar". You can now continue with the user's answers in mind.`,
+			expected: "YAML, TOML, or similar",
+		},
+		{
+			name:     "Multi-select with equals and commas in answer",
+			input:    `User has answered your questions: "Which formats do you prefer?"="KEY=value pairs, YAML, TOML, or similar, Also this". You can now continue with the user's answers in mind.`,
+			expected: "KEY=value pairs, YAML, TOML, or similar, Also this",
+		},
+		{
+			name:     "Multiple questions returns all answers",
+			input:    `User has answered your questions: "Question 1"="Answer 1", "Question 2"="Answer 2". You can now continue with the user's answers in mind.`,
+			expected: "Answer 1, Answer 2",
+		},
+		{
+			name:     "Answer containing single quotes",
+			input:    `User has answered your questions: "Which style?"="console.log('single')". You can now continue with the user's answers in mind.`,
+			expected: "console.log('single')",
+		},
+		{
+			name:     "Answer containing backticks",
+			input:    "User has answered your questions: \"Which style?\"=\"Template `literals`\". You can now continue with the user's answers in mind.",
+			expected: "Template `literals`",
+		},
+		{
+			name:     "Answer containing single quotes and backticks together",
+			input:    "User has answered your questions: \"Which style?\"=\"console.log('hello'), Template `literals`, It's working!\". You can now continue with the user's answers in mind.",
+			expected: "console.log('hello'), Template `literals`, It's working!",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseAskUserQuestionAnswer(tt.input)
+			if result != tt.expected {
+				t.Errorf("parseAskUserQuestionAnswer() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}

@@ -527,8 +527,19 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 				// Only trim trailing spaces/tabs, preserve all newlines
 				cleaned = strings.TrimRight(cleaned, " \t")
 
-				// Skip TodoWrite success messages
-				if strings.TrimSpace(cleaned) != TodoWriteSuccessMessage && cleaned != "" {
+				// Special handling for AskUserQuestion - parse and format the answer nicely
+				if tool.Name == "AskUserQuestion" {
+					answer := parseAskUserQuestionAnswer(cleaned)
+					if answer != "" {
+						markdown.WriteString(fmt.Sprintf("\n**Answer:** %s\n", answer))
+					} else if cleaned != "" {
+						// Fallback to code block if parsing fails
+						markdown.WriteString("```\n")
+						markdown.WriteString(cleaned)
+						markdown.WriteString("\n```\n")
+					}
+				} else if strings.TrimSpace(cleaned) != TodoWriteSuccessMessage && cleaned != "" {
+					// Skip TodoWrite success messages
 					markdown.WriteString("```\n")
 					markdown.WriteString(cleaned)
 					markdown.WriteString("\n```\n")
