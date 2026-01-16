@@ -16,7 +16,7 @@ Ignore any changes to:
 - .specstory/history files
 - .claude/ files
 - .cursor/ files
-- ./SpecStoryCLI or ./specstory binary
+- ./specstory binary
 - CLAUDE.md
 - AGENT.md
 - changelog.md

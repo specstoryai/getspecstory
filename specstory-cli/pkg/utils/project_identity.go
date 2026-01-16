@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/specstoryai/SpecStoryCLI/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 )
 
 const PROJECT_JSON_FILE = ".project.json"

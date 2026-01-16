@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // Type aliases for convenience - use the shared schema types

@@ -17,13 +17,13 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/analytics"
-	"github.com/specstoryai/SpecStoryCLI/pkg/cloud"
-	"github.com/specstoryai/SpecStoryCLI/pkg/log"
-	"github.com/specstoryai/SpecStoryCLI/pkg/markdown"
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi/factory"
-	"github.com/specstoryai/SpecStoryCLI/pkg/utils"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
 // The current version of the CLI

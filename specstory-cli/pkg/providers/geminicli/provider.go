@@ -12,9 +12,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/analytics"
-	"github.com/specstoryai/SpecStoryCLI/pkg/log"
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 type Provider struct{}

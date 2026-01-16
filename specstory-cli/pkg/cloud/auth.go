@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/utils"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
 // ===== Device Metadata Types =====

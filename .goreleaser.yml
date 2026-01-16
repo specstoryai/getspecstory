@@ -17,7 +17,7 @@ builds:
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
-      - -X github.com/specstoryai/SpecStoryCLI/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}}
+      - -X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey={{.Env.POSTHOG_API_KEY}}
 
 archives:
   - id: targz

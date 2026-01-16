@@ -3,7 +3,7 @@ package spi
 import (
 	"context"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // CheckResult contains the result of a provider check operation

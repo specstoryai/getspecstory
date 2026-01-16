@@ -3,7 +3,7 @@ Examine the file changes for the pull request.
 Ignore any changes to:
 - .specstory/history files
 - .claude files
-- ./SpecStoryCLI or ./specstory binary
+- ./specstory binary
 - CLAUDE.md
 - AGENT.md
 - changelog.md

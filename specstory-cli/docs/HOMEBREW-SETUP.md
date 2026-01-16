@@ -130,20 +130,20 @@ class Specstory < Formula
 
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Darwin_arm64.tar.gz"
+      url "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Darwin_arm64.tar.gz"
       sha256 "ARM64_SHA256_HERE"
     else
-      url "https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Darwin_x86_64.tar.gz"
+      url "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Darwin_x86_64.tar.gz"
       sha256 "AMD64_SHA256_HERE"
     end
   end
 
   on_linux do
     if Hardware::CPU.arm?
-      url "https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Linux_arm64.tar.gz"
+      url "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Linux_arm64.tar.gz"
       sha256 "LINUX_ARM64_SHA256_HERE"
     else
-      url "https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Linux_x86_64.tar.gz"
+      url "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Linux_x86_64.tar.gz"
       sha256 "LINUX_AMD64_SHA256_HERE"
     end
   end
@@ -239,10 +239,10 @@ git push origin v1.0.0
 
 ### After release completes, get SHA256 hashes:
 ```bash
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.1.0/SpecStoryCLI_Darwin_arm64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.1.0/SpecStoryCLI_Darwin_x86_64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.1.0/SpecStoryCLI_Linux_arm64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.1.0/SpecStoryCLI_Linux_x86_64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Darwin_arm64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Darwin_x86_64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Linux_arm64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Linux_x86_64.tar.gz | shasum -a 256
 ```
 
 ### Update Homebrew formula with real SHA256 values and push to tap repo.

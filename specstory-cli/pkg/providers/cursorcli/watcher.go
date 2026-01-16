@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 

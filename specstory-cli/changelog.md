@@ -1,10 +1,16 @@
 # Specstory CLI Changelog
 
+## v1.0.0 2026-01-16
+
+### 📢 Announcements
+
+- Now that the SpecStory CLI is open sourced under the [Apache 2.0 license](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/LICENSE.txt) at [https://github.com/specstoryai/getspecstory/tree/main/specstory-cli](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli) it is now also graduating to `v1.0.0` 🎉 
+
 ## v0.18.0 2026-01-16
 
 ### 📢 Announcements
 
-- The SpecStory CLI is now open sourced under the [Apache 2.0 license](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/LICENSE.txt) at `https://github.com/specstoryai/getspecstory/tree/main/specstory-cli` and [contributions](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/CONTRIBUTING.md) are welcome!
+- The SpecStory CLI is now open sourced under the [Apache 2.0 license](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/LICENSE.txt) at [https://github.com/specstoryai/getspecstory/tree/main/specstory-cli](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli) and [contributions](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/CONTRIBUTING.md) are welcome!
 
 ### ⚙️ Improvements
 

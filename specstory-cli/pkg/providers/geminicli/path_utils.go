@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 var (

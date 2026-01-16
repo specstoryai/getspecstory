@@ -10,11 +10,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/providers/claudecode"
-	"github.com/specstoryai/SpecStoryCLI/pkg/providers/codexcli"
-	"github.com/specstoryai/SpecStoryCLI/pkg/providers/cursorcli"
-	"github.com/specstoryai/SpecStoryCLI/pkg/providers/geminicli"
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Registry manages all registered providers

@@ -274,7 +274,7 @@ Analytics are disabled in development builds by default. To enable analytics dur
 
 ```zsh
 export POSTHOG_API_KEY="your-posthog-api-key"
-go build -ldflags "-X github.com/specstoryai/SpecStoryCLI/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
+go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
 ```
 
 ## License

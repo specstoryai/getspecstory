@@ -9,7 +9,7 @@ import (
 
 	"log/slog"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Package-level variables for mocking in tests

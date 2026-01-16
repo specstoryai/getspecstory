@@ -3,7 +3,7 @@ name: Release CLI
 on:
   push:
     tags:
-      - 'v*'
+      - 'specstory-cli/v*'
 
 permissions:
   contents: write
@@ -31,8 +31,9 @@ jobs:
         id: release_details
         continue-on-error: true
         run: |
-            # Extract version from git tag (github.ref_name will be like "v0.13.0")
+            # Extract version from git tag (github.ref_name will be like "specstory-cli/v1.0.0")
             VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#specstory-cli/}"  # Strip the subdirectory prefix
             # Extract changelog for this version from specstory-cli/changelog.md
             # The changelog format is: ## v0.13.0 2025-10-26
             CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' specstory-cli/changelog.md)

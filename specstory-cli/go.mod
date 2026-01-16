@@ -1,4 +1,4 @@
-module github.com/specstoryai/SpecStoryCLI
+module github.com/specstoryai/getspecstory/specstory-cli
 
 go 1.25.1
 

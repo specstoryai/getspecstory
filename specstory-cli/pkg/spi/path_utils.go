@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
