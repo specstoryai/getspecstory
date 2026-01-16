@@ -17,15 +17,15 @@ git tag -a v0.17.0 -m "Release v0.17.0"
 git push origin v0.17.0
 ```
 
-This will trigger the [GitHub Action](./.github/workflows/release.yml) to build the release and push it to the [GitHub Releases page](https://github.com/specstoryai/getspecstory/releases) of the `specstoryai/getspecstory` repository.
+This will trigger the [GitHub Action](../../.github/workflows/release.yml) to build the release and push it to the [GitHub Releases page](https://github.com/specstoryai/getspecstory/releases).
 
 The steps the GitHub Action will take are:
 
-1. Build binaries from private repo
-2. Create release in public repo (`specstoryai/getspecstory`)
-3. Upload artifacts to public repo
+1. Build binaries for all platforms using GoReleaser
+2. Create a GitHub release with the built artifacts
+3. Notify Slack of the release
 
-You can monitor the [GitHub Action's progress](https://github.com/specstoryai/specstory-cli/actions).
+You can monitor the [GitHub Action's progress](https://github.com/specstoryai/getspecstory/actions).
 
 ## Check the Release
 
@@ -33,7 +33,7 @@ Go to the [GitHub Releases page](https://github.com/specstoryai/getspecstory/rel
 
 ## Update the Changelog
 
-Click the pencil icon to edit the changelog for the new release. Copy the changelog from the [changelog.md](./changelog.md) file and paste it into the changelog.
+Click the pencil icon to edit the changelog for the new release. Copy the changelog from the [changelog.md](../changelog.md) file and paste it into the changelog.
 
 ## Get the SHA256 Hashes of the Released Binaries
 

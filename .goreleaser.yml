@@ -1,3 +1,5 @@
+version: 2
+
 project_name: SpecStoryCLI
 
 builds:
@@ -11,7 +13,7 @@ builds:
       - arm64
     binary: specstory
     main: ./main.go
-    dir: ./
+    dir: ./specstory-cli
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
@@ -19,7 +21,7 @@ builds:
 
 archives:
   - id: targz
-    format: tar.gz
+    formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -28,7 +30,7 @@ archives:
     files:
       - none*
   - id: zip
-    format: zip
+    formats: [zip]
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -36,8 +38,3 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
     files:
       - none*
-
-release:
-  github:
-    owner: specstoryai
-    name: getspecstory  # This pushes to the PUBLIC repo

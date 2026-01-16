@@ -1,4 +1,4 @@
-name: Release to Public Repo
+name: Release CLI
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         with:
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
 
       - name: Collect release details
@@ -32,9 +32,9 @@ jobs:
         run: |
             # Extract version from git tag (github.ref_name will be like "v0.13.0")
             VERSION="${{ github.ref_name }}"
-            # Extract changelog for this version from changelog.md
+            # Extract changelog for this version from specstory-cli/changelog.md
             # The changelog format is: ## v0.13.0 2025-10-26
-            CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' changelog.md)
+            CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' specstory-cli/changelog.md)
             {
               echo "version=$VERSION"
               echo "changelog<<CHANGELOG_EOF"
