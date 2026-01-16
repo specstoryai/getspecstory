@@ -40,10 +40,10 @@ Click the pencil icon to edit the changelog for the new release. Copy the change
 Update the version number in the URLs to the new version number:
 
 ```zsh
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Darwin_arm64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Darwin_x86_64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Linux_arm64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v1.0.0/SpecStoryCLI_Linux_x86_64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Darwin_arm64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Darwin_x86_64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Linux_arm64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v1.0.0/SpecStoryCLI_Linux_x86_64.tar.gz | shasum -a 256
 ```
 
 This will give you the SHA256 hashes of the released binaries. e.g.:
