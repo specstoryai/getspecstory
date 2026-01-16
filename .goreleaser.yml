@@ -2,9 +2,6 @@ version: 2
 
 project_name: SpecStoryCLI
 
-git:
-  tag_prefix: specstory-cli/
-
 builds:
   - env:
       - CGO_ENABLED=0
