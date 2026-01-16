@@ -2,6 +2,10 @@
 
 ## v0.18.0 2026-01-16
 
+### 📢 Announcements
+
+- The SpecStory CLI is now open sourced under the [Apache 2.0 license](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/LICENSE.txt) at `https://github.com/specstoryai/getspecstory/tree/main/specstory-cli` and [contributions](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/CONTRIBUTING.md) are welcome!
+
 ### ⚙️ Improvements
 
 - Include the agent's question in the markdown output from `AskUserQuestion` tool use with the Claude Code provider.

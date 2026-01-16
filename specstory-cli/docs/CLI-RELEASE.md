@@ -2,7 +2,7 @@
 
 The following steps are required to release a new version of the SpecStory Extension for Claude Code.
 
-This is as-of January 7, 2026. Much of this will be automated in the future.
+This is as-of January 16, 2026. Much of this will be automated in the future.
 
 ## Prepare the Release
 
@@ -13,8 +13,8 @@ Once you have the `dev` branch where you want it for a release, merge the branch
 Once the `main` branch is ready for a release, tag the release with the version number. Update the version number in the tag message to the new version number:
 
 ```zsh
-git tag -a v0.17.0 -m "Release v0.17.0"
-git push origin v0.17.0
+git tag -a v0.18.0 -m "Release v0.18.0"
+git push origin v0.18.0
 ```
 
 This will trigger the [GitHub Action](../../.github/workflows/release.yml) to build the release and push it to the [GitHub Releases page](https://github.com/specstoryai/getspecstory/releases).
@@ -40,10 +40,10 @@ Click the pencil icon to edit the changelog for the new release. Copy the change
 Update the version number in the URLs to the new version number:
 
 ```zsh
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.17.0/SpecStoryCLI_Darwin_arm64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.17.0/SpecStoryCLI_Darwin_x86_64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.17.0/SpecStoryCLI_Linux_arm64.tar.gz | shasum -a 256
-curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.17.0/SpecStoryCLI_Linux_x86_64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.18.0/SpecStoryCLI_Darwin_arm64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.18.0/SpecStoryCLI_Darwin_x86_64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.18.0/SpecStoryCLI_Linux_arm64.tar.gz | shasum -a 256
+curl -sL https://github.com/specstoryai/getspecstory/releases/download/v0.18.0/SpecStoryCLI_Linux_x86_64.tar.gz | shasum -a 256
 ```
 
 This will give you the SHA256 hashes of the released binaries. e.g.:
@@ -67,7 +67,7 @@ Click the pencil icon to edit the Homebrew formula. Update the 4 URLs in the Hom
 
 Click the "Commit changes" button to commit the changes to the Homebrew formula.
 
-Change the commit message to something like "Release v0.17.0" and click the "Commit changes" button to commit the changes to the Homebrew formula.
+Change the commit message to something like "Release v0.18.0" and click the "Commit changes" button to commit the changes to the Homebrew formula.
 
 ## Verify Update Notice in Old Version
 
