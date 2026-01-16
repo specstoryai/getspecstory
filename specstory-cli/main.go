@@ -46,6 +46,9 @@ var logFile bool // flag to enable logging to the log file
 var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
 
+// Run Mode State
+var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
+
 // UUID regex pattern: 8-4-4-4-12 hexadecimal characters
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
@@ -459,6 +462,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				if session == nil {
 					return
 				}
+
+				// Track the session ID for deep linking on exit
+				lastRunSessionID = session.SessionID
 
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
@@ -1894,6 +1900,24 @@ func main() {
 						log.ColorRed, cloudStats.SessionsTimedOut, pluralSession(int(cloudStats.SessionsTimedOut)), log.ColorReset)
 				}
 				fmt.Println()
+
+				// Display link to SpecStory Cloud (deep link to session if from run command)
+				cwd, cwdErr := os.Getwd()
+				if cwdErr == nil {
+					identityManager := utils.NewProjectIdentityManager(cwd)
+					if projectID, err := identityManager.GetProjectID(); err == nil {
+						fmt.Printf("💡 Search and chat with your AI conversation history at:\n")
+						if lastRunSessionID != "" {
+							// Deep link to the specific session from run command
+							fmt.Printf("   %shttps://cloud.specstory.com/projects/%s/sessions/%s%s\n\n",
+								log.ColorBoldCyan, projectID, lastRunSessionID, log.ColorReset)
+						} else {
+							// Link to project overview for sync command
+							fmt.Printf("   %shttps://cloud.specstory.com/projects/%s%s\n\n",
+								log.ColorBoldCyan, projectID, log.ColorReset)
+						}
+					}
+				}
 			}
 		}
 

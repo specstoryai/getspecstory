@@ -6,6 +6,10 @@
 
 - Now that the SpecStory CLI is open sourced under the [Apache 2.0 license](https://github.com/specstoryai/getspecstory/blob/main/specstory-cli/LICENSE.txt) at [https://github.com/specstoryai/getspecstory/tree/main/specstory-cli](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli) it is now also graduating to `v1.0.0` 🎉 
 
+### ⚙️ Improvements
+
+- When logged in to [SpecStory Cloud](https://cloud.specstory.com/), show links to your project or session after `sync` or `run`.
+
 ## v0.18.0 2026-01-16
 
 ### 📢 Announcements
