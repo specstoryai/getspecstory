@@ -31,7 +31,7 @@ AI Coding Tools              Local First                  Cloud Platform
 Cursor IDE         ┐
 Copilot IDE        │
 Claude Code CLI    ├──────►  .specstory/history/  ──────►  cloud.specstory.com
-Cursor CLI         │          (Auto-Saved Locally)          (Search & Share)
+Cursor CLI         │          (Auto-Saved Locally)        (Search, Ask & Share)
 Codex CLI          │
 Gemini CLI         ┘
 ```
