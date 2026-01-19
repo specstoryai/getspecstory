@@ -1,0 +1,283 @@
+package droidcli
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+const defaultFactoryCommand = "droid"
+
+type Provider struct{}
+
+func NewProvider() *Provider {
+	return &Provider{}
+}
+
+func (p *Provider) Name() string {
+	return "Factory Droid CLI"
+}
+
+func (p *Provider) Check(customCommand string) spi.CheckResult {
+	cmdName := strings.TrimSpace(customCommand)
+	isCustom := cmdName != ""
+	if cmdName == "" {
+		cmdName = defaultFactoryCommand
+	}
+
+	resolved, err := exec.LookPath(cmdName)
+	if err != nil {
+		msg := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
+		trackCheck("droid", false, isCustom, cmdName, "not_found", err.Error())
+		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd := exec.Command(resolved, "--version")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		errorType := classifyCheckError(err)
+		msg := buildCheckErrorMessage(errorType, resolved, isCustom, strings.TrimSpace(stderr.String()))
+		trackCheck("droid", false, isCustom, resolved, errorType, err.Error())
+		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
+	}
+
+	versionOutput := sanitizeDroidVersion(stdout.String())
+	version := extractDroidVersion(versionOutput)
+	if version == "" {
+		version = strings.TrimSpace(versionOutput)
+	}
+	trackCheck("droid", true, isCustom, resolved, "", "")
+	return spi.CheckResult{Success: true, Version: version, Location: resolved}
+}
+
+func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+	files, err := listSessionFiles()
+	if err != nil {
+		if helpOutput {
+			log.UserWarn("Factory Droid detection failed: %v", err)
+		}
+		return false
+	}
+	if len(files) == 0 {
+		if helpOutput {
+			printDetectionHelp()
+		}
+		return false
+	}
+	if projectPath == "" {
+		return true
+	}
+	for _, file := range files {
+		if sessionMentionsProject(file.Path, projectPath) {
+			return true
+		}
+	}
+	if helpOutput {
+		printDetectionHelp()
+	}
+	return false
+}
+
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+	files, err := listSessionFiles()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]spi.AgentChatSession, 0, len(files))
+	normalizedProject := strings.TrimSpace(projectPath)
+
+	for _, file := range files {
+		if normalizedProject != "" && !sessionMentionsProject(file.Path, normalizedProject) {
+			continue
+		}
+		session, err := parseFactorySession(file.Path)
+		if err != nil {
+			slog.Debug("droidcli: skipping session", "path", file.Path, "error", err)
+			continue
+		}
+		chat := convertToAgentSession(session, projectPath, debugRaw)
+		if chat != nil {
+			result = append(result, *chat)
+		}
+	}
+	return result, nil
+}
+
+func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	path, err := findSessionFileByID(sessionID)
+	if err != nil || path == "" {
+		return nil, err
+	}
+	if strings.TrimSpace(projectPath) != "" && !sessionMentionsProject(path, projectPath) {
+		return nil, nil
+	}
+	session, err := parseFactorySession(path)
+	if err != nil {
+		return nil, err
+	}
+	return convertToAgentSession(session, projectPath, debugRaw), nil
+}
+
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	return fmt.Errorf("factory droid cli execution via specstory is not supported yet; run the CLI manually, then sync sessions")
+}
+
+func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	return fmt.Errorf("factory droid cli watch mode is not supported; run the Factory CLI manually, then sync sessions")
+}
+
+func convertToAgentSession(session *fdSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+	if session == nil {
+		return nil
+	}
+	if len(session.Blocks) == 0 {
+		return nil
+	}
+	sessionData, err := GenerateAgentSession(session, workspaceRoot)
+	if err != nil {
+		slog.Debug("droidcli: skipping session due to conversion error", "sessionId", session.ID, "error", err)
+		return nil
+	}
+	created := strings.TrimSpace(sessionData.CreatedAt)
+	chat := &spi.AgentChatSession{
+		SessionID:   session.ID,
+		CreatedAt:   created,
+		Slug:        session.Slug,
+		SessionData: sessionData,
+		RawData:     session.RawData,
+	}
+	if debugRaw {
+		if err := writeFactoryDebugRaw(session); err != nil {
+			slog.Debug("droidcli: debug raw failed", "sessionId", session.ID, "error", err)
+		}
+	}
+	return chat
+}
+
+func classifyCheckError(err error) string {
+	var execErr *exec.Error
+	var pathErr *os.PathError
+	switch {
+	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
+		return "not_found"
+	case errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrPermission):
+		return "permission_denied"
+	case errors.Is(err, os.ErrPermission):
+		return "permission_denied"
+	default:
+		return "version_failed"
+	}
+}
+
+func buildCheckErrorMessage(errorType string, command string, isCustom bool, stderr string) string {
+	var builder strings.Builder
+	switch errorType {
+	case "not_found":
+		builder.WriteString("Factory Droid CLI was not found.\n\n")
+		if isCustom {
+			builder.WriteString("• Verify the custom path you provided is executable.\n")
+			builder.WriteString(fmt.Sprintf("• Provided command: %s\n", command))
+		} else {
+			builder.WriteString("• Install the Factory CLI and ensure `droid` is on your PATH.\n")
+			builder.WriteString("• Re-run `specstory check droid` after installation.\n")
+		}
+	case "permission_denied":
+		builder.WriteString("SpecStory cannot execute the Factory CLI due to permissions.\n\n")
+		builder.WriteString(fmt.Sprintf("Try: chmod +x %s\n", command))
+	default:
+		builder.WriteString("`droid --version` failed.\n\n")
+		if stderr != "" {
+			builder.WriteString("Error output:\n")
+			builder.WriteString(stderr)
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString("Run `droid --version` manually to diagnose, then retry.")
+	}
+	return builder.String()
+}
+
+var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*[A-Za-z]`)
+
+func sanitizeDroidVersion(raw string) string {
+	clean := strings.ReplaceAll(raw, "\r", "")
+	clean = ansiRegexp.ReplaceAllString(clean, "")
+	return clean
+}
+
+func extractDroidVersion(raw string) string {
+	lines := strings.Split(raw, "\n")
+	var filtered []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		filtered = append(filtered, line)
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	return filtered[len(filtered)-1]
+}
+
+func trackCheck(provider string, success bool, custom bool, cmd string, errorType string, message string) {
+	props := analytics.Properties{
+		"provider":       provider,
+		"custom_command": custom,
+		"command_path":   cmd,
+	}
+	if success {
+		analytics.TrackEvent(analytics.EventCheckInstallSuccess, props)
+		return
+	}
+	props["error_type"] = errorType
+	props["error_message"] = message
+	analytics.TrackEvent(analytics.EventCheckInstallFailed, props)
+}
+
+func printDetectionHelp() {
+	log.UserMessage("No Factory Droid sessions found under ~/.factory/sessions yet.\n")
+	log.UserMessage("Run the Factory CLI inside this project to create a JSONL session, then rerun `specstory sync droid`.\n")
+}
+
+func sessionMentionsProject(filePath string, projectPath string) bool {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	needle := strings.TrimSpace(projectPath)
+	short := filepath.Base(projectPath)
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, 64*1024), scannerMaxTokenSize)
+	foundLines := 0
+	for scanner.Scan() {
+		line := scanner.Text()
+		if needle != "" && strings.Contains(line, needle) {
+			return true
+		}
+		if short != "" && strings.Contains(line, short) {
+			foundLines++
+			if foundLines > 2 {
+				return true
+			}
+		}
+	}
+	return false
+}

@@ -1,0 +1,70 @@
+package droidcli
+
+import "encoding/json"
+
+// fdBlockKind describes the semantic type of a parsed session chunk.
+type fdBlockKind int
+
+const (
+	blockText fdBlockKind = iota
+	blockTool
+	blockTodo
+	blockSummary
+)
+
+// fdBlock represents a normalized slice of the Factory Droid transcript.
+type fdBlock struct {
+	Kind        fdBlockKind
+	Role        string
+	Timestamp   string
+	Model       string
+	Text        string
+	IsReasoning bool
+	Tool        *fdToolCall
+	Todo        *fdTodoState
+	Summary     *fdSummary
+}
+
+// fdToolCall captures a tool invocation plus its result.
+type fdToolCall struct {
+	ID           string
+	Name         string
+	Input        json.RawMessage
+	RiskLevel    string
+	RiskReason   string
+	Result       *fdToolResult
+	InvocationAt string
+}
+
+// fdToolResult contains the textual output of a tool.
+type fdToolResult struct {
+	Content string
+	IsError bool
+}
+
+// fdTodoState tracks todo list snapshots emitted by the agent.
+type fdTodoState struct {
+	Items []fdTodoItem
+}
+
+// fdTodoItem represents a single todo entry.
+type fdTodoItem struct {
+	Description string
+	Status      string
+}
+
+// fdSummary stores compaction summary text from Factory Droid.
+type fdSummary struct {
+	Title string
+	Body  string
+}
+
+// fdSession aggregates parsed metadata and blocks.
+type fdSession struct {
+	ID        string
+	Title     string
+	CreatedAt string
+	Blocks    []fdBlock
+	Slug      string
+	RawData   string
+}
