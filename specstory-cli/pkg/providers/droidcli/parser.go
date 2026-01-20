@@ -1,7 +1,6 @@
 package droidcli
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
-
-const scannerMaxTokenSize = 2 * 1024 * 1024 // 2 MiB per line is plenty for JSONL events
 
 type jsonlEnvelope struct {
 	Type string `json:"type"`
@@ -82,33 +79,34 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 	var firstUserText string
 	var firstTimestamp string
 
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 128*1024), scannerMaxTokenSize)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		rawBuilder.Write(line)
+	scanErr := scanLines(file, func(line string) error {
+		rawBuilder.WriteString(line)
 		rawBuilder.WriteByte('\n')
 
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			return nil
+		}
+
 		var env jsonlEnvelope
-		if err := json.Unmarshal(line, &env); err != nil {
+		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
 			// Skip malformed lines but keep raw data for diagnostics.
-			continue
+			return nil
 		}
 
 		switch env.Type {
 		case "session_start":
 			var event sessionStartEvent
-			if err := json.Unmarshal(line, &event); err != nil {
-				continue
+			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				return nil
 			}
 			session.ID = fallback(session.ID, event.Session.ID)
 			session.Title = fallback(session.Title, strings.TrimSpace(event.Session.Title))
 			session.CreatedAt = fallback(session.CreatedAt, fallback(event.Session.CreatedAt, event.Timestamp))
 		case "message":
 			var event messageEvent
-			if err := json.Unmarshal(line, &event); err != nil {
-				continue
+			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				return nil
 			}
 			if firstTimestamp == "" {
 				firstTimestamp = normalizeEventTimestamp(event.Timestamp)
@@ -121,14 +119,14 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 			}
 		case "todo_state":
 			var event todoEvent
-			if err := json.Unmarshal(line, &event); err != nil {
-				continue
+			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				return nil
 			}
 			if firstTimestamp == "" {
 				firstTimestamp = normalizeEventTimestamp(event.Timestamp)
 			}
 			if len(event.Todos) == 0 {
-				continue
+				return nil
 			}
 			session.Blocks = append(session.Blocks, fdBlock{
 				Kind:      blockTodo,
@@ -140,14 +138,14 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 			})
 		case "compaction_state":
 			var event compactionEvent
-			if err := json.Unmarshal(line, &event); err != nil {
-				continue
+			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				return nil
 			}
 			if firstTimestamp == "" {
 				firstTimestamp = normalizeEventTimestamp(event.Timestamp)
 			}
 			if strings.TrimSpace(event.Summary.Body) == "" {
-				continue
+				return nil
 			}
 			session.Blocks = append(session.Blocks, fdBlock{
 				Kind:      blockSummary,
@@ -156,10 +154,11 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 				Summary:   &event.Summary,
 			})
 		}
-	}
 
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("droidcli: failed scanning %s: %w", filePath, err)
+		return nil
+	})
+	if scanErr != nil {
+		return nil, fmt.Errorf("droidcli: failed scanning %s: %w", filePath, scanErr)
 	}
 
 	if session.ID == "" {

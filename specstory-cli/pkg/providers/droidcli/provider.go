@@ -1,7 +1,6 @@
 package droidcli
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -31,11 +30,8 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Check(customCommand string) spi.CheckResult {
-	cmdName := strings.TrimSpace(customCommand)
-	isCustom := cmdName != ""
-	if cmdName == "" {
-		cmdName = defaultFactoryCommand
-	}
+	cmdName, _ := parseDroidCommand(customCommand)
+	isCustom := strings.TrimSpace(customCommand) != ""
 
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
@@ -133,11 +129,40 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 }
 
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	return fmt.Errorf("factory droid cli execution via specstory is not supported yet; run the CLI manually, then sync sessions")
+	if resumeSessionID != "" {
+		return fmt.Errorf("factory droid CLI resume is not supported yet")
+	}
+
+	if sessionCallback == nil {
+		return ExecuteDroid(customCommand, resumeSessionID)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	watchErr := make(chan error, 1)
+	go func() {
+		watchErr <- watchSessions(ctx, projectPath, debugRaw, sessionCallback)
+	}()
+
+	err := ExecuteDroid(customCommand, resumeSessionID)
+	cancel()
+
+	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
+		slog.Warn("droidcli: watcher stopped with error", "error", werr)
+	}
+
+	if err != nil {
+		return fmt.Errorf("factory droid CLI execution failed: %w", err)
+	}
+	return nil
 }
 
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	return fmt.Errorf("factory droid cli watch mode is not supported; run the Factory CLI manually, then sync sessions")
+	if sessionCallback == nil {
+		return fmt.Errorf("session callback is required")
+	}
+	return watchSessions(ctx, projectPath, debugRaw, sessionCallback)
 }
 
 func convertToAgentSession(session *fdSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
@@ -264,20 +289,19 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 	}()
 	needle := strings.TrimSpace(projectPath)
 	short := filepath.Base(projectPath)
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), scannerMaxTokenSize)
 	foundLines := 0
-	for scanner.Scan() {
-		line := scanner.Text()
+	err = scanLines(file, func(line string) error {
 		if needle != "" && strings.Contains(line, needle) {
-			return true
+			return errStopScan
 		}
 		if short != "" && strings.Contains(line, short) {
 			foundLines++
 			if foundLines > 2 {
-				return true
+				return errStopScan
 			}
 		}
-	}
-	return false
+		return nil
+	})
+
+	return errors.Is(err, errStopScan)
 }
