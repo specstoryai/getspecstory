@@ -26,7 +26,7 @@ Agent providers:
 - [Claude Code](https://www.claude.com/product/claude-code): [Claude Code Provider](pkg/providers/claudecode/)
 - [Cursor CLI](https://cursor.com/cli): [Cursor CLI Provider](pkg/providers/cursorcli/)
 - [Codex CLI](https://www.openai.com/codex/cli/): [Codex CLI Provider](pkg/providers/codexcli/)
-- [Gemini CLI](https://ai.google.dev/gemini-cli): [Gemini CLI Provider](pkg/providers/gemini/)
+- [Gemini CLI](https://ai.google.dev/gemini-cli): [Gemini CLI Provider](pkg/providers/geminicli/)
 
 ### Agent Provider SPI (Service Provider Interface)
 
