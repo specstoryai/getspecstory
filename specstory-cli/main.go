@@ -584,13 +584,18 @@ By default, watches all registered providers concurrently. Specify a specific ag
 			}
 
 			// Collect provider names for analytics
-			var providerNames []string
+			providers := make(map[string]spi.Provider)
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
-					providerNames = append(providerNames, provider.Name())
+					providers[id] = provider
 				} else {
 					return fmt.Errorf("no provider %s found", id)
 				}
+			}
+			var providerNames []string
+			// Get all provider names from the providers map
+			for _, provider := range providers {
+				providerNames = append(providerNames, provider.Name())
 			}
 			analytics.SetAgentProviders(providerNames)
 
@@ -609,10 +614,7 @@ By default, watches all registered providers concurrently. Specify a specific ag
 			// Watch each provider concurrently
 			errChan := make(chan error, len(providerIDs))
 			for _, id := range providerIDs {
-				provider, err := registry.Get(id)
-				if err != nil {
-					continue
-				}
+				provider := providers[id]
 
 				// Launch a goroutine for each provider
 				go func(p spi.Provider) {
