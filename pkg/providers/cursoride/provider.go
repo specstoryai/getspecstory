@@ -48,7 +48,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 			ErrorMessage: fmt.Sprintf("Failed to open global database: %v", err),
 		}
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close database during check", "error", closeErr)
+		}
+	}()
 
 	slog.Debug("Cursor IDE check successful", "dbPath", globalDbPath)
 
@@ -205,7 +209,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 
 // ExecAgentAndWatch is not supported for Cursor IDE (IDE-based, not CLI)
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	return fmt.Errorf("Cursor IDE does not support execution via CLI (IDE-based, not CLI-based)")
+	return fmt.Errorf("cursor IDE does not support execution via CLI (IDE-based, not CLI-based)")
 }
 
 // WatchAgent watches for Cursor IDE activity and calls the callback with AgentChatSession

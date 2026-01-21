@@ -13,6 +13,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -71,6 +72,10 @@ func (r *Registry) registerAll() {
 	geminiProvider := geminicli.NewProvider()
 	r.providers["gemini"] = geminiProvider
 	slog.Debug("Registered provider", "id", "gemini", "name", geminiProvider.Name())
+
+	cursorideProvider := cursoride.NewProvider()
+	r.providers["cursoride"] = cursorideProvider
+	slog.Debug("Registered provider", "id", "cursoride", "name", cursorideProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())

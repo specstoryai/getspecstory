@@ -39,7 +39,11 @@ func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open workspace database: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close workspace database", "error", closeErr)
+		}
+	}()
 
 	// Query for the composer.composerData key in the ItemTable
 	var valueJSON string
@@ -83,7 +87,11 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to open global database: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close global database", "error", closeErr)
+		}
+	}()
 
 	// Build SQL query with placeholders for composer IDs
 	// We need to query for both composerData:* keys and bubbleId:* keys
@@ -129,7 +137,11 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to query composer data: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Warn("Failed to close query rows", "error", closeErr)
+		}
+	}()
 
 	// Parse results
 	composers := make(map[string]*ComposerData)
@@ -206,6 +218,32 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 				for _, header := range composer.FullConversationHeadersOnly {
 					if bubble, found := composerBubbles[header.BubbleID]; found {
 						composer.Conversation = append(composer.Conversation, *bubble)
+					}
+				}
+			} else if len(composer.Conversation) > 0 {
+				// Composer has a conversation array - merge individual bubble data into it
+				// The composerData record may have basic bubble info, but individual bubble
+				// records have the complete data (including thinking blocks)
+				for i := range composer.Conversation {
+					bubbleID := composer.Conversation[i].BubbleID
+					if fullBubble, found := composerBubbles[bubbleID]; found {
+						// Merge the full bubble data into the conversation array
+						// Keep the original if fields are not set in the full bubble
+						if fullBubble.Thinking != nil {
+							composer.Conversation[i].Thinking = fullBubble.Thinking
+						}
+						if fullBubble.Text != "" {
+							composer.Conversation[i].Text = fullBubble.Text
+						}
+						if fullBubble.TimingInfo != nil {
+							composer.Conversation[i].TimingInfo = fullBubble.TimingInfo
+						}
+						if fullBubble.ModelInfo != nil {
+							composer.Conversation[i].ModelInfo = fullBubble.ModelInfo
+						}
+						if fullBubble.ToolFormerData != nil {
+							composer.Conversation[i].ToolFormerData = fullBubble.ToolFormerData
+						}
 					}
 				}
 			}
