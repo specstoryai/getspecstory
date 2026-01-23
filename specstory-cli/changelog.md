@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v1.1.0 2026-01-23
+
+### ⚙️ Improvements
+
+- Added a `--only-cloud-sync` flag to the `sync` and `run` commands to skip local markdown writes and only sync to the [SpecStory Cloud](https://cloud.specstory.com).
+
 ## v1.0.0 2026-01-16
 
 ### 📢 Announcements
