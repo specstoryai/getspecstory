@@ -49,20 +49,34 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 		composerModelName = composer.ModelConfig.ModelName
 	}
 
+	// Parse capabilities to extract tool data (V1 format)
+	capabilitiesMap := parseCapabilities(composer)
+
+	// Create tool registry for formatting tool invocations
+	toolRegistry := NewToolRegistry()
+
 	// Convert conversation messages to exchanges
 	// For now, create a simple exchange for each user+assistant pair
 	var currentMessages []schema.Message
 	for i, bubble := range composer.Conversation {
 		// Skip empty bubbles that have no content to display
-		// These are typically capability/tool placeholders with no text or thinking
-		if bubble.Text == "" && (bubble.Thinking == nil || bubble.Thinking.Text == "") && bubble.CapabilityType != 0 {
+		// BUT: Don't skip tool invocations (capabilityType=15) - they generate content from tool data
+		if bubble.Text == "" && (bubble.Thinking == nil || bubble.Thinking.Text == "") && bubble.CapabilityType != 0 && bubble.CapabilityType != 15 {
 			slog.Debug("Skipping empty capability bubble",
 				"bubbleId", bubble.BubbleID,
 				"capabilityType", bubble.CapabilityType)
 			continue
 		}
-		// Build the message text, including thinking blocks if present
-		messageText := buildMessageText(&bubble)
+		// Build the message text, including thinking blocks and tool invocations if present
+		messageText := buildMessageText(&bubble, capabilitiesMap, toolRegistry, composer.Version)
+
+		// Skip if we still have no content after processing (shouldn't happen, but safety check)
+		if messageText == "" {
+			slog.Debug("Skipping bubble with no content after processing",
+				"bubbleId", bubble.BubbleID,
+				"capabilityType", bubble.CapabilityType)
+			continue
+		}
 
 		// Calculate timestamp from timing info
 		timestamp := calculateTimestamp(bubble.TimingInfo)
@@ -195,8 +209,8 @@ func getRoleFromType(messageType int) string {
 	return schema.RoleAgent
 }
 
-// buildMessageText constructs the full message text including thinking blocks
-func buildMessageText(bubble *ComposerConversation) string {
+// buildMessageText constructs the full message text including thinking blocks and tool invocations
+func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) string {
 	var parts []string
 
 	// Add thinking block if present
@@ -205,12 +219,91 @@ func buildMessageText(bubble *ComposerConversation) string {
 		parts = append(parts, thinkingBlock)
 	}
 
-	// Add main text if present
-	if bubble.Text != "" {
+	// Process tool invocations if this is a tool capability (capabilityType = 15)
+	if bubble.CapabilityType == 15 {
+		toolText := processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
+		if toolText != "" {
+			parts = append(parts, toolText)
+		}
+	} else if bubble.Text != "" {
+		// Add main text if present (non-tool bubbles)
 		parts = append(parts, bubble.Text)
 	}
 
 	return strings.Join(parts, "\n\n---\n\n")
+}
+
+// processToolInvocation processes a tool invocation bubble and returns formatted markdown
+func processToolInvocation(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) string {
+	var toolData *BubbleConversation
+
+	// V3+ format: tool data is in bubble.ToolFormerData
+	if composerVersion >= 3 && bubble.ToolFormerData != nil {
+		toolData = convertToolInvocationData(bubble.ToolFormerData)
+	} else {
+		// V1 format: tool data is in capabilities[15].bubbleDataMap[bubbleId]
+		if capData, ok := capabilitiesMap[bubble.CapabilityType]; ok {
+			if capData.ParsedBubbleMap != nil {
+				if bubbleData, found := capData.ParsedBubbleMap[bubble.BubbleID]; found {
+					toolData = bubbleData
+				}
+			}
+		}
+	}
+
+	if toolData == nil {
+		slog.Warn("Tool invocation data not found",
+			"bubbleId", bubble.BubbleID,
+			"capabilityType", bubble.CapabilityType)
+		return bubble.Text // Fallback to original text
+	}
+
+	// Format the tool invocation using the registry
+	return FormatToolInvocation(toolData, toolRegistry)
+}
+
+// convertToolInvocationData converts ToolInvocationData to BubbleConversation
+func convertToolInvocationData(data *ToolInvocationData) *BubbleConversation {
+	return &BubbleConversation{
+		Tool:           data.Tool,
+		Name:           data.Name,
+		RawArgs:        data.RawArgs,
+		Params:         data.Params,
+		Result:         data.Result,
+		Status:         data.Status,
+		Error:          data.Error,
+		AdditionalData: data.AdditionalData,
+		UserDecision:   data.UserDecision,
+	}
+}
+
+// parseCapabilities parses the capabilities array and extracts tool data
+// Returns a map of capabilityType -> CapabilityData
+func parseCapabilities(composer *ComposerData) map[int]*CapabilityData {
+	capabilitiesMap := make(map[int]*CapabilityData)
+
+	for _, capability := range composer.Capabilities {
+		capData := capability.Data
+
+		// Parse bubbleDataMap if it's a string (JSON)
+		if capData.BubbleDataMap != nil {
+			if bubbleMapStr, ok := capData.BubbleDataMap.(string); ok {
+				// Parse the JSON string into a map
+				var bubbleMap map[string]*BubbleConversation
+				if err := json.Unmarshal([]byte(bubbleMapStr), &bubbleMap); err != nil {
+					slog.Warn("Failed to parse bubbleDataMap",
+						"capabilityType", capability.Type,
+						"error", err)
+				} else {
+					capData.ParsedBubbleMap = bubbleMap
+				}
+			}
+		}
+
+		capabilitiesMap[capability.Type] = &capData
+	}
+
+	return capabilitiesMap
 }
 
 // calculateTimestamp calculates the absolute timestamp from timing info

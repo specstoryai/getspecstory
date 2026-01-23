@@ -332,10 +332,10 @@ Manual testing approach (no unit tests initially per project conventions):
 ## Verification Checklist
 
 After implementation:
-- [ ] `./specstory check cursoride` successfully finds database
-- [ ] `./specstory sync cursoride` exports conversations to `.specstory/history/`
-- [ ] `./specstory sync cursoride --debug-raw` creates debug files
-- [ ] Markdown files have correct format (timestamps, speakers, messages)
+- [X] `./specstory check cursoride` successfully finds database
+- [X] `./specstory sync cursoride` exports conversations to `.specstory/history/`
+- [X] `./specstory sync cursoride --debug-raw` creates debug files
+- [X] Markdown files have correct format (timestamps, speakers, messages)
 - [ ] Tool invocations are detected (basic level)
 - [ ] Empty conversations are filtered out
 - [ ] Provider appears in help text for all commands

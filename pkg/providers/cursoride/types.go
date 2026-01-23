@@ -8,6 +8,7 @@ type ComposerData struct {
 	Version                     int                          `json:"_v,omitempty"`
 	Conversation                []ComposerConversation       `json:"conversation,omitempty"`
 	FullConversationHeadersOnly []ComposerConversationHeader `json:"fullConversationHeadersOnly"`
+	Capabilities                []Capability                 `json:"capabilities,omitempty"`
 	ModelConfig                 *ModelConfig                 `json:"modelConfig,omitempty"`
 	CreatedAt                   int64                        `json:"createdAt"`
 	LastUpdatedAt               int64                        `json:"lastUpdatedAt,omitempty"`
@@ -56,10 +57,47 @@ type TimingInfo struct {
 	ClientEndTime     float64 `json:"clientEndTime,omitempty"`
 }
 
-// ToolInvocationData represents tool invocation information
+// Capability represents a capability in the composer (tools, custom instructions, etc.)
+// Capability type 15 = tool invocations
+type Capability struct {
+	Type int            `json:"type"`
+	Data CapabilityData `json:"data"`
+}
+
+// CapabilityData contains the actual capability data
+type CapabilityData struct {
+	CustomInstructions string                         `json:"customInstructions,omitempty"`
+	BubbleDataMap      interface{}                    `json:"bubbleDataMap,omitempty"` // Can be string (JSON) or map
+	Result             string                         `json:"result,omitempty"`
+	ParsedBubbleMap    map[string]*BubbleConversation `json:"-"` // Parsed bubble data map
+}
+
+// BubbleConversation represents tool invocation data (stored in capabilities.bubbleDataMap)
+// This is called BubbleConversationData in the TypeScript code
+type BubbleConversation struct {
+	Tool           int                    `json:"tool"`
+	Name           string                 `json:"name"`
+	RawArgs        string                 `json:"rawArgs,omitempty"`
+	Params         string                 `json:"params,omitempty"`
+	Result         string                 `json:"result,omitempty"`
+	Status         string                 `json:"status,omitempty"`
+	Error          string                 `json:"error,omitempty"`
+	AdditionalData map[string]interface{} `json:"additionalData,omitempty"`
+	UserDecision   string                 `json:"userDecision,omitempty"`
+}
+
+// ToolInvocationData represents tool invocation information (V3+ format, stored directly in bubble)
+// This is the same structure as BubbleConversation but embedded in the message
 type ToolInvocationData struct {
-	ToolName string `json:"toolName,omitempty"`
-	// Add more fields as needed
+	Tool           int                    `json:"tool"`
+	Name           string                 `json:"name"`
+	RawArgs        string                 `json:"rawArgs,omitempty"`
+	Params         string                 `json:"params,omitempty"`
+	Result         string                 `json:"result,omitempty"`
+	Status         string                 `json:"status,omitempty"`
+	Error          string                 `json:"error,omitempty"`
+	AdditionalData map[string]interface{} `json:"additionalData,omitempty"`
+	UserDecision   string                 `json:"userDecision,omitempty"`
 }
 
 // WorkspaceComposerRefs represents the workspace-specific composer references
