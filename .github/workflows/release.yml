@@ -49,6 +49,16 @@ jobs:
               echo "CHANGELOG_EOF"
             } >> "$GITHUB_OUTPUT"
 
+      - name: Update release notes with changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' specstory-cli/changelog.md)
+          if [ -n "$CHANGELOG" ]; then
+            gh release edit "$VERSION" --notes "$CHANGELOG"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Notify Slack (#clients)
         env:
             SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL_CLIENTS }}
@@ -85,3 +95,58 @@ jobs:
                 ]
               }' > payload.json
             curl -X POST -H 'Content-type: application/json' --data @payload.json "$SLACK_WEBHOOK_URL"
+
+  update-homebrew-tap:
+    needs: [goreleaser]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#specstory-cli/v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Download release artifacts
+        run: |
+          mkdir -p dist
+          gh release download "v${{ steps.version.outputs.version }}" --pattern "SpecStoryCLI_*.tar.gz" --dir dist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute SHA256 hashes
+        id: hashes
+        run: |
+          echo "darwin_arm64=$(shasum -a 256 dist/SpecStoryCLI_Darwin_arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "darwin_x86_64=$(shasum -a 256 dist/SpecStoryCLI_Darwin_x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_arm64=$(shasum -a 256 dist/SpecStoryCLI_Linux_arm64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "linux_x86_64=$(shasum -a 256 dist/SpecStoryCLI_Linux_x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: specstoryai/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          ./scripts/update-homebrew-formula.sh \
+            homebrew-tap/Formula/specstory.rb \
+            "${{ steps.version.outputs.version }}" \
+            "${{ steps.hashes.outputs.darwin_arm64 }}" \
+            "${{ steps.hashes.outputs.darwin_x86_64 }}" \
+            "${{ steps.hashes.outputs.linux_arm64 }}" \
+            "${{ steps.hashes.outputs.linux_x86_64 }}"
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "specstory-bot"
+          git config user.email "actions@github.com"
+          git add Formula/specstory.rb
+          git commit -m "Release specstory v${{ steps.version.outputs.version }}"
+          git push
