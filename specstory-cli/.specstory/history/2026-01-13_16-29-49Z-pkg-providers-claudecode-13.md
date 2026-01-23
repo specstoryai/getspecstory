@@ -516,9 +516,14 @@ _**Agent (claude-opus-4-5-20251101 2026-01-13T16:30:11.345Z)**_
 
 <tool-use data-tool-type="generic" data-tool-name="AskUserQuestion"><details>
 <summary>Tool use: **AskUserQuestion**</summary>
-```
-User has answered your questions: "How would you like to fix this failing test?"="We shouldn't have any tests that rely on a session to exist, what is this test trying to test?". You can now continue with the user's answers in mind.
-```
+**How would you like to fix this failing test?**
+
+Options:
+- **Skip when session not found (Recommended)** - Change t.Fatalf to t.Skipf, consistent with similar tests in the codebase
+- **Update the session ID** - I'll list available sessions so you can pick one that exists
+
+
+**Answer:** We shouldn't have any tests that rely on a session to exist, what is this test trying to test?
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-13T16:34:11.701Z)**_
