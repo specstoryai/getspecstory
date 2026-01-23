@@ -51,10 +51,10 @@ jobs:
 
       - name: Update release notes with changelog
         run: |
-          VERSION="${GITHUB_REF_NAME#specstory-cli/}"
+          VERSION="${{ steps.version.outputs.version }}"
           CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' specstory-cli/changelog.md)
           if [ -n "$CHANGELOG" ]; then
-            gh release edit "$GITHUB_REF_NAME" --notes "$CHANGELOG"
+            gh release edit "$VERSION" --notes "$CHANGELOG"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -112,7 +112,7 @@ jobs:
       - name: Download release artifacts
         run: |
           mkdir -p dist
-          gh release download "$GITHUB_REF_NAME" --pattern "SpecStoryCLI_*.tar.gz" --dir dist
+          gh release download "v${{ steps.version.outputs.version }}" --pattern "SpecStoryCLI_*.tar.gz" --dir dist
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
