@@ -1,8 +1,13 @@
-# Releasing SpecStory Extension for Claude Code
+# Releasing SpecStory CLI to Homebrew
 
-The following steps are required to release a new version of the SpecStory Extension for Claude Code.
+The following steps are required to release a new version of the SpecStory CLI to Homebrew.
 
 This is as-of January 16, 2026. Much of this will be automated in the future.
+
+## Repositories
+
+- **Source and Release repo**: `specstoryai/getspecstory` (public) - source code, CI/CD and release artifacts
+- **Homebrew tap**: `specstoryai/homebrew-tap` (public) - contains the Homebrew formula
 
 ## Prepare the Release
 
