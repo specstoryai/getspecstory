@@ -1906,6 +1906,8 @@ func main() {
 
 			// Display cloud sync stats if not in silent mode
 			if !silent && totalCloudSessions > 0 {
+				fmt.Println() // Visual separation from provider sync output
+
 				// Determine if sync was complete or incomplete based on errors/timeouts
 				if cloudStats.SessionsErrored > 0 || cloudStats.SessionsTimedOut > 0 {
 					fmt.Printf("❌ Cloud sync incomplete! 📊 %s%d%s %s processed\n",
