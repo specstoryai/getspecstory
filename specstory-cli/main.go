@@ -123,7 +123,7 @@ func normalizeDeviceCode(code string) (string, bool) {
 	return code, true
 }
 
-// getUseUTC reads the local-time-zone flag and returns the inverse (useUTC).
+// getUseUTC eads the local-time-zone flag and converts it to useUTC format.
 // When --local-time-zone is false (default), useUTC is true.
 func getUseUTC(cmd *cobra.Command) bool {
 	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
@@ -2066,7 +2066,7 @@ func main() {
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (not present default: UTC)")
+	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
@@ -2077,7 +2077,7 @@ func main() {
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (not present default: UTC)")
+	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
@@ -2086,7 +2086,7 @@ func main() {
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (not present default: UTC)")
+	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 

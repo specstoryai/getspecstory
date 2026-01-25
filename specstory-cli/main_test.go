@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 )
 
 func TestValidateUUID(t *testing.T) {
@@ -252,6 +253,91 @@ func TestNormalizeDeviceCode(t *testing.T) {
 				t.Errorf("normalizeDeviceCode(%q) code = %q, want %q", tt.input, code, tt.expectedCode)
 			}
 		})
+	}
+}
+
+func TestFormatFilenameTimestamp(t *testing.T) {
+	// Create a fixed timezone for predictable UTC conversion tests
+	fixedZone := time.FixedZone("TEST", -7*60*60) // UTC-7
+
+	tests := []struct {
+		name     string
+		time     time.Time
+		useUTC   bool
+		expected string
+	}{
+		{
+			name:     "UTC format - standard time",
+			time:     time.Date(2026, 1, 25, 15, 30, 45, 0, time.UTC),
+			useUTC:   true,
+			expected: "2026-01-25_15-30-45Z",
+		},
+		{
+			name:     "UTC format - midnight",
+			time:     time.Date(2026, 1, 25, 0, 0, 0, 0, time.UTC),
+			useUTC:   true,
+			expected: "2026-01-25_00-00-00Z",
+		},
+		{
+			name:     "UTC format - end of day",
+			time:     time.Date(2026, 1, 25, 23, 59, 59, 0, time.UTC),
+			useUTC:   true,
+			expected: "2026-01-25_23-59-59Z",
+		},
+		{
+			name:     "UTC format - time in non-UTC zone gets converted",
+			time:     time.Date(2026, 1, 25, 8, 30, 45, 0, fixedZone), // 8:30 in UTC-7 = 15:30 UTC
+			useUTC:   true,
+			expected: "2026-01-25_15-30-45Z",
+		},
+		{
+			name:     "UTC format - leap year date",
+			time:     time.Date(2024, 2, 29, 12, 0, 0, 0, time.UTC),
+			useUTC:   true,
+			expected: "2024-02-29_12-00-00Z",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatFilenameTimestamp(tt.time, tt.useUTC)
+			if result != tt.expected {
+				t.Errorf("formatFilenameTimestamp() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestFormatFilenameTimestamp_LocalTimezone(t *testing.T) {
+	// Testing local timezone is tricky because output depends on the machine's timezone.
+	// We test that the format structure is correct rather than exact values.
+
+	testTime := time.Date(2026, 1, 25, 15, 30, 45, 0, time.UTC)
+	result := formatFilenameTimestamp(testTime, false)
+
+	// Result should be in format "2006-01-02_15-04-05-0700" or "+0700"
+	// Length should be 24 characters (date + underscore + time + offset)
+	if len(result) != 24 {
+		t.Errorf("formatFilenameTimestamp() = %q, expected length 24, got %d", result, len(result))
+	}
+
+	// Should contain underscores in date portion
+	if result[4] != '-' || result[7] != '-' {
+		t.Errorf("formatFilenameTimestamp() = %q, expected date format YYYY-MM-DD", result)
+	}
+
+	// Should have underscore between date and time
+	if result[10] != '_' {
+		t.Errorf("formatFilenameTimestamp() = %q, expected underscore at position 10", result)
+	}
+
+	// Last 5 characters should be timezone offset (+0000 or -0000 format)
+	offset := result[19:]
+	if len(offset) != 5 {
+		t.Errorf("formatFilenameTimestamp() offset = %q, expected 5 chars", offset)
+	}
+	if offset[0] != '+' && offset[0] != '-' {
+		t.Errorf("formatFilenameTimestamp() offset = %q, expected to start with + or -", offset)
 	}
 }
 
