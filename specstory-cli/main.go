@@ -180,10 +180,7 @@ func createRootCommand() *cobra.Command {
 specstory check
 
 # Run the default agent with auto-saving
-specstory run
-
-# Watch for agent activity without launching (auto-save only)
-specstory watch`
+specstory run`
 
 	// Add provider-specific examples if we have providers
 	if len(ids) > 0 {
@@ -204,7 +201,10 @@ specstory watch`
 specstory sync
 
 # Generate a markdown file for a specific agent session
-specstory sync -s <session-id>`
+specstory sync -s <session-id>
+
+# Watch for any agent activity in the current directory and generate markdown files
+specstory watch`
 
 	longDesc := `SpecStory is a wrapper for terminal coding agents that auto-saves markdown files of all your chat interactions.`
 	if providerList != "No providers registered" {
@@ -533,12 +533,12 @@ specstory watch`
 # Watch with custom output directory
 specstory watch --output-dir ~/my-sessions`
 
-	longDesc := `Watch for terminal coding agent activity and auto-save markdown files.
+	longDesc := `Watch for coding agent activity in the current directory and auto-save markdown files.
 
-Unlike 'run', this command does NOT launch the agent - it only monitors for activity.
-Use this when you want to run the agent separately but still get auto-saved markdown files.
+Unlike 'run', this command does not launch a coding agent - it only monitors for agent activity.
+Use this when you want to run the agent separately, but still want auto-saved markdown files.
 
-By default, watches all registered providers concurrently. Specify a specific agent ID to watch only that agent.`
+By default, 'watch' is for activity from all registered agent providers. Specify a specific agent ID to watch for activity from only that agent.`
 	if providerList != "No providers registered" {
 		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
 	}
@@ -546,7 +546,7 @@ By default, watches all registered providers concurrently. Specify a specific ag
 	return &cobra.Command{
 		Use:     "watch [provider-id]",
 		Aliases: []string{"w"},
-		Short:   "Watch for terminal coding agent activity with auto-save",
+		Short:   "Watch for coding agent activity with auto-save",
 		Long:    longDesc,
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
