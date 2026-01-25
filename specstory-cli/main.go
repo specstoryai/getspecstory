@@ -465,7 +465,8 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get debug-raw flag value (must be before callback to capture in closure)
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			coordinatedUniversalTimezone, _ := cmd.Flags().GetBool("coordinated-universal-timezone")
+			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+			useUTC := !useLocalTimezone
 
 			// This callback pattern enables real-time processing of agent sessions
 			// without blocking the agent's execution. As the agent writes updates to its
@@ -484,7 +485,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw, coordinatedUniversalTimezone)
+				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -558,6 +559,8 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 
 			// Get debug-raw flag value
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+			useUTC := !useLocalTimezone
 
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir)
@@ -650,7 +653,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						// Process the session (write markdown and sync to cloud)
 						// Don't show output during watch mode
 						// This is autosave mode (true)
-						err := processSingleSession(session, p, config, false, true, debugRaw)
+						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
 						if err != nil {
 							// Log error but continue - don't fail the whole watch
 							// In watch mode, we prioritize keeping the watcher running.
@@ -778,7 +781,8 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	coordinatedUniversalTimezone, _ := cmd.Flags().GetBool("coordinated-universal-timezone")
+	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+	useUTC := !useLocalTimezone
 
 	// Setup output configuration
 	config, err := utils.SetupOutputConfig(outputDir)
@@ -827,7 +831,7 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 
 		// Process the session (show output for sync command)
 		// This is manual sync mode (false)
-		return processSingleSession(session, provider, config, true, false, debugRaw, coordinatedUniversalTimezone)
+		return processSingleSession(session, provider, config, true, false, debugRaw, useUTC)
 	}
 
 	// Case B: No provider specified - try all providers
@@ -849,7 +853,7 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 				fmt.Printf("✅ Found session for %s\n", provider.Name())
 			}
 			// This is manual sync mode (false)
-			return processSingleSession(session, provider, config, true, false, debugRaw, coordinatedUniversalTimezone)
+			return processSingleSession(session, provider, config, true, false, debugRaw, useUTC)
 		}
 	}
 
@@ -886,8 +890,8 @@ func writeDebugSessionData(session *spi.AgentChatSession, debugRaw bool) {
 
 // formatFilenameTimestamp formats a timestamp for use in filenames
 // The format is filesystem-safe and matches the markdown title format
-func formatFilenameTimestamp(t time.Time, coordinatedUniversalTimezone bool) string {
-	if coordinatedUniversalTimezone {
+func formatFilenameTimestamp(t time.Time, useUTC bool) string {
+	if useUTC {
 		// Use UTC with Z suffix: "2006-01-02_15-04-05Z"
 		return t.UTC().Format("2006-01-02_15-04-05") + "Z"
 	}
@@ -898,13 +902,13 @@ func formatFilenameTimestamp(t time.Time, coordinatedUniversalTimezone bool) str
 // processSingleSession writes markdown and triggers cloud sync for a single session
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
-// coordinatedUniversalTimezone controls timestamp format (true=UTC, false=local)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, coordinatedUniversalTimezone bool) error {
+// useUTC controls timestamp format (true=UTC, false=local)
+func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
 	// Generate markdown from SessionData
-	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, coordinatedUniversalTimezone)
+	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return fmt.Errorf("failed to generate markdown: %w", err)
@@ -912,7 +916,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 
 	// Generate filename from timestamp and slug
 	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-	timestampStr := formatFilenameTimestamp(timestamp, coordinatedUniversalTimezone)
+	timestampStr := formatFilenameTimestamp(timestamp, useUTC)
 
 	filename := timestampStr
 	if session.Slug != "" {
@@ -1070,7 +1074,7 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 
 // syncProvider performs the actual sync for a single provider
 // Returns (sessionCount, error) for analytics tracking
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, coordinatedUniversalTimezone bool) (int, error) {
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
@@ -1110,7 +1114,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		writeDebugSessionData(session, debugRaw)
 
 		// Generate markdown from SessionData
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, coordinatedUniversalTimezone)
+		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 		if err != nil {
 			slog.Error("Failed to generate markdown from SessionData",
 				"sessionId", session.SessionID,
@@ -1125,7 +1129,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 		// Generate filename from timestamp and slug
 		timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-		timestampStr := formatFilenameTimestamp(timestamp, coordinatedUniversalTimezone)
+		timestampStr := formatFilenameTimestamp(timestamp, useUTC)
 
 		filename := timestampStr
 		if session.Slug != "" {
@@ -1241,7 +1245,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	coordinatedUniversalTimezone, _ := cmd.Flags().GetBool("coordinated-universal-timezone")
+	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+	useUTC := !useLocalTimezone
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -1334,7 +1339,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw, coordinatedUniversalTimezone)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
 		totalSessionCount += sessionCount
 
 		if err != nil {
@@ -1367,7 +1372,8 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	coordinatedUniversalTimezone, _ := cmd.Flags().GetBool("coordinated-universal-timezone")
+	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+	useUTC := !useLocalTimezone
 
 	provider, err := registry.Get(providerID)
 	if err != nil {
@@ -1430,7 +1436,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, coordinatedUniversalTimezone)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
 
 	// Track analytics
 	if syncErr != nil {
@@ -2058,7 +2064,7 @@ func main() {
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	syncCmd.Flags().BoolP("coordinated-universal-timezone", "z", true, "use UTC for timestamps (false for local timezone)")
+	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for timestamps (default: UTC)")
 
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
@@ -2069,7 +2075,7 @@ func main() {
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	runCmd.Flags().BoolP("coordinated-universal-timezone", "z", true, "use UTC for timestamps (false for local timezone)")
+	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for timestamps (default: UTC)")
 
 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
@@ -2078,6 +2084,7 @@ func main() {
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for timestamps (default: UTC)")
 
 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 
