@@ -612,6 +612,9 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			}
 			analytics.SetAgentProviders(providerNames)
 
+			// Track watch command activation
+			analytics.TrackEvent(analytics.EventWatchActivated, nil)
+
 			// Create context for graceful cancellation (Ctrl+C handling)
 			// This allows providers to clean up resources when user presses Ctrl+C
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
