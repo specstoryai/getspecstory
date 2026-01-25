@@ -5,6 +5,7 @@
 ### ⚙️ Improvements
 
 - Added a `specstory watch` command to watch a project directory for any coding agent activity from any supported provider and auto-save sessions to local markdown and/or the [SpecStory Cloud](https://cloud.specstory.com).
+- Handle the case where `./.specstory/history` dir is deleted while the long running `run` or `watch` commands are still running.
 
 ## v1.1.0 2026-01-23
 

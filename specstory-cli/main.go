@@ -924,6 +924,10 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	// Write file if needed (skip if only-cloud-sync is enabled)
 	if !onlyCloudSync {
 		if !identicalContent {
+			// Ensure history directory exists (handles deletion during long-running watch/run)
+			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+				return fmt.Errorf("failed to ensure history directory: %w", err)
+			}
 			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 			if err != nil {
 				// Track write error
@@ -1128,6 +1132,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// Write file if needed (skip if only-cloud-sync is enabled)
 		if !onlyCloudSync {
 			if !identicalContent {
+				// Ensure history directory exists (handles deletion during long-running sync)
+				if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+					slog.Error("Failed to ensure history directory", "error", err)
+					continue
+				}
 				err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 				if err != nil {
 					slog.Error("Error writing markdown file",
