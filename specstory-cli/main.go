@@ -123,7 +123,7 @@ func normalizeDeviceCode(code string) (string, bool) {
 	return code, true
 }
 
-// getUseUTC eads the local-time-zone flag and converts it to useUTC format.
+// getUseUTC reads the local-time-zone flag and converts it to useUTC format.
 // When --local-time-zone is false (default), useUTC is true.
 func getUseUTC(cmd *cobra.Command) bool {
 	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
