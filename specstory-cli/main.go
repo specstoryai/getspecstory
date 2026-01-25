@@ -619,7 +619,11 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 
 			if !silent {
 				fmt.Println()
-				fmt.Println("👀 Watching for activity from agents: " + strings.Join(providerNames, ", "))
+				agentWord := "agents"
+				if len(providerNames) == 1 {
+					agentWord = "agent"
+				}
+				fmt.Println("👀 Watching for activity from " + agentWord + ": " + strings.Join(providerNames, ", "))
 				fmt.Println("   Press Ctrl+C to stop watching")
 				fmt.Println()
 			}
