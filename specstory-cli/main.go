@@ -569,14 +569,13 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				return err
 			}
 
-			// Initialize project identity
+			// Initialize project identity (needed for cloud sync)
 			cwd, err := os.Getwd()
 			if err != nil {
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			identityManager := utils.NewProjectIdentityManager(cwd)
-			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}

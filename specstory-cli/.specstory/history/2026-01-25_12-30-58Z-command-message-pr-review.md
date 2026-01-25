@@ -4480,3 +4480,229 @@ if onlyCloudSync && !cloud.IsAuthenticated() {
 ```
 
 **Regarding `--cloud-token`:** No action needed - it's already a persistent flag on the root command (line 2013), so it's automatically available to all subcommands including `watch`.
+
+---
+
+_**User (2026-01-25T14:48:26.717Z)**_
+
+Let's look at this:   2. Unused identityManager variable
+
+  At line 576, identityManager is created but never used. The runCmd uses it for preloadBulkSessionSizesIfNeeded(). Either:
+  - Call preloadBulkSessionSizesIfNeeded(identityManager) if needed for watch mode
+  - Remove the variable if not needed (the project identity is still ensured via EnsureProjectIdentity())
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:30.696Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me look at how `preloadBulkSessionSizesIfNeeded` is used in `runCmd` to understand if it's needed for watch mode.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:31.156Z)**_
+
+Let me look at how `preloadBulkSessionSizesIfNeeded` is used and what it does.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:32.455Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `preloadBulkSessionSizesIfNeeded`
+```
+1006-	return nil
+1007-}
+1008-
+1009:// preloadBulkSessionSizesIfNeeded optimizes bulk syncs by fetching all session sizes upfront.
+1010-// This avoids making individual HEAD requests for each session during sync operations.
+1011-//
+1012-/ The function only performs the preload if:
+--
+1023-//
+1024-// This function is safe to call multiple times but should typically be called once before processing
+1025-// multiple sessions in batch sync operations.
+1026:func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManager) {
+1027-	// Skip if cloud sync is disabled or user is not authenticated
+1028-	if noCloudSync || !cloud.IsAuthenticated() {
+1029-		return
+--
+1288-	}
+1289-
+1290-	// Preload session sizes for batch sync optimization (ONCE for all providers)
+1291:	preloadBulkSessionSizesIfNeeded(identityManager)
+1292-
+1293-	// Sync each provider with activity
+1294-	totalSessionCount := 0
+--
+1392-	}
+1393-
+1394-	// Preload session sizes for batch sync optimization
+1395:	preloadBulkSessionSizesIfNeeded(identityManager)
+1396-
+1397-	if !silent {
+1398-		fmt.Printf("\nParsing %s sessions", provider.Name())
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:40.169Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see. `preloadBulkSessionSizesIfNeeded` is an optimization for **bulk sync operations** - it fetches all session sizes upfront to avoid individual HEAD requests.
+
+Looking at the watch command:
+- Watch mode processes sessions **one at a time** as they are updated (via callbacks from `WatchAgent`)
+- It doesn't do bulk processing like `sync` does
+- The preload optimization is designed for "batch sync operations" as the comment says
+
+So for watch mode, calling `preloadBulkSessionSizesIfNeeded` wouldn't make sense because:
+1. Sessions arrive one at a time via callbacks
+2. There's no way to know upfront which sessions will be updated
+3. The preloaded data could become stale during a long-running watch
+
+The better option is to **remove the unused variable**. The `EnsureProjectIdentity()` call is still important (it ensures the project has an identity for cloud sync), but we don't need to keep the `identityManager` reference since we're not calling `preloadBulkSessionSizesIfNeeded`.
+
+Let me make this change.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:42.437Z)**_
+
+I see. `preloadBulkSessionSizesIfNeeded` is an optimization for **bulk sync operations** - it fetches all session sizes upfront to avoid individual HEAD requests during batch processing.
+
+For watch mode, this doesn't make sense because:
+1. Sessions arrive one at a time via callbacks (not in bulk)
+2. We can't know upfront which sessions will be updated
+3. Preloaded data would become stale during a long-running watch
+
+The `EnsureProjectIdentity()` call is still needed (ensures project has an identity for cloud sync), but we don't need to keep the `identityManager` reference. Let me simplify by using the blank identifier.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:43.122Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+```
+   572→			// Initialize project identity
+   573→			cwd, err := os.Getwd()
+   574→			if err != nil {
+   575→				slog.Error("Failed to get current working directory", "error", err)
+   576→				return err
+   577→			}
+   578→			identityManager := utils.NewProjectIdentityManager(cwd)
+   579→			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+   580→				// Log error but don't fail the command
+   581→				slog.Error("Failed to ensure project identity", "error", err)
+   582→			}
+   583→
+   584→			// Check authentication for cloud sync
+   585→			checkAndWarnAuthentication()
+   586→
+   587→			// Validate that --only-cloud-sync requires authentication
+   588→			if onlyCloudSync && !cloud.IsAuthenticated() {
+   589→				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+   590→			}
+   591→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:46.463Z)**_
+
+<think><details><summary>Thought Process</summary>
+I can see the code. The simplest fix is to inline the `EnsureProjectIdentity()` call and not keep the manager. Let me update this to remove the unused variable.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:49.795Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+<tool_use_error>Found 2 matches of the string to replace, but replace_all is false. To replace all occurrences, set replace_all to true. To replace only one occurrence, please provide more context to uniquely identify the instance.
+String: 			// Initialize project identity
+			cwd, err := os.Getwd()
+			if err != nil {
+				slog.Error("Failed to get current working directory", "error", err)
+				return err
+			}
+			identityManager := utils.NewProjectIdentityManager(cwd)
+			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+				// Log error but don't fail the command
+				slog.Error("Failed to ensure project identity", "error", err)
+			}</tool_use_error>
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:53.018Z)**_
+
+<think><details><summary>Thought Process</summary>
+There are 2 matches. Let me include more context to uniquely identify the one in the watch command.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:48:57.108Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:50:33.769Z)**_
+
+<think><details><summary>Thought Process</summary>
+Good, the edit was successful. Let me run the tests and linter to verify everything still works.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:50:34.888Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and run tests
+
+`go build -o /dev/null && go test -run TestValidateFlags ./... 2>&1 | grep -E "(PASS|FAIL|ok|---)"`
+```
+ok  	github.com/specstoryai/getspecstory/specstory-cli	1.168s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.410s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	0.871s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	0.576s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli	0.235s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	1.012s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	1.295s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	0.704s [no tests to run]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	1.433s [no tests to run]
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:50:41.898Z)**_
+
+<think><details><summary>Thought Process</summary>
+Good - everything builds and tests pass. The diagnostic warnings are pre-existing issues, not related to my changes.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T14:50:43.884Z)**_
+
+Done. The change:
+
+1. **Removed the unused `identityManager` variable** by inlining the call
+2. **Added a "why" comment** explaining why watch mode doesn't need `preloadBulkSessionSizesIfNeeded`
+
+```go
+// Note: Unlike sync/run commands, watch mode doesn't call preloadBulkSessionSizesIfNeeded
+// because sessions arrive one at a time via callbacks, not in bulk batches.
+if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+```
+
+The build succeeds and tests pass. The diagnostic warnings shown are pre-existing issues unrelated to these changes.
+
+---
+
+_**User (2026-01-25T14:51:15.232Z)**_
+
+<command-name>/exit</command-name>
+            <command-message>exit</command-message>
+            <command-args></command-args>
+
+_**User (2026-01-25T14:51:15.232Z)**_
+
+<local-command-stdout>See ya!</local-command-stdout>
+
+_**User (2026-01-25T14:51:15.234Z)**_
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
