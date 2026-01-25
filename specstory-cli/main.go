@@ -123,6 +123,13 @@ func normalizeDeviceCode(code string) (string, bool) {
 	return code, true
 }
 
+// getUseUTC reads the local-time-zone flag and returns the inverse (useUTC).
+// When --local-time-zone is false (default), useUTC is true.
+func getUseUTC(cmd *cobra.Command) bool {
+	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+	return !useLocalTimezone
+}
+
 func checkAndWarnAuthentication() {
 	if !noCloudSync && !cloud.IsAuthenticated() && !silent {
 		// Check if this was due to a 401 authentication failure
@@ -465,8 +472,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get debug-raw flag value (must be before callback to capture in closure)
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-			useUTC := !useLocalTimezone
+			useUTC := getUseUTC(cmd)
 
 			// This callback pattern enables real-time processing of agent sessions
 			// without blocking the agent's execution. As the agent writes updates to its
@@ -559,8 +565,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 
 			// Get debug-raw flag value
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-			useUTC := !useLocalTimezone
+			useUTC := getUseUTC(cmd)
 
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir)
@@ -781,8 +786,7 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	useUTC := !useLocalTimezone
+	useUTC := getUseUTC(cmd)
 
 	// Setup output configuration
 	config, err := utils.SetupOutputConfig(outputDir)
@@ -1245,8 +1249,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	useUTC := !useLocalTimezone
+	useUTC := getUseUTC(cmd)
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -1372,8 +1375,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	useUTC := !useLocalTimezone
+	useUTC := getUseUTC(cmd)
 
 	provider, err := registry.Get(providerID)
 	if err != nil {
