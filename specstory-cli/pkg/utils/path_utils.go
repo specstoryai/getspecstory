@@ -110,8 +110,10 @@ func (e ValidationError) Error() string {
 	return e.Message
 }
 
-// EnsureHistoryDirectoryExists creates the .specstory/history directory if it doesn't exist
-func EnsureHistoryDirectoryExists(config *OutputPathConfig) error {
+// EnsureHistoryDirectoryExists creates the .specstory/history directory if it doesn't exist.
+// This should be called before writing markdown files to handle cases where the directory
+// is deleted during a long-running watch or run command.
+func EnsureHistoryDirectoryExists(config OutputConfig) error {
 	historyPath := config.GetHistoryDir()
 	if err := os.MkdirAll(historyPath, 0755); err != nil {
 		return fmt.Errorf("error creating history directory: %v", err)
