@@ -4118,3 +4118,365 @@ This is a well-structured PR that adds a useful `watch` command following establ
 4. **Minor code smell**: Duplicate context cancellation check
 
 The code is idiomatic Go, has appropriate logging, and properly handles graceful shutdown with signal handling. The test added for flag validation is well-designed and verifiable.
+
+---
+
+_**User (2026-01-25T12:45:07.963Z)**_
+
+Let's address these 2:
+
+  - ⚠️ Missing - No --only-cloud-sync flag. The PR description mentions this needs to be added after PR #151 merges. This is noted as intentional.
+  - ⚠️ Missing - No --cloud-token flag (for VSCode extension). Is this needed for watch mode?
+
+(PR 151 has been merged)
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:13.072Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants to address two missing flags for the watch command:
+1. `--only-cloud-sync` flag - PR 151 has been merged, so this can now be added
+2. `--cloud-token` flag - need to determine if this is needed for watch mode
+
+Let me first look at how these flags are used in the other commands (run and sync) to understand what needs to be added.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:13.608Z)**_
+
+Let me look at how these flags are used in the other commands to understand what's needed.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:14.788Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `cloudToken`
+```
+45:var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
+276:			if cloudToken != "" {
+278:				if err := cloud.SetSessionRefreshToken(cloudToken); err != nil {
+2013:	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:15.351Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `onlyCloudSync`
+```
+42:var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+89:	if onlyCloudSync && noCloudSync {
+296:			if onlyCloudSync && !cloud.IsAuthenticated() {
+917:	if !onlyCloudSync {
+926:						"only_cloud_sync": onlyCloudSync,
+932:						"only_cloud_sync": onlyCloudSync,
+944:						"only_cloud_sync": onlyCloudSync,
+950:						"only_cloud_sync": onlyCloudSync,
+958:						"only_cloud_sync": onlyCloudSync,
+964:						"only_cloud_sync": onlyCloudSync,
+992:	if onlyCloudSync || !identicalContent || !isAutosave {
+1121:		if !onlyCloudSync {
+1132:						"only_cloud_sync": onlyCloudSync,
+1144:						"only_cloud_sync": onlyCloudSync,
+1149:						"only_cloud_sync": onlyCloudSync,
+1182:	if !silent && sessionCount > 0 && !onlyCloudSync {
+2020:	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+2030:	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:21.622Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I understand:
+
+1. `cloudToken` is a **persistent flag** on the root command (line 2013), so it should already be available to all subcommands including `watch`. Let me verify this is the case.
+
+2. `onlyCloudSync` is added as a flag to both `syncCmd` and `runCmd` but NOT to `watchCmd`. Since PR 151 has merged, we should add it to `watchCmd` as well.
+
+For `onlyCloudSync`, I also need to check:
+- The authentication validation at line 296 is in `syncCmd.PersistentPreRunE`. Since `watchCmd` doesn't have a PreRunE, we need to add the same validation there or in the command's RunE.
+
+Let me check the current watchCmd flags section to see exactly what needs to be added.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:23.265Z)**_
+
+I see that `cloudToken` is a **persistent flag** on the root command (line 2013), which means it's already inherited by all subcommands including `watch`. So no action needed there.
+
+For `onlyCloudSync`, I need to add:
+1. The flag to `watchCmd`
+2. The authentication validation (currently only in `syncCmd.PersistentPreRunE`)
+
+Let me check the current watchCmd flags section and the validation logic.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:24.491Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+```
+  2033→	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  2034→	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  2035→
+  2036→	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+  2037→	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
+  2038→	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  2039→	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  2040→	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  2041→	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  2042→
+  2043→	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+  2044→
+  2045→	logoutCmd.Flags().Bool("force", false, "skip confirmation prompt and logout immediately")
+  2046→	logoutCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  2047→	_ = logoutCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  2048→
+  2049→	loginCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  2050→	_ = loginCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  2051→
+  2052→	// Initialize analytics with the full CLI command (unless disabled)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:25.104Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+```
+   550→		Long:    longDesc,
+   551→		Example: examples,
+   552→		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+   553→		RunE: func(cmd *cobra.Command, args []string) error {
+   554→			slog.Info("Running in watch mode")
+   555→
+   556→			registry := factory.GetRegistry()
+   557→
+   558→			// Get debug-raw flag value
+   559→			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+   560→
+   561→			// Setup output configuration
+   562→			config, err := utils.SetupOutputConfig(outputDir)
+   563→			if err != nil {
+   564→				return err
+   565→			}
+   566→
+   567→			// Ensure history directory exists for watch mode
+   568→			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+   569→				return err
+   570→			}
+   571→
+   572→			// Initialize project identity
+   573→			cwd, err := os.Getwd()
+   574→			if err != nil {
+   575→				slog.Error("Failed to get current working directory", "error", err)
+   576→				return err
+   577→			}
+   578→			identityManager := utils.NewProjectIdentityManager(cwd)
+   579→			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+   580→				// Log error but don't fail the command
+   581→				slog.Error("Failed to ensure project identity", "error", err)
+   582→			}
+   583→
+   584→			// Check authentication for cloud sync
+   585→			checkAndWarnAuthentication()
+   586→
+   587→			providerIDs := registry.ListIDs()
+   588→			if len(providerIDs) == 0 {
+   589→				return fmt.Errorf("no providers registered")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:30.157Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to:
+
+1. Add the `--only-cloud-sync` flag to `watchCmd` (after line 2037, maintaining consistency with other commands)
+2. Add the authentication validation for `onlyCloudSync` in the `watchCmd.RunE` function (after the `checkAndWarnAuthentication()` call at line 585)
+
+For the validation, I should add it early in the RunE function, similar to how it's done in syncCmd's PersistentPreRunE. The best place would be right after `checkAndWarnAuthentication()` since that's where we're already dealing with authentication.
+
+Let me make these changes.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:31.109Z)**_
+
+Now I understand what needs to be done:
+
+1. Add `--only-cloud-sync` flag to `watchCmd` (after `--no-cloud-sync`)
+2. Add authentication validation in `watchCmd.RunE` (after `checkAndWarnAuthentication()`)
+
+Here are the changes:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:33.477Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:36.334Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to add the authentication validation in the RunE function. Let me add it after `checkAndWarnAuthentication()`.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:38.679Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:41.461Z)**_
+
+<think><details><summary>Thought Process</summary>
+The linter warnings are for pre-existing code, not my changes. Let me now run the linter and tests to make sure my changes are correct.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:41.887Z)**_
+
+Now let me run the linter and tests to verify the changes.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:42.643Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter on main.go
+
+`golangci-lint run main.go 2>&1 | head -30`
+```
+main.go:56:5: var uuidRegex is unused (unused)
+var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+    ^
+main.go:96:6: func validateUUID is unused (unused)
+func validateUUID(uuid string) bool {
+     ^
+2 issues:
+* unused: 2
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:48.002Z)**_
+
+<think><details><summary>Thought Process</summary>
+These linter issues are pre-existing (not caused by my changes). The "unused" issues for `uuidRegex` and `validateUUID` are false positives since they're used in tests. Let me run the tests to make sure everything works.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:48.797Z)**_
+
+The linter issues are pre-existing (not from my changes). The "unused" warnings are likely false positives since `uuidRegex` and `validateUUID` are used in tests. Let me run the tests to verify the changes work correctly.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:49.602Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run flag validation tests
+
+`go test -v -run TestValidateFlags ./... 2>&1 | head -30`
+```
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/no-cloud-sync_alone_-_valid
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/neither_flag_set_-_valid
+--- PASS: TestValidateFlags_CloudSyncMutualExclusion (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/no-cloud-sync_alone_-_valid (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/neither_flag_set_-_valid (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli	0.194s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
+testing: warning: no tests to run
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	1.109s [no tests to run]
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/log	[no test files]
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown	[no test files]
+testing: warning: no tests to run
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	0.952s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	0.782s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli	0.489s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	0.330s [no tests to run]
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:54.705Z)**_
+
+<think><details><summary>Thought Process</summary>
+Tests pass. Now let me also verify the CLI builds correctly and that the new flag shows up in the help.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:55.151Z)**_
+
+Tests pass. Let me also verify the CLI builds and the new flag appears in help.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:45:56.017Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and check watch command help
+
+`go build -o specstory && ./specstory watch --help`
+```
+The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
+```
+</details></tool-use>
+
+---
+
+_**User (2026-01-25T12:50:54.950Z)**_
+
+[Request interrupted by user for tool use]
+
+_**User (2026-01-25T12:50:59.025Z)**_
+
+I ran it, it's there.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:51:04.821Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user confirmed that the flag is there in the help output. So the changes are complete:
+
+1. ✅ Added `--only-cloud-sync` flag to `watchCmd`
+2. ✅ Added authentication validation for `onlyCloudSync` in `watchCmd.RunE`
+
+The `--cloud-token` flag was already available as a persistent flag on the root command, so no action was needed there.
+
+Let me summarize what was done.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-25T12:51:07.705Z)**_
+
+Done. Here's a summary of the changes made:
+
+**1. Added `--only-cloud-sync` flag to `watchCmd`** (line 2039)
+```go
+watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+```
+
+**2. Added authentication validation in `watchCmd.RunE`** (lines 588-591)
+```go
+// Validate that --only-cloud-sync requires authentication
+if onlyCloudSync && !cloud.IsAuthenticated() {
+    return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+}
+```
+
+**Regarding `--cloud-token`:** No action needed - it's already a persistent flag on the root command (line 2013), so it's automatically available to all subcommands including `watch`.

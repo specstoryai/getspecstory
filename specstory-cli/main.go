@@ -518,11 +518,11 @@ func createWatchCommand() *cobra.Command {
 
 	// Build dynamic examples
 	examples := `
-# Watch default agent for activity with auto-saving
+# Watch all registered agent providers for activity
 specstory watch`
 
 	if len(ids) > 0 {
-		examples += "\n\n# Watch specific agent"
+		examples += "\n\n# Watch for activity from a specific agent"
 		for _, id := range ids {
 			examples += fmt.Sprintf("\nspecstory watch %s", id)
 		}
@@ -583,6 +583,11 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 
 			// Check authentication for cloud sync
 			checkAndWarnAuthentication()
+
+			// Validate that --only-cloud-sync requires authentication
+			if onlyCloudSync && !cloud.IsAuthenticated() {
+				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+			}
 
 			providerIDs := registry.ListIDs()
 			if len(providerIDs) == 0 {
@@ -2035,6 +2040,7 @@ func main() {
 
 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
+	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
