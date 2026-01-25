@@ -1,5 +1,18 @@
 # Specstory CLI Changelog
 
+## v1.2.0 2026-01-25
+
+### ⚙️ Improvements
+
+- Added a `specstory watch` command to watch a project directory for any coding agent activity from any supported provider and auto-save sessions to local markdown and/or the [SpecStory Cloud](https://cloud.specstory.com).
+- Handle the case where `./.specstory/history` dir is deleted while the long running `run` or `watch` commands are still running.
+
+## v1.1.0 2026-01-23
+
+### ⚙️ Improvements
+
+- Added a `--only-cloud-sync` flag to the `sync` and `run` commands to skip local markdown writes and only sync to the [SpecStory Cloud](https://cloud.specstory.com).
+
 ## v1.0.0 2026-01-16
 
 ### 📢 Announcements
