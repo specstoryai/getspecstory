@@ -32,7 +32,7 @@ func LoadProject(projectHash string) (*Project, error) {
 	var project Project
 	if err := json.Unmarshal(data, &project); err != nil {
 		slog.Error("LoadProject: Failed to parse project JSON", "path", projectPath, "error", err)
-		return nil, fmt.Errorf("failed to parse project JSON: %w", err)
+		return nil, fmt.Errorf("%s", formatJSONParseError(projectPath, err))
 	}
 
 	slog.Debug("LoadProject: Successfully loaded project",
@@ -81,7 +81,7 @@ func LoadSession(projectHash, sessionID string) (*Session, error) {
 	var session Session
 	if err := json.Unmarshal(data, &session); err != nil {
 		slog.Error("LoadSession: Failed to parse session JSON", "path", sessionPath, "error", err)
-		return nil, fmt.Errorf("failed to parse session JSON: %w", err)
+		return nil, fmt.Errorf("%s", formatJSONParseError(sessionPath, err))
 	}
 
 	slog.Debug("LoadSession: Successfully loaded session",
@@ -137,7 +137,8 @@ func LoadSessionsForProject(projectHash string) ([]Session, error) {
 		var session Session
 		if err := json.Unmarshal(data, &session); err != nil {
 			slog.Debug("LoadSessionsForProject: Failed to parse session JSON",
-				"path", sessionPath, "error", err)
+				"path", sessionPath, "error", err,
+				"formattedError", formatJSONParseError(sessionPath, err))
 			parseErrors++
 			continue
 		}
@@ -204,7 +205,8 @@ func LoadMessagesForSession(sessionID string) ([]Message, error) {
 		var message Message
 		if err := json.Unmarshal(data, &message); err != nil {
 			slog.Debug("LoadMessagesForSession: Failed to parse message JSON",
-				"path", messagePath, "error", err)
+				"path", messagePath, "error", err,
+				"formattedError", formatJSONParseError(messagePath, err))
 			parseErrors++
 			continue
 		}
@@ -271,7 +273,8 @@ func LoadPartsForMessage(messageID string) ([]Part, error) {
 		var part Part
 		if err := json.Unmarshal(data, &part); err != nil {
 			slog.Debug("LoadPartsForMessage: Failed to parse part JSON",
-				"path", partPath, "error", err)
+				"path", partPath, "error", err,
+				"formattedError", formatJSONParseError(partPath, err))
 			parseErrors++
 			continue
 		}

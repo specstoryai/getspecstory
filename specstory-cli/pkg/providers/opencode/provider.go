@@ -323,73 +323,15 @@ func classifyCheckError(err error) string {
 
 	switch {
 	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return "not_found"
+		return ErrTypeNotFound
 	case errors.As(err, &pathErr):
 		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return "permission_denied"
+			return ErrTypePermissionDenied
 		}
 	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
+		return ErrTypePermissionDenied
 	}
-	return "version_failed"
-}
-
-// buildCheckErrorMessage creates a user-facing error message for Check failures.
-func buildCheckErrorMessage(errorType string, opencodeCmd string, isCustom bool, stderr string) string {
-	var b strings.Builder
-
-	switch errorType {
-	case "not_found":
-		b.WriteString("OpenCode could not be found.\n\n")
-		if isCustom {
-			b.WriteString("  Verify the path you supplied points to the `opencode` executable.\n")
-			b.WriteString(fmt.Sprintf("  Provided command: %s\n", opencodeCmd))
-		} else {
-			b.WriteString("  Install OpenCode from https://opencode.ai\n")
-			b.WriteString("  Ensure `opencode` is on your PATH or pass a custom command via:\n")
-			b.WriteString("    specstory check opencode -c \"path/to/opencode\"\n")
-		}
-	case "permission_denied":
-		b.WriteString("OpenCode exists but isn't executable.\n\n")
-		b.WriteString(fmt.Sprintf("  Fix permissions: chmod +x %s\n", opencodeCmd))
-	default:
-		b.WriteString("`opencode --version` failed.\n\n")
-		if stderr != "" {
-			b.WriteString(fmt.Sprintf("Error output:\n%s\n\n", stderr))
-		}
-		b.WriteString("  Try running `opencode --version` directly in your terminal.\n")
-		b.WriteString("  If you upgraded recently, reinstall OpenCode to refresh dependencies.\n")
-	}
-
-	return b.String()
-}
-
-// printDetectionHelp prints helpful guidance when OpenCode detection fails.
-func printDetectionHelp(err error) {
-	var pathErr *OpenCodePathError
-	if errors.As(err, &pathErr) {
-		switch pathErr.Kind {
-		case "storage_missing":
-			log.UserWarn("OpenCode storage directory missing (%s).", pathErr.Path)
-			log.UserMessage("Run OpenCode once (e.g., `opencode`) so ~/.local/share/opencode is created, then rerun this command.\n")
-		case "project_missing":
-			log.UserWarn("No OpenCode data found for this project (expected hash %s at %s).", pathErr.ProjectHash, pathErr.Path)
-			if len(pathErr.KnownHashes) > 0 {
-				log.UserMessage("Known OpenCode project hashes: %s\n", strings.Join(pathErr.KnownHashes, ", "))
-			} else {
-				log.UserMessage("No OpenCode projects detected yet under ~/.local/share/opencode/storage.\n")
-			}
-			log.UserMessage("Start an OpenCode session from your repo so the provider can pick it up.\n")
-		case "global_session":
-			log.UserWarn("Global OpenCode sessions are not supported.")
-			log.UserMessage("SpecStory requires a project-specific context. Run OpenCode from a project directory.\n")
-		default:
-			log.UserWarn("OpenCode detection failed: %v", err)
-		}
-		return
-	}
-
-	log.UserWarn("OpenCode detection failed: %v", err)
+	return ErrTypeVersionFailed
 }
 
 // convertToAgentChatSession converts a FullSession to the provider-agnostic AgentChatSession format.
