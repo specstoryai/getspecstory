@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/fang"
@@ -121,6 +123,13 @@ func normalizeDeviceCode(code string) (string, bool) {
 	return code, true
 }
 
+// getUseUTC reads the local-time-zone flag and converts it to useUTC format.
+// When --local-time-zone is false (default), useUTC is true.
+func getUseUTC(cmd *cobra.Command) bool {
+	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+	return !useLocalTimezone
+}
+
 func checkAndWarnAuthentication() {
 	if !noCloudSync && !cloud.IsAuthenticated() && !silent {
 		// Check if this was due to a 401 authentication failure
@@ -199,7 +208,10 @@ specstory run`
 specstory sync
 
 # Generate a markdown file for a specific agent session
-specstory sync -s <session-id>`
+specstory sync -s <session-id>
+
+# Watch for any agent activity in the current directory and generate markdown files
+specstory watch`
 
 	longDesc := `SpecStory is a wrapper for terminal coding agents that auto-saves markdown files of all your chat interactions.`
 	if providerList != "No providers registered" {
@@ -460,6 +472,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get debug-raw flag value (must be before callback to capture in closure)
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+			useUTC := getUseUTC(cmd)
 
 			// This callback pattern enables real-time processing of agent sessions
 			// without blocking the agent's execution. As the agent writes updates to its
@@ -478,7 +491,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw)
+				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -504,6 +517,195 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 }
 
 var runCmd *cobra.Command
+
+// createWatchCommand dynamically creates the watch command with provider information
+func createWatchCommand() *cobra.Command {
+	registry := factory.GetRegistry()
+	ids := registry.ListIDs()
+	providerList := registry.GetProviderList()
+
+	// Build dynamic examples
+	examples := `
+# Watch all registered agent providers for activity
+specstory watch`
+
+	if len(ids) > 0 {
+		examples += "\n\n# Watch for activity from a specific agent"
+		for _, id := range ids {
+			examples += fmt.Sprintf("\nspecstory watch %s", id)
+		}
+	}
+
+	examples += `
+
+# Watch with custom output directory
+specstory watch --output-dir ~/my-sessions`
+
+	longDesc := `Watch for coding agent activity in the current directory and auto-save markdown files.
+
+Unlike 'run', this command does not launch a coding agent - it only monitors for agent activity.
+Use this when you want to run the agent separately, but still want auto-saved markdown files.
+
+By default, 'watch' is for activity from all registered agent providers. Specify a specific agent ID to watch for activity from only that agent.`
+	if providerList != "No providers registered" {
+		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
+	}
+
+	return &cobra.Command{
+		Use:     "watch [provider-id]",
+		Aliases: []string{"w"},
+		Short:   "Watch for coding agent activity with auto-save",
+		Long:    longDesc,
+		Example: examples,
+		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("Running in watch mode")
+
+			registry := factory.GetRegistry()
+
+			// Get debug-raw flag value
+			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+			useUTC := getUseUTC(cmd)
+
+			// Setup output configuration
+			config, err := utils.SetupOutputConfig(outputDir)
+			if err != nil {
+				return err
+			}
+
+			// Ensure history directory exists for watch mode
+			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+				return err
+			}
+
+			// Initialize project identity (needed for cloud sync)
+			cwd, err := os.Getwd()
+			if err != nil {
+				slog.Error("Failed to get current working directory", "error", err)
+				return err
+			}
+			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+				// Log error but don't fail the command
+				slog.Error("Failed to ensure project identity", "error", err)
+			}
+
+			// Check authentication for cloud sync
+			checkAndWarnAuthentication()
+
+			// Validate that --only-cloud-sync requires authentication
+			if onlyCloudSync && !cloud.IsAuthenticated() {
+				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+			}
+
+			providerIDs := registry.ListIDs()
+			if len(providerIDs) == 0 {
+				return fmt.Errorf("no providers registered")
+			}
+			if len(args) > 0 {
+				providerIDs = []string{args[0]}
+			}
+
+			// Collect provider names for analytics
+			providers := make(map[string]spi.Provider)
+			for _, id := range providerIDs {
+				if provider, err := registry.Get(id); err == nil {
+					providers[id] = provider
+				} else {
+					return fmt.Errorf("no provider %s found", id)
+				}
+			}
+			var providerNames []string
+			// Get all provider names from the providers map
+			for _, provider := range providers {
+				providerNames = append(providerNames, provider.Name())
+			}
+			analytics.SetAgentProviders(providerNames)
+
+			// Track watch command activation
+			analytics.TrackEvent(analytics.EventWatchActivated, nil)
+
+			// Create context for graceful cancellation (Ctrl+C handling)
+			// This allows providers to clean up resources when user presses Ctrl+C
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+
+			if !silent {
+				fmt.Println()
+				agentWord := "agents"
+				if len(providerNames) == 1 {
+					agentWord = "agent"
+				}
+				fmt.Println("👀 Watching for activity from " + agentWord + ": " + strings.Join(providerNames, ", "))
+				fmt.Println("   Press Ctrl+C to stop watching")
+				fmt.Println()
+			}
+
+			// Watch each provider concurrently
+			errChan := make(chan error, len(providerIDs))
+			for _, id := range providerIDs {
+				provider := providers[id]
+
+				// Launch a goroutine for each provider
+				go func(p spi.Provider) {
+					slog.Info("Starting agent monitoring", "provider", p.Name())
+
+					// Create session callback for this provider
+					sessionCallback := func(session *spi.AgentChatSession) {
+						if session == nil {
+							return
+						}
+
+						// Process the session (write markdown and sync to cloud)
+						// Don't show output during watch mode
+						// This is autosave mode (true)
+						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
+						if err != nil {
+							// Log error but continue - don't fail the whole watch
+							// In watch mode, we prioritize keeping the watcher running.
+							// Failed markdown writes or cloud syncs can be retried later via
+							// the sync command, so we just log and continue.
+							slog.Error("Failed to process session update",
+								"sessionId", session.SessionID,
+								"provider", p.Name(),
+								"error", err)
+						}
+					}
+
+					err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
+					if err != nil {
+						// Context cancellation is expected when user presses Ctrl+C, not an error
+						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+							slog.Info("Agent monitoring stopped", "provider", p.Name())
+							errChan <- nil
+						} else {
+							slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
+							errChan <- fmt.Errorf("%s: %w", p.Name(), err)
+						}
+					} else {
+						errChan <- nil
+					}
+				}(provider)
+			}
+
+			// Wait for all watchers to complete (or error)
+			// In practice, they should run indefinitely until Ctrl+C
+			var lastError error
+			for i := 0; i < len(providerIDs); i++ {
+				if err := <-errChan; err != nil {
+					// Ignore context cancellation - it's expected on Ctrl+C
+					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+						lastError = err
+						slog.Error("Provider watch error", "error", err)
+					}
+				}
+			}
+
+			return lastError
+		},
+	}
+}
+
+var watchCmd *cobra.Command
 
 // createSyncCommand dynamically creates the sync command with provider information
 func createSyncCommand() *cobra.Command {
@@ -584,6 +786,7 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+	useUTC := getUseUTC(cmd)
 
 	// Setup output configuration
 	config, err := utils.SetupOutputConfig(outputDir)
@@ -632,7 +835,7 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 
 		// Process the session (show output for sync command)
 		// This is manual sync mode (false)
-		return processSingleSession(session, provider, config, true, false, debugRaw)
+		return processSingleSession(session, provider, config, true, false, debugRaw, useUTC)
 	}
 
 	// Case B: No provider specified - try all providers
@@ -654,7 +857,7 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 				fmt.Printf("✅ Found session for %s\n", provider.Name())
 			}
 			// This is manual sync mode (false)
-			return processSingleSession(session, provider, config, true, false, debugRaw)
+			return processSingleSession(session, provider, config, true, false, debugRaw, useUTC)
 		}
 	}
 
@@ -689,15 +892,27 @@ func writeDebugSessionData(session *spi.AgentChatSession, debugRaw bool) {
 	}
 }
 
+// formatFilenameTimestamp formats a timestamp for use in filenames
+// The format is filesystem-safe and matches the markdown title format
+func formatFilenameTimestamp(t time.Time, useUTC bool) string {
+	if useUTC {
+		// Use UTC with Z suffix: "2006-01-02_15-04-05Z"
+		return t.UTC().Format("2006-01-02_15-04-05") + "Z"
+	}
+	// Use local timezone with offset: "2006-01-02_15-04-05-0700"
+	return t.Local().Format("2006-01-02_15-04-05-0700")
+}
+
 // processSingleSession writes markdown and triggers cloud sync for a single session
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool) error {
+// useUTC controls timestamp format (true=UTC, false=local)
+func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
 	// Generate markdown from SessionData
-	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false)
+	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return fmt.Errorf("failed to generate markdown: %w", err)
@@ -705,7 +920,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 
 	// Generate filename from timestamp and slug
 	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-	timestampStr := timestamp.Format("2006-01-02_15-04-05Z")
+	timestampStr := formatFilenameTimestamp(timestamp, useUTC)
 
 	filename := timestampStr
 	if session.Slug != "" {
@@ -734,6 +949,10 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	// Write file if needed (skip if only-cloud-sync is enabled)
 	if !onlyCloudSync {
 		if !identicalContent {
+			// Ensure history directory exists (handles deletion during long-running watch/run)
+			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+				return fmt.Errorf("failed to ensure history directory: %w", err)
+			}
 			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 			if err != nil {
 				// Track write error
@@ -859,7 +1078,7 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 
 // syncProvider performs the actual sync for a single provider
 // Returns (sessionCount, error) for analytics tracking
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool) (int, error) {
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
@@ -899,7 +1118,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		writeDebugSessionData(session, debugRaw)
 
 		// Generate markdown from SessionData
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false)
+		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 		if err != nil {
 			slog.Error("Failed to generate markdown from SessionData",
 				"sessionId", session.SessionID,
@@ -914,7 +1133,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 		// Generate filename from timestamp and slug
 		timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-		timestampStr := timestamp.Format("2006-01-02_15-04-05Z")
+		timestampStr := formatFilenameTimestamp(timestamp, useUTC)
 
 		filename := timestampStr
 		if session.Slug != "" {
@@ -938,6 +1157,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// Write file if needed (skip if only-cloud-sync is enabled)
 		if !onlyCloudSync {
 			if !identicalContent {
+				// Ensure history directory exists (handles deletion during long-running sync)
+				if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+					slog.Error("Failed to ensure history directory", "error", err)
+					continue
+				}
 				err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 				if err != nil {
 					slog.Error("Error writing markdown file",
@@ -1025,6 +1249,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+	useUTC := getUseUTC(cmd)
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -1117,7 +1342,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
 		totalSessionCount += sessionCount
 
 		if err != nil {
@@ -1150,6 +1375,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+	useUTC := getUseUTC(cmd)
 
 	provider, err := registry.Get(providerID)
 	if err != nil {
@@ -1212,7 +1438,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
 
 	// Track analytics
 	if syncErr != nil {
@@ -1799,6 +2025,7 @@ func main() {
 	// NOW create the commands - after logging is configured
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
+	watchCmd = createWatchCommand()
 	syncCmd = createSyncCommand()
 	checkCmd = createCheckCommand()
 
@@ -1813,6 +2040,7 @@ func main() {
 
 	// Add the subcommands
 	rootCmd.AddCommand(runCmd)
+	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(checkCmd)
@@ -1838,6 +2066,7 @@ func main() {
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
@@ -1848,6 +2077,16 @@ func main() {
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+
+	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
+	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 

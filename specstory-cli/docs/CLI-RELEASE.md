@@ -1,6 +1,8 @@
 # Releasing SpecStory CLI
 
-## Release Steps
+## Creating a Release
+
+### Release Steps
 
 1. Merge changes to `main` branch
 2. Update `specstory-cli/changelog.md` with release notes
@@ -13,7 +15,7 @@
 5. Verify the [GitHub Release](https://github.com/specstoryai/getspecstory/releases) has correct changelog
 6. Verify [homebrew-tap](https://github.com/specstoryai/homebrew-tap) was updated
 
-## Verification
+### Verification
 
 After release, verify the Homebrew installation works:
 
@@ -23,6 +25,10 @@ brew update
 brew upgrade specstory
 specstory version
 ```
+
+### Update Any Product/Feature Changes in the Documentation
+
+Scan the [SpecStory CLI documentation](https://docs.specstory.com/) and update any product/feature changes in the [documentation](https://github.com/specstoryai/specstory-website/tree/main/content/docs) repository and push updates to `main`.
 
 ## What Gets Automated
 

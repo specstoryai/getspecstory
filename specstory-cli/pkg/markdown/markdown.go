@@ -29,7 +29,8 @@ const (
 // GenerateMarkdownFromAgentSession generates markdown from a SessionData
 // This is provider-agnostic and works from the unified agent session JSON format
 // If includeMessageIDs is true, message IDs will be included in the output
-func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageIDs bool) (string, error) {
+// useUTC controls timestamp format (true=UTC, false=local)
+func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageIDs bool, useUTC bool) (string, error) {
 	if sessionData == nil {
 		return "", fmt.Errorf("sessionData is nil")
 	}
@@ -40,15 +41,15 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	markdown.WriteString(GeneratedBySpecStory + "\n\n")
 
 	// Create title from session info
-	title := generateTitle(sessionData)
+	title := generateTitle(sessionData, useUTC)
 	markdown.WriteString(fmt.Sprintf("# %s\n\n", title))
 
 	// Add session metadata comment using the same timestamp format as the title
 	var commentTimestamp string
 	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
-		commentTimestamp = formatTimestamp(sessionData.Exchanges[0].StartTime)
+		commentTimestamp = formatTimestamp(sessionData.Exchanges[0].StartTime, useUTC)
 	} else {
-		commentTimestamp = formatTimestamp(sessionData.CreatedAt)
+		commentTimestamp = formatTimestamp(sessionData.CreatedAt, useUTC)
 	}
 	markdown.WriteString(fmt.Sprintf("<!-- %s Session %s (%s) -->\n\n",
 		sessionData.Provider.Name,
@@ -59,7 +60,7 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	prevRole := ""
 	for _, exchange := range sessionData.Exchanges {
 		for _, msg := range exchange.Messages {
-			markdown.WriteString(renderMessage(msg, prevRole, includeMessageIDs))
+			markdown.WriteString(renderMessage(msg, prevRole, includeMessageIDs, useUTC))
 			prevRole = msg.Role
 		}
 	}
@@ -70,28 +71,34 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 }
 
 // generateTitle creates a title for the session
-func generateTitle(sessionData *SessionData) string {
+func generateTitle(sessionData *SessionData, useUTC bool) string {
 	// Use first exchange start time for the title (matching existing markdown format)
 	// This is the timestamp of the first user message
 	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
-		return formatTimestamp(sessionData.Exchanges[0].StartTime)
+		return formatTimestamp(sessionData.Exchanges[0].StartTime, useUTC)
 	}
 	// Fallback to session creation time if no exchanges or no start time
-	return formatTimestamp(sessionData.CreatedAt)
+	return formatTimestamp(sessionData.CreatedAt, useUTC)
 }
 
-// formatTimestamp formats an ISO 8601 timestamp for display in title
-func formatTimestamp(timestamp string) string {
+// formatTimestamp formats an ISO 8601 timestamp for display in title and comments
+func formatTimestamp(timestamp string, useUTC bool) string {
 	t, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {
 		return timestamp
 	}
-	// Format to match existing markdown: "2025-11-13 21:12:14Z"
-	return t.UTC().Format("2006-01-02 15:04:05") + "Z"
+
+	if useUTC {
+		// Use UTC with Z suffix (default): "2025-11-13 21:12:14Z"
+		return t.UTC().Format("2006-01-02 15:04:05") + "Z"
+	}
+
+	// Use local timezone with offset: "2025-11-13 21:12:14-0700"
+	return t.Local().Format("2006-01-02 15:04:05-0700")
 }
 
 // renderMessage renders a single message with role header, content, and optional tool use
-func renderMessage(msg Message, prevRole string, includeMessageIDs bool) string {
+func renderMessage(msg Message, prevRole string, includeMessageIDs bool, useUTC bool) string {
 	var markdown strings.Builder
 
 	// Add separator before this message if role changed from previous message
@@ -100,7 +107,7 @@ func renderMessage(msg Message, prevRole string, includeMessageIDs bool) string 
 	}
 
 	// Add role header
-	roleHeader := renderRoleHeader(msg)
+	roleHeader := renderRoleHeader(msg, useUTC)
 	if includeMessageIDs && msg.ID != "" {
 		// Strip one trailing newline so the message ID comment appears on the next line
 		roleHeader = strings.TrimSuffix(roleHeader, "\n")
@@ -125,7 +132,7 @@ func renderMessage(msg Message, prevRole string, includeMessageIDs bool) string 
 }
 
 // renderRoleHeader creates the role header for a message
-func renderRoleHeader(msg Message) string {
+func renderRoleHeader(msg Message, useUTC bool) string {
 	// Check if this is a sidechain message (subagent conversation)
 	sidechainMarker := ""
 	if isSidechain, ok := msg.Metadata["isSidechain"].(bool); ok && isSidechain {
@@ -135,20 +142,23 @@ func renderRoleHeader(msg Message) string {
 	if msg.Role == "user" {
 		// User message - include timestamp if available
 		if msg.Timestamp != "" {
-			return fmt.Sprintf("_**User%s (%s)**_\n\n", sidechainMarker, msg.Timestamp)
+			formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
+			return fmt.Sprintf("_**User%s (%s)**_\n\n", sidechainMarker, formattedTimestamp)
 		}
 		return fmt.Sprintf("_**User%s**_\n\n", sidechainMarker)
 	}
 
 	// Agent message - include model and timestamp if available
 	if msg.Model != "" && msg.Timestamp != "" {
-		return fmt.Sprintf("_**Agent%s (%s %s)**_\n\n", sidechainMarker, msg.Model, msg.Timestamp)
+		formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
+		return fmt.Sprintf("_**Agent%s (%s %s)**_\n\n", sidechainMarker, msg.Model, formattedTimestamp)
 	}
 	if msg.Model != "" {
 		return fmt.Sprintf("_**Agent%s (%s)**_\n\n", sidechainMarker, msg.Model)
 	}
 	if msg.Timestamp != "" {
-		return fmt.Sprintf("_**Agent%s (%s)**_\n\n", sidechainMarker, msg.Timestamp)
+		formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
+		return fmt.Sprintf("_**Agent%s (%s)**_\n\n", sidechainMarker, formattedTimestamp)
 	}
 
 	return fmt.Sprintf("_**Agent%s**_\n\n", sidechainMarker)
