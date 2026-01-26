@@ -213,8 +213,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 }
 
 // ExecAgentAndWatch executes OpenCode in interactive mode and watches for session updates.
-// This is a stub implementation that only executes OpenCode without file watching.
-// Full watching functionality will be implemented in Step 7 (watcher.go).
+// Sets up file watching before executing OpenCode and processes existing sessions first.
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("ExecAgentAndWatch: Starting OpenCode execution and monitoring",
 		"projectPath", projectPath,
@@ -233,49 +232,73 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Resuming OpenCode session", "sessionId", resumeSessionID)
 	}
 
-	// TODO: Step 7 - Set up file watcher before executing OpenCode
-	// Important: Process existing sessions BEFORE starting the watcher to ensure
-	// we capture any sessions that were created before this run started.
-	// This follows the same pattern as the Cursor CLI provider.
-	// SetWatcherCallback(sessionCallback)
-	// defer ClearWatcherCallback()
-	// SetWatcherDebugRaw(debugRaw)
-	// if err := WatchOpenCodeProject(projectPath, sessionCallback); err != nil {
-	//     slog.Error("Failed to start watcher", "error", err)
-	// }
-	// defer StopWatcher()
+	// Create the watcher
+	watcher, err := NewWatcher(projectPath, sessionCallback)
+	if err != nil {
+		slog.Error("ExecAgentAndWatch: Failed to create watcher", "error", err)
+		// Continue without watcher - at least execute OpenCode
+	} else {
+		watcher.SetDebugRaw(debugRaw)
+
+		// Process existing sessions BEFORE starting the watcher to ensure
+		// we capture any sessions that were created before this run started.
+		watcher.ProcessExistingSessions()
+
+		// Start watcher in background
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		go func() {
+			if err := watcher.Start(ctx); err != nil && err != context.Canceled {
+				slog.Error("ExecAgentAndWatch: Watcher error", "error", err)
+			}
+		}()
+
+		defer func() {
+			if err := watcher.Stop(); err != nil {
+				slog.Debug("ExecAgentAndWatch: Error stopping watcher", "error", err)
+			}
+		}()
+	}
 
 	// Execute OpenCode
 	slog.Info("Executing OpenCode", "command", customCommand)
-	err := executeOpenCode(customCommand, resumeSessionID)
+	execErr := executeOpenCode(customCommand, resumeSessionID)
 
-	if err != nil {
-		return fmt.Errorf("OpenCode execution failed: %w", err)
+	if execErr != nil {
+		return fmt.Errorf("OpenCode execution failed: %w", execErr)
 	}
 
 	return nil
 }
 
 // WatchAgent watches for OpenCode agent activity without executing OpenCode itself.
-// This is a stub implementation that blocks until context cancellation.
-// Full watching functionality will be implemented in Step 7 (watcher.go).
+// Monitors storage directories for file changes and invokes the callback when sessions update.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("WatchAgent: Starting OpenCode activity monitoring",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
-	// TODO: Step 7 - Implement file watching
-	// 1. Set up debug mode: SetWatcherDebugRaw(debugRaw)
-	// 2. Start watching: WatchOpenCodeProject(projectPath, sessionCallback)
-	// 3. Block until context is cancelled
-	// 4. Stop watcher on exit
+	// Create the watcher
+	watcher, err := NewWatcher(projectPath, sessionCallback)
+	if err != nil {
+		return fmt.Errorf("failed to create watcher: %w", err)
+	}
+	watcher.SetDebugRaw(debugRaw)
 
-	// For now, just wait for context cancellation
-	slog.Info("WatchAgent: Watcher not yet implemented, blocking until context cancelled")
-	<-ctx.Done()
+	// Process existing sessions first
+	watcher.ProcessExistingSessions()
 
-	slog.Info("WatchAgent: Context cancelled")
-	return ctx.Err()
+	// Start watching - this blocks until context is cancelled
+	err = watcher.Start(ctx)
+
+	// Clean up
+	if stopErr := watcher.Stop(); stopErr != nil {
+		slog.Debug("WatchAgent: Error stopping watcher", "error", stopErr)
+	}
+
+	slog.Info("WatchAgent: Watcher stopped")
+	return err
 }
 
 // parseOpenCodeCommand parses the custom command string into command and arguments.
