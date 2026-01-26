@@ -1,17 +1,14 @@
 package opencode
 
 import (
-	"crypto/sha1"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Package-level function variables for testing dependency injection.
@@ -19,6 +16,8 @@ var (
 	osGetwd       = os.Getwd
 	osUserHomeDir = os.UserHomeDir
 	osStat        = os.Stat
+	execCommand   = exec.Command
+	osReadFile    = os.ReadFile
 )
 
 // GlobalProjectHash is the special hash used by OpenCode for global sessions.
@@ -51,10 +50,14 @@ func GetStorageDir() (string, error) {
 	return filepath.Join(homeDir, ".local", "share", "opencode", "storage"), nil
 }
 
-// ComputeProjectHash computes the SHA-1 hash of an absolute project path.
-// OpenCode uses SHA-1 hashes of the worktree path to identify projects.
-// On case-insensitive filesystems (macOS), it resolves the path to its canonical
-// form with the correct case to ensure consistent hashing.
+// ComputeProjectHash computes the project hash for a given directory.
+// OpenCode uses the git root commit hash to identify projects, not a hash of the path.
+// The algorithm:
+// 1. Find the .git directory by walking up from projectPath
+// 2. Check for a cached hash in .git/opencode
+// 3. Run `git rev-list --max-parents=0 --all` to get root commit(s)
+// 4. Sort the commits and use the first one (alphabetically)
+// 5. Returns "global" if not in a git repo or no commits found
 func ComputeProjectHash(projectPath string) (string, error) {
 	if projectPath == "" {
 		return "", fmt.Errorf("project path is empty")
@@ -65,23 +68,87 @@ func ComputeProjectHash(projectPath string) (string, error) {
 		return "", fmt.Errorf("failed to resolve absolute path for %q: %w", projectPath, err)
 	}
 
-	// Resolve to canonical path with correct case (important for case-insensitive filesystems like macOS)
-	canonicalPath, err := spi.GetCanonicalPath(absPath)
+	// Find .git directory by walking up from the project path
+	gitDir, err := findGitDir(absPath)
 	if err != nil {
-		// If getting canonical path fails, use absPath as fallback
-		slog.Warn("ComputeProjectHash: Failed to get canonical path, using absolute path",
-			"absPath", absPath,
+		slog.Debug("ComputeProjectHash: Not in a git repository, returning global",
+			"projectPath", absPath,
 			"error", err)
-		canonicalPath = absPath
-	} else if canonicalPath != absPath {
-		// Log when the path was canonicalized (case was corrected)
-		slog.Debug("ComputeProjectHash: Resolved path to canonical form",
-			"original", absPath,
-			"canonical", canonicalPath)
+		return GlobalProjectHash, nil
 	}
 
-	hash := sha1.Sum([]byte(canonicalPath))
-	return hex.EncodeToString(hash[:]), nil
+	// Check for cached hash in .git/opencode (OpenCode caches the hash here)
+	cacheFile := filepath.Join(gitDir, "opencode")
+	if cachedHash, err := osReadFile(cacheFile); err == nil {
+		hash := strings.TrimSpace(string(cachedHash))
+		if hash != "" {
+			slog.Debug("ComputeProjectHash: Using cached hash from .git/opencode",
+				"hash", hash,
+				"cacheFile", cacheFile)
+			return hash, nil
+		}
+	}
+
+	// Get the git worktree directory (parent of .git)
+	worktree := filepath.Dir(gitDir)
+
+	// Get root commit(s) using git rev-list --max-parents=0 --all
+	cmd := execCommand("git", "rev-list", "--max-parents=0", "--all")
+	cmd.Dir = worktree
+	output, err := cmd.Output()
+	if err != nil {
+		slog.Debug("ComputeProjectHash: Failed to get root commits, returning global",
+			"projectPath", absPath,
+			"error", err)
+		return GlobalProjectHash, nil
+	}
+
+	// Parse and sort root commits
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var roots []string
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			roots = append(roots, line)
+		}
+	}
+
+	if len(roots) == 0 {
+		slog.Debug("ComputeProjectHash: No root commits found, returning global",
+			"projectPath", absPath)
+		return GlobalProjectHash, nil
+	}
+
+	// Sort and take the first one (alphabetically, matching OpenCode's toSorted())
+	sort.Strings(roots)
+	hash := roots[0]
+
+	slog.Debug("ComputeProjectHash: Computed hash from git root commit",
+		"projectPath", absPath,
+		"hash", hash,
+		"rootCommitCount", len(roots))
+
+	return hash, nil
+}
+
+// findGitDir walks up from the given path to find a .git directory.
+// Returns the path to the .git directory or an error if not found.
+func findGitDir(startPath string) (string, error) {
+	current := startPath
+	for {
+		gitPath := filepath.Join(current, ".git")
+		info, err := osStat(gitPath)
+		if err == nil && info.IsDir() {
+			return gitPath, nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			// Reached root without finding .git
+			return "", fmt.Errorf("not a git repository: %s", startPath)
+		}
+		current = parent
+	}
 }
 
 // GetProjectDir returns the OpenCode project directory path for the given project path.

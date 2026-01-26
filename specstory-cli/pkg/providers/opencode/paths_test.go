@@ -3,25 +3,99 @@ package opencode
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
 
-func TestComputeProjectHash_Deterministic(t *testing.T) {
-	// This tests that the same path always produces the same hash.
-	// The hash value was computed by running SHA-1 on "/tmp/specstory".
-	const (
-		projectPath = "/tmp/specstory"
-		// SHA-1 of "/tmp/specstory" = da39a3ee5e6b4b0d3255bfef95601890afd80709
-		// Note: actual hash depends on the exact path normalization
-	)
+// createTestGitRepo creates a temporary git repository with a known root commit hash.
+// Returns the repo path and the expected hash.
+func createTestGitRepo(t *testing.T) (string, string) {
+	t.Helper()
 
-	hash1, err := ComputeProjectHash(projectPath)
+	repoDir := t.TempDir()
+
+	// Initialize git repo
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to init git repo: %v", err)
+	}
+
+	// Configure git user for commit
+	cmd = exec.Command("git", "config", "user.email", "test@test.com")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to configure git email: %v", err)
+	}
+
+	cmd = exec.Command("git", "config", "user.name", "Test User")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to configure git name: %v", err)
+	}
+
+	// Create a file and commit
+	testFile := filepath.Join(repoDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	cmd = exec.Command("git", "add", "test.txt")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "initial commit")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	// Get the root commit hash
+	cmd = exec.Command("git", "rev-list", "--max-parents=0", "--all")
+	cmd.Dir = repoDir
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("failed to get root commit: %v", err)
+	}
+
+	hash := string(output)
+	if len(hash) > 40 {
+		hash = hash[:40]
+	}
+
+	return repoDir, hash
+}
+
+func TestComputeProjectHash_InGitRepo(t *testing.T) {
+	repoDir, expectedHash := createTestGitRepo(t)
+
+	hash, err := ComputeProjectHash(repoDir)
 	if err != nil {
 		t.Fatalf("ComputeProjectHash returned error: %v", err)
 	}
 
-	hash2, err := ComputeProjectHash(projectPath)
+	if hash != expectedHash {
+		t.Fatalf("ComputeProjectHash returned %q, want %q", hash, expectedHash)
+	}
+
+	// Verify hash length (git commit hash is 40 hex characters)
+	if len(hash) != 40 {
+		t.Fatalf("ComputeProjectHash returned hash with unexpected length: got %d, want 40", len(hash))
+	}
+}
+
+func TestComputeProjectHash_Deterministic(t *testing.T) {
+	repoDir, _ := createTestGitRepo(t)
+
+	hash1, err := ComputeProjectHash(repoDir)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash returned error: %v", err)
+	}
+
+	hash2, err := ComputeProjectHash(repoDir)
 	if err != nil {
 		t.Fatalf("ComputeProjectHash returned error on second call: %v", err)
 	}
@@ -29,10 +103,20 @@ func TestComputeProjectHash_Deterministic(t *testing.T) {
 	if hash1 != hash2 {
 		t.Fatalf("ComputeProjectHash is not deterministic: %s != %s", hash1, hash2)
 	}
+}
 
-	// Verify hash length (SHA-1 produces 40 hex characters)
-	if len(hash1) != 40 {
-		t.Fatalf("ComputeProjectHash returned hash with unexpected length: got %d, want 40", len(hash1))
+func TestComputeProjectHash_NonGitDir(t *testing.T) {
+	// Create a non-git directory
+	nonGitDir := t.TempDir()
+
+	hash, err := ComputeProjectHash(nonGitDir)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash returned error: %v", err)
+	}
+
+	// Non-git directories should return "global"
+	if hash != GlobalProjectHash {
+		t.Fatalf("ComputeProjectHash for non-git dir returned %q, want %q", hash, GlobalProjectHash)
 	}
 }
 
@@ -47,38 +131,72 @@ func TestComputeProjectHash_EmptyPath(t *testing.T) {
 	}
 }
 
-func TestComputeProjectHash_DifferentPaths(t *testing.T) {
-	tests := []struct {
-		name  string
-		path1 string
-		path2 string
-	}{
-		{
-			name:  "different directories",
-			path1: "/tmp/project1",
-			path2: "/tmp/project2",
-		},
-		{
-			name:  "nested vs flat",
-			path1: "/tmp/a/b/c",
-			path2: "/tmp/abc",
-		},
+func TestComputeProjectHash_SubdirectoryOfGitRepo(t *testing.T) {
+	repoDir, expectedHash := createTestGitRepo(t)
+
+	// Create a subdirectory
+	subDir := filepath.Join(repoDir, "subdir", "nested")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatalf("failed to create subdirectory: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			hash1, err1 := ComputeProjectHash(tt.path1)
-			hash2, err2 := ComputeProjectHash(tt.path2)
-
-			if err1 != nil || err2 != nil {
-				t.Fatalf("ComputeProjectHash returned error: %v, %v", err1, err2)
-			}
-
-			if hash1 == hash2 {
-				t.Fatalf("Different paths should produce different hashes: %s == %s", hash1, hash2)
-			}
-		})
+	// ComputeProjectHash from subdirectory should return the same hash
+	hash, err := ComputeProjectHash(subDir)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash returned error: %v", err)
 	}
+
+	if hash != expectedHash {
+		t.Fatalf("ComputeProjectHash from subdir returned %q, want %q", hash, expectedHash)
+	}
+}
+
+func TestComputeProjectHash_CachedHash(t *testing.T) {
+	repoDir, _ := createTestGitRepo(t)
+
+	// Write a cached hash to .git/opencode
+	cachedHash := "abcd1234567890abcd1234567890abcd12345678"
+	cacheFile := filepath.Join(repoDir, ".git", "opencode")
+	if err := os.WriteFile(cacheFile, []byte(cachedHash+"\n"), 0o644); err != nil {
+		t.Fatalf("failed to write cache file: %v", err)
+	}
+
+	hash, err := ComputeProjectHash(repoDir)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash returned error: %v", err)
+	}
+
+	// Should return the cached hash
+	if hash != cachedHash {
+		t.Fatalf("ComputeProjectHash returned %q, want cached hash %q", hash, cachedHash)
+	}
+}
+
+func TestComputeProjectHash_MultipleCallsSameRepo(t *testing.T) {
+	// This test verifies that multiple calls to ComputeProjectHash with different
+	// repos return the correct hash for each repo (not a cached value).
+	repoDir1, hash1 := createTestGitRepo(t)
+	repoDir2, hash2 := createTestGitRepo(t)
+
+	// Verify ComputeProjectHash returns the expected hashes for each repo
+	computedHash1, err := ComputeProjectHash(repoDir1)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash for repo1 returned error: %v", err)
+	}
+	if computedHash1 != hash1 {
+		t.Fatalf("ComputeProjectHash for repo1 returned %q, want %q", computedHash1, hash1)
+	}
+
+	computedHash2, err := ComputeProjectHash(repoDir2)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash for repo2 returned error: %v", err)
+	}
+	if computedHash2 != hash2 {
+		t.Fatalf("ComputeProjectHash for repo2 returned %q, want %q", computedHash2, hash2)
+	}
+
+	// The hashes might be the same if created at the same timestamp with same content,
+	// but we're testing that each call correctly computes the hash for its repo.
 }
 
 func TestGetStorageDir(t *testing.T) {
@@ -119,37 +237,31 @@ func TestGetStorageDir_HomeError(t *testing.T) {
 	}
 }
 
-func TestGetProjectDir_WithDefaultPath(t *testing.T) {
-	originalGetwd := osGetwd
+func TestGetProjectDir_WithGitRepo(t *testing.T) {
 	originalUserHome := osUserHomeDir
 	t.Cleanup(func() {
-		osGetwd = originalGetwd
 		osUserHomeDir = originalUserHome
 	})
-
-	osGetwd = func() (string, error) {
-		return "/tmp/specstory", nil
-	}
 
 	fakeHome := t.TempDir()
 	osUserHomeDir = func() (string, error) {
 		return fakeHome, nil
 	}
 
-	dir, err := GetProjectDir("")
+	repoDir, expectedHash := createTestGitRepo(t)
+
+	dir, err := GetProjectDir(repoDir)
 	if err != nil {
 		t.Fatalf("GetProjectDir returned error: %v", err)
 	}
 
-	// Should use current working directory when path is empty
-	hash, _ := ComputeProjectHash("/tmp/specstory")
-	expected := filepath.Join(fakeHome, ".local", "share", "opencode", "storage", "session", hash)
+	expected := filepath.Join(fakeHome, ".local", "share", "opencode", "storage", "session", expectedHash)
 	if dir != expected {
 		t.Fatalf("GetProjectDir returned %q, want %q", dir, expected)
 	}
 }
 
-func TestGetProjectDir_WithExplicitPath(t *testing.T) {
+func TestGetProjectDir_WithNonGitPath(t *testing.T) {
 	originalUserHome := osUserHomeDir
 	t.Cleanup(func() {
 		osUserHomeDir = originalUserHome
@@ -160,14 +272,15 @@ func TestGetProjectDir_WithExplicitPath(t *testing.T) {
 		return fakeHome, nil
 	}
 
-	projectPath := "/my/project/path"
-	dir, err := GetProjectDir(projectPath)
+	nonGitDir := t.TempDir()
+
+	dir, err := GetProjectDir(nonGitDir)
 	if err != nil {
 		t.Fatalf("GetProjectDir returned error: %v", err)
 	}
 
-	hash, _ := ComputeProjectHash(projectPath)
-	expected := filepath.Join(fakeHome, ".local", "share", "opencode", "storage", "session", hash)
+	// Non-git directories get "global" hash
+	expected := filepath.Join(fakeHome, ".local", "share", "opencode", "storage", "session", GlobalProjectHash)
 	if dir != expected {
 		t.Fatalf("GetProjectDir returned %q, want %q", dir, expected)
 	}
@@ -176,15 +289,14 @@ func TestGetProjectDir_WithExplicitPath(t *testing.T) {
 func TestResolveProjectDir_StorageMissing(t *testing.T) {
 	originalGetwd := osGetwd
 	originalUserHome := osUserHomeDir
-	originalStat := osStat
 	t.Cleanup(func() {
 		osGetwd = originalGetwd
 		osUserHomeDir = originalUserHome
-		osStat = originalStat
 	})
 
+	repoDir, _ := createTestGitRepo(t)
 	osGetwd = func() (string, error) {
-		return "/tmp/specstory", nil
+		return repoDir, nil
 	}
 
 	fakeHome := t.TempDir()
@@ -216,8 +328,9 @@ func TestResolveProjectDir_ProjectMissing(t *testing.T) {
 		osUserHomeDir = originalUserHome
 	})
 
+	repoDir, expectedHash := createTestGitRepo(t)
 	osGetwd = func() (string, error) {
-		return "/tmp/specstory", nil
+		return repoDir, nil
 	}
 
 	fakeHome := t.TempDir()
@@ -247,7 +360,6 @@ func TestResolveProjectDir_ProjectMissing(t *testing.T) {
 	}
 
 	// Verify project hash is included in error
-	expectedHash, _ := ComputeProjectHash("/tmp/specstory")
 	if pathErr.ProjectHash != expectedHash {
 		t.Fatalf("ProjectHash = %s, want %s", pathErr.ProjectHash, expectedHash)
 	}
@@ -261,8 +373,9 @@ func TestResolveProjectDir_Success(t *testing.T) {
 		osUserHomeDir = originalUserHome
 	})
 
+	repoDir, expectedHash := createTestGitRepo(t)
 	osGetwd = func() (string, error) {
-		return "/tmp/specstory", nil
+		return repoDir, nil
 	}
 
 	fakeHome := t.TempDir()
@@ -272,8 +385,7 @@ func TestResolveProjectDir_Success(t *testing.T) {
 
 	// Create storage and project directories
 	storageDir := filepath.Join(fakeHome, ".local", "share", "opencode", "storage")
-	hash, _ := ComputeProjectHash("/tmp/specstory")
-	projectDir := filepath.Join(storageDir, "session", hash)
+	projectDir := filepath.Join(storageDir, "session", expectedHash)
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatalf("failed to create project dir: %v", err)
 	}
@@ -285,6 +397,47 @@ func TestResolveProjectDir_Success(t *testing.T) {
 
 	if resolvedDir != projectDir {
 		t.Fatalf("ResolveProjectDir returned %q, want %q", resolvedDir, projectDir)
+	}
+}
+
+func TestResolveProjectDir_GlobalRejected(t *testing.T) {
+	originalGetwd := osGetwd
+	originalUserHome := osUserHomeDir
+	t.Cleanup(func() {
+		osGetwd = originalGetwd
+		osUserHomeDir = originalUserHome
+	})
+
+	// Use a non-git directory (which returns "global" hash)
+	nonGitDir := t.TempDir()
+	osGetwd = func() (string, error) {
+		return nonGitDir, nil
+	}
+
+	fakeHome := t.TempDir()
+	osUserHomeDir = func() (string, error) {
+		return fakeHome, nil
+	}
+
+	// Create storage directory
+	storageDir := filepath.Join(fakeHome, ".local", "share", "opencode", "storage")
+	sessionDir := filepath.Join(storageDir, "session")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatalf("failed to create storage dir: %v", err)
+	}
+
+	_, err := ResolveProjectDir("")
+	if err == nil {
+		t.Fatal("expected error for global session, got nil")
+	}
+
+	var pathErr *OpenCodePathError
+	if !errors.As(err, &pathErr) {
+		t.Fatalf("expected OpenCodePathError, got %T: %v", err, err)
+	}
+
+	if pathErr.Kind != "global_session" {
+		t.Fatalf("Kind = %s, want global_session", pathErr.Kind)
 	}
 }
 
@@ -579,5 +732,40 @@ func TestOpenCodePathError_Error(t *testing.T) {
 				t.Fatalf("Error() = %q, want %q", got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestFindGitDir(t *testing.T) {
+	repoDir, _ := createTestGitRepo(t)
+
+	// Test from repo root
+	gitDir, err := findGitDir(repoDir)
+	if err != nil {
+		t.Fatalf("findGitDir from root returned error: %v", err)
+	}
+	expected := filepath.Join(repoDir, ".git")
+	if gitDir != expected {
+		t.Fatalf("findGitDir returned %q, want %q", gitDir, expected)
+	}
+
+	// Test from subdirectory
+	subDir := filepath.Join(repoDir, "sub", "dir")
+	if err := os.MkdirAll(subDir, 0o755); err != nil {
+		t.Fatalf("failed to create subdir: %v", err)
+	}
+
+	gitDir, err = findGitDir(subDir)
+	if err != nil {
+		t.Fatalf("findGitDir from subdir returned error: %v", err)
+	}
+	if gitDir != expected {
+		t.Fatalf("findGitDir from subdir returned %q, want %q", gitDir, expected)
+	}
+
+	// Test from non-git directory
+	nonGitDir := t.TempDir()
+	_, err = findGitDir(nonGitDir)
+	if err == nil {
+		t.Fatal("findGitDir should return error for non-git directory")
 	}
 }

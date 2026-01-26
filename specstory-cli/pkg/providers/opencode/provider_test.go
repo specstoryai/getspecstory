@@ -3,6 +3,7 @@ package opencode
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -118,7 +119,8 @@ func TestDetectAgent_ProjectExists(t *testing.T) {
 		return fakeHome, nil
 	}
 
-	projectPath := "/my/project"
+	// Create a real git repo to get a proper project hash
+	projectPath := createTestGitRepoForProvider(t)
 	osGetwd = func() (string, error) {
 		return projectPath, nil
 	}
@@ -143,6 +145,50 @@ func TestDetectAgent_ProjectExists(t *testing.T) {
 	if !detected {
 		t.Error("DetectAgent should return true when session files exist")
 	}
+}
+
+// createTestGitRepoForProvider creates a temporary git repository for provider tests.
+func createTestGitRepoForProvider(t *testing.T) string {
+	t.Helper()
+
+	repoDir := t.TempDir()
+
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to init git repo: %v", err)
+	}
+
+	cmd = exec.Command("git", "config", "user.email", "test@test.com")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to configure git email: %v", err)
+	}
+
+	cmd = exec.Command("git", "config", "user.name", "Test User")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to configure git name: %v", err)
+	}
+
+	testFile := filepath.Join(repoDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test"), 0o644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
+	}
+
+	cmd = exec.Command("git", "add", "test.txt")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to add file: %v", err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "initial commit")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("failed to commit: %v", err)
+	}
+
+	return repoDir
 }
 
 func TestDetectAgent_ProjectMissing(t *testing.T) {
