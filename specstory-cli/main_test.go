@@ -309,35 +309,16 @@ func TestFormatFilenameTimestamp(t *testing.T) {
 }
 
 func TestFormatFilenameTimestamp_LocalTimezone(t *testing.T) {
-	// Testing local timezone is tricky because output depends on the machine's timezone.
-	// We test that the format structure is correct rather than exact values.
-
+	// Compute expected output using the same logic as the function under test.
+	// This makes the test deterministic regardless of machine timezone.
 	testTime := time.Date(2026, 1, 25, 15, 30, 45, 0, time.UTC)
+	localTime := testTime.Local()
+	expected := localTime.Format("2006-01-02_15-04-05-0700")
+
 	result := formatFilenameTimestamp(testTime, false)
 
-	// Result should be in format "2006-01-02_15-04-05-0700" or "+0700"
-	// Length should be 24 characters (date + underscore + time + offset)
-	if len(result) != 24 {
-		t.Errorf("formatFilenameTimestamp() = %q, expected length 24, got %d", result, len(result))
-	}
-
-	// Should contain underscores in date portion
-	if result[4] != '-' || result[7] != '-' {
-		t.Errorf("formatFilenameTimestamp() = %q, expected date format YYYY-MM-DD", result)
-	}
-
-	// Should have underscore between date and time
-	if result[10] != '_' {
-		t.Errorf("formatFilenameTimestamp() = %q, expected underscore at position 10", result)
-	}
-
-	// Last 5 characters should be timezone offset (+0000 or -0000 format)
-	offset := result[19:]
-	if len(offset) != 5 {
-		t.Errorf("formatFilenameTimestamp() offset = %q, expected 5 chars", offset)
-	}
-	if offset[0] != '+' && offset[0] != '-' {
-		t.Errorf("formatFilenameTimestamp() offset = %q, expected to start with + or -", offset)
+	if result != expected {
+		t.Errorf("formatFilenameTimestamp() = %q, want %q", result, expected)
 	}
 }
 

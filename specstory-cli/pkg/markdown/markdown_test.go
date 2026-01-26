@@ -2,6 +2,7 @@ package markdown
 
 import (
 	"testing"
+	"time"
 )
 
 func TestFormatTimestamp(t *testing.T) {
@@ -85,9 +86,8 @@ func TestFormatTimestamp(t *testing.T) {
 }
 
 func TestFormatTimestamp_LocalTimezone(t *testing.T) {
-	// Testing local timezone is tricky because output depends on the machine's timezone.
-	// We test that the format structure is correct rather than exact values.
-
+	// Compute expected output using the same logic as the function under test.
+	// This makes the test deterministic regardless of machine timezone.
 	tests := []struct {
 		name      string
 		timestamp string
@@ -100,34 +100,23 @@ func TestFormatTimestamp_LocalTimezone(t *testing.T) {
 			name:      "timestamp with offset",
 			timestamp: "2026-01-25T08:30:45-07:00",
 		},
+		{
+			name:      "timestamp with milliseconds - milliseconds stripped",
+			timestamp: "2026-01-25T15:30:45.123Z",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Compute expected value by parsing and formatting in local timezone
+			parsed, _ := time.Parse(time.RFC3339, tt.timestamp)
+			expected := parsed.Local().Format("2006-01-02 15:04:05-0700")
+
 			result := formatTimestamp(tt.timestamp, false)
 
-			// Result should be in format "2006-01-02 15:04:05-0700" or "+0700"
-			// Length should be 24 characters (date + space + time + offset)
-			if len(result) != 24 {
-				t.Errorf("formatTimestamp(%q, false) = %q, expected length 24, got %d",
-					tt.timestamp, result, len(result))
-			}
-
-			// Should contain a space between date and time
-			if result[10] != ' ' {
-				t.Errorf("formatTimestamp(%q, false) = %q, expected space at position 10",
-					tt.timestamp, result)
-			}
-
-			// Last 5 characters should be timezone offset (+0000 or -0000 format)
-			offset := result[19:]
-			if len(offset) != 5 {
-				t.Errorf("formatTimestamp(%q, false) offset = %q, expected 5 chars",
-					tt.timestamp, offset)
-			}
-			if offset[0] != '+' && offset[0] != '-' {
-				t.Errorf("formatTimestamp(%q, false) offset = %q, expected to start with + or -",
-					tt.timestamp, offset)
+			if result != expected {
+				t.Errorf("formatTimestamp(%q, false) = %q, want %q",
+					tt.timestamp, result, expected)
 			}
 		})
 	}
