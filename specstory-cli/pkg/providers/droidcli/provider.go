@@ -132,10 +132,6 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 }
 
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	if resumeSessionID != "" {
-		return fmt.Errorf("factory droid CLI resume is not supported yet")
-	}
-
 	if sessionCallback == nil {
 		return ExecuteDroid(customCommand, resumeSessionID)
 	}

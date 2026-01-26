@@ -33,8 +33,9 @@ func expandTilde(path string) string {
 
 func ExecuteDroid(customCommand string, resumeSessionID string) error {
 	cmd, args := parseDroidCommand(customCommand)
+	args = ensureResumeArgs(args, resumeSessionID)
 	if resumeSessionID != "" {
-		slog.Info("ExecuteDroid: resume requested but not supported", "sessionId", resumeSessionID)
+		slog.Info("ExecuteDroid: resuming session", "sessionId", resumeSessionID)
 	}
 
 	command := exec.Command(cmd, args...)
@@ -43,4 +44,23 @@ func ExecuteDroid(customCommand string, resumeSessionID string) error {
 	command.Stderr = os.Stderr
 
 	return command.Run()
+}
+
+func ensureResumeArgs(args []string, resumeSessionID string) []string {
+	if resumeSessionID == "" {
+		return args
+	}
+
+	for i, arg := range args {
+		if arg == "--resume" || arg == "-r" {
+			if i+1 < len(args) {
+				return args
+			}
+		}
+		if strings.HasPrefix(arg, "--resume=") {
+			return args
+		}
+	}
+
+	return append(args, "--resume", resumeSessionID)
 }
