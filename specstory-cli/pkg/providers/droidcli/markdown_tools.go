@@ -3,7 +3,9 @@ package droidcli
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -26,16 +28,28 @@ func formatToolCall(tool *fdToolCall) string {
 
 func formatToolInput(tool *fdToolCall) string {
 	args := decodeInput(tool.Input)
-	switch strings.ToLower(tool.Name) {
-	case "execute", "run", "bash", "shell":
+	switch normalizeToolName(tool.Name) {
+	case "execute", "run", "bash", "shell", "command", "exec":
 		return formatExecuteInput(args)
-	case "read", "cat":
-		return renderPathsList(args, "file_path", "path", "file", "filePath")
-	case "ls", "glob":
-		return renderPathsList(args, "path", "dir", "directory", "glob")
-	case "applypatch", "apply_patch":
+	case "read", "cat", "readfile", "view", "viewimage":
+		return renderReadInput(args)
+	case "ls", "list", "listdir", "listdirectory":
+		return renderListInput(args)
+	case "glob":
+		return renderGlobInput(args)
+	case "grep", "rg", "ripgrep", "search", "filesearch":
+		return renderGrepInput(args)
+	case "websearch", "searchweb", "googlewebsearch":
+		return renderWebSearchInput(args)
+	case "fetchurl", "fetch", "webfetch":
+		return renderWebFetchInput(args)
+	case "applypatch":
 		return renderApplyPatch(args)
-	case "todowrite", "todo_write":
+	case "write", "create", "writefile", "createfile", "addfile":
+		return renderWriteInput(args)
+	case "edit", "multiedit", "replace", "strreplace", "applyedit":
+		return renderEditInput(args)
+	case "todowrite":
 		return renderTodoWrite(args)
 	default:
 		return renderGenericJSON(args)
@@ -87,12 +101,230 @@ func formatExecuteInput(args map[string]any) string {
 	return builder.String()
 }
 
-func renderPathsList(args map[string]any, keys ...string) string {
-	path := stringValue(args, keys...)
+func normalizeToolName(name string) string {
+	cleaned := strings.ToLower(strings.TrimSpace(name))
+	cleaned = strings.ReplaceAll(cleaned, " ", "")
+	cleaned = strings.ReplaceAll(cleaned, "-", "")
+	cleaned = strings.ReplaceAll(cleaned, "_", "")
+	return cleaned
+}
+
+func renderReadInput(args map[string]any) string {
+	path := stringValue(args, "file_path", "path", "file", "filePath")
+	if path == "" {
+		paths := stringSliceValue(args, "file_paths", "paths")
+		if len(paths) > 0 {
+			path = strings.Join(paths, ", ")
+		}
+	}
+	if path == "" {
+		return renderGenericJSON(args)
+	}
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "Path: `%s`", path)
+	offset := stringValue(args, "offset", "start")
+	limit := stringValue(args, "limit", "lines", "max_lines")
+	if offset != "" || limit != "" {
+		if offset == "" {
+			offset = "0"
+		}
+		if limit == "" {
+			limit = "?"
+		}
+		fmt.Fprintf(&builder, "\nLines: offset %s, limit %s", offset, limit)
+	}
+	return builder.String()
+}
+
+func renderListInput(args map[string]any) string {
+	path := stringValue(args, "path", "dir", "directory", "target_directory")
 	if path == "" {
 		return renderGenericJSON(args)
 	}
 	return fmt.Sprintf("Path: `%s`", path)
+}
+
+func renderGlobInput(args map[string]any) string {
+	patterns := stringSliceValue(args, "patterns", "glob_patterns")
+	if len(patterns) == 0 {
+		if pattern := stringValue(args, "glob_pattern", "pattern", "glob"); pattern != "" {
+			patterns = []string{pattern}
+		}
+	}
+	path := stringValue(args, "path", "dir", "directory")
+	var parts []string
+	if len(patterns) > 0 {
+		label := "Pattern"
+		if len(patterns) > 1 {
+			label = "Patterns"
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", label, formatQuotedList(patterns)))
+	}
+	if path != "" {
+		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
+	}
+	if len(parts) == 0 {
+		return renderGenericJSON(args)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func renderGrepInput(args map[string]any) string {
+	pattern := stringValue(args, "pattern", "query", "search", "regex")
+	path := stringValue(args, "path", "dir", "directory", "cwd")
+	include := stringValue(args, "include", "glob", "glob_pattern")
+	var parts []string
+	if pattern != "" {
+		parts = append(parts, fmt.Sprintf("Pattern: `%s`", pattern))
+	}
+	if path != "" {
+		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
+	}
+	if include != "" {
+		parts = append(parts, fmt.Sprintf("Glob: `%s`", include))
+	}
+	if len(parts) == 0 {
+		return renderGenericJSON(args)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func renderWebSearchInput(args map[string]any) string {
+	query := stringValue(args, "query", "q", "search", "prompt")
+	category := stringValue(args, "category")
+	searchType := stringValue(args, "type")
+	numResults := stringValue(args, "numResults", "num_results", "limit")
+	includeDomains := stringSliceValue(args, "includeDomains", "include_domains")
+	excludeDomains := stringSliceValue(args, "excludeDomains", "exclude_domains")
+
+	var parts []string
+	if query != "" {
+		parts = append(parts, fmt.Sprintf("Query: `%s`", query))
+	}
+	if category != "" {
+		parts = append(parts, fmt.Sprintf("Category: `%s`", category))
+	}
+	if searchType != "" {
+		parts = append(parts, fmt.Sprintf("Type: `%s`", searchType))
+	}
+	if numResults != "" {
+		parts = append(parts, fmt.Sprintf("Results: `%s`", numResults))
+	}
+	if len(includeDomains) > 0 {
+		parts = append(parts, fmt.Sprintf("Include domains: %s", formatQuotedList(includeDomains)))
+	}
+	if len(excludeDomains) > 0 {
+		parts = append(parts, fmt.Sprintf("Exclude domains: %s", formatQuotedList(excludeDomains)))
+	}
+	if len(parts) == 0 {
+		return renderGenericJSON(args)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func renderWebFetchInput(args map[string]any) string {
+	url := stringValue(args, "url", "uri")
+	prompt := stringValue(args, "prompt", "query")
+	if url == "" && prompt == "" {
+		return renderGenericJSON(args)
+	}
+	var parts []string
+	if url != "" {
+		parts = append(parts, fmt.Sprintf("URL: `%s`", url))
+	}
+	if prompt != "" {
+		parts = append(parts, prompt)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func renderWriteInput(args map[string]any) string {
+	path := stringValue(args, "file_path", "path", "file", "filePath")
+	content := stringValue(args, "content", "contents", "text", "data")
+	if path == "" && content == "" {
+		return renderGenericJSON(args)
+	}
+	var builder strings.Builder
+	if path != "" {
+		fmt.Fprintf(&builder, "Path: `%s`", path)
+	}
+	if content != "" {
+		if builder.Len() > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(formatContentBlock(content, path))
+	}
+	return builder.String()
+}
+
+func renderEditInput(args map[string]any) string {
+	path := stringValue(args, "file_path", "path", "file", "filePath")
+	diff := renderEdits(args)
+	if path == "" && diff == "" {
+		return renderGenericJSON(args)
+	}
+	var builder strings.Builder
+	if path != "" {
+		fmt.Fprintf(&builder, "Path: `%s`", path)
+	}
+	if diff != "" {
+		if builder.Len() > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(diff)
+	}
+	return builder.String()
+}
+
+func renderEdits(args map[string]any) string {
+	if diff := renderSingleEdit(args); diff != "" {
+		return diff
+	}
+	editsRaw, ok := args["edits"].([]interface{})
+	if !ok || len(editsRaw) == 0 {
+		return ""
+	}
+	var sections []string
+	for _, raw := range editsRaw {
+		edit, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if diff := renderSingleEdit(edit); diff != "" {
+			sections = append(sections, diff)
+		}
+	}
+	return strings.Join(sections, "\n\n")
+}
+
+func renderSingleEdit(args map[string]any) string {
+	oldText := stringValue(args, "old_text", "old_string", "old")
+	newText := stringValue(args, "new_text", "new_string", "new")
+	if oldText == "" && newText == "" {
+		return ""
+	}
+	return formatDiffBlock(oldText, newText)
+}
+
+func formatDiffBlock(oldText string, newText string) string {
+	var builder strings.Builder
+	builder.WriteString("```diff\n")
+	if oldText != "" {
+		for _, line := range strings.Split(oldText, "\n") {
+			builder.WriteString("-")
+			builder.WriteString(line)
+			builder.WriteString("\n")
+		}
+	}
+	if newText != "" {
+		for _, line := range strings.Split(newText, "\n") {
+			builder.WriteString("+")
+			builder.WriteString(line)
+			builder.WriteString("\n")
+		}
+	}
+	builder.WriteString("```")
+	return builder.String()
 }
 
 func renderApplyPatch(args map[string]any) string {
@@ -104,6 +336,16 @@ func renderApplyPatch(args map[string]any) string {
 }
 
 func renderTodoWrite(args map[string]any) string {
+	if todoText, ok := args["todos"].(string); ok {
+		trimmed := strings.TrimSpace(todoText)
+		if trimmed == "" {
+			return "Todo list unchanged"
+		}
+		if strings.HasPrefix(strings.ToLower(trimmed), "todo") {
+			return trimmed
+		}
+		return "Todo List:\n" + trimmed
+	}
 	itemsRaw, ok := args["todos"].([]interface{})
 	if !ok || len(itemsRaw) == 0 {
 		return "Todo list unchanged"
@@ -177,10 +419,107 @@ func stringValue(args map[string]any, keys ...string) string {
 				return v.String()
 			case []byte:
 				return string(v)
+			case float64:
+				return strconv.FormatFloat(v, 'f', -1, 64)
+			case float32:
+				return strconv.FormatFloat(float64(v), 'f', -1, 32)
+			case int:
+				return strconv.Itoa(v)
+			case int64:
+				return strconv.FormatInt(v, 10)
+			case int32:
+				return strconv.FormatInt(int64(v), 10)
+			case uint:
+				return strconv.FormatUint(uint64(v), 10)
+			case uint64:
+				return strconv.FormatUint(v, 10)
+			case bool:
+				return strconv.FormatBool(v)
 			}
 		}
 	}
 	return ""
+}
+
+func stringSliceValue(args map[string]any, keys ...string) []string {
+	for _, key := range keys {
+		if val, ok := args[key]; ok {
+			switch v := val.(type) {
+			case []string:
+				return filterStrings(v)
+			case []interface{}:
+				values := make([]string, 0, len(v))
+				for _, entry := range v {
+					if entry == nil {
+						continue
+					}
+					switch item := entry.(type) {
+					case string:
+						if strings.TrimSpace(item) != "" {
+							values = append(values, item)
+						}
+					default:
+						values = append(values, fmt.Sprint(item))
+					}
+				}
+				return filterStrings(values)
+			case string:
+				if strings.TrimSpace(v) != "" {
+					return []string{v}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func filterStrings(values []string) []string {
+	filtered := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			filtered = append(filtered, trimmed)
+		}
+	}
+	return filtered
+}
+
+func formatQuotedList(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	quoted := make([]string, 0, len(values))
+	for _, value := range values {
+		quoted = append(quoted, fmt.Sprintf("`%s`", value))
+	}
+	return strings.Join(quoted, ", ")
+}
+
+func formatContentBlock(content string, path string) string {
+	lang := languageFromPath(path)
+	escaped := strings.ReplaceAll(content, "```", "\\```")
+	if lang == "" {
+		return fmt.Sprintf("```\n%s\n```", escaped)
+	}
+	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+}
+
+func languageFromPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+	if ext == "" {
+		return ""
+	}
+	switch ext {
+	case "yml":
+		return "yaml"
+	case "md":
+		return "markdown"
+	default:
+		return ext
+	}
 }
 
 func todoSymbol(status string) string {
@@ -196,16 +535,16 @@ func todoSymbol(status string) string {
 }
 
 func toolType(name string) string {
-	switch strings.ToLower(name) {
-	case "execute", "run", "bash", "shell":
+	switch normalizeToolName(name) {
+	case "execute", "run", "bash", "shell", "command", "exec":
 		return "shell"
-	case "read", "cat":
+	case "read", "cat", "readfile", "view", "viewimage":
 		return "read"
-	case "ls", "glob":
+	case "ls", "list", "listdir", "listdirectory", "glob", "grep", "rg", "ripgrep", "search", "websearch", "googlewebsearch", "webfetch", "fetch", "fetchurl":
 		return "search"
-	case "applypatch", "apply_patch":
+	case "applypatch", "write", "create", "writefile", "createfile", "addfile", "edit", "multiedit", "replace", "strreplace", "applyedit":
 		return "write"
-	case "todowrite", "todo_write":
+	case "todowrite", "todostate", "todoupdate":
 		return "task"
 	default:
 		return "generic"
