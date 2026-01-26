@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v1.3.0 2026-01-25
+
+### ⚙️ Improvements
+
+- Added a `--local-time-zone` flag to the `sync`, `run`, `watch` commands to use local timezone for file name and content timestamps rather than UTC.
+
 ## v1.2.0 2026-01-25
 
 ### ⚙️ Improvements
