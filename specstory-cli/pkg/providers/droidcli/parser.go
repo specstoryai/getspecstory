@@ -15,12 +15,20 @@ type jsonlEnvelope struct {
 }
 
 type sessionStartEvent struct {
-	Type      string `json:"type"`
-	Timestamp string `json:"timestamp"`
-	Session   struct {
-		ID        string `json:"id"`
-		Title     string `json:"title"`
-		CreatedAt string `json:"created_at"`
+	Type          string `json:"type"`
+	Timestamp     string `json:"timestamp"`
+	ID            string `json:"id"`
+	Title         string `json:"title"`
+	SessionTitle  string `json:"sessionTitle"`
+	CreatedAt     string `json:"created_at"`
+	CWD           string `json:"cwd"`
+	WorkspaceRoot string `json:"workspace_root"`
+	Session       struct {
+		ID            string `json:"id"`
+		Title         string `json:"title"`
+		CreatedAt     string `json:"created_at"`
+		CWD           string `json:"cwd"`
+		WorkspaceRoot string `json:"workspace_root"`
 	} `json:"session"`
 }
 
@@ -100,9 +108,10 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
 				return nil
 			}
-			session.ID = fallback(session.ID, event.Session.ID)
-			session.Title = fallback(session.Title, strings.TrimSpace(event.Session.Title))
-			session.CreatedAt = fallback(session.CreatedAt, fallback(event.Session.CreatedAt, event.Timestamp))
+			session.ID = fallback(session.ID, firstNonEmpty(event.ID, event.Session.ID))
+			session.Title = fallback(session.Title, firstNonEmpty(event.Title, event.Session.Title, event.SessionTitle))
+			session.CreatedAt = fallback(session.CreatedAt, firstNonEmpty(event.CreatedAt, event.Session.CreatedAt, event.Timestamp))
+			session.WorkspaceRoot = fallback(session.WorkspaceRoot, firstNonEmpty(event.CWD, event.WorkspaceRoot, event.Session.CWD, event.Session.WorkspaceRoot))
 		case "message":
 			var event messageEvent
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
@@ -185,9 +194,9 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 	for _, block := range event.Message.Content {
 		switch block.Type {
 		case "text":
-			appendTextBlock(session, role, model, event.Timestamp, block.Text, false)
+			appendTextBlock(session, role, model, event.Timestamp, block.Text, false, event.ID)
 		case "reasoning", "thinking", "thought":
-			appendTextBlock(session, role, model, event.Timestamp, block.Text, true)
+			appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)
 		case "tool_use":
 			tool := &fdToolCall{
 				ID:           block.ID,
@@ -200,6 +209,7 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 			session.Blocks = append(session.Blocks, fdBlock{
 				Kind:      blockTool,
 				Role:      role,
+				MessageID: strings.TrimSpace(event.ID),
 				Timestamp: event.Timestamp,
 				Model:     model,
 				Tool:      tool,
@@ -218,6 +228,7 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 				session.Blocks = append(session.Blocks, fdBlock{
 					Kind:      blockTool,
 					Role:      role,
+					MessageID: strings.TrimSpace(event.ID),
 					Timestamp: event.Timestamp,
 					Model:     model,
 					Tool: &fdToolCall{
@@ -232,7 +243,7 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 	}
 }
 
-func appendTextBlock(session *fdSession, role, model, timestamp, rawText string, reasoning bool) {
+func appendTextBlock(session *fdSession, role, model, timestamp, rawText string, reasoning bool, messageID string) {
 	text := strings.TrimSpace(rawText)
 	if text == "" {
 		return
@@ -240,6 +251,7 @@ func appendTextBlock(session *fdSession, role, model, timestamp, rawText string,
 	session.Blocks = append(session.Blocks, fdBlock{
 		Kind:        blockText,
 		Role:        role,
+		MessageID:   strings.TrimSpace(messageID),
 		Timestamp:   timestamp,
 		Model:       model,
 		Text:        text,
@@ -318,6 +330,15 @@ func fallback(current, candidate string) string {
 		return current
 	}
 	return strings.TrimSpace(candidate)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func normalizeEventTimestamp(ts string) string {

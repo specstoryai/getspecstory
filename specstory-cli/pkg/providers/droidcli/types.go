@@ -16,6 +16,7 @@ const (
 type fdBlock struct {
 	Kind        fdBlockKind
 	Role        string
+	MessageID   string
 	Timestamp   string
 	Model       string
 	Text        string
@@ -61,10 +62,11 @@ type fdSummary struct {
 
 // fdSession aggregates parsed metadata and blocks.
 type fdSession struct {
-	ID        string
-	Title     string
-	CreatedAt string
-	Blocks    []fdBlock
-	Slug      string
-	RawData   string
+	ID            string
+	Title         string
+	CreatedAt     string
+	WorkspaceRoot string
+	Blocks        []fdBlock
+	Slug          string
+	RawData       string
 }

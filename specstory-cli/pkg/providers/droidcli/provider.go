@@ -3,6 +3,7 @@ package droidcli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -317,6 +318,75 @@ func printDetectionHelp() {
 }
 
 func sessionMentionsProject(filePath string, projectPath string) bool {
+	projectPath = strings.TrimSpace(projectPath)
+	if projectPath == "" {
+		return false
+	}
+
+	canonicalProject := canonicalizePath(projectPath)
+	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+		canonicalRoot := canonicalizePath(sessionRoot)
+		if canonicalProject != "" && canonicalRoot != "" {
+			return canonicalRoot == canonicalProject
+		}
+		return strings.TrimSpace(sessionRoot) == projectPath
+	}
+
+	return sessionMentionsProjectText(filePath, projectPath)
+}
+
+func extractSessionWorkspaceRoot(filePath string) string {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return ""
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	var workspaceRoot string
+	scanErr := scanLines(file, func(line string) error {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			return nil
+		}
+		var env jsonlEnvelope
+		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
+			return nil
+		}
+		if env.Type != "session_start" {
+			return nil
+		}
+		var event sessionStartEvent
+		if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+			return nil
+		}
+		workspaceRoot = firstNonEmpty(event.CWD, event.WorkspaceRoot, event.Session.CWD, event.Session.WorkspaceRoot)
+		return errStopScan
+	})
+	if scanErr != nil && !errors.Is(scanErr, errStopScan) {
+		return ""
+	}
+
+	return strings.TrimSpace(workspaceRoot)
+}
+
+func canonicalizePath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	canonical, err := spi.GetCanonicalPath(trimmed)
+	if err == nil {
+		return canonical
+	}
+	if abs, absErr := filepath.Abs(trimmed); absErr == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(trimmed)
+}
+
+func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return false

@@ -24,6 +24,11 @@ func GenerateAgentSession(session *fdSession, workspaceRoot string) (*SessionDat
 		return nil, fmt.Errorf("session is nil")
 	}
 
+	workspaceRoot = strings.TrimSpace(workspaceRoot)
+	if sessionRoot := strings.TrimSpace(session.WorkspaceRoot); sessionRoot != "" {
+		workspaceRoot = sessionRoot
+	}
+
 	exchanges, lastTimestamp := buildExchanges(session, workspaceRoot)
 	if len(exchanges) == 0 {
 		return nil, fmt.Errorf("session contains no conversational exchanges")
@@ -114,6 +119,7 @@ func buildExchanges(session *fdSession, workspaceRoot string) ([]Exchange, strin
 				current = &Exchange{StartTime: ts}
 			}
 			msg := Message{
+				ID:        strings.TrimSpace(block.MessageID),
 				Timestamp: ts,
 				Role:      "user",
 				Content: []ContentPart{
@@ -177,6 +183,7 @@ func buildAgentTextMessage(block fdBlock) *Message {
 		partType = "thinking"
 	}
 	return &Message{
+		ID:        strings.TrimSpace(block.MessageID),
 		Timestamp: strings.TrimSpace(block.Timestamp),
 		Role:      "agent",
 		Model:     strings.TrimSpace(block.Model),
@@ -206,7 +213,7 @@ func buildToolMessage(block fdBlock, workspaceRoot string) *Message {
 	}
 	pathHints := extractPathHints(toolInfo.Input, workspaceRoot)
 	return &Message{
-		ID:        toolInfo.UseID,
+		ID:        strings.TrimSpace(block.MessageID),
 		Timestamp: strings.TrimSpace(block.Timestamp),
 		Role:      "agent",
 		Model:     strings.TrimSpace(block.Model),
@@ -233,6 +240,7 @@ func buildTodoMessage(block fdBlock) *Message {
 		tool.FormattedMarkdown = &formatted
 	}
 	return &Message{
+		ID:        strings.TrimSpace(block.MessageID),
 		Timestamp: strings.TrimSpace(block.Timestamp),
 		Role:      "agent",
 		Tool:      tool,
@@ -253,6 +261,7 @@ func buildSummaryMessage(block fdBlock) *Message {
 	}
 	text := fmt.Sprintf("**%s**\n\n%s", title, body)
 	return &Message{
+		ID:        strings.TrimSpace(block.MessageID),
 		Timestamp: strings.TrimSpace(block.Timestamp),
 		Role:      "agent",
 		Content: []ContentPart{

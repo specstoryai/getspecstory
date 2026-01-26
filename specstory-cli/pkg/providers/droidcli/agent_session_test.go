@@ -101,9 +101,72 @@ func TestGenerateAgentSession_IncludesReasoningAndSummary(t *testing.T) {
 	}
 }
 
+func TestGenerateAgentSession_UsesSessionWorkspaceRoot(t *testing.T) {
+	session := &fdSession{
+		ID:            "session-root",
+		CreatedAt:     "2025-11-25T13:00:00Z",
+		WorkspaceRoot: "/workspace",
+		Blocks: []fdBlock{
+			{Kind: blockText, Role: "user", Timestamp: "2025-11-25T13:00:00Z", Text: "hello"},
+			{Kind: blockText, Role: "agent", Timestamp: "2025-11-25T13:00:01Z", Text: "hi"},
+		},
+	}
+
+	data, err := GenerateAgentSession(session, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if data.WorkspaceRoot != "/workspace" {
+		t.Fatalf("expected workspace root from session metadata")
+	}
+}
+
 func TestGenerateAgentSession_ReturnsErrorWhenNoMessages(t *testing.T) {
 	session := &fdSession{ID: "empty"}
 	if _, err := GenerateAgentSession(session, ""); err == nil {
 		t.Fatalf("expected error for empty session")
+	}
+}
+
+func TestGenerateAgentSession_PropagatesMessageIDs(t *testing.T) {
+	session := &fdSession{
+		ID:        "session-3",
+		CreatedAt: "2025-11-25T12:00:00Z",
+		Blocks: []fdBlock{
+			{Kind: blockText, Role: "user", MessageID: "msg-user", Timestamp: "2025-11-25T12:00:00Z", Text: "hello"},
+			{Kind: blockText, Role: "agent", MessageID: "msg-agent", Timestamp: "2025-11-25T12:00:02Z", Text: "hi"},
+			{
+				Kind:      blockTool,
+				Role:      "agent",
+				MessageID: "msg-tool",
+				Timestamp: "2025-11-25T12:00:05Z",
+				Tool: &fdToolCall{
+					ID:    "tool-1",
+					Name:  "read",
+					Input: json.RawMessage(`{"path":"/repo/main.go"}`),
+				},
+			},
+		},
+	}
+
+	data, err := GenerateAgentSession(session, "/repo")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(data.Exchanges) != 1 {
+		t.Fatalf("expected 1 exchange")
+	}
+	msgs := data.Exchanges[0].Messages
+	if msgs[0].ID != "msg-user" {
+		t.Fatalf("expected user message id to propagate")
+	}
+	if msgs[1].ID != "msg-agent" {
+		t.Fatalf("expected agent message id to propagate")
+	}
+	if msgs[2].ID != "msg-tool" {
+		t.Fatalf("expected tool message id to propagate")
+	}
+	if msgs[2].Tool == nil || msgs[2].Tool.UseID != "tool-1" {
+		t.Fatalf("expected tool use id to remain")
 	}
 }
