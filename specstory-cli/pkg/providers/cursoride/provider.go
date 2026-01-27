@@ -204,8 +204,88 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		"sessionID", sessionID,
 		"debugRaw", debugRaw)
 
-	// TODO: Implement single session loading
-	return nil, fmt.Errorf("not implemented yet")
+	// Step 1: Find workspace for project path
+	workspace, err := FindWorkspaceForProject(projectPath)
+	if err != nil {
+		slog.Debug("No workspace found for project", "error", err)
+		return nil, nil // Return nil (not error) if workspace not found
+	}
+
+	slog.Debug("Found workspace for project",
+		"workspaceID", workspace.ID,
+		"projectPath", projectPath)
+
+	// Step 2: Load composer IDs from workspace database
+	composerIDs, err := LoadWorkspaceComposerIDs(workspace.DBPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer IDs from workspace: %w", err)
+	}
+
+	slog.Debug("Loaded composer IDs from workspace", "count", len(composerIDs))
+
+	// Step 3: Check if the requested session ID exists in this workspace
+	found := false
+	for _, id := range composerIDs {
+		if id == sessionID {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		slog.Debug("Session ID not found in workspace",
+			"sessionID", sessionID,
+			"workspaceComposerCount", len(composerIDs))
+		return nil, nil // Return nil (not error) if session not in this workspace
+	}
+
+	// Step 4: Get global database path
+	globalDbPath, err := GetGlobalDatabasePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global database path: %w", err)
+	}
+
+	// Step 5: Load only the requested composer from global database
+	composers, err := LoadComposerDataBatch(globalDbPath, []string{sessionID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer data: %w", err)
+	}
+
+	// Step 6: Check if we got the composer
+	composer, exists := composers[sessionID]
+	if !exists {
+		slog.Warn("Composer not found in global database despite being in workspace",
+			"sessionID", sessionID)
+		return nil, nil // Return nil (not error) if not found in global DB
+	}
+
+	// Skip if conversation is empty
+	if len(composer.Conversation) == 0 {
+		slog.Debug("Skipping composer with no conversation", "sessionID", sessionID)
+		return nil, nil
+	}
+
+	// Step 7: Convert to AgentChatSession
+	session, err := ConvertToAgentChatSession(composer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert composer to session: %w", err)
+	}
+
+	// Step 8: Write debug output if requested
+	if debugRaw {
+		if err := writeDebugOutput(session); err != nil {
+			slog.Warn("Failed to write debug output",
+				"sessionID", session.SessionID,
+				"error", err)
+			// Don't fail the operation if debug output fails
+		}
+	}
+
+	slog.Info("Successfully loaded single session",
+		"sessionID", sessionID,
+		"slug", session.Slug)
+
+	return session, nil
 }
 
 // ExecAgentAndWatch is not supported for Cursor IDE (IDE-based, not CLI)
