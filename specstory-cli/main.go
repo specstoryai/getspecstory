@@ -567,6 +567,17 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 			useUTC := getUseUTC(cmd)
 
+			// Get cursoride-db-check-interval flag value and set as environment variable
+			// This is only used by the cursoride provider
+			if dbCheckInterval, err := cmd.Flags().GetString("cursoride-db-check-interval"); err == nil && dbCheckInterval != "" {
+				// Validate the duration format
+				if _, err := time.ParseDuration(dbCheckInterval); err != nil {
+					return fmt.Errorf("invalid --cursoride-db-check-interval value: %w", err)
+				}
+				os.Setenv("CURSORIDE_DB_CHECK_INTERVAL", dbCheckInterval)
+				slog.Debug("Set Cursor IDE database check interval", "interval", dbCheckInterval)
+			}
+
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir)
 			if err != nil {
@@ -2086,6 +2097,8 @@ func main() {
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+	watchCmd.Flags().String("cursoride-db-check-interval", "2m", "Cursor IDE only: how often to check the database if no file events are received (e.g., 2m, 30s)")
+	_ = watchCmd.Flags().MarkHidden("cursoride-db-check-interval") // Hidden flag
 	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
