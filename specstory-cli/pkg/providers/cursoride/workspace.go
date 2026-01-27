@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // WorkspaceMatch represents a matched workspace directory

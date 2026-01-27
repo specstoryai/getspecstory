@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // ConvertToAgentChatSession converts Cursor composer data to AgentChatSession format

@@ -6,8 +6,9 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
-	"github.com/specstoryai/SpecStoryCLI/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Provider implements the SPI Provider interface for Cursor IDE
@@ -218,8 +219,36 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
-	// TODO: Implement watching
-	return fmt.Errorf("not implemented yet")
+	// Default check interval: 2 minutes
+	// This can be overridden via environment variable for testing/debugging
+	checkInterval := 2 * time.Minute
+	if envInterval := os.Getenv("CURSORIDE_DB_CHECK_INTERVAL"); envInterval != "" {
+		if duration, err := time.ParseDuration(envInterval); err == nil {
+			checkInterval = duration
+			slog.Info("Using custom database check interval from environment", "interval", checkInterval)
+		} else {
+			slog.Warn("Failed to parse CURSORIDE_DB_CHECK_INTERVAL, using default", "value", envInterval, "error", err)
+		}
+	}
+
+	// Create and start watcher
+	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, checkInterval)
+	if err != nil {
+		return fmt.Errorf("failed to create watcher: %w", err)
+	}
+
+	if err := watcher.Start(); err != nil {
+		return fmt.Errorf("failed to start watcher: %w", err)
+	}
+
+	// Wait for context cancellation
+	<-ctx.Done()
+
+	// Stop watcher gracefully
+	watcher.Stop()
+
+	slog.Info("WatchAgent: Stopped Cursor IDE activity monitoring")
+	return nil
 }
 
 // writeDebugOutput writes debug JSON files for a Cursor IDE session
