@@ -387,7 +387,7 @@ func convertToAgentChatSession(fullSession *FullSession, workspaceRoot string, d
 
 	return &spi.AgentChatSession{
 		SessionID:   session.ID,
-		CreatedAt:   session.Time.Created,
+		CreatedAt:   unixMillisToISO8601(session.Time.Created),
 		Slug:        slug,
 		SessionData: sessionData,
 		RawData:     string(rawDataBytes),

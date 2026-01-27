@@ -63,8 +63,8 @@ func TestLoadProject_Success(t *testing.T) {
 		Worktree: "/home/user/myproject",
 		VCS:      "git",
 		Time: TimeInfo{
-			Created: "2025-01-01T10:00:00Z",
-			Updated: "2025-01-01T11:00:00Z",
+			Created: 1735725600000,
+			Updated: 1735729200000,
 		},
 	}
 
@@ -127,8 +127,8 @@ func TestLoadSession_Success(t *testing.T) {
 		ProjectID: projectHash,
 		Directory: "/home/user/myproject",
 		Time: TimeInfo{
-			Created: "2025-01-01T10:00:00Z",
-			Updated: "2025-01-01T11:00:00Z",
+			Created: 1735725600000,
+			Updated: 1735729200000,
 		},
 	}
 
@@ -164,8 +164,8 @@ func TestLoadSession_WithoutSesPrefix(t *testing.T) {
 		Slug:      "test-session",
 		ProjectID: projectHash,
 		Time: TimeInfo{
-			Created: "2025-01-01T10:00:00Z",
-			Updated: "2025-01-01T11:00:00Z",
+			Created: 1735725600000,
+			Updated: 1735729200000,
 		},
 	}
 
@@ -216,13 +216,13 @@ func TestLoadSessionsForProject_MultipleSessions(t *testing.T) {
 	// Create multiple sessions with different timestamps
 	sessions := []Session{
 		{
-			ID: "ses_oldest", Time: TimeInfo{Created: "2025-01-01T10:00:00Z"},
+			ID: "ses_oldest", Time: TimeInfo{Created: 1735725600000},
 		},
 		{
-			ID: "ses_newest", Time: TimeInfo{Created: "2025-01-03T10:00:00Z"},
+			ID: "ses_newest", Time: TimeInfo{Created: 1735898400000},
 		},
 		{
-			ID: "ses_middle", Time: TimeInfo{Created: "2025-01-02T10:00:00Z"},
+			ID: "ses_middle", Time: TimeInfo{Created: 1735812000000},
 		},
 	}
 
@@ -308,19 +308,19 @@ func TestLoadMessagesForSession_MultipleMessages(t *testing.T) {
 			ID:        "msg_third",
 			SessionID: sessionID,
 			Role:      RoleAssistant,
-			Time:      MessageTime{Created: "2025-01-01T10:02:00Z"},
+			Time:      MessageTime{Created: 1735725720000},
 		},
 		{
 			ID:        "msg_first",
 			SessionID: sessionID,
 			Role:      RoleUser,
-			Time:      MessageTime{Created: "2025-01-01T10:00:00Z"},
+			Time:      MessageTime{Created: 1735725600000},
 		},
 		{
 			ID:        "msg_second",
 			SessionID: sessionID,
 			Role:      RoleAssistant,
-			Time:      MessageTime{Created: "2025-01-01T10:01:00Z"},
+			Time:      MessageTime{Created: 1735725660000},
 		},
 	}
 
@@ -387,14 +387,14 @@ func TestLoadPartsForMessage_MultipleParts(t *testing.T) {
 			MessageID: messageID,
 			Type:      PartTypeText,
 			Text:      &text,
-			Time:      &PartTime{Start: strPtr("2025-01-01T10:01:00Z")},
+			Time:      &PartTime{Start: int64Ptr(1735725660000)},
 		},
 		{
 			ID:        "prt_first",
 			MessageID: messageID,
 			Type:      PartTypeText,
 			Text:      &text,
-			Time:      &PartTime{Start: strPtr("2025-01-01T10:00:00Z")},
+			Time:      &PartTime{Start: int64Ptr(1735725600000)},
 		},
 	}
 
@@ -467,7 +467,7 @@ func TestAssembleFullSession_Success(t *testing.T) {
 	project := Project{
 		ID:       projectHash,
 		Worktree: "/home/user/project",
-		Time:     TimeInfo{Created: "2025-01-01T10:00:00Z", Updated: "2025-01-01T10:00:00Z"},
+		Time:     TimeInfo{Created: 1735725600000, Updated: 1735725600000},
 	}
 	writeJSONFile(t, filepath.Join(storageDir, "project", projectHash+".json"), project)
 
@@ -476,7 +476,7 @@ func TestAssembleFullSession_Success(t *testing.T) {
 		ID:        sessionID,
 		ProjectID: projectHash,
 		Directory: "/home/user/project",
-		Time:      TimeInfo{Created: "2025-01-01T10:00:00Z", Updated: "2025-01-01T10:00:00Z"},
+		Time:      TimeInfo{Created: 1735725600000, Updated: 1735725600000},
 	}
 
 	// Create message
@@ -488,7 +488,7 @@ func TestAssembleFullSession_Success(t *testing.T) {
 		ID:        messageID,
 		SessionID: sessionID,
 		Role:      RoleUser,
-		Time:      MessageTime{Created: "2025-01-01T10:00:00Z", Updated: "2025-01-01T10:00:00Z"},
+		Time:      MessageTime{Created: 1735725600000, Updated: 1735725600000},
 	}
 	writeJSONFile(t, filepath.Join(messagesDir, messageID+".json"), message)
 
@@ -549,7 +549,7 @@ func TestAssembleFullSession_MissingProject(t *testing.T) {
 		ID:        sessionID,
 		ProjectID: "nonexistent",
 		Directory: "/home/user/project",
-		Time:      TimeInfo{Created: "2025-01-01T10:00:00Z", Updated: "2025-01-01T10:00:00Z"},
+		Time:      TimeInfo{Created: 1735725600000, Updated: 1735725600000},
 	}
 
 	fullSession, err := AssembleFullSession(&session)
@@ -672,7 +672,7 @@ func TestGetFirstUserMessageContent(t *testing.T) {
 }
 
 func TestPartSortKey(t *testing.T) {
-	startTime := "2025-01-01T10:00:00Z"
+	startTime := int64(1735725600000)
 	tests := []struct {
 		name     string
 		part     Part
@@ -684,7 +684,7 @@ func TestPartSortKey(t *testing.T) {
 				ID:   "prt_abc",
 				Time: &PartTime{Start: &startTime},
 			},
-			expected: startTime,
+			expected: "00000001735725600000", // Zero-padded to 20 digits
 		},
 		{
 			name: "without time",
@@ -716,4 +716,9 @@ func TestPartSortKey(t *testing.T) {
 // Helper function to create string pointers
 func strPtr(s string) *string {
 	return &s
+}
+
+// Helper function to create int64 pointers for timestamps
+func int64Ptr(i int64) *int64 {
+	return &i
 }

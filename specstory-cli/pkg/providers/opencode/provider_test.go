@@ -266,8 +266,8 @@ func TestConvertToAgentChatSession_Success(t *testing.T) {
 			Slug:      "test-session",
 			Directory: "/workspace",
 			Time: TimeInfo{
-				Created: "2025-01-01T10:00:00Z",
-				Updated: "2025-01-01T11:00:00Z",
+				Created: 1735725600000,
+				Updated: 1735729200000,
 			},
 		},
 		Messages: []FullMessage{
@@ -275,7 +275,7 @@ func TestConvertToAgentChatSession_Success(t *testing.T) {
 				Message: &Message{
 					ID:   "msg_1",
 					Role: RoleUser,
-					Time: MessageTime{Created: "2025-01-01T10:00:00Z"},
+					Time: MessageTime{Created: 1735725600000},
 				},
 				Parts: []Part{
 					{ID: "prt_1", Type: PartTypeText, Text: &text},
@@ -335,7 +335,7 @@ func TestConvertToAgentChatSession_EmptyMessages(t *testing.T) {
 	fullSession := &FullSession{
 		Session: &Session{
 			ID:   "ses_empty",
-			Time: TimeInfo{Created: "2025-01-01T10:00:00Z"},
+			Time: TimeInfo{Created: 1735725600000},
 		},
 		Messages: []FullMessage{},
 	}
@@ -352,14 +352,14 @@ func TestConvertToAgentChatSession_DefaultSlug(t *testing.T) {
 		Session: &Session{
 			ID:   "ses_noslug",
 			Slug: "",
-			Time: TimeInfo{Created: "2025-01-01T10:00:00Z"},
+			Time: TimeInfo{Created: 1735725600000},
 		},
 		Messages: []FullMessage{
 			{
 				Message: &Message{
 					ID:   "msg_1",
 					Role: RoleAssistant, // No user message
-					Time: MessageTime{Created: "2025-01-01T10:00:00Z"},
+					Time: MessageTime{Created: 1735725600000},
 				},
 				Parts: []Part{},
 			},
@@ -469,8 +469,8 @@ func TestGetAgentChatSessions_WithSessions(t *testing.T) {
 		ProjectID: hash,
 		Directory: projectPath,
 		Time: TimeInfo{
-			Created: "2025-01-01T10:00:00Z",
-			Updated: "2025-01-01T11:00:00Z",
+			Created: 1735725600000,
+			Updated: 1735729200000,
 		},
 	}
 	sessionPath := filepath.Join(projectDir, "ses_test.json")
@@ -490,7 +490,7 @@ func TestGetAgentChatSessions_WithSessions(t *testing.T) {
 		ID:        "msg_001",
 		SessionID: "ses_test",
 		Role:      RoleUser,
-		Time:      MessageTime{Created: "2025-01-01T10:00:00Z"},
+		Time:      MessageTime{Created: 1735725600000},
 	}
 	messagePath := filepath.Join(messagesDir, "msg_001.json")
 	messageBytes, _ := json.Marshal(message)

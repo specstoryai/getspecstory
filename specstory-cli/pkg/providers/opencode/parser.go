@@ -296,10 +296,12 @@ func LoadPartsForMessage(messageID string) ([]Part, error) {
 }
 
 // partSortKey returns a string key for sorting parts by time.
-// Uses the Start time if available, otherwise falls back to part ID.
+// Uses the Start time if available (as zero-padded int64 string for proper sorting),
+// otherwise falls back to part ID.
 func partSortKey(p Part) string {
 	if p.Time != nil && p.Time.Start != nil {
-		return *p.Time.Start
+		// Format as zero-padded string to ensure proper lexicographic sorting
+		return fmt.Sprintf("%020d", *p.Time.Start)
 	}
 	// Fall back to ID when time is unavailable. This assumes opencode generates
 	// part IDs in chronological order (e.g., using ULIDs or sequential counters).

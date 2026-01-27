@@ -16,24 +16,28 @@ package opencode
 // -----------------------------------------------------------------------------
 
 // TimeInfo represents creation and update timestamps used in Project and Session.
+// OpenCode stores timestamps as Unix milliseconds (int64).
 type TimeInfo struct {
-	Created string `json:"created"`
-	Updated string `json:"updated"`
+	Created int64 `json:"created"`
+	Updated int64 `json:"updated"`
 }
 
 // MessageTime represents timestamps for messages including optional completion time.
+// OpenCode stores timestamps as Unix milliseconds (int64).
 // Completed is a pointer because it's only present when the message processing finishes,
-// whereas Created and Updated are always set when the message exists.
+// whereas Created is always set when the message exists.
+// Note: Updated may not be present in all message files.
 type MessageTime struct {
-	Created   string  `json:"created"`
-	Updated   string  `json:"updated"`
-	Completed *string `json:"completed,omitempty"`
+	Created   int64  `json:"created"`
+	Updated   int64  `json:"updated,omitempty"`
+	Completed *int64 `json:"completed,omitempty"`
 }
 
 // PartTime represents timestamps for parts with start/end timing.
+// OpenCode stores timestamps as Unix milliseconds (int64).
 type PartTime struct {
-	Start *string `json:"start,omitempty"`
-	End   *string `json:"end,omitempty"`
+	Start *int64 `json:"start,omitempty"`
+	End   *int64 `json:"end,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -78,18 +82,19 @@ type Session struct {
 }
 
 // Permission represents a permission granted to the session.
+// OpenCode uses permission/action/pattern fields for permission control.
 type Permission struct {
-	Type  string `json:"type"`
-	Path  string `json:"path,omitempty"`
-	Scope string `json:"scope,omitempty"`
+	Permission string `json:"permission"`
+	Action     string `json:"action"`
+	Pattern    string `json:"pattern,omitempty"`
 }
 
 // SessionSummary contains summary information about a session.
+// OpenCode tracks file change statistics (additions/deletions/files).
 type SessionSummary struct {
-	MessageCount int     `json:"messageCount,omitempty"`
-	TokenCount   int     `json:"tokenCount,omitempty"`
-	TotalCost    float64 `json:"totalCost,omitempty"`
-	Title        string  `json:"title,omitempty"`
+	Additions int `json:"additions,omitempty"`
+	Deletions int `json:"deletions,omitempty"`
+	Files     int `json:"files,omitempty"`
 }
 
 // -----------------------------------------------------------------------------
@@ -124,16 +129,31 @@ type PathInfo struct {
 
 // TokenInfo contains token usage statistics.
 type TokenInfo struct {
-	Input  int `json:"input"`
-	Output int `json:"output"`
-	Cache  int `json:"cache,omitempty"`
-	Total  int `json:"total,omitempty"`
+	Input     int        `json:"input"`
+	Output    int        `json:"output"`
+	Reasoning int        `json:"reasoning,omitempty"`
+	Cache     *CacheInfo `json:"cache,omitempty"`
+	Total     int        `json:"total,omitempty"`
+}
+
+// CacheInfo contains cache read/write statistics.
+type CacheInfo struct {
+	Read  int `json:"read"`
+	Write int `json:"write"`
 }
 
 // MessageSummary contains summary information about a message.
+// Includes a title and any file diffs that were made.
 type MessageSummary struct {
-	Content string   `json:"content,omitempty"`
-	Files   []string `json:"files,omitempty"`
+	Title string        `json:"title,omitempty"`
+	Diffs []DiffSummary `json:"diffs,omitempty"`
+}
+
+// DiffSummary represents a file diff in a message summary.
+type DiffSummary struct {
+	File   string `json:"file"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
 }
 
 // -----------------------------------------------------------------------------

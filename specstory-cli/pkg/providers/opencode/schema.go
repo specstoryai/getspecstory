@@ -5,10 +5,21 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
+
+// unixMillisToISO8601 converts Unix milliseconds (int64) to ISO 8601 string format.
+// Returns empty string if millis is 0.
+func unixMillisToISO8601(millis int64) string {
+	if millis == 0 {
+		return ""
+	}
+	t := time.UnixMilli(millis).UTC()
+	return t.Format(time.RFC3339)
+}
 
 // Type aliases for convenience - use the shared schema types.
 type (
@@ -80,10 +91,10 @@ func ConvertToSessionData(fullSession *FullSession, providerVersion string) (*Se
 			"parentID", *session.ParentID)
 	}
 
-	// Determine updatedAt from session time
-	updatedAt := session.Time.Updated
-	if updatedAt == "" {
-		updatedAt = session.Time.Created
+	// Determine updatedAt from session time (use created if updated is 0)
+	updatedAtMillis := session.Time.Updated
+	if updatedAtMillis == 0 {
+		updatedAtMillis = session.Time.Created
 	}
 
 	sessionData := &SessionData{
@@ -94,8 +105,8 @@ func ConvertToSessionData(fullSession *FullSession, providerVersion string) (*Se
 			Version: providerVersion,
 		},
 		SessionID:     session.ID,
-		CreatedAt:     session.Time.Created,
-		UpdatedAt:     updatedAt,
+		CreatedAt:     unixMillisToISO8601(session.Time.Created),
+		UpdatedAt:     unixMillisToISO8601(updatedAtMillis),
 		Slug:          slug,
 		WorkspaceRoot: workspaceRoot,
 		Exchanges:     exchanges,
@@ -198,7 +209,7 @@ func buildExchangesFromMessages(fullMessages []FullMessage, workspaceRoot string
 			}
 
 			currentExchange = &Exchange{
-				StartTime: msg.Time.Created,
+				StartTime: unixMillisToISO8601(msg.Time.Created),
 				Messages:  []SchemaMessage{},
 			}
 
@@ -211,7 +222,7 @@ func buildExchangesFromMessages(fullMessages []FullMessage, workspaceRoot string
 			if currentExchange == nil {
 				// Create exchange if we don't have one (shouldn't happen normally)
 				currentExchange = &Exchange{
-					StartTime: msg.Time.Created,
+					StartTime: unixMillisToISO8601(msg.Time.Created),
 					Messages:  []SchemaMessage{},
 				}
 			}
@@ -222,9 +233,9 @@ func buildExchangesFromMessages(fullMessages []FullMessage, workspaceRoot string
 
 			// Update end time
 			if msg.Time.Completed != nil {
-				currentExchange.EndTime = *msg.Time.Completed
+				currentExchange.EndTime = unixMillisToISO8601(*msg.Time.Completed)
 			} else {
-				currentExchange.EndTime = msg.Time.Updated
+				currentExchange.EndTime = unixMillisToISO8601(msg.Time.Updated)
 			}
 		}
 	}
@@ -329,7 +340,7 @@ func ConvertMessage(msg *Message, parts []Part, workspaceRoot string) []SchemaMe
 	if len(messages) == 0 && len(parts) == 0 {
 		messages = append(messages, SchemaMessage{
 			ID:        msg.ID,
-			Timestamp: msg.Time.Created,
+			Timestamp: unixMillisToISO8601(msg.Time.Created),
 			Role:      schemaRole,
 			Model:     model,
 		})
@@ -348,7 +359,7 @@ func ConvertPart(part *Part, role string, model string, workspaceRoot string) *S
 	// Get timestamp from part time if available
 	timestamp := ""
 	if part.Time != nil && part.Time.Start != nil {
-		timestamp = *part.Time.Start
+		timestamp = unixMillisToISO8601(*part.Time.Start)
 	}
 
 	switch part.Type {
