@@ -393,6 +393,10 @@ func LoadAndAssembleSession(projectHash, sessionID string) (*FullSession, error)
 // simultaneously. For projects with many large sessions, this could consume significant
 // memory. Consider using LoadSessionsForProject and AssembleFullSession individually
 // if memory usage becomes a concern.
+//
+// Sessions that fail to assemble are logged and skipped; they are not included in the
+// returned slice. As a result, the returned slice may contain fewer sessions than exist
+// on disk for the given project.
 func LoadAllSessionsForProject(projectHash string) ([]*FullSession, error) {
 	slog.Debug("LoadAllSessionsForProject: Loading all sessions for project", "projectHash", projectHash)
 

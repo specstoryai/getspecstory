@@ -769,3 +769,31 @@ func TestFindGitDir(t *testing.T) {
 		t.Fatal("findGitDir should return error for non-git directory")
 	}
 }
+
+func TestComputeProjectHash_GitExecutionFailure(t *testing.T) {
+	// Test that ComputeProjectHash returns "global" when git command fails.
+	// This covers the code path at paths.go:99-104 where cmd.Output() returns an error.
+
+	originalExecCommand := execCommand
+	t.Cleanup(func() {
+		execCommand = originalExecCommand
+	})
+
+	repoDir, _ := createTestGitRepo(t)
+
+	// Mock execCommand to return a command that will fail.
+	// Using "false" command which always exits with status 1.
+	execCommand = func(name string, args ...string) *exec.Cmd {
+		return exec.Command("false")
+	}
+
+	hash, err := ComputeProjectHash(repoDir)
+	if err != nil {
+		t.Fatalf("ComputeProjectHash returned error: %v", err)
+	}
+
+	// When git execution fails, should return "global"
+	if hash != GlobalProjectHash {
+		t.Fatalf("ComputeProjectHash with git failure returned %q, want %q", hash, GlobalProjectHash)
+	}
+}
