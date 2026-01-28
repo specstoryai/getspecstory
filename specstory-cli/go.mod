@@ -1,6 +1,10 @@
 module github.com/specstoryai/getspecstory/specstory-cli
 
-go 1.25.1
+// When updating the Go version, also update:
+//   - .golangci.yml (run.go)
+//   - ../.github/workflows/ci.yml (setup-go)
+//   - ../.github/workflows/release.yml (setup-go)
+go 1.25.6
 
 require (
 	github.com/charmbracelet/fang v0.3.0 // Styled terminal output for Cobra commands
