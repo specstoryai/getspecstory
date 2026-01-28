@@ -207,8 +207,9 @@ specstory run`
 # Generate markdown files for all agent sessions associated with the current directory
 specstory sync
 
-# Generate a markdown file for a specific agent session
+# Generate markdown files for specific agent sessions
 specstory sync -s <session-id>
+specstory sync -s <session-id-1> -s <session-id-2>
 
 # Watch for any agent activity in the current directory and generate markdown files
 specstory watch`
@@ -730,6 +731,9 @@ specstory sync`
 # Sync a specific session by UUID
 specstory sync -s <session-id>
 
+# Sync multiple sessions
+specstory sync -s <session-id-1> -s <session-id-2> -s <session-id-3>
+
 # Sync all sessions for the current directory, with console output
 specstory sync --console
 
@@ -756,12 +760,12 @@ Provide a specific agent ID to sync a specific provider.`
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get session ID if provided via flag
-			sessionID, _ := cmd.Flags().GetString("session")
+			// Get session IDs if provided via flag
+			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
 
-			// Handle single session sync if -s flag is provided
-			if sessionID != "" {
-				return syncSingleSession(cmd, args, sessionID)
+			// Handle specific session sync if -s flag is provided
+			if len(sessionIDs) > 0 {
+				return syncSpecificSessions(cmd, args, sessionIDs)
 			}
 
 			slog.Info("Running sync command")
@@ -779,10 +783,14 @@ Provide a specific agent ID to sync a specific provider.`
 	}
 }
 
-// syncSingleSession syncs a single session by ID
+// syncSpecificSessions syncs one or more sessions by their IDs
 // args[0] is the optional provider ID
-func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) error {
-	slog.Info("Running single session sync", "sessionId", sessionID)
+func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
+	if len(sessionIDs) == 1 {
+		slog.Info("Running single session sync", "sessionId", sessionIDs[0])
+	} else {
+		slog.Info("Running multiple session sync", "sessionCount", len(sessionIDs))
+	}
 
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
@@ -815,55 +823,112 @@ func syncSingleSession(cmd *cobra.Command, args []string, sessionID string) erro
 
 	registry := factory.GetRegistry()
 
-	// Case A: Provider specified (e.g., "specstory sync <provider> -s <session-id>")
-	if len(args) > 0 {
-		providerID := args[0]
-		provider, err := registry.Get(providerID)
-		if err != nil {
-			fmt.Printf("❌ Provider '%s' not found\n", providerID)
-			return err
+	// Track statistics for summary output
+	var successCount, notFoundCount, errorCount int
+	var lastError error
+
+	// Process each session ID
+	for _, sessionID := range sessionIDs {
+		sessionID = strings.TrimSpace(sessionID)
+		if sessionID == "" {
+			continue // Skip empty session IDs
 		}
 
-		session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-		if err != nil {
-			return fmt.Errorf("error getting session from %s: %w", provider.Name(), err)
-		}
-		if session == nil {
-			fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, provider.Name())
-			return fmt.Errorf("session not found")
-		}
-
-		// Process the session (show output for sync command)
-		// This is manual sync mode (false)
-		return processSingleSession(session, provider, config, true, false, debugRaw, useUTC)
-	}
-
-	// Case B: No provider specified - try all providers
-	providerIDs := registry.ListIDs()
-	for _, id := range providerIDs {
-		provider, err := registry.Get(id)
-		if err != nil {
-			continue
-		}
-
-		session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-		if err != nil {
-			slog.Debug("Error checking provider for session", "provider", id, "error", err)
-			continue
-		}
-		if session != nil {
-			// Found the session!
-			if !silent {
-				fmt.Printf("✅ Found session for %s\n", provider.Name())
+		// Case A: Provider specified (e.g., "specstory sync <provider> -s <session-id>")
+		if len(args) > 0 {
+			providerID := args[0]
+			provider, err := registry.Get(providerID)
+			if err != nil {
+				fmt.Printf("❌ Provider '%s' not found\n", providerID)
+				errorCount++
+				lastError = err
+				continue
 			}
+
+			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			if err != nil {
+				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, provider.Name(), err)
+				errorCount++
+				lastError = err
+				continue
+			}
+			if session == nil {
+				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, provider.Name())
+				notFoundCount++
+				continue
+			}
+
+			// Process the session (show output for sync command)
 			// This is manual sync mode (false)
-			return processSingleSession(session, provider, config, true, false, debugRaw, useUTC)
+			if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
+				errorCount++
+				lastError = err
+			} else {
+				successCount++
+			}
+			continue
+		}
+
+		// Case B: No provider specified - try all providers
+		found := false
+		providerIDs := registry.ListIDs()
+		for _, id := range providerIDs {
+			provider, err := registry.Get(id)
+			if err != nil {
+				continue
+			}
+
+			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			if err != nil {
+				slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+				continue
+			}
+			if session != nil {
+				// Found the session!
+				found = true
+				if !silent {
+					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
+				}
+				// This is manual sync mode (false)
+				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
+					errorCount++
+					lastError = err
+				} else {
+					successCount++
+				}
+				break // Found it, don't check other providers
+			}
+		}
+
+		if !found {
+			fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
+			notFoundCount++
 		}
 	}
 
-	// Session not found in any provider
-	fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
-	return fmt.Errorf("session not found")
+	// Print summary if multiple sessions were processed
+	if len(sessionIDs) > 1 && !silent {
+		fmt.Println()
+		fmt.Println("📊 Session sync summary:")
+		fmt.Printf("  ✅ %d %s successfully synced\n", successCount, pluralSession(successCount))
+		if notFoundCount > 0 {
+			fmt.Printf("  ❌ %d %s not found\n", notFoundCount, pluralSession(notFoundCount))
+		}
+		if errorCount > 0 {
+			fmt.Printf("  ❌ %d %s failed with errors\n", errorCount, pluralSession(errorCount))
+		}
+		fmt.Println()
+	}
+
+	// Return error if any sessions failed
+	if errorCount > 0 || (notFoundCount > 0 && successCount == 0) {
+		if lastError != nil {
+			return lastError
+		}
+		return fmt.Errorf("%d %s not found", notFoundCount, pluralSession(notFoundCount))
+	}
+
+	return nil
 }
 
 // validateSessionData runs schema validation on SessionData when in debug mode.
@@ -2058,7 +2123,7 @@ func main() {
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
 
 	// Command-specific flags
-	syncCmd.Flags().StringP("session", "s", "", "optional session ID to sync (provider-specific format)")
+	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
