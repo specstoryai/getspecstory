@@ -294,16 +294,11 @@ func convertToolCallToInfo(call *fdToolCall) *ToolInfo {
 		}
 	}
 	tool := &ToolInfo{
-		Name:  name,
-		Type:  toolType(name),
-		UseID: useID,
-		Input: args,
-		Output: func() map[string]interface{} {
-			if output == nil {
-				return nil
-			}
-			return output
-		}(),
+		Name:   name,
+		Type:   toolType(name),
+		UseID:  useID,
+		Input:  args,
+		Output: output,
 	}
 	if call.RiskLevel != "" {
 		summary := fmt.Sprintf("Risk level: %s", call.RiskLevel)
