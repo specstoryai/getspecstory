@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -102,7 +103,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 
 		var env jsonlEnvelope
 		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
-			// Skip malformed lines but keep raw data for diagnostics.
+			slog.Debug("droidcli: skipping malformed JSONL line", "error", err, "file", filePath)
 			return nil
 		}
 
@@ -110,6 +111,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 		case "session_start":
 			var event sessionStartEvent
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				slog.Debug("droidcli: skipping malformed session_start event", "error", err, "file", filePath)
 				return nil
 			}
 			session.ID = fallback(session.ID, firstNonEmpty(event.ID, event.Session.ID))
@@ -119,6 +121,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 		case "message":
 			var event messageEvent
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				slog.Debug("droidcli: skipping malformed message event", "error", err, "file", filePath)
 				return nil
 			}
 			if firstTimestamp == "" {
@@ -133,6 +136,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 		case "todo_state":
 			var event todoEvent
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				slog.Debug("droidcli: skipping malformed todo_state event", "error", err, "file", filePath)
 				return nil
 			}
 			if firstTimestamp == "" {
@@ -152,6 +156,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 		case "compaction_state":
 			var event compactionEvent
 			if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+				slog.Debug("droidcli: skipping malformed compaction_state event", "error", err, "file", filePath)
 				return nil
 			}
 			if firstTimestamp == "" {
