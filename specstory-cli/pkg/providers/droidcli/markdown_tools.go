@@ -109,6 +109,36 @@ func normalizeToolName(name string) string {
 	return cleaned
 }
 
+// fieldSpec describes how to extract and format a single field from tool input.
+type fieldSpec struct {
+	keys    []string // Keys to try for extraction (first match wins)
+	label   string   // Display label (e.g., "Path", "Query")
+	isSlice bool     // If true, extract as slice and format with formatQuotedList
+}
+
+// renderFields extracts values from args using specs and formats them as labeled lines.
+// Falls back to renderGenericJSON if no fields are found.
+func renderFields(args map[string]any, specs []fieldSpec) string {
+	var parts []string
+	for _, spec := range specs {
+		if spec.isSlice {
+			values := stringSliceValue(args, spec.keys...)
+			if len(values) > 0 {
+				parts = append(parts, fmt.Sprintf("%s: %s", spec.label, formatQuotedList(values)))
+			}
+		} else {
+			value := stringValue(args, spec.keys...)
+			if value != "" {
+				parts = append(parts, fmt.Sprintf("%s: `%s`", spec.label, value))
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return renderGenericJSON(args)
+	}
+	return strings.Join(parts, "\n")
+}
+
 func renderReadInput(args map[string]any) string {
 	path := stringValue(args, "file_path", "path", "file", "filePath")
 	if path == "" {
@@ -137,11 +167,9 @@ func renderReadInput(args map[string]any) string {
 }
 
 func renderListInput(args map[string]any) string {
-	path := stringValue(args, "path", "dir", "directory", "target_directory")
-	if path == "" {
-		return renderGenericJSON(args)
-	}
-	return fmt.Sprintf("Path: `%s`", path)
+	return renderFields(args, []fieldSpec{
+		{keys: []string{"path", "dir", "directory", "target_directory"}, label: "Path"},
+	})
 }
 
 func renderGlobInput(args map[string]any) string {
@@ -170,56 +198,22 @@ func renderGlobInput(args map[string]any) string {
 }
 
 func renderGrepInput(args map[string]any) string {
-	pattern := stringValue(args, "pattern", "query", "search", "regex")
-	path := stringValue(args, "path", "dir", "directory", "cwd")
-	include := stringValue(args, "include", "glob", "glob_pattern")
-	var parts []string
-	if pattern != "" {
-		parts = append(parts, fmt.Sprintf("Pattern: `%s`", pattern))
-	}
-	if path != "" {
-		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
-	}
-	if include != "" {
-		parts = append(parts, fmt.Sprintf("Glob: `%s`", include))
-	}
-	if len(parts) == 0 {
-		return renderGenericJSON(args)
-	}
-	return strings.Join(parts, "\n")
+	return renderFields(args, []fieldSpec{
+		{keys: []string{"pattern", "query", "search", "regex"}, label: "Pattern"},
+		{keys: []string{"path", "dir", "directory", "cwd"}, label: "Path"},
+		{keys: []string{"include", "glob", "glob_pattern"}, label: "Glob"},
+	})
 }
 
 func renderWebSearchInput(args map[string]any) string {
-	query := stringValue(args, "query", "q", "search", "prompt")
-	category := stringValue(args, "category")
-	searchType := stringValue(args, "type")
-	numResults := stringValue(args, "numResults", "num_results", "limit")
-	includeDomains := stringSliceValue(args, "includeDomains", "include_domains")
-	excludeDomains := stringSliceValue(args, "excludeDomains", "exclude_domains")
-
-	var parts []string
-	if query != "" {
-		parts = append(parts, fmt.Sprintf("Query: `%s`", query))
-	}
-	if category != "" {
-		parts = append(parts, fmt.Sprintf("Category: `%s`", category))
-	}
-	if searchType != "" {
-		parts = append(parts, fmt.Sprintf("Type: `%s`", searchType))
-	}
-	if numResults != "" {
-		parts = append(parts, fmt.Sprintf("Results: `%s`", numResults))
-	}
-	if len(includeDomains) > 0 {
-		parts = append(parts, fmt.Sprintf("Include domains: %s", formatQuotedList(includeDomains)))
-	}
-	if len(excludeDomains) > 0 {
-		parts = append(parts, fmt.Sprintf("Exclude domains: %s", formatQuotedList(excludeDomains)))
-	}
-	if len(parts) == 0 {
-		return renderGenericJSON(args)
-	}
-	return strings.Join(parts, "\n")
+	return renderFields(args, []fieldSpec{
+		{keys: []string{"query", "q", "search", "prompt"}, label: "Query"},
+		{keys: []string{"category"}, label: "Category"},
+		{keys: []string{"type"}, label: "Type"},
+		{keys: []string{"numResults", "num_results", "limit"}, label: "Results"},
+		{keys: []string{"includeDomains", "include_domains"}, label: "Include domains", isSlice: true},
+		{keys: []string{"excludeDomains", "exclude_domains"}, label: "Exclude domains", isSlice: true},
+	})
 }
 
 func renderWebFetchInput(args map[string]any) string {
