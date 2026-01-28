@@ -1,10 +1,14 @@
 package droidcli
 
 import (
+	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -343,4 +347,63 @@ func firstNonEmpty(values ...string) string {
 
 func normalizeEventTimestamp(ts string) string {
 	return strings.TrimSpace(ts)
+}
+
+// Scanner utilities for reading JSONL files
+
+const (
+	kb                    = 1024
+	mb                    = 1024 * kb
+	maxReasonableLineSize = 250 * mb
+)
+
+var errStopScan = errors.New("stop scan")
+
+func scanLines(reader io.Reader, handle func(line string) error) error {
+	buf := bufio.NewReader(reader)
+	lineNumber := 0
+
+	for {
+		line, err := buf.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return err
+		}
+
+		if err == io.EOF && line == "" {
+			break
+		}
+
+		lineNumber++
+		if len(line) > maxReasonableLineSize {
+			return fmt.Errorf("line %d exceeds reasonable size limit (%d MB)", lineNumber, maxReasonableLineSize/mb)
+		}
+
+		line = strings.TrimRight(line, "\n")
+		line = strings.TrimRight(line, "\r")
+		if line == "" {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		if handleErr := handle(line); handleErr != nil {
+			return handleErr
+		}
+
+		if err == io.EOF {
+			break
+		}
+	}
+
+	return nil
+}
+
+// Text cleaning utilities
+
+var systemReminderPattern = regexp.MustCompile(`(?s)<system-reminder>.*?</system-reminder>`)
+
+func cleanUserText(text string) string {
+	clean := systemReminderPattern.ReplaceAllString(text, "")
+	return strings.TrimSpace(clean)
 }
