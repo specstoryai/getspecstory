@@ -410,5 +410,10 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 		return nil
 	})
 
+	if err != nil && !errors.Is(err, errStopScan) {
+		slog.Warn("error scanning session file", "path", filePath, "err", err)
+		return false
+	}
+
 	return errors.Is(err, errStopScan)
 }
