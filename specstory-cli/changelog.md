@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v1.4.0 2026-01-28
+
+### ⚙️ Improvements
+
+- The SpecStory CLI now supports Factory's [Droid CLI](https://factory.ai/product/cli) (i.e. `droid`) for sessions created from Factory Droid version `0.56.3` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/) and [Gemini CLI](https://github.com/google-gemini/gemini-cli).
+
 ## v1.3.0 2026-01-25
 
 ### ⚙️ Improvements
