@@ -147,8 +147,12 @@ func LoadSessionsForProject(projectHash string) ([]Session, error) {
 	}
 
 	// Sort sessions by creation time (newest first)
+	// Use ID as tiebreaker for deterministic ordering when timestamps are equal
 	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].Time.Created > sessions[j].Time.Created
+		if sessions[i].Time.Created != sessions[j].Time.Created {
+			return sessions[i].Time.Created > sessions[j].Time.Created
+		}
+		return sessions[i].ID > sessions[j].ID
 	})
 
 	slog.Debug("LoadSessionsForProject: Loaded sessions",
@@ -215,8 +219,12 @@ func LoadMessagesForSession(sessionID string) ([]Message, error) {
 	}
 
 	// Sort messages by creation time (oldest first for chronological order)
+	// Use ID as tiebreaker for deterministic ordering when timestamps are equal
 	sort.Slice(messages, func(i, j int) bool {
-		return messages[i].Time.Created < messages[j].Time.Created
+		if messages[i].Time.Created != messages[j].Time.Created {
+			return messages[i].Time.Created < messages[j].Time.Created
+		}
+		return messages[i].ID < messages[j].ID
 	})
 
 	slog.Debug("LoadMessagesForSession: Loaded messages",
@@ -283,8 +291,13 @@ func LoadPartsForMessage(messageID string) ([]Part, error) {
 	}
 
 	// Sort parts by time (Start time if available)
+	// Use ID as tiebreaker for deterministic ordering when sort keys are equal
 	sort.Slice(parts, func(i, j int) bool {
-		return partSortKey(parts[i]) < partSortKey(parts[j])
+		keyI, keyJ := partSortKey(parts[i]), partSortKey(parts[j])
+		if keyI != keyJ {
+			return keyI < keyJ
+		}
+		return parts[i].ID < parts[j].ID
 	})
 
 	slog.Debug("LoadPartsForMessage: Loaded parts",
