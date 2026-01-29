@@ -28,13 +28,13 @@ type fdBlock struct {
 
 // fdToolCall captures a tool invocation plus its result.
 type fdToolCall struct {
-	ID           string
-	Name         string
-	Input        json.RawMessage
-	RiskLevel    string
-	RiskReason   string
-	Result       *fdToolResult
-	InvocationAt string
+	ID         string
+	Name       string
+	Input      json.RawMessage
+	RiskLevel  string
+	RiskReason string
+	Result     *fdToolResult
+	InvokedAt  string
 }
 
 // fdToolResult contains the textual output of a tool.

@@ -280,7 +280,7 @@ func convertToolCallToInfo(call *fdToolCall) *ToolInfo {
 	}
 	useID := strings.TrimSpace(call.ID)
 	if useID == "" {
-		useID = fmt.Sprintf("tool-%s", strings.ReplaceAll(call.InvocationAt, ":", ""))
+		useID = fmt.Sprintf("tool-%s", strings.ReplaceAll(call.InvokedAt, ":", ""))
 	}
 	args := decodeInput(call.Input)
 	var output map[string]interface{}

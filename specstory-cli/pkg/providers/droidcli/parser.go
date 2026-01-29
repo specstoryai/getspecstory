@@ -208,12 +208,12 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 			appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)
 		case "tool_use":
 			tool := &fdToolCall{
-				ID:           block.ID,
-				Name:         block.Name,
-				Input:        block.Input,
-				RiskLevel:    block.RiskLevel,
-				RiskReason:   block.RiskLevelReason,
-				InvocationAt: event.Timestamp,
+				ID:         block.ID,
+				Name:       block.Name,
+				Input:      block.Input,
+				RiskLevel:  block.RiskLevel,
+				RiskReason: block.RiskLevelReason,
+				InvokedAt:  event.Timestamp,
 			}
 			session.Blocks = append(session.Blocks, fdBlock{
 				Kind:      blockTool,
@@ -241,10 +241,10 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 					Timestamp: event.Timestamp,
 					Model:     model,
 					Tool: &fdToolCall{
-						ID:           block.ToolUseID,
-						Name:         "tool_result",
-						Result:       result,
-						InvocationAt: event.Timestamp,
+						ID:        block.ToolUseID,
+						Name:      "tool_result",
+						Result:    result,
+						InvokedAt: event.Timestamp,
 					},
 				})
 			}
