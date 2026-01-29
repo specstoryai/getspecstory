@@ -20,6 +20,7 @@ import (
 
 const defaultFactoryCommand = "droid"
 
+// Provider implements the SPI Provider interface for Factory Droid CLI.
 type Provider struct{}
 
 // NewProvider creates a new Factory Droid CLI provider instance.
