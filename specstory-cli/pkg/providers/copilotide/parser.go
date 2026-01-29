@@ -29,6 +29,7 @@ func IsHiddenTool(rawResponse json.RawMessage) bool {
 }
 
 // BuildToolCallMap creates a lookup map from toolCallId to tool call info
+// NOTE: This is kept for backward compatibility but sequence-based matching is preferred
 func BuildToolCallMap(metadata VSCodeResultMetadata) map[string]VSCodeToolCallInfo {
 	toolCalls := make(map[string]VSCodeToolCallInfo)
 
@@ -39,6 +40,18 @@ func BuildToolCallMap(metadata VSCodeResultMetadata) map[string]VSCodeToolCallIn
 	}
 
 	return toolCalls
+}
+
+// BuildToolCallSequence creates an ordered list of tool calls from metadata
+// This is used for sequence-based matching since VS Code IDs don't match OpenAI IDs
+func BuildToolCallSequence(metadata VSCodeResultMetadata) []VSCodeToolCallInfo {
+	var sequence []VSCodeToolCallInfo
+
+	for _, round := range metadata.ToolCallRounds {
+		sequence = append(sequence, round.ToolCalls...)
+	}
+
+	return sequence
 }
 
 // HasToolCalls checks if there are any tool calls in the metadata

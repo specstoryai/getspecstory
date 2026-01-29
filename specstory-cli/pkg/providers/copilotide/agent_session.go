@@ -89,7 +89,8 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 		thinking := ExtractThinkingFromMetadata(req.Result.Metadata)
 		if thinking != "" {
 			thinkingMsg := schema.Message{
-				Role: schema.RoleAgent,
+				Role:  schema.RoleAgent,
+				Model: req.ModelID,
 				Content: []schema.ContentPart{
 					{Type: schema.ContentTypeThinking, Text: thinking},
 				},
@@ -99,7 +100,7 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 	}
 
 	// 3. Parse responses and extract tool calls
-	toolMessages := ParseResponsesForTools(req.Response, req.Result.Metadata)
+	toolMessages := ParseResponsesForTools(req.Response, req.Result.Metadata, req.ModelID)
 	messages = append(messages, toolMessages...)
 
 	// 4. Final agent text message
@@ -134,11 +135,14 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 }
 
 // ParseResponsesForTools extracts tool invocations from response array
-func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMetadata) []schema.Message {
+func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMetadata, modelID string) []schema.Message {
 	var toolMessages []schema.Message
 
-	// Build tool call map from metadata
-	toolCalls := BuildToolCallMap(metadata)
+	// Build ordered sequence of tool calls from metadata
+	toolCallSequence := BuildToolCallSequence(metadata)
+
+	// Track sequence index for matching
+	sequenceIndex := 0
 
 	// Process each response
 	for _, rawResp := range responses {
@@ -157,17 +161,36 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 				continue
 			}
 
-			// Skip hidden tools
+			// Skip hidden tools (don't increment sequence index for hidden tools)
 			if invocation.Presentation == "hidden" {
 				continue
 			}
 
-			// Find matching tool call and result
-			toolInfo := BuildToolInfoFromInvocation(invocation, toolCalls, metadata.ToolCallResults)
+			// Match by sequence: get the next tool call from the ordered list
+			if sequenceIndex >= len(toolCallSequence) {
+				slog.Debug("Tool invocation has no matching tool call in sequence",
+					"sequenceIndex", sequenceIndex,
+					"totalToolCalls", len(toolCallSequence),
+					"toolCallId", invocation.ToolCallID)
+				continue
+			}
+
+			toolCall := toolCallSequence[sequenceIndex]
+			sequenceIndex++
+
+			slog.Debug("Matched tool by sequence",
+				"sequenceIndex", sequenceIndex-1,
+				"toolName", toolCall.Name,
+				"invocationId", invocation.ToolCallID,
+				"metadataId", toolCall.ID)
+
+			// Build tool info using the matched tool call
+			toolInfo := BuildToolInfoFromInvocation(invocation, toolCall, metadata.ToolCallResults)
 			if toolInfo != nil {
 				toolMsg := schema.Message{
-					Role: schema.RoleAgent,
-					Tool: toolInfo,
+					Role:  schema.RoleAgent,
+					Model: modelID,
+					Tool:  toolInfo,
 				}
 				toolMessages = append(toolMessages, toolMsg)
 			}
@@ -190,19 +213,13 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 	return toolMessages
 }
 
-// BuildToolInfoFromInvocation creates ToolInfo from VS Code invocation + metadata
+// BuildToolInfoFromInvocation creates ToolInfo from VS Code invocation + tool call
+// Uses sequence-based matching: toolCall is passed directly instead of looked up by ID
 func BuildToolInfoFromInvocation(
 	invocation VSCodeToolInvocationResponse,
-	toolCalls map[string]VSCodeToolCallInfo,
+	toolCall VSCodeToolCallInfo,
 	toolResults map[string]VSCodeToolCallResult,
 ) *schema.ToolInfo {
-	// Find tool call details from metadata
-	toolCall, ok := toolCalls[invocation.ToolCallID]
-	if !ok {
-		slog.Debug("Tool call not found in metadata", "toolCallId", invocation.ToolCallID)
-		return nil
-	}
-
 	toolInfo := &schema.ToolInfo{
 		Name:  toolCall.Name,
 		Type:  MapToolType(toolCall.Name),
@@ -218,6 +235,7 @@ func BuildToolInfoFromInvocation(
 	}
 
 	// Add output from results map
+	// Note: We still look up results by invocation.ToolCallID since that's the VS Code ID
 	if result, ok := toolResults[invocation.ToolCallID]; ok {
 		output := make(map[string]any)
 		if len(result.Content) > 0 {
@@ -260,24 +278,41 @@ func valueToString(value any) string {
 	return string(jsonBytes)
 }
 
-// MapToolType maps VS Code tool names to schema.ToolType constants
+// MapToolType maps VS Code Copilot tool names to schema.ToolType constants
 func MapToolType(toolName string) string {
+	// Handle MCP tools (any tool starting with "mcp_")
+	// Note: MCP tools use generic type until schema.ToolTypeMCP is added
+	if strings.HasPrefix(toolName, "mcp_") {
+		return schema.ToolTypeGeneric
+	}
+
 	mapping := map[string]string{
+		// VS Code Copilot tools (OpenAI API names)
+		"grep_search":           schema.ToolTypeSearch,
+		"apply_patch":           schema.ToolTypeWrite,
+		"read_file":             schema.ToolTypeRead,
+		"insert_edit_into_file": schema.ToolTypeWrite,
+		"create_file":           schema.ToolTypeWrite,
+		"file_search":           schema.ToolTypeSearch,
+		"semantic_search":       schema.ToolTypeSearch,
+		"list_dir":              schema.ToolTypeGeneric,
+		"manage_todo_list":      schema.ToolTypeTask,
+		"get_errors":            schema.ToolTypeGeneric,
+
+		// Legacy tool names (kept for compatibility)
 		"bash":               schema.ToolTypeShell,
 		"search_files":       schema.ToolTypeSearch,
-		"read_file":          schema.ToolTypeRead,
 		"write_to_file":      schema.ToolTypeWrite,
 		"str_replace_editor": schema.ToolTypeWrite,
 		"list_files":         schema.ToolTypeSearch,
 		"grep":               schema.ToolTypeSearch,
 		"find":               schema.ToolTypeSearch,
-		// Add more as needed
 	}
 
 	if toolType, ok := mapping[toolName]; ok {
 		return toolType
 	}
 
-	slog.Debug("Unknown tool type, mapping to unknown", "toolName", toolName)
-	return schema.ToolTypeUnknown
+	slog.Debug("Unknown tool type, mapping to generic", "toolName", toolName)
+	return schema.ToolTypeGeneric
 }
