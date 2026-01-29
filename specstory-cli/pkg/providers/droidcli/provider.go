@@ -32,6 +32,8 @@ func (p *Provider) Name() string {
 	return "Factory Droid CLI"
 }
 
+// Check verifies that the Droid CLI is available and returns its resolved
+// location and version information based on the provided custom command override.
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseDroidCommand(customCommand)
 	isCustom := strings.TrimSpace(customCommand) != ""
