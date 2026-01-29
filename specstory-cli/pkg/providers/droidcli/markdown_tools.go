@@ -71,6 +71,12 @@ func formatToolOutput(tool *fdToolCall) string {
 	if content == "" {
 		return ""
 	}
+	// Edit tool returns JSON with diffLines - convert to proper diff format
+	if name == "edit" {
+		if diff := formatEditDiffOutput(content); diff != "" {
+			return diff
+		}
+	}
 	label := "Output"
 	if tool.Result.IsError {
 		label = "Output (error)"
@@ -79,6 +85,46 @@ func formatToolOutput(tool *fdToolCall) string {
 		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
 	}
 	return fmt.Sprintf("%s: %s", label, content)
+}
+
+// formatEditDiffOutput parses the Edit tool's JSON diff output and formats it as a diff block.
+func formatEditDiffOutput(content string) string {
+	if !strings.HasPrefix(content, "{") {
+		return ""
+	}
+	var result struct {
+		DiffLines []struct {
+			Type    string `json:"type"`
+			Content string `json:"content"`
+		} `json:"diffLines"`
+	}
+	if err := json.Unmarshal([]byte(content), &result); err != nil {
+		return ""
+	}
+	if len(result.DiffLines) == 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.WriteString("```diff\n")
+	for _, line := range result.DiffLines {
+		switch line.Type {
+		case "added":
+			builder.WriteString("+")
+			builder.WriteString(line.Content)
+			builder.WriteString("\n")
+		case "removed":
+			builder.WriteString("-")
+			builder.WriteString(line.Content)
+			builder.WriteString("\n")
+		case "unchanged":
+			builder.WriteString(" ")
+			builder.WriteString(line.Content)
+			builder.WriteString("\n")
+		}
+	}
+	builder.WriteString("```")
+	return builder.String()
 }
 
 func decodeInput(raw json.RawMessage) map[string]any {
@@ -299,8 +345,8 @@ func renderEdits(args map[string]any) string {
 }
 
 func renderSingleEdit(args map[string]any) string {
-	oldText := stringValue(args, "old_text", "old_string", "old")
-	newText := stringValue(args, "new_text", "new_string", "new")
+	oldText := stringValue(args, "old_str", "old_text", "old_string", "old")
+	newText := stringValue(args, "new_str", "new_text", "new_string", "new")
 	if oldText == "" && newText == "" {
 		return ""
 	}

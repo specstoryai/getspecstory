@@ -1,6 +1,6 @@
 # Specstory CLI Changelog
 
-## v1.4.0 2026-01-28
+## v1.4.0 2026-01-29
 
 ### ⚙️ Improvements
 

@@ -346,6 +346,104 @@ func TestRenderAskUserInput(t *testing.T) {
 	}
 }
 
+func TestFormatEditDiffOutput(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          string
+		expectedSubstr []string
+		expectEmpty    bool
+	}{
+		{
+			name:  "valid diff with all line types",
+			input: `{"diffLines":[{"type":"unchanged","content":"Line 1"},{"type":"removed","content":"Old line"},{"type":"added","content":"New line"}]}`,
+			expectedSubstr: []string{
+				"```diff",
+				" Line 1",
+				"-Old line",
+				"+New line",
+				"```",
+			},
+		},
+		{
+			name:  "only additions",
+			input: `{"diffLines":[{"type":"added","content":"New content"}]}`,
+			expectedSubstr: []string{
+				"+New content",
+			},
+		},
+		{
+			name:        "empty diffLines",
+			input:       `{"diffLines":[]}`,
+			expectEmpty: true,
+		},
+		{
+			name:        "not JSON",
+			input:       "plain text output",
+			expectEmpty: true,
+		},
+		{
+			name:        "invalid JSON",
+			input:       `{"diffLines": broken}`,
+			expectEmpty: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatEditDiffOutput(tt.input)
+			if tt.expectEmpty {
+				if got != "" {
+					t.Errorf("expected empty string, got: %s", got)
+				}
+				return
+			}
+			for _, substr := range tt.expectedSubstr {
+				if !strings.Contains(got, substr) {
+					t.Errorf("expected output to contain %q, got:\n%s", substr, got)
+				}
+			}
+		})
+	}
+}
+
+func TestEditToolWithDroidFormat(t *testing.T) {
+	// Test that Edit tool works with Droid's old_str/new_str format
+	input := map[string]any{
+		"file_path": "/path/to/file.txt",
+		"old_str":   "old content",
+		"new_str":   "new content",
+	}
+	inputJSON, _ := json.Marshal(input)
+
+	// Test with JSON diff output format
+	resultContent := `{"diffLines":[{"type":"removed","content":"old content"},{"type":"added","content":"new content"}]}`
+	tool := &fdToolCall{
+		Name:   "Edit",
+		Input:  inputJSON,
+		Result: &fdToolResult{Content: resultContent},
+	}
+
+	md := formatToolCall(tool)
+
+	expectedSubstr := []string{
+		"Path: `/path/to/file.txt`",
+		"```diff",
+		"-old content",
+		"+new content",
+	}
+
+	for _, substr := range expectedSubstr {
+		if !strings.Contains(md, substr) {
+			t.Errorf("expected output to contain %q, got:\n%s", substr, md)
+		}
+	}
+
+	// Should NOT contain raw JSON
+	if strings.Contains(md, "diffLines") {
+		t.Errorf("expected output NOT to contain raw JSON 'diffLines', got:\n%s", md)
+	}
+}
+
 func TestToolTypeMappings(t *testing.T) {
 	// Test the 14 actual Droid tools
 	tests := []struct {

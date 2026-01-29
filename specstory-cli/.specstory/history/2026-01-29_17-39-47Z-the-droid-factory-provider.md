@@ -6281,3 +6281,353 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:54Z)**_
    419→4. [completed] Execute - Run shell command
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:00Z)**_
+
+<think><details><summary>Thought Process</summary>
+I can see the problem. The Edit tool has two issues:1. The input uses `old_str` and `new_str` (not `old_string` and `new_string` like Claude Code), so `renderEditInput` isn't finding the diff values
+2. The output is a JSON blob with a `diffLines` array that contains structured diff data, which should be converted to proper diff formatting
+
+Let me look at the current edit rendering code and fix both issues:1. Add `old_str`/`new_str` to the input parsing
+2. Add custom output handling for Edit that parses the JSON diff format
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:01Z)**_
+
+I see two issues:
+
+1. The input uses `old_str`/`new_str` but the code looks for `old_string`/`new_string`
+2. The output is JSON with `diffLines` that needs to be converted to proper diff format
+
+Let me fix both.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:03Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+   295→			sections = append(sections, diff)
+   296→		}
+   297→	}
+   298→	return strings.Join(sections, "\n\n")
+   299→}
+   300→
+   301→func renderSingleEdit(args map[string]any) string {
+   302→	oldText := stringValue(args, "old_text", "old_string", "old")
+   303→	newText := stringValue(args, "new_text", "new_string", "new")
+   304→	if oldText == "" && newText == "" {
+   305→		return ""
+   306→	}
+   307→	return formatDiffBlock(oldText, newText)
+   308→}
+   309→
+   310→func formatDiffBlock(oldText string, newText string) string {
+   311→	var builder strings.Builder
+   312→	builder.WriteString("```diff\n")
+   313→	if oldText != "" {
+   314→		for _, line := range strings.Split(oldText, "\n") {
+   315→			builder.WriteString("-")
+   316→			builder.WriteString(line)
+   317→			builder.WriteString("\n")
+   318→		}
+   319→	}
+   320→	if newText != "" {
+   321→		for _, line := range strings.Split(newText, "\n") {
+   322→			builder.WriteString("+")
+   323→			builder.WriteString(line)
+   324→			builder.WriteString("\n")
+   325→		}
+   326→	}
+   327→	builder.WriteString("```")
+   328→	return builder.String()
+   329→}
+   330→
+   331→func renderApplyPatch(args map[string]any) string {
+   332→	patch := stringValue(args, "patch", "input")
+   333→	if patch == "" {
+   334→		return renderGenericJSON(args)
+   335→	}
+   336→	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+   337→}
+   338→
+   339→func renderTodoWrite(args map[string]any) string {
+   340→	if todoText, ok := args["todos"].(string); ok {
+   341→		trimmed := strings.TrimSpace(todoText)
+   342→		if trimmed == "" {
+   343→			return "Todo list unchanged"
+   344→		}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:08Z)**_
+
+<think><details><summary>Thought Process</summary>
+I need to:
+1. Add `old_str` and `new_str` to `renderSingleEdit` 
+2. Add custom output handling for Edit tools that parses the JSON diff formatLet me first fix the input parsing, then add custom output handling for Edit.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:11Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
+```
+</details></tool-use>
+
+---
+
+_**User (2026-01-29 23:27:27Z)**_
+
+[Request interrupted by user for tool use]
+
+_**User (2026-01-29 23:27:41Z)**_
+
+Don't need a comment about what Claude Code uses, it's immaterial here.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:45Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants me to fix the code without the unnecessary comment about Claude Code. Let me just add the field names without the comment.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:27:48Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:28:51Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to add custom output handling for Edit tools to parse the JSON diff format. The output looks like:
+
+```json
+{"diffLines":[{"type":"unchanged","content":"This is a demo file created by the Create tool.","lineNumber":{"old":1,"new":1}},{"type":"removed","content":"Line 3 will be edited soon!","lineNumber":{"old":3}},{"type":"added","content":"Line 3 has been edited by the Edit tool!","lineNumber":{"new":3}}],"content":"..."}
+```
+
+I need to parse this and convert it to a proper diff format.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:28:52Z)**_
+
+Now I need to add custom output handling for Edit to parse the JSON diff format. Let me update `formatToolOutput`.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:28:52Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+    61→func formatToolOutput(tool *fdToolCall) string {
+    62→	if tool.Result == nil {
+    63→		return ""
+    64→	}
+    65→	// AskUser output is already included in the input rendering
+    66→	name := normalizeToolName(tool.Name)
+    67→	if name == "askuser" || name == "askuserquestion" {
+    68→		return ""
+    69→	}
+    70→	content := strings.TrimSpace(tool.Result.Content)
+    71→	if content == "" {
+    72→		return ""
+    73→	}
+    74→	label := "Output"
+    75→	if tool.Result.IsError {
+    76→		label = "Output (error)"
+    77→	}
+    78→	if strings.Contains(content, "\n") {
+    79→		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
+    80→	}
+    81→	return fmt.Sprintf("%s: %s", label, content)
+    82→}
+    83→
+    84→func decodeInput(raw json.RawMessage) map[string]any {
+    85→	if len(raw) == 0 {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:28:56Z)**_
+
+<think><details><summary>Thought Process</summary>
+I need to add special handling for the Edit tool output. I'll check if the content looks like JSON with a `diffLines` array and if so, parse it and format it as a proper diff.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:04Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:17Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the linter and tests to make sure everything passes.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:18Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.283s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:28Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass and no linter issues. The Edit tool will now:
+1. Parse `old_str`/`new_str` from the input for the diff in the input section
+2. Parse the JSON `diffLines` output and convert it to proper diff format
+
+The output will now look like:
+```diff
+ This is a demo file created by the Create tool.
+ It has multiple lines.
+-Line 3 will be edited soon!
++Line 3 has been edited by the Edit tool!
+```
+
+Instead of the raw JSON blob.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:29Z)**_
+
+Done. The Edit tool now:
+1. Recognizes `old_str`/`new_str` in the input
+2. Parses the JSON `diffLines` output and converts it to proper diff format:
+
+```diff
+ This is a demo file created by the Create tool.
+ It has multiple lines.
+-Line 3 will be edited soon!
++Line 3 has been edited by the Edit tool!
+```
+
+---
+
+_**User (2026-01-29 23:29:43Z)**_
+
+tests?
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:48Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants tests for the new Edit functionality. I should add tests for:
+1. `renderSingleEdit` with `old_str`/`new_str` keys
+2. `formatEditDiffOutput` for parsing the JSON diff format
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:29:59Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:30:52Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the tests to make sure they pass.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:30:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and new Edit tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test -v ./pkg/providers/droidcli/... -run "TestFormatEditDiffOutput|TestEditToolWithDroidFormat"`
+```
+Exit code 1
+pkg/providers/droidcli/markdown_tools_test.go:357:1: File is not properly formatted (gofmt)
+			name: "valid diff with all line types",
+^
+1 issues:
+* gofmt: 1
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:30:58Z)**_
+
+<think><details><summary>Thought Process</summary>
+Need to fix the formatting.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:30:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Format and run tests
+
+`gofmt -w ./pkg/providers/droidcli/markdown_tools_test.go && go test -v ./pkg/providers/droidcli/... -run "TestFormatEditDiffOutput|TestEditToolWithDroidFormat"`
+```
+=== RUN   TestFormatEditDiffOutput
+=== RUN   TestFormatEditDiffOutput/valid_diff_with_all_line_types
+=== RUN   TestFormatEditDiffOutput/only_additions
+=== RUN   TestFormatEditDiffOutput/empty_diffLines
+=== RUN   TestFormatEditDiffOutput/not_JSON
+=== RUN   TestFormatEditDiffOutput/invalid_JSON
+--- PASS: TestFormatEditDiffOutput (0.00s)
+    --- PASS: TestFormatEditDiffOutput/valid_diff_with_all_line_types (0.00s)
+    --- PASS: TestFormatEditDiffOutput/only_additions (0.00s)
+    --- PASS: TestFormatEditDiffOutput/empty_diffLines (0.00s)
+    --- PASS: TestFormatEditDiffOutput/not_JSON (0.00s)
+    --- PASS: TestFormatEditDiffOutput/invalid_JSON (0.00s)
+=== RUN   TestEditToolWithDroidFormat
+--- PASS: TestEditToolWithDroidFormat (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.238s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:31:05Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Let me also run the full test suite to make sure nothing is broken.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:31:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all droidcli tests
+
+`go test ./pkg/providers/droidcli/...`
+```
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.260s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:31:12Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Added two tests:
+1. `TestFormatEditDiffOutput` - tests the JSON diff parsing with various edge cases
+2. `TestEditToolWithDroidFormat` - integration test for the full Edit tool with Droid's format
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:31:13Z)**_
+
+Added:
+- `TestFormatEditDiffOutput` - tests JSON diff parsing (valid diff, only additions, empty, not JSON, invalid JSON)
+- `TestEditToolWithDroidFormat` - integration test verifying `old_str`/`new_str` input and JSON diff output
