@@ -7,40 +7,65 @@ import (
 	"testing"
 )
 
-func TestSessionMentionsProject_UsesSessionCwd(t *testing.T) {
-	projectDir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "session.jsonl")
-	content := fmt.Sprintf(`{"type":"session_start","id":"sess-1","cwd":%q}`, projectDir)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-	if !sessionMentionsProject(path, projectDir) {
-		t.Fatalf("expected true when cwd matches")
-	}
-}
-
-func TestSessionMentionsProject_CwdMismatchIgnoresTextFallback(t *testing.T) {
-	projectDir := t.TempDir()
-	otherDir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "session.jsonl")
-	content := fmt.Sprintf(`{"type":"session_start","id":"sess-1","cwd":%q}
+func TestSessionMentionsProject(t *testing.T) {
+	tests := []struct {
+		name        string
+		makeContent func(projectDir, otherDir string) string
+		expected    bool
+	}{
+		{
+			name: "returns true when session cwd matches project",
+			makeContent: func(projectDir, _ string) string {
+				return fmt.Sprintf(`{"type":"session_start","id":"sess-1","cwd":%q}`, projectDir)
+			},
+			expected: true,
+		},
+		{
+			name: "returns false when cwd mismatches even if text mentions project",
+			makeContent: func(projectDir, otherDir string) string {
+				return fmt.Sprintf(`{"type":"session_start","id":"sess-1","cwd":%q}
 {"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, otherDir, projectDir)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write file: %v", err)
+			},
+			expected: false,
+		},
+		{
+			name: "falls back to text search when no cwd present",
+			makeContent: func(projectDir, _ string) string {
+				return fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, projectDir)
+			},
+			expected: true,
+		},
+		{
+			name: "returns false when no cwd and text does not mention project",
+			makeContent: func(_, otherDir string) string {
+				return fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, otherDir)
+			},
+			expected: false,
+		},
+		{
+			name: "returns true when workspace_root matches project",
+			makeContent: func(projectDir, _ string) string {
+				return fmt.Sprintf(`{"type":"session_start","id":"sess-1","workspace_root":%q}`, projectDir)
+			},
+			expected: true,
+		},
 	}
-	if sessionMentionsProject(path, projectDir) {
-		t.Fatalf("expected false when cwd mismatches even if text mentions project")
-	}
-}
 
-func TestSessionMentionsProject_FallsBackToTextWhenNoCwd(t *testing.T) {
-	projectDir := t.TempDir()
-	path := filepath.Join(t.TempDir(), "session.jsonl")
-	content := fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, projectDir)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-	if !sessionMentionsProject(path, projectDir) {
-		t.Fatalf("expected true when path present in text")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			projectDir := t.TempDir()
+			otherDir := t.TempDir()
+			sessionPath := filepath.Join(t.TempDir(), "session.jsonl")
+
+			content := tt.makeContent(projectDir, otherDir)
+			if err := os.WriteFile(sessionPath, []byte(content), 0o644); err != nil {
+				t.Fatalf("write file: %v", err)
+			}
+
+			got := sessionMentionsProject(sessionPath, projectDir)
+			if got != tt.expected {
+				t.Errorf("sessionMentionsProject() = %v, want %v", got, tt.expected)
+			}
+		})
 	}
 }
