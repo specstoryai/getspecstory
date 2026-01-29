@@ -5968,3 +5968,209 @@ Done. Created `droid_exec_test.go` with 9 test cases covering all the combinator
 | 9 | `-r` at end (no value) → appends new `--resume` |
 
 The last two cases (8 & 9) are edge cases that document the current behavior when the flag exists but has no following argument - it appends a new `--resume` flag. This matches the implementation's `i+1 < len(args)` check.
+
+---
+
+_**User (2026-01-29 17:28:20Z)**_
+
+A review comment: The sessionMentionsProject function has multiple exit points (early returns at lines 260, 273, 278) rather than a single exit point. Consider using a single return variable and falling through to a single return statement at the end for better maintainability and consistency with the codebase guidelines.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:26Z)**_
+
+<think><details><summary>Thought Process</summary>
+The reviewer is commenting on the `sessionMentionsProject` function having multiple exit points. Let me look at the function again and the CLAUDE.md guidelines to understand the context.
+
+From CLAUDE.md:
+> - Use single function exit point where possible (immediate guard clauses are OK)
+
+Let me look at the function to see what the exit points look like.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:26Z)**_
+
+Let me look at the function in question.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:27Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/provider.go`
+```
+   324→	if filepath.IsAbs(command) {
+   325→		return "absolute_path"
+   326→	}
+   327→	return "system_path"
+   328→}
+   329→
+   330→func printDetectionHelp() {
+   331→	log.UserMessage("No Factory Droid sessions found under ~/.factory/sessions yet.\n")
+   332→	log.UserMessage("Run the Factory CLI inside this project to create a JSONL session, then rerun `specstory sync droid`.\n")
+   333→}
+   334→
+   335→func sessionMentionsProject(filePath string, projectPath string) bool {
+   336→	projectPath = strings.TrimSpace(projectPath)
+   337→	if projectPath == "" {
+   338→		return false
+   339→	}
+   340→
+   341→	canonicalProject := canonicalizePath(projectPath)
+   342→	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+   343→		canonicalRoot := canonicalizePath(sessionRoot)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:31Z)**_
+
+<think><details><summary>Thought Process</summary>
+The line numbers in the review comment seem off. Let me read more to see the full function.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:32Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/provider.go`
+```
+   335→func sessionMentionsProject(filePath string, projectPath string) bool {
+   336→	projectPath = strings.TrimSpace(projectPath)
+   337→	if projectPath == "" {
+   338→		return false
+   339→	}
+   340→
+   341→	canonicalProject := canonicalizePath(projectPath)
+   342→	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+   343→		canonicalRoot := canonicalizePath(sessionRoot)
+   344→		if canonicalProject != "" && canonicalRoot != "" {
+   345→			return canonicalRoot == canonicalProject
+   346→		}
+   347→		return strings.TrimSpace(sessionRoot) == projectPath
+   348→	}
+   349→
+   350→	return sessionMentionsProjectText(filePath, projectPath)
+   351→}
+   352→
+   353→func extractSessionWorkspaceRoot(filePath string) string {
+   354→	file, err := os.Open(filePath)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:50Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I can see the function. The reviewer's line numbers (260, 273, 278) don't match the current file, but I can see the function now:
+
+```go
+func sessionMentionsProject(filePath string, projectPath string) bool {
+	projectPath = strings.TrimSpace(projectPath)
+	if projectPath == "" {
+		return false  // Line 338 - guard clause
+	}
+
+	canonicalProject := canonicalizePath(projectPath)
+	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+		canonicalRoot := canonicalizePath(sessionRoot)
+		if canonicalProject != "" && canonicalRoot != "" {
+			return canonicalRoot == canonicalProject  // Line 345
+		}
+		return strings.TrimSpace(sessionRoot) == projectPath  // Line 347
+	}
+
+	return sessionMentionsProjectText(filePath, projectPath)  // Line 350
+}
+```
+
+Looking at CLAUDE.md:
+> - Use single function exit point where possible (immediate guard clauses are OK)
+
+So guard clauses are explicitly OK. The return at line 338 (`if projectPath == ""`) is a guard clause.
+
+The question is about lines 345, 347, and 350. Let me analyze:
+
+1. Line 338: Guard clause for empty input - this is OK per guidelines
+2. Line 345: Return inside nested if when canonical paths are available
+3. Line 347: Return inside if block when session root exists but canonical comparison isn't possible
+4. Line 350: Final return - text-based fallback
+
+The function has this logic:
+1. Guard: empty project path → false
+2. If we have a session root from metadata:
+   a. If both paths can be canonicalized → compare them
+   b. Otherwise → string compare
+3. Fallback to text search
+
+I think the reviewer has a point that this could be refactored to be cleaner with a single exit point (besides the guard). However, I'm not sure the refactoring would actually improve readability in this case. 
+
+A single-exit version would introduce a `result` variable and accumulate the logic through conditional assignments rather than early returns. The canonical path comparison would set `result = canonicalRoot == canonicalProject`, then fall through to either the string comparison or text search fallback. While this follows the guideline more strictly, it makes the control flow less obvious and requires tracking the `result` variable through multiple branches.
+
+The original approach actually aligns with the guidelines' nuance—the guard clause at line 338 is explicitly permitted, and the subsequent returns at 345, 347, and 350 represent distinct exit points for different logical outcomes that are clearer to follow than accumulating state in a variable.
+
+Given the function's brevity at 16 lines, the multiple returns enhance readability by making each matching scenario immediately obvious rather than requiring readers to trace variable assignments. I should present this reasoning to the user and acknowledge that while the refactoring is technically feasible, it may sacrifice clarity for the sake of a guideline that itself allows exceptions.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:56Z)**_
+
+Looking at the function:
+
+```go
+func sessionMentionsProject(filePath string, projectPath string) bool {
+    projectPath = strings.TrimSpace(projectPath)
+    if projectPath == "" {
+        return false  // Line 338 - guard clause
+    }
+
+    canonicalProject := canonicalizePath(projectPath)
+    if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+        canonicalRoot := canonicalizePath(sessionRoot)
+        if canonicalProject != "" && canonicalRoot != "" {
+            return canonicalRoot == canonicalProject  // Line 345
+        }
+        return strings.TrimSpace(sessionRoot) == projectPath  // Line 347
+    }
+
+    return sessionMentionsProjectText(filePath, projectPath)  // Line 350
+}
+```
+
+**My assessment: I'd push back on this review comment.**
+
+Per CLAUDE.md: *"Use single function exit point where possible (immediate guard clauses are OK)"*
+
+1. **Line 338** is a guard clause for invalid input - explicitly allowed
+2. **Lines 345, 347, 350** represent three distinct matching strategies with clear precedence
+
+A single-exit refactor would look like:
+
+```go
+func sessionMentionsProject(filePath string, projectPath string) bool {
+    projectPath = strings.TrimSpace(projectPath)
+    if projectPath == "" {
+        return false
+    }
+
+    var result bool
+    canonicalProject := canonicalizePath(projectPath)
+    if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+        canonicalRoot := canonicalizePath(sessionRoot)
+        if canonicalProject != "" && canonicalRoot != "" {
+            result = canonicalRoot == canonicalProject
+        } else {
+            result = strings.TrimSpace(sessionRoot) == projectPath
+        }
+    } else {
+        result = sessionMentionsProjectText(filePath, projectPath)
+    }
+    return result
+}
+```
+
+**Why I'd keep the original:**
+- The function is only 16 lines - cognitive load is low
+- Early returns communicate "we found our answer" clearly
+- The `result` variable adds indirection without adding clarity
+- The guideline says "where possible" - it's not absolute
+
+**Recommendation:** Respond to the reviewer that the guard clause is explicitly allowed by guidelines, the function is short, and the early returns improve readability by making each matching strategy's outcome immediately clear. Unless they feel strongly, I'd leave it as-is.
+
+Want me to make the change anyway, or would you prefer to discuss with the reviewer?
