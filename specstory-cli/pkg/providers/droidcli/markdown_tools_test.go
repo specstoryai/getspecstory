@@ -444,6 +444,39 @@ func TestEditToolWithDroidFormat(t *testing.T) {
 	}
 }
 
+func TestRenderSkillInput(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    map[string]any
+		expected string
+	}{
+		{
+			name:     "skill field",
+			input:    map[string]any{"skill": "agent-browser"},
+			expected: "Skill: `agent-browser`",
+		},
+		{
+			name:     "name field fallback",
+			input:    map[string]any{"name": "some-skill"},
+			expected: "Skill: `some-skill`",
+		},
+		{
+			name:     "empty falls back to JSON",
+			input:    map[string]any{"other": "value"},
+			expected: "```json",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := renderSkillInput(tt.input)
+			if !strings.Contains(got, tt.expected) {
+				t.Errorf("expected output to contain %q, got: %s", tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestToolTypeMappings(t *testing.T) {
 	// Test the 14 actual Droid tools
 	tests := []struct {

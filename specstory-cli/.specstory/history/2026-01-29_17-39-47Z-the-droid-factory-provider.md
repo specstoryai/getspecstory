@@ -6631,3 +6631,137 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 23:31:13Z)**_
 Added:
 - `TestFormatEditDiffOutput` - tests JSON diff parsing (valid diff, only additions, empty, not JSON, invalid JSON)
 - `TestEditToolWithDroidFormat` - integration test verifying `old_str`/`new_str` input and JSON diff output
+
+---
+
+_**User (2026-01-29 23:34:52Z)**_
+
+The JSON on line 839 for the Skill tool isn't lovely. Seems we could just have `Skill: agent-browser` in place of that, no?
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:34:59Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants me to look at the Skill tool output and simplify it. Let me look at the data and current output.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:01Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+   835→_**Agent (2026-01-29 17:33:36Z)**_
+   836→
+   837→<tool-use data-tool-type="generic" data-tool-name="Skill"><details>
+   838→<summary>Tool use: **Skill**</summary>
+   839→```json
+   840→{
+   841→  "skill": "agent-browser"
+   842→}
+   843→```
+   844→
+   845→Output:
+   846→```text
+   847→Skill "agent-browser" is now active.
+   848→
+   849→<skill name="agent-browser" filePath="builtin:agent-browser">
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:06Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see. The Skill tool input is just `{"skill": "agent-browser"}` which is being rendered as generic JSON. I should add a custom formatter for the Skill tool that just displays `Skill: \`agent-browser\``.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:09Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:17Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to add the `renderSkillInput` function.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:20Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:30Z)**_
+
+<think><details><summary>Thought Process</summary>
+The error is just a temporary diagnostic issue - the function is defined now. Let me run the tests to verify.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:32Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.268s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:38Z)**_
+
+<think><details><summary>Thought Process</summary>
+Tests pass. The Skill tool will now render as `Skill: \`agent-browser\`` instead of the JSON block. Let me add a quick test for this.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:38Z)**_
+
+Now let me add a test.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:35:43Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:36:04Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me run the tests to make sure they pass.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:36:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Format and run Skill test
+
+`gofmt -w ./pkg/providers/droidcli/markdown_tools_test.go && go test ./pkg/providers/droidcli/... -run TestRenderSkillInput`
+```
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.180s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:36:10Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. The Skill tool will now render as `Skill: \`agent-browser\`` instead of the JSON block.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:36:10Z)**_
+
+Done. Skill tool now renders as `Skill: \`agent-browser\`` instead of the JSON block.

@@ -53,6 +53,8 @@ func formatToolInput(tool *fdToolCall) string {
 		return renderTodoWrite(args)
 	case "askuser", "askuserquestion":
 		return renderAskUserInput(args, tool.Result)
+	case "skill":
+		return renderSkillInput(args)
 	default:
 		return renderGenericJSON(args)
 	}
@@ -409,6 +411,14 @@ func renderTodoWrite(args map[string]any) string {
 		fmt.Fprintf(&builder, "- [%s] %s\n", todoSymbol(status), desc)
 	}
 	return builder.String()
+}
+
+func renderSkillInput(args map[string]any) string {
+	skill := stringValue(args, "skill", "name")
+	if skill == "" {
+		return renderGenericJSON(args)
+	}
+	return fmt.Sprintf("Skill: `%s`", skill)
 }
 
 // renderAskUserInput formats the AskUser tool input with questions, options, and answers.
