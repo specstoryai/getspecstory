@@ -1809,3 +1809,2361 @@ Build succeeded. Here's a summary of the fix:
 5. Write each to a numbered file (`1.json`, `2.json`, etc.)
 
 Now when you run `specstory sync droid --debug-raw`, the output will match the Claude Code provider format with individual numbered JSON files for each JSONL line, plus the centrally-written `session-data.json`.
+
+---
+
+_**User (2026-01-29 17:52:24Z)**_
+
+Here's the markdown output from the Droid LS tool:
+
+```
+<tool-use data-tool-type="search" data-tool-name="LS"><details>
+<summary>Tool use: **LS**</summary>
+```json
+{
+  "directory_path": "/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory"
+}
+```
+
+Output:
+```text
+total 16
+drwxr-xr-x   4 sean  staff  128 Jan 29 12:31 .
+drwxr-xr-x  11 sean  staff  352 Jan 28 09:27 ..
+-rw-r--r--   1 sean  staff  108 Jan 29 12:31 tools.txt
+-rw-r--r--   1 sean  staff   69 Jan 28 09:29 versions.txt
+```
+</details></tool-use>
+```
+
+Don't want the JSON for the directory path, would be better if that's just included as `Path: {path}` like is done with the Create tool and the Read tool, etc.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:28Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is asking me to fix the markdown formatting for the LS tool. Instead of showing the JSON input, they want it to show just `Path: {path}` like other tools do.
+
+Let me find where the LS tool formatting is done in the droidcli provider.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:28Z)**_
+
+Let me find where the LS tool is formatted in the markdown tools.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:29Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"fmt"
+     6→	"path/filepath"
+     7→	"sort"
+     8→	"strconv"
+     9→	"strings"
+    10→)
+    11→
+    12→func formatToolCall(tool *fdToolCall) string {
+    13→	if tool == nil {
+    14→		return ""
+    15→	}
+    16→	body := strings.TrimSpace(formatToolInput(tool))
+    17→	result := strings.TrimSpace(formatToolOutput(tool))
+    18→
+    19→	var builder []string
+    20→	if body != "" {
+    21→		builder = append(builder, body)
+    22→	}
+    23→	if result != "" {
+    24→		builder = append(builder, result)
+    25→	}
+    26→	return strings.TrimSpace(strings.Join(builder, "\n\n"))
+    27→}
+    28→
+    29→func formatToolInput(tool *fdToolCall) string {
+    30→	args := decodeInput(tool.Input)
+    31→	switch normalizeToolName(tool.Name) {
+    32→	case "execute", "run", "bash", "shell", "command", "exec":
+    33→		return formatExecuteInput(args)
+    34→	case "read", "cat", "readfile", "view", "viewimage":
+    35→		return renderReadInput(args)
+    36→	case "ls", "list", "listdir", "listdirectory":
+    37→		return renderListInput(args)
+    38→	case "glob":
+    39→		return renderGlobInput(args)
+    40→	case "grep", "rg", "ripgrep", "search", "filesearch":
+    41→		return renderGrepInput(args)
+    42→	case "websearch", "searchweb", "googlewebsearch":
+    43→		return renderWebSearchInput(args)
+    44→	case "fetchurl", "fetch", "webfetch":
+    45→		return renderWebFetchInput(args)
+    46→	case "applypatch":
+    47→		return renderApplyPatch(args)
+    48→	case "write", "create", "writefile", "createfile", "addfile":
+    49→		return renderWriteInput(args)
+    50→	case "edit", "multiedit", "replace", "strreplace", "applyedit":
+    51→		return renderEditInput(args)
+    52→	case "todowrite":
+    53→		return renderTodoWrite(args)
+    54→	default:
+    55→		return renderGenericJSON(args)
+    56→	}
+    57→}
+    58→
+    59→func formatToolOutput(tool *fdToolCall) string {
+    60→	if tool.Result == nil {
+    61→		return ""
+    62→	}
+    63→	content := strings.TrimSpace(tool.Result.Content)
+    64→	if content == "" {
+    65→		return ""
+    66→	}
+    67→	label := "Output"
+    68→	if tool.Result.IsError {
+    69→		label = "Output (error)"
+    70→	}
+    71→	if strings.Contains(content, "\n") {
+    72→		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
+    73→	}
+    74→	return fmt.Sprintf("%s: %s", label, content)
+    75→}
+    76→
+    77→func decodeInput(raw json.RawMessage) map[string]any {
+    78→	if len(raw) == 0 {
+    79→		return map[string]any{}
+    80→	}
+    81→	var payload map[string]any
+    82→	if err := json.Unmarshal(raw, &payload); err != nil {
+    83→		return map[string]any{"raw": string(raw)}
+    84→	}
+    85→	return payload
+    86→}
+    87→
+    88→func formatExecuteInput(args map[string]any) string {
+    89→	command := stringValue(args, "command", "cmd")
+    90→	workdir := stringValue(args, "workdir", "dir", "cwd")
+    91→	if command == "" && workdir == "" {
+    92→		return ""
+    93→	}
+    94→	var builder strings.Builder
+    95→	if workdir != "" {
+    96→		fmt.Fprintf(&builder, "Directory: `%s`\n\n", workdir)
+    97→	}
+    98→	if command != "" {
+    99→		fmt.Fprintf(&builder, "`%s`", command)
+   100→	}
+   101→	return builder.String()
+   102→}
+   103→
+   104→func normalizeToolName(name string) string {
+   105→	cleaned := strings.ToLower(strings.TrimSpace(name))
+   106→	cleaned = strings.ReplaceAll(cleaned, " ", "")
+   107→	cleaned = strings.ReplaceAll(cleaned, "-", "")
+   108→	cleaned = strings.ReplaceAll(cleaned, "_", "")
+   109→	return cleaned
+   110→}
+   111→
+   112→// fieldSpec describes how to extract and format a single field from tool input.
+   113→type fieldSpec struct {
+   114→	keys    []string // Keys to try for extraction (first match wins)
+   115→	label   string   // Display label (e.g., "Path", "Query")
+   116→	isSlice bool     // If true, extract as slice and format with formatQuotedList
+   117→}
+   118→
+   119→// renderFields extracts values from args using specs and formats them as labeled lines.
+   120→// Falls back to renderGenericJSON if no fields are found.
+   121→func renderFields(args map[string]any, specs []fieldSpec) string {
+   122→	var parts []string
+   123→	for _, spec := range specs {
+   124→		if spec.isSlice {
+   125→			values := stringSliceValue(args, spec.keys...)
+   126→			if len(values) > 0 {
+   127→				parts = append(parts, fmt.Sprintf("%s: %s", spec.label, formatQuotedList(values)))
+   128→			}
+   129→		} else {
+   130→			value := stringValue(args, spec.keys...)
+   131→			if value != "" {
+   132→				parts = append(parts, fmt.Sprintf("%s: `%s`", spec.label, value))
+   133→			}
+   134→		}
+   135→	}
+   136→	if len(parts) == 0 {
+   137→		return renderGenericJSON(args)
+   138→	}
+   139→	return strings.Join(parts, "\n")
+   140→}
+   141→
+   142→func renderReadInput(args map[string]any) string {
+   143→	path := stringValue(args, "file_path", "path", "file", "filePath")
+   144→	if path == "" {
+   145→		paths := stringSliceValue(args, "file_paths", "paths")
+   146→		if len(paths) > 0 {
+   147→			path = strings.Join(paths, ", ")
+   148→		}
+   149→	}
+   150→	if path == "" {
+   151→		return renderGenericJSON(args)
+   152→	}
+   153→	var builder strings.Builder
+   154→	fmt.Fprintf(&builder, "Path: `%s`", path)
+   155→	offset := stringValue(args, "offset", "start")
+   156→	limit := stringValue(args, "limit", "lines", "max_lines")
+   157→	if offset != "" || limit != "" {
+   158→		if offset == "" {
+   159→			offset = "0"
+   160→		}
+   161→		if limit == "" {
+   162→			limit = "?"
+   163→		}
+   164→		fmt.Fprintf(&builder, "\nLines: offset %s, limit %s", offset, limit)
+   165→	}
+   166→	return builder.String()
+   167→}
+   168→
+   169→func renderListInput(args map[string]any) string {
+   170→	return renderFields(args, []fieldSpec{
+   171→		{keys: []string{"path", "dir", "directory", "target_directory"}, label: "Path"},
+   172→	})
+   173→}
+   174→
+   175→func renderGlobInput(args map[string]any) string {
+   176→	patterns := stringSliceValue(args, "patterns", "glob_patterns")
+   177→	if len(patterns) == 0 {
+   178→		if pattern := stringValue(args, "glob_pattern", "pattern", "glob"); pattern != "" {
+   179→			patterns = []string{pattern}
+   180→		}
+   181→	}
+   182→	path := stringValue(args, "path", "dir", "directory")
+   183→	var parts []string
+   184→	if len(patterns) > 0 {
+   185→		label := "Pattern"
+   186→		if len(patterns) > 1 {
+   187→			label = "Patterns"
+   188→		}
+   189→		parts = append(parts, fmt.Sprintf("%s: %s", label, formatQuotedList(patterns)))
+   190→	}
+   191→	if path != "" {
+   192→		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
+   193→	}
+   194→	if len(parts) == 0 {
+   195→		return renderGenericJSON(args)
+   196→	}
+   197→	return strings.Join(parts, "\n")
+   198→}
+   199→
+   200→func renderGrepInput(args map[string]any) string {
+   201→	return renderFields(args, []fieldSpec{
+   202→		{keys: []string{"pattern", "query", "search", "regex"}, label: "Pattern"},
+   203→		{keys: []string{"path", "dir", "directory", "cwd"}, label: "Path"},
+   204→		{keys: []string{"include", "glob", "glob_pattern"}, label: "Glob"},
+   205→	})
+   206→}
+   207→
+   208→func renderWebSearchInput(args map[string]any) string {
+   209→	return renderFields(args, []fieldSpec{
+   210→		{keys: []string{"query", "q", "search", "prompt"}, label: "Query"},
+   211→		{keys: []string{"category"}, label: "Category"},
+   212→		{keys: []string{"type"}, label: "Type"},
+   213→		{keys: []string{"numResults", "num_results", "limit"}, label: "Results"},
+   214→		{keys: []string{"includeDomains", "include_domains"}, label: "Include domains", isSlice: true},
+   215→		{keys: []string{"excludeDomains", "exclude_domains"}, label: "Exclude domains", isSlice: true},
+   216→	})
+   217→}
+   218→
+   219→func renderWebFetchInput(args map[string]any) string {
+   220→	url := stringValue(args, "url", "uri")
+   221→	prompt := stringValue(args, "prompt", "query")
+   222→	if url == "" && prompt == "" {
+   223→		return renderGenericJSON(args)
+   224→	}
+   225→	var parts []string
+   226→	if url != "" {
+   227→		parts = append(parts, fmt.Sprintf("URL: `%s`", url))
+   228→	}
+   229→	if prompt != "" {
+   230→		parts = append(parts, prompt)
+   231→	}
+   232→	return strings.Join(parts, "\n")
+   233→}
+   234→
+   235→func renderWriteInput(args map[string]any) string {
+   236→	path := stringValue(args, "file_path", "path", "file", "filePath")
+   237→	content := stringValue(args, "content", "contents", "text", "data")
+   238→	if path == "" && content == "" {
+   239→		return renderGenericJSON(args)
+   240→	}
+   241→	var builder strings.Builder
+   242→	if path != "" {
+   243→		fmt.Fprintf(&builder, "Path: `%s`", path)
+   244→	}
+   245→	if content != "" {
+   246→		if builder.Len() > 0 {
+   247→			builder.WriteString("\n\n")
+   248→		}
+   249→		builder.WriteString(formatContentBlock(content, path))
+   250→	}
+   251→	return builder.String()
+   252→}
+   253→
+   254→func renderEditInput(args map[string]any) string {
+   255→	path := stringValue(args, "file_path", "path", "file", "filePath")
+   256→	diff := renderEdits(args)
+   257→	if path == "" && diff == "" {
+   258→		return renderGenericJSON(args)
+   259→	}
+   260→	var builder strings.Builder
+   261→	if path != "" {
+   262→		fmt.Fprintf(&builder, "Path: `%s`", path)
+   263→	}
+   264→	if diff != "" {
+   265→		if builder.Len() > 0 {
+   266→			builder.WriteString("\n\n")
+   267→		}
+   268→		builder.WriteString(diff)
+   269→	}
+   270→	return builder.String()
+   271→}
+   272→
+   273→func renderEdits(args map[string]any) string {
+   274→	if diff := renderSingleEdit(args); diff != "" {
+   275→		return diff
+   276→	}
+   277→	editsRaw, ok := args["edits"].([]interface{})
+   278→	if !ok || len(editsRaw) == 0 {
+   279→		return ""
+   280→	}
+   281→	var sections []string
+   282→	for _, raw := range editsRaw {
+   283→		edit, ok := raw.(map[string]interface{})
+   284→		if !ok {
+   285→			continue
+   286→		}
+   287→		if diff := renderSingleEdit(edit); diff != "" {
+   288→			sections = append(sections, diff)
+   289→		}
+   290→	}
+   291→	return strings.Join(sections, "\n\n")
+   292→}
+   293→
+   294→func renderSingleEdit(args map[string]any) string {
+   295→	oldText := stringValue(args, "old_text", "old_string", "old")
+   296→	newText := stringValue(args, "new_text", "new_string", "new")
+   297→	if oldText == "" && newText == "" {
+   298→		return ""
+   299→	}
+   300→	return formatDiffBlock(oldText, newText)
+   301→}
+   302→
+   303→func formatDiffBlock(oldText string, newText string) string {
+   304→	var builder strings.Builder
+   305→	builder.WriteString("```diff\n")
+   306→	if oldText != "" {
+   307→		for _, line := range strings.Split(oldText, "\n") {
+   308→			builder.WriteString("-")
+   309→			builder.WriteString(line)
+   310→			builder.WriteString("\n")
+   311→		}
+   312→	}
+   313→	if newText != "" {
+   314→		for _, line := range strings.Split(newText, "\n") {
+   315→			builder.WriteString("+")
+   316→			builder.WriteString(line)
+   317→			builder.WriteString("\n")
+   318→		}
+   319→	}
+   320→	builder.WriteString("```")
+   321→	return builder.String()
+   322→}
+   323→
+   324→func renderApplyPatch(args map[string]any) string {
+   325→	patch := stringValue(args, "patch", "input")
+   326→	if patch == "" {
+   327→		return renderGenericJSON(args)
+   328→	}
+   329→	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+   330→}
+   331→
+   332→func renderTodoWrite(args map[string]any) string {
+   333→	if todoText, ok := args["todos"].(string); ok {
+   334→		trimmed := strings.TrimSpace(todoText)
+   335→		if trimmed == "" {
+   336→			return "Todo list unchanged"
+   337→		}
+   338→		if strings.HasPrefix(strings.ToLower(trimmed), "todo") {
+   339→			return trimmed
+   340→		}
+   341→		return "Todo List:\n" + trimmed
+   342→	}
+   343→	itemsRaw, ok := args["todos"].([]interface{})
+   344→	if !ok || len(itemsRaw) == 0 {
+   345→		return "Todo list unchanged"
+   346→	}
+   347→	var builder strings.Builder
+   348→	builder.WriteString("Todo List:\n")
+   349→	for _, raw := range itemsRaw {
+   350→		item, _ := raw.(map[string]interface{})
+   351→		status := strings.TrimSpace(stringValue(item, "status"))
+   352→		desc := strings.TrimSpace(stringValue(item, "description"))
+   353→		if desc == "" {
+   354→			desc = "(no description)"
+   355→		}
+   356→		fmt.Fprintf(&builder, "- [%s] %s\n", todoSymbol(status), desc)
+   357→	}
+   358→	return builder.String()
+   359→}
+   360→
+   361→func renderGenericJSON(args map[string]any) string {
+   362→	if len(args) == 0 {
+   363→		return ""
+   364→	}
+   365→	ordered := make([]string, 0, len(args))
+   366→	for key := range args {
+   367→		ordered = append(ordered, key)
+   368→	}
+   369→	sort.Strings(ordered)
+   370→	var builder strings.Builder
+   371→	builder.WriteString("```json\n{")
+   372→	for idx, key := range ordered {
+   373→		if idx > 0 {
+   374→			builder.WriteString(",")
+   375→		}
+   376→		builder.WriteString("\n  \"")
+   377→		builder.WriteString(key)
+   378→		builder.WriteString("\": ")
+   379→		builder.WriteString(renderJSONValue(args[key]))
+   380→	}
+   381→	builder.WriteString("\n}\n```")
+   382→	return builder.String()
+   383→}
+   384→
+   385→func renderJSONValue(v any) string {
+   386→	switch val := v.(type) {
+   387→	case string:
+   388→		bytes, _ := json.Marshal(val)
+   389→		return string(bytes)
+   390→	case json.Number:
+   391→		return val.String()
+   392→	case []byte:
+   393→		bytes, _ := json.Marshal(string(val))
+   394→		return string(bytes)
+   395→	default:
+   396→		bytes, err := json.Marshal(val)
+   397→		if err != nil {
+   398→			return fmt.Sprintf("\"%s\"", fmt.Sprint(val))
+   399→		}
+   400→		return string(bytes)
+   401→	}
+   402→}
+   403→
+   404→func stringValue(args map[string]any, keys ...string) string {
+   405→	for _, key := range keys {
+   406→		if val, ok := args[key]; ok {
+   407→			switch v := val.(type) {
+   408→			case string:
+   409→				return v
+   410→			case json.Number:
+   411→				return v.String()
+   412→			case fmt.Stringer:
+   413→				return v.String()
+   414→			case []byte:
+   415→				return string(v)
+   416→			case float64:
+   417→				return strconv.FormatFloat(v, 'f', -1, 64)
+   418→			case float32:
+   419→				return strconv.FormatFloat(float64(v), 'f', -1, 32)
+   420→			case int:
+   421→				return strconv.Itoa(v)
+   422→			case int64:
+   423→				return strconv.FormatInt(v, 10)
+   424→			case int32:
+   425→				return strconv.FormatInt(int64(v), 10)
+   426→			case uint:
+   427→				return strconv.FormatUint(uint64(v), 10)
+   428→			case uint64:
+   429→				return strconv.FormatUint(v, 10)
+   430→			case bool:
+   431→				return strconv.FormatBool(v)
+   432→			}
+   433→		}
+   434→	}
+   435→	return ""
+   436→}
+   437→
+   438→func stringSliceValue(args map[string]any, keys ...string) []string {
+   439→	for _, key := range keys {
+   440→		if val, ok := args[key]; ok {
+   441→			switch v := val.(type) {
+   442→			case []string:
+   443→				return filterStrings(v)
+   444→			case []interface{}:
+   445→				values := make([]string, 0, len(v))
+   446→				for _, entry := range v {
+   447→					if entry == nil {
+   448→						continue
+   449→					}
+   450→					switch item := entry.(type) {
+   451→					case string:
+   452→						if strings.TrimSpace(item) != "" {
+   453→							values = append(values, item)
+   454→						}
+   455→					default:
+   456→						values = append(values, fmt.Sprint(item))
+   457→					}
+   458→				}
+   459→				return filterStrings(values)
+   460→			case string:
+   461→				if strings.TrimSpace(v) != "" {
+   462→					return []string{v}
+   463→				}
+   464→			}
+   465→		}
+   466→	}
+   467→	return nil
+   468→}
+   469→
+   470→func filterStrings(values []string) []string {
+   471→	filtered := make([]string, 0, len(values))
+   472→	for _, value := range values {
+   473→		trimmed := strings.TrimSpace(value)
+   474→		if trimmed != "" {
+   475→			filtered = append(filtered, trimmed)
+   476→		}
+   477→	}
+   478→	return filtered
+   479→}
+   480→
+   481→func formatQuotedList(values []string) string {
+   482→	if len(values) == 0 {
+   483→		return ""
+   484→	}
+   485→	quoted := make([]string, 0, len(values))
+   486→	for _, value := range values {
+   487→		quoted = append(quoted, fmt.Sprintf("`%s`", value))
+   488→	}
+   489→	return strings.Join(quoted, ", ")
+   490→}
+   491→
+   492→func formatContentBlock(content string, path string) string {
+   493→	lang := languageFromPath(path)
+   494→	escaped := strings.ReplaceAll(content, "```", "\\```")
+   495→	if lang == "" {
+   496→		return fmt.Sprintf("```\n%s\n```", escaped)
+   497→	}
+   498→	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+   499→}
+   500→
+   501→func languageFromPath(path string) string {
+   502→	if path == "" {
+   503→		return ""
+   504→	}
+   505→	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+   506→	if ext == "" {
+   507→		return ""
+   508→	}
+   509→	switch ext {
+   510→	case "yml":
+   511→		return "yaml"
+   512→	case "md":
+   513→		return "markdown"
+   514→	default:
+   515→		return ext
+   516→	}
+   517→}
+   518→
+   519→func todoSymbol(status string) string {
+   520→	s := strings.ToLower(status)
+   521→	switch s {
+   522→	case "completed", "done":
+   523→		return "x"
+   524→	case "in_progress", "active":
+   525→		return "⚡"
+   526→	default:
+   527→		return " "
+   528→	}
+   529→}
+   530→
+   531→func toolType(name string) string {
+   532→	switch normalizeToolName(name) {
+   533→	case "execute", "run", "bash", "shell", "command", "exec":
+   534→		return "shell"
+   535→	case "read", "cat", "readfile", "view", "viewimage":
+   536→		return "read"
+   537→	case "ls", "list", "listdir", "listdirectory", "glob", "grep", "rg", "ripgrep", "search", "websearch", "googlewebsearch", "webfetch", "fetch", "fetchurl":
+   538→		return "search"
+   539→	case "applypatch", "write", "create", "writefile", "createfile", "addfile", "edit", "multiedit", "replace", "strreplace", "applyedit":
+   540→		return "write"
+   541→	case "todowrite", "todostate", "todoupdate":
+   542→		return "task"
+   543→	default:
+   544→		return "generic"
+   545→	}
+   546→}
+   547→
+   548→func formatTodoUpdate(todo *fdTodoState) string {
+   549→	if todo == nil || len(todo.Items) == 0 {
+   550→		return ""
+   551→	}
+   552→	var builder strings.Builder
+   553→	builder.WriteString("Todo Update:\n")
+   554→	for _, item := range todo.Items {
+   555→		desc := strings.TrimSpace(item.Description)
+   556→		if desc == "" {
+   557→			desc = "(no description)"
+   558→		}
+   559→		status := strings.ToLower(strings.TrimSpace(item.Status))
+   560→		fmt.Fprintf(&builder, "- [%s] %s (%s)\n", todoSymbol(item.Status), desc, status)
+   561→	}
+   562→	return strings.TrimRight(builder.String(), "\n")
+   563→}
+   564→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:40Z)**_
+
+<think><details><summary>Thought Process</summary>
+I can see the issue. The `renderListInput` function at lines 169-173 uses `renderFields` which should produce `Path: \`{path}\`` format. Let me check what the issue is.
+
+Looking at the code:
+- Line 36-37: `case "ls", "list", "listdir", "listdirectory":` calls `renderListInput(args)`
+- Lines 169-173: `renderListInput` calls `renderFields` with a fieldSpec for Path
+
+The fieldSpec at line 171 uses keys: `["path", "dir", "directory", "target_directory"]`
+
+But the user's example shows the JSON has `"directory_path"` as the key. Let me add that to the list of keys to check.
+
+Looking at the example input:
+```json
+{
+  "directory_path": "/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory"
+}
+```
+
+So `directory_path` isn't in the list of keys being checked. I need to add it.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:41Z)**_
+
+I see the issue. The `renderListInput` function checks for `path`, `dir`, `directory`, and `target_directory`, but the LS tool is using `directory_path` which isn't in that list. That's why it falls back to the generic JSON rendering.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:44Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:57Z)**_
+
+<think><details><summary>Thought Process</summary>
+Good. Now let me run the linter and tests.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:52:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests for droidcli package
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test -v ./pkg/providers/droidcli/...`
+```
+0 issues.
+=== RUN   TestGenerateAgentSession_BasicFlow
+--- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
+=== RUN   TestGenerateAgentSession
+=== RUN   TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/uses_session_workspace_root_over_parameter
+=== RUN   TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none
+=== RUN   TestGenerateAgentSession/returns_error_for_empty_session
+=== RUN   TestGenerateAgentSession/returns_error_for_nil_session
+=== RUN   TestGenerateAgentSession/propagates_message_IDs_to_output
+=== RUN   TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange
+--- PASS: TestGenerateAgentSession (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_session_workspace_root_over_parameter (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_empty_session (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_nil_session (0.00s)
+    --- PASS: TestGenerateAgentSession/propagates_message_IDs_to_output (0.00s)
+    --- PASS: TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange (0.00s)
+=== RUN   TestEnsureResumeArgs
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_not_present
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_nil
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_empty
+=== RUN   TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value
+=== RUN   TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value
+--- PASS: TestEnsureResumeArgs (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_not_present (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_nil (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value (0.00s)
+=== RUN   TestFormatToolCall
+=== RUN   TestFormatToolCall/Execute_with_command_and_workdir
+=== RUN   TestFormatToolCall/TodoWrite_with_array_format
+=== RUN   TestFormatToolCall/TodoWrite_with_string_format
+=== RUN   TestFormatToolCall/WebSearch_with_query_and_options
+=== RUN   TestFormatToolCall/Grep_with_pattern_and_glob
+=== RUN   TestFormatToolCall/Write_with_file_path_and_content
+=== RUN   TestFormatToolCall/Read_with_file_path
+=== RUN   TestFormatToolCall/Edit_with_old_and_new_text
+--- PASS: TestFormatToolCall (0.00s)
+    --- PASS: TestFormatToolCall/Execute_with_command_and_workdir (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_array_format (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_string_format (0.00s)
+    --- PASS: TestFormatToolCall/WebSearch_with_query_and_options (0.00s)
+    --- PASS: TestFormatToolCall/Grep_with_pattern_and_glob (0.00s)
+    --- PASS: TestFormatToolCall/Write_with_file_path_and_content (0.00s)
+    --- PASS: TestFormatToolCall/Read_with_file_path (0.00s)
+    --- PASS: TestFormatToolCall/Edit_with_old_and_new_text (0.00s)
+=== RUN   TestToolTypeMappings
+=== RUN   TestToolTypeMappings/Execute
+=== RUN   TestToolTypeMappings/run
+=== RUN   TestToolTypeMappings/Bash
+=== RUN   TestToolTypeMappings/Read
+=== RUN   TestToolTypeMappings/cat
+=== RUN   TestToolTypeMappings/WebSearch
+=== RUN   TestToolTypeMappings/Grep
+=== RUN   TestToolTypeMappings/glob
+=== RUN   TestToolTypeMappings/Write
+=== RUN   TestToolTypeMappings/Edit
+=== RUN   TestToolTypeMappings/MultiEdit
+=== RUN   TestToolTypeMappings/ApplyPatch
+=== RUN   TestToolTypeMappings/TodoWrite
+=== RUN   TestToolTypeMappings/UnknownTool
+--- PASS: TestToolTypeMappings (0.00s)
+    --- PASS: TestToolTypeMappings/Execute (0.00s)
+    --- PASS: TestToolTypeMappings/run (0.00s)
+    --- PASS: TestToolTypeMappings/Bash (0.00s)
+    --- PASS: TestToolTypeMappings/Read (0.00s)
+    --- PASS: TestToolTypeMappings/cat (0.00s)
+    --- PASS: TestToolTypeMappings/WebSearch (0.00s)
+    --- PASS: TestToolTypeMappings/Grep (0.00s)
+    --- PASS: TestToolTypeMappings/glob (0.00s)
+    --- PASS: TestToolTypeMappings/Write (0.00s)
+    --- PASS: TestToolTypeMappings/Edit (0.00s)
+    --- PASS: TestToolTypeMappings/MultiEdit (0.00s)
+    --- PASS: TestToolTypeMappings/ApplyPatch (0.00s)
+    --- PASS: TestToolTypeMappings/TodoWrite (0.00s)
+    --- PASS: TestToolTypeMappings/UnknownTool (0.00s)
+=== RUN   TestParseFactorySession
+=== RUN   TestParseFactorySession/parses_complete_session_with_all_block_types
+=== RUN   TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content
+=== RUN   TestParseFactorySession/handles_reasoning_blocks
+=== RUN   TestParseFactorySession/handles_compaction/summary_events
+=== RUN   TestParseFactorySession/skips_malformed_JSON_lines_gracefully
+=== RUN   TestParseFactorySession/handles_empty_todo_list_gracefully
+--- PASS: TestParseFactorySession (0.01s)
+    --- PASS: TestParseFactorySession/parses_complete_session_with_all_block_types (0.00s)
+    --- PASS: TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content (0.00s)
+    --- PASS: TestParseFactorySession/handles_reasoning_blocks (0.00s)
+    --- PASS: TestParseFactorySession/handles_compaction/summary_events (0.00s)
+    --- PASS: TestParseFactorySession/skips_malformed_JSON_lines_gracefully (0.00s)
+    --- PASS: TestParseFactorySession/handles_empty_todo_list_gracefully (0.00s)
+=== RUN   TestSessionMentionsProject
+=== RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
+=== RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
+=== RUN   TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present
+=== RUN   TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project
+=== RUN   TestSessionMentionsProject/returns_true_when_workspace_root_matches_project
+=== RUN   TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text
+=== RUN   TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text
+--- PASS: TestSessionMentionsProject (0.07s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_session_cwd_matches_project (0.04s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project (0.01s)
+    --- PASS: TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_workspace_root_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.361s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:53:06Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass and no linter issues. The fix adds `directory_path` to the list of keys that `renderListInput` checks, so now it will properly render `Path: \`/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory\`` instead of falling back to the generic JSON format.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:53:08Z)**_
+
+Fixed. The LS tool was using `directory_path` as the key, but `renderListInput` only checked for `path`, `dir`, `directory`, and `target_directory`. Now it will render as:
+
+```
+Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory`
+```
+
+Instead of the JSON block.
+
+---
+
+_**User (2026-01-29 17:56:12Z)**_
+
+There is no `think` output in the Droid markdown anywhere /Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md
+
+Despite there being thinking output in the data, see `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/3.json` as just 1 example of many.
+
+All the other providers render their thinking output into the SessionData so it makes it into the markdwon. See the other providers. Here's an example of what the markdown ends up including the think tags when the SessionData has thinking data included /Users/sean/Source/SpecStory/specstory-cli-multi-agent/claude-code/2026-01-06/.specstory/history/2026-01-06_22-10-59Z-hello-claude-tell-me.md
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:16Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is saying that thinking/reasoning output is not being rendered in the Droid Factory markdown output, even though it exists in the raw data. Let me look at:
+
+1. The example thinking data in the debug file
+2. How other providers (like Claude Code) include thinking in their SessionData
+3. How the Droid provider handles thinking/reasoning blocks
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:17Z)**_
+
+Let me examine the data and compare how the providers handle thinking output.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:18Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/3.json`
+```
+     1→{
+     2→  "id": "87df43e3-cbb1-444d-827c-7941feaeeec5",
+     3→  "message": {
+     4→    "content": [
+     5→      {
+     6→        "signature": "EtgECkYICxgCKkA0lqZpRuDozkyvrhXlfhrBB7HlegUb2nFyHR4x+9g7w4RaCrHDCQ2nvKh/YpX90x/vRymf3VdCsrJ4Sx28YAriEgywB7Sr/tc5DvGbRMQaDNquq3xzdNBab3BR9CIw9KfI6cx4rLa//wvFl5LR2ALQIOUPJR6zM1y5PMA+aaMLWOrERUggvZ8ShhcXKHifKr8DsxkCVL/K+WGRJ5HxB6R3NPCsW4mQFDqEDcJC9XPfa4fsm4RJrHPyrPNbUqfBj09e6ygBpI/8OPH8wcK62PBa3wvm+QUEkRTt7EvxedQJMyxQ1+Mb2vcmQNjqCIYGE1ZJA2mNh1rO54iumYagkW+90SJEAibL0kI/5Gs/YX2sg3AmIVGOS77lekhLcZvJx3B3MdtXd4VonZSdO6SnRBqoUbhstKIy15OV9Z+iCvwgH0ycHcxx+3x1bOP1bITvkznaYp41cVanmatJxPrepO89AdxtvhS0m0yLrsTTYTTxpuPwA4OWshkCtlcFX44ZdaWLD99EtAym06N1BALcwhNcPNMiCLDRstfMZVPQrMaNNq1pDRsTx623cgxs0aGVYldo16CkaWILt5xf8/XLQe6kK7DmYcSGemVxANJ1VbpuCpwlslGolRDARTU/IH+tNH/zHvaSCjfw8aczbgLSwpcAnaNmtk4hFfBGmP5nRlMBOhtLbEfQqPX/AVlTrF9ViTSnJ9Lrk/IwhdON4XXARGOnRBuV7D4omPBrwVTGLIGn22ll42aMkLPwbaOAqmFe9ox7W7w/8+9n/7Lk4gcQhkDHGAE=",
+     7→        "thinking": "The user is asking me to:\n1. Tell them all the tools I have access to\n2. Write all the tool names to a file `./tools.txt`\n\nLet me list all the tools I have access to based on the system information:\n1. Read\n2. LS\n3. Execute\n4. Edit\n5. Grep\n6. Glob\n7. Create\n8. ExitSpecMode\n9. AskUser\n10. WebSearch\n11. TodoWrite\n12. FetchUrl\n13. GenerateDroid\n14. Skill\n\nNow I need to create a file with these tool names. I should use the Create tool for this.",
+     8→        "type": "thinking"
+     9→      },
+    10→      {
+    11→        "text": "I have access to the following tools:\n\n1. **Read** - Read file contents\n2. **LS** - List directory contents\n3. **Execute** - Execute shell commands\n4. **Edit** - Edit existing files\n5. **Grep** - High-performance file content search\n6. **Glob** - Advanced file path search using patterns\n7. **Create** - Create new files\n8. **ExitSpecMode** - Exit spec mode with implementation plan\n9. **AskUser** - Ask user multiple-choice questions\n10. **WebSearch** - Perform web searches\n11. **TodoWrite** - Manage todo lists\n12. **FetchUrl** - Scrape content from URLs\n13. **GenerateDroid** - Generate custom droid configurations\n14. **Skill** - Execute specialized skills (e.g., agent-browser)\n\nLet me create the `tools.txt` file with these tool names:",
+    12→        "type": "text"
+    13→      },
+    14→      {
+    15→        "id": "toolu_01XHiBGGVDV1EfjdB3K8yxSA",
+    16→        "input": {
+    17→          "content": "Read\nLS\nExecute\nEdit\nGrep\nGlob\nCreate\nExitSpecMode\nAskUser\nWebSearch\nTodoWrite\nFetchUrl\nGenerateDroid\nSkill\n",
+    18→          "file_path": "/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/tools.txt"
+    19→        },
+    20→        "name": "Create",
+    21→        "type": "tool_use"
+    22→      }
+    23→    ],
+    24→    "role": "assistant"
+    25→  },
+    26→  "parentId": "7fa22f41-174b-4659-bea2-cb240f2cc96d",
+    27→  "timestamp": "2026-01-29T17:30:57.796Z",
+    28→  "type": "message"
+    29→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:19Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/claude-code/2026-01-06/.specstory/history/2026-01-06_22-10-59Z-hello-claude-tell-me.md`
+```
+     1→<!-- Generated by SpecStory, Markdown v2.1.0 -->
+     2→
+     3→# 2026-01-06 22:10:59Z
+     4→
+     5→<!-- Claude Code Session 91f6da6d-df2d-4da9-9a00-2f2b9d7ce99d (2026-01-06 22:10:59Z) -->
+     6→
+     7→_**User (2026-01-06T22:10:59.255Z)**_
+     8→
+     9→Hello Claude, tell me all the tools you have access to. Write all the tool names to the file `./tools.txt`.
+    10→
+    11→---
+    12→
+    13→_**Agent (claude-opus-4-5-20251101 2026-01-06T22:11:04.217Z)**_
+    14→
+    15→<think><details><summary>Thought Process</summary>
+    16→The user wants me to list all the tools I have access to and write them to a file called `./tools.txt`. Let me enumerate my tools and write them to the file.
+    17→
+    18→My available tools are:
+    19→1. Task
+    20→2. TaskOutput
+    21→3. Bash
+    22→4. Glob
+    23→5. Grep
+    24→6. ExitPlanMode
+    25→7. Read
+    26→8. Edit
+    27→9. Write
+    28→10. NotebookEdit
+    29→11. WebFetch
+    30→12. TodoWrite
+    31→13. WebSearch
+    32→14. KillShell
+    33→15. AskUserQuestion
+    34→16. Skill
+    35→17. EnterPlanMode
+    36→18. LSP
+    37→
+    38→I'll write these to the file.
+    39→</details></think>
+    40→
+    41→_**Agent (claude-opus-4-5-20251101 2026-01-06T22:11:04.642Z)**_
+    42→
+    43→I have access to 18 tools. Let me write them to the file:
+    44→
+    45→_**Agent (claude-opus-4-5-20251101 2026-01-06T22:11:05.655Z)**_
+    46→
+    47→<tool-use data-tool-type="write" data-tool-name="Write"><details>
+    48→<summary>Tool use: **Write**</summary>
+    49→
+    50→```txt
+    51→Task
+    52→TaskOutput
+    53→Bash
+    54→Glob
+    55→Grep
+    56→ExitPlanMode
+    57→Read
+    58→Edit
+    59→Write
+    60→NotebookEdit
+    61→WebFetch
+    62→TodoWrite
+    63→WebSearch
+    64→KillShell
+    65→AskUserQuestion
+    66→Skill
+    67→EnterPlanMode
+    68→LSP
+    69→
+    70→```
+    71→```
+    72→File created successfully at: /Users/sean/Source/SpecStory/specstory-cli-multi-agent/claude-code/2026-01-06/tools.txt
+    73→```
+    74→</details></tool-use>
+    75→
+    76→_**Agent (claude-opus-4-5-20251101 2026-01-06T22:11:09.673Z)**_
+    77→
+    78→<think><details><summary>Thought Process</summary>
+    79→Done. I've written all 18 tool names to the file.
+    80→</details></think>
+    81→
+    82→_**Agent (claude-opus-4-5-20251101 2026-01-06T22:11:12.432Z)**_
+    83→
+    84→Done! I wrote all 18 tools to `./tools.txt`:
+    85→
+    86→1. **Task** - Launch specialized agents for complex tasks
+    87→2. **TaskOutput** - Get output from running/completed background tasks
+    88→3. **Bash** - Execute shell commands
+    89→4. **Glob** - Find files by pattern
+    90→5. **Grep** - Search file contents
+    91→6. **ExitPlanMode** - Exit planning mode after writing a plan
+    92→7. **Read** - Read files (including images, PDFs, notebooks)
+    93→8. **Edit** - Make string replacements in files
+    94→9. **Write** - Create or overwrite files
+    95→10. **NotebookEdit** - Edit Jupyter notebook cells
+    96→11. **WebFetch** - Fetch and analyze web content
+    97→12. **TodoWrite** - Manage task lists
+    98→13. **WebSearch** - Search the web
+    99→14. **KillShell** - Terminate background shell processes
+   100→15. **AskUserQuestion** - Ask clarifying questions
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:20Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+     1→<!-- Generated by SpecStory, Markdown v2.1.0 -->
+     2→
+     3→# 2026-01-29 17:30:49Z
+     4→
+     5→<!-- Factory Droid CLI Session fbddc6b1-73fd-43db-9b0e-2c70b5e6b649 (2026-01-29 17:30:49Z) -->
+     6→
+     7→_**User (2026-01-29 17:30:49Z)**_
+     8→
+     9→Hello Droid, tell me all the tools you have access to. Write all the tool names to the file `./tools.txt`.
+    10→
+    11→---
+    12→
+    13→_**Agent (2026-01-29 17:30:57Z)**_
+    14→
+    15→I have access to the following tools:
+    16→
+    17→1. **Read** - Read file contents
+    18→2. **LS** - List directory contents
+    19→3. **Execute** - Execute shell commands
+    20→4. **Edit** - Edit existing files
+    21→5. **Grep** - High-performance file content search
+    22→6. **Glob** - Advanced file path search using patterns
+    23→7. **Create** - Create new files
+    24→8. **ExitSpecMode** - Exit spec mode with implementation plan
+    25→9. **AskUser** - Ask user multiple-choice questions
+    26→10. **WebSearch** - Perform web searches
+    27→11. **TodoWrite** - Manage todo lists
+    28→12. **FetchUrl** - Scrape content from URLs
+    29→13. **GenerateDroid** - Generate custom droid configurations
+    30→14. **Skill** - Execute specialized skills (e.g., agent-browser)
+    31→
+    32→Let me create the `tools.txt` file with these tool names:
+    33→
+    34→_**Agent (2026-01-29 17:30:57Z)**_
+    35→
+    36→<tool-use data-tool-type="write" data-tool-name="Create"><details>
+    37→<summary>Tool use: **Create**</summary>
+    38→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/tools.txt`
+    39→
+    40→```txt
+    41→Read
+    42→LS
+    43→Execute
+    44→Edit
+    45→Grep
+    46→Glob
+    47→Create
+    48→ExitSpecMode
+    49→AskUser
+    50→WebSearch
+    51→TodoWrite
+    52→FetchUrl
+    53→GenerateDroid
+    54→Skill
+    55→
+    56→```
+    57→
+    58→Output: File created successfully
+    59→</details></tool-use>
+    60→
+    61→_**Agent (2026-01-29 17:31:08Z)**_
+    62→
+    63→Done! I've created `tools.txt` with all 14 tool names listed.
+    64→
+    65→---
+    66→
+    67→_**User (2026-01-29 17:31:27Z)**_
+    68→
+    69→Please use each of your 14 tools one-by-one to show me how they work and how you use them.
+    70→
+    71→---
+    72→
+    73→_**Agent (2026-01-29 17:31:36Z)**_
+    74→
+    75→I'll demonstrate each tool for you! Let me start by creating a todo list to track the demonstrations, then go through each one:
+    76→
+    77→_**Agent (2026-01-29 17:31:36Z)**_
+    78→
+    79→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+    80→<summary>Tool use: **TodoWrite**</summary>
+    81→Todo List:
+    82→1. [in_progress] TodoWrite - Create and manage todo list
+    83→2. [pending] Read - Read file contents
+    84→3. [pending] LS - List directory contents
+    85→4. [pending] Execute - Run shell command
+    86→5. [pending] Create - Create a new file
+    87→6. [pending] Edit - Modify existing file
+    88→7. [pending] Grep - Search file contents
+    89→8. [pending] Glob - Find files by pattern
+    90→9. [pending] WebSearch - Search the web
+    91→10. [pending] FetchUrl - Fetch URL content
+    92→11. [pending] AskUser - Ask multiple choice questions
+    93→12. [pending] GenerateDroid - Generate droid config
+    94→13. [pending] Skill - Execute specialized skill
+    95→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+    96→
+    97→Output: TODO List Updated
+    98→</details></tool-use>
+    99→
+   100→_**Agent (2026-01-29 17:31:42Z)**_
+   101→
+   102→**1. TodoWrite** ✓ - Just demonstrated! This tool creates and manages a structured todo list to track multi-step work.
+   103→
+   104→_**Agent (2026-01-29 17:31:42Z)**_
+   105→
+   106→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   107→<summary>Tool use: **TodoWrite**</summary>
+   108→Todo List:
+   109→1. [completed] TodoWrite - Create and manage todo list
+   110→2. [in_progress] Read - Read file contents
+   111→3. [pending] LS - List directory contents
+   112→4. [pending] Execute - Run shell command
+   113→5. [pending] Create - Create a new file
+   114→6. [pending] Edit - Modify existing file
+   115→7. [pending] Grep - Search file contents
+   116→8. [pending] Glob - Find files by pattern
+   117→9. [pending] WebSearch - Search the web
+   118→10. [pending] FetchUrl - Fetch URL content
+   119→11. [pending] AskUser - Ask multiple choice questions
+   120→12. [pending] GenerateDroid - Generate droid config
+   121→13. [pending] Skill - Execute specialized skill
+   122→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   123→
+   124→Output: TODO List Updated
+   125→</details></tool-use>
+   126→
+   127→_**Agent (2026-01-29 17:31:42Z)**_
+   128→
+   129→<tool-use data-tool-type="read" data-tool-name="Read"><details>
+   130→<summary>Tool use: **Read**</summary>
+   131→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/tools.txt`
+   132→
+   133→Output:
+   134→```text
+   135→Read
+   136→LS
+   137→Execute
+   138→Edit
+   139→Grep
+   140→Glob
+   141→Create
+   142→ExitSpecMode
+   143→AskUser
+   144→WebSearch
+   145→TodoWrite
+   146→FetchUrl
+   147→GenerateDroid
+   148→Skill
+   149→```
+   150→</details></tool-use>
+   151→
+   152→_**Agent (2026-01-29 17:31:47Z)**_
+   153→
+   154→**2. Read** ✓ - Just read the tools.txt file we created earlier, showing all 14 lines of content.
+   155→
+   156→_**Agent (2026-01-29 17:31:47Z)**_
+   157→
+   158→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   159→<summary>Tool use: **TodoWrite**</summary>
+   160→Todo List:
+   161→1. [completed] TodoWrite - Create and manage todo list
+   162→2. [completed] Read - Read file contents
+   163→3. [in_progress] LS - List directory contents
+   164→4. [pending] Execute - Run shell command
+   165→5. [pending] Create - Create a new file
+   166→6. [pending] Edit - Modify existing file
+   167→7. [pending] Grep - Search file contents
+   168→8. [pending] Glob - Find files by pattern
+   169→9. [pending] WebSearch - Search the web
+   170→10. [pending] FetchUrl - Fetch URL content
+   171→11. [pending] AskUser - Ask multiple choice questions
+   172→12. [pending] GenerateDroid - Generate droid config
+   173→13. [pending] Skill - Execute specialized skill
+   174→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   175→
+   176→Output: TODO List Updated
+   177→</details></tool-use>
+   178→
+   179→_**Agent (2026-01-29 17:31:47Z)**_
+   180→
+   181→<tool-use data-tool-type="search" data-tool-name="LS"><details>
+   182→<summary>Tool use: **LS**</summary>
+   183→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory`
+   184→
+   185→Output:
+   186→```text
+   187→total 16
+   188→drwxr-xr-x   4 sean  staff  128 Jan 29 12:31 .
+   189→drwxr-xr-x  11 sean  staff  352 Jan 28 09:27 ..
+   190→-rw-r--r--   1 sean  staff  108 Jan 29 12:31 tools.txt
+   191→-rw-r--r--   1 sean  staff   69 Jan 28 09:29 versions.txt
+   192→```
+   193→</details></tool-use>
+   194→
+   195→_**Agent (2026-01-29 17:31:53Z)**_
+   196→
+   197→**3. LS** ✓ - Listed the current directory showing 2 files: tools.txt and versions.txt.
+   198→
+   199→_**Agent (2026-01-29 17:31:53Z)**_
+   200→
+   201→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   202→<summary>Tool use: **TodoWrite**</summary>
+   203→Todo List:
+   204→1. [completed] TodoWrite - Create and manage todo list
+   205→2. [completed] Read - Read file contents
+   206→3. [completed] LS - List directory contents
+   207→4. [in_progress] Execute - Run shell command
+   208→5. [pending] Create - Create a new file
+   209→6. [pending] Edit - Modify existing file
+   210→7. [pending] Grep - Search file contents
+   211→8. [pending] Glob - Find files by pattern
+   212→9. [pending] WebSearch - Search the web
+   213→10. [pending] FetchUrl - Fetch URL content
+   214→11. [pending] AskUser - Ask multiple choice questions
+   215→12. [pending] GenerateDroid - Generate droid config
+   216→13. [pending] Skill - Execute specialized skill
+   217→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   218→
+   219→Output: TODO List Updated
+   220→</details></tool-use>
+   221→
+   222→_**Agent (2026-01-29 17:31:53Z)**_
+   223→
+   224→<tool-use data-tool-type="shell" data-tool-name="Execute"><details>
+   225→<summary>Tool use: **Execute**</summary>
+   226→`echo "Hello from Execute tool! Current date: $(date +%Y-%m-%d)"`
+   227→
+   228→Output:
+   229→```text
+   230→Hello from Execute tool! Current date: 2026-01-29
+   231→
+   232→
+   233→[Process exited with code 0]
+   234→```
+   235→</details></tool-use>
+   236→
+   237→_**Agent (2026-01-29 17:32:04Z)**_
+   238→
+   239→**4. Execute** ✓ - Ran a shell command that echoed a message with today's date (2026-01-29).
+   240→
+   241→_**Agent (2026-01-29 17:32:04Z)**_
+   242→
+   243→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   244→<summary>Tool use: **TodoWrite**</summary>
+   245→Todo List:
+   246→1. [completed] TodoWrite - Create and manage todo list
+   247→2. [completed] Read - Read file contents
+   248→3. [completed] LS - List directory contents
+   249→4. [completed] Execute - Run shell command
+   250→5. [in_progress] Create - Create a new file
+   251→6. [pending] Edit - Modify existing file
+   252→7. [pending] Grep - Search file contents
+   253→8. [pending] Glob - Find files by pattern
+   254→9. [pending] WebSearch - Search the web
+   255→10. [pending] FetchUrl - Fetch URL content
+   256→11. [pending] AskUser - Ask multiple choice questions
+   257→12. [pending] GenerateDroid - Generate droid config
+   258→13. [pending] Skill - Execute specialized skill
+   259→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   260→
+   261→Output: TODO List Updated
+   262→</details></tool-use>
+   263→
+   264→_**Agent (2026-01-29 17:32:04Z)**_
+   265→
+   266→<tool-use data-tool-type="write" data-tool-name="Create"><details>
+   267→<summary>Tool use: **Create**</summary>
+   268→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/demo.txt`
+   269→
+   270→```txt
+   271→This is a demo file created by the Create tool.
+   272→It has multiple lines.
+   273→Line 3 will be edited soon!
+   274→```
+   275→
+   276→Output: File created successfully
+   277→</details></tool-use>
+   278→
+   279→_**Agent (2026-01-29 17:32:09Z)**_
+   280→
+   281→**5. Create** ✓ - Created a new file called demo.txt with multiple lines of content.
+   282→
+   283→_**Agent (2026-01-29 17:32:09Z)**_
+   284→
+   285→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   286→<summary>Tool use: **TodoWrite**</summary>
+   287→Todo List:
+   288→1. [completed] TodoWrite - Create and manage todo list
+   289→2. [completed] Read - Read file contents
+   290→3. [completed] LS - List directory contents
+   291→4. [completed] Execute - Run shell command
+   292→5. [completed] Create - Create a new file
+   293→6. [in_progress] Edit - Modify existing file
+   294→7. [pending] Grep - Search file contents
+   295→8. [pending] Glob - Find files by pattern
+   296→9. [pending] WebSearch - Search the web
+   297→10. [pending] FetchUrl - Fetch URL content
+   298→11. [pending] AskUser - Ask multiple choice questions
+   299→12. [pending] GenerateDroid - Generate droid config
+   300→13. [pending] Skill - Execute specialized skill
+   301→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   302→
+   303→Output: TODO List Updated
+   304→</details></tool-use>
+   305→
+   306→_**Agent (2026-01-29 17:32:09Z)**_
+   307→
+   308→<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+   309→<summary>Tool use: **Edit**</summary>
+   310→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/demo.txt`
+   311→
+   312→Output: {"diffLines":[{"type":"unchanged","content":"This is a demo file created by the Create tool.","lineNumber":{"old":1,"new":1}},{"type":"unchanged","content":"It has multiple lines.","lineNumber":{"old":2,"new":2}},{"type":"removed","content":"Line 3 will be edited soon!","lineNumber":{"old":3}},{"type":"added","content":"Line 3 has been edited by the Edit tool!","lineNumber":{"new":3}}],"content":"This is a demo file created by the Create tool.\nIt has multiple lines.\nLine 3 has been edited by the Edit tool!\n"}
+   313→</details></tool-use>
+   314→
+   315→_**Agent (2026-01-29 17:32:16Z)**_
+   316→
+   317→**6. Edit** ✓ - Modified line 3 of demo.txt, replacing "will be edited soon" with "has been edited by the Edit tool". The tool shows a diff of the changes.
+   318→
+   319→_**Agent (2026-01-29 17:32:16Z)**_
+   320→
+   321→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   322→<summary>Tool use: **TodoWrite**</summary>
+   323→Todo List:
+   324→1. [completed] TodoWrite - Create and manage todo list
+   325→2. [completed] Read - Read file contents
+   326→3. [completed] LS - List directory contents
+   327→4. [completed] Execute - Run shell command
+   328→5. [completed] Create - Create a new file
+   329→6. [completed] Edit - Modify existing file
+   330→7. [in_progress] Grep - Search file contents
+   331→8. [pending] Glob - Find files by pattern
+   332→9. [pending] WebSearch - Search the web
+   333→10. [pending] FetchUrl - Fetch URL content
+   334→11. [pending] AskUser - Ask multiple choice questions
+   335→12. [pending] GenerateDroid - Generate droid config
+   336→13. [pending] Skill - Execute specialized skill
+   337→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   338→
+   339→Output: TODO List Updated
+   340→</details></tool-use>
+   341→
+   342→_**Agent (2026-01-29 17:32:16Z)**_
+   343→
+   344→<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+   345→<summary>Tool use: **Grep**</summary>
+   346→Pattern: `tool`
+   347→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory`
+   348→
+   349→Output:
+   350→```text
+   351→./demo.txt:1:This is a demo file created by the Create tool.
+   352→./demo.txt:3:Line 3 has been edited by the Edit tool!
+   353→```
+   354→</details></tool-use>
+   355→
+   356→_**Agent (2026-01-29 17:32:22Z)**_
+   357→
+   358→**7. Grep** ✓ - Searched for the word "tool" (case-insensitive) in all files, finding 2 matches in demo.txt with line numbers shown.
+   359→
+   360→_**Agent (2026-01-29 17:32:22Z)**_
+   361→
+   362→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   363→<summary>Tool use: **TodoWrite**</summary>
+   364→Todo List:
+   365→1. [completed] TodoWrite - Create and manage todo list
+   366→2. [completed] Read - Read file contents
+   367→3. [completed] LS - List directory contents
+   368→4. [completed] Execute - Run shell command
+   369→5. [completed] Create - Create a new file
+   370→6. [completed] Edit - Modify existing file
+   371→7. [completed] Grep - Search file contents
+   372→8. [in_progress] Glob - Find files by pattern
+   373→9. [pending] WebSearch - Search the web
+   374→10. [pending] FetchUrl - Fetch URL content
+   375→11. [pending] AskUser - Ask multiple choice questions
+   376→12. [pending] GenerateDroid - Generate droid config
+   377→13. [pending] Skill - Execute specialized skill
+   378→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   379→
+   380→Output: TODO List Updated
+   381→</details></tool-use>
+   382→
+   383→_**Agent (2026-01-29 17:32:22Z)**_
+   384→
+   385→<tool-use data-tool-type="search" data-tool-name="Glob"><details>
+   386→<summary>Tool use: **Glob**</summary>
+   387→Pattern: `*.txt`
+   388→
+   389→Output:
+   390→```text
+   391→./versions.txt
+   392→./tools.txt
+   393→./demo.txt
+   394→```
+   395→</details></tool-use>
+   396→
+   397→_**Agent (2026-01-29 17:32:28Z)**_
+   398→
+   399→**8. Glob** ✓ - Found all files matching the pattern "*.txt" in the directory, returning 3 files: versions.txt, tools.txt, and demo.txt.
+   400→
+   401→_**Agent (2026-01-29 17:32:28Z)**_
+   402→
+   403→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   404→<summary>Tool use: **TodoWrite**</summary>
+   405→Todo List:
+   406→1. [completed] TodoWrite - Create and manage todo list
+   407→2. [completed] Read - Read file contents
+   408→3. [completed] LS - List directory contents
+   409→4. [completed] Execute - Run shell command
+   410→5. [completed] Create - Create a new file
+   411→6. [completed] Edit - Modify existing file
+   412→7. [completed] Grep - Search file contents
+   413→8. [completed] Glob - Find files by pattern
+   414→9. [in_progress] WebSearch - Search the web
+   415→10. [pending] FetchUrl - Fetch URL content
+   416→11. [pending] AskUser - Ask multiple choice questions
+   417→12. [pending] GenerateDroid - Generate droid config
+   418→13. [pending] Skill - Execute specialized skill
+   419→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   420→
+   421→Output: TODO List Updated
+   422→</details></tool-use>
+   423→
+   424→_**Agent (2026-01-29 17:32:28Z)**_
+   425→
+   426→<tool-use data-tool-type="search" data-tool-name="WebSearch"><details>
+   427→<summary>Tool use: **WebSearch**</summary>
+   428→Query: `Python 3.14 new features 2026`
+   429→Results: `3`
+   430→
+   431→Output:
+   432→```text
+   433→Web Search Results for: "Python 3.14 new features 2026"
+   434→
+   435→**Which are the Python 3.14 Features that will change your Workflow ...**
+   436→   URL: https://learntheitcourses.wordpress.com/2026/01/14/which-are-the-python-3-14-...
+   437→   Published: 2026-01-14T00:00:00.000Z
+   438→   
+   439→   Python 3.14 introduces several significant features that will enhance coding workflows in 2026:
+   440→
+   441→1. **Deferred Evaluation of Annotations (PEP 649)**: This feature allows developers to reference classes as type hints without worrying about their order of definition, making code cleaner and more manageable, especially in complex AI architectures.
+   442→
+   443→2. **Template Strings (T-Strings)**: T-strings enable the creation of string templates that delay variable filling until needed. This is particularly useful for safely building SQL queries and HTML templates, helping to prevent security vulnerabilities like injection attacks.
+   444→
+   445→3. **Improved Error Messages & Keyword Suggestions**: The interpreter now provides smarter error messages that suggest corrections for common typos, reducing frustration for both beginners and experienced developers.
+   446→
+   447→4. **Zero-Overhead External Debugging**: This new interface allows debuggers to attach to running processes without impacting performance, making debugging in production environments safer and more efficient.
+   448→
+   449→These features collectively aim to streamline coding practices and improve the overall development experience in Python.
+   450→
+   451→---
+   452→
+   453→**How Python 3.14 Turned Trust into a Built-in Feature - DEVOPSdigest**
+   454→   URL: https://www.devopsdigest.com/how-python-314-turned-trust-into-a-built-in-feature
+   455→   Published: 2026-01-20T00:00:00.000Z
+   456→   
+   457→   Python 3.14 introduces significant enhancements aimed at improving trust and transparency in software development. Key features include:
+   458→
+   459→1. **Modern Trust Model**: Python moves away from PGP for release verification, adopting Sigstore, which uses short-lived, identity-bound credentials linked to real accounts (e.g., GitHub). This change simplifies the verification process and reduces human error, integrating security into the development pipeline.
+   460→
+   461→2. **Async Introspection**: New commands (`python -m asyncio ps PID` and `python -m asyncio pstree PID`) allow developers to observe and debug asynchronous processes in real-time, providing visibility into coroutine interactions without intrusive methods.
+   462→
+   463→3. **Enhanced REPL Experience**: The interactive shell now features built-in syntax highlighting using ANSI color codes, improving readability and usability for developers testing and debugging code snippets.
+   464→
+   465→These updates reflect a shift towards greater security, observability, and user experience in Python development.
+   466→
+   467→---
+   468→
+   469→**Python 3.14: 12 Features You Can Use Today - Non-Brand Data**
+   470→   URL: https://www.nb-data.com/p/python-314-12-features-you-can-use
+   471→   Author: Cornellius Yudha Wijaya
+   472→   
+   473→   The article "Python 3.14: 12 Features You Can Use Today" highlights significant enhancements introduced in Python 3.14, particularly beneficial for developers and data scientists. Key features include:
+   474→
+   475→1. **Colorful Interactive REPL**: The new REPL offers syntax highlighting, making code easier to read and errors easier to spot, enhancing the interactive coding experience.
+   476→
+   477→2. **Improved Error Messages**: Python 3.14 provides more descriptive error messages, often suggesting corrections for common mistakes, which helps developers quickly identify and fix issues.
+   478→
+   479→The article details a total of 12 features, focusing on practical applications in data manipulation and performance improvements. For a comprehensive understanding of all new features, refer to the full article.
+   480→Found 3 results
+   481→```
+   482→</details></tool-use>
+   483→
+   484→_**Agent (2026-01-29 17:32:44Z)**_
+   485→
+   486→**9. WebSearch** ✓ - Searched the web for "Python 3.14 new features 2026" and returned 3 results with summaries about deferred evaluation, T-strings, improved error messages, and more.
+   487→
+   488→_**Agent (2026-01-29 17:32:44Z)**_
+   489→
+   490→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   491→<summary>Tool use: **TodoWrite**</summary>
+   492→Todo List:
+   493→1. [completed] TodoWrite - Create and manage todo list
+   494→2. [completed] Read - Read file contents
+   495→3. [completed] LS - List directory contents
+   496→4. [completed] Execute - Run shell command
+   497→5. [completed] Create - Create a new file
+   498→6. [completed] Edit - Modify existing file
+   499→7. [completed] Grep - Search file contents
+   500→8. [completed] Glob - Find files by pattern
+   501→9. [completed] WebSearch - Search the web
+   502→10. [in_progress] FetchUrl - Fetch URL content
+   503→11. [pending] AskUser - Ask multiple choice questions
+   504→12. [pending] GenerateDroid - Generate droid config
+   505→13. [pending] Skill - Execute specialized skill
+   506→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   507→
+   508→Output: TODO List Updated
+   509→</details></tool-use>
+   510→
+   511→_**Agent (2026-01-29 17:32:44Z)**_
+   512→
+   513→<tool-use data-tool-type="search" data-tool-name="FetchUrl"><details>
+   514→<summary>Tool use: **FetchUrl**</summary>
+   515→URL: `https://www.python.org`
+   516→
+   517→Output:
+   518→```text
+   519→URL Content from: "https://www.python.org"
+   520→Title: Welcome to Python.org
+   521→Status: 200
+   522→Markdown content:
+   523→
+   524→**Notice:** This page displays a fallback because interactive scripts did not run. Possible causes include disabled JavaScript or failure to load scripts or stylesheets.
+   525→
+   526→## Get Started
+   527→
+   528→Whether you're new to programming or an experienced developer, it's easy to learn and use Python.
+   529→
+   530→[Start with our Beginner’s Guide](https://www.python.org/about/gettingstarted/)
+   531→
+   532→## Download
+   533→
+   534→Python source code and installers are available for download for all versions!
+   535→
+   536→Latest: [Python 3.14.2](https://www.python.org/downloads/release/python-3142/)
+   537→
+   538→## Docs
+   539→
+   540→Documentation for Python's standard library, along with tutorials and guides, are available online.
+   541→
+   542→[docs.python.org](https://docs.python.org/)
+   543→
+   544→## Jobs
+   545→
+   546→Looking for work or have a Python related position that you're trying to hire for? Our **relaunched community-run job board** is the place to go.
+   547→
+   548→[jobs.python.org](https://jobs.python.org/)
+   549→
+   550→## Latest News
+   551→
+   552→[More](https://blog.python.org/ "More News")
+   553→
+   554→## Upcoming Events
+   555→
+   556→[More](https://www.python.org/events/calendars/ "More Events")
+   557→
+   558→## Success Stories
+   559→
+   560→[More](https://www.python.org/success-stories/ "More Success Stories")
+   561→
+   562→> [When an Open Data standard is created and promoted, it’s important to think why - what change is this trying to drive? What will people do with this data that they couldn’t do before?](https://www.python.org/success-stories/saving-the-world-with-open-data-and-python/)
+   563→
+   564→|     |
+   565→| --- |
+   566→| [Saving the world with Open Data and Python](https://www.python.org/success-stories/saving-the-world-with-open-data-and-python/) _by James Baster_ |
+   567→
+   568→## Use Python for…
+   569→
+   570→[More](https://www.python.org/about/apps "More Applications")
+   571→
+   572→## >>> [Python Software Foundation](https://www.python.org/psf/)
+   573→
+   574→The mission of the Python Software Foundation is to promote, protect, and advance the Python programming language, and to support and facilitate the growth of a diverse and international community of Python programmers. [Learn more](https://www.python.org/psf/)
+   575→
+   576→[Become a Member](https://www.python.org/psf/membership/) [Donate to the PSF](https://www.python.org/psf/donations/)
+   577→```
+   578→</details></tool-use>
+   579→
+   580→_**Agent (2026-01-29 17:32:57Z)**_
+   581→
+   582→**10. FetchUrl** ✓ - Fetched the content from python.org and converted it to markdown, showing the homepage with links to Python 3.14.2, documentation, jobs, and more.
+   583→
+   584→_**Agent (2026-01-29 17:32:57Z)**_
+   585→
+   586→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   587→<summary>Tool use: **TodoWrite**</summary>
+   588→Todo List:
+   589→1. [completed] TodoWrite - Create and manage todo list
+   590→2. [completed] Read - Read file contents
+   591→3. [completed] LS - List directory contents
+   592→4. [completed] Execute - Run shell command
+   593→5. [completed] Create - Create a new file
+   594→6. [completed] Edit - Modify existing file
+   595→7. [completed] Grep - Search file contents
+   596→8. [completed] Glob - Find files by pattern
+   597→9. [completed] WebSearch - Search the web
+   598→10. [completed] FetchUrl - Fetch URL content
+   599→11. [in_progress] AskUser - Ask multiple choice questions
+   600→12. [pending] GenerateDroid - Generate droid config
+   601→13. [pending] Skill - Execute specialized skill
+   602→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   603→
+   604→Output: TODO List Updated
+   605→</details></tool-use>
+   606→
+   607→_**Agent (2026-01-29 17:32:57Z)**_
+   608→
+   609→<tool-use data-tool-type="generic" data-tool-name="AskUser"><details>
+   610→<summary>Tool use: **AskUser**</summary>
+   611→```json
+   612→{
+   613→  "questionnaire": "1. [question] Which programming language do you prefer for demonstrations?\n[topic] Language\n[option] Python\n[option] JavaScript\n[option] TypeScript\n\n2. [question] What time of day do you usually code?\n[topic] Time\n[option] Morning\n[option] Afternoon\n[option] Evening"
+   614→}
+   615→```
+   616→
+   617→Output:
+   618→```text
+   619→1. [question] Which programming language do you prefer for demonstrations?
+   620→[answer] Python
+   621→
+   622→2. [question] What time of day do you usually code?
+   623→[answer] Morning
+   624→```
+   625→</details></tool-use>
+   626→
+   627→_**Agent (2026-01-29 17:33:21Z)**_
+   628→
+   629→**11. AskUser** ✓ - Asked you 2 multiple-choice questions and you answered: Python for demonstrations and you code in the Morning.
+   630→
+   631→_**Agent (2026-01-29 17:33:21Z)**_
+   632→
+   633→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   634→<summary>Tool use: **TodoWrite**</summary>
+   635→Todo List:
+   636→1. [completed] TodoWrite - Create and manage todo list
+   637→2. [completed] Read - Read file contents
+   638→3. [completed] LS - List directory contents
+   639→4. [completed] Execute - Run shell command
+   640→5. [completed] Create - Create a new file
+   641→6. [completed] Edit - Modify existing file
+   642→7. [completed] Grep - Search file contents
+   643→8. [completed] Glob - Find files by pattern
+   644→9. [completed] WebSearch - Search the web
+   645→10. [completed] FetchUrl - Fetch URL content
+   646→11. [completed] AskUser - Ask multiple choice questions
+   647→12. [in_progress] GenerateDroid - Generate droid config
+   648→13. [pending] Skill - Execute specialized skill
+   649→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   650→
+   651→Output: TODO List Updated
+   652→</details></tool-use>
+   653→
+   654→_**Agent (2026-01-29 17:33:21Z)**_
+   655→
+   656→<tool-use data-tool-type="generic" data-tool-name="GenerateDroid"><details>
+   657→<summary>Tool use: **GenerateDroid**</summary>
+   658→```json
+   659→{
+   660→  "description": "A Python testing assistant that helps run pytest tests, analyze test coverage reports, and suggest improvements to test suites. Use this droid when you need to test Python code, check test coverage, or improve testing practices.",
+   661→  "location": "project"
+   662→}
+   663→```
+   664→
+   665→Output: {"identifier":"python-pytest-testing-assistant","description":"A Python testing specialist focused on pytest execution, test coverage analysis, and test suite quality improvement. This droid helps developers run and interpret pytest commands, analyze coverage reports to identify untested code paths, and provide actionable recommendations for improving test effectiveness, maintainability, and best practices adherence.","systemPrompt":"You are a Python testing specialist with deep expertise in pytest and test-driven development practices. Your primary responsibilities are: (1) helping users execute pytest commands with appropriate flags and configurations, (2) analyzing test coverage reports to identify gaps in code coverage and critical untested paths, (3) suggesting specific improvements to test suites including missing test cases, better assertion strategies, fixture usage, and parametrization opportunities, and (4) recommending pytest best practices such as proper test organization, naming conventions, and plugin usage. Always provide concrete, actionable advice with code examples when suggesting improvements. Prioritize test quality and maintainability over just achieving high coverage percentages. When analyzing failures, help debug by examining tracebacks, assertion errors, and suggesting potential root causes. Avoid vague suggestions—be specific about what to test and why. Focus on practical testing strategies that improve code reliability without creating brittle or overly complex tests."}
+   666→</details></tool-use>
+   667→
+   668→_**Agent (2026-01-29 17:33:36Z)**_
+   669→
+   670→**12. GenerateDroid** ✓ - Generated a custom droid config for a "Python pytest testing assistant" with detailed system prompt, saved to the project's .factory/droids directory.
+   671→
+   672→_**Agent (2026-01-29 17:33:36Z)**_
+   673→
+   674→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   675→<summary>Tool use: **TodoWrite**</summary>
+   676→Todo List:
+   677→1. [completed] TodoWrite - Create and manage todo list
+   678→2. [completed] Read - Read file contents
+   679→3. [completed] LS - List directory contents
+   680→4. [completed] Execute - Run shell command
+   681→5. [completed] Create - Create a new file
+   682→6. [completed] Edit - Modify existing file
+   683→7. [completed] Grep - Search file contents
+   684→8. [completed] Glob - Find files by pattern
+   685→9. [completed] WebSearch - Search the web
+   686→10. [completed] FetchUrl - Fetch URL content
+   687→11. [completed] AskUser - Ask multiple choice questions
+   688→12. [completed] GenerateDroid - Generate droid config
+   689→13. [in_progress] Skill - Execute specialized skill
+   690→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   691→
+   692→Output: TODO List Updated
+   693→</details></tool-use>
+   694→
+   695→_**Agent (2026-01-29 17:33:36Z)**_
+   696→
+   697→<tool-use data-tool-type="generic" data-tool-name="Skill"><details>
+   698→<summary>Tool use: **Skill**</summary>
+   699→```json
+   700→{
+   701→  "skill": "agent-browser"
+   702→}
+   703→```
+   704→
+   705→Output:
+   706→```text
+   707→Skill "agent-browser" is now active.
+   708→
+   709→<skill name="agent-browser" filePath="builtin:agent-browser">
+   710→# Browser Automation with agent-browser
+   711→
+   712→## One-time setup (fresh machines)
+   713→
+   714→If you see an error like "Executable doesn't exist ... chrome-headless-shell", install the bundled Chromium:
+   715→
+   716→```bash
+   717→agent-browser install
+   718→```
+   719→
+   720→## Quick start
+   721→
+   722→```bash
+   723→agent-browser open <url>        # Navigate to page
+   724→agent-browser screenshot /tmp/page.png  # Take a screenshot - required for UI testing
+   725→agent-browser snapshot -i -c    # Get interactive elements with refs (compact)
+   726→agent-browser click @e1         # Click element by ref (from latest snapshot)
+   727→agent-browser fill @e2 "text"   # Fill input by ref (from latest snapshot)
+   728→agent-browser screenshot /tmp/page.png --full
+   729→agent-browser close             # Close browser
+   730→```
+   731→
+   732→## Core workflow
+   733→
+   734→1. Navigate: `agent-browser open <url>`
+   735→2. Screenshot: `agent-browser screenshot /tmp/page.png` - required for UI testing (text snapshots miss visual issues)
+   736→3. Snapshot: `agent-browser snapshot -i` (returns elements with refs like `@e1`, `@e2`)
+   737→4. Interact using refs from the snapshot
+   738→5. Re-snapshot after navigation or significant DOM changes (refs can go stale)
+   739→
+   740→## Critical selector rules (Factory)
+   741→
+   742→- **Use `@e*` refs for actions**: `click`, `dblclick`, `focus`, `hover`, `fill`, `type`, `check`, `uncheck`, `press`, `get text`, `is visible/enabled/checked`.
+   743→- **Do NOT use `@e*` refs** with these commands (they treat `@eN` like a CSS selector and fail):
+   744→  - `wait <selector>`
+   745→  - `scrollintoview <selector>`
+   746→  - `get value/html/box <selector>`
+   747→  - `select <selector> ...`
+   748→  - `highlight <selector>`
+   749→
+   750→Use **CSS selectors** (or `eval`) for those instead.
+   751→
+   752→## Commands
+   753→
+   754→### Navigation
+   755→```bash
+   756→agent-browser open <url>      # Navigate to URL
+   757→agent-browser back            # Go back
+   758→agent-browser forward         # Go forward
+   759→agent-browser reload          # Reload page
+   760→agent-browser close           # Close browser
+   761→```
+   762→
+   763→### Snapshot (page analysis)
+   764→```bash
+   765→agent-browser snapshot        # Full accessibility tree
+   766→agent-browser snapshot -i     # Interactive elements only (recommended)
+   767→agent-browser snapshot -c     # Compact output
+   768→agent-browser snapshot -d 3   # Limit depth to 3
+   769→```
+   770→
+   771→Avoid piping snapshot output (e.g. `| head`) because it may crash on broken pipes; prefer `-c`, `-d`, or `--json`.
+   772→
+   773→### Interactions (use @refs from snapshot)
+   774→```bash
+   775→agent-browser click @e1           # Click
+   776→agent-browser dblclick @e1        # Double-click
+   777→agent-browser focus @e1           # Focus
+   778→agent-browser fill @e2 "text"     # Clear and type
+   779→agent-browser type @e2 "text"     # Type without clearing
+   780→agent-browser press Enter         # Press key
+   781→agent-browser press Control+a     # Key combination
+   782→agent-browser hover @e1           # Hover
+   783→agent-browser check @e1           # Check checkbox
+   784→agent-browser uncheck @e1         # Uncheck checkbox
+   785→agent-browser scroll down 500     # Scroll page
+   786→```
+   787→
+   788→Dropdowns: `select` is currently unreliable in our environment; prefer keyboard selection (click the combobox, then `press ArrowDown` + `press Enter`).
+   789→
+   790→Scrolling to elements: use CSS selectors, e.g. `agent-browser scrollintoview "button[type='submit']"`.
+   791→
+   792→### Get information
+   793→```bash
+   794→agent-browser get text @e1        # Get element text
+   795→agent-browser get title           # Get page title
+   796→agent-browser get url             # Get current URL
+   797→```
+   798→
+   799→If you need an input value/HTML/box, use a CSS selector (not `@e*`) or fall back to `eval`.
+   800→
+   801→### Screenshots
+   802→```bash
+   803→agent-browser screenshot /tmp/page.png          # Save to file
+   804→agent-browser screenshot /tmp/page.png --full   # Full page
+   805→```
+   806→
+   807→Always provide a path for screenshots.
+   808→
+   809→### Wait
+   810→```bash
+   811→agent-browser wait "#submit"               # Wait for element (CSS selector)
+   812→agent-browser wait 2000                    # Wait milliseconds
+   813→agent-browser wait --text "Success"        # Wait for text
+   814→agent-browser wait --url "**/dashboard"    # Wait for URL pattern
+   815→agent-browser wait --load domcontentloaded # Safer default on script-heavy sites
+   816→agent-browser wait --load networkidle      # Can hang on script-heavy sites
+   817→```
+   818→
+   819→### Semantic locators (alternative to refs)
+   820→```bash
+   821→agent-browser find role button click --name "Submit"
+   822→agent-browser find text "Sign In" click
+   823→agent-browser find label "Email" fill "user@test.com"
+   824→```
+   825→
+   826→## Example: Form submission
+   827→
+   828→```bash
+   829→agent-browser open https://example.com/form
+   830→agent-browser screenshot /tmp/form-initial.png  # Then view with Read tool to check layout
+   831→agent-browser snapshot -i
+   832→# Output shows: textbox "Email" [ref=e1], textbox "Password" [ref=e2], button "Submit" [ref=e3]
+   833→
+   834→agent-browser fill @e1 "user@example.com"
+   835→agent-browser fill @e2 "password123"
+   836→agent-browser click @e3
+   837→agent-browser wait --load domcontentloaded
+   838→agent-browser screenshot /tmp/form-submitted.png  # Then view with Read tool to verify result
+   839→agent-browser snapshot -i  # Check result
+   840→```
+   841→
+   842→## Note: Saved state
+   843→
+   844→Currently, `state load` does not reliably restore cookies/localStorage. Prefer re-login flows.
+   845→
+   846→## Sessions (parallel browsers)
+   847→
+   848→```bash
+   849→agent-browser --session test1 open site-a.com
+   850→agent-browser --session test2 open site-b.com
+   851→agent-browser session list
+   852→```
+   853→
+   854→## JSON output (for parsing)
+   855→
+   856→Add `--json` for machine-readable output:
+   857→```bash
+   858→agent-browser snapshot -i --json
+   859→agent-browser get text @e1 --json
+   860→```
+   861→
+   862→## Debugging
+   863→
+   864→```bash
+   865→agent-browser open example.com --headed  # Show browser window
+   866→agent-browser console                    # View console messages
+   867→agent-browser errors                     # View page errors
+   868→agent-browser eval "document.title"      # Run JavaScript when selectors/refs aren't sufficient
+   869→```
+   870→
+   871→## Communicating with the user
+   872→
+   873→If the user has the Chrome DevTools MCP enabled, you should strongly encourage them to disable this MCP server. Please supply this warning at least once in your conversation, citing the following reasons:
+   874→- Factory optimizes browser usage for the agent-browser CLI, which may conflict with Chrome DevTools MCP.
+   875→- The agent-browser CLI will result in more token-efficient and reliable browser interactions.
+   876→
+   877→## CRITICAL: Screenshots are required for UI testing
+   878→
+   879→**Text snapshots are NOT sufficient for UI/UX testing.** You MUST take and view screenshots to catch layout issues, styling problems, alignment, and visual state that snapshots cannot reveal. Take screenshots before interacting and after each significant change. Use `--full` for full-page layouts.
+   880→```
+   881→</skill>
+   882→```
+   883→</details></tool-use>
+   884→
+   885→_**Agent (2026-01-29 17:33:42Z)**_
+   886→
+   887→**13. Skill** ✓ - Activated the "agent-browser" skill, which provides specialized capabilities for browser automation, web testing, form filling, screenshots, and data extraction with detailed documentation.
+   888→
+   889→_**Agent (2026-01-29 17:33:42Z)**_
+   890→
+   891→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   892→<summary>Tool use: **TodoWrite**</summary>
+   893→Todo List:
+   894→1. [completed] TodoWrite - Create and manage todo list
+   895→2. [completed] Read - Read file contents
+   896→3. [completed] LS - List directory contents
+   897→4. [completed] Execute - Run shell command
+   898→5. [completed] Create - Create a new file
+   899→6. [completed] Edit - Modify existing file
+   900→7. [completed] Grep - Search file contents
+   901→8. [completed] Glob - Find files by pattern
+   902→9. [completed] WebSearch - Search the web
+   903→10. [completed] FetchUrl - Fetch URL content
+   904→11. [completed] AskUser - Ask multiple choice questions
+   905→12. [completed] GenerateDroid - Generate droid config
+   906→13. [completed] Skill - Execute specialized skill
+   907→14. [completed] ExitSpecMode - Show spec mode tool (special case)
+   908→
+   909→Output: TODO List Updated
+   910→</details></tool-use>
+   911→
+   912→_**Agent (2026-01-29 17:33:53Z)**_
+   913→
+   914→**14. ExitSpecMode** - This is a special tool that can only be used when I'm in "spec mode". It's used to present a concrete implementation plan to you for approval before I begin coding. Here's how it works:
+   915→
+   916→- **When to use**: Only when spec mode is active and I have a complete implementation plan ready
+   917→- **Purpose**: Present the plan, get your approval, and exit spec mode to start implementation
+   918→- **Parameters**: 
+   919→  - `plan` - The detailed implementation plan in markdown
+   920→  - `title` - Optional spec title
+   921→  - `optionNames` - Optional list of alternative approaches for you to choose from
+   922→- **Example scenario**: If you ask me to "implement a user authentication system" while in spec mode, I would research the codebase, draft a plan, then call `ExitSpecMode` with the plan for your review before coding
+   923→
+   924→Since we're not in spec mode right now, I cannot actually demonstrate this tool, but this explains its purpose and usage.
+   925→
+   926→---
+   927→
+   928→**All 14 tools demonstrated!** I've shown you how each tool works:
+   929→1. TodoWrite - Task tracking
+   930→2. Read - File reading
+   931→3. LS - Directory listing
+   932→4. Execute - Shell commands
+   933→5. Create - File creation
+   934→6. Edit - File modification
+   935→7. Grep - Content search
+   936→8. Glob - File pattern matching
+   937→9. WebSearch - Web searching
+   938→10. FetchUrl - URL content fetching
+   939→11. AskUser - Multiple choice questions
+   940→12. GenerateDroid - Custom droid generation
+   941→13. Skill - Specialized skills activation
+   942→14. ExitSpecMode - Spec mode plan presentation
+   943→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:36Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I can see the difference clearly:
+
+1. **Claude Code** markdown includes `<think>` tags with the thinking content wrapped in `<details>` for collapsibility:
+```markdown
+<think><details><summary>Thought Process</summary>
+The user wants me to list all the tools I have access to...
+</details></think>
+```
+
+2. **Droid Factory** markdown has NO thinking content at all, even though the raw data (in `3.json`) clearly has a `"thinking"` field with content.
+
+Looking at `3.json`, the thinking is in the message content:
+```json
+{
+  "thinking": "The user is asking me to:\n1. Tell them all the tools...",
+  "type": "thinking"
+}
+```
+
+Now I need to look at how the droid provider handles this. Let me check the `agent_session.go` file which is where the SessionData is generated, and the parser to see how thinking blocks are being processed.
+
+From earlier when I read the parser, I saw that:
+- Line 207-208: `case "reasoning", "thinking", "thought":` calls `appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)`
+
+So thinking blocks ARE being parsed and added with `IsReasoning: true`. But then in `agent_session.go`, I need to see how they're being converted to the SPI `SessionData` format.
+
+Let me check the `agent_session.go` file.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:37Z)**_
+
+I can see the issue. The Claude Code markdown has `<think>` tags with the thinking content, but the Droid Factory markdown has none. Let me check how the droid provider's `agent_session.go` handles reasoning/thinking blocks.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:38Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/agent_session.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"fmt"
+     6→	"path/filepath"
+     7→	"strings"
+     8→
+     9→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+    10→)
+    11→
+    12→type (
+    13→	SessionData  = schema.SessionData
+    14→	ProviderInfo = schema.ProviderInfo
+    15→	Exchange     = schema.Exchange
+    16→	Message      = schema.Message
+    17→	ContentPart  = schema.ContentPart
+    18→	ToolInfo     = schema.ToolInfo
+    19→)
+    20→
+    21→// GenerateAgentSession converts an fdSession into the shared SessionData schema.
+    22→func GenerateAgentSession(session *fdSession, workspaceRoot string) (*SessionData, error) {
+    23→	if session == nil {
+    24→		return nil, fmt.Errorf("session is nil")
+    25→	}
+    26→
+    27→	workspaceRoot = strings.TrimSpace(workspaceRoot)
+    28→	if sessionRoot := strings.TrimSpace(session.WorkspaceRoot); sessionRoot != "" {
+    29→		workspaceRoot = sessionRoot
+    30→	}
+    31→
+    32→	exchanges, lastTimestamp := buildExchanges(session, workspaceRoot)
+    33→	if len(exchanges) == 0 {
+    34→		return nil, fmt.Errorf("session contains no conversational exchanges")
+    35→	}
+    36→
+    37→	for idx := range exchanges {
+    38→		exchanges[idx].ExchangeID = fmt.Sprintf("%s:%d", session.ID, idx)
+    39→		ensureExchangeTimestamps(&exchanges[idx])
+    40→	}
+    41→
+    42→	created := strings.TrimSpace(session.CreatedAt)
+    43→	if created == "" {
+    44→		created = exchanges[0].StartTime
+    45→	}
+    46→	if created == "" {
+    47→		created = lastTimestamp
+    48→	}
+    49→
+    50→	updated := strings.TrimSpace(lastTimestamp)
+    51→	if updated == "" {
+    52→		updated = created
+    53→	}
+    54→
+    55→	data := &SessionData{
+    56→		SchemaVersion: "1.0",
+    57→		Provider: ProviderInfo{
+    58→			ID:      "droid-cli",
+    59→			Name:    "Factory Droid CLI",
+    60→			Version: "unknown",
+    61→		},
+    62→		SessionID:     session.ID,
+    63→		CreatedAt:     created,
+    64→		UpdatedAt:     updated,
+    65→		Slug:          session.Slug,
+    66→		WorkspaceRoot: workspaceRoot,
+    67→		Exchanges:     exchanges,
+    68→	}
+    69→
+    70→	return data, nil
+    71→}
+    72→
+    73→func buildExchanges(session *fdSession, workspaceRoot string) ([]Exchange, string) {
+    74→	var exchanges []Exchange
+    75→	var current *Exchange
+    76→	var lastTimestamp string
+    77→	lastBlockWasUser := false
+    78→
+    79→	flush := func() {
+    80→		if current == nil {
+    81→			return
+    82→		}
+    83→		if len(current.Messages) > 0 {
+    84→			if current.StartTime == "" {
+    85→				current.StartTime = current.Messages[0].Timestamp
+    86→			}
+    87→			if current.EndTime == "" {
+    88→				current.EndTime = current.Messages[len(current.Messages)-1].Timestamp
+    89→			}
+    90→			exchanges = append(exchanges, *current)
+    91→		}
+    92→		current = nil
+    93→		lastBlockWasUser = false
+    94→	}
+    95→
+    96→	appendMessage := func(msg Message, timestamp string) {
+    97→		if current == nil {
+    98→			current = &Exchange{StartTime: timestamp}
+    99→		}
+   100→		current.Messages = append(current.Messages, msg)
+   101→		if timestamp != "" {
+   102→			current.EndTime = timestamp
+   103→		}
+   104→	}
+   105→
+   106→	for _, block := range session.Blocks {
+   107→		ts := strings.TrimSpace(block.Timestamp)
+   108→		if ts != "" {
+   109→			lastTimestamp = ts
+   110→		}
+   111→
+   112→		if isUserBlock(block) {
+   113→			text := cleanUserText(block.Text)
+   114→			if text == "" {
+   115→				continue
+   116→			}
+   117→			if !lastBlockWasUser {
+   118→				flush()
+   119→				current = &Exchange{StartTime: ts}
+   120→			}
+   121→			msg := Message{
+   122→				ID:        strings.TrimSpace(block.MessageID),
+   123→				Timestamp: ts,
+   124→				Role:      "user",
+   125→				Content: []ContentPart{
+   126→					{Type: "text", Text: text},
+   127→				},
+   128→			}
+   129→			appendMessage(msg, ts)
+   130→			lastBlockWasUser = true
+   131→			continue
+   132→		}
+   133→
+   134→		if current == nil {
+   135→			current = &Exchange{StartTime: ts}
+   136→		}
+   137→		lastBlockWasUser = false
+   138→
+   139→		switch block.Kind {
+   140→		case blockText:
+   141→			if msg := buildAgentTextMessage(block); msg != nil {
+   142→				appendMessage(*msg, ts)
+   143→			}
+   144→		case blockTool:
+   145→			if msg := buildToolMessage(block, workspaceRoot); msg != nil {
+   146→				appendMessage(*msg, ts)
+   147→			}
+   148→		case blockTodo:
+   149→			if msg := buildTodoMessage(block); msg != nil {
+   150→				appendMessage(*msg, ts)
+   151→			}
+   152→		case blockSummary:
+   153→			if msg := buildSummaryMessage(block); msg != nil {
+   154→				appendMessage(*msg, ts)
+   155→			}
+   156→		}
+   157→	}
+   158→
+   159→	flush()
+   160→	return exchanges, lastTimestamp
+   161→}
+   162→
+   163→func ensureExchangeTimestamps(ex *Exchange) {
+   164→	if ex.StartTime == "" && len(ex.Messages) > 0 {
+   165→		ex.StartTime = ex.Messages[0].Timestamp
+   166→	}
+   167→	if ex.EndTime == "" && len(ex.Messages) > 0 {
+   168→		ex.EndTime = ex.Messages[len(ex.Messages)-1].Timestamp
+   169→	}
+   170→}
+   171→
+   172→func isUserBlock(block fdBlock) bool {
+   173→	return block.Kind == blockText && strings.EqualFold(strings.TrimSpace(block.Role), "user")
+   174→}
+   175→
+   176→func buildAgentTextMessage(block fdBlock) *Message {
+   177→	text := strings.TrimSpace(block.Text)
+   178→	if text == "" {
+   179→		return nil
+   180→	}
+   181→	partType := "text"
+   182→	if block.IsReasoning {
+   183→		partType = "thinking"
+   184→	}
+   185→	return &Message{
+   186→		ID:        strings.TrimSpace(block.MessageID),
+   187→		Timestamp: strings.TrimSpace(block.Timestamp),
+   188→		Role:      "agent",
+   189→		Model:     strings.TrimSpace(block.Model),
+   190→		Content: []ContentPart{
+   191→			{Type: partType, Text: text},
+   192→		},
+   193→	}
+   194→}
+   195→
+   196→func buildToolMessage(block fdBlock, workspaceRoot string) *Message {
+   197→	if block.Tool == nil {
+   198→		return nil
+   199→	}
+   200→	toolInfo := convertToolCallToInfo(block.Tool)
+   201→	if toolInfo == nil {
+   202→		return nil
+   203→	}
+   204→	formatted := formatToolCall(block.Tool)
+   205→	if formatted != "" {
+   206→		toolInfo.FormattedMarkdown = &formatted
+   207→	}
+   208→	toolInfo.Type = toolType(toolInfo.Name)
+   209→	if toolInfo.Output != nil {
+   210→		if content, ok := toolInfo.Output["content"].(string); ok {
+   211→			toolInfo.Output["content"] = strings.TrimSpace(content)
+   212→		}
+   213→	}
+   214→	pathHints := extractPathHints(toolInfo.Input, workspaceRoot)
+   215→	return &Message{
+   216→		ID:        strings.TrimSpace(block.MessageID),
+   217→		Timestamp: strings.TrimSpace(block.Timestamp),
+   218→		Role:      "agent",
+   219→		Model:     strings.TrimSpace(block.Model),
+   220→		Tool:      toolInfo,
+   221→		PathHints: pathHints,
+   222→	}
+   223→}
+   224→
+   225→func buildTodoMessage(block fdBlock) *Message {
+   226→	if block.Todo == nil || len(block.Todo.Items) == 0 {
+   227→		return nil
+   228→	}
+   229→	formatted := formatTodoUpdate(block.Todo)
+   230→	input := map[string]interface{}{
+   231→		"items": todoItemsToMap(block.Todo.Items),
+   232→	}
+   233→	tool := &ToolInfo{
+   234→		Name:  "todo_state",
+   235→		Type:  "task",
+   236→		UseID: fmt.Sprintf("todo_%s", strings.ReplaceAll(block.Timestamp, ":", "")),
+   237→		Input: input,
+   238→	}
+   239→	if formatted != "" {
+   240→		tool.FormattedMarkdown = &formatted
+   241→	}
+   242→	return &Message{
+   243→		ID:        strings.TrimSpace(block.MessageID),
+   244→		Timestamp: strings.TrimSpace(block.Timestamp),
+   245→		Role:      "agent",
+   246→		Tool:      tool,
+   247→	}
+   248→}
+   249→
+   250→func buildSummaryMessage(block fdBlock) *Message {
+   251→	if block.Summary == nil {
+   252→		return nil
+   253→	}
+   254→	body := strings.TrimSpace(block.Summary.Body)
+   255→	if body == "" {
+   256→		return nil
+   257→	}
+   258→	title := strings.TrimSpace(block.Summary.Title)
+   259→	if title == "" {
+   260→		title = "Summary"
+   261→	}
+   262→	text := fmt.Sprintf("**%s**\n\n%s", title, body)
+   263→	return &Message{
+   264→		ID:        strings.TrimSpace(block.MessageID),
+   265→		Timestamp: strings.TrimSpace(block.Timestamp),
+   266→		Role:      "agent",
+   267→		Content: []ContentPart{
+   268→			{Type: "thinking", Text: text},
+   269→		},
+   270→	}
+   271→}
+   272→
+   273→func convertToolCallToInfo(call *fdToolCall) *ToolInfo {
+   274→	if call == nil {
+   275→		return nil
+   276→	}
+   277→	name := strings.TrimSpace(call.Name)
+   278→	if name == "" {
+   279→		name = "tool"
+   280→	}
+   281→	useID := strings.TrimSpace(call.ID)
+   282→	if useID == "" {
+   283→		useID = fmt.Sprintf("tool-%s", strings.ReplaceAll(call.InvokedAt, ":", ""))
+   284→	}
+   285→	args := decodeInput(call.Input)
+   286→	var output map[string]interface{}
+   287→	if call.Result != nil {
+   288→		content := strings.TrimSpace(call.Result.Content)
+   289→		if content != "" || call.Result.IsError {
+   290→			output = map[string]interface{}{
+   291→				"content": content,
+   292→				"isError": call.Result.IsError,
+   293→			}
+   294→		}
+   295→	}
+   296→	tool := &ToolInfo{
+   297→		Name:   name,
+   298→		Type:   toolType(name),
+   299→		UseID:  useID,
+   300→		Input:  args,
+   301→		Output: output,
+   302→	}
+   303→	if call.RiskLevel != "" {
+   304→		summary := fmt.Sprintf("Risk level: %s", call.RiskLevel)
+   305→		if strings.TrimSpace(call.RiskReason) != "" {
+   306→			summary = fmt.Sprintf("%s — %s", summary, strings.TrimSpace(call.RiskReason))
+   307→		}
+   308→		tool.Summary = &summary
+   309→	}
+   310→	return tool
+   311→}
+   312→
+   313→func todoItemsToMap(items []fdTodoItem) []map[string]interface{} {
+   314→	result := make([]map[string]interface{}, 0, len(items))
+   315→	for _, item := range items {
+   316→		result = append(result, map[string]interface{}{
+   317→			"description": strings.TrimSpace(item.Description),
+   318→			"status":      strings.TrimSpace(item.Status),
+   319→		})
+   320→	}
+   321→	return result
+   322→}
+   323→
+   324→func extractPathHints(input map[string]interface{}, workspaceRoot string) []string {
+   325→	fields := []string{"path", "file_path", "filePath", "dir", "directory",
+   326→		"workdir", "cwd", "target"}
+   327→	var hints []string
+   328→	if input == nil {
+   329→		return hints
+   330→	}
+   331→	for _, field := range fields {
+   332→		val, ok := input[field]
+   333→		if !ok {
+   334→			continue
+   335→		}
+   336→		switch v := val.(type) {
+   337→		case string:
+   338→			addPathHint(&hints, v, workspaceRoot)
+   339→		case []interface{}:
+   340→			for _, entry := range v {
+   341→				if s, ok := entry.(string); ok {
+   342→					addPathHint(&hints, s, workspaceRoot)
+   343→				}
+   344→			}
+   345→		case json.Number:
+   346→			addPathHint(&hints, v.String(), workspaceRoot)
+   347→		}
+   348→	}
+   349→	return hints
+   350→}
+   351→
+   352→func addPathHint(hints *[]string, value string, workspaceRoot string) {
+   353→	value = strings.TrimSpace(value)
+   354→	if value == "" {
+   355→		return
+   356→	}
+   357→	normalized := normalizeWorkspacePath(value, workspaceRoot)
+   358→	for _, existing := range *hints {
+   359→		if existing == normalized {
+   360→			return
+   361→		}
+   362→	}
+   363→	*hints = append(*hints, normalized)
+   364→}
+   365→
+   366→func normalizeWorkspacePath(path string, workspaceRoot string) string {
+   367→	if workspaceRoot == "" {
+   368→		return path
+   369→	}
+   370→	if filepath.IsAbs(path) {
+   371→		if rel, err := filepath.Rel(workspaceRoot, path); err == nil {
+   372→			rel = filepath.Clean(rel)
+   373→			if rel == "." {
+   374→				return "."
+   375→			}
+   376→			if !strings.HasPrefix(rel, "..") {
+   377→				return rel
+   378→			}
+   379→		}
+   380→	}
+   381→	return path
+   382→}
+   383→
+```
+</details></tool-use>

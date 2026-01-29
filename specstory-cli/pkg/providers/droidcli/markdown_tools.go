@@ -168,7 +168,7 @@ func renderReadInput(args map[string]any) string {
 
 func renderListInput(args map[string]any) string {
 	return renderFields(args, []fieldSpec{
-		{keys: []string{"path", "dir", "directory", "target_directory"}, label: "Path"},
+		{keys: []string{"path", "dir", "directory", "directory_path", "target_directory"}, label: "Path"},
 	})
 }
 
