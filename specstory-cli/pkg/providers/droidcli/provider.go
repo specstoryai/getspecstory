@@ -93,6 +93,9 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return false
 }
 
+// GetAgentChatSessions returns all available agent chat sessions from the Factory Droid CLI,
+// optionally filtered to sessions associated with the given projectPath. When debugRaw is true,
+// additional raw session details may be included in the converted sessions.
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
 	files, err := listSessionFiles()
 	if err != nil {
