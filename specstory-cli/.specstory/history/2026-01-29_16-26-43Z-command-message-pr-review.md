@@ -4970,3 +4970,1001 @@ cmd, args := parseDroidCommand(customCommand)
 Both values are used because when actually running the CLI, custom arguments should be passed through.
 
 **Verdict:** The `_` is intentional. My review comment was overly cautious - no change needed here.
+
+---
+
+_**User (2026-01-29 17:15:16Z)**_
+
+Got this comment from a reviewer, what say you?
+
+The test for sessionMentionsProject only covers the positive case (path is present). Consider using a data-driven test approach that covers multiple scenarios including: (1) exact path match, (2) basename match with threshold, (3) file not found, (4) empty project path, and (5) path not present in session. This would better test the complex logic in sessionMentionsProject.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:20Z)**_
+
+<think><details><summary>Thought Process</summary>
+The reviewer is commenting on the test coverage for `sessionMentionsProject`. Let me look at the existing test to see what it actually covers.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:21Z)**_
+
+Let me look at the existing test to see what's actually covered.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:21Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/provider_test.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"fmt"
+     5→	"os"
+     6→	"path/filepath"
+     7→	"testing"
+     8→)
+     9→
+    10→func TestSessionMentionsProject(t *testing.T) {
+    11→	tests := []struct {
+    12→		name        string
+    13→		makeContent func(projectDir, otherDir string) string
+    14→		expected    bool
+    15→	}{
+    16→		{
+    17→			name: "returns true when session cwd matches project",
+    18→			makeContent: func(projectDir, _ string) string {
+    19→				return fmt.Sprintf(`{"type":"session_start","id":"sess-1","cwd":%q}`, projectDir)
+    20→			},
+    21→			expected: true,
+    22→		},
+    23→		{
+    24→			name: "returns false when cwd mismatches even if text mentions project",
+    25→			makeContent: func(projectDir, otherDir string) string {
+    26→				return fmt.Sprintf(`{"type":"session_start","id":"sess-1","cwd":%q}
+    27→{"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, otherDir, projectDir)
+    28→			},
+    29→			expected: false,
+    30→		},
+    31→		{
+    32→			name: "falls back to text search when no cwd present",
+    33→			makeContent: func(projectDir, _ string) string {
+    34→				return fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, projectDir)
+    35→			},
+    36→			expected: true,
+    37→		},
+    38→		{
+    39→			name: "returns false when no cwd and text does not mention project",
+    40→			makeContent: func(_, otherDir string) string {
+    41→				return fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":%q}]}}`, otherDir)
+    42→			},
+    43→			expected: false,
+    44→		},
+    45→		{
+    46→			name: "returns true when workspace_root matches project",
+    47→			makeContent: func(projectDir, _ string) string {
+    48→				return fmt.Sprintf(`{"type":"session_start","id":"sess-1","workspace_root":%q}`, projectDir)
+    49→			},
+    50→			expected: true,
+    51→		},
+    52→	}
+    53→
+    54→	for _, tt := range tests {
+    55→		t.Run(tt.name, func(t *testing.T) {
+    56→			projectDir := t.TempDir()
+    57→			otherDir := t.TempDir()
+    58→			sessionPath := filepath.Join(t.TempDir(), "session.jsonl")
+    59→
+    60→			content := tt.makeContent(projectDir, otherDir)
+    61→			if err := os.WriteFile(sessionPath, []byte(content), 0o644); err != nil {
+    62→				t.Fatalf("write file: %v", err)
+    63→			}
+    64→
+    65→			got := sessionMentionsProject(sessionPath, projectDir)
+    66→			if got != tt.expected {
+    67→				t.Errorf("sessionMentionsProject() = %v, want %v", got, tt.expected)
+    68→			}
+    69→		})
+    70→	}
+    71→}
+    72→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:26Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see. The reviewer's comment seems to be incorrect - the test IS already using a data-driven approach and already covers multiple scenarios:
+
+1. **"returns true when session cwd matches project"** - exact path match via cwd
+2. **"returns false when cwd mismatches even if text mentions project"** - cwd takes precedence over text
+3. **"falls back to text search when no cwd present"** - text search fallback (positive case)
+4. **"returns false when no cwd and text does not mention project"** - path not present in session
+5. **"returns true when workspace_root matches project"** - exact path match via workspace_root
+
+Let me look at the actual `sessionMentionsProject` function to see what the reviewer might be referring to regarding "basename match with threshold":
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:27Z)**_
+
+Let me also look at the actual function to understand what logic exists.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/provider.go`
+```
+   320→	log.UserMessage("No Factory Droid sessions found under ~/.factory/sessions yet.\n")
+   321→	log.UserMessage("Run the Factory CLI inside this project to create a JSONL session, then rerun `specstory sync droid`.\n")
+   322→}
+   323→
+   324→func sessionMentionsProject(filePath string, projectPath string) bool {
+   325→	projectPath = strings.TrimSpace(projectPath)
+   326→	if projectPath == "" {
+   327→		return false
+   328→	}
+   329→
+   330→	canonicalProject := canonicalizePath(projectPath)
+   331→	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
+   332→		canonicalRoot := canonicalizePath(sessionRoot)
+   333→		if canonicalProject != "" && canonicalRoot != "" {
+   334→			return canonicalRoot == canonicalProject
+   335→		}
+   336→		return strings.TrimSpace(sessionRoot) == projectPath
+   337→	}
+   338→
+   339→	return sessionMentionsProjectText(filePath, projectPath)
+   340→}
+   341→
+   342→func extractSessionWorkspaceRoot(filePath string) string {
+   343→	file, err := os.Open(filePath)
+   344→	if err != nil {
+   345→		return ""
+   346→	}
+   347→	defer func() {
+   348→		_ = file.Close()
+   349→	}()
+   350→
+   351→	var workspaceRoot string
+   352→	scanErr := scanLines(file, func(line string) error {
+   353→		trimmed := strings.TrimSpace(line)
+   354→		if trimmed == "" {
+   355→			return nil
+   356→		}
+   357→		var env jsonlEnvelope
+   358→		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
+   359→			return nil
+   360→		}
+   361→		if env.Type != "session_start" {
+   362→			return nil
+   363→		}
+   364→		var event sessionStartEvent
+   365→		if err := json.Unmarshal([]byte(trimmed), &event); err != nil {
+   366→			return nil
+   367→		}
+   368→		workspaceRoot = firstNonEmpty(event.CWD, event.WorkspaceRoot, event.Session.CWD, event.Session.WorkspaceRoot)
+   369→		return errStopScan
+   370→	})
+   371→	if scanErr != nil && !errors.Is(scanErr, errStopScan) {
+   372→		return ""
+   373→	}
+   374→
+   375→	return strings.TrimSpace(workspaceRoot)
+   376→}
+   377→
+   378→func canonicalizePath(path string) string {
+   379→	trimmed := strings.TrimSpace(path)
+   380→	if trimmed == "" {
+   381→		return ""
+   382→	}
+   383→	canonical, err := spi.GetCanonicalPath(trimmed)
+   384→	if err == nil {
+   385→		return canonical
+   386→	}
+   387→	if abs, absErr := filepath.Abs(trimmed); absErr == nil {
+   388→		return filepath.Clean(abs)
+   389→	}
+   390→	return filepath.Clean(trimmed)
+   391→}
+   392→
+   393→func sessionMentionsProjectText(filePath string, projectPath string) bool {
+   394→	file, err := os.Open(filePath)
+   395→	if err != nil {
+   396→		return false
+   397→	}
+   398→	defer func() {
+   399→		_ = file.Close()
+   400→	}()
+   401→	needle := strings.TrimSpace(projectPath)
+   402→	short := filepath.Base(projectPath)
+   403→	foundLines := 0
+   404→	err = scanLines(file, func(line string) error {
+   405→		if needle != "" && strings.Contains(line, needle) {
+   406→			return errStopScan
+   407→		}
+   408→		if short != "" && strings.Contains(line, short) {
+   409→			foundLines++
+   410→			if foundLines > 2 {
+   411→				return errStopScan
+   412→			}
+   413→		}
+   414→		return nil
+   415→	})
+   416→
+   417→	if err != nil && !errors.Is(err, errStopScan) {
+   418→		slog.Warn("error scanning session file", "path", filePath, "err", err)
+   419→		return false
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:39Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I have the full picture. Looking at the existing test and the actual implementation:
+
+**The reviewer's comment is largely incorrect.** The existing test:
+
+1. ✅ **IS data-driven** - uses a table-driven approach with 5 test cases
+2. ✅ **Does cover exact path match** - test case 1 and 5
+3. ✅ **Does cover path not present** - test case 4
+4. ⚠️ **Does NOT cover empty project path** - this is a valid gap
+5. ⚠️ **Does NOT cover file not found** - this is a valid gap
+6. ⚠️ **Does NOT cover basename match with threshold** - there's logic at lines 402-412 where `foundLines > 2` is checked, and this isn't tested
+
+So the reviewer is partially correct - there are a few gaps:
+1. Empty project path (line 326-328)
+2. File not found (line 394-396 returns false)
+3. Basename match threshold (the `foundLines > 2` logic at lines 408-412)
+
+But the reviewer is wrong to say it "only covers the positive case" - it clearly covers both positive and negative cases already.
+
+I should respond with:
+1. Acknowledgment that the test IS already data-driven (contrary to reviewer's implication)
+2. List what IS already covered (5 scenarios)
+3. Acknowledge the valid gaps the reviewer identified
+4. Offer opinion on whether those gaps warrant additional tests per the project's testing philosophy
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:15:46Z)**_
+
+The reviewer is **partially correct but overstates the problem**. Here's my assessment:
+
+## What's Already Covered (5 scenarios)
+
+The test IS already data-driven and covers:
+
+| Test Case | Scenario |
+|-----------|----------|
+| 1 | Exact path match via `cwd` ✓ |
+| 2 | CWD mismatch (negative case) ✓ |
+| 3 | Text search fallback (positive) ✓ |
+| 4 | Path not present in session (negative) ✓ |
+| 5 | Exact path match via `workspace_root` ✓ |
+
+## Valid Gaps
+
+The reviewer correctly identifies these untested paths:
+
+1. **Empty project path** (lines 326-328) - returns `false` immediately
+2. **File not found** (lines 394-396) - returns `false` 
+3. **Basename match with threshold** (lines 408-412) - the `foundLines > 2` heuristic
+
+## My Opinion
+
+Per the project's testing philosophy ("focus on complicated logic, not completeness for completeness sake"):
+
+- **Empty project path**: Trivial guard clause - doesn't need a test
+- **File not found**: Simple error handling - doesn't need a test
+- **Basename threshold**: This IS complicated logic worth testing. The `foundLines > 2` heuristic is non-obvious and a test would document its intended behavior
+
+**Recommendation**: Add one test case for the basename threshold logic. The other gaps are too simple to warrant tests.
+
+Would you like me to add a test case for the basename threshold scenario?
+
+---
+
+_**User (2026-01-29 17:16:36Z)**_
+
+yup
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:16:43Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants me to add a test case for the basename threshold scenario. Looking at the code in `sessionMentionsProjectText`:
+
+```go
+needle := strings.TrimSpace(projectPath)
+short := filepath.Base(projectPath)
+foundLines := 0
+err = scanLines(file, func(line string) error {
+    if needle != "" && strings.Contains(line, needle) {
+        return errStopScan
+    }
+    if short != "" && strings.Contains(line, short) {
+        foundLines++
+        if foundLines > 2 {
+            return errStopScan
+        }
+    }
+    return nil
+})
+
+if err != nil && !errors.Is(err, errStopScan) {
+    slog.Warn("error scanning session file", "path", filePath, "err", err)
+    return false
+}
+
+return errors.Is(err, errStopScan)
+```
+
+So the logic is:
+1. If the full path (`needle`) is found anywhere, return true immediately
+2. If only the basename (`short`) is found, it needs to appear in MORE than 2 lines (i.e., 3+ lines) to return true
+3. If basename appears in only 1-2 lines, return false
+
+I need to add test cases for:
+1. Basename appears in 3+ lines (should return true) 
+2. Basename appears in only 2 lines (should return false)
+
+These tests need to NOT have a `session_start` with `cwd` or `workspace_root` so it falls back to text search.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:16:48Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/provider_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:24Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the tests to make sure they pass.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:25Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run sessionMentionsProject tests
+
+`go test -v ./pkg/providers/droidcli/... -run TestSessionMentionsProject 2>&1`
+```
+=== RUN   TestSessionMentionsProject
+=== RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
+=== RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
+=== RUN   TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present
+=== RUN   TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project
+=== RUN   TestSessionMentionsProject/returns_true_when_workspace_root_matches_project
+=== RUN   TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text
+=== RUN   TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text
+--- PASS: TestSessionMentionsProject (0.07s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_session_cwd_matches_project (0.03s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project (0.01s)
+    --- PASS: TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_workspace_root_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.266s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:29Z)**_
+
+<think><details><summary>Thought Process</summary>
+Tests pass. Let me also run the linter to make sure there are no issues.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:29Z)**_
+
+Tests pass. Let me run the linter.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:30Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter on droidcli package
+
+`golangci-lint run ./pkg/providers/droidcli/...`
+```
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:35Z)**_
+
+<think><details><summary>Thought Process</summary>
+The linter passes. Let me summarize what was done.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:17:36Z)**_
+
+Done. Added two test cases for the basename threshold logic:
+
+1. **"returns true when basename appears more than twice in text"** - Tests that 3 occurrences triggers a match
+2. **"returns false when basename appears only twice in text"** - Tests that 2 occurrences is below the threshold
+
+These tests document the `foundLines > 2` heuristic behavior, which is the non-obvious part of the matching logic.
+
+---
+
+_**User (2026-01-29 17:18:58Z)**_
+
+Another review comment: 
+
+The ensureResumeArgs function contains combinatorial logic with multiple conditional paths (checking for --resume, -r, and --resume= formats). This function would benefit from unit tests with a data-driven approach to verify:
+
+    Returns args unchanged when resumeSessionID is empty
+    Returns args unchanged when --resume already exists with a value
+    Returns args unchanged when -r already exists with a value
+    Returns args unchanged when --resume=value exists
+    Appends --resume and resumeSessionID when not present
+
+Other providers like cursorcli have similar test coverage for command parsing functions.
+
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:01Z)**_
+
+<think><details><summary>Thought Process</summary>
+The reviewer is suggesting adding unit tests for `ensureResumeArgs`. Let me look at the function again and then check if other providers have similar tests.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:02Z)**_
+
+Let me check the function and see if other providers have similar tests.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:03Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/droid_exec.go`
+```
+    49→func ensureResumeArgs(args []string, resumeSessionID string) []string {
+    50→	if resumeSessionID == "" {
+    51→		return args
+    52→	}
+    53→
+    54→	for i, arg := range args {
+    55→		if arg == "--resume" || arg == "-r" {
+    56→			if i+1 < len(args) {
+    57→				return args
+    58→			}
+    59→		}
+    60→		if strings.HasPrefix(arg, "--resume=") {
+    61→			return args
+    62→		}
+    63→	}
+    64→
+    65→	return append(args, "--resume", resumeSessionID)
+    66→}
+    67→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:04Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/providers` pattern `func Test.*Resume|func Test.*Args`
+```
+No matches found
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:08Z)**_
+
+<think><details><summary>Thought Process</summary>
+No existing tests for resume args in other providers. Let me check what tests cursorcli has for command parsing.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:08Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Glob"><details>
+<summary>Tool use: **Glob**</summary>
+ pattern `pkg/providers/cursorcli/*_test.go`
+```
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/agent_session_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/blob_parser_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/cursor_cli_exec_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/dag_sort_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/markdown_tools_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/path_utils_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/sqlite_reader_test.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursorcli/watcher_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:12Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me check the cursor_cli_exec_test.go to see what patterns are used there.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:12Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/cursorcli/cursor_cli_exec_test.go`
+```
+     1→package cursorcli
+     2→
+     3→import (
+     4→	"os"
+     5→	"os/exec"
+     6→	"testing"
+     7→)
+     8→
+     9→func TestParseCursorCommand(t *testing.T) {
+    10→	tests := []struct {
+    11→		name          string
+    12→		customCommand string
+    13→		expectedCmd   string
+    14→		expectedArgs  []string
+    15→		setupMocks    func()
+    16→		restoreMocks  func()
+    17→	}{
+    18→		{
+    19→			name:          "empty command returns default",
+    20→			customCommand: "",
+    21→			expectedCmd:   "cursor-agent",
+    22→			expectedArgs:  nil,
+    23→			setupMocks: func() {
+    24→				// Mock exec.LookPath to return cursor-agent as found
+    25→				execLookPath = func(file string) (string, error) {
+    26→					if file == "cursor-agent" {
+    27→						return "cursor-agent", nil
+    28→					}
+    29→					return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
+    30→				}
+    31→			},
+    32→			restoreMocks: func() {
+    33→				execLookPath = exec.LookPath
+    34→			},
+    35→		},
+    36→		{
+    37→			name:          "custom command with arguments",
+    38→			customCommand: "cursor-agent --model gpt-4 --temperature 0.7",
+    39→			expectedCmd:   "cursor-agent",
+    40→			expectedArgs:  []string{"--model", "gpt-4", "--temperature", "0.7"},
+    41→			setupMocks:    func() {},
+    42→			restoreMocks:  func() {},
+    43→		},
+    44→		{
+    45→			name:          "custom command with tilde expansion",
+    46→			customCommand: "~/bin/cursor-agent --verbose",
+    47→			expectedCmd:   os.Getenv("HOME") + "/bin/cursor-agent",
+    48→			expectedArgs:  []string{"--verbose"},
+    49→			setupMocks:    func() {},
+    50→			restoreMocks:  func() {},
+    51→		},
+    52→		{
+    53→			name:          "command with quoted argument containing spaces",
+    54→			customCommand: `cursor-agent --config "~/Library/Application Support/cursor.json"`,
+    55→			expectedCmd:   "cursor-agent",
+    56→			expectedArgs:  []string{"--config", "~/Library/Application Support/cursor.json"},
+    57→			setupMocks:    func() {},
+    58→			restoreMocks:  func() {},
+    59→		},
+    60→	}
+    61→
+    62→	for _, tt := range tests {
+    63→		t.Run(tt.name, func(t *testing.T) {
+    64→			// Setup mocks
+    65→			tt.setupMocks()
+    66→			defer tt.restoreMocks()
+    67→
+    68→			cmd, args := parseCursorCommand(tt.customCommand)
+    69→
+    70→			if cmd != tt.expectedCmd {
+    71→				t.Errorf("parseCursorCommand() cmd = %v, want %v", cmd, tt.expectedCmd)
+    72→			}
+    73→
+    74→			if len(args) != len(tt.expectedArgs) {
+    75→				t.Errorf("parseCursorCommand() args length = %v, want %v", len(args), len(tt.expectedArgs))
+    76→			} else {
+    77→				for i := range args {
+    78→					if args[i] != tt.expectedArgs[i] {
+    79→						t.Errorf("parseCursorCommand() args[%d] = %v, want %v", i, args[i], tt.expectedArgs[i])
+    80→					}
+    81→				}
+    82→			}
+    83→		})
+    84→	}
+    85→}
+    86→
+    87→func TestGetDefaultCursorCommand(t *testing.T) {
+    88→	tests := []struct {
+    89→		name         string
+    90→		setupMocks   func()
+    91→		restoreMocks func()
+    92→		expected     string
+    93→	}{
+    94→		{
+    95→			name: "finds cursor-agent in PATH",
+    96→			setupMocks: func() {
+    97→				execLookPath = func(file string) (string, error) {
+    98→					if file == "cursor-agent" {
+    99→						return "cursor-agent", nil
+   100→					}
+   101→					return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
+   102→				}
+   103→			},
+   104→			restoreMocks: func() {
+   105→				execLookPath = exec.LookPath
+   106→			},
+   107→			expected: "cursor-agent",
+   108→		},
+   109→		{
+   110→			name: "finds cursor-agent in .cursor/bin",
+   111→			setupMocks: func() {
+   112→				home := "/test/home"
+   113→				osUserHomeDir = func() (string, error) {
+   114→					return home, nil
+   115→				}
+   116→				osStat = func(name string) (os.FileInfo, error) {
+   117→					if name == home+"/.cursor/bin/cursor-agent" {
+   118→						return nil, nil // File exists
+   119→					}
+   120→					return nil, os.ErrNotExist
+   121→				}
+   122→				execLookPath = func(file string) (string, error) {
+   123→					return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
+   124→				}
+   125→			},
+   126→			restoreMocks: func() {
+   127→				osUserHomeDir = os.UserHomeDir
+   128→				osStat = os.Stat
+   129→				execLookPath = exec.LookPath
+   130→			},
+   131→			expected: "/test/home/.cursor/bin/cursor-agent",
+   132→		},
+   133→		{
+   134→			name: "finds cursor-agent in .local/bin",
+   135→			setupMocks: func() {
+   136→				home := "/test/home"
+   137→				osUserHomeDir = func() (string, error) {
+   138→					return home, nil
+   139→				}
+   140→				osStat = func(name string) (os.FileInfo, error) {
+   141→					if name == home+"/.local/bin/cursor-agent" {
+   142→						return nil, nil // File exists
+   143→					}
+   144→					return nil, os.ErrNotExist
+   145→				}
+   146→				execLookPath = func(file string) (string, error) {
+   147→					return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
+   148→				}
+   149→			},
+   150→			restoreMocks: func() {
+   151→				osUserHomeDir = os.UserHomeDir
+   152→				osStat = os.Stat
+   153→				execLookPath = exec.LookPath
+   154→			},
+   155→			expected: "/test/home/.local/bin/cursor-agent",
+   156→		},
+   157→		{
+   158→			name: "defaults to cursor-agent when not found",
+   159→			setupMocks: func() {
+   160→				osUserHomeDir = func() (string, error) {
+   161→					return "/test/home", nil
+   162→				}
+   163→				osStat = func(name string) (os.FileInfo, error) {
+   164→					return nil, os.ErrNotExist
+   165→				}
+   166→				execLookPath = func(file string) (string, error) {
+   167→					return "", &exec.Error{Name: file, Err: exec.ErrNotFound}
+   168→				}
+   169→			},
+   170→			restoreMocks: func() {
+   171→				osUserHomeDir = os.UserHomeDir
+   172→				osStat = os.Stat
+   173→				execLookPath = exec.LookPath
+   174→			},
+   175→			expected: "cursor-agent",
+   176→		},
+   177→	}
+   178→
+   179→	for _, tt := range tests {
+   180→		t.Run(tt.name, func(t *testing.T) {
+   181→			// Setup mocks
+   182→			tt.setupMocks()
+   183→			defer tt.restoreMocks()
+   184→
+   185→			result := getDefaultCursorCommand()
+   186→
+   187→			if result != tt.expected {
+   188→				t.Errorf("getDefaultCursorCommand() = %v, want %v", result, tt.expected)
+   189→			}
+   190→		})
+   191→	}
+   192→}
+   193→
+   194→func TestExpandTilde(t *testing.T) {
+   195→	home := os.Getenv("HOME")
+   196→	if home == "" {
+   197→		t.Skip("HOME environment variable not set")
+   198→	}
+   199→
+   200→	tests := []struct {
+   201→		name     string
+   202→		path     string
+   203→		expected string
+   204→	}{
+   205→		{
+   206→			name:     "expands tilde at start",
+   207→			path:     "~/bin/cursor-agent",
+   208→			expected: home + "/bin/cursor-agent",
+   209→		},
+   210→		{
+   211→			name:     "no tilde to expand",
+   212→			path:     "/usr/local/bin/cursor-agent",
+   213→			expected: "/usr/local/bin/cursor-agent",
+   214→		},
+   215→		{
+   216→			name:     "tilde not at start",
+   217→			path:     "path/~/cursor-agent",
+   218→			expected: "path/~/cursor-agent",
+   219→		},
+   220→	}
+   221→
+   222→	for _, tt := range tests {
+   223→		t.Run(tt.name, func(t *testing.T) {
+   224→			result := expandTilde(tt.path)
+   225→			if result != tt.expected {
+   226→				t.Errorf("expandTilde(%s) = %v, want %v", tt.path, result, tt.expected)
+   227→			}
+   228→		})
+   229→	}
+   230→}
+   231→
+   232→func TestGetPathType(t *testing.T) {
+   233→	tests := []struct {
+   234→		name         string
+   235→		cursorCmd    string
+   236→		resolvedPath string
+   237→		expected     string
+   238→	}{
+   239→		{
+   240→			name:         "cursor bin directory",
+   241→			cursorCmd:    "cursor-agent",
+   242→			resolvedPath: "/home/user/.cursor/bin/cursor-agent",
+   243→			expected:     "cursor_bin",
+   244→		},
+   245→		{
+   246→			name:         "user local directory",
+   247→			cursorCmd:    "cursor-agent",
+   248→			resolvedPath: "/home/user/.local/bin/cursor-agent",
+   249→			expected:     "user_local",
+   250→		},
+   251→		{
+   252→			name:         "absolute path",
+   253→			cursorCmd:    "/opt/cursor/cursor-agent",
+   254→			resolvedPath: "/opt/cursor/cursor-agent",
+   255→			expected:     "absolute_path",
+   256→		},
+   257→		{
+   258→			name:         "system path",
+   259→			cursorCmd:    "cursor-agent",
+   260→			resolvedPath: "/usr/bin/cursor-agent",
+   261→			expected:     "system_path",
+   262→		},
+   263→	}
+   264→
+   265→	for _, tt := range tests {
+   266→		t.Run(tt.name, func(t *testing.T) {
+   267→			result := getPathType(tt.cursorCmd, tt.resolvedPath)
+   268→			if result != tt.expected {
+   269→				t.Errorf("getPathType(%s, %s) = %v, want %v", tt.cursorCmd, tt.resolvedPath, result, tt.expected)
+   270→			}
+   271→		})
+   272→	}
+   273→}
+   274→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:19Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see, cursorcli does have comprehensive test coverage for command parsing. The reviewer is correct that `ensureResumeArgs` has combinatorial logic that should be tested. Let me create a similar test file for droidcli.
+
+The function has these paths:
+1. Empty resumeSessionID -> return args unchanged
+2. `--resume` with a following arg -> return args unchanged
+3. `-r` with a following arg -> return args unchanged
+4. `--resume=value` -> return args unchanged
+5. None of the above -> append `--resume` and resumeSessionID
+
+I should also test edge cases:
+- `--resume` at end of args (no following value) -> should still append
+- `-r` at end of args (no following value) -> should still append
+
+Let me write the test.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:20Z)**_
+
+The reviewer is right - cursorcli has good test coverage for command parsing. Let me add tests for `ensureResumeArgs`.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:27Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```go
+package droidcli
+
+import (
+	"reflect"
+	"testing"
+)
+
+func TestEnsureResumeArgs(t *testing.T) {
+	tests := []struct {
+		name            string
+		args            []string
+		resumeSessionID string
+		expected        []string
+	}{
+		{
+			name:            "returns args unchanged when resumeSessionID is empty",
+			args:            []string{"--verbose"},
+			resumeSessionID: "",
+			expected:        []string{"--verbose"},
+		},
+		{
+			name:            "returns args unchanged when --resume already has value",
+			args:            []string{"--resume", "existing-session"},
+			resumeSessionID: "new-session",
+			expected:        []string{"--resume", "existing-session"},
+		},
+		{
+			name:            "returns args unchanged when -r already has value",
+			args:            []string{"-r", "existing-session"},
+			resumeSessionID: "new-session",
+			expected:        []string{"-r", "existing-session"},
+		},
+		{
+			name:            "returns args unchanged when --resume=value exists",
+			args:            []string{"--resume=existing-session"},
+			resumeSessionID: "new-session",
+			expected:        []string{"--resume=existing-session"},
+		},
+		{
+			name:            "appends --resume when not present",
+			args:            []string{"--verbose"},
+			resumeSessionID: "new-session",
+			expected:        []string{"--verbose", "--resume", "new-session"},
+		},
+		{
+			name:            "appends --resume when args is nil",
+			args:            nil,
+			resumeSessionID: "new-session",
+			expected:        []string{"--resume", "new-session"},
+		},
+		{
+			name:            "appends --resume when args is empty",
+			args:            []string{},
+			resumeSessionID: "new-session",
+			expected:        []string{"--resume", "new-session"},
+		},
+		{
+			name:            "appends when --resume flag exists but has no value",
+			args:            []string{"--resume"},
+			resumeSessionID: "new-session",
+			expected:        []string{"--resume", "--resume", "new-session"},
+		},
+		{
+			name:            "appends when -r flag exists but has no value",
+			args:            []string{"-r"},
+			resumeSessionID: "new-session",
+			expected:        []string{"-r", "--resume", "new-session"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ensureResumeArgs(tt.args, tt.resumeSessionID)
+			if !reflect.DeepEqual(got, tt.expected) {
+				t.Errorf("ensureResumeArgs() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+```
+```
+File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/droid_exec_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:34Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me run the tests to make sure they all pass.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:35Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run ensureResumeArgs tests
+
+`go test -v ./pkg/providers/droidcli/... -run TestEnsureResumeArgs 2>&1`
+```
+=== RUN   TestEnsureResumeArgs
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_not_present
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_nil
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_empty
+=== RUN   TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value
+=== RUN   TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value
+--- PASS: TestEnsureResumeArgs (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_not_present (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_nil (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.195s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:39Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Let me run the linter as well.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter on droidcli package
+
+`golangci-lint run ./pkg/providers/droidcli/...`
+```
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:44Z)**_
+
+<think><details><summary>Thought Process</summary>
+Everything passes. Let me summarize what I did.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:19:48Z)**_
+
+Done. Created `droid_exec_test.go` with 9 test cases covering all the combinatorial paths:
+
+| Test Case | Scenario |
+|-----------|----------|
+| 1 | Empty resumeSessionID → args unchanged |
+| 2 | `--resume` with value → args unchanged |
+| 3 | `-r` with value → args unchanged |
+| 4 | `--resume=value` → args unchanged |
+| 5 | Flag not present → appends `--resume` |
+| 6 | Nil args → appends `--resume` |
+| 7 | Empty args → appends `--resume` |
+| 8 | `--resume` at end (no value) → appends new `--resume` |
+| 9 | `-r` at end (no value) → appends new `--resume` |
+
+The last two cases (8 & 9) are edge cases that document the current behavior when the flag exists but has no following argument - it appends a new `--resume` flag. This matches the implementation's `i+1 < len(args)` check.

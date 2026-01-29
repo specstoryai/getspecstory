@@ -49,6 +49,29 @@ func TestSessionMentionsProject(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name: "returns true when basename appears more than twice in text",
+			makeContent: func(projectDir, _ string) string {
+				// No cwd/workspace_root, so falls back to text search.
+				// Basename threshold requires >2 occurrences.
+				basename := filepath.Base(projectDir)
+				return fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":"working on %s"}]}}
+{"type":"message","message":{"role":"user","content":[{"type":"text","text":"still in %s"}]}}
+{"type":"message","message":{"role":"agent","content":[{"type":"text","text":"found %s"}]}}`, basename, basename, basename)
+			},
+			expected: true,
+		},
+		{
+			name: "returns false when basename appears only twice in text",
+			makeContent: func(projectDir, _ string) string {
+				// No cwd/workspace_root, so falls back to text search.
+				// Basename threshold requires >2 occurrences, so 2 is not enough.
+				basename := filepath.Base(projectDir)
+				return fmt.Sprintf(`{"type":"message","message":{"role":"user","content":[{"type":"text","text":"working on %s"}]}}
+{"type":"message","message":{"role":"agent","content":[{"type":"text","text":"found %s"}]}}`, basename, basename)
+			},
+			expected: false,
+		},
 	}
 
 	for _, tt := range tests {
