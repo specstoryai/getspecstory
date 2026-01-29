@@ -22,6 +22,7 @@ const defaultFactoryCommand = "droid"
 
 type Provider struct{}
 
+// NewProvider creates a new Factory Droid CLI provider instance.
 func NewProvider() *Provider {
 	return &Provider{}
 }
