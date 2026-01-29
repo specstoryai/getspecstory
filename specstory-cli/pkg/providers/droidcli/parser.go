@@ -54,6 +54,7 @@ type messagePayload struct {
 type contentPayload struct {
 	Type            string          `json:"type"`
 	Text            string          `json:"text"`
+	Thinking        string          `json:"thinking"`
 	ID              string          `json:"id"`
 	Name            string          `json:"name"`
 	Input           json.RawMessage `json:"input"`
@@ -205,7 +206,12 @@ func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[s
 		case "text":
 			appendTextBlock(session, role, model, event.Timestamp, block.Text, false, event.ID)
 		case "reasoning", "thinking", "thought":
-			appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)
+			// Thinking content may be in the "thinking" field or "text" field depending on the format
+			thinkingText := block.Thinking
+			if thinkingText == "" {
+				thinkingText = block.Text
+			}
+			appendTextBlock(session, role, model, event.Timestamp, thinkingText, true, event.ID)
 		case "tool_use":
 			tool := &fdToolCall{
 				ID:         block.ID,

@@ -4167,3 +4167,407 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:38Z)**_
    383→
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:56Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I can see what's happening. Looking at the code:
+
+1. In `buildAgentTextMessage` (lines 176-194), reasoning/thinking blocks ARE being converted with `Type: "thinking"` when `block.IsReasoning` is true.
+
+2. But looking at the parser again (lines 207-208 from earlier):
+```go
+case "reasoning", "thinking", "thought":
+    appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)
+```
+
+The issue is that in `3.json`, the thinking content is in the `"thinking"` field, NOT in the `"text"` field. Let me look at the raw JSON again:
+
+```json
+{
+  "content": [
+    {
+      "signature": "...",
+      "thinking": "The user is asking me to:\n1. Tell them all the tools...",
+      "type": "thinking"
+    },
+    {
+      "text": "I have access to the following tools:...",
+      "type": "text"
+    },
+    ...
+  ]
+}
+```
+
+So for thinking blocks, the content is in the `thinking` field, not the `text` field. But in `appendTextBlock`, we're passing `block.Text`:
+
+```go
+case "reasoning", "thinking", "thought":
+    appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)
+```
+
+The `block.Text` is coming from `contentPayload.Text`, but for thinking blocks, the content is in `contentPayload.Thinking` (or something like that)... wait, let me check the type definition again.
+
+Looking at parser.go:
+```go
+type contentPayload struct {
+    Type            string          `json:"type"`
+    Text            string          `json:"text"`
+    ID              string          `json:"id"`
+    Name            string          `json:"name"`
+    Input           json.RawMessage `json:"input"`
+    ToolUseID       string          `json:"tool_use_id"`
+    Content         json.RawMessage `json:"content"`
+    IsError         bool            `json:"is_error"`
+    RiskLevel       string          `json:"riskLevel"`
+    RiskLevelReason string          `json:"riskLevelReason"`
+}
+```
+
+The struct is missing a `Thinking` field entirely. The JSON contains `"thinking": "..."` but there's no corresponding field to unmarshal it into, so the thinking content gets dropped completely during parsing.
+
+I need to add a `Thinking` field to `contentPayload` and integrate it into the thinking block handling logic.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:56:57Z)**_
+
+I see the problem. Looking at `3.json`, the thinking content is in a field called `"thinking"`:
+
+```json
+{
+  "thinking": "The user is asking me to:\n1. Tell them all the tools...",
+  "type": "thinking"
+}
+```
+
+But in `parser.go`, the `contentPayload` struct only has a `Text` field, not a `Thinking` field. So the thinking content is never being captured.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:01Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/parser.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:04Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to update the handling of thinking blocks to use the `Thinking` field instead of (or in addition to) the `Text` field. Let me find the case handling for thinking blocks.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:05Z)**_
+
+Now I need to update the case handling for thinking blocks to use the `Thinking` field instead of `Text`.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:06Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/parser.go`
+```
+   200→		role = "agent"
+   201→	}
+   202→	model := strings.TrimSpace(event.Message.Model)
+   203→
+   204→	for _, block := range event.Message.Content {
+   205→		switch block.Type {
+   206→		case "text":
+   207→			appendTextBlock(session, role, model, event.Timestamp, block.Text, false, event.ID)
+   208→		case "reasoning", "thinking", "thought":
+   209→			appendTextBlock(session, role, model, event.Timestamp, block.Text, true, event.ID)
+   210→		case "tool_use":
+   211→			tool := &fdToolCall{
+   212→				ID:         block.ID,
+   213→				Name:       block.Name,
+   214→				Input:      block.Input,
+   215→				RiskLevel:  block.RiskLevel,
+   216→				RiskReason: block.RiskLevelReason,
+   217→				InvokedAt:  event.Timestamp,
+   218→			}
+   219→			session.Blocks = append(session.Blocks, fdBlock{
+   220→				Kind:      blockTool,
+   221→				Role:      role,
+   222→				MessageID: strings.TrimSpace(event.ID),
+   223→				Timestamp: event.Timestamp,
+   224→				Model:     model,
+   225→				Tool:      tool,
+   226→			})
+   227→			if tool.ID != "" {
+   228→				toolIndex[tool.ID] = tool
+   229→			}
+   230→		case "tool_result":
+   231→			result := &fdToolResult{
+   232→				Content: decodeContent(block.Content),
+   233→				IsError: block.IsError,
+   234→			}
+   235→			if ref := toolIndex[block.ToolUseID]; ref != nil {
+   236→				ref.Result = result
+   237→			} else {
+   238→				session.Blocks = append(session.Blocks, fdBlock{
+   239→					Kind:      blockTool,
+   240→					Role:      role,
+   241→					MessageID: strings.TrimSpace(event.ID),
+   242→					Timestamp: event.Timestamp,
+   243→					Model:     model,
+   244→					Tool: &fdToolCall{
+   245→						ID:        block.ToolUseID,
+   246→						Name:      "tool_result",
+   247→						Result:    result,
+   248→						InvokedAt: event.Timestamp,
+   249→					},
+   250→				})
+   251→			}
+   252→		}
+   253→	}
+   254→}
+   255→
+   256→func appendTextBlock(session *fdSession, role, model, timestamp, rawText string, reasoning bool, messageID string) {
+   257→	text := strings.TrimSpace(rawText)
+   258→	if text == "" {
+   259→		return
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:10Z)**_
+
+<think><details><summary>Thought Process</summary>
+I can see that on line 208-209, for thinking blocks, it's passing `block.Text` which is empty for thinking blocks (since the content is in `block.Thinking`). I need to modify this to use `block.Thinking` instead, or use a fallback logic.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:11Z)**_
+
+Now I can see the issue clearly. On line 209, for thinking blocks, it's passing `block.Text` but the content is in `block.Thinking`. I need to fix this.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:14Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/parser.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:17Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the linter and tests to make sure everything is working correctly.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:18Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests for droidcli package
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test -v ./pkg/providers/droidcli/...`
+```
+0 issues.
+=== RUN   TestGenerateAgentSession_BasicFlow
+--- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
+=== RUN   TestGenerateAgentSession
+=== RUN   TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/uses_session_workspace_root_over_parameter
+=== RUN   TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none
+=== RUN   TestGenerateAgentSession/returns_error_for_empty_session
+=== RUN   TestGenerateAgentSession/returns_error_for_nil_session
+=== RUN   TestGenerateAgentSession/propagates_message_IDs_to_output
+=== RUN   TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange
+--- PASS: TestGenerateAgentSession (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_session_workspace_root_over_parameter (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_empty_session (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_nil_session (0.00s)
+    --- PASS: TestGenerateAgentSession/propagates_message_IDs_to_output (0.00s)
+    --- PASS: TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange (0.00s)
+=== RUN   TestEnsureResumeArgs
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_not_present
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_nil
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_empty
+=== RUN   TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value
+=== RUN   TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value
+--- PASS: TestEnsureResumeArgs (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_not_present (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_nil (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value (0.00s)
+=== RUN   TestFormatToolCall
+=== RUN   TestFormatToolCall/Execute_with_command_and_workdir
+=== RUN   TestFormatToolCall/TodoWrite_with_array_format
+=== RUN   TestFormatToolCall/TodoWrite_with_string_format
+=== RUN   TestFormatToolCall/WebSearch_with_query_and_options
+=== RUN   TestFormatToolCall/Grep_with_pattern_and_glob
+=== RUN   TestFormatToolCall/Write_with_file_path_and_content
+=== RUN   TestFormatToolCall/Read_with_file_path
+=== RUN   TestFormatToolCall/Edit_with_old_and_new_text
+--- PASS: TestFormatToolCall (0.00s)
+    --- PASS: TestFormatToolCall/Execute_with_command_and_workdir (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_array_format (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_string_format (0.00s)
+    --- PASS: TestFormatToolCall/WebSearch_with_query_and_options (0.00s)
+    --- PASS: TestFormatToolCall/Grep_with_pattern_and_glob (0.00s)
+    --- PASS: TestFormatToolCall/Write_with_file_path_and_content (0.00s)
+    --- PASS: TestFormatToolCall/Read_with_file_path (0.00s)
+    --- PASS: TestFormatToolCall/Edit_with_old_and_new_text (0.00s)
+=== RUN   TestToolTypeMappings
+=== RUN   TestToolTypeMappings/Execute
+=== RUN   TestToolTypeMappings/run
+=== RUN   TestToolTypeMappings/Bash
+=== RUN   TestToolTypeMappings/Read
+=== RUN   TestToolTypeMappings/cat
+=== RUN   TestToolTypeMappings/WebSearch
+=== RUN   TestToolTypeMappings/Grep
+=== RUN   TestToolTypeMappings/glob
+=== RUN   TestToolTypeMappings/Write
+=== RUN   TestToolTypeMappings/Edit
+=== RUN   TestToolTypeMappings/MultiEdit
+=== RUN   TestToolTypeMappings/ApplyPatch
+=== RUN   TestToolTypeMappings/TodoWrite
+=== RUN   TestToolTypeMappings/UnknownTool
+--- PASS: TestToolTypeMappings (0.00s)
+    --- PASS: TestToolTypeMappings/Execute (0.00s)
+    --- PASS: TestToolTypeMappings/run (0.00s)
+    --- PASS: TestToolTypeMappings/Bash (0.00s)
+    --- PASS: TestToolTypeMappings/Read (0.00s)
+    --- PASS: TestToolTypeMappings/cat (0.00s)
+    --- PASS: TestToolTypeMappings/WebSearch (0.00s)
+    --- PASS: TestToolTypeMappings/Grep (0.00s)
+    --- PASS: TestToolTypeMappings/glob (0.00s)
+    --- PASS: TestToolTypeMappings/Write (0.00s)
+    --- PASS: TestToolTypeMappings/Edit (0.00s)
+    --- PASS: TestToolTypeMappings/MultiEdit (0.00s)
+    --- PASS: TestToolTypeMappings/ApplyPatch (0.00s)
+    --- PASS: TestToolTypeMappings/TodoWrite (0.00s)
+    --- PASS: TestToolTypeMappings/UnknownTool (0.00s)
+=== RUN   TestParseFactorySession
+=== RUN   TestParseFactorySession/parses_complete_session_with_all_block_types
+=== RUN   TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content
+=== RUN   TestParseFactorySession/handles_reasoning_blocks
+=== RUN   TestParseFactorySession/handles_compaction/summary_events
+=== RUN   TestParseFactorySession/skips_malformed_JSON_lines_gracefully
+=== RUN   TestParseFactorySession/handles_empty_todo_list_gracefully
+--- PASS: TestParseFactorySession (0.00s)
+    --- PASS: TestParseFactorySession/parses_complete_session_with_all_block_types (0.00s)
+    --- PASS: TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content (0.00s)
+    --- PASS: TestParseFactorySession/handles_reasoning_blocks (0.00s)
+    --- PASS: TestParseFactorySession/handles_compaction/summary_events (0.00s)
+    --- PASS: TestParseFactorySession/skips_malformed_JSON_lines_gracefully (0.00s)
+    --- PASS: TestParseFactorySession/handles_empty_todo_list_gracefully (0.00s)
+=== RUN   TestSessionMentionsProject
+=== RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
+=== RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
+=== RUN   TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present
+=== RUN   TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project
+=== RUN   TestSessionMentionsProject/returns_true_when_workspace_root_matches_project
+=== RUN   TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text
+=== RUN   TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text
+--- PASS: TestSessionMentionsProject (0.05s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_session_cwd_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project (0.01s)
+    --- PASS: TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_workspace_root_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text (0.01s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.257s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:25Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Let me also run the full test suite to make sure I haven't broken anything else.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:25Z)**_
+
+Let me also run the full test suite to ensure nothing else is broken.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all tests
+
+`go test ./... 2>&1 | tail -30`
+```
+ok  	github.com/specstoryai/getspecstory/specstory-cli	0.205s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.914s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/log	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	6.032s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli	0.907s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.392s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	1.010s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.967s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:36Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Let me also build to make sure everything compiles.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:37Z)**_
+
+All tests pass. Let me build to confirm everything compiles.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build specstory binary
+
+`go build -o specstory`
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:46Z)**_
+
+<think><details><summary>Thought Process</summary>
+Good. Now let me summarize the three fixes I made:
+
+1. **--debug-raw fix**: Modified `writeFactoryDebugRaw` in `provider.go` to split JSONL into individual numbered JSON files instead of writing a single JSONL file.
+
+2. **LS tool formatting fix**: Added `directory_path` to the list of keys checked in `renderListInput` in `markdown_tools.go`.
+
+3. **Thinking content fix**: 
+   - Added `Thinking` field to `contentPayload` struct in `parser.go`
+   - Modified the handling of thinking blocks to use `block.Thinking` (with fallback to `block.Text`)
+
+All fixes are now complete and tested.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 17:57:50Z)**_
+
+All three fixes are complete:
+
+1. **--debug-raw**: Modified `writeFactoryDebugRaw` to split JSONL into individual numbered JSON files (`1.json`, `2.json`, etc.) instead of writing a single `session.jsonl` file.
+
+2. **LS tool formatting**: Added `directory_path` to the list of keys in `renderListInput`, so it now renders as `Path: \`...\`` instead of JSON.
+
+3. **Thinking content**: 
+   - Added `Thinking string` field to `contentPayload` struct in `parser.go`
+   - Modified the thinking block handler to use `block.Thinking` (with fallback to `block.Text` for backwards compatibility)
+
+Now when the Droid Factory provider encounters thinking blocks like the one in `3.json`, it will properly extract the content from the `"thinking"` field and include it in the SessionData with `Type: "thinking"`, which the markdown renderer will format with `<think>` tags.
