@@ -162,6 +162,8 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	return nil
 }
 
+// WatchAgent monitors agent chat sessions for the given project and invokes
+// sessionCallback for each new or updated session until ctx is canceled.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if sessionCallback == nil {
 		return fmt.Errorf("session callback is required")
