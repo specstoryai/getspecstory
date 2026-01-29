@@ -347,24 +347,25 @@ func TestRenderAskUserInput(t *testing.T) {
 }
 
 func TestToolTypeMappings(t *testing.T) {
+	// Test the 14 actual Droid tools
 	tests := []struct {
 		toolName     string
 		expectedType string
 	}{
-		{"Execute", "shell"},
-		{"run", "shell"},
-		{"Bash", "shell"},
 		{"Read", "read"},
-		{"cat", "read"},
-		{"WebSearch", "search"},
-		{"Grep", "search"},
-		{"glob", "search"},
-		{"Write", "write"},
+		{"LS", "search"},
+		{"Execute", "shell"},
 		{"Edit", "write"},
-		{"MultiEdit", "write"},
-		{"ApplyPatch", "write"},
+		{"Grep", "search"},
+		{"Glob", "search"},
+		{"Create", "write"},
+		{"ExitSpecMode", "generic"},
+		{"AskUser", "generic"},
+		{"WebSearch", "search"},
 		{"TodoWrite", "task"},
-		{"UnknownTool", "generic"},
+		{"FetchUrl", "read"},
+		{"GenerateDroid", "generic"},
+		{"Skill", "generic"},
 	}
 
 	for _, tt := range tests {

@@ -5834,3 +5834,450 @@ All tests pass. Added tests for:
 - `TestParseAskUserAnswers` - tests extraction of answers from the result format
 - `TestRenderAskUserInput` - integration tests for the full rendering with questions, options, and answers
 - Added an `AskUser` case to `TestFormatToolCall` for end-to-end testing
+
+---
+
+_**User (2026-01-29 23:20:45Z)**_
+
+FetchUrl tool is being tool typed as "search". This is wrong, it is of type "read".
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:20:51Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is pointing out that FetchUrl should be categorized as "read" type, not "search" type. Let me find where this is defined in the toolType function and fix it.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:20:52Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/providers/droidcli` pattern `func toolType`
+```
+pkg/providers/droidcli/markdown_tools.go:643:func toolType(name string) string {
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go-644-	switch normalizeToolName(name) {
+pkg/providers/droidcli/markdown_tools.go-645-	case "execute", "run", "bash", "shell", "command", "exec":
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go-646-		return "shell"
+pkg/providers/droidcli/markdown_tools.go-647-	case "read", "cat", "readfile", "view", "viewimage":
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go-648-		return "read"
+pkg/providers/droidcli/markdown_tools.go-649-	case "ls", "list", "listdir", "listdirectory", "glob", "grep", "rg", "ripgrep", "search", "websearch", "googlewebsearch", "webfetch", "fetch", "fetchurl":
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go-650-		return "search"
+pkg/providers/droidcli/markdown_tools.go-651-	case "applypatch", "write", "create", "writefile", "createfile", "addfile", "edit", "multiedit", "replace", "strreplace", "applyedit":
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go-652-		return "write"
+pkg/providers/droidcli/markdown_tools.go-653-	case "todowrite", "todostate", "todoupdate":
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:20:57Z)**_
+
+<think><details><summary>Thought Process</summary>
+I can see on line 649 that `webfetch`, `fetch`, and `fetchurl` are grouped with the search tools. I need to move them to the read case instead.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:20:59Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:04Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I should also update the test for toolType mappings to reflect this change.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:04Z)**_
+
+Let me also update the test to reflect this change.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:05Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/providers/droidcli/markdown_tools_test.go` pattern `TestToolTypeMappings`
+```
+349:func TestToolTypeMappings(t *testing.T) {
+350-	tests := []struct {
+351-		toolName     string
+352-		expectedType string
+353-	}{
+354-		{"Execute", "shell"},
+355-		{"run", "shell"},
+356-		{"Bash", "shell"},
+357-		{"Read", "read"},
+358-		{"cat", "read"},
+359-		{"WebSearch", "search"},
+360-		{"Grep", "search"},
+361-		{"glob", "search"},
+362-		{"Write", "write"},
+363-		{"Edit", "write"},
+364-		{"MultiEdit", "write"},
+365-		{"ApplyPatch", "write"},
+366-		{"TodoWrite", "task"},
+367-		{"UnknownTool", "generic"},
+368-	}
+369-
+370-	for _, tt := range tests {
+371-		t.Run(tt.toolName, func(t *testing.T) {
+372-			got := toolType(tt.toolName)
+373-			if got != tt.expectedType {
+374-				t.Errorf("toolType(%q) = %q, want %q", tt.toolName, got, tt.expectedType)
+375-			}
+376-		})
+377-	}
+378-}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:09Z)**_
+
+<think><details><summary>Thought Process</summary>
+I should add a test case for FetchUrl to verify it returns "read".
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:12Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:15Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the linter and tests to make sure everything passes.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.297s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:23Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Fixed the FetchUrl tool type from "search" to "read".
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:21:24Z)**_
+
+Fixed. Moved `webfetch`, `fetch`, and `fetchurl` from the "search" type to "read" type, and added test cases for `FetchUrl` and `webfetch`.
+
+---
+
+_**User (2026-01-29 23:22:23Z)**_
+
+Why do we have all those tooltypes in markdown_tools / test? These are the 14 Droid actually has:
+
+1. Read
+2. LS
+3. Execute
+4. Edit
+5. Grep
+6. Glob
+7. Create
+8. ExitSpecMode
+9. AskUser
+10. WebSearch
+11. TodoWrite
+12. FetchUrl
+13. GenerateDroid
+14. Skill
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:34Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is asking why we have tool types in markdown_tools.go that don't match the actual 14 tools that Droid has. Looking at the `toolType` function, it has mappings for tools like:
+- "cat", "readfile", "view", "viewimage" - which aren't Droid tools
+- "run", "bash", "shell", "command", "exec" - Droid uses "Execute"
+- "rg", "ripgrep", "search" - Droid uses "Grep"
+- "listdir", "listdirectory" - Droid uses "LS"
+- "writefile", "createfile", "addfile" - Droid uses "Create"
+- "multiedit", "replace", "strreplace", "applyedit", "applypatch" - Droid uses "Edit"
+- "todostate", "todoupdate" - Droid uses "TodoWrite"
+- "googlewebsearch" - Droid uses "WebSearch"
+- "webfetch", "fetch" - Droid uses "FetchUrl"
+
+The user is right - these extra aliases are probably leftover from copying Claude Code's implementation or being overly defensive. We should simplify to just the actual Droid tool names.
+
+Let me also check what types we're missing:
+- ExitSpecMode - not in toolType, will return "generic"
+- GenerateDroid - not in toolType, will return "generic"
+- Skill - not in toolType, will return "generic"
+
+These might be fine as "generic" or we might want to add specific types for them.
+
+Let me clean this up to focus on the actual Droid tools.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:35Z)**_
+
+You're right. The extra tool names are likely copied from Claude Code's implementation. Let me simplify `toolType` to match Droid's actual 14 tools.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:36Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+   640→	}
+   641→}
+   642→
+   643→func toolType(name string) string {
+   644→	switch normalizeToolName(name) {
+   645→	case "execute", "run", "bash", "shell", "command", "exec":
+   646→		return "shell"
+   647→	case "read", "cat", "readfile", "view", "viewimage", "webfetch", "fetch", "fetchurl":
+   648→		return "read"
+   649→	case "ls", "list", "listdir", "listdirectory", "glob", "grep", "rg", "ripgrep", "search", "websearch", "googlewebsearch":
+   650→		return "search"
+   651→	case "applypatch", "write", "create", "writefile", "createfile", "addfile", "edit", "multiedit", "replace", "strreplace", "applyedit":
+   652→		return "write"
+   653→	case "todowrite", "todostate", "todoupdate":
+   654→		return "task"
+   655→	default:
+   656→		return "generic"
+   657→	}
+   658→}
+   659→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:41Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me simplify this to just the 14 Droid tools:
+
+1. Read - type "read"
+2. LS - type "search"
+3. Execute - type "shell"
+4. Edit - type "write"
+5. Grep - type "search"
+6. Glob - type "search"
+7. Create - type "write"
+8. ExitSpecMode - type "generic" (or maybe something specific?)
+9. AskUser - type "generic"
+10. WebSearch - type "search"
+11. TodoWrite - type "task"
+12. FetchUrl - type "read"
+13. GenerateDroid - type "generic"
+14. Skill - type "generic"
+
+Let me update the function and tests.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:46Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:51Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to update the tests to match the simplified tool types. Let me also simplify the tests to only test the actual Droid tools.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:51Z)**_
+
+Now let me update the tests to match.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:56Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:22:59Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the linter and tests to make sure everything passes.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:23:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.256s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:23:08Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Cleaned up to only use the actual 14 Droid tools.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:23:09Z)**_
+
+Done. Simplified `toolType` to only handle the actual 14 Droid tools:
+
+- **shell**: Execute
+- **read**: Read, FetchUrl
+- **search**: LS, Glob, Grep, WebSearch
+- **write**: Edit, Create
+- **task**: TodoWrite
+- **generic**: ExitSpecMode, AskUser, GenerateDroid, Skill
+
+---
+
+_**User (2026-01-29 23:26:40Z)**_
+
+The output on line 398 of the Edit tool isn't good. The data for it is here: /Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/22.json
+
+We need something better, can we convert the data provided into standard diff formatting (as usually shown in MD files)?
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:45Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me look at the current output and the raw data to understand what we're working with.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:46Z)**_
+
+Let me look at the data and the current output.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:46Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/22.json`
+```
+     1→{
+     2→  "id": "2fb2cf86-c2ba-4fb0-bee8-476dfd7547bd",
+     3→  "message": {
+     4→    "content": [
+     5→      {
+     6→        "signature": "EvMBCkYICxgCKkC3Xp0Wp40MwoatCWdMlspg3RsHJh/Q4Z43UoCW9nP7GrO8loDzQ6Ig5Fbwmi52h3CAQFwgP5YQQpWBWhKyZUqpEgwcMwI/FBmbO2S/VEkaDJSFMWk7r+1mRDpJgSIwZkEcxgBxYK0ZCkQ/WwWLpLMQgpZSrYKJ0kyDGFhNjiUByh+Xlb2+I82hXs/KZnZhKlt2A6LjmTHh660y3q/+zDshoX0AshgR9yfjumhMQ+G8MLPT1Ll0iugs7oi2d63RsDfS/LhMKsrgFo5lXw/IqTezmEQtq8DcAppCwbye1yRq0vhRlrfaIgNqLpWvGAE=",
+     7→        "thinking": "Perfect! Create tool demonstrated. Now let me edit the file I just created.",
+     8→        "type": "thinking"
+     9→      },
+    10→      {
+    11→        "text": "**5. Create** ✓ - Created a new file called demo.txt with multiple lines of content.",
+    12→        "type": "text"
+    13→      },
+    14→      {
+    15→        "id": "toolu_01Eh5qfXS8NPjxf2qqCP8ZSN",
+    16→        "input": {
+    17→          "todos": "1. [completed] TodoWrite - Create and manage todo list\n2. [completed] Read - Read file contents\n3. [completed] LS - List directory contents\n4. [completed] Execute - Run shell command\n5. [completed] Create - Create a new file\n6. [in_progress] Edit - Modify existing file\n7. [pending] Grep - Search file contents\n8. [pending] Glob - Find files by pattern\n9. [pending] WebSearch - Search the web\n10. [pending] FetchUrl - Fetch URL content\n11. [pending] AskUser - Ask multiple choice questions\n12. [pending] GenerateDroid - Generate droid config\n13. [pending] Skill - Execute specialized skill\n14. [pending] ExitSpecMode - Show spec mode tool (special case)"
+    18→        },
+    19→        "name": "TodoWrite",
+    20→        "type": "tool_use"
+    21→      },
+    22→      {
+    23→        "id": "toolu_01RpYwx43YhYmb4xJtYQdzyb",
+    24→        "input": {
+    25→          "file_path": "/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/demo.txt",
+    26→          "new_str": "Line 3 has been edited by the Edit tool!",
+    27→          "old_str": "Line 3 will be edited soon!"
+    28→        },
+    29→        "name": "Edit",
+    30→        "type": "tool_use"
+    31→      }
+    32→    ],
+    33→    "role": "assistant"
+    34→  },
+    35→  "parentId": "15368c9c-4ade-439a-9df2-21e6c632e54e",
+    36→  "timestamp": "2026-01-29T17:32:09.839Z",
+    37→  "type": "message"
+    38→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:48Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+   305→
+   306→
+   307→[Process exited with code 0]
+   308→```
+   309→</details></tool-use>
+   310→
+   311→_**Agent (2026-01-29 17:32:04Z)**_
+   312→
+   313→<think><details><summary>Thought Process</summary>
+   314→Great! Execute demonstrated. Now let me create a new file to demonstrate Create, then I can edit it.
+   315→</details></think>
+   316→
+   317→_**Agent (2026-01-29 17:32:04Z)**_
+   318→
+   319→**4. Execute** ✓ - Ran a shell command that echoed a message with today's date (2026-01-29).
+   320→
+   321→_**Agent (2026-01-29 17:32:04Z)**_
+   322→
+   323→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   324→<summary>Tool use: **TodoWrite**</summary>
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:52Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me see the actual Edit tool output at line 398.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:26:54Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+   395→<summary>Tool use: **Edit**</summary>
+   396→Path: `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/demo.txt`
+   397→
+   398→Output: {"diffLines":[{"type":"unchanged","content":"This is a demo file created by the Create tool.","lineNumber":{"old":1,"new":1}},{"type":"unchanged","content":"It has multiple lines.","lineNumber":{"old":2,"new":2}},{"type":"removed","content":"Line 3 will be edited soon!","lineNumber":{"old":3}},{"type":"added","content":"Line 3 has been edited by the Edit tool!","lineNumber":{"new":3}}],"content":"This is a demo file created by the Create tool.\nIt has multiple lines.\nLine 3 has been edited by the Edit tool!\n"}
+   399→</details></tool-use>
+   400→
+   401→_**Agent (2026-01-29 17:32:16Z)**_
+   402→
+   403→<think><details><summary>Thought Process</summary>
+   404→Excellent! Edit tool demonstrated - it showed the diff of what changed. Now let me demonstrate Grep by searching for content in files.
+   405→</details></think>
+   406→
+   407→_**Agent (2026-01-29 17:32:16Z)**_
+   408→
+   409→**6. Edit** ✓ - Modified line 3 of demo.txt, replacing "will be edited soon" with "has been edited by the Edit tool". The tool shows a diff of the changes.
+   410→
+   411→_**Agent (2026-01-29 17:32:16Z)**_
+   412→
+   413→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   414→<summary>Tool use: **TodoWrite**</summary>
+   415→Todo List:
+   416→1. [completed] TodoWrite - Create and manage todo list
+   417→2. [completed] Read - Read file contents
+   418→3. [completed] LS - List directory contents
+   419→4. [completed] Execute - Run shell command
+```
+</details></tool-use>

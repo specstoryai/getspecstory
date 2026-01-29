@@ -640,19 +640,23 @@ func todoSymbol(status string) string {
 	}
 }
 
+// toolType returns the tool category for a Droid tool.
+// Droid has 14 tools: Read, LS, Execute, Edit, Grep, Glob, Create,
+// ExitSpecMode, AskUser, WebSearch, TodoWrite, FetchUrl, GenerateDroid, Skill
 func toolType(name string) string {
 	switch normalizeToolName(name) {
-	case "execute", "run", "bash", "shell", "command", "exec":
+	case "execute":
 		return "shell"
-	case "read", "cat", "readfile", "view", "viewimage":
+	case "read", "fetchurl":
 		return "read"
-	case "ls", "list", "listdir", "listdirectory", "glob", "grep", "rg", "ripgrep", "search", "websearch", "googlewebsearch", "webfetch", "fetch", "fetchurl":
+	case "ls", "glob", "grep", "websearch":
 		return "search"
-	case "applypatch", "write", "create", "writefile", "createfile", "addfile", "edit", "multiedit", "replace", "strreplace", "applyedit":
+	case "edit", "create":
 		return "write"
-	case "todowrite", "todostate", "todoupdate":
+	case "todowrite":
 		return "task"
 	default:
+		// ExitSpecMode, AskUser, GenerateDroid, Skill are generic
 		return "generic"
 	}
 }
