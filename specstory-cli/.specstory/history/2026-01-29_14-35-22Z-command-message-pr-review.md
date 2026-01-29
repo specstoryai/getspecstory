@@ -6980,3 +6980,2639 @@ All tests pass and the linter is clean. Here's a summary of the table-driven tes
 **Benefits:**
 - Clear separation between integration test and unit scenarios
 - Easy to add new edge cases
+
+---
+
+_**User (2026-01-29 15:46:34Z)**_
+
+Consider this cleanup:   2. Consider DRY Refactoring for Render Functions
+
+  renderReadInput, renderListInput, renderGlobInput have similar patterns. Consider whether renderFields() could be extended to handle more cases, reducing code duplication.
+
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:46:40Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants me to look at the render functions in markdown_tools.go and see if we can use `renderFields()` more consistently to reduce code duplication. Let me look at the current implementations.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:46:41Z)**_
+
+Let me examine the render functions to see how we can consolidate them using `renderFields()`.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:46:41Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"fmt"
+     6→	"path/filepath"
+     7→	"sort"
+     8→	"strconv"
+     9→	"strings"
+    10→)
+    11→
+    12→func formatToolCall(tool *fdToolCall) string {
+    13→	if tool == nil {
+    14→		return ""
+    15→	}
+    16→	body := strings.TrimSpace(formatToolInput(tool))
+    17→	result := strings.TrimSpace(formatToolOutput(tool))
+    18→
+    19→	var builder []string
+    20→	if body != "" {
+    21→		builder = append(builder, body)
+    22→	}
+    23→	if result != "" {
+    24→		builder = append(builder, result)
+    25→	}
+    26→	return strings.TrimSpace(strings.Join(builder, "\n\n"))
+    27→}
+    28→
+    29→func formatToolInput(tool *fdToolCall) string {
+    30→	args := decodeInput(tool.Input)
+    31→	switch normalizeToolName(tool.Name) {
+    32→	case "execute", "run", "bash", "shell", "command", "exec":
+    33→		return formatExecuteInput(args)
+    34→	case "read", "cat", "readfile", "view", "viewimage":
+    35→		return renderReadInput(args)
+    36→	case "ls", "list", "listdir", "listdirectory":
+    37→		return renderListInput(args)
+    38→	case "glob":
+    39→		return renderGlobInput(args)
+    40→	case "grep", "rg", "ripgrep", "search", "filesearch":
+    41→		return renderGrepInput(args)
+    42→	case "websearch", "searchweb", "googlewebsearch":
+    43→		return renderWebSearchInput(args)
+    44→	case "fetchurl", "fetch", "webfetch":
+    45→		return renderWebFetchInput(args)
+    46→	case "applypatch":
+    47→		return renderApplyPatch(args)
+    48→	case "write", "create", "writefile", "createfile", "addfile":
+    49→		return renderWriteInput(args)
+    50→	case "edit", "multiedit", "replace", "strreplace", "applyedit":
+    51→		return renderEditInput(args)
+    52→	case "todowrite":
+    53→		return renderTodoWrite(args)
+    54→	default:
+    55→		return renderGenericJSON(args)
+    56→	}
+    57→}
+    58→
+    59→func formatToolOutput(tool *fdToolCall) string {
+    60→	if tool.Result == nil {
+    61→		return ""
+    62→	}
+    63→	content := strings.TrimSpace(tool.Result.Content)
+    64→	if content == "" {
+    65→		return ""
+    66→	}
+    67→	label := "Output"
+    68→	if tool.Result.IsError {
+    69→		label = "Output (error)"
+    70→	}
+    71→	if strings.Contains(content, "\n") {
+    72→		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
+    73→	}
+    74→	return fmt.Sprintf("%s: %s", label, content)
+    75→}
+    76→
+    77→func decodeInput(raw json.RawMessage) map[string]any {
+    78→	if len(raw) == 0 {
+    79→		return map[string]any{}
+    80→	}
+    81→	var payload map[string]any
+    82→	if err := json.Unmarshal(raw, &payload); err != nil {
+    83→		return map[string]any{"raw": string(raw)}
+    84→	}
+    85→	return payload
+    86→}
+    87→
+    88→func formatExecuteInput(args map[string]any) string {
+    89→	command := stringValue(args, "command", "cmd")
+    90→	workdir := stringValue(args, "workdir", "dir", "cwd")
+    91→	if command == "" && workdir == "" {
+    92→		return ""
+    93→	}
+    94→	var builder strings.Builder
+    95→	if workdir != "" {
+    96→		fmt.Fprintf(&builder, "Directory: `%s`\n\n", workdir)
+    97→	}
+    98→	if command != "" {
+    99→		fmt.Fprintf(&builder, "`%s`", command)
+   100→	}
+   101→	return builder.String()
+   102→}
+   103→
+   104→func normalizeToolName(name string) string {
+   105→	cleaned := strings.ToLower(strings.TrimSpace(name))
+   106→	cleaned = strings.ReplaceAll(cleaned, " ", "")
+   107→	cleaned = strings.ReplaceAll(cleaned, "-", "")
+   108→	cleaned = strings.ReplaceAll(cleaned, "_", "")
+   109→	return cleaned
+   110→}
+   111→
+   112→// fieldSpec describes how to extract and format a single field from tool input.
+   113→type fieldSpec struct {
+   114→	keys    []string // Keys to try for extraction (first match wins)
+   115→	label   string   // Display label (e.g., "Path", "Query")
+   116→	isSlice bool     // If true, extract as slice and format with formatQuotedList
+   117→}
+   118→
+   119→// renderFields extracts values from args using specs and formats them as labeled lines.
+   120→// Falls back to renderGenericJSON if no fields are found.
+   121→func renderFields(args map[string]any, specs []fieldSpec) string {
+   122→	var parts []string
+   123→	for _, spec := range specs {
+   124→		if spec.isSlice {
+   125→			values := stringSliceValue(args, spec.keys...)
+   126→			if len(values) > 0 {
+   127→				parts = append(parts, fmt.Sprintf("%s: %s", spec.label, formatQuotedList(values)))
+   128→			}
+   129→		} else {
+   130→			value := stringValue(args, spec.keys...)
+   131→			if value != "" {
+   132→				parts = append(parts, fmt.Sprintf("%s: `%s`", spec.label, value))
+   133→			}
+   134→		}
+   135→	}
+   136→	if len(parts) == 0 {
+   137→		return renderGenericJSON(args)
+   138→	}
+   139→	return strings.Join(parts, "\n")
+   140→}
+   141→
+   142→func renderReadInput(args map[string]any) string {
+   143→	path := stringValue(args, "file_path", "path", "file", "filePath")
+   144→	if path == "" {
+   145→		paths := stringSliceValue(args, "file_paths", "paths")
+   146→		if len(paths) > 0 {
+   147→			path = strings.Join(paths, ", ")
+   148→		}
+   149→	}
+   150→	if path == "" {
+   151→		return renderGenericJSON(args)
+   152→	}
+   153→	var builder strings.Builder
+   154→	fmt.Fprintf(&builder, "Path: `%s`", path)
+   155→	offset := stringValue(args, "offset", "start")
+   156→	limit := stringValue(args, "limit", "lines", "max_lines")
+   157→	if offset != "" || limit != "" {
+   158→		if offset == "" {
+   159→			offset = "0"
+   160→		}
+   161→		if limit == "" {
+   162→			limit = "?"
+   163→		}
+   164→		fmt.Fprintf(&builder, "\nLines: offset %s, limit %s", offset, limit)
+   165→	}
+   166→	return builder.String()
+   167→}
+   168→
+   169→func renderListInput(args map[string]any) string {
+   170→	return renderFields(args, []fieldSpec{
+   171→		{keys: []string{"path", "dir", "directory", "target_directory"}, label: "Path"},
+   172→	})
+   173→}
+   174→
+   175→func renderGlobInput(args map[string]any) string {
+   176→	patterns := stringSliceValue(args, "patterns", "glob_patterns")
+   177→	if len(patterns) == 0 {
+   178→		if pattern := stringValue(args, "glob_pattern", "pattern", "glob"); pattern != "" {
+   179→			patterns = []string{pattern}
+   180→		}
+   181→	}
+   182→	path := stringValue(args, "path", "dir", "directory")
+   183→	var parts []string
+   184→	if len(patterns) > 0 {
+   185→		label := "Pattern"
+   186→		if len(patterns) > 1 {
+   187→			label = "Patterns"
+   188→		}
+   189→		parts = append(parts, fmt.Sprintf("%s: %s", label, formatQuotedList(patterns)))
+   190→	}
+   191→	if path != "" {
+   192→		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
+   193→	}
+   194→	if len(parts) == 0 {
+   195→		return renderGenericJSON(args)
+   196→	}
+   197→	return strings.Join(parts, "\n")
+   198→}
+   199→
+   200→func renderGrepInput(args map[string]any) string {
+   201→	return renderFields(args, []fieldSpec{
+   202→		{keys: []string{"pattern", "query", "search", "regex"}, label: "Pattern"},
+   203→		{keys: []string{"path", "dir", "directory", "cwd"}, label: "Path"},
+   204→		{keys: []string{"include", "glob", "glob_pattern"}, label: "Glob"},
+   205→	})
+   206→}
+   207→
+   208→func renderWebSearchInput(args map[string]any) string {
+   209→	return renderFields(args, []fieldSpec{
+   210→		{keys: []string{"query", "q", "search", "prompt"}, label: "Query"},
+   211→		{keys: []string{"category"}, label: "Category"},
+   212→		{keys: []string{"type"}, label: "Type"},
+   213→		{keys: []string{"numResults", "num_results", "limit"}, label: "Results"},
+   214→		{keys: []string{"includeDomains", "include_domains"}, label: "Include domains", isSlice: true},
+   215→		{keys: []string{"excludeDomains", "exclude_domains"}, label: "Exclude domains", isSlice: true},
+   216→	})
+   217→}
+   218→
+   219→func renderWebFetchInput(args map[string]any) string {
+   220→	url := stringValue(args, "url", "uri")
+   221→	prompt := stringValue(args, "prompt", "query")
+   222→	if url == "" && prompt == "" {
+   223→		return renderGenericJSON(args)
+   224→	}
+   225→	var parts []string
+   226→	if url != "" {
+   227→		parts = append(parts, fmt.Sprintf("URL: `%s`", url))
+   228→	}
+   229→	if prompt != "" {
+   230→		parts = append(parts, prompt)
+   231→	}
+   232→	return strings.Join(parts, "\n")
+   233→}
+   234→
+   235→func renderWriteInput(args map[string]any) string {
+   236→	path := stringValue(args, "file_path", "path", "file", "filePath")
+   237→	content := stringValue(args, "content", "contents", "text", "data")
+   238→	if path == "" && content == "" {
+   239→		return renderGenericJSON(args)
+   240→	}
+   241→	var builder strings.Builder
+   242→	if path != "" {
+   243→		fmt.Fprintf(&builder, "Path: `%s`", path)
+   244→	}
+   245→	if content != "" {
+   246→		if builder.Len() > 0 {
+   247→			builder.WriteString("\n\n")
+   248→		}
+   249→		builder.WriteString(formatContentBlock(content, path))
+   250→	}
+   251→	return builder.String()
+   252→}
+   253→
+   254→func renderEditInput(args map[string]any) string {
+   255→	path := stringValue(args, "file_path", "path", "file", "filePath")
+   256→	diff := renderEdits(args)
+   257→	if path == "" && diff == "" {
+   258→		return renderGenericJSON(args)
+   259→	}
+   260→	var builder strings.Builder
+   261→	if path != "" {
+   262→		fmt.Fprintf(&builder, "Path: `%s`", path)
+   263→	}
+   264→	if diff != "" {
+   265→		if builder.Len() > 0 {
+   266→			builder.WriteString("\n\n")
+   267→		}
+   268→		builder.WriteString(diff)
+   269→	}
+   270→	return builder.String()
+   271→}
+   272→
+   273→func renderEdits(args map[string]any) string {
+   274→	if diff := renderSingleEdit(args); diff != "" {
+   275→		return diff
+   276→	}
+   277→	editsRaw, ok := args["edits"].([]interface{})
+   278→	if !ok || len(editsRaw) == 0 {
+   279→		return ""
+   280→	}
+   281→	var sections []string
+   282→	for _, raw := range editsRaw {
+   283→		edit, ok := raw.(map[string]interface{})
+   284→		if !ok {
+   285→			continue
+   286→		}
+   287→		if diff := renderSingleEdit(edit); diff != "" {
+   288→			sections = append(sections, diff)
+   289→		}
+   290→	}
+   291→	return strings.Join(sections, "\n\n")
+   292→}
+   293→
+   294→func renderSingleEdit(args map[string]any) string {
+   295→	oldText := stringValue(args, "old_text", "old_string", "old")
+   296→	newText := stringValue(args, "new_text", "new_string", "new")
+   297→	if oldText == "" && newText == "" {
+   298→		return ""
+   299→	}
+   300→	return formatDiffBlock(oldText, newText)
+   301→}
+   302→
+   303→func formatDiffBlock(oldText string, newText string) string {
+   304→	var builder strings.Builder
+   305→	builder.WriteString("```diff\n")
+   306→	if oldText != "" {
+   307→		for _, line := range strings.Split(oldText, "\n") {
+   308→			builder.WriteString("-")
+   309→			builder.WriteString(line)
+   310→			builder.WriteString("\n")
+   311→		}
+   312→	}
+   313→	if newText != "" {
+   314→		for _, line := range strings.Split(newText, "\n") {
+   315→			builder.WriteString("+")
+   316→			builder.WriteString(line)
+   317→			builder.WriteString("\n")
+   318→		}
+   319→	}
+   320→	builder.WriteString("```")
+   321→	return builder.String()
+   322→}
+   323→
+   324→func renderApplyPatch(args map[string]any) string {
+   325→	patch := stringValue(args, "patch", "input")
+   326→	if patch == "" {
+   327→		return renderGenericJSON(args)
+   328→	}
+   329→	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+   330→}
+   331→
+   332→func renderTodoWrite(args map[string]any) string {
+   333→	if todoText, ok := args["todos"].(string); ok {
+   334→		trimmed := strings.TrimSpace(todoText)
+   335→		if trimmed == "" {
+   336→			return "Todo list unchanged"
+   337→		}
+   338→		if strings.HasPrefix(strings.ToLower(trimmed), "todo") {
+   339→			return trimmed
+   340→		}
+   341→		return "Todo List:\n" + trimmed
+   342→	}
+   343→	itemsRaw, ok := args["todos"].([]interface{})
+   344→	if !ok || len(itemsRaw) == 0 {
+   345→		return "Todo list unchanged"
+   346→	}
+   347→	var builder strings.Builder
+   348→	builder.WriteString("Todo List:\n")
+   349→	for _, raw := range itemsRaw {
+   350→		item, _ := raw.(map[string]interface{})
+   351→		status := strings.TrimSpace(stringValue(item, "status"))
+   352→		desc := strings.TrimSpace(stringValue(item, "description"))
+   353→		if desc == "" {
+   354→			desc = "(no description)"
+   355→		}
+   356→		fmt.Fprintf(&builder, "- [%s] %s\n", todoSymbol(status), desc)
+   357→	}
+   358→	return builder.String()
+   359→}
+   360→
+   361→func renderGenericJSON(args map[string]any) string {
+   362→	if len(args) == 0 {
+   363→		return ""
+   364→	}
+   365→	ordered := make([]string, 0, len(args))
+   366→	for key := range args {
+   367→		ordered = append(ordered, key)
+   368→	}
+   369→	sort.Strings(ordered)
+   370→	var builder strings.Builder
+   371→	builder.WriteString("```json\n{")
+   372→	for idx, key := range ordered {
+   373→		if idx > 0 {
+   374→			builder.WriteString(",")
+   375→		}
+   376→		builder.WriteString("\n  \"")
+   377→		builder.WriteString(key)
+   378→		builder.WriteString("\": ")
+   379→		builder.WriteString(renderJSONValue(args[key]))
+   380→	}
+   381→	builder.WriteString("\n}\n```")
+   382→	return builder.String()
+   383→}
+   384→
+   385→func renderJSONValue(v any) string {
+   386→	switch val := v.(type) {
+   387→	case string:
+   388→		bytes, _ := json.Marshal(val)
+   389→		return string(bytes)
+   390→	case json.Number:
+   391→		return val.String()
+   392→	case []byte:
+   393→		bytes, _ := json.Marshal(string(val))
+   394→		return string(bytes)
+   395→	default:
+   396→		bytes, err := json.Marshal(val)
+   397→		if err != nil {
+   398→			return fmt.Sprintf("\"%s\"", fmt.Sprint(val))
+   399→		}
+   400→		return string(bytes)
+   401→	}
+   402→}
+   403→
+   404→func stringValue(args map[string]any, keys ...string) string {
+   405→	for _, key := range keys {
+   406→		if val, ok := args[key]; ok {
+   407→			switch v := val.(type) {
+   408→			case string:
+   409→				return v
+   410→			case json.Number:
+   411→				return v.String()
+   412→			case fmt.Stringer:
+   413→				return v.String()
+   414→			case []byte:
+   415→				return string(v)
+   416→			case float64:
+   417→				return strconv.FormatFloat(v, 'f', -1, 64)
+   418→			case float32:
+   419→				return strconv.FormatFloat(float64(v), 'f', -1, 32)
+   420→			case int:
+   421→				return strconv.Itoa(v)
+   422→			case int64:
+   423→				return strconv.FormatInt(v, 10)
+   424→			case int32:
+   425→				return strconv.FormatInt(int64(v), 10)
+   426→			case uint:
+   427→				return strconv.FormatUint(uint64(v), 10)
+   428→			case uint64:
+   429→				return strconv.FormatUint(v, 10)
+   430→			case bool:
+   431→				return strconv.FormatBool(v)
+   432→			}
+   433→		}
+   434→	}
+   435→	return ""
+   436→}
+   437→
+   438→func stringSliceValue(args map[string]any, keys ...string) []string {
+   439→	for _, key := range keys {
+   440→		if val, ok := args[key]; ok {
+   441→			switch v := val.(type) {
+   442→			case []string:
+   443→				return filterStrings(v)
+   444→			case []interface{}:
+   445→				values := make([]string, 0, len(v))
+   446→				for _, entry := range v {
+   447→					if entry == nil {
+   448→						continue
+   449→					}
+   450→					switch item := entry.(type) {
+   451→					case string:
+   452→						if strings.TrimSpace(item) != "" {
+   453→							values = append(values, item)
+   454→						}
+   455→					default:
+   456→						values = append(values, fmt.Sprint(item))
+   457→					}
+   458→				}
+   459→				return filterStrings(values)
+   460→			case string:
+   461→				if strings.TrimSpace(v) != "" {
+   462→					return []string{v}
+   463→				}
+   464→			}
+   465→		}
+   466→	}
+   467→	return nil
+   468→}
+   469→
+   470→func filterStrings(values []string) []string {
+   471→	filtered := make([]string, 0, len(values))
+   472→	for _, value := range values {
+   473→		trimmed := strings.TrimSpace(value)
+   474→		if trimmed != "" {
+   475→			filtered = append(filtered, trimmed)
+   476→		}
+   477→	}
+   478→	return filtered
+   479→}
+   480→
+   481→func formatQuotedList(values []string) string {
+   482→	if len(values) == 0 {
+   483→		return ""
+   484→	}
+   485→	quoted := make([]string, 0, len(values))
+   486→	for _, value := range values {
+   487→		quoted = append(quoted, fmt.Sprintf("`%s`", value))
+   488→	}
+   489→	return strings.Join(quoted, ", ")
+   490→}
+   491→
+   492→func formatContentBlock(content string, path string) string {
+   493→	lang := languageFromPath(path)
+   494→	escaped := strings.ReplaceAll(content, "```", "\\```")
+   495→	if lang == "" {
+   496→		return fmt.Sprintf("```\n%s\n```", escaped)
+   497→	}
+   498→	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+   499→}
+   500→
+   501→func languageFromPath(path string) string {
+   502→	if path == "" {
+   503→		return ""
+   504→	}
+   505→	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
+   506→	if ext == "" {
+   507→		return ""
+   508→	}
+   509→	switch ext {
+   510→	case "yml":
+   511→		return "yaml"
+   512→	case "md":
+   513→		return "markdown"
+   514→	default:
+   515→		return ext
+   516→	}
+   517→}
+   518→
+   519→func todoSymbol(status string) string {
+   520→	s := strings.ToLower(status)
+   521→	switch s {
+   522→	case "completed", "done":
+   523→		return "x"
+   524→	case "in_progress", "active":
+   525→		return "⚡"
+   526→	default:
+   527→		return " "
+   528→	}
+   529→}
+   530→
+   531→func toolType(name string) string {
+   532→	switch normalizeToolName(name) {
+   533→	case "execute", "run", "bash", "shell", "command", "exec":
+   534→		return "shell"
+   535→	case "read", "cat", "readfile", "view", "viewimage":
+   536→		return "read"
+   537→	case "ls", "list", "listdir", "listdirectory", "glob", "grep", "rg", "ripgrep", "search", "websearch", "googlewebsearch", "webfetch", "fetch", "fetchurl":
+   538→		return "search"
+   539→	case "applypatch", "write", "create", "writefile", "createfile", "addfile", "edit", "multiedit", "replace", "strreplace", "applyedit":
+   540→		return "write"
+   541→	case "todowrite", "todostate", "todoupdate":
+   542→		return "task"
+   543→	default:
+   544→		return "generic"
+   545→	}
+   546→}
+   547→
+   548→func formatTodoUpdate(todo *fdTodoState) string {
+   549→	if todo == nil || len(todo.Items) == 0 {
+   550→		return ""
+   551→	}
+   552→	var builder strings.Builder
+   553→	builder.WriteString("Todo Update:\n")
+   554→	for _, item := range todo.Items {
+   555→		desc := strings.TrimSpace(item.Description)
+   556→		if desc == "" {
+   557→			desc = "(no description)"
+   558→		}
+   559→		status := strings.ToLower(strings.TrimSpace(item.Status))
+   560→		fmt.Fprintf(&builder, "- [%s] %s (%s)\n", todoSymbol(item.Status), desc, status)
+   561→	}
+   562→	return strings.TrimRight(builder.String(), "\n")
+   563→}
+   564→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:13Z)**_
+
+<think><details><summary>Thought Process</summary>
+Looking at the render functions, I can identify:
+
+1. `renderListInput` (lines 169-173) - Already uses `renderFields()` perfectly
+2. `renderGrepInput` (lines 200-206) - Already uses `renderFields()` perfectly  
+3. `renderWebSearchInput` (lines 208-217) - Already uses `renderFields()` perfectly
+
+4. `renderReadInput` (lines 142-167) - Has custom logic for:
+   - Handling both `file_path` and `file_paths` (array fallback)
+   - Adding offset/limit info with special formatting
+
+5. `renderGlobInput` (lines 175-198) - Has custom logic for:
+   - Handling both singular pattern and patterns array
+   - Dynamic "Pattern" vs "Patterns" label
+
+6. `renderWebFetchInput` (lines 219-233) - Has custom logic for:
+   - The prompt is rendered without backticks (just plain text)
+
+Looking at these, the functions that could potentially use `renderFields()` but have minor customizations:
+
+- `renderWebFetchInput` - Could use renderFields if we add a "raw" option to fieldSpec (no backticks)
+
+However, for `renderReadInput` and `renderGlobInput`, they have more complex logic:
+- `renderReadInput` has the offset/limit combination formatting
+- `renderGlobInput` has dynamic labels based on count
+
+Let me think about what extensions to `fieldSpec` would make sense:
+
+1. Add a `raw` boolean to not use backticks
+2. Add a `combineFormat` option for combining multiple fields
+
+Actually, looking more carefully:
+
+- `renderListInput` - already uses renderFields ✅
+- `renderGrepInput` - already uses renderFields ✅
+- `renderWebSearchInput` - already uses renderFields ✅
+
+The ones that don't use renderFields have good reasons:
+- `renderReadInput` - has offset/limit combo formatting
+
+
+- `renderGlobInput` - has dynamic singular/plural labels
+- `renderWebFetchInput` - prompt field is unquoted
+- `renderWriteInput` - includes content block
+- `renderEditInput` - includes diff block
+- `formatExecuteInput` - command is displayed without label, just backticks
+
+The remaining functions have specialized formatting needs that would require adding multiple options to fieldSpec. Refactoring `renderWebFetchInput` to use renderFields with a raw option would only save a couple lines, and adding a `pluralLabel` option for `renderGlobInput` introduces unnecessary complexity for marginal gains.
+
+Looking at the actual implementations, each non-renderFields function has legitimate reasons for its approach—special offset/limit handling, dynamic labels, raw text output, content blocks, or diff blocks. Rather than over-engineer the abstraction, adding explanatory comments about why these functions diverge from the pattern would be more valuable. Looking at `renderGlobInput` again, it handles patterns from multiple keys with dynamic labeling based on count, plus path extraction. I could add `dynamicLabel` and `raw` fields to fieldSpec to consolidate this, but that's adding complexity for a single use case.
+
+The pragmatic approach is accepting the current code—`renderGlobInput` is readable at ~23 lines and has specific formatting needs that don't justify expanding fieldSpec. I'll suggest to the user that the existing structure is fine, or offer a targeted refactor of `renderWebFetchInput` if they want to reduce duplication elsewhere.
+
+I notice the path key lists repeat across multiple render functions: `"file_path", "path", "file", "filePath"` appears in read, write, and edit operations, while `"path", "dir", "directory"` shows up in glob and list operations. Extracting these into constants would eliminate the repetition and make the code more maintainable.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:14Z)**_
+
+Looking at the code, I can see that:
+
+1. `renderListInput`, `renderGrepInput`, and `renderWebSearchInput` already use `renderFields()` ✅
+2. The other render functions have legitimate reasons for custom logic:
+   - `renderReadInput` - handles offset/limit combination formatting
+   - `renderGlobInput` - has dynamic "Pattern" vs "Patterns" label
+   - `renderWebFetchInput` - prompt field is rendered without backticks
+   - `renderWriteInput` - includes content code block
+   - `renderEditInput` - includes diff block
+
+The most practical DRY improvement is to consolidate the repeated path key patterns into constants. Let me do that:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:20Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:38Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me update the render functions to use these constants.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:38Z)**_
+
+Now let me update the render functions to use these constants:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:43Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:47Z)**_
+
+<think><details><summary>Thought Process</summary>
+Good, I need to continue updating the other functions to use the constants. Let me update them one by one.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:49Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:52Z)**_
+
+<think><details><summary>Thought Process</summary>
+I should use a slice literal approach instead of append since append modifies the underlying array. Let me fix this properly.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:53Z)**_
+
+Actually, using `append` on a package-level slice is problematic. Let me revert to using explicit slices but create a helper function for combining keys:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:57Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:59Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me update all the usages to use the new approach.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:04Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:07Z)**_
+
+<think><details><summary>Thought Process</summary>
+I still need to fix the renderListInput that uses dirPathKeys. Let me fix that too.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:09Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:12Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me update the remaining functions that can use these constants.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:12Z)**_
+
+Now let me update the other render functions:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:17Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:20Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me continue updating the grep function to use keysPattern, and the write/edit functions to use keysFilePath.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:23Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:26Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me update renderWriteInput and renderEditInput to use keysFilePath.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:29Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:32Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me update renderEditInput.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:35Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:39Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the tests to make sure everything still works.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:39Z)**_
+
+Let me run the tests to verify everything still works:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all droidcli tests after DRY refactoring
+
+`go test -v ./pkg/providers/droidcli/...`
+```
+=== RUN   TestGenerateAgentSession_BasicFlow
+--- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
+=== RUN   TestGenerateAgentSession
+=== RUN   TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/uses_session_workspace_root_over_parameter
+=== RUN   TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none
+=== RUN   TestGenerateAgentSession/returns_error_for_empty_session
+=== RUN   TestGenerateAgentSession/returns_error_for_nil_session
+=== RUN   TestGenerateAgentSession/propagates_message_IDs_to_output
+=== RUN   TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange
+--- PASS: TestGenerateAgentSession (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_session_workspace_root_over_parameter (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_empty_session (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_nil_session (0.00s)
+    --- PASS: TestGenerateAgentSession/propagates_message_IDs_to_output (0.00s)
+    --- PASS: TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange (0.00s)
+=== RUN   TestFormatToolCall
+=== RUN   TestFormatToolCall/Execute_with_command_and_workdir
+=== RUN   TestFormatToolCall/TodoWrite_with_array_format
+=== RUN   TestFormatToolCall/TodoWrite_with_string_format
+=== RUN   TestFormatToolCall/WebSearch_with_query_and_options
+=== RUN   TestFormatToolCall/Grep_with_pattern_and_glob
+=== RUN   TestFormatToolCall/Write_with_file_path_and_content
+=== RUN   TestFormatToolCall/Read_with_file_path
+=== RUN   TestFormatToolCall/Edit_with_old_and_new_text
+--- PASS: TestFormatToolCall (0.00s)
+    --- PASS: TestFormatToolCall/Execute_with_command_and_workdir (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_array_format (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_string_format (0.00s)
+    --- PASS: TestFormatToolCall/WebSearch_with_query_and_options (0.00s)
+    --- PASS: TestFormatToolCall/Grep_with_pattern_and_glob (0.00s)
+    --- PASS: TestFormatToolCall/Write_with_file_path_and_content (0.00s)
+    --- PASS: TestFormatToolCall/Read_with_file_path (0.00s)
+    --- PASS: TestFormatToolCall/Edit_with_old_and_new_text (0.00s)
+=== RUN   TestToolTypeMappings
+=== RUN   TestToolTypeMappings/Execute
+=== RUN   TestToolTypeMappings/run
+=== RUN   TestToolTypeMappings/Bash
+=== RUN   TestToolTypeMappings/Read
+=== RUN   TestToolTypeMappings/cat
+=== RUN   TestToolTypeMappings/WebSearch
+=== RUN   TestToolTypeMappings/Grep
+=== RUN   TestToolTypeMappings/glob
+=== RUN   TestToolTypeMappings/Write
+=== RUN   TestToolTypeMappings/Edit
+=== RUN   TestToolTypeMappings/MultiEdit
+=== RUN   TestToolTypeMappings/ApplyPatch
+=== RUN   TestToolTypeMappings/TodoWrite
+=== RUN   TestToolTypeMappings/UnknownTool
+--- PASS: TestToolTypeMappings (0.00s)
+    --- PASS: TestToolTypeMappings/Execute (0.00s)
+    --- PASS: TestToolTypeMappings/run (0.00s)
+    --- PASS: TestToolTypeMappings/Bash (0.00s)
+    --- PASS: TestToolTypeMappings/Read (0.00s)
+    --- PASS: TestToolTypeMappings/cat (0.00s)
+    --- PASS: TestToolTypeMappings/WebSearch (0.00s)
+    --- PASS: TestToolTypeMappings/Grep (0.00s)
+    --- PASS: TestToolTypeMappings/glob (0.00s)
+    --- PASS: TestToolTypeMappings/Write (0.00s)
+    --- PASS: TestToolTypeMappings/Edit (0.00s)
+    --- PASS: TestToolTypeMappings/MultiEdit (0.00s)
+    --- PASS: TestToolTypeMappings/ApplyPatch (0.00s)
+    --- PASS: TestToolTypeMappings/TodoWrite (0.00s)
+    --- PASS: TestToolTypeMappings/UnknownTool (0.00s)
+=== RUN   TestParseFactorySession
+=== RUN   TestParseFactorySession/parses_complete_session_with_all_block_types
+=== RUN   TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content
+=== RUN   TestParseFactorySession/handles_reasoning_blocks
+=== RUN   TestParseFactorySession/handles_compaction/summary_events
+=== RUN   TestParseFactorySession/skips_malformed_JSON_lines_gracefully
+=== RUN   TestParseFactorySession/handles_empty_todo_list_gracefully
+--- PASS: TestParseFactorySession (0.00s)
+    --- PASS: TestParseFactorySession/parses_complete_session_with_all_block_types (0.00s)
+    --- PASS: TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content (0.00s)
+    --- PASS: TestParseFactorySession/handles_reasoning_blocks (0.00s)
+    --- PASS: TestParseFactorySession/handles_compaction/summary_events (0.00s)
+    --- PASS: TestParseFactorySession/skips_malformed_JSON_lines_gracefully (0.00s)
+    --- PASS: TestParseFactorySession/handles_empty_todo_list_gracefully (0.00s)
+=== RUN   TestSessionMentionsProject
+=== RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
+=== RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
+=== RUN   TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present
+=== RUN   TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project
+=== RUN   TestSessionMentionsProject/returns_true_when_workspace_root_matches_project
+--- PASS: TestSessionMentionsProject (0.06s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_session_cwd_matches_project (0.04s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project (0.01s)
+    --- PASS: TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_workspace_root_matches_project (0.01s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.293s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:46Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Now let me run the linter to ensure everything is clean.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:46Z)**_
+
+All tests pass. Let me run the linter:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter on droidcli package
+
+`golangci-lint run ./pkg/providers/droidcli/...`
+```
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:51Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass and the linter is clean. Let me provide a summary of the DRY refactoring.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:49:00Z)**_
+
+All tests pass and linter is clean. Here's a summary of the DRY refactoring:
+
+## DRY Refactoring Summary
+
+### Changes Made
+
+Added shared key constants and a helper function in `markdown_tools.go`:
+
+```go
+// Common key patterns for extracting values from tool inputs.
+const (
+    keysFilePath = "file_path,path,file,filePath"
+    keysDirPath  = "path,dir,directory"
+    keysPattern  = "pattern,query,search,regex"
+    keysGlob     = "glob_pattern,pattern,glob"
+)
+
+func splitKeys(keys string) []string {
+    return strings.Split(keys, ",")
+}
+```
+
+### Functions Updated to Use Shared Keys
+
+| Function | Keys Used |
+|----------|-----------|
+| `renderReadInput` | `keysFilePath` |
+| `renderListInput` | `keysDirPath` + "target_directory" |
+| `renderGlobInput` | `keysGlob`, `keysDirPath` |
+| `renderGrepInput` | `keysPattern`, `keysDirPath` + "cwd" |
+| `renderWriteInput` | `keysFilePath` |
+| `renderEditInput` | `keysFilePath` |
+
+### Benefits
+
+1. **Single source of truth** for key variations across tool types
+2. **Easier to extend** - adding a new key variant only requires updating one constant
+3. **Consistency** - ensures all file/directory tools recognize the same key patterns
+4. **Self-documenting** - the constants clearly show which keys are accepted for each purpose
+
+### Why Some Functions Weren't Changed
+
+- `renderWebSearchInput` - already uses `renderFields()` directly with inline keys (acceptable since the keys are unique to web search)
+- `renderWebFetchInput` - has custom formatting (URL vs prompt without backticks)
+- `formatExecuteInput` - has custom formatting (command displayed as backticks only, no label)
+- `renderTodoWrite` - complex logic for handling both string and array formats
+
+---
+
+_**User (2026-01-29 15:55:22Z)**_
+
+  3. Document the Polling vs Event-Driven Design Decision
+
+  The droidcli watcher uses polling (1-second interval) while claudecode uses fsnotify. A comment explaining this architectural difference (perhaps Factory Droid doesn't support fsnotify well, or the directory
+  structure is simpler) would help future maintainers.
+
+Why aren't we using fsnotify for Droid? It's the general preferred pattern for our providers.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:29Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is asking why the droidcli provider uses polling instead of fsnotify. Let me look at the watcher implementation to understand the current approach, and also check if there's a specific reason for this choice.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:30Z)**_
+
+Good question. Let me look at the droidcli watcher implementation and compare it to the claudecode approach to understand if there's a reason for using polling.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:30Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/watcher.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"time"
+     8→
+     9→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    10→)
+    11→
+    12→const droidWatchInterval = 1 * time.Second
+    13→
+    14→type watchState struct {
+    15→	lastProcessed map[string]int64
+    16→}
+    17→
+    18→func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+    19→	if sessionCallback == nil {
+    20→		return fmt.Errorf("session callback is required")
+    21→	}
+    22→
+    23→	state := &watchState{lastProcessed: make(map[string]int64)}
+    24→	if err := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, state); err != nil {
+    25→		return err
+    26→	}
+    27→
+    28→	ticker := time.NewTicker(droidWatchInterval)
+    29→	defer ticker.Stop()
+    30→
+    31→	for {
+    32→		select {
+    33→		case <-ctx.Done():
+    34→			return ctx.Err()
+    35→		case <-ticker.C:
+    36→			if err := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, state); err != nil {
+    37→				slog.Debug("droidcli: scan failed", "error", err)
+    38→			}
+    39→		}
+    40→	}
+    41→}
+    42→
+    43→func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) error {
+    44→	files, err := listSessionFiles()
+    45→	if err != nil {
+    46→		return err
+    47→	}
+    48→
+    49→	for _, file := range files {
+    50→		if last, ok := state.lastProcessed[file.Path]; ok && last >= file.ModTime {
+    51→			continue
+    52→		}
+    53→		if projectPath != "" && !sessionMentionsProject(file.Path, projectPath) {
+    54→			continue
+    55→		}
+    56→		session, err := parseFactorySession(file.Path)
+    57→		if err != nil {
+    58→			slog.Debug("droidcli: skipping session", "path", file.Path, "error", err)
+    59→			continue
+    60→		}
+    61→		chat := convertToAgentSession(session, projectPath, debugRaw)
+    62→		if chat == nil {
+    63→			continue
+    64→		}
+    65→		state.lastProcessed[file.Path] = file.ModTime
+    66→		dispatchSession(sessionCallback, chat)
+    67→	}
+    68→	return nil
+    69→}
+    70→
+    71→func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.AgentChatSession) {
+    72→	if sessionCallback == nil || session == nil {
+    73→		return
+    74→	}
+    75→	go func() {
+    76→		defer func() {
+    77→			if r := recover(); r != nil {
+    78→				slog.Error("droidcli: session callback panicked", "panic", r)
+    79→			}
+    80→		}()
+    81→		sessionCallback(session)
+    82→	}()
+    83→}
+    84→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:31Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/claudecode/watcher.go`
+```
+     1→package claudecode
+     2→
+     3→import (
+     4→	"context"
+     5→	"encoding/json"
+     6→	"fmt"
+     7→	"log/slog"
+     8→	"os"
+     9→	"path/filepath"
+    10→	"strings"
+    11→	"sync"
+    12→	"time"
+    13→
+    14→	"github.com/fsnotify/fsnotify"
+    15→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+    16→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    17→)
+    18→
+    19→var (
+    20→	watcherCtx      context.Context
+    21→	watcherCancel   context.CancelFunc
+    22→	watcherWg       sync.WaitGroup
+    23→	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
+    24→	watcherDebugRaw bool                        // Whether to write debug raw data files
+    25→	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
+    26→)
+    27→
+    28→func init() {
+    29→	watcherCtx, watcherCancel = context.WithCancel(context.Background())
+    30→}
+    31→
+    32→// SetWatcherCallback sets the callback function for session updates
+    33→func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+    34→	watcherMutex.Lock()
+    35→	defer watcherMutex.Unlock()
+    36→	watcherCallback = callback
+    37→	slog.Info("SetWatcherCallback: Callback set", "isNil", callback == nil)
+    38→}
+    39→
+    40→// ClearWatcherCallback clears the callback function
+    41→func ClearWatcherCallback() {
+    42→	watcherMutex.Lock()
+    43→	defer watcherMutex.Unlock()
+    44→	watcherCallback = nil
+    45→	slog.Info("ClearWatcherCallback: Callback cleared")
+    46→}
+    47→
+    48→// SetWatcherDebugRaw sets whether to write debug raw data files
+    49→func SetWatcherDebugRaw(debugRaw bool) {
+    50→	watcherMutex.Lock()
+    51→	defer watcherMutex.Unlock()
+    52→	watcherDebugRaw = debugRaw
+    53→	slog.Debug("SetWatcherDebugRaw: Debug raw set", "debugRaw", debugRaw)
+    54→}
+    55→
+    56→// getWatcherDebugRaw returns the current debug raw setting (thread-safe)
+    57→func getWatcherDebugRaw() bool {
+    58→	watcherMutex.RLock()
+    59→	defer watcherMutex.RUnlock()
+    60→	return watcherDebugRaw
+    61→}
+    62→
+    63→// getWatcherCallback returns the current callback function (thread-safe)
+    64→func getWatcherCallback() func(*spi.AgentChatSession) {
+    65→	watcherMutex.RLock()
+    66→	defer watcherMutex.RUnlock()
+    67→	return watcherCallback
+    68→}
+    69→
+    70→// StopWatcher gracefully stops the watcher goroutine
+    71→func StopWatcher() {
+    72→	slog.Info("StopWatcher: Signaling watcher to stop")
+    73→	watcherCancel()
+    74→	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
+    75→	watcherWg.Wait()
+    76→	slog.Info("StopWatcher: Watcher stopped")
+    77→}
+    78→
+    79→// WatchForProjectDir watches for a project directory that matches the current working directory
+    80→func WatchForProjectDir() error {
+    81→	slog.Info("WatchForProjectDir: Determining project directory to monitor")
+    82→	claudeProjectDir, err := GetClaudeCodeProjectDir("")
+    83→	if err != nil {
+    84→		slog.Error("WatchForProjectDir: Failed to get project directory", "error", err)
+    85→		// Check if error is specifically about missing Claude projects directory
+    86→		if strings.Contains(err.Error(), "claude projects directory not found") {
+    87→			slog.Error("WatchForProjectDir: Claude projects directory not found while starting setup watcher")
+    88→			// Start watching for Claude directory creation
+    89→			return WatchForClaudeSetup()
+    90→		}
+    91→		return fmt.Errorf("failed to get project directory: %v", err)
+    92→	}
+    93→
+    94→	slog.Info("WatchForProjectDir: Project directory found", "directory", claudeProjectDir)
+    95→	return startProjectWatcher(claudeProjectDir)
+    96→}
+    97→
+    98→// startProjectWatcher starts watching a specific project directory
+    99→func startProjectWatcher(claudeProjectDir string) error {
+   100→	slog.Info("startProjectWatcher: Creating file watcher", "directory", claudeProjectDir)
+   101→
+   102→	// Create a new watcher
+   103→	watcher, err := fsnotify.NewWatcher()
+   104→	if err != nil {
+   105→		return fmt.Errorf("failed to create file watcher: %v", err)
+   106→	}
+   107→
+   108→	// Increment wait group before starting goroutine
+   109→	watcherWg.Add(1)
+   110→
+   111→	// Start watching in a goroutine
+   112→	go func() {
+   113→		// Decrement wait group when done
+   114→		defer watcherWg.Done()
+   115→
+   116→		// Log when goroutine starts
+   117→		slog.Info("startProjectWatcher: Goroutine started")
+   118→
+   119→		// Defer cleanup
+   120→		defer func() {
+   121→			slog.Info("startProjectWatcher: Goroutine exiting, closing watcher")
+   122→			_ = watcher.Close() // Best effort cleanup; errors here are not recoverable
+   123→		}()
+   124→
+   125→		// Check if project directory already exists
+   126→		if _, err := os.Stat(claudeProjectDir); err == nil {
+   127→			slog.Info("startProjectWatcher: Project directory exists", "directory", claudeProjectDir)
+   128→			// Claude Code triggers file system events when it starts writing, so we'll catch the session on the first write event.
+   129→			slog.Info("startProjectWatcher: Waiting for JSONL file system events")
+   130→		} else {
+   131→			// Project directory doesn't exist yet, watch parent directory (or other error)
+   132→			parentDir := filepath.Dir(claudeProjectDir)
+   133→			projectName := filepath.Base(claudeProjectDir)
+   134→			slog.Warn("startProjectWatcher: Cannot access project directory, watching parent",
+   135→				"error", err,
+   136→				"parentDir", parentDir,
+   137→				"projectName", projectName)
+   138→
+   139→			// Add parent directory to watcher
+   140→			if err := watcher.Add(parentDir); err != nil {
+   141→				log.UserError("Error watching parent directory: %v", err)
+   142→				slog.Error("startProjectWatcher: Failed to watch parent directory", "error", err)
+   143→				return
+   144→			}
+   145→
+   146→			// Wait for project directory to be created
+   147→			waitingForCreation := true
+   148→			slog.Info("startProjectWatcher: Now watching for events in parent directory")
+   149→			for waitingForCreation {
+   150→				select {
+   151→				case <-watcherCtx.Done():
+   152→					slog.Info("startProjectWatcher: Context cancelled while waiting for directory creation")
+   153→					return
+   154→				case event, ok := <-watcher.Events:
+   155→					if !ok {
+   156→						slog.Info("startProjectWatcher: Watcher events channel closed")
+   157→						return
+   158→					}
+   159→					slog.Info("startProjectWatcher: Parent directory event",
+   160→						"operation", event.Op.String(),
+   161→						"path", event.Name,
+   162→						"lookingFor", projectName)
+   163→					eventBaseName := filepath.Base(event.Name)
+   164→					slog.Info("startProjectWatcher: Event basename comparison",
+   165→						"basename", eventBaseName,
+   166→						"comparingWith", projectName,
+   167→						"equalFold", strings.EqualFold(eventBaseName, projectName))
+   168→					if event.Has(fsnotify.Create) && strings.EqualFold(filepath.Base(event.Name), projectName) {
+   169→						slog.Info("startProjectWatcher: Detected project directory creation",
+   170→							"path", event.Name)
+   171→						slog.Info("startProjectWatcher: Initial scan disabled; waiting for JSONL events")
+   172→						// Use the actual created directory name from the event
+   173→						claudeProjectDir = filepath.Join(parentDir, filepath.Base(event.Name))
+   174→						// Remove parent directory and continue to watch project directory
+   175→						_ = watcher.Remove(parentDir) // OK if this fails; we're moving to project dir
+   176→						waitingForCreation = false
+   177→					}
+   178→				case err, ok := <-watcher.Errors:
+   179→					if !ok {
+   180→						slog.Info("startProjectWatcher: Watcher errors channel closed")
+   181→						return
+   182→					}
+   183→					log.UserWarn("Watcher error while waiting for project directory: %v", err)
+   184→					slog.Error("startProjectWatcher: Watcher error", "error", err)
+   185→				}
+   186→			}
+   187→		}
+   188→
+   189→		// Add the project directory to the watcher
+   190→		// Re-stat to get the actual directory name with correct case
+   191→		actualProjectDir := claudeProjectDir
+   192→		if entries, err := os.ReadDir(filepath.Dir(claudeProjectDir)); err == nil {
+   193→			baseName := filepath.Base(claudeProjectDir)
+   194→			for _, entry := range entries {
+   195→				if strings.EqualFold(entry.Name(), baseName) {
+   196→					actualProjectDir = filepath.Join(filepath.Dir(claudeProjectDir), entry.Name())
+   197→					break
+   198→				}
+   199→			}
+   200→		}
+   201→		slog.Info("startProjectWatcher: Now monitoring project directory for changes",
+   202→			"directory", actualProjectDir)
+   203→		if err := watcher.Add(actualProjectDir); err != nil {
+   204→			log.UserWarn("Error watching project directory: %v", err)
+   205→			slog.Error("startProjectWatcher: Failed to monitor directory", "error", err)
+   206→			return
+   207→		}
+   208→		slog.Info("startProjectWatcher: Successfully monitoring project directory for future changes")
+   209→
+   210→		// Watch for file events
+   211→		for {
+   212→			select {
+   213→			case <-watcherCtx.Done():
+   214→				slog.Info("startProjectWatcher: Context cancelled, stopping watcher")
+   215→				return
+   216→			case event, ok := <-watcher.Events:
+   217→				if !ok {
+   218→					return
+   219→				}
+   220→
+   221→				// Only process JSONL files
+   222→				if !strings.HasSuffix(event.Name, ".jsonl") {
+   223→					continue
+   224→				}
+   225→
+   226→				if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
+   227→					continue
+   228→				}
+   229→
+   230→				// Handle different event types
+   231→				switch {
+   232→				case event.Has(fsnotify.Create):
+   233→					slog.Info("New JSONL file created", "file", event.Name)
+   234→					scanJSONLFiles(claudeProjectDir, event.Name)
+   235→				case event.Has(fsnotify.Write):
+   236→					slog.Info("JSONL file modified", "file", event.Name)
+   237→					slog.Info("Triggering scan due to file modification")
+   238→					scanJSONLFiles(claudeProjectDir, event.Name)
+   239→				}
+   240→
+   241→			case err, ok := <-watcher.Errors:
+   242→				if !ok {
+   243→					return
+   244→				}
+   245→				log.UserError("Watcher error: %v", err)
+   246→			}
+   247→		}
+   248→	}()
+   249→
+   250→	return nil
+   251→}
+   252→
+   253→// scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file
+   254→func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
+   255→	// Ensure logs are flushed even if we panic
+   256→	defer func() {
+   257→		if r := recover(); r != nil {
+   258→			log.UserWarn("PANIC in ScanJSONLFiles: %v", r)
+   259→			slog.Error("ScanJSONLFiles: PANIC recovered", "panic", r)
+   260→		}
+   261→	}()
+   262→
+   263→	slog.Info("ScanJSONLFiles: === START SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
+   264→	var targetFile string
+   265→	if len(changedFile) > 0 && changedFile[0] != "" {
+   266→		targetFile = changedFile[0]
+   267→		slog.Info("ScanJSONLFiles: Scanning JSONL files with changed file",
+   268→			"directory", claudeProjectDir,
+   269→			"changedFile", targetFile)
+   270→	} else {
+   271→		slog.Info("ScanJSONLFiles: Scanning JSONL files", "directory", claudeProjectDir)
+   272→	}
+   273→	// Parse files and create history files:
+   274→	parser := NewJSONLParser()
+   275→	var targetSessionUuid string
+   276→
+   277→	// Set the target file for conditional debug output
+   278→	if targetFile != "" {
+   279→		SetDebugTargetFile(targetFile)
+   280→		defer ClearDebugTargetFile()
+   281→
+   282→		sessionID, err := extractSessionIDFromFile(targetFile)
+   283→		if err != nil {
+   284→			slog.Warn("ScanJSONLFiles: Failed to extract session ID from file",
+   285→				"file", targetFile,
+   286→				"error", err)
+   287→			slog.Info("ScanJSONLFiles: Skipping scan due to file read error", "file", targetFile)
+   288→			return
+   289→		}
+   290→		if sessionID == "" {
+   291→			slog.Info("ScanJSONLFiles: Skipping scan; session ID not present yet", "file", targetFile)
+   292→			return
+   293→		}
+   294→		targetSessionUuid = sessionID
+   295→		slog.Info("ScanJSONLFiles: Extracted session ID from changed file",
+   296→			"sessionUuid", targetSessionUuid,
+   297→			"file", targetFile)
+   298→	}
+   299→
+   300→	var parseErr error
+   301→	if targetSessionUuid != "" {
+   302→		parseErr = parser.ParseProjectSessionsForSession(claudeProjectDir, true, targetSessionUuid)
+   303→	} else {
+   304→		parseErr = parser.ParseProjectSessions(claudeProjectDir, true)
+   305→	}
+   306→	if parseErr != nil {
+   307→		log.UserWarn("Error parsing project sessions: %v", parseErr)
+   308→		slog.Error("ScanJSONLFiles: Error parsing project sessions", "error", parseErr)
+   309→		return
+   310→	}
+   311→
+   312→	// Process JSONL sessions (isAutosave = true, silent = false for autosave)
+   313→	slog.Info("ScanJSONLFiles: Processing sessions",
+   314→		"sessionCount", len(parser.Sessions),
+   315→		"targetSessionUuid", targetSessionUuid)
+   316→
+   317→	// Get the session callback
+   318→	callback := getWatcherCallback()
+   319→	if callback == nil {
+   320→		slog.Error("ScanJSONLFiles: No callback provided - this should not happen")
+   321→		return
+   322→	}
+   323→
+   324→	slog.Info("ScanJSONLFiles: Processing sessions with callback")
+   325→	// Process sessions and call the callback for each
+   326→	for _, session := range parser.Sessions {
+   327→		// Skip empty sessions
+   328→		if len(session.Records) == 0 {
+   329→			continue
+   330→		}
+   331→
+   332→		// Skip if we're targeting a specific session and this isn't it
+   333→		if targetSessionUuid != "" && session.SessionUuid != targetSessionUuid {
+   334→			continue
+   335→		}
+   336→
+   337→		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
+   338→		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
+   339→		if agentSession != nil {
+   340→			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
+   341→			// Call the callback in a goroutine to avoid blocking
+   342→			go func(s *spi.AgentChatSession) {
+   343→				defer func() {
+   344→					if r := recover(); r != nil {
+   345→						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
+   346→					}
+   347→				}()
+   348→				callback(s)
+   349→			}(agentSession)
+   350→		}
+   351→	}
+   352→	slog.Info("ScanJSONLFiles: Processing complete")
+   353→	slog.Info("ScanJSONLFiles: === END SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
+   354→}
+   355→
+   356→// WatchForClaudeSetup watches for the creation of Claude directories
+   357→func WatchForClaudeSetup() error {
+   358→	slog.Info("WatchForClaudeSetup: Starting Claude directory setup watcher")
+   359→	homeDir, err := os.UserHomeDir()
+   360→	if err != nil {
+   361→		return fmt.Errorf("failed to get user home directory: %v", err)
+   362→	}
+   363→
+   364→	claudeDir := filepath.Join(homeDir, ".claude")
+   365→	projectsDir := filepath.Join(claudeDir, "projects")
+   366→	slog.Info("WatchForClaudeSetup: Directories",
+   367→		"homeDir", homeDir,
+   368→		"claudeDir", claudeDir,
+   369→		"projectsDir", projectsDir)
+   370→
+   371→	// Determine what to watch
+   372→	var watchDir string
+   373→	var watchingFor string
+   374→
+   375→	if _, err := os.Stat(claudeDir); os.IsNotExist(err) {
+   376→		// .claude doesn't exist, watch home directory
+   377→		watchDir = homeDir
+   378→		watchingFor = ".claude"
+   379→		slog.Warn("WatchForClaudeSetup: .claude directory does not exist")
+   380→		slog.Info("Claude directory not found, watching for creation of ~/.claude\n")
+   381→	} else {
+   382→		// .claude exists but projects doesn't, watch .claude
+   383→		watchDir = claudeDir
+   384→		watchingFor = "projects"
+   385→		slog.Warn("WatchForClaudeSetup: .claude directory exists, checking for projects")
+   386→		slog.Info("Claude directory found, watching for creation of ~/.claude/projects\n")
+   387→	}
+   388→	slog.Info("WatchForClaudeSetup: Will watch directory",
+   389→		"watchDir", watchDir,
+   390→		"watchingFor", watchingFor)
+   391→
+   392→	// Create watcher
+   393→	watcher, err := fsnotify.NewWatcher()
+   394→	if err != nil {
+   395→		log.UserWarn("Failed to create file watcher: %v", err)
+   396→		slog.Error("WatchForClaudeSetup: Failed to create file watcher", "error", err)
+   397→		return fmt.Errorf("failed to create file watcher: %v", err)
+   398→	}
+   399→
+   400→	// Add directory to watch
+   401→	slog.Info("WatchForClaudeSetup: Adding directory to watcher", "directory", watchDir)
+   402→	if err := watcher.Add(watchDir); err != nil {
+   403→		_ = watcher.Close() // Clean up on error; close errors less important than Add error
+   404→		return fmt.Errorf("failed to watch directory %s: %v", watchDir, err)
+   405→	}
+   406→	slog.Info("WatchForClaudeSetup: Successfully started watching", "directory", watchDir)
+   407→
+   408→	// Start watching in a goroutine
+   409→	go func() {
+   410→		defer func() { _ = watcher.Close() }() // Cleanup on exit; errors not recoverable
+   411→
+   412→		for {
+   413→			select {
+   414→			case event, ok := <-watcher.Events:
+   415→				if !ok {
+   416→					return
+   417→				}
+   418→
+   419→				slog.Info("WatchForClaudeSetup: Received event",
+   420→					"operation", event.Op.String(),
+   421→					"path", event.Name)
+   422→				// Check if this is the directory we're waiting for (case-insensitive)
+   423→				if event.Has(fsnotify.Create) && strings.EqualFold(filepath.Base(event.Name), watchingFor) {
+   424→					slog.Info("Detected creation", "path", event.Name)
+   425→					slog.Info("WatchForClaudeSetup: Target directory created", "path", event.Name)
+   426→
+   427→					// Wait a second to let things settle
+   428→					slog.Info("WatchForClaudeSetup: Waiting 1 second for things to settle")
+   429→					time.Sleep(1 * time.Second)
+   430→
+   431→					// Check what we should do next
+   432→					if watchingFor == ".claude" {
+   433→						slog.Info("WatchForClaudeSetup: .claude was created, checking if projects exists")
+   434→						// We were watching for .claude, now check if projects exists
+   435→						if _, err := os.Stat(projectsDir); os.IsNotExist(err) {
+   436→							slog.Info("WatchForClaudeSetup: projects directory does not exist, switching watcher")
+   437→							// Need to watch for projects directory
+   438→							_ = watcher.Remove(watchDir) // OK if fails; switching watch targets
+   439→							watchDir = claudeDir
+   440→							watchingFor = "projects"
+   441→							slog.Info("WatchForClaudeSetup: Switching to watch",
+   442→								"watchDir", watchDir,
+   443→								"watchingFor", watchingFor)
+   444→							if err := watcher.Add(watchDir); err != nil {
+   445→								log.UserWarn("Error switching to watch .claude directory: %v", err)
+   446→								slog.Error("WatchForClaudeSetup: Failed to switch watcher", "error", err)
+   447→								return
+   448→							}
+   449→							slog.Info("Now watching for creation of ~/.claude/projects\n")
+   450→							continue
+   451→						} else {
+   452→							slog.Info("WatchForClaudeSetup: projects directory already exists!")
+   453→						}
+   454→					}
+   455→
+   456→					// If we get here, projects directory should exist
+   457→					slog.Info("WatchForClaudeSetup: Projects directory should now exist, cleaning up watcher")
+   458→					// Remove the current watcher
+   459→					_ = watcher.Remove(watchDir) // OK if fails; we're transitioning to project watcher
+   460→
+   461→					// Start the normal project watcher
+   462→					slog.Info("Claude projects directory now exists, starting normal file watcher\n")
+   463→					// Try to get the project directory again
+   464→					slog.Info("WatchForClaudeSetup: Getting project directory name")
+   465→					if projectDir, err := GetClaudeCodeProjectDir(""); err == nil {
+   466→						slog.Info("WatchForClaudeSetup: Project directory will be", "directory", projectDir)
+   467→						if err := startProjectWatcher(projectDir); err != nil {
+   468→							log.UserWarn("Error starting project watcher: %v", err)
+   469→							slog.Error("WatchForClaudeSetup: Failed to start project watcher", "error", err)
+   470→						} else {
+   471→							slog.Info("WatchForClaudeSetup: Successfully started project watcher")
+   472→						}
+   473→					} else {
+   474→						log.UserWarn("Error getting project directory after Claude setup: %v", err)
+   475→						slog.Error("WatchForClaudeSetup: Failed to get project directory", "error", err)
+   476→					}
+   477→					return
+   478→				}
+   479→
+   480→			case err, ok := <-watcher.Errors:
+   481→				if !ok {
+   482→					return
+   483→				}
+   484→				log.UserWarn("Watcher error: %v", err)
+   485→				slog.Error("WatchForClaudeSetup: Watcher error", "error", err)
+   486→			}
+   487→		}
+   488→	}()
+   489→
+   490→	return nil
+   491→}
+   492→
+   493→// convertToAgentChatSession converts a Session to an AgentChatSession
+   494→// Returns nil if the session is warmup-only (no real messages)
+   495→func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+   496→	// Skip empty sessions (no records)
+   497→	if len(session.Records) == 0 {
+   498→		return nil
+   499→	}
+   500→
+   501→	// Write debug files first (even for warmup-only sessions)
+   502→	_ = make(map[int]int) // recordToFileNumber no longer needed
+   503→	if debugRaw {
+   504→		// Write debug files
+   505→		writeDebugRawFiles(session)
+   506→	}
+   507→
+   508→	// Filter warmup messages
+   509→	filteredRecords := filterWarmupMessages(session.Records)
+   510→
+   511→	// Skip if no real messages remain after filtering warmup
+   512→	if len(filteredRecords) == 0 {
+   513→		slog.Debug("Skipping warmup-only session", "sessionId", session.SessionUuid)
+   514→		return nil
+   515→	}
+   516→
+   517→	// Create session with filtered records
+   518→	filteredSession := Session{
+   519→		SessionUuid: session.SessionUuid,
+   520→		Records:     filteredRecords,
+   521→	}
+   522→
+   523→	// Get timestamp from root record
+   524→	rootRecord := filteredSession.Records[0]
+   525→	timestamp, ok := rootRecord.Data["timestamp"].(string)
+   526→	if !ok {
+   527→		slog.Warn("convertToAgentChatSession: No timestamp found in root record")
+   528→		return nil
+   529→	}
+   530→
+   531→	// Get the slug
+   532→	slug := FileSlugFromRootRecord(filteredSession)
+   533→
+   534→	// Generate SessionData from filtered session
+   535→	sessionData, err := GenerateAgentSession(filteredSession, workspaceRoot)
+   536→	if err != nil {
+   537→		slog.Error("Failed to generate SessionData", "sessionId", session.SessionUuid, "error", err)
+   538→		return nil
+   539→	}
+   540→
+   541→	// Convert session records to JSONL format for raw data
+   542→	// Note: Uses unfiltered session.Records (not filteredSession.Records) to preserve
+   543→	// all records including warmup messages in the raw data for complete audit trail
+   544→	var rawDataBuilder strings.Builder
+   545→	for _, record := range session.Records {
+   546→		jsonBytes, _ := json.Marshal(record.Data)
+   547→		rawDataBuilder.Write(jsonBytes)
+   548→		rawDataBuilder.WriteString("\n")
+   549→	}
+   550→
+   551→	return &spi.AgentChatSession{
+   552→		SessionID:   session.SessionUuid,
+   553→		CreatedAt:   timestamp, // ISO 8601 timestamp
+   554→		Slug:        slug,
+   555→		SessionData: sessionData,
+   556→		RawData:     rawDataBuilder.String(),
+   557→	}
+   558→}
+   559→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:41Z)**_
+
+<think><details><summary>Thought Process</summary>
+Looking at the two implementations:
+
+**claudecode/watcher.go:**
+- Uses `fsnotify` for real-time file system events
+- More complex with ~500 lines of code
+- Handles directory creation waiting, parent directory watching
+- Has global state with mutexes for thread safety
+- Reacts immediately to file changes
+
+**droidcli/watcher.go:**
+- Uses polling (1-second interval)
+- Simple implementation at ~84 lines
+- Tracks processed files by mod time
+- Simpler state management
+
+The user is right to question this. There doesn't appear to be a technical reason why droidcli couldn't use fsnotify. It looks like this was likely a simpler implementation choice by the PR author, but there's no documented reason.
+
+The advantages of fsnotify are:
+1. Real-time response (no 1-second delay)
+2. More efficient (no constant file system scanning)
+3. Consistency with other providers
+
+The droidcli implementation could be refactored to use fsnotify similar to claudecode. Let me point this out to the user as a recommendation.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:45Z)**_
+
+Looking at both implementations, I don't see a technical reason why droidcli uses polling instead of fsnotify. The claudecode watcher.go (559 lines) uses fsnotify for real-time file events, while droidcli watcher.go (84 lines) uses simple polling.
+
+This appears to be a simpler implementation choice rather than a technical necessity. The droidcli approach has drawbacks:
+
+1. **1-second latency** - sessions won't be processed until the next poll
+2. **Inefficient** - constantly scans the directory even when nothing changed
+3. **Inconsistent** - different behavior than other providers
+
+**Recommendation:** Refactor droidcli to use fsnotify for consistency. The Factory Droid session files live in `~/.factory/sessions/` which should work fine with fsnotify.
+
+Would you like me to refactor the droidcli watcher to use fsnotify? I can create a simpler version than claudecode's (which has extra complexity for handling Claude's initial setup and directory creation scenarios) since Factory Droid's directory structure may be simpler.
+
+---
+
+_**User (2026-01-29 15:56:49Z)**_
+
+yes, refactor it to use fsnotify, look at Claude Code and Gemini and Codex to see how we typically do this.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:56:54Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me look at the other providers' watcher implementations to understand the patterns used.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:56:54Z)**_
+
+Let me look at the other providers' watcher implementations to understand the patterns.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:56:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/geminicli/watcher.go`
+```
+     1→package geminicli
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"path/filepath"
+     9→	"strings"
+    10→	"sync"
+    11→	"time"
+    12→
+    13→	"github.com/fsnotify/fsnotify"
+    14→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    15→)
+    16→
+    17→var (
+    18→	watcherCtx           context.Context
+    19→	watcherCancel        context.CancelFunc
+    20→	watcherWg            sync.WaitGroup
+    21→	watcherCallback      func(*spi.AgentChatSession)
+    22→	watcherMutex         sync.RWMutex
+    23→	watcherDebugRaw      bool
+    24→	watcherWorkspaceRoot string
+    25→)
+    26→
+    27→const (
+    28→	initialBackoff = 1 * time.Second
+    29→	maxBackoff     = 30 * time.Second
+    30→)
+    31→
+    32→func init() {
+    33→	watcherCtx, watcherCancel = context.WithCancel(context.Background())
+    34→}
+    35→
+    36→func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+    37→	watcherMutex.Lock()
+    38→	defer watcherMutex.Unlock()
+    39→	watcherCallback = callback
+    40→}
+    41→
+    42→func SetWatcherDebugRaw(debugRaw bool) {
+    43→	watcherMutex.Lock()
+    44→	defer watcherMutex.Unlock()
+    45→	watcherDebugRaw = debugRaw
+    46→}
+    47→
+    48→func SetWatcherWorkspaceRoot(workspaceRoot string) {
+    49→	watcherMutex.Lock()
+    50→	defer watcherMutex.Unlock()
+    51→	watcherWorkspaceRoot = workspaceRoot
+    52→}
+    53→
+    54→func getWatcherWorkspaceRoot() string {
+    55→	watcherMutex.RLock()
+    56→	defer watcherMutex.RUnlock()
+    57→	return watcherWorkspaceRoot
+    58→}
+    59→
+    60→func getWatcherDebugRaw() bool {
+    61→	watcherMutex.RLock()
+    62→	defer watcherMutex.RUnlock()
+    63→	return watcherDebugRaw
+    64→}
+    65→
+    66→func StopWatcher() {
+    67→	watcherCancel()
+    68→	watcherWg.Wait()
+    69→}
+    70→
+    71→func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+    72→	SetWatcherCallback(callback)
+    73→	SetWatcherWorkspaceRoot(projectPath)
+    74→
+    75→	projectDir, err := GetGeminiProjectDir(projectPath)
+    76→	if err != nil {
+    77→		return fmt.Errorf("failed to get gemini project dir: %w", err)
+    78→	}
+    79→
+    80→	tmpDir := filepath.Dir(projectDir)
+    81→	chatsDir := filepath.Join(projectDir, "chats")
+    82→
+    83→	watcherWg.Add(1)
+    84→	go func() {
+    85→		defer watcherWg.Done()
+    86→
+    87→		if err := waitForDirectory(watcherCtx, tmpDir, "Gemini tmp directory"); err != nil {
+    88→			slog.Warn("Stopped Gemini watcher while waiting for tmp directory", "error", err)
+    89→			return
+    90→		}
+    91→
+    92→		if err := waitForDirectory(watcherCtx, projectDir, "Gemini project directory"); err != nil {
+    93→			slog.Warn("Stopped Gemini watcher while waiting for project directory", "error", err)
+    94→			return
+    95→		}
+    96→
+    97→		if err := waitForDirectory(watcherCtx, chatsDir, "Gemini chats directory"); err != nil {
+    98→			slog.Warn("Stopped Gemini watcher while waiting for chats directory", "error", err)
+    99→			return
+   100→		}
+   101→
+   102→		if err := startChatsWatcher(chatsDir); err != nil {
+   103→			slog.Error("Failed to start chats watcher", "error", err)
+   104→		}
+   105→
+   106→		if err := startArtifactWatcher(filepath.Join(projectDir, "logs.json"), "logs.json"); err != nil {
+   107→			slog.Warn("Failed to watch logs.json", "error", err)
+   108→		}
+   109→
+   110→		if err := startArtifactWatcher(filepath.Join(projectDir, "shell_history"), "shell_history"); err != nil {
+   111→			slog.Warn("Failed to watch shell_history", "error", err)
+   112→		}
+   113→	}()
+   114→
+   115→	return nil
+   116→}
+   117→
+   118→func startChatsWatcher(chatsDir string) error {
+   119→	watcher, err := fsnotify.NewWatcher()
+   120→	if err != nil {
+   121→		return err
+   122→	}
+   123→
+   124→	watcherWg.Add(1)
+   125→	go func() {
+   126→		defer watcherWg.Done()
+   127→		defer func() {
+   128→			_ = watcher.Close()
+   129→		}()
+   130→
+   131→		if err := watcher.Add(chatsDir); err != nil {
+   132→			slog.Error("Failed to add chats dir to watcher", "error", err)
+   133→			return
+   134→		}
+   135→
+   136→		for {
+   137→			select {
+   138→			case <-watcherCtx.Done():
+   139→				return
+   140→			case event, ok := <-watcher.Events:
+   141→				if !ok {
+   142→					return
+   143→				}
+   144→				if strings.HasSuffix(event.Name, ".json") && (event.Has(fsnotify.Write) || event.Has(fsnotify.Create)) {
+   145→					processSessionChange(event.Name)
+   146→				}
+   147→			case err, ok := <-watcher.Errors:
+   148→				if !ok {
+   149→					return
+   150→				}
+   151→				slog.Error("Watcher error", "error", err)
+   152→			}
+   153→		}
+   154→	}()
+   155→
+   156→	return nil
+   157→}
+   158→
+   159→func processSessionChange(filePath string) {
+   160→	slog.Debug("processSessionChange: Detected session file change", "file", filePath)
+   161→
+   162→	// Extract short session ID from filename to find related files
+   163→	filename := filepath.Base(filePath)
+   164→	shortID := extractSessionIDFromFilename(filename)
+   165→	if shortID == "" {
+   166→		slog.Error("processSessionChange: Could not extract session ID from filename", "file", filename)
+   167→		return
+   168→	}
+   169→
+   170→	// Parse the changed file to get the full session ID
+   171→	session, err := ParseSessionFile(filePath)
+   172→	if err != nil {
+   173→		slog.Error("processSessionChange: Failed to parse session file", "file", filePath, "error", err)
+   174→		return
+   175→	}
+   176→
+   177→	fullSessionID := session.ID
+   178→
+   179→	// Find all files for this session to merge them
+   180→	// Why: Gemini CLI may have created multiple files for this session
+   181→	chatsDir := filepath.Dir(filePath)
+   182→	entries, err := os.ReadDir(chatsDir)
+   183→	if err != nil {
+   184→		slog.Error("processSessionChange: Failed to read chats directory", "dir", chatsDir, "error", err)
+   185→		// Fall back to single-file session
+   186→		agentSession := convertToAgentChatSession(session, getWatcherWorkspaceRoot(), getWatcherDebugRaw())
+   187→		triggerCallback(agentSession)
+   188→		return
+   189→	}
+   190→
+   191→	// Collect all files that match this session's short ID
+   192→	var sessionFiles []string
+   193→	for _, entry := range entries {
+   194→		if entry.IsDir() {
+   195→			continue
+   196→		}
+   197→		if extractSessionIDFromFilename(entry.Name()) == shortID {
+   198→			sessionFiles = append(sessionFiles, filepath.Join(chatsDir, entry.Name()))
+   199→		}
+   200→	}
+   201→
+   202→	slog.Debug("processSessionChange: Found session files to merge",
+   203→		"shortID", shortID,
+   204→		"fileCount", len(sessionFiles))
+   205→
+   206→	// Merge all files for this session
+   207→	mergedSession, err := parseAndMergeSessionFiles(shortID, sessionFiles)
+   208→	if err != nil {
+   209→		slog.Error("processSessionChange: Failed to merge session files",
+   210→			"sessionId", fullSessionID,
+   211→			"fileCount", len(sessionFiles),
+   212→			"error", err)
+   213→		// Fall back to single-file session
+   214→		agentSession := convertToAgentChatSession(session, getWatcherWorkspaceRoot(), getWatcherDebugRaw())
+   215→		triggerCallback(agentSession)
+   216→		return
+   217→	}
+   218→
+   219→	slog.Info("processSessionChange: Successfully processed session change",
+   220→		"sessionId", mergedSession.ID,
+   221→		"fileCount", len(sessionFiles),
+   222→		"messageCount", len(mergedSession.Messages),
+   223→		"startTime", mergedSession.StartTime,
+   224→		"lastUpdated", mergedSession.LastUpdated)
+   225→
+   226→	agentSession := convertToAgentChatSession(mergedSession, getWatcherWorkspaceRoot(), getWatcherDebugRaw())
+   227→	triggerCallback(agentSession)
+   228→}
+   229→
+   230→// triggerCallback is a helper to call the watcher callback with proper locking
+   231→func triggerCallback(agentSession *spi.AgentChatSession) {
+   232→	watcherMutex.RLock()
+   233→	cb := watcherCallback
+   234→	watcherMutex.RUnlock()
+   235→
+   236→	if cb != nil && agentSession != nil {
+   237→		cb(agentSession)
+   238→	}
+   239→}
+   240→
+   241→func waitForDirectory(ctx context.Context, dir string, label string) error {
+   242→	backoff := initialBackoff
+   243→	for {
+   244→		info, err := os.Stat(dir)
+   245→		if err == nil && info.IsDir() {
+   246→			slog.Info("Gemini watcher: directory ready", "label", label, "path", dir)
+   247→			return nil
+   248→		}
+   249→		if err != nil && !os.IsNotExist(err) {
+   250→			slog.Warn("Gemini watcher: failed to stat directory", "label", label, "path", dir, "error", err)
+   251→		} else {
+   252→			slog.Info("Gemini watcher: waiting for directory", "label", label, "path", dir, "retryIn", backoff)
+   253→		}
+   254→
+   255→		select {
+   256→		case <-ctx.Done():
+   257→			return ctx.Err()
+   258→		case <-time.After(backoff):
+   259→			if backoff < maxBackoff {
+   260→				backoff *= 2
+   261→				if backoff > maxBackoff {
+   262→					backoff = maxBackoff
+   263→				}
+   264→			}
+   265→		}
+   266→	}
+   267→}
+   268→
+   269→func startArtifactWatcher(filePath string, label string) error {
+   270→	dir := filepath.Dir(filePath)
+   271→	watcher, err := fsnotify.NewWatcher()
+   272→	if err != nil {
+   273→		return err
+   274→	}
+   275→
+   276→	if err := watcher.Add(dir); err != nil {
+   277→		_ = watcher.Close()
+   278→		return err
+   279→	}
+   280→
+   281→	watcherWg.Add(1)
+   282→	go func() {
+   283→		defer watcherWg.Done()
+   284→		defer func() {
+   285→			_ = watcher.Close()
+   286→		}()
+   287→
+   288→		slog.Info("Gemini watcher: monitoring artifact", "artifact", label, "path", filePath)
+   289→
+   290→		for {
+   291→			select {
+   292→			case <-watcherCtx.Done():
+   293→				return
+   294→			case event, ok := <-watcher.Events:
+   295→				if !ok {
+   296→					return
+   297→				}
+   298→				if filepath.Clean(event.Name) != filepath.Clean(filePath) {
+   299→					continue
+   300→				}
+   301→				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+   302→					slog.Info("Gemini artifact updated", "artifact", label, "path", event.Name, "op", event.Op.String())
+   303→				}
+   304→			case err, ok := <-watcher.Errors:
+   305→				if !ok {
+   306→					return
+   307→				}
+   308→				slog.Warn("Gemini artifact watcher error", "artifact", label, "error", err)
+   309→			}
+   310→		}
+   311→	}()
+   312→
+   313→	return nil
+   314→}
+   315→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 15:56:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/codexcli/watcher.go`
+```
+     1→package codexcli
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"path/filepath"
+     9→	"strings"
+    10→	"sync"
+    11→	"time"
+    12→
+    13→	"github.com/fsnotify/fsnotify"
+    14→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+    15→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    16→)
+    17→
+    18→var (
+    19→	watcherCtx      context.Context
+    20→	watcherCancel   context.CancelFunc
+    21→	watcherWg       sync.WaitGroup
+    22→	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
+    23→	watcherDebugRaw bool                        // Whether to write debug raw data files
+    24→	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
+    25→)
+    26→
+    27→func init() {
+    28→	watcherCtx, watcherCancel = context.WithCancel(context.Background())
+    29→}
+    30→
+    31→// SetWatcherCallback sets the callback function for session updates.
+    32→func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
+    33→	watcherMutex.Lock()
+    34→	defer watcherMutex.Unlock()
+    35→	watcherCallback = callback
+    36→	slog.Info("SetWatcherCallback: Callback set", "isNil", callback == nil)
+    37→}
+    38→
+    39→// ClearWatcherCallback clears the callback function.
+    40→func ClearWatcherCallback() {
+    41→	watcherMutex.Lock()
+    42→	defer watcherMutex.Unlock()
+    43→	watcherCallback = nil
+    44→	slog.Info("ClearWatcherCallback: Callback cleared")
+    45→}
+    46→
+    47→// getWatcherCallback returns the current callback function (thread-safe).
+    48→func getWatcherCallback() func(*spi.AgentChatSession) {
+    49→	watcherMutex.RLock()
+    50→	defer watcherMutex.RUnlock()
+    51→	return watcherCallback
+    52→}
+    53→
+    54→// SetWatcherDebugRaw sets whether to write debug raw data files.
+    55→func SetWatcherDebugRaw(debugRaw bool) {
+    56→	watcherMutex.Lock()
+    57→	defer watcherMutex.Unlock()
+    58→	watcherDebugRaw = debugRaw
+    59→	slog.Debug("SetWatcherDebugRaw: Debug raw set", "debugRaw", debugRaw)
+    60→}
+    61→
+    62→// getWatcherDebugRaw returns the current debug raw setting (thread-safe).
+    63→func getWatcherDebugRaw() bool {
+    64→	watcherMutex.RLock()
+    65→	defer watcherMutex.RUnlock()
+    66→	return watcherDebugRaw
+    67→}
+    68→
+    69→// StopWatcher gracefully stops the watcher goroutine.
+    70→func StopWatcher() {
+    71→	slog.Info("StopWatcher: Signaling watcher to stop")
+    72→	watcherCancel()
+    73→	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
+    74→	watcherWg.Wait()
+    75→	slog.Info("StopWatcher: Watcher stopped")
+    76→}
+    77→
+    78→// WatchForCodexSessions watches for Codex CLI sessions that match the given project path.
+    79→// If resumeSessionID is provided, it finds and watches the directory containing that session.
+    80→// Otherwise, watches hierarchically for new sessions, handling date changes across days/months/years.
+    81→func WatchForCodexSessions(projectPath string, resumeSessionID string) error {
+    82→	slog.Info("WatchForCodexSessions: Starting Codex session watcher",
+    83→		"projectPath", projectPath,
+    84→		"resumeSessionID", resumeSessionID)
+    85→
+    86→	homeDir, err := osUserHomeDir()
+    87→	if err != nil {
+    88→		slog.Error("WatchForCodexSessions: Failed to get home directory", "error", err)
+    89→		return fmt.Errorf("failed to get home directory: %w", err)
+    90→	}
+    91→
+    92→	sessionsRoot := codexSessionsRoot(homeDir)
+    93→	slog.Info("WatchForCodexSessions: Sessions root", "path", sessionsRoot)
+    94→
+    95→	var initialDayDir string
+    96→
+    97→	if resumeSessionID != "" {
+    98→		// Find the directory containing the resumed session
+    99→		slog.Info("WatchForCodexSessions: Finding directory for resumed session", "sessionID", resumeSessionID)
+   100→
+   101→		// Use findCodexSessions to locate the specific session (will short-circuit when found)
+   102→		sessions, err := findCodexSessions(projectPath, resumeSessionID, false)
+   103→		if err != nil {
+   104→			slog.Error("WatchForCodexSessions: Failed to find resumed session", "error", err)
+   105→			return fmt.Errorf("failed to find resumed session: %w", err)
+   106→		}
+   107→
+   108→		// Check if session was found
+   109→		if len(sessions) == 0 {
+   110→			slog.Error("WatchForCodexSessions: Resumed session not found", "sessionID", resumeSessionID)
+   111→			return fmt.Errorf("resumed session %s not found", resumeSessionID)
+   112→		}
+   113→
+   114→		// Get the directory containing the session file
+   115→		initialDayDir = filepath.Dir(sessions[0].SessionPath)
+   116→		slog.Info("WatchForCodexSessions: Found resumed session directory", "path", initialDayDir)
+   117→	} else {
+   118→		// Calculate today's directory (will be watched along with hierarchical watching)
+   119→		now := time.Now()
+   120→		initialDayDir = filepath.Join(sessionsRoot, fmt.Sprintf("%04d", now.Year()), fmt.Sprintf("%02d", now.Month()), fmt.Sprintf("%02d", now.Day()))
+   121→		slog.Info("WatchForCodexSessions: Initial day directory", "path", initialDayDir)
+   122→	}
+   123→
+   124→	return startCodexSessionWatcher(projectPath, sessionsRoot, initialDayDir)
+   125→}
+   126→
+   127→// dirType determines the type of directory relative to sessionsRoot based on the
+   128→// YYYY/MM/DD structure. Returns "year", "month", "day", or "" if not a recognized type.
+   129→func dirType(path string, sessionsRoot string) string {
+   130→	rel, err := filepath.Rel(sessionsRoot, path)
+   131→	if err != nil || strings.HasPrefix(rel, "..") {
+   132→		return "" // Path is not under sessionsRoot
+   133→	}
+   134→
+   135→	parts := strings.Split(filepath.ToSlash(rel), "/")
+   136→	switch len(parts) {
+   137→	case 1: // YYYY
+   138→		if len(parts[0]) == 4 {
+   139→			return "year"
+   140→		}
+   141→	case 2: // YYYY/MM
+   142→		if len(parts[0]) == 4 && len(parts[1]) == 2 {
+   143→			return "month"
+   144→		}
+   145→	case 3: // YYYY/MM/DD
+   146→		if len(parts[0]) == 4 && len(parts[1]) == 2 && len(parts[2]) == 2 {
+   147→			return "day"
+   148→		}
+   149→	}
+   150→	return ""
+   151→}
+   152→
+   153→// startCodexSessionWatcher starts watching hierarchically for Codex sessions.
+   154→// Watches sessionsRoot/YYYY/MM/DD/ structure to handle date changes across days, months, and years.
+   155→// The initialDayDir is scanned immediately if it exists.
+   156→func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDayDir string) error {
+   157→	slog.Info("startCodexSessionWatcher: Creating hierarchical watcher",
+   158→		"sessionsRoot", sessionsRoot,
+   159→		"initialDayDir", initialDayDir)
+   160→
+   161→	// Create a new watcher
+   162→	watcher, err := fsnotify.NewWatcher()
+   163→	if err != nil {
+   164→		return fmt.Errorf("failed to create file watcher: %v", err)
+   165→	}
+   166→
+   167→	// Increment wait group before starting goroutine
+   168→	watcherWg.Add(1)
+   169→
+   170→	// Start watching in a goroutine
+   171→	go func() {
+   172→		// Decrement wait group when done
+   173→		defer watcherWg.Done()
+   174→
+   175→		// Log when goroutine starts
+   176→		slog.Info("startCodexSessionWatcher: Goroutine started")
+   177→
+   178→		// Defer cleanup
+   179→		defer func() {
+   180→			slog.Info("startCodexSessionWatcher: Goroutine exiting, closing watcher")
+   181→			if err := watcher.Close(); err != nil {
+   182→				slog.Debug("startCodexSessionWatcher: Error closing watcher", "error", err)
+   183→			}
+   184→		}()
+   185→
+   186→		// Track which directories are being watched to avoid duplicates
+   187→		watchedDirs := make(map[string]bool)
+   188→		var watchedDirsMutex sync.Mutex
+   189→
+   190→		// Helper to add a directory to watcher if not already watched
+   191→		addWatch := func(dir string) error {
+   192→			watchedDirsMutex.Lock()
+   193→			defer watchedDirsMutex.Unlock()
+   194→
+   195→			if watchedDirs[dir] {
+   196→				return nil // Already watching
+   197→			}
+   198→
+   199→			if err := watcher.Add(dir); err != nil {
+   200→				return err
+   201→			}
+   202→			watchedDirs[dir] = true
+   203→			slog.Info("startCodexSessionWatcher: Added watch", "directory", dir)
+   204→			return nil
+   205→		}
+   206→
+   207→		// Helper to scan a day directory for existing sessions
+   208→		scanDayDir := func(dayDir string) {
+   209→			if _, err := os.Stat(dayDir); err == nil {
+   210→				slog.Info("startCodexSessionWatcher: Scanning day directory", "directory", dayDir)
+   211→				ScanCodexSessions(projectPath, dayDir, nil)
+   212→			}
+   213→		}
+   214→
+   215→		// Helper to watch a day directory and scan it
+   216→		watchDayDir := func(dayDir string) {
+   217→			if err := addWatch(dayDir); err != nil {
+   218→				slog.Error("startCodexSessionWatcher: Failed to watch day directory",
+   219→					"directory", dayDir,
+   220→					"error", err)
+   221→				return
+   222→			}
+   223→			scanDayDir(dayDir)
+   224→		}
+   225→
+   226→		// Helper to watch a month directory and its existing day directories
+   227→		watchMonthDir := func(monthDir string) {
+   228→			if err := addWatch(monthDir); err != nil {
+   229→				slog.Error("startCodexSessionWatcher: Failed to watch month directory",
+   230→					"directory", monthDir,
+   231→					"error", err)
+   232→				return
+   233→			}
+   234→
+   235→			// Scan for existing day directories
+   236→			entries, err := os.ReadDir(monthDir)
+   237→			if err != nil {
+   238→				slog.Debug("startCodexSessionWatcher: Cannot read month directory",
+   239→					"directory", monthDir,
+   240→					"error", err)
+   241→				return
+   242→			}
+   243→
+   244→			for _, entry := range entries {
+   245→				if !entry.IsDir() {
+   246→					continue
+   247→				}
+   248→				// Day directories are named 01-31
+   249→				if len(entry.Name()) == 2 {
+   250→					dayDir := filepath.Join(monthDir, entry.Name())
+   251→					watchDayDir(dayDir)
+   252→				}
+   253→			}
+   254→		}
+   255→
+   256→		// Helper to watch a year directory and its existing month directories
+   257→		watchYearDir := func(yearDir string) {
+   258→			if err := addWatch(yearDir); err != nil {
+   259→				slog.Error("startCodexSessionWatcher: Failed to watch year directory",
+   260→					"directory", yearDir,
+   261→					"error", err)
+   262→				return
+   263→			}
+   264→
+   265→			// Scan for existing month directories
+   266→			entries, err := os.ReadDir(yearDir)
+   267→			if err != nil {
+   268→				slog.Debug("startCodexSessionWatcher: Cannot read year directory",
+   269→					"directory", yearDir,
+   270→					"error", err)
+   271→				return
+   272→			}
+   273→
+   274→			for _, entry := range entries {
+   275→				if !entry.IsDir() {
+   276→					continue
+   277→				}
+   278→				// Month directories are named 01-12
+   279→				if len(entry.Name()) == 2 {
+   280→					monthDir := filepath.Join(yearDir, entry.Name())
+   281→					watchMonthDir(monthDir)
+   282→				}
+   283→			}
+   284→		}
+   285→
+   286→		// Watch sessions root for year directories
+   287→		if err := addWatch(sessionsRoot); err != nil {
+   288→			log.UserError("Error watching sessions root: %v", err)
+   289→			slog.Error("startCodexSessionWatcher: Failed to watch sessions root", "error", err)
+   290→			return
+   291→		}
+   292→
+   293→		// Scan for existing year directories
+   294→		entries, err := os.ReadDir(sessionsRoot)
+   295→		if err != nil {
+   296→			slog.Warn("startCodexSessionWatcher: Cannot read sessions root",
+   297→				"directory", sessionsRoot,
+   298→				"error", err)
+   299→		} else {
+   300→			for _, entry := range entries {
+   301→				if !entry.IsDir() {
+   302→					continue
+   303→				}
+   304→				// Year directories are named YYYY (4 digits)
+   305→				if len(entry.Name()) == 4 {
+   306→					yearDir := filepath.Join(sessionsRoot, entry.Name())
+   307→					watchYearDir(yearDir)
+   308→				}
+   309→			}
+   310→		}
+   311→
+   312→		// Scan the initial day directory if it exists
+   313→		scanDayDir(initialDayDir)
+   314→
+   315→		// Watch for events
+   316→		slog.Info("startCodexSessionWatcher: Now watching for file and directory events")
+   317→		for {
+   318→			select {
+   319→			case <-watcherCtx.Done():
+   320→				slog.Info("startCodexSessionWatcher: Context cancelled, stopping watcher")
+   321→				return
+   322→
+   323→			case event, ok := <-watcher.Events:
+   324→				if !ok {
+   325→					slog.Info("startCodexSessionWatcher: Watcher events channel closed")
+   326→					return
+   327→				}
+   328→
+   329→				if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) && !event.Has(fsnotify.Remove) {
+   330→					continue
+   331→				}
+   332→
+   333→				// Determine what type of path this is
+   334→				eventPath := event.Name
+   335→				parentDir := filepath.Dir(eventPath)
+   336→
+   337→				// Check if this is a JSONL file (in a day directory)
+   338→				if strings.HasSuffix(eventPath, ".jsonl") {
+   339→					switch {
+   340→					case event.Has(fsnotify.Create), event.Has(fsnotify.Write):
+   341→						slog.Info("startCodexSessionWatcher: JSONL file event",
+   342→							"operation", event.Op.String(),
+   343→							"file", eventPath)
+   344→						ScanCodexSessions(projectPath, parentDir, &eventPath)
+   345→					case event.Has(fsnotify.Remove):
+   346→						slog.Info("startCodexSessionWatcher: JSONL file removed", "file", eventPath)
+   347→						ScanCodexSessions(projectPath, parentDir, nil)
+   348→					}
+   349→					continue
+   350→				}
+   351→
+   352→				// Check if this is a directory creation
+   353→				if event.Has(fsnotify.Create) {
+   354→					switch dirType(eventPath, sessionsRoot) {
+   355→					case "year":
+   356→						slog.Info("startCodexSessionWatcher: New year directory created", "directory", eventPath)
+   357→						watchYearDir(eventPath)
+   358→					case "month":
+   359→						slog.Info("startCodexSessionWatcher: New month directory created", "directory", eventPath)
+   360→						watchMonthDir(eventPath)
+   361→					case "day":
+   362→						slog.Info("startCodexSessionWatcher: New day directory created", "directory", eventPath)
+   363→						watchDayDir(eventPath)
+   364→					}
+   365→				}
+   366→
+   367→			case err, ok := <-watcher.Errors:
+   368→				if !ok {
+   369→					slog.Info("startCodexSessionWatcher: Watcher errors channel closed")
+   370→					return
+   371→				}
+   372→				log.UserWarn("Watcher error: %v", err)
+   373→				slog.Error("startCodexSessionWatcher: Watcher error", "error", err)
+   374→			}
+   375→		}
+   376→	}()
+   377→
+   378→	return nil
+   379→}
+   380→
+   381→// ScanCodexSessions scans JSONL files in the session directory and processes sessions
+   382→// that match the project path. If changedFile is nil, scans all JSONL files in the directory.
+   383→// If changedFile is non-nil, only processes that specific file.
+   384→func ScanCodexSessions(projectPath string, sessionDir string, changedFile *string) {
+   385→	// Ensure logs are flushed even if we panic
+   386→	defer func() {
+   387→		if r := recover(); r != nil {
+   388→			log.UserWarn("PANIC in ScanCodexSessions: %v", r)
+   389→			slog.Error("ScanCodexSessions: PANIC recovered", "panic", r)
+   390→		}
+   391→	}()
+   392→
+   393→	slog.Info("ScanCodexSessions: === START SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
+   394→	if changedFile != nil {
+   395→		slog.Info("ScanCodexSessions: Scanning with changed file",
+   396→			"projectPath", projectPath,
+   397→			"sessionDir", sessionDir,
+   398→			"changedFile", *changedFile)
+   399→	} else {
+   400→		slog.Info("ScanCodexSessions: Scanning all sessions",
+   401→			"projectPath", projectPath,
+   402→			"sessionDir", sessionDir)
+   403→	}
+   404→
+   405→	// Get the session callback
+   406→	callback := getWatcherCallback()
+   407→	if callback == nil {
+   408→		slog.Error("ScanCodexSessions: No callback provided - this should not happen")
+   409→		return
+   410→	}
+   411→
+   412→	// Normalize project path for comparison
+   413→	normalizedProjectPath := normalizeCodexPath(projectPath)
+   414→	if normalizedProjectPath == "" {
+   415→		slog.Debug("ScanCodexSessions: Unable to normalize project path", "projectPath", projectPath)
+   416→	}
+   417→
+   418→	// If we have a specific changed file, only process that file
+   419→	if changedFile != nil {
+   420→		if err := processCodexSessionFile(*changedFile, projectPath, normalizedProjectPath, callback); err != nil {
+   421→			slog.Debug("ScanCodexSessions: Failed to process changed file",
+   422→				"file", *changedFile,
+   423→				"error", err)
+   424→		}
+   425→		slog.Info("ScanCodexSessions: === END SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
+   426→		return
+   427→	}
+   428→
+   429→	// Otherwise, scan all JSONL files in the session directory
+   430→	entries, err := os.ReadDir(sessionDir)
+   431→	if err != nil {
+   432→		slog.Error("ScanCodexSessions: Failed to read session directory",
+   433→			"directory", sessionDir,
+   434→			"error", err)
+   435→		return
+   436→	}
+   437→
+   438→	for _, entry := range entries {
+   439→		if entry.IsDir() {
+   440→			continue
+   441→		}
+   442→		if filepath.Ext(entry.Name()) != ".jsonl" {
+   443→			continue
+   444→		}
+   445→
+   446→		sessionPath := filepath.Join(sessionDir, entry.Name())
+   447→		if err := processCodexSessionFile(sessionPath, projectPath, normalizedProjectPath, callback); err != nil {
+   448→			slog.Debug("ScanCodexSessions: Failed to process session file",
+   449→				"file", sessionPath,
+   450→				"error", err)
+   451→			// Continue processing other files even if one fails
+   452→		}
+   453→	}
+   454→
+   455→	slog.Info("ScanCodexSessions: Processing complete")
+   456→	slog.Info("ScanCodexSessions: === END SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
+   457→}
+   458→
+   459→// processCodexSessionFile processes a single Codex session file and calls the callback
+   460→// if the session matches the project path.
+   461→func processCodexSessionFile(sessionPath string, projectPath string, normalizedProjectPath string, callback func(*spi.AgentChatSession)) error {
+   462→	// Load session metadata
+   463→	meta, err := loadCodexSessionMeta(sessionPath)
+   464→	if err != nil {
+   465→		return fmt.Errorf("failed to load session meta: %w", err)
+   466→	}
+   467→
+   468→	// Check if session matches project path
+   469→	sessionID := strings.TrimSpace(meta.Payload.ID)
+   470→	normalizedCWD := normalizeCodexPath(meta.Payload.CWD)
+   471→	if normalizedCWD == "" {
+   472→		slog.Debug("processCodexSessionFile: Session meta missing cwd", "sessionID", sessionID, "path", sessionPath)
+   473→		return fmt.Errorf("session meta missing cwd")
+   474→	}
+   475→
+   476→	// Check if this session matches the project path
+   477→	matched := false
+   478→	if normalizedProjectPath != "" {
+   479→		if normalizedCWD == normalizedProjectPath || strings.EqualFold(normalizedCWD, normalizedProjectPath) {
+   480→			matched = true
+   481→		}
+   482→	} else if normalizedCWD == projectPath || strings.EqualFold(normalizedCWD, projectPath) {
+   483→		matched = true
+   484→	}
+   485→
+   486→	if !matched {
+   487→		slog.Debug("processCodexSessionFile: Session does not match project path",
+   488→			"sessionID", sessionID,
+   489→			"sessionCWD", normalizedCWD,
+   490→			"projectPath", normalizedProjectPath)
+   491→		return nil // Not an error, just doesn't match
+   492→	}
+   493→
+   494→	slog.Info("processCodexSessionFile: Session matched project",
+   495→		"sessionID", sessionID,
+   496→		"sessionPath", sessionPath)
+   497→
+   498→	// Create session info
+   499→	sessionInfo := &codexSessionInfo{
+   500→		SessionID:   sessionID,
+   501→		SessionPath: sessionPath,
+   502→		Meta:        meta,
+   503→	}
+   504→
+   505→	// Process the session
+   506→	agentSession, err := processSessionToAgentChat(sessionInfo, projectPath, getWatcherDebugRaw())
+   507→	if err != nil {
+   508→		return fmt.Errorf("failed to process session: %w", err)
+   509→	}
+   510→
+   511→	// Skip empty sessions
+   512→	if agentSession == nil {
+   513→		slog.Debug("processCodexSessionFile: Skipping empty session", "sessionID", sessionID)
+   514→		return nil
+   515→	}
+   516→
+   517→	// Skip sessions without user message (empty slug)
+   518→	if agentSession.Slug == "" {
+   519→		slog.Debug("processCodexSessionFile: Skipping session without user message",
+   520→			"sessionID", agentSession.SessionID)
+   521→		return nil
+   522→	}
+   523→
+   524→	slog.Info("processCodexSessionFile: Calling callback for session", "sessionID", agentSession.SessionID)
+   525→	// Call the callback in a goroutine to avoid blocking
+   526→	go func(s *spi.AgentChatSession) {
+   527→		defer func() {
+   528→			if r := recover(); r != nil {
+   529→				slog.Error("processCodexSessionFile: Callback panicked", "panic", r)
+   530→			}
+   531→		}()
+   532→		callback(s)
+   533→	}(agentSession)
+   534→
+   535→	return nil
+   536→}
+   537→
+```
+</details></tool-use>
+
+---
+
+_**User (2026-01-29 15:57:16Z)**_
+
+[Request interrupted by user]
