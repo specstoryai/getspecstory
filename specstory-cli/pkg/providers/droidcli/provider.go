@@ -142,6 +142,9 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	return convertToAgentSession(session, projectPath, debugRaw), nil
 }
 
+// ExecAgentAndWatch executes the Factory Droid CLI agent for the given project and,
+// when a session callback is provided, watches for new or updated chat sessions and
+// invokes the callback as they are discovered.
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if sessionCallback == nil {
 		return ExecuteDroid(customCommand, resumeSessionID)
