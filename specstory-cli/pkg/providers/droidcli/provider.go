@@ -68,6 +68,9 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
+// DetectAgent reports whether the Factory Droid CLI agent is relevant for the given
+// projectPath based on existing session files. When helpOutput is true, it may log
+// warnings or print detection help to guide the user if detection fails.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	files, err := listSessionFiles()
 	if err != nil {
