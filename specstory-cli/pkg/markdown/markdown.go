@@ -261,9 +261,9 @@ func renderGenericTool(tool *ToolInfo) string {
 
 			// Check if value is multiline - if so, use code block
 			if strings.Contains(valueStr, "\n") {
-				markdown.WriteString(fmt.Sprintf("- %s:\n\n```\n%s\n```\n\n", key, valueStr))
+				markdown.WriteString(fmt.Sprintf("- %s:\n\n```\n%v\n```\n\n", key, valueStr))
 			} else {
-				markdown.WriteString(fmt.Sprintf("- %s: `%s`\n", key, valueStr))
+				markdown.WriteString(fmt.Sprintf("- %s: `%v`\n", key, valueStr))
 			}
 		}
 		markdown.WriteString("\n")
