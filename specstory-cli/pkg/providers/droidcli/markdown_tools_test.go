@@ -444,6 +444,37 @@ func TestEditToolWithDroidFormat(t *testing.T) {
 	}
 }
 
+func TestRenderGenerateDroidInput(t *testing.T) {
+	args := map[string]any{
+		"description": "A Python testing assistant",
+		"location":    "project",
+	}
+	resultContent := `{"identifier":"python-testing-assistant","description":"A Python testing specialist.","systemPrompt":"You are a Python testing specialist."}`
+	result := &fdToolResult{Content: resultContent}
+
+	got := renderGenerateDroidInput(args, result)
+
+	expectedSubstr := []string{
+		"**Description:** A Python testing assistant",
+		"**Location:** project",
+		"**Created:** `python-testing-assistant`",
+		"> A Python testing specialist.",
+		"**System Prompt:**",
+		"You are a Python testing specialist.",
+	}
+
+	for _, substr := range expectedSubstr {
+		if !strings.Contains(got, substr) {
+			t.Errorf("expected output to contain %q, got:\n%s", substr, got)
+		}
+	}
+
+	// Should NOT contain raw JSON
+	if strings.Contains(got, "systemPrompt") {
+		t.Errorf("expected output NOT to contain raw JSON key 'systemPrompt', got:\n%s", got)
+	}
+}
+
 func TestRenderSkillInput(t *testing.T) {
 	tests := []struct {
 		name     string

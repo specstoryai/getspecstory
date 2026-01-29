@@ -6765,3 +6765,450 @@ All tests pass. The Skill tool will now render as `Skill: \`agent-browser\`` ins
 _**Agent (claude-opus-4-5-20251101 2026-01-29 23:36:10Z)**_
 
 Done. Skill tool now renders as `Skill: \`agent-browser\`` instead of the JSON block.
+
+---
+
+_**User (2026-01-29 23:39:28Z)**_
+
+OK, the formatting for the GenerateDroid skill on line 790 is just all bad. The tool use and result are here /Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/40.json and here respectively.
+
+Propose something good for this. What the agent is doing there is spinning up a task specific subagent. So... see what we have in the tool use and tool result to give the user good markdown for what went down.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:35Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me look at the data for GenerateDroid to understand what it does and propose a good format.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:36Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/40.json`
+```
+     1→{
+     2→  "id": "92537d21-af96-4172-ad66-999d3cfa44dc",
+     3→  "message": {
+     4→    "content": [
+     5→      {
+     6→        "signature": "EukCCkYICxgCKkC5GhkeVZW1BjQUzkrXuEFOioiDjA3YEcoKnLqraJf2Fvm6VCCcM2/5wAZQSISxgftecG5f3BcKhX4hc1BcS7S4EgyMxltcK5FyOhSJWf8aDA3ujUHzfoBJ1DFDwiIwX7e+gteovV2JEfb+MX2G6GOQalDy/sUNX3m8J+qlmTtjNk13e1TqDjMvas4LWnZuKtAB02/mNz/YQBPRsH2/w1lFUNw8qPs7yaKcHSFZZJH0LXbbSckTZ7NUw7yBNFIILli299KT/RM7wVlXzBsJKcFy/MoqaavkK1alcCcgkteIm7RGB/9OGZIdTltFTLHHYlh9DOqCeZ9mMHjhSkmkmbGCk5Q8V7MsOzWMJEJ77DtRRCbCprmcWWqdo7uBnAfwy9BkiqQm1A+8zk43P1KO79+LWETYxbYt4W0vN+bQmWF4wKKiwD2i9YIzisjPVzFjRuNLnDrt9Be9TmvFnjDp90dGcxgB",
+     7→        "thinking": "Great! AskUser demonstrated - the user answered that they prefer Python and code in the morning. Now let me demonstrate GenerateDroid. I'll create a simple droid config based on a description.",
+     8→        "type": "thinking"
+     9→      },
+    10→      {
+    11→        "text": "**11. AskUser** ✓ - Asked you 2 multiple-choice questions and you answered: Python for demonstrations and you code in the Morning.",
+    12→        "type": "text"
+    13→      },
+    14→      {
+    15→        "id": "toolu_01HYNZJZsGkwHnciRR8m6g3C",
+    16→        "input": {
+    17→          "todos": "1. [completed] TodoWrite - Create and manage todo list\n2. [completed] Read - Read file contents\n3. [completed] LS - List directory contents\n4. [completed] Execute - Run shell command\n5. [completed] Create - Create a new file\n6. [completed] Edit - Modify existing file\n7. [completed] Grep - Search file contents\n8. [completed] Glob - Find files by pattern\n9. [completed] WebSearch - Search the web\n10. [completed] FetchUrl - Fetch URL content\n11. [completed] AskUser - Ask multiple choice questions\n12. [in_progress] GenerateDroid - Generate droid config\n13. [pending] Skill - Execute specialized skill\n14. [pending] ExitSpecMode - Show spec mode tool (special case)"
+    18→        },
+    19→        "name": "TodoWrite",
+    20→        "type": "tool_use"
+    21→      },
+    22→      {
+    23→        "id": "toolu_01A6ZMnNPgLBmkvsQ78mthhg",
+    24→        "input": {
+    25→          "description": "A Python testing assistant that helps run pytest tests, analyze test coverage reports, and suggest improvements to test suites. Use this droid when you need to test Python code, check test coverage, or improve testing practices.",
+    26→          "location": "project"
+    27→        },
+    28→        "name": "GenerateDroid",
+    29→        "type": "tool_use"
+    30→      }
+    31→    ],
+    32→    "role": "assistant"
+    33→  },
+    34→  "parentId": "9a0caeb6-4eab-44e7-8ec2-c5231ca29432",
+    35→  "timestamp": "2026-01-29T17:33:21.764Z",
+    36→  "type": "message"
+    37→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:37Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/41.json`
+```
+     1→{
+     2→  "id": "c40d8358-6553-4d8e-8b50-48f6e710e6e8",
+     3→  "messageIndex": 2,
+     4→  "timestamp": "2026-01-29T17:33:21.766Z",
+     5→  "todos": {
+     6→    "todos": "1. [completed] TodoWrite - Create and manage todo list\n2. [completed] Read - Read file contents\n3. [completed] LS - List directory contents\n4. [completed] Execute - Run shell command\n5. [completed] Create - Create a new file\n6. [completed] Edit - Modify existing file\n7. [completed] Grep - Search file contents\n8. [completed] Glob - Find files by pattern\n9. [completed] WebSearch - Search the web\n10. [completed] FetchUrl - Fetch URL content\n11. [completed] AskUser - Ask multiple choice questions\n12. [in_progress] GenerateDroid - Generate droid config\n13. [pending] Skill - Execute specialized skill\n14. [pending] ExitSpecMode - Show spec mode tool (special case)"
+     7→  },
+     8→  "type": "todo_state"
+     9→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:38Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+   785→Output: TODO List Updated
+   786→</details></tool-use>
+   787→
+   788→_**Agent (2026-01-29 17:33:21Z)**_
+   789→
+   790→<tool-use data-tool-type="generic" data-tool-name="GenerateDroid"><details>
+   791→<summary>Tool use: **GenerateDroid**</summary>
+   792→```json
+   793→{
+   794→  "description": "A Python testing assistant that helps run pytest tests, analyze test coverage reports, and suggest improvements to test suites. Use this droid when you need to test Python code, check test coverage, or improve testing practices.",
+   795→  "location": "project"
+   796→}
+   797→```
+   798→
+   799→Output: {"identifier":"python-pytest-testing-assistant","description":"A Python testing specialist focused on pytest execution, test coverage analysis, and test suite quality improvement. This droid helps developers run and interpret pytest commands, analyze coverage reports to identify untested code paths, and provide actionable recommendations for improving test effectiveness, maintainability, and best practices adherence.","systemPrompt":"You are a Python testing specialist with deep expertise in pytest and test-driven development practices. Your primary responsibilities are: (1) helping users execute pytest commands with appropriate flags and configurations, (2) analyzing test coverage reports to identify gaps in code coverage and critical untested paths, (3) suggesting specific improvements to test suites including missing test cases, better assertion strategies, fixture usage, and parametrization opportunities, and (4) recommending pytest best practices such as proper test organization, naming conventions, and plugin usage. Always provide concrete, actionable advice with code examples when suggesting improvements. Prioritize test quality and maintainability over just achieving high coverage percentages. When analyzing failures, help debug by examining tracebacks, assertion errors, and suggesting potential root causes. Avoid vague suggestions—be specific about what to test and why. Focus on practical testing strategies that improve code reliability without creating brittle or overly complex tests."}
+   800→</details></tool-use>
+   801→
+   802→_**Agent (2026-01-29 17:33:36Z)**_
+   803→
+   804→<think><details><summary>Thought Process</summary>
+   805→Excellent! GenerateDroid demonstrated - it created a Python testing assistant droid configuration with a detailed system prompt. Now let me demonstrate the Skill tool by executing the agent-browser skill. Then finally I'll explain ExitSpecMode.
+   806→</details></think>
+   807→
+   808→_**Agent (2026-01-29 17:33:36Z)**_
+   809→
+   810→**12. GenerateDroid** ✓ - Generated a custom droid config for a "Python pytest testing assistant" with detailed system prompt, saved to the project's .factory/droids directory.
+   811→
+   812→_**Agent (2026-01-29 17:33:36Z)**_
+   813→
+   814→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   815→<summary>Tool use: **TodoWrite**</summary>
+   816→Todo List:
+   817→1. [completed] TodoWrite - Create and manage todo list
+   818→2. [completed] Read - Read file contents
+   819→3. [completed] LS - List directory contents
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:46Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I understand. The GenerateDroid tool:
+
+**Input:**
+- `description`: A description of what the droid should do
+- `location`: Where to save it (e.g., "project")
+
+**Output (JSON):**
+- `identifier`: The generated droid ID (e.g., "python-pytest-testing-assistant")
+- `description`: A refined/expanded description
+- `systemPrompt`: The generated system prompt for the droid
+
+A good format would be something like:
+
+```
+**Description:** A Python testing assistant that helps run pytest tests...
+**Location:** project
+
+**Generated Droid:** `python-pytest-testing-assistant`
+
+A Python testing specialist focused on pytest execution, test coverage analysis...
+
+<details>
+<summary>System Prompt</summary>
+You are a Python testing specialist with deep expertise in pytest...
+</details>
+```
+
+Or simpler:
+
+```
+**Description:** A Python testing assistant that helps run pytest tests, analyze test coverage reports, and suggest improvements to test suites.
+**Location:** project
+
+**Created:** `python-pytest-testing-assistant`
+> A Python testing specialist focused on pytest execution, test coverage analysis, and test suite quality improvement...
+```
+
+Let me implement this.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:49Z)**_
+
+I see. The input has `description` and `location`, and the output returns `identifier`, `description` (refined), and `systemPrompt`. Here's what I propose:
+
+**Input:**
+```
+**Description:** A Python testing assistant that helps run pytest tests...
+**Location:** project
+```
+
+**Output:**
+```
+**Created:** `python-pytest-testing-assistant`
+
+> A Python testing specialist focused on pytest execution, test coverage analysis...
+```
+
+The system prompt is very long and probably not needed in the markdown - the refined description captures the essence.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:51Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:41:11Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to add the `renderGenerateDroidInput` function and also skip the output rendering for GenerateDroid since it'll be included in the input rendering.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:41:16Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:41:38Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to skip the output rendering for GenerateDroid since it's already included in the input rendering.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:41:39Z)**_
+
+Now skip the output rendering for GenerateDroid.
+
+---
+
+_**User (2026-01-29 23:41:40Z)**_
+
+[Request interrupted by user]
+
+_**User (2026-01-29 23:41:54Z)**_
+
+We want all the system prompt in the MD. Short MD is not a goal. Completeness is.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:41:57Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants the full system prompt included in the markdown output for completeness. Let me update the function to include the system prompt, perhaps in a collapsible details section to keep it organized.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:03Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:17Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to skip the output rendering for GenerateDroid in formatToolOutput since it's already included.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:17Z)**_
+
+Now skip the output rendering for GenerateDroid.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:19Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:33Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the linter and tests.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.255s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:39Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Now I should add a test for GenerateDroid.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:39Z)**_
+
+Now add a test.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:44Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:47Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the test.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:48Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Format and run GenerateDroid test
+
+`gofmt -w ./pkg/providers/droidcli/markdown_tools_test.go && go test ./pkg/providers/droidcli/... -run TestRenderGenerateDroidInput`
+```
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.186s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:54Z)**_
+
+<think><details><summary>Thought Process</summary>
+Test passes. Now GenerateDroid will render as:
+
+```
+**Description:** A Python testing assistant that helps run pytest tests...
+**Location:** project
+
+**Created:** `python-pytest-testing-assistant`
+
+> A Python testing specialist focused on pytest execution, test coverage analysis...
+
+<details>
+<summary>System Prompt</summary>
+
+You are a Python testing specialist with deep expertise in pytest...
+</details>
+```
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:42:54Z)**_
+
+Done. GenerateDroid now renders as:
+
+```
+**Description:** A Python testing assistant that helps run pytest tests...
+**Location:** project
+
+**Created:** `python-pytest-testing-assistant`
+
+> A Python testing specialist focused on pytest execution...
+
+<details>
+<summary>System Prompt</summary>
+
+You are a Python testing specialist with deep expertise in pytest...
+</details>
+```
+
+---
+
+_**User (2026-01-29 23:44:49Z)**_
+
+hmm a <details> tag w/in a <details> tag is unlikely to work and/or be helpful when this is renederred. So... just **System Prompt:** without the HTML tagging.
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:44:53Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is right - having nested details tags won't work well. Let me simplify to just use **System Prompt:** as a header.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:44:55Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:44:58Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to update the test to reflect this change.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:45:00Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:45:03Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me run the tests to make sure everything passes.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:45:03Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.315s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:45:09Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass. Now GenerateDroid will render as:
+```
+**Description:** A Python testing assistant that helps run pytest tests...**Location:** project**Created:** `python-pytest-testing-assistant`> A Python testing specialist focused on pytest execution...
+
+**System Prompt:**You are a Python testing specialist with deep expertise in pytest...
+```
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:45:10Z)**_
+
+Done. Now renders as:
+
+```
+**Description:** A Python testing assistant...
+**Location:** project
+
+**Created:** `python-pytest-testing-assistant`
+
+> A Python testing specialist focused on pytest execution...
+
+**System Prompt:**
+
+You are a Python testing specialist with deep expertise in pytest...
+```

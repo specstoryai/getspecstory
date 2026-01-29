@@ -55,6 +55,8 @@ func formatToolInput(tool *fdToolCall) string {
 		return renderAskUserInput(args, tool.Result)
 	case "skill":
 		return renderSkillInput(args)
+	case "generatedroid":
+		return renderGenerateDroidInput(args, tool.Result)
 	default:
 		return renderGenericJSON(args)
 	}
@@ -64,9 +66,9 @@ func formatToolOutput(tool *fdToolCall) string {
 	if tool.Result == nil {
 		return ""
 	}
-	// AskUser output is already included in the input rendering
+	// AskUser and GenerateDroid output is already included in the input rendering
 	name := normalizeToolName(tool.Name)
-	if name == "askuser" || name == "askuserquestion" {
+	if name == "askuser" || name == "askuserquestion" || name == "generatedroid" {
 		return ""
 	}
 	content := strings.TrimSpace(tool.Result.Content)
@@ -419,6 +421,46 @@ func renderSkillInput(args map[string]any) string {
 		return renderGenericJSON(args)
 	}
 	return fmt.Sprintf("Skill: `%s`", skill)
+}
+
+func renderGenerateDroidInput(args map[string]any, result *fdToolResult) string {
+	description := stringValue(args, "description")
+	location := stringValue(args, "location")
+
+	var builder strings.Builder
+	if description != "" {
+		builder.WriteString(fmt.Sprintf("**Description:** %s\n", description))
+	}
+	if location != "" {
+		builder.WriteString(fmt.Sprintf("**Location:** %s\n", location))
+	}
+
+	// Parse the result to get the generated droid info
+	if result != nil && result.Content != "" {
+		var output struct {
+			Identifier   string `json:"identifier"`
+			Description  string `json:"description"`
+			SystemPrompt string `json:"systemPrompt"`
+		}
+		if err := json.Unmarshal([]byte(result.Content), &output); err == nil {
+			if output.Identifier != "" {
+				builder.WriteString(fmt.Sprintf("\n**Created:** `%s`\n", output.Identifier))
+			}
+			if output.Description != "" {
+				builder.WriteString(fmt.Sprintf("\n> %s\n", output.Description))
+			}
+			if output.SystemPrompt != "" {
+				builder.WriteString("\n**System Prompt:**\n\n")
+				builder.WriteString(output.SystemPrompt)
+			}
+		}
+	}
+
+	out := strings.TrimSpace(builder.String())
+	if out == "" {
+		return renderGenericJSON(args)
+	}
+	return out
 }
 
 // renderAskUserInput formats the AskUser tool input with questions, options, and answers.
