@@ -4571,3 +4571,1266 @@ All three fixes are complete:
    - Modified the thinking block handler to use `block.Thinking` (with fallback to `block.Text` for backwards compatibility)
 
 Now when the Droid Factory provider encounters thinking blocks like the one in `3.json`, it will properly extract the content from the `"thinking"` field and include it in the SessionData with `Type: "thinking"`, which the markdown renderer will format with `<think>` tags.
+
+---
+
+_**User (2026-01-29 23:14:18Z)**_
+
+Take a look at the AskUser tool output on line 725 /Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md
+
+We don't want that JSON block. The data for this tool is in /Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/37.json and /Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/39.json
+
+Take a look at the AskUserQuestion tool output from Claude Code, we want something like that:
+
+_**Agent (claude-opus-4-5-20251101 2026-01-16 22:30:52Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="AskUserQuestion"><details>
+<summary>Tool use: **AskUserQuestion**</summary>
+**Which emoji would you prefer for the promotional line?**
+
+Options:
+- **🔍 (search/magnifying glass)** - Emphasizes the search capability
+- **✨ (sparkles)** - Matches the "new sessions created" styling
+- **🚀 (rocket)** - Conveys excitement and speed
+- **💡 (lightbulb)** - Conveys insight and discovery
+
+**Should the message appear on one line or two?**
+
+Options:
+- **Two lines (Recommended)** - Text on first line, URL indented on second line for readability
+- **One line** - Compact format with text and URL on same line
+
+
+**Answer:** 💡 (lightbulb), Two lines (Recommended)
+</details></tool-use>
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:26Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants me to look at the AskUser tool formatting in the Droid Factory provider. Let me first look at the examples they mentioned to understand the data format and current output.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:27Z)**_
+
+Let me look at the data and the current output.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:27Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/37.json`
+```
+     1→{
+     2→  "id": "1c723fc0-b0be-48b0-b4e7-ce1b23c22c34",
+     3→  "message": {
+     4→    "content": [
+     5→      {
+     6→        "signature": "EtcCCkYICxgCKkDxZJggmSX2ov5j7xPUMZcrSyrHn9oruHsB0pfz3egAV7i6wlD3gaA3p2tR2luwxWMabNrJ9nDjs3FIGFXNkJxJEgztGvQmp4o/RGYDeCMaDMSrRc+3txqB6qBk+CIwqMjom3PGmNaGVahOgweOW5kYMYAHesiHjByj/9Ix5JA0QuBF1q8VsYZOKyE80jvwKr4BLHh7s5B9vbYBbwEGAELp6Robdc/oNTu0QnaEs5fMQr8wkqAi3sOSFsTEb1k3XO2Mi8oa9THcygEOOIMt9MnR0CUYgt6hLOc1JtENx9ksjSC93cbki2xBC+ubsA44ItAPGXDhyRdA2bGjBJmF48ROz8wudzvgLxPPokZValzu7Ta3/7/57lHVQfd7Qeeu3evV3pCGy8mya/Akf7PM1BNZfglDNKI7mBpBKuT4bLySMWDNXITOikP7zpj0nAdHNBgB",
+     7→        "thinking": "Perfect! FetchUrl demonstrated - it fetched the Python.org homepage and returned the content in markdown format. Now let me demonstrate AskUser by asking the user a question.",
+     8→        "type": "thinking"
+     9→      },
+    10→      {
+    11→        "text": "**10. FetchUrl** ✓ - Fetched the content from python.org and converted it to markdown, showing the homepage with links to Python 3.14.2, documentation, jobs, and more.",
+    12→        "type": "text"
+    13→      },
+    14→      {
+    15→        "id": "toolu_01Skw3xx8MkLaoGghp6u89k3",
+    16→        "input": {
+    17→          "todos": "1. [completed] TodoWrite - Create and manage todo list\n2. [completed] Read - Read file contents\n3. [completed] LS - List directory contents\n4. [completed] Execute - Run shell command\n5. [completed] Create - Create a new file\n6. [completed] Edit - Modify existing file\n7. [completed] Grep - Search file contents\n8. [completed] Glob - Find files by pattern\n9. [completed] WebSearch - Search the web\n10. [completed] FetchUrl - Fetch URL content\n11. [in_progress] AskUser - Ask multiple choice questions\n12. [pending] GenerateDroid - Generate droid config\n13. [pending] Skill - Execute specialized skill\n14. [pending] ExitSpecMode - Show spec mode tool (special case)"
+    18→        },
+    19→        "name": "TodoWrite",
+    20→        "type": "tool_use"
+    21→      },
+    22→      {
+    23→        "id": "toolu_01FaE4g19ky8hePrDdcVYGTn",
+    24→        "input": {
+    25→          "questionnaire": "1. [question] Which programming language do you prefer for demonstrations?\n[topic] Language\n[option] Python\n[option] JavaScript\n[option] TypeScript\n\n2. [question] What time of day do you usually code?\n[topic] Time\n[option] Morning\n[option] Afternoon\n[option] Evening"
+    26→        },
+    27→        "name": "AskUser",
+    28→        "type": "tool_use"
+    29→      }
+    30→    ],
+    31→    "role": "assistant"
+    32→  },
+    33→  "parentId": "c3c2bb1c-0981-42bd-b36d-0852396e8d67",
+    34→  "timestamp": "2026-01-29T17:32:57.080Z",
+    35→  "type": "message"
+    36→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/debug/fbddc6b1-73fd-43db-9b0e-2c70b5e6b649/39.json`
+```
+     1→{
+     2→  "id": "9a0caeb6-4eab-44e7-8ec2-c5231ca29432",
+     3→  "message": {
+     4→    "content": [
+     5→      {
+     6→        "content": "TODO List Updated",
+     7→        "tool_use_id": "toolu_01Skw3xx8MkLaoGghp6u89k3",
+     8→        "type": "tool_result"
+     9→      },
+    10→      {
+    11→        "content": "1. [question] Which programming language do you prefer for demonstrations?\n[answer] Python\n\n2. [question] What time of day do you usually code?\n[answer] Morning",
+    12→        "tool_use_id": "toolu_01FaE4g19ky8hePrDdcVYGTn",
+    13→        "type": "tool_result"
+    14→      }
+    15→    ],
+    16→    "role": "user"
+    17→  },
+    18→  "parentId": "1c723fc0-b0be-48b0-b4e7-ce1b23c22c34",
+    19→  "timestamp": "2026-01-29T17:33:14.429Z",
+    20→  "type": "message"
+    21→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:29Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+   605→3. [completed] LS - List directory contents
+   606→4. [completed] Execute - Run shell command
+   607→5. [completed] Create - Create a new file
+   608→6. [completed] Edit - Modify existing file
+   609→7. [completed] Grep - Search file contents
+   610→8. [completed] Glob - Find files by pattern
+   611→9. [completed] WebSearch - Search the web
+   612→10. [in_progress] FetchUrl - Fetch URL content
+   613→11. [pending] AskUser - Ask multiple choice questions
+   614→12. [pending] GenerateDroid - Generate droid config
+   615→13. [pending] Skill - Execute specialized skill
+   616→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   617→
+   618→Output: TODO List Updated
+   619→</details></tool-use>
+   620→
+   621→_**Agent (2026-01-29 17:32:44Z)**_
+   622→
+   623→<tool-use data-tool-type="search" data-tool-name="FetchUrl"><details>
+   624→<summary>Tool use: **FetchUrl**</summary>
+   625→URL: `https://www.python.org`
+   626→
+   627→Output:
+   628→```text
+   629→URL Content from: "https://www.python.org"
+   630→Title: Welcome to Python.org
+   631→Status: 200
+   632→Markdown content:
+   633→
+   634→**Notice:** This page displays a fallback because interactive scripts did not run. Possible causes include disabled JavaScript or failure to load scripts or stylesheets.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:33Z)**_
+
+<think><details><summary>Thought Process</summary>
+Let me read further to see the AskUser output that the user is complaining about.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:35Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/droid-factory/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md`
+```
+   700→_**Agent (2026-01-29 17:32:57Z)**_
+   701→
+   702→<tool-use data-tool-type="task" data-tool-name="TodoWrite"><details>
+   703→<summary>Tool use: **TodoWrite**</summary>
+   704→Todo List:
+   705→1. [completed] TodoWrite - Create and manage todo list
+   706→2. [completed] Read - Read file contents
+   707→3. [completed] LS - List directory contents
+   708→4. [completed] Execute - Run shell command
+   709→5. [completed] Create - Create a new file
+   710→6. [completed] Edit - Modify existing file
+   711→7. [completed] Grep - Search file contents
+   712→8. [completed] Glob - Find files by pattern
+   713→9. [completed] WebSearch - Search the web
+   714→10. [completed] FetchUrl - Fetch URL content
+   715→11. [in_progress] AskUser - Ask multiple choice questions
+   716→12. [pending] GenerateDroid - Generate droid config
+   717→13. [pending] Skill - Execute specialized skill
+   718→14. [pending] ExitSpecMode - Show spec mode tool (special case)
+   719→
+   720→Output: TODO List Updated
+   721→</details></tool-use>
+   722→
+   723→_**Agent (2026-01-29 17:32:57Z)**_
+   724→
+   725→<tool-use data-tool-type="generic" data-tool-name="AskUser"><details>
+   726→<summary>Tool use: **AskUser**</summary>
+   727→```json
+   728→{
+   729→  "questionnaire": "1. [question] Which programming language do you prefer for demonstrations?\n[topic] Language\n[option] Python\n[option] JavaScript\n[option] TypeScript\n\n2. [question] What time of day do you usually code?\n[topic] Time\n[option] Morning\n[option] Afternoon\n[option] Evening"
+   730→}
+   731→```
+   732→
+   733→Output:
+   734→```text
+   735→1. [question] Which programming language do you prefer for demonstrations?
+   736→[answer] Python
+   737→
+   738→2. [question] What time of day do you usually code?
+   739→[answer] Morning
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:46Z)**_
+
+<think><details><summary>Thought Process</summary>
+I can see the issue. The AskUser tool is currently being rendered with `renderGenericJSON` which just outputs the raw JSON. We need to create a custom formatter for the AskUser tool that:
+
+1. Parses the questionnaire format to extract questions, topics, and options
+2. Renders them in a nice markdown format like Claude Code does
+3. Includes the answers from the tool result
+
+Let me look at how Claude Code does this to understand the format better, then add a formatter for AskUser in the droid markdown_tools.go.
+
+The input format from the droid is:
+```json
+{
+  "questionnaire": "1. [question] Which programming language do you prefer for demonstrations?\n[topic] Language\n[option] Python\n[option] JavaScript\n[option] TypeScript\n\n2. [question] What time of day do you usually code?\n[topic] Time\n[option] Morning\n[option] Afternoon\n[option] Evening"
+}
+```
+
+And the output/result is:
+```
+1. [question] Which programming language do you prefer for demonstrations?
+[answer] Python
+
+2. [question] What time of day do you usually code?
+[answer] Morning
+```
+
+The expected format from Claude Code is:
+```
+**Which emoji would you prefer for the promotional line?**
+
+Options:
+- **🔍 (search/magnifying glass)** - Emphasizes the search capability
+- **✨ (sparkles)** - Matches the "new sessions created" styling
+...
+
+**Answer:** 💡 (lightbulb), Two lines (Recommended)
+```
+
+I need to add a custom formatter for "askuser" in markdown_tools.go.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:47Z)**_
+
+I see the issue. The AskUser tool is falling back to `renderGenericJSON` which just outputs the raw JSON. I need to add a custom formatter for it in `markdown_tools.go`.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:48Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+    29→func formatToolInput(tool *fdToolCall) string {
+    30→	args := decodeInput(tool.Input)
+    31→	switch normalizeToolName(tool.Name) {
+    32→	case "execute", "run", "bash", "shell", "command", "exec":
+    33→		return formatExecuteInput(args)
+    34→	case "read", "cat", "readfile", "view", "viewimage":
+    35→		return renderReadInput(args)
+    36→	case "ls", "list", "listdir", "listdirectory":
+    37→		return renderListInput(args)
+    38→	case "glob":
+    39→		return renderGlobInput(args)
+    40→	case "grep", "rg", "ripgrep", "search", "filesearch":
+    41→		return renderGrepInput(args)
+    42→	case "websearch", "searchweb", "googlewebsearch":
+    43→		return renderWebSearchInput(args)
+    44→	case "fetchurl", "fetch", "webfetch":
+    45→		return renderWebFetchInput(args)
+    46→	case "applypatch":
+    47→		return renderApplyPatch(args)
+    48→	case "write", "create", "writefile", "createfile", "addfile":
+    49→		return renderWriteInput(args)
+    50→	case "edit", "multiedit", "replace", "strreplace", "applyedit":
+    51→		return renderEditInput(args)
+    52→	case "todowrite":
+    53→		return renderTodoWrite(args)
+    54→	default:
+    55→		return renderGenericJSON(args)
+    56→	}
+    57→}
+    58→
+    59→func formatToolOutput(tool *fdToolCall) string {
+    60→	if tool.Result == nil {
+    61→		return ""
+    62→	}
+    63→	content := strings.TrimSpace(tool.Result.Content)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:53Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to:
+1. Add a case for "askuser" in the switch statement
+2. Create a `renderAskUserInput` function that parses the questionnaire format and formats it nicely
+3. May also need to handle the output separately since the answer is in the tool result
+
+Let me also look at how formatToolCall combines input and output to understand the full flow.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:54Z)**_
+
+I need to add a case for AskUser in the switch and create a formatter. Let me also check how the tool output is handled for this case.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:14:55Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"fmt"
+     6→	"path/filepath"
+     7→	"sort"
+     8→	"strconv"
+     9→	"strings"
+    10→)
+    11→
+    12→func formatToolCall(tool *fdToolCall) string {
+    13→	if tool == nil {
+    14→		return ""
+    15→	}
+    16→	body := strings.TrimSpace(formatToolInput(tool))
+    17→	result := strings.TrimSpace(formatToolOutput(tool))
+    18→
+    19→	var builder []string
+    20→	if body != "" {
+    21→		builder = append(builder, body)
+    22→	}
+    23→	if result != "" {
+    24→		builder = append(builder, result)
+    25→	}
+    26→	return strings.TrimSpace(strings.Join(builder, "\n\n"))
+    27→}
+    28→
+    29→func formatToolInput(tool *fdToolCall) string {
+    30→	args := decodeInput(tool.Input)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:08Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see. `formatToolCall` combines the input formatting with the output. For AskUser, I need to:1. Add the case in the switch
+2. Create a formatter that parses the questionnaire format
+3. The output (answer) should be extracted and appended at the end
+
+Let me create the formatter. The questionnaire format is:```
+1. [question] Which programming language...
+[topic] Language[option] Python
+[option] JavaScript[option] TypeScript2. [question] What time of day...
+[topic] Time
+[option] Morning
+[option] Afternoon
+[option] Evening```
+
+And the answer format is:
+```
+1. [question] Which programming language...
+[answer] Python
+2. [question] What time of day...
+[answer] Morning
+```
+
+I'll create a function that:
+1. Parses the questionnaire to extract questions and options
+2. Formats each question with its options in markdown
+3. Also creates a custom output formatter that extracts the answers
+
+Actually, looking at the data more carefully, the answer is in the tool result content, and I need to parse it to extract the answers. But the generic formatToolOutput already handles this. So maybe I just need to format the questionnaire nicely, and then customize how the output is displayed.
+
+Let me create a solution that:
+1. Parses the questionnaire to format questions nicely
+2. Parses the tool result to extract answers and format them nicely
+
+I'll need to handle the AskUser tool specially both for input AND output.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:09Z)**_
+
+I need to add a custom handler for AskUser that parses the questionnaire format. Let me add the case and create the formatter.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:10Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:16Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I need to create the `renderAskUserInput` function. Looking at the data, the questionnaire format is:```
+1. [question] Which programming language do you prefer for demonstrations?
+[topic] Language
+[option] Python
+[option] JavaScript
+[option] TypeScript2. [question] What time of day do you usually code?
+[topic] Time[option] Morning
+[option] Afternoon
+[option] Evening
+```
+
+And the answer format is:```
+1. [question] Which programming language do you prefer for demonstrations?
+[answer] Python
+
+2. [question] What time of day do you usually code?
+[answer] Morning
+```
+
+I need to parse both and combine them into a nice format like:
+```
+**Which programming language do you prefer for demonstrations?**
+
+Options:
+- Python
+- JavaScript
+- TypeScript
+
+**What time of day do you usually code?**
+
+Options:
+- Morning
+- Afternoon
+- Evening
+
+**Answer:** Python, Morning
+```
+
+I'll create the function now.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:16Z)**_
+
+Now I need to add the `renderAskUserInput` function that parses the questionnaire format and combines it with the answer. Let me add it near the other render functions.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:28Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:37Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see, there's a compilation error. The function needs to use the full tool (`*fdToolCall`) to access the Result, but I'm passing `tool.Result` in the switch. But actually I'm passing the result directly to the function, so the issue might be that the function signature doesn't match what's expected.
+
+Wait, looking at the error, it says `undefined: renderAskUserInput` on line 55. The function definition was added, but maybe the switch statement call is before the function definition? Let me check where I put the switch case.
+
+Actually the issue is that I added the function definition AFTER line 55 (which is where `formatToolInput` has its switch), but Go should still find it... unless there's an order issue. Let me check where the edit was actually inserted.
+
+Actually, looking at it again, the problem is that I'm calling `renderAskUserInput(args, tool.Result)` in `formatToolInput`, but `formatToolInput` doesn't have access to `tool` - it only receives `args`. Let me look at the function signature again.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:38Z)**_
+
+I see the issue - `formatToolInput` only receives `args`, not the full `tool`. I need to modify the approach. Let me check the current structure and fix this properly.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:39Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+    29→func formatToolInput(tool *fdToolCall) string {
+    30→	args := decodeInput(tool.Input)
+    31→	switch normalizeToolName(tool.Name) {
+    32→	case "execute", "run", "bash", "shell", "command", "exec":
+    33→		return formatExecuteInput(args)
+    34→	case "read", "cat", "readfile", "view", "viewimage":
+    35→		return renderReadInput(args)
+    36→	case "ls", "list", "listdir", "listdirectory":
+    37→		return renderListInput(args)
+    38→	case "glob":
+    39→		return renderGlobInput(args)
+    40→	case "grep", "rg", "ripgrep", "search", "filesearch":
+    41→		return renderGrepInput(args)
+    42→	case "websearch", "searchweb", "googlewebsearch":
+    43→		return renderWebSearchInput(args)
+    44→	case "fetchurl", "fetch", "webfetch":
+    45→		return renderWebFetchInput(args)
+    46→	case "applypatch":
+    47→		return renderApplyPatch(args)
+    48→	case "write", "create", "writefile", "createfile", "addfile":
+    49→		return renderWriteInput(args)
+    50→	case "edit", "multiedit", "replace", "strreplace", "applyedit":
+    51→		return renderEditInput(args)
+    52→	case "todowrite":
+    53→		return renderTodoWrite(args)
+    54→	case "askuser", "askuserquestion":
+    55→		return renderAskUserInput(args, tool.Result)
+    56→	default:
+    57→		return renderGenericJSON(args)
+    58→	}
+    59→}
+    60→
+    61→func formatToolOutput(tool *fdToolCall) string {
+    62→	if tool.Result == nil {
+    63→		return ""
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:44Z)**_
+
+<think><details><summary>Thought Process</summary>
+I see that `formatToolInput` actually receives `tool *fdToolCall`, not just args. So my call `renderAskUserInput(args, tool.Result)` should work because `tool` is available in that function. The compilation error might be due to the function not being defined yet when I made the edit. Let me check the linter and tests now.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:44Z)**_
+
+I see that `formatToolInput` does receive `tool *fdToolCall`, so my call should work. Let me run the linter and tests.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:46Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and tests for droidcli package
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test -v ./pkg/providers/droidcli/...`
+```
+0 issues.
+=== RUN   TestGenerateAgentSession_BasicFlow
+--- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
+=== RUN   TestGenerateAgentSession
+=== RUN   TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/uses_session_workspace_root_over_parameter
+=== RUN   TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none
+=== RUN   TestGenerateAgentSession/returns_error_for_empty_session
+=== RUN   TestGenerateAgentSession/returns_error_for_nil_session
+=== RUN   TestGenerateAgentSession/propagates_message_IDs_to_output
+=== RUN   TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange
+--- PASS: TestGenerateAgentSession (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_session_workspace_root_over_parameter (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_empty_session (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_nil_session (0.00s)
+    --- PASS: TestGenerateAgentSession/propagates_message_IDs_to_output (0.00s)
+    --- PASS: TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange (0.00s)
+=== RUN   TestEnsureResumeArgs
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_not_present
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_nil
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_empty
+=== RUN   TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value
+=== RUN   TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value
+--- PASS: TestEnsureResumeArgs (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_not_present (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_nil (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value (0.00s)
+=== RUN   TestFormatToolCall
+=== RUN   TestFormatToolCall/Execute_with_command_and_workdir
+=== RUN   TestFormatToolCall/TodoWrite_with_array_format
+=== RUN   TestFormatToolCall/TodoWrite_with_string_format
+=== RUN   TestFormatToolCall/WebSearch_with_query_and_options
+=== RUN   TestFormatToolCall/Grep_with_pattern_and_glob
+=== RUN   TestFormatToolCall/Write_with_file_path_and_content
+=== RUN   TestFormatToolCall/Read_with_file_path
+=== RUN   TestFormatToolCall/Edit_with_old_and_new_text
+--- PASS: TestFormatToolCall (0.00s)
+    --- PASS: TestFormatToolCall/Execute_with_command_and_workdir (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_array_format (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_string_format (0.00s)
+    --- PASS: TestFormatToolCall/WebSearch_with_query_and_options (0.00s)
+    --- PASS: TestFormatToolCall/Grep_with_pattern_and_glob (0.00s)
+    --- PASS: TestFormatToolCall/Write_with_file_path_and_content (0.00s)
+    --- PASS: TestFormatToolCall/Read_with_file_path (0.00s)
+    --- PASS: TestFormatToolCall/Edit_with_old_and_new_text (0.00s)
+=== RUN   TestToolTypeMappings
+=== RUN   TestToolTypeMappings/Execute
+=== RUN   TestToolTypeMappings/run
+=== RUN   TestToolTypeMappings/Bash
+=== RUN   TestToolTypeMappings/Read
+=== RUN   TestToolTypeMappings/cat
+=== RUN   TestToolTypeMappings/WebSearch
+=== RUN   TestToolTypeMappings/Grep
+=== RUN   TestToolTypeMappings/glob
+=== RUN   TestToolTypeMappings/Write
+=== RUN   TestToolTypeMappings/Edit
+=== RUN   TestToolTypeMappings/MultiEdit
+=== RUN   TestToolTypeMappings/ApplyPatch
+=== RUN   TestToolTypeMappings/TodoWrite
+=== RUN   TestToolTypeMappings/UnknownTool
+--- PASS: TestToolTypeMappings (0.00s)
+    --- PASS: TestToolTypeMappings/Execute (0.00s)
+    --- PASS: TestToolTypeMappings/run (0.00s)
+    --- PASS: TestToolTypeMappings/Bash (0.00s)
+    --- PASS: TestToolTypeMappings/Read (0.00s)
+    --- PASS: TestToolTypeMappings/cat (0.00s)
+    --- PASS: TestToolTypeMappings/WebSearch (0.00s)
+    --- PASS: TestToolTypeMappings/Grep (0.00s)
+    --- PASS: TestToolTypeMappings/glob (0.00s)
+    --- PASS: TestToolTypeMappings/Write (0.00s)
+    --- PASS: TestToolTypeMappings/Edit (0.00s)
+    --- PASS: TestToolTypeMappings/MultiEdit (0.00s)
+    --- PASS: TestToolTypeMappings/ApplyPatch (0.00s)
+    --- PASS: TestToolTypeMappings/TodoWrite (0.00s)
+    --- PASS: TestToolTypeMappings/UnknownTool (0.00s)
+=== RUN   TestParseFactorySession
+=== RUN   TestParseFactorySession/parses_complete_session_with_all_block_types
+=== RUN   TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content
+=== RUN   TestParseFactorySession/handles_reasoning_blocks
+=== RUN   TestParseFactorySession/handles_compaction/summary_events
+=== RUN   TestParseFactorySession/skips_malformed_JSON_lines_gracefully
+=== RUN   TestParseFactorySession/handles_empty_todo_list_gracefully
+--- PASS: TestParseFactorySession (0.01s)
+    --- PASS: TestParseFactorySession/parses_complete_session_with_all_block_types (0.00s)
+    --- PASS: TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content (0.00s)
+    --- PASS: TestParseFactorySession/handles_reasoning_blocks (0.00s)
+    --- PASS: TestParseFactorySession/handles_compaction/summary_events (0.00s)
+    --- PASS: TestParseFactorySession/skips_malformed_JSON_lines_gracefully (0.00s)
+    --- PASS: TestParseFactorySession/handles_empty_todo_list_gracefully (0.00s)
+=== RUN   TestSessionMentionsProject
+=== RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
+=== RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
+=== RUN   TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present
+=== RUN   TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project
+=== RUN   TestSessionMentionsProject/returns_true_when_workspace_root_matches_project
+=== RUN   TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text
+=== RUN   TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text
+--- PASS: TestSessionMentionsProject (0.08s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_session_cwd_matches_project (0.04s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project (0.01s)
+    --- PASS: TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_workspace_root_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.475s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:55Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass and no linter issues. But wait - there's one problem. The AskUser formatter includes the answer in its output, but `formatToolCall` also calls `formatToolOutput` which would duplicate the output. I need to make sure we don't double-print the output for AskUser.
+
+Let me check how the output is being handled. The `renderAskUserInput` function already includes the answer at the end. But then `formatToolCall` will also call `formatToolOutput`, which might add another output block. I should probably skip the output for AskUser since it's already included in the input rendering.
+
+Let me update `formatToolOutput` to skip AskUser tools since the answer is already rendered by `renderAskUserInput`.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:56Z)**_
+
+The tests pass. But there's an issue - the output might be duplicated because `formatToolCall` also calls `formatToolOutput`. Let me update `formatToolOutput` to skip AskUser since the answer is already included by `renderAskUserInput`.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:15:58Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools.go`
+```
+    59→}
+    60→
+    61→func formatToolOutput(tool *fdToolCall) string {
+    62→	if tool.Result == nil {
+    63→		return ""
+    64→	}
+    65→	content := strings.TrimSpace(tool.Result.Content)
+    66→	if content == "" {
+    67→		return ""
+    68→	}
+    69→	label := "Output"
+    70→	if tool.Result.IsError {
+    71→		label = "Output (error)"
+    72→	}
+    73→	if strings.Contains(content, "\n") {
+    74→		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
+    75→	}
+    76→	return fmt.Sprintf("%s: %s", label, content)
+    77→}
+    78→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:16:01Z)**_
+
+<think><details><summary>Thought Process</summary>
+I need to modify `formatToolOutput` to skip AskUser tools since their output is already included in `renderAskUserInput`. Let me add a check for that.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:16:04Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:16:07Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the linter and tests again to make sure everything still works.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:16:09Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter, tests, and build
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test -v ./pkg/providers/droidcli/... && go build -o specstory`
+```
+0 issues.
+=== RUN   TestGenerateAgentSession_BasicFlow
+--- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
+=== RUN   TestGenerateAgentSession
+=== RUN   TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type
+=== RUN   TestGenerateAgentSession/uses_session_workspace_root_over_parameter
+=== RUN   TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none
+=== RUN   TestGenerateAgentSession/returns_error_for_empty_session
+=== RUN   TestGenerateAgentSession/returns_error_for_nil_session
+=== RUN   TestGenerateAgentSession/propagates_message_IDs_to_output
+=== RUN   TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange
+--- PASS: TestGenerateAgentSession (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_reasoning_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/maps_summary_blocks_to_thinking_content_type (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_session_workspace_root_over_parameter (0.00s)
+    --- PASS: TestGenerateAgentSession/uses_parameter_workspace_root_when_session_has_none (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_empty_session (0.00s)
+    --- PASS: TestGenerateAgentSession/returns_error_for_nil_session (0.00s)
+    --- PASS: TestGenerateAgentSession/propagates_message_IDs_to_output (0.00s)
+    --- PASS: TestGenerateAgentSession/groups_consecutive_user_messages_in_same_exchange (0.00s)
+=== RUN   TestEnsureResumeArgs
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value
+=== RUN   TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_not_present
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_nil
+=== RUN   TestEnsureResumeArgs/appends_--resume_when_args_is_empty
+=== RUN   TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value
+=== RUN   TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value
+--- PASS: TestEnsureResumeArgs (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_resumeSessionID_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_-r_already_has_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/returns_args_unchanged_when_--resume=value_exists (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_not_present (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_nil (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_--resume_when_args_is_empty (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_--resume_flag_exists_but_has_no_value (0.00s)
+    --- PASS: TestEnsureResumeArgs/appends_when_-r_flag_exists_but_has_no_value (0.00s)
+=== RUN   TestFormatToolCall
+=== RUN   TestFormatToolCall/Execute_with_command_and_workdir
+=== RUN   TestFormatToolCall/TodoWrite_with_array_format
+=== RUN   TestFormatToolCall/TodoWrite_with_string_format
+=== RUN   TestFormatToolCall/WebSearch_with_query_and_options
+=== RUN   TestFormatToolCall/Grep_with_pattern_and_glob
+=== RUN   TestFormatToolCall/Write_with_file_path_and_content
+=== RUN   TestFormatToolCall/Read_with_file_path
+=== RUN   TestFormatToolCall/Edit_with_old_and_new_text
+--- PASS: TestFormatToolCall (0.00s)
+    --- PASS: TestFormatToolCall/Execute_with_command_and_workdir (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_array_format (0.00s)
+    --- PASS: TestFormatToolCall/TodoWrite_with_string_format (0.00s)
+    --- PASS: TestFormatToolCall/WebSearch_with_query_and_options (0.00s)
+    --- PASS: TestFormatToolCall/Grep_with_pattern_and_glob (0.00s)
+    --- PASS: TestFormatToolCall/Write_with_file_path_and_content (0.00s)
+    --- PASS: TestFormatToolCall/Read_with_file_path (0.00s)
+    --- PASS: TestFormatToolCall/Edit_with_old_and_new_text (0.00s)
+=== RUN   TestToolTypeMappings
+=== RUN   TestToolTypeMappings/Execute
+=== RUN   TestToolTypeMappings/run
+=== RUN   TestToolTypeMappings/Bash
+=== RUN   TestToolTypeMappings/Read
+=== RUN   TestToolTypeMappings/cat
+=== RUN   TestToolTypeMappings/WebSearch
+=== RUN   TestToolTypeMappings/Grep
+=== RUN   TestToolTypeMappings/glob
+=== RUN   TestToolTypeMappings/Write
+=== RUN   TestToolTypeMappings/Edit
+=== RUN   TestToolTypeMappings/MultiEdit
+=== RUN   TestToolTypeMappings/ApplyPatch
+=== RUN   TestToolTypeMappings/TodoWrite
+=== RUN   TestToolTypeMappings/UnknownTool
+--- PASS: TestToolTypeMappings (0.00s)
+    --- PASS: TestToolTypeMappings/Execute (0.00s)
+    --- PASS: TestToolTypeMappings/run (0.00s)
+    --- PASS: TestToolTypeMappings/Bash (0.00s)
+    --- PASS: TestToolTypeMappings/Read (0.00s)
+    --- PASS: TestToolTypeMappings/cat (0.00s)
+    --- PASS: TestToolTypeMappings/WebSearch (0.00s)
+    --- PASS: TestToolTypeMappings/Grep (0.00s)
+    --- PASS: TestToolTypeMappings/glob (0.00s)
+    --- PASS: TestToolTypeMappings/Write (0.00s)
+    --- PASS: TestToolTypeMappings/Edit (0.00s)
+    --- PASS: TestToolTypeMappings/MultiEdit (0.00s)
+    --- PASS: TestToolTypeMappings/ApplyPatch (0.00s)
+    --- PASS: TestToolTypeMappings/TodoWrite (0.00s)
+    --- PASS: TestToolTypeMappings/UnknownTool (0.00s)
+=== RUN   TestParseFactorySession
+=== RUN   TestParseFactorySession/parses_complete_session_with_all_block_types
+=== RUN   TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content
+=== RUN   TestParseFactorySession/handles_reasoning_blocks
+=== RUN   TestParseFactorySession/handles_compaction/summary_events
+=== RUN   TestParseFactorySession/skips_malformed_JSON_lines_gracefully
+=== RUN   TestParseFactorySession/handles_empty_todo_list_gracefully
+--- PASS: TestParseFactorySession (0.00s)
+    --- PASS: TestParseFactorySession/parses_complete_session_with_all_block_types (0.00s)
+    --- PASS: TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content (0.00s)
+    --- PASS: TestParseFactorySession/handles_reasoning_blocks (0.00s)
+    --- PASS: TestParseFactorySession/handles_compaction/summary_events (0.00s)
+    --- PASS: TestParseFactorySession/skips_malformed_JSON_lines_gracefully (0.00s)
+    --- PASS: TestParseFactorySession/handles_empty_todo_list_gracefully (0.00s)
+=== RUN   TestSessionMentionsProject
+=== RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
+=== RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
+=== RUN   TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present
+=== RUN   TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project
+=== RUN   TestSessionMentionsProject/returns_true_when_workspace_root_matches_project
+=== RUN   TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text
+=== RUN   TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text
+--- PASS: TestSessionMentionsProject (0.05s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_session_cwd_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project (0.01s)
+    --- PASS: TestSessionMentionsProject/falls_back_to_text_search_when_no_cwd_present (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_no_cwd_and_text_does_not_mention_project (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_workspace_root_matches_project (0.01s)
+    --- PASS: TestSessionMentionsProject/returns_true_when_basename_appears_more_than_twice_in_text (0.00s)
+    --- PASS: TestSessionMentionsProject/returns_false_when_basename_appears_only_twice_in_text (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.236s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:16:21Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass and the build succeeded. Now the AskUser tool will be formatted nicely with questions, options, and answers instead of raw JSON.
+
+Summary of all the fixes I've made in this session:
+
+1. **--debug-raw fix**: Modified `writeFactoryDebugRaw` to split JSONL into individual numbered JSON files
+2. **LS tool formatting**: Added `directory_path` to the list of keys checked in `renderListInput`
+3. **Thinking content**: Added `Thinking` field to `contentPayload` and modified thinking block handling
+4. **AskUser tool formatting**: Added `renderAskUserInput` function and related helpers to parse the questionnaire format and display questions/options/answers nicely instead of raw JSON
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:16:26Z)**_
+
+All tests pass and the build succeeded. Here's a summary of all the fixes made in this session:
+
+1. **--debug-raw fix** (`provider.go`): Modified `writeFactoryDebugRaw` to split JSONL into individual numbered JSON files (`1.json`, `2.json`, etc.)
+
+2. **LS tool formatting** (`markdown_tools.go`): Added `directory_path` to the list of keys so it renders as `Path: \`...\`` instead of JSON
+
+3. **Thinking content** (`parser.go`): Added `Thinking` field to `contentPayload` struct and modified the thinking block handler to extract content from the `"thinking"` field
+
+4. **AskUser tool formatting** (`markdown_tools.go`): 
+   - Added `renderAskUserInput` function that parses the questionnaire format
+   - Added helper functions `parseQuestionnaire` and `parseAskUserAnswers`
+   - Modified `formatToolOutput` to skip AskUser tools since the answer is already included
+   - Now renders nicely formatted questions with options and answers instead of raw JSON:
+
+   ```markdown
+   **Which programming language do you prefer for demonstrations?**
+
+   Options:
+   - Python
+   - JavaScript
+   - TypeScript
+
+   **What time of day do you usually code?**
+
+   Options:
+   - Morning
+   - Afternoon
+   - Evening
+
+   **Answer:** Python, Morning
+   ```
+
+---
+
+_**User (2026-01-29 23:17:34Z)**_
+
+suspect some tests would be good, no?
+
+---
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:17:40Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is right. I've added several new functions for parsing the AskUser questionnaire format and extracting answers. These should have unit tests. Let me add tests for:
+
+1. `parseQuestionnaire` - parsing the questionnaire format
+2. `parseAskUserAnswers` - parsing the answer format
+3. `renderAskUserInput` - the full rendering function
+
+I should add these to the existing `markdown_tools_test.go` file.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:17:41Z)**_
+
+You're right. Let me add tests for the new AskUser parsing functions.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:17:42Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/droidcli/markdown_tools_test.go`
+```
+     1→package droidcli
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"strings"
+     6→	"testing"
+     7→)
+     8→
+     9→func TestFormatToolCall(t *testing.T) {
+    10→	tests := []struct {
+    11→		name           string
+    12→		toolName       string
+    13→		input          map[string]any
+    14→		result         *fdToolResult
+    15→		expectedSubstr []string
+    16→	}{
+    17→		{
+    18→			name:     "Execute with command and workdir",
+    19→			toolName: "Execute",
+    20→			input:    map[string]any{"command": "ls", "workdir": "/repo"},
+    21→			result:   &fdToolResult{Content: "main.go"},
+    22→			expectedSubstr: []string{
+    23→				"`ls`",
+    24→				"Output:",
+    25→			},
+    26→		},
+    27→		{
+    28→			name:     "TodoWrite with array format",
+    29→			toolName: "TodoWrite",
+    30→			input: map[string]any{
+    31→				"todos": []map[string]any{{"description": "Task", "status": "completed"}},
+    32→			},
+    33→			expectedSubstr: []string{
+    34→				"Todo List",
+    35→			},
+    36→		},
+    37→		{
+    38→			name:     "TodoWrite with string format",
+    39→			toolName: "TodoWrite",
+    40→			input: map[string]any{
+    41→				"todos": "1. [completed] Ship feature",
+    42→			},
+    43→			expectedSubstr: []string{
+    44→				"Todo List",
+    45→				"Ship feature",
+    46→			},
+    47→		},
+    48→		{
+    49→			name:     "WebSearch with query and options",
+    50→			toolName: "WebSearch",
+    51→			input: map[string]any{
+    52→				"query":      "Delhi weather",
+    53→				"category":   "news",
+    54→				"numResults": 5,
+    55→			},
+    56→			expectedSubstr: []string{
+    57→				"Query: `Delhi weather`",
+    58→				"Category: `news`",
+    59→				"Results: `5`",
+    60→			},
+    61→		},
+    62→		{
+    63→			name:     "Grep with pattern and glob",
+    64→			toolName: "Grep",
+    65→			input: map[string]any{
+    66→				"pattern":      "TODO",
+    67→				"path":         "/repo",
+    68→				"glob_pattern": "*.go",
+    69→			},
+    70→			expectedSubstr: []string{
+    71→				"Pattern: `TODO`",
+    72→				"Path: `/repo`",
+    73→				"Glob: `*.go`",
+    74→			},
+    75→		},
+    76→		{
+    77→			name:     "Write with file path and content",
+    78→			toolName: "Write",
+    79→			input: map[string]any{
+    80→				"file_path": "main.go",
+    81→				"content":   "package main",
+    82→			},
+    83→			expectedSubstr: []string{
+    84→				"Path: `main.go`",
+    85→				"```go",
+    86→				"package main",
+    87→			},
+    88→		},
+    89→		{
+    90→			name:     "Read with file path",
+    91→			toolName: "Read",
+    92→			input: map[string]any{
+    93→				"file_path": "/repo/main.go",
+    94→			},
+    95→			expectedSubstr: []string{
+    96→				"Path: `/repo/main.go`",
+    97→			},
+    98→		},
+    99→		{
+   100→			name:     "Edit with old and new text",
+   101→			toolName: "Edit",
+   102→			input: map[string]any{
+   103→				"file_path":  "main.go",
+   104→				"old_string": "foo",
+   105→				"new_string": "bar",
+   106→			},
+   107→			expectedSubstr: []string{
+   108→				"Path: `main.go`",
+   109→				"```diff",
+   110→				"-foo",
+   111→				"+bar",
+   112→			},
+   113→		},
+   114→	}
+   115→
+   116→	for _, tt := range tests {
+   117→		t.Run(tt.name, func(t *testing.T) {
+   118→			inputJSON, err := json.Marshal(tt.input)
+   119→			if err != nil {
+   120→				t.Fatalf("failed to marshal input: %v", err)
+   121→			}
+   122→
+   123→			tool := &fdToolCall{
+   124→				ID:     "call_1",
+   125→				Name:   tt.toolName,
+   126→				Input:  inputJSON,
+   127→				Result: tt.result,
+   128→			}
+   129→
+   130→			md := formatToolCall(tool)
+   131→
+   132→			for _, substr := range tt.expectedSubstr {
+   133→				if !strings.Contains(md, substr) {
+   134→					t.Errorf("expected output to contain %q, got:\n%s", substr, md)
+   135→				}
+   136→			}
+   137→		})
+   138→	}
+   139→}
+   140→
+   141→func TestToolTypeMappings(t *testing.T) {
+   142→	tests := []struct {
+   143→		toolName     string
+   144→		expectedType string
+   145→	}{
+   146→		{"Execute", "shell"},
+   147→		{"run", "shell"},
+   148→		{"Bash", "shell"},
+   149→		{"Read", "read"},
+   150→		{"cat", "read"},
+   151→		{"WebSearch", "search"},
+   152→		{"Grep", "search"},
+   153→		{"glob", "search"},
+   154→		{"Write", "write"},
+   155→		{"Edit", "write"},
+   156→		{"MultiEdit", "write"},
+   157→		{"ApplyPatch", "write"},
+   158→		{"TodoWrite", "task"},
+   159→		{"UnknownTool", "generic"},
+   160→	}
+   161→
+   162→	for _, tt := range tests {
+   163→		t.Run(tt.toolName, func(t *testing.T) {
+   164→			got := toolType(tt.toolName)
+   165→			if got != tt.expectedType {
+   166→				t.Errorf("toolType(%q) = %q, want %q", tt.toolName, got, tt.expectedType)
+   167→			}
+   168→		})
+   169→	}
+   170→}
+   171→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:17:47Z)**_
+
+<think><details><summary>Thought Process</summary>
+Good, I can see the existing test file. I'll add tests for:
+1. `parseQuestionnaire` - testing the parsing of the questionnaire format
+2. `parseAskUserAnswers` - testing the parsing of answers
+3. An integration test for `AskUser` tool formatting via the existing `TestFormatToolCall` table
+
+Let me add these tests.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:04Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:08Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me also add a test case for AskUser in the existing `TestFormatToolCall` to test the full integration.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:09Z)**_
+
+Let me also add an AskUser test case to the existing `TestFormatToolCall` table.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:15Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+```
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:19Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now let me run the tests to make sure they all pass.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run the new AskUser tests
+
+`go test -v ./pkg/providers/droidcli/... -run "TestParseQuestionnaire|TestParseAskUserAnswers|TestRenderAskUserInput|TestFormatToolCall/AskUser"`
+```
+=== RUN   TestFormatToolCall
+=== RUN   TestFormatToolCall/AskUser_with_questionnaire_and_answer
+--- PASS: TestFormatToolCall (0.00s)
+    --- PASS: TestFormatToolCall/AskUser_with_questionnaire_and_answer (0.00s)
+=== RUN   TestParseQuestionnaire
+=== RUN   TestParseQuestionnaire/single_question_with_options
+=== RUN   TestParseQuestionnaire/multiple_questions
+=== RUN   TestParseQuestionnaire/empty_input
+=== RUN   TestParseQuestionnaire/no_questions
+--- PASS: TestParseQuestionnaire (0.00s)
+    --- PASS: TestParseQuestionnaire/single_question_with_options (0.00s)
+    --- PASS: TestParseQuestionnaire/multiple_questions (0.00s)
+    --- PASS: TestParseQuestionnaire/empty_input (0.00s)
+    --- PASS: TestParseQuestionnaire/no_questions (0.00s)
+=== RUN   TestParseAskUserAnswers
+=== RUN   TestParseAskUserAnswers/single_answer
+=== RUN   TestParseAskUserAnswers/multiple_answers
+=== RUN   TestParseAskUserAnswers/empty_input
+=== RUN   TestParseAskUserAnswers/no_answers
+--- PASS: TestParseAskUserAnswers (0.00s)
+    --- PASS: TestParseAskUserAnswers/single_answer (0.00s)
+    --- PASS: TestParseAskUserAnswers/multiple_answers (0.00s)
+    --- PASS: TestParseAskUserAnswers/empty_input (0.00s)
+    --- PASS: TestParseAskUserAnswers/no_answers (0.00s)
+=== RUN   TestRenderAskUserInput
+=== RUN   TestRenderAskUserInput/full_questionnaire_with_answer
+=== RUN   TestRenderAskUserInput/multiple_questions_with_answers
+--- PASS: TestRenderAskUserInput (0.00s)
+    --- PASS: TestRenderAskUserInput/full_questionnaire_with_answer (0.00s)
+    --- PASS: TestRenderAskUserInput/multiple_questions_with_answers (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.192s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:25Z)**_
+
+<think><details><summary>Thought Process</summary>
+All new tests pass. Let me also run the full test suite to make sure I haven't broken anything.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:26Z)**_
+
+All new tests pass. Let me run the full test suite to make sure everything still works.
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter and all droidcli tests
+
+`golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+Exit code 1
+pkg/providers/droidcli/markdown_tools_test.go:226:1: File is not properly formatted (gofmt)
+		name    string
+^
+1 issues:
+* gofmt: 1
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:31Z)**_
+
+<think><details><summary>Thought Process</summary>
+There's a formatting issue. Let me fix it with gofmt.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:32Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Format and rerun linter and tests
+
+`gofmt -w ./pkg/providers/droidcli/markdown_tools_test.go && golangci-lint run ./pkg/providers/droidcli/... && go test ./pkg/providers/droidcli/...`
+```
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.261s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:37Z)**_
+
+<think><details><summary>Thought Process</summary>
+All tests pass and the linter is happy. The tests for the AskUser parsing functions are now in place.
+</details></think>
+
+_**Agent (claude-opus-4-5-20251101 2026-01-29 23:18:40Z)**_
+
+All tests pass. Added tests for:
+
+- `TestParseQuestionnaire` - tests parsing of the questionnaire format with single/multiple questions and edge cases
+- `TestParseAskUserAnswers` - tests extraction of answers from the result format
+- `TestRenderAskUserInput` - integration tests for the full rendering with questions, options, and answers
+- Added an `AskUser` case to `TestFormatToolCall` for end-to-end testing

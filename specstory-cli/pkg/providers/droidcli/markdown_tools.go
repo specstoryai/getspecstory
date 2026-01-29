@@ -51,6 +51,8 @@ func formatToolInput(tool *fdToolCall) string {
 		return renderEditInput(args)
 	case "todowrite":
 		return renderTodoWrite(args)
+	case "askuser", "askuserquestion":
+		return renderAskUserInput(args, tool.Result)
 	default:
 		return renderGenericJSON(args)
 	}
@@ -58,6 +60,11 @@ func formatToolInput(tool *fdToolCall) string {
 
 func formatToolOutput(tool *fdToolCall) string {
 	if tool.Result == nil {
+		return ""
+	}
+	// AskUser output is already included in the input rendering
+	name := normalizeToolName(tool.Name)
+	if name == "askuser" || name == "askuserquestion" {
 		return ""
 	}
 	content := strings.TrimSpace(tool.Result.Content)
@@ -356,6 +363,111 @@ func renderTodoWrite(args map[string]any) string {
 		fmt.Fprintf(&builder, "- [%s] %s\n", todoSymbol(status), desc)
 	}
 	return builder.String()
+}
+
+// renderAskUserInput formats the AskUser tool input with questions, options, and answers.
+// It parses the questionnaire format and extracts answers from the tool result.
+func renderAskUserInput(args map[string]any, result *fdToolResult) string {
+	questionnaire := stringValue(args, "questionnaire", "questions")
+	if questionnaire == "" {
+		return renderGenericJSON(args)
+	}
+
+	// Parse the questionnaire format to extract questions and options
+	questions := parseQuestionnaire(questionnaire)
+	if len(questions) == 0 {
+		return renderGenericJSON(args)
+	}
+
+	// Parse answers from the result if available
+	var answers []string
+	if result != nil && result.Content != "" {
+		answers = parseAskUserAnswers(result.Content)
+	}
+
+	// Build the formatted output
+	var builder strings.Builder
+	for i, q := range questions {
+		if i > 0 {
+			builder.WriteString("\n\n")
+		}
+		builder.WriteString(fmt.Sprintf("**%s**\n\nOptions:\n", q.question))
+		for _, opt := range q.options {
+			builder.WriteString(fmt.Sprintf("- %s\n", opt))
+		}
+	}
+
+	// Add the answers at the end if available
+	if len(answers) > 0 {
+		builder.WriteString("\n**Answer:** ")
+		builder.WriteString(strings.Join(answers, ", "))
+	}
+
+	return strings.TrimSpace(builder.String())
+}
+
+// askUserQuestion represents a parsed question with its options
+type askUserQuestion struct {
+	question string
+	options  []string
+}
+
+// parseQuestionnaire parses the Factory Droid questionnaire format.
+// Format: "1. [question] Text\n[topic] Topic\n[option] Opt1\n[option] Opt2\n\n2. [question] ..."
+func parseQuestionnaire(text string) []askUserQuestion {
+	var questions []askUserQuestion
+	var current *askUserQuestion
+
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Check for question line (starts with number or contains [question])
+		if strings.Contains(line, "[question]") {
+			if current != nil && current.question != "" {
+				questions = append(questions, *current)
+			}
+			// Extract question text after [question]
+			idx := strings.Index(line, "[question]")
+			questionText := strings.TrimSpace(line[idx+len("[question]"):])
+			current = &askUserQuestion{question: questionText}
+		} else if strings.HasPrefix(line, "[option]") {
+			if current != nil {
+				opt := strings.TrimSpace(strings.TrimPrefix(line, "[option]"))
+				if opt != "" {
+					current.options = append(current.options, opt)
+				}
+			}
+		}
+		// Skip [topic] lines as they're not needed in the output
+	}
+
+	// Don't forget the last question
+	if current != nil && current.question != "" {
+		questions = append(questions, *current)
+	}
+
+	return questions
+}
+
+// parseAskUserAnswers extracts answers from the Factory Droid AskUser result format.
+// Format: "1. [question] Text\n[answer] Answer1\n\n2. [question] Text\n[answer] Answer2"
+func parseAskUserAnswers(text string) []string {
+	var answers []string
+	lines := strings.Split(text, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "[answer]") {
+			answer := strings.TrimSpace(strings.TrimPrefix(line, "[answer]"))
+			if answer != "" {
+				answers = append(answers, answer)
+			}
+		}
+	}
+	return answers
 }
 
 func renderGenericJSON(args map[string]any) string {
