@@ -121,6 +121,9 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 	return result, nil
 }
 
+// GetAgentChatSession returns the agent chat session with the given ID if it exists
+// and is associated with the provided project path. It returns (nil, nil) if the
+// session is found but does not match the project filter.
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	path, err := findSessionFileByID(sessionID)
 	if err != nil || path == "" {
