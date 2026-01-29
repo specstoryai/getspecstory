@@ -74,7 +74,7 @@ func NewCursorIDEWatcher(
 		cancel:            cancel,
 		knownComposers:    make(map[string]int64),
 		checkInterval:     checkInterval,
-		throttleDuration:  10 * time.Second, // Configurable in code as requested
+		throttleDuration:  10 * time.Second,
 		lastThrottledCall: time.Now(),
 		pendingCheck:      false,
 		fsWatcher:         fsWatcher,
