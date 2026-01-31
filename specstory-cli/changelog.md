@@ -5,7 +5,9 @@
 
 ### ⚙️ Improvements
 
-- The `-s {session-id}` session flag on `specstory sync` to sync just a specific session can now sync multiple specified sessions with `specstory sync -s {session-id} -s {session-id} -s {session-id}`.
+- `WebFetch` and `WebSearch` tool outputs for the Claude Code provider now include the source URL and search term in their output.
+- Improved markdown formatting for the Claude Code provider when `WebFetch` returns markdown content.
+- The `-s` flag on `specstory sync` now accepts multiple session IDs: `specstory sync -s {id1} -s {id2}`.
 
 ## v1.4.0 2026-01-29
 

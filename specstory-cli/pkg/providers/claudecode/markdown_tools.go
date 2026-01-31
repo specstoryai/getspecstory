@@ -56,6 +56,8 @@ var toolFormatters = map[string]toolFormatter{
 	"MultiEdit":       formatMultiEditTool,
 	"TodoWrite":       formatTodoWriteTool,
 	"AskUserQuestion": formatAskUserQuestionTool,
+	"WebFetch":        formatWebTool("url"),
+	"WebSearch":       formatWebTool("query"),
 }
 
 // Pre-compiled regular expressions for performance
@@ -260,6 +262,25 @@ func formatMultiEditTool(toolName string, input map[string]interface{}, descript
 func formatDefaultTool(toolName string, input map[string]interface{}, description string) string {
 	// Return description if provided, otherwise empty string
 	return description
+}
+
+// formatWebTool returns a formatter for web tools (WebFetch, WebSearch) that displays a single field
+func formatWebTool(fieldName string) toolFormatter {
+	return func(toolName string, input map[string]interface{}, description string) string {
+		var content string
+
+		if input != nil {
+			if value, ok := input[fieldName].(string); ok && value != "" {
+				content += fmt.Sprintf(" `%s`", value)
+			}
+		}
+
+		if description != "" {
+			content += fmt.Sprintf(" %s", description)
+		}
+
+		return content
+	}
 }
 
 // formatTodoWriteTool formats TodoWrite tool usage as a task list with checkboxes

@@ -36,6 +36,8 @@ go test -v -run TestGenerateFilename ./pkg/utils
 
 ### Linting
 
+Don't try linting individual files. This often fails with noise in Go Lang, just lint the whole project, it's fast.
+
 ```zsh
 # Run linter
 golangci-lint run
