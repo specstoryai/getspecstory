@@ -14,6 +14,11 @@ type CheckResult struct {
 	ErrorMessage string // Error message if check failed (empty on success)
 }
 
+// ProgressCallback reports progress during session parsing/processing
+// current: number of items processed so far (1-based)
+// total: total number of items to process
+type ProgressCallback func(current, total int)
+
 // AgentChatSession represents a chat session from an AI coding agent
 type AgentChatSession struct {
 	SessionID   string              // Stable and unique identifier for the session (often a UUID)
@@ -50,8 +55,9 @@ type Provider interface {
 	// projectPath: Agent's working directory
 	// debugRaw: if true, provider should write provider-specific raw debug files to .specstory/debug/<sessionID>/
 	//           (e.g., numbered JSON files). The unified session-data.json is written centrally by the CLI.
+	// progress: optional callback for reporting progress during parsing (nil = no progress reporting)
 	// Returns a slice of AgentChatSession structs containing session data
-	GetAgentChatSessions(projectPath string, debugRaw bool) ([]AgentChatSession, error)
+	GetAgentChatSessions(projectPath string, debugRaw bool, progress ProgressCallback) ([]AgentChatSession, error)
 
 	// ExecAgentAndWatch executes the agent in interactive mode and watches for session updates
 	// Blocks until the agent exits, calling sessionCallback for each new/updated session

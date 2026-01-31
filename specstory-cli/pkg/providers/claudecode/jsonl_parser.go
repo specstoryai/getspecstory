@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 const (
@@ -73,24 +75,31 @@ func formatDuration(d time.Duration) string {
 // 5. Flatten each DAG into an array ordered by timestamp
 // 6. For each array, the session is the sessionId of the head
 func (p *JSONLParser) ParseProjectSessions(projectPath string, silent bool) error {
-	return p.parseProjectSessions(projectPath, silent, "")
+	return p.parseProjectSessionsInternal(projectPath, "", nil)
+}
+
+// ParseProjectSessionsWithProgress parses JSONL files with a progress callback.
+// The callback is invoked after each file is parsed with (current, total) counts.
+func (p *JSONLParser) ParseProjectSessionsWithProgress(projectPath string, progress spi.ProgressCallback) error {
+	return p.parseProjectSessionsInternal(projectPath, "", progress)
 }
 
 // ParseProjectSessionsForSession parses JSONL files that match a specific session ID.
 // Files that don't contain the given sessionID are skipped for performance.
 // If sessionID is empty, this behaves identically to ParseProjectSessions.
 func (p *JSONLParser) ParseProjectSessionsForSession(projectPath string, silent bool, sessionID string) error {
-	return p.parseProjectSessions(projectPath, silent, sessionID)
+	return p.parseProjectSessionsInternal(projectPath, sessionID, nil)
 }
 
-func (p *JSONLParser) parseProjectSessions(projectPath string, silent bool, sessionID string) error {
+// parseProjectSessionsInternal is the shared implementation for all parsing methods.
+// progress: optional callback for reporting progress (nil = no progress reporting)
+func (p *JSONLParser) parseProjectSessionsInternal(projectPath string, targetSessionID string, progress spi.ProgressCallback) error {
 	// Track overall parsing time
 	parseStartTime := time.Now()
 	slog.Info("ParseProjectSessions: Starting JSONL parsing")
 
-	// Step 1: Scan all JSONL files
-	scanStartTime := time.Now()
-	allRecords := []JSONLRecord{}
+	// Step 1: Collect JSONL file paths (first pass for accurate progress count)
+	var jsonlFiles []string
 	err := filepath.Walk(projectPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -98,37 +107,46 @@ func (p *JSONLParser) parseProjectSessions(projectPath string, silent bool, sess
 		if info.IsDir() || !strings.HasSuffix(path, ".jsonl") {
 			return nil
 		}
-		if sessionID != "" {
+		if targetSessionID != "" {
 			foundSessionID, matchErr := extractSessionIDFromFile(path)
 			if matchErr != nil {
 				slog.Warn("ParseProjectSessions: Failed to check session ID, parsing anyway",
 					"file", path,
 					"error", matchErr)
-			} else if foundSessionID != sessionID {
+			} else if foundSessionID != targetSessionID {
 				return nil
 			}
 		}
+		jsonlFiles = append(jsonlFiles, path)
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to scan project directory %s: %w", projectPath, err)
+	}
+
+	totalFiles := len(jsonlFiles)
+	slog.Info("ParseProjectSessions: Found JSONL files", "count", totalFiles)
+
+	// Step 2: Parse files with progress reporting
+	scanStartTime := time.Now()
+	allRecords := []JSONLRecord{}
+	for i, path := range jsonlFiles {
 		records, err := p.parseSessionFile(path)
 		if err != nil {
 			return fmt.Errorf("failed to parse file %s: %w", path, err)
 		}
 		allRecords = append(allRecords, records...)
-		// Print progress dot for each file when not in silent mode
-		NoteProgress(silent)
-		return nil
-	})
 
-	if err != nil {
-		return fmt.Errorf("failed to scan project directory %s: %w", projectPath, err)
+		// Report progress after each file
+		if progress != nil {
+			progress(i+1, totalFiles)
+		}
 	}
+
 	scanDuration := time.Since(scanStartTime)
 	slog.Info("ParseProjectSessions: File scanning completed", "duration", formatDuration(scanDuration), "records", len(allRecords))
 
-	if !silent {
-		fmt.Print("\nProcessing JSONL files")
-	}
-
-	// Step 2: Eliminate duplicates by uuid (keep earliest by timestamp)
+	// Step 3: Eliminate duplicates by uuid (keep earliest by timestamp)
 	dedupStartTime := time.Now()
 	slog.Debug("ParseProjectSessions: Eliminating duplicates", "records", len(allRecords))
 	uniqueRecords := p.eliminateDuplicates(allRecords)
@@ -136,38 +154,33 @@ func (p *JSONLParser) parseProjectSessions(projectPath string, silent bool, sess
 	dedupDuration := time.Since(dedupStartTime)
 	slog.Debug("ParseProjectSessions: Deduplication completed", "duration", formatDuration(dedupDuration))
 
-	NoteProgress(silent)
-
 	// Store all records for searching
 	p.Records = uniqueRecords
 
-	NoteProgress(silent)
-
-	// Step 3: Build parent/child DAGs
+	// Step 4: Build parent/child DAGs
 	slog.Debug("ParseProjectSessions: Building DAGs")
 	dagStartTime := time.Now()
 	dags := p.buildDAGs(uniqueRecords)
 	dagDuration := time.Since(dagStartTime)
 	slog.Debug("ParseProjectSessions: DAG building completed", "duration", formatDuration(dagDuration), "dagCount", len(dags))
 
-	// Step 4: Merge DAGs with the same session ID (handles resumed sessions)
+	// Step 5: Merge DAGs with the same session ID (handles resumed sessions)
 	mergeStartTime := time.Now()
 	mergedDags := p.mergeDagsWithSameSessionId(dags)
 	mergeDuration := time.Since(mergeStartTime)
 	slog.Debug("ParseProjectSessions: DAG merging completed", "duration", formatDuration(mergeDuration),
 		"beforeCount", len(dags), "afterCount", len(mergedDags))
 
-	// Step 5: Flatten each DAG into an array ordered by timestamp
+	// Step 6: Flatten each DAG into an array ordered by timestamp
 	flattenStartTime := time.Now()
 	sessions := []Session{}
 	for _, dag := range mergedDags {
-		NoteProgress(silent)
 		flattenedDAG := p.flattenDAG(dag)
 		if len(flattenedDAG) == 0 {
 			continue
 		}
 
-		// Step 6: The session is the sessionId of the head
+		// Step 7: The session is the sessionId of the head
 		sessionId := ""
 		if sid, ok := flattenedDAG[0].Data["sessionId"].(string); ok {
 			sessionId = sid
@@ -218,13 +231,6 @@ func (p *JSONLParser) parseProjectSessions(projectPath string, silent bool, sess
 		"dag", formatDuration(dagDuration),
 		"flatten", formatDuration(flattenDuration))
 	return nil
-}
-
-func NoteProgress(silent bool) {
-	if !silent {
-		fmt.Print(".")
-		_ = os.Stdout.Sync()
-	}
 }
 
 // extractSessionIDFromFile reads a JSONL file and returns the first sessionId found.

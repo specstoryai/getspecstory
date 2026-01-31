@@ -5,6 +5,7 @@
 
 ### ⚙️ Improvements
 
+- `specstory sync` now displays progress feedback while parsing sessions.
 - The Claude Code provider now gracefully handles corrupt JSON objects in JSONL session data, continuing to parse valid entries rather than failing to render the session.
 - The `-s` flag on `specstory sync` now accepts multiple session IDs: `specstory sync -s {id1} -s {id2}`.
 - `WebFetch` and `WebSearch` tool outputs for the Claude Code provider now include the source URL and search term in their output.

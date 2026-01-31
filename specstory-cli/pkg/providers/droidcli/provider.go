@@ -102,7 +102,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 // GetAgentChatSessions returns all available agent chat sessions from the Factory Droid CLI,
 // optionally filtered to sessions associated with the given projectPath. When debugRaw is true,
 // additional raw session details may be included in the converted sessions.
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	files, err := listSessionFiles()
 	if err != nil {
 		return nil, err
@@ -110,18 +110,35 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 	result := make([]spi.AgentChatSession, 0, len(files))
 	normalizedProject := strings.TrimSpace(projectPath)
 
+	// Filter files to those matching the project (for accurate progress count)
+	var matchingFiles []sessionFile
 	for _, file := range files {
 		if normalizedProject != "" && !sessionMentionsProject(file.Path, normalizedProject) {
 			continue
 		}
+		matchingFiles = append(matchingFiles, file)
+	}
+
+	totalFiles := len(matchingFiles)
+
+	for i, file := range matchingFiles {
 		session, err := parseFactorySession(file.Path)
 		if err != nil {
 			slog.Debug("droidcli: skipping session", "path", file.Path, "error", err)
+			// Report progress even for failed sessions
+			if progress != nil {
+				progress(i+1, totalFiles)
+			}
 			continue
 		}
 		chat := convertToAgentSession(session, projectPath, debugRaw)
 		if chat != nil {
 			result = append(result, *chat)
+		}
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalFiles)
 		}
 	}
 	return result, nil

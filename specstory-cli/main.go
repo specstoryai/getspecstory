@@ -1153,8 +1153,19 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		return 0, err
 	}
 
+	// Create progress callback for parsing phase
+	// The callback updates the "Parsing..." line in place with [n/m] progress
+	var parseProgress spi.ProgressCallback
+	if !silent {
+		providerName := provider.Name()
+		parseProgress = func(current, total int) {
+			fmt.Printf("\rParsing %s sessions [%d/%d]", providerName, current, total)
+			_ = os.Stdout.Sync()
+		}
+	}
+
 	// Get all sessions from the provider
-	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw)
+	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw, parseProgress)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get sessions: %w", err)
 	}
@@ -1281,14 +1292,14 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// In only-cloud-sync mode: always sync
 		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
 
-		// Print progress dot
+		// Print progress with [n/m] format
 		if !silent {
-			fmt.Print(".")
+			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
 			_ = os.Stdout.Sync()
 		}
 	}
 
-	// Print newline after progress dots
+	// Print newline after progress
 	if !silent && sessionCount > 0 && !onlyCloudSync {
 		fmt.Println()
 
