@@ -23,7 +23,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:21:39Z)**_
 Show commit summary and files changed
 
 `git show 0381a524da4c363a02ecd2ee720d8b641b187af9 --stat`
-```
+
+```text
 commit 0381a524da4c363a02ecd2ee720d8b641b187af9
 Author: Antaripa Saha <antaripasaha2000@gmail.com>
 Date:   Tue Jan 27 03:16:09 2026 +0530
@@ -43,7 +44,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:21:40Z)**_
 Show full commit diff
 
 `git show 0381a524da4c363a02ecd2ee720d8b641b187af9 --no-stat`
-```
+
+```text
 Exit code 128
 fatal: unrecognized argument: --no-stat
 ```
@@ -62,7 +64,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:22:31Z)**_
 Show full commit with diff
 
 `git show 0381a524da4c363a02ecd2ee720d8b641b187af9`
-```
+
+```text
 commit 0381a524da4c363a02ecd2ee720d8b641b187af9
 Author: Antaripa Saha <antaripasaha2000@gmail.com>
 Date:   Tue Jan 27 03:16:09 2026 +0530

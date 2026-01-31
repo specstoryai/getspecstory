@@ -183,7 +183,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:26Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/fd7590b3-62e3-49dd-b0bb-f6e4755245e8/tool-results/ca5af1eb-2489-4001-afe2-8d42f292d928.txt`
-```
+
+```text
 <tool_use_error>File content (1.3MB) exceeds maximum allowed size (256KB). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.</tool_use_error>
 ```
 </details></tool-use>
@@ -197,7 +198,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:30Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/fd7590b3-62e3-49dd-b0bb-f6e4755245e8/tool-results/ca5af1eb-2489-4001-afe2-8d42f292d928.txt`
-```
+
+```text
 File content (55328 tokens) exceeds maximum allowed tokens (25000). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.
 ```
 </details></tool-use>
@@ -207,7 +209,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:33Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/fd7590b3-62e3-49dd-b0bb-f6e4755245e8/tool-results/ca5af1eb-2489-4001-afe2-8d42f292d928.txt`
-```
+
+```text
      1→diff --git a/.gitignore b/.gitignore
      2→index 528aa98..b38778e 100644
      3→--- a/.gitignore
@@ -722,7 +725,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:38Z)**_
 List all Go files changed in PR 150
 
 `gh pr diff 150 --repo specstoryai/getspecstory | grep -E "^diff --git.*\.go$" | head -50`
-```
+
+```text
 diff --git a/specstory-cli/pkg/providers/droidcli/agent_session.go b/specstory-cli/pkg/providers/droidcli/agent_session.go
 diff --git a/specstory-cli/pkg/providers/droidcli/agent_session_test.go b/specstory-cli/pkg/providers/droidcli/agent_session_test.go
 diff --git a/specstory-cli/pkg/providers/droidcli/droid_exec.go b/specstory-cli/pkg/providers/droidcli/droid_exec.go
@@ -750,7 +754,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:43Z)**_
 List all non-history file changes in PR 150
 
 `gh pr diff 150 --repo specstoryai/getspecstory | grep -E "^diff --git" | grep -v "\.specstory/history" | grep -v "\.claude/" | grep -v "\.cursor/" | grep -v "CLAUDE\.md" | grep -v "AGENT\.md" | grep -v "changelog\.md"`
-```
+
+```text
 diff --git a/.gitignore b/.gitignore
 diff --git a/specstory-cli/README.md b/specstory-cli/README.md
 diff --git a/specstory-cli/pkg/providers/droidcli/agent_session.go b/specstory-cli/pkg/providers/droidcli/agent_session.go
@@ -778,7 +783,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:47Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/provider.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -1222,7 +1228,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:48Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/types.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import "encoding/json"
@@ -1304,7 +1311,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:48Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -1728,7 +1736,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:49Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/agent_session.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -2120,7 +2129,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:53Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -2693,7 +2703,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:53Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/path_utils.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -2793,7 +2804,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:54Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/watcher.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -2886,7 +2898,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:54Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/droid_exec.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -2966,7 +2979,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:58Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/provider_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -3022,7 +3036,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:59Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -3082,7 +3097,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:59Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/agent_session_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -3264,7 +3280,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:00Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -3387,7 +3404,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:04Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/factory/registry.go`
-```
+
+```text
      1→// Package factory provides the provider registry and factory implementation.
      2→// This package imports all concrete provider implementations and manages
      3→// their registration, avoiding circular dependencies in the SPI layer.
@@ -3601,7 +3619,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:08Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/debug.go`
-```
+
+```text
 <tool_use_error>File does not exist.</tool_use_error>
 ```
 </details></tool-use>
@@ -3611,7 +3630,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:08Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/reader_utils.go`
-```
+
+```text
 <tool_use_error>File does not exist.</tool_use_error>
 ```
 </details></tool-use>
@@ -3621,7 +3641,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:09Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/text_utils.go`
-```
+
+```text
 <tool_use_error>File does not exist.</tool_use_error>
 ```
 </details></tool-use>
@@ -3635,7 +3656,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:12Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/provider.go`
-```
+
+```text
      1→package claudecode
      2→
      3→import (
@@ -4176,7 +4198,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:16Z)**_
 Run droidcli package tests
 
 `go test -v ./pkg/providers/droidcli/...`
-```
+
+```text
 === RUN   TestGenerateAgentSession_BasicFlow
 --- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
 === RUN   TestGenerateAgentSession_IncludesReasoningAndSummary
@@ -4222,7 +4245,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
 ```
 </details></tool-use>
@@ -4749,7 +4773,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:42:05Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -5059,7 +5084,8 @@ func TestToolTypeMappings(t *testing.T) {
 }
 
 ```
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
      1→package droidcli
      2→
@@ -5252,7 +5278,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:16:07Z)**_
 Run refactored markdown_tools tests
 
 `go test -v ./pkg/providers/droidcli/... -run "TestFormatToolCall|TestToolTypeMappings"`
-```
+
+```text
 === RUN   TestFormatToolCall
 === RUN   TestFormatToolCall/Execute_with_command_and_workdir
 === RUN   TestFormatToolCall/TodoWrite_with_array_format
@@ -5346,7 +5373,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:16:21Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/provider_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -5494,7 +5522,8 @@ func TestSessionMentionsProject(t *testing.T) {
 }
 
 ```
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/provider_test.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
      1→package droidcli
      2→
@@ -5584,7 +5613,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:41:07Z)**_
 Run refactored provider tests
 
 `go test -v ./pkg/providers/droidcli/... -run "TestSessionMentionsProject"`
-```
+
+```text
 === RUN   TestSessionMentionsProject
 === RUN   TestSessionMentionsProject/returns_true_when_session_cwd_matches_project
 === RUN   TestSessionMentionsProject/returns_false_when_cwd_mismatches_even_if_text_mentions_project
@@ -5617,7 +5647,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:41:14Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -5836,7 +5867,8 @@ func TestParseFactorySession(t *testing.T) {
 }
 
 ```
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/parser_test.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
      1→package droidcli
      2→
@@ -6005,7 +6037,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:41:46Z)**_
 Run refactored parser tests
 
 `go test -v ./pkg/providers/droidcli/... -run "TestParseFactorySession"`
-```
+
+```text
 === RUN   TestParseFactorySession
 === RUN   TestParseFactorySession/parses_complete_session_with_all_block_types
 === RUN   TestParseFactorySession/extracts_session_ID_from_filename_when_not_in_content
@@ -6050,7 +6083,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:41:59Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/agent_session_test.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -6513,7 +6547,8 @@ func TestGenerateAgentSession(t *testing.T) {
 }
 
 ```
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/agent_session_test.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
      1→package droidcli
      2→
@@ -6787,7 +6822,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:42:35Z)**_
 Run all droidcli tests
 
 `go test -v ./pkg/providers/droidcli/...`
-```
+
+```text
 === RUN   TestGenerateAgentSession_BasicFlow
 --- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
 === RUN   TestGenerateAgentSession
@@ -6904,7 +6940,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:42:41Z)**_
 Run linter on droidcli package
 
 `golangci-lint run ./pkg/providers/droidcli/...`
-```
+
+```text
 0 issues.
 ```
 </details></tool-use>
@@ -7007,7 +7044,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:46:41Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -7651,7 +7689,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:20Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7670,7 +7709,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:43Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7685,7 +7725,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:49Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7704,7 +7745,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:57Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7719,7 +7761,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:04Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7734,7 +7777,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:09Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7753,7 +7797,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:17Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7768,7 +7813,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7783,7 +7829,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:29Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7798,7 +7845,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:35Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools.go has been updated successfully.
 ```
 </details></tool-use>
@@ -7820,7 +7868,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:40Z)**_
 Run all droidcli tests after DRY refactoring
 
 `go test -v ./pkg/providers/droidcli/...`
-```
+
+```text
 === RUN   TestGenerateAgentSession_BasicFlow
 --- PASS: TestGenerateAgentSession_BasicFlow (0.00s)
 === RUN   TestGenerateAgentSession
@@ -7937,7 +7986,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:48:47Z)**_
 Run linter on droidcli package
 
 `golangci-lint run ./pkg/providers/droidcli/...`
-```
+
+```text
 0 issues.
 ```
 </details></tool-use>
@@ -8025,7 +8075,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:30Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/watcher.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -8118,7 +8169,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:55:31Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/watcher.go`
-```
+
+```text
      1→package claudecode
      2→
      3→import (
@@ -8746,7 +8798,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:56:56Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/watcher.go`
-```
+
+```text
      1→package geminicli
      2→
      3→import (
@@ -9070,7 +9123,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:56:56Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/codexcli/watcher.go`
-```
+
+```text
      1→package codexcli
      2→
      3→import (

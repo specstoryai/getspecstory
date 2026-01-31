@@ -45,7 +45,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:20:37Z)**_
 <tool-use data-tool-type="generic" data-tool-name="Task"><details>
 <summary>Tool use: **Task**</summary>
 Find provider data sources
-```
+
+```text
 Perfect! Now I have a comprehensive understanding of all the providers. Let me create a summary report.
 
 ## Provider Data Source Summary
@@ -136,7 +137,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:20:37Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./README.md`
-```
+
+```text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -438,7 +440,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:39Z)**_
 <summary>Tool use: **Bash**</summary>
 
 `find /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers -type f -name "*.go" | head -20`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/provider.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/provider_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/agent_session.go
@@ -472,7 +475,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:42Z)**_
 <summary>Tool use: **Bash**</summary>
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/`
-```
+
+```text
 total 0
 drwxr-xr-x   7 sean  staff  224 Jan 30 13:53 .
 drwxr-xr-x   9 sean  staff  288 Jan 16 09:22 ..
@@ -493,7 +497,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:46Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/provider.go`
-```
+
+```text
      1→package claudecode
      2→
      3→import (
@@ -1028,7 +1033,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:46Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/codexcli/provider.go`
-```
+
+```text
      1→package codexcli
      2→
      3→import (
@@ -1878,7 +1884,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:47Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/cursorcli/provider.go`
-```
+
+```text
      1→package cursorcli
      2→
      3→import (
@@ -2456,7 +2463,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:47Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/provider.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -2969,7 +2977,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:47Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/provider.go`
-```
+
+```text
      1→package geminicli
      2→
      3→import (
@@ -3333,7 +3342,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:50Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/jsonl_parser.go`
-```
+
+```text
      1→package claudecode
      2→
      3→import (
@@ -4007,7 +4017,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:50Z)**_
 <summary>Tool use: **Bash**</summary>
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/*/`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/:
 total 408
 drwxr-xr-x  17 sean  staff    544 Jan 31 10:06 .
@@ -4110,7 +4121,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:52Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/cursorcli/sqlite_reader.go`
-```
+
+```text
      1→package cursorcli
      2→
      3→import (
@@ -4169,7 +4181,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:53Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -4258,7 +4271,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:53Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/geminicli/json_parser.go`
-```
+
+```text
      1→package geminicli
      2→
      3→import (
@@ -4532,7 +4546,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:22:13Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/README.md has been updated successfully.
 ```
 </details></tool-use>
@@ -4552,7 +4567,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:22:23Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./pkg/providers` pattern `json\.Unmarshal`
-```
+
+```text
 <persisted-output>
 Output too large (28.9KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/3db9f30e-840c-474c-a0d8-1426f561afb4/tool-results/toolu_01Gq5k5vk8v7C9WY8cw1oMmA.txt
 
@@ -4597,7 +4613,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:22:27Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/jsonl_parser.go`
-```
+
+```text
      1→package claudecode
      2→
      3→import (
@@ -5270,7 +5287,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:22:27Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/codexcli/provider.go`
-```
+
+```text
      1→package codexcli
      2→
      3→import (
@@ -6120,7 +6138,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:22:28Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser.go`
-```
+
+```text
      1→package droidcli
      2→
      3→import (
@@ -6712,7 +6731,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:24:18Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
 ```
 </details></tool-use>
@@ -6721,7 +6741,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:24:21Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
 ```
 </details></tool-use>
@@ -6730,7 +6751,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:24:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
 ```
 </details></tool-use>
@@ -6763,7 +6785,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:27:50Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/provider.go has been updated successfully.
 ```
 </details></tool-use>
@@ -6772,7 +6795,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:27:52Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/parser.go has been updated successfully.
 ```
 </details></tool-use>
@@ -6782,7 +6806,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:27:53Z)**_
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
  pattern `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/*_test.go`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/claude_code_exec_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/jsonl_parser_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/path_utils_test.go
@@ -6826,7 +6851,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:06Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/jsonl_parser_test.go`
-```
+
+```text
      1→package claudecode
      2→
      3→import (
@@ -8231,7 +8257,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:06Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser.go`
-```
+
+```text
    363→func normalizeEventTimestamp(ts string) string {
    364→	return strings.TrimSpace(ts)
    365→}
@@ -8322,7 +8349,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:21Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/parser.go has been updated successfully.
 ```
 </details></tool-use>
@@ -8331,7 +8359,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:26Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/parser.go has been updated successfully.
 ```
 </details></tool-use>
@@ -8351,7 +8380,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:36Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/provider.go`
-```
+
+```text
    360→	}
    361→	defer func() {
    362→		_ = file.Close()
@@ -8449,7 +8479,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:43Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/provider.go has been updated successfully.
 ```
 </details></tool-use>
@@ -8458,7 +8489,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:46Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/provider.go has been updated successfully.
 ```
 </details></tool-use>
@@ -8480,7 +8512,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:28:52Z)**_
 Lint droidcli and codexcli providers
 
 `golangci-lint run ./pkg/providers/droidcli/... ./pkg/providers/codexcli/...`
-```
+
+```text
 0 issues.
 ```
 </details></tool-use>
@@ -8505,7 +8538,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:29:08Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/jsonl_parser_test.go has been updated successfully.
 ```
 </details></tool-use>
@@ -8527,7 +8561,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:29:21Z)**_
 Run the corrupted JSONL test to show it fails
 
 `go test -v -run TestParseCorruptedJSONLLine ./pkg/providers/claudecode/`
-```
+
+```text
 Exit code 1
 === RUN   TestParseCorruptedJSONLLine
 2026/01/31 10:29:22 INFO Parsing session file file=/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/test-corrupted-31244825.jsonl
@@ -8557,7 +8592,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:29:29Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/jsonl_parser.go has been updated successfully.
 ```
 </details></tool-use>
@@ -8575,7 +8611,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:29:35Z)**_
 Run the corrupted JSONL test to verify it passes
 
 `go test -v -run TestParseCorruptedJSONLLine ./pkg/providers/claudecode/`
-```
+
+```text
 === RUN   TestParseCorruptedJSONLLine
 2026/01/31 10:29:36 INFO Parsing session file file=/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/test-corrupted-2754059778.jsonl
 2026/01/31 10:29:36 WARN Skipping corrupted JSONL line file=test-corrupted-2754059778.jsonl line=2 error="unexpected end of JSON input"
@@ -8611,7 +8648,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:29:42Z)**_
 Run linter and all tests
 
 `golangci-lint run && go test ./...`
-```
+
+```text
 0 issues.
 ok  	github.com/specstoryai/getspecstory/specstory-cli	0.206s
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]

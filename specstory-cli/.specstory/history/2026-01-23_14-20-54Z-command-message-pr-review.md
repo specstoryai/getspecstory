@@ -415,7 +415,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:20:58Z)**_
 Get PR details for #151
 
 `gh pr view 151 --json title,body,state,author,additions,deletions,files`
-```
+
+```text
 {"additions":124,"author":{"id":"MDQ6VXNlcjY0MjcwNA==","is_bot":false,"login":"bago2k4","name":"iacopo"},"body":"Add a `--only-cloud-sync` flag used to skip local save of md files and only upload them to cloud.\r\n\r\nNB: once this PR and the #152 are merged, we need to add support for the `--only-cloud-sync` flag to the watch command","deletions":89,"files":[{"path":"specstory-cli/main.go","additions":124,"deletions":89}],"state":"OPEN","title":"Only cloud sync"}
 ```
 </details></tool-use>
@@ -427,7 +428,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:20:59Z)**_
 Get PR diff for #151
 
 `gh pr diff 151`
-```
+
+```text
 diff --git a/specstory-cli/main.go b/specstory-cli/main.go
 index a79812c..4707e3b 100644
 --- a/specstory-cli/main.go
@@ -737,7 +739,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:06Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    700→	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false)
    701→	if err != nil {
    702→		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
@@ -896,7 +899,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:07Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    900→
    901→		// Generate markdown from SessionData
    902→		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false)
@@ -1059,7 +1063,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:12Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `validateFlags|onlyCloudSync|noCloudSync`
-```
+
+```text
 No files found
 ```
 </details></tool-use>
@@ -1069,7 +1074,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:13Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `func validateFlags`
-```
+
+```text
 main.go:80:func validateFlags() error {
 .specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md:50:@@ -83,6 +84,9 @@ func validateFlags() error {
 .specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md:447:@@ -83,6 +84,9 @@ func validateFlags() error {
@@ -1083,7 +1089,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:17Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
     75→	QuitCommandShort = "Q"
     76→	ExitCommand      = "EXIT"
     77→)

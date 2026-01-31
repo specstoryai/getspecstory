@@ -41,7 +41,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:23Z)**_
 Get PR #157 details
 
 `gh pr view 157 --json title,body,additions,deletions,changedFiles,files,commits,headRefName,baseRefName`
-```
+
+```text
 {"additions":112,"baseRefName":"dev","body":"Extend the sync command to accept multiple session ids.\r\n\r\nThis is needed to move the Save AI Chat History command from the extension. The user picks multiple sessions and then is presented with an unsaved editor containing all the conversations markdowns.\r\n\r\n\r\nNot sure if the desirable behavior is to return an error if at least 1 session is not found or succeeds if at least 1 was found","changedFiles":1,"commits":[{"authoredDate":"2026-01-28T10:21:37Z","authors":[{"email":"iacopo@rc0.eu","id":"MDQ6VXNlcjY0MjcwNA==","login":"bago2k4","name":"bago2k4"}],"committedDate":"2026-01-28T10:21:37Z","messageBody":"…e one","messageHeadline":"Update sync command to accept multiple session ids instead of a singl…","oid":"a9d5d872154de426fcd69bf099dce5f8bddba0af"},{"authoredDate":"2026-01-29T14:57:42Z","authors":[{"email":"iacopo@rc0.eu","id":"MDQ6VXNlcjY0MjcwNA==","login":"bago2k4","name":"bago2k4"}],"committedDate":"2026-01-29T14:57:42Z","messageBody":"","messageHeadline":"Merge branch 'dev' into feat/sync-multiple-sessions","oid":"c2ac542f5349f7d255d775e289edec08136be07d"},{"authoredDate":"2026-01-30T18:53:16Z","authors":[{"email":"sean@specstory.com","id":"MDQ6VXNlcjEyMTYz","login":"belucid","name":"Sean Johnson"}],"committedDate":"2026-01-30T18:53:16Z","messageBody":"","messageHeadline":"Merge branch 'dev' into feat/sync-multiple-sessions","oid":"e606316878252f6f47c06bc3481bd63dbb0e9ddc"}],"deletions":47,"files":[{"path":"specstory-cli/main.go","additions":112,"deletions":47}],"headRefName":"feat/sync-multiple-sessions","title":"Sync multiple sessions"}
 ```
 </details></tool-use>
@@ -53,7 +54,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:24Z)**_
 Get PR #157 diff
 
 `gh pr diff 157`
-```
+
+```text
 diff --git a/specstory-cli/main.go b/specstory-cli/main.go
 index dc1e0f0..4e994e2 100644
 --- a/specstory-cli/main.go
@@ -310,7 +312,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:36Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
 <tool_use_error>File does not exist.</tool_use_error>
 ```
 </details></tool-use>
@@ -320,7 +323,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:37Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli` pattern `pluralSession`
-```
+
+```text
 <tool_use_error>Sibling tool call errored</tool_use_error>
 ```
 </details></tool-use>
@@ -336,7 +340,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:40Z)**_
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
  pattern `**/main.go`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go
 ```
 </details></tool-use>
@@ -352,7 +357,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:44Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `pluralSession`
-```
+
+```text
 <persisted-output>
 Output too large (75.4KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/42bd9166-1c56-4aac-b23b-18bf8af5331e/tool-results/toolu_01MTtpE61vVrBZMs6dYcj7RC.txt
 
@@ -392,7 +398,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:45Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    820→	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
    821→		return err
    822→	}
@@ -568,7 +575,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:50Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `syncSpecificSessions|syncSingleSession`
-```
+
+```text
 Found 8 files
 .specstory/history/2026-01-30_18-58-14Z-command-name-pr-review.md
 .specstory/history/2026-01-28_13-42-57Z-this-isn-t-good.md
@@ -586,7 +594,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:50Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
     55→// UUID regex pattern: 8-4-4-4-12 hexadecimal characters
     56→var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
     57→
@@ -616,7 +625,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:54Z)**_
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
  pattern `**/*_test.go`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/auth_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync_throttle_test.go
@@ -669,7 +679,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 18:58:59Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./main_test.go` pattern `sync.*session|session.*sync|pluralSession`
-```
+
+```text
 No matches found
 ```
 </details></tool-use>
@@ -900,7 +911,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:00:21Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    783→	}
    784→}
    785→
@@ -1124,7 +1136,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:00:36Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
 ```
 </details></tool-use>
@@ -1146,7 +1159,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:00:44Z)**_
 Run linter on main.go
 
 `golangci-lint run main.go`
-```
+
+```text
 Exit code 1
 main.go:56:5: var uuidRegex is unused (unused)
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -1166,7 +1180,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:00:44Z)**_
 Build the project
 
 `go build -o specstory`
-```
+
+```text
 <tool_use_error>Sibling tool call errored</tool_use_error>
 ```
 </details></tool-use>
@@ -1203,7 +1218,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:00:55Z)**_
 Run all tests
 
 `go test -v ./...`
-```
+
+```text
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
 ```
 </details></tool-use>
@@ -1233,7 +1249,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:01:22Z)**_
 Run linter on whole project
 
 `golangci-lint run`
-```
+
+```text
 0 issues.
 ```
 </details></tool-use>
@@ -1255,7 +1272,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:01:28Z)**_
 Run all tests
 
 `go test -v ./...`
-```
+
+```text
 <persisted-output>
 Output too large (146.8KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/42bd9166-1c56-4aac-b23b-18bf8af5331e/tool-results/toolu_01AecSccUuPdwAMh2iM49Bqm.txt
 
@@ -1314,7 +1332,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-30 19:01:39Z)**_
 Check test results summary
 
 `tail -30 /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/42bd9166-1c56-4aac-b23b-18bf8af5331e/tool-results/toolu_01AecSccUuPdwAMh2iM49Bqm.txt`
-```
+
+```text
 === RUN   TestParseGitRemoteURL/Implicit_HTTPS
 === RUN   TestParseGitRemoteURL/Implicit_HTTPS_nested_path
 --- PASS: TestParseGitRemoteURL (0.00s)

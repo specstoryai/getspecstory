@@ -178,7 +178,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:04Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/0df48eb8-a9ed-438e-b1f0-266bff1fc69c/tool-results/4193d278-9970-4195-ab8c-6ad50d99db79.txt`
-```
+
+```text
      1→diff --git a/specstory-cli/.specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md b/specstory-cli/.specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md
      2→new file mode 100644
      3→index 0000000..b46e758
@@ -1811,7 +1812,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:09Z)**_
 Get PR diff for #152
 
 `gh pr diff 152`
-```
+
+```text
 <persisted-output>
 Output too large (63.2KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/0df48eb8-a9ed-438e-b1f0-266bff1fc69c/tool-results/toolu_01XYLeVCYWUUjFZNnGwfZ8Rt.txt
 
@@ -1876,7 +1878,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:14Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/0df48eb8-a9ed-438e-b1f0-266bff1fc69c/tool-results/toolu_01XYLeVCYWUUjFZNnGwfZ8Rt.txt`
-```
+
+```text
   1370→+
   1371→+<local-command-stdout>Catch you later!</local-command-stdout>
   1372→+
@@ -2138,7 +2141,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:18Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
      1→package main
      2→
      3→import (
@@ -2249,7 +2253,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:19Z)**_
 Get list of changed files in PR 152
 
 `gh pr diff 152 --name-only`
-```
+
+```text
 specstory-cli/.specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md
 specstory-cli/main.go
 ```
@@ -2275,7 +2280,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:29Z)**_
 Get main.go diff from main branch
 
 `git diff main...HEAD -- main.go | head -600`
-```
+
+```text
 diff --git a/specstory-cli/main.go b/specstory-cli/main.go
 index a79812c..5e5ea1b 100644
 --- a/specstory-cli/main.go
@@ -2833,7 +2839,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:34Z)**_
 Get remaining main.go diff from main branch
 
 `git diff main...HEAD -- main.go | tail -100`
-```
+
+```text
 -				analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
 -					"session_id": session.SessionID,
 -				})
@@ -2946,7 +2953,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:38Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./pkg` pattern `WatchAgent`
-```
+
+```text
 Found 6 files
 pkg/utils/watch_agents.go
 pkg/spi/provider.go
@@ -2962,7 +2970,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:42Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/provider.go`
-```
+
+```text
      1→package spi
      2→
      3→import (
@@ -3049,7 +3058,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:42Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/utils/watch_agents.go`
-```
+
+```text
      1→package utils
      2→
      3→import (
@@ -3162,7 +3172,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:45Z)**_
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
  pattern `**/*_test.go`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/auth_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync_throttle_test.go
@@ -3203,7 +3214,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:49Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main_test.go`
-```
+
+```text
      1→package main
      2→
      3→import (
@@ -3552,7 +3564,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:31:53Z)**_
 Run the new test to verify it passes
 
 `go test -v -run TestValidateFlags_CloudSyncMutualExclusion ./...`
-```
+
+```text
 === RUN   TestValidateFlags_CloudSyncMutualExclusion
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid
@@ -3604,7 +3617,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:32:03Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main_test.go has been updated successfully.
 ```
 </details></tool-use>
@@ -3616,7 +3630,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:35:22Z)**_
 Verify tests fail with inverted assertions
 
 `go test -v -run TestValidateFlags_CloudSyncMutualExclusion ./... 2>&1`
-```
+
+```text
 Exit code 1
 === RUN   TestValidateFlags_CloudSyncMutualExclusion
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error
@@ -3674,7 +3689,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:35:30Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main_test.go has been updated successfully.
 ```
 </details></tool-use>
@@ -3686,7 +3702,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:35:34Z)**_
 Verify tests pass again after restoration
 
 `go test -v -run TestValidateFlags_CloudSyncMutualExclusion ./... 2>&1 | head -20`
-```
+
+```text
 === RUN   TestValidateFlags_CloudSyncMutualExclusion
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid
@@ -4151,7 +4168,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:14Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./main.go` pattern `cloudToken`
-```
+
+```text
 45:var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
 276:			if cloudToken != "" {
 278:				if err := cloud.SetSessionRefreshToken(cloudToken); err != nil {
@@ -4164,7 +4182,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:15Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./main.go` pattern `onlyCloudSync`
-```
+
+```text
 42:var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
 89:	if onlyCloudSync && noCloudSync {
 296:			if onlyCloudSync && !cloud.IsAuthenticated() {
@@ -4216,7 +4235,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:24Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
   2033→	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
   2034→	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
   2035→
@@ -4245,7 +4265,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:25Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    550→		Long:    longDesc,
    551→		Example: examples,
    552→		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
@@ -4315,7 +4336,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:33Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
 ```
 </details></tool-use>
@@ -4330,7 +4352,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:38Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
 ```
 </details></tool-use>
@@ -4352,7 +4375,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:42Z)**_
 Run linter on main.go
 
 `golangci-lint run main.go 2>&1 | head -30`
-```
+
+```text
 main.go:56:5: var uuidRegex is unused (unused)
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
     ^
@@ -4381,7 +4405,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:49Z)**_
 Run flag validation tests
 
 `go test -v -run TestValidateFlags ./... 2>&1 | head -30`
-```
+
+```text
 === RUN   TestValidateFlags_CloudSyncMutualExclusion
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error
 === RUN   TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid
@@ -4432,7 +4457,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 12:45:56Z)**_
 Build and check watch command help
 
 `go build -o specstory && ./specstory watch --help`
-```
+
+```text
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
 ```
 </details></tool-use>
@@ -4508,7 +4534,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 14:48:32Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./main.go` pattern `preloadBulkSessionSizesIfNeeded`
-```
+
+```text
 1006-	return nil
 1007-}
 1008-
@@ -4579,7 +4606,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 14:48:43Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    572→			// Initialize project identity
    573→			cwd, err := os.Getwd()
    574→			if err != nil {
@@ -4613,7 +4641,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 14:48:49Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 <tool_use_error>Found 2 matches of the string to replace, but replace_all is false. To replace all occurrences, set replace_all to true. To replace only one occurrence, please provide more context to uniquely identify the instance.
 String: 			// Initialize project identity
 			cwd, err := os.Getwd()
@@ -4639,7 +4668,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 14:48:57Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
 ```
 </details></tool-use>
@@ -4657,7 +4687,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-25 14:50:34Z)**_
 Build and run tests
 
 `go build -o /dev/null && go test -run TestValidateFlags ./... 2>&1 | grep -E "(PASS|FAIL|ok|---)"`
-```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli	1.168s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.410s [no tests to run]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	0.871s [no tests to run]
