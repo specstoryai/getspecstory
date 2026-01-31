@@ -827,6 +827,18 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	var successCount, notFoundCount, errorCount int
 	var lastError error
 
+	// Resolve provider once if specified (fail fast if provider not found)
+	var specifiedProvider spi.Provider
+	if len(args) > 0 {
+		providerID := args[0]
+		provider, err := registry.Get(providerID)
+		if err != nil {
+			fmt.Printf("❌ Provider '%s' not found\n", providerID)
+			return err
+		}
+		specifiedProvider = provider
+	}
+
 	// Process each session ID
 	for _, sessionID := range sessionIDs {
 		sessionID = strings.TrimSpace(sessionID)
@@ -834,33 +846,24 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			continue // Skip empty session IDs
 		}
 
-		// Case A: Provider specified (e.g., "specstory sync <provider> -s <session-id>")
-		if len(args) > 0 {
-			providerID := args[0]
-			provider, err := registry.Get(providerID)
+		// Case A: Provider was specified - use it directly
+		if specifiedProvider != nil {
+			session, err := specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
 			if err != nil {
-				fmt.Printf("❌ Provider '%s' not found\n", providerID)
-				errorCount++
-				lastError = err
-				continue
-			}
-
-			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, provider.Name(), err)
+				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
 				errorCount++
 				lastError = err
 				continue
 			}
 			if session == nil {
-				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, provider.Name())
+				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
 				notFoundCount++
 				continue
 			}
 
 			// Process the session (show output for sync command)
 			// This is manual sync mode (false)
-			if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
+			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {

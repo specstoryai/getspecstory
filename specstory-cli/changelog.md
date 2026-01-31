@@ -1,5 +1,12 @@
 # Specstory CLI Changelog
 
+
+## v1.5.0 2026-01-31
+
+### ⚙️ Improvements
+
+- The `-s {session-id}` session flag on `specstory sync` to sync just a specific session can now sync multiple specified sessions with `specstory sync -s {session-id} -s {session-id} -s {session-id}`.
+
 ## v1.4.0 2026-01-29
 
 ### ⚙️ Improvements
