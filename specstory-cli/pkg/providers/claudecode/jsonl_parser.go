@@ -360,7 +360,15 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 
 		var data map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &data); err != nil {
-			return nil, fmt.Errorf("failed to parse JSON on line %d: %w", lineNumber, err)
+			// Log warning and skip corrupted lines rather than failing entire parse
+			slog.Warn("Skipping corrupted JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNumber,
+				"error", err)
+			if atEOF {
+				break
+			}
+			continue
 		}
 
 		// Write debug JSON if jsonl-burst mode is enabled

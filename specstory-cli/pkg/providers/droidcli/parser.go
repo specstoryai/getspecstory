@@ -93,7 +93,7 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 	var firstUserText string
 	var firstTimestamp string
 
-	scanErr := scanLines(file, func(line string) error {
+	scanErr := scanLines(file, func(lineNumber int, line string) error {
 		rawBuilder.WriteString(line)
 		rawBuilder.WriteByte('\n')
 
@@ -104,7 +104,11 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 
 		var env jsonlEnvelope
 		if err := json.Unmarshal([]byte(trimmed), &env); err != nil {
-			slog.Debug("droidcli: skipping malformed JSONL line", "error", err, "file", filePath)
+			// Log warning and skip corrupted lines rather than failing entire parse
+			slog.Warn("Skipping corrupted JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNumber,
+				"error", err)
 			return nil
 		}
 
@@ -370,7 +374,7 @@ const (
 
 var errStopScan = errors.New("stop scan")
 
-func scanLines(reader io.Reader, handle func(line string) error) error {
+func scanLines(reader io.Reader, handle func(lineNumber int, line string) error) error {
 	buf := bufio.NewReader(reader)
 	lineNumber := 0
 
@@ -398,7 +402,7 @@ func scanLines(reader io.Reader, handle func(line string) error) error {
 			continue
 		}
 
-		if handleErr := handle(line); handleErr != nil {
+		if handleErr := handle(lineNumber, line); handleErr != nil {
 			return handleErr
 		}
 

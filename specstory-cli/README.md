@@ -21,13 +21,15 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 ## Agent Support
 
-Agent providers:
+The following coding agents are supported in the SpecStory CLI:
 
-- [Claude Code](https://www.claude.com/product/claude-code): [Claude Code Provider](pkg/providers/claudecode/)
-- [Codex CLI](https://www.openai.com/codex/cli/): [Codex CLI Provider](pkg/providers/codexcli/)
-- [Cursor CLI](https://cursor.com/cli): [Cursor CLI Provider](pkg/providers/cursorcli/)
-- [Droid CLI](https://factory.ai/product/cli): [Droid CLI Provider](pkg/providers/droidcli/)
-- [Gemini CLI](https://ai.google.dev/gemini-cli): [Gemini CLI Provider](pkg/providers/geminicli/)
+| Agent                                                     | Provider                                | Data Format | Source Location        |
+|-----------------------------------------------------------|-----------------------------------------|-------------|------------------------|
+| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/) | JSONL       | `~/.claude/projects/`  |
+| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)     | JSONL       | `~/.codex/sessions/`   |
+| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)   | SQLite      | `~/.cursor/chats/`     |
+| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)     | JSONL       | `~/.factory/sessions/` |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)   | JSON        | `~/.gemini/tmp/`       |
 
 ### Agent Provider SPI (Service Provider Interface)
 

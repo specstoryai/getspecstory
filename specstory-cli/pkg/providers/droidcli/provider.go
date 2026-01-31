@@ -363,7 +363,7 @@ func extractSessionWorkspaceRoot(filePath string) string {
 	}()
 
 	var workspaceRoot string
-	scanErr := scanLines(file, func(line string) error {
+	scanErr := scanLines(file, func(_ int, line string) error {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			return nil
@@ -415,7 +415,7 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	needle := strings.TrimSpace(projectPath)
 	short := filepath.Base(projectPath)
 	foundLines := 0
-	err = scanLines(file, func(line string) error {
+	err = scanLines(file, func(_ int, line string) error {
 		if needle != "" && strings.Contains(line, needle) {
 			return errStopScan
 		}

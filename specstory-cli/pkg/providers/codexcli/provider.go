@@ -646,11 +646,11 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 		// Parse JSON
 		var record map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			slog.Debug("readSessionRawData: Failed to parse JSON line",
-				"error", err,
-				"lineNumber", lineNumber,
-				"line", line[:min(len(line), 100)])
-			// After processing record, check if we're done
+			// Log warning and skip corrupted lines rather than failing entire parse
+			slog.Warn("Skipping corrupted JSONL line",
+				"file", filepath.Base(sessionPath),
+				"line", lineNumber,
+				"error", err)
 			if atEOF {
 				break
 			}
