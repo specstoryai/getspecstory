@@ -87,6 +87,18 @@ func NewToolRegistry() *ToolRegistry {
 	grepSearchHandler := &GrepSearchHandler{}
 	registry.Register("grep_search", grepSearchHandler)
 
+	// Register list directory handler
+	listDirectoryHandler := &ListDirectoryHandler{}
+	registry.Register("list_directory", listDirectoryHandler)
+
+	// Register file search handler
+	fileSearchHandler := &FileSearchHandler{}
+	registry.Register("file_search", fileSearchHandler)
+
+	// Register glob file search handler
+	globFileSearchHandler := &GlobFileSearchHandler{}
+	registry.Register("glob_file_search", globFileSearchHandler)
+
 	return registry
 }
 

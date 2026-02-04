@@ -1,15 +1,18 @@
 package claudecode
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -295,7 +298,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	// Get the Claude Code project directory
 	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
 	if err != nil {
@@ -307,9 +310,9 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return []spi.AgentChatSession{}, nil // No sessions if no project
 	}
 
-	// Parse JSONL files
+	// Parse JSONL files with progress callback
 	parser := NewJSONLParser()
-	err = parser.ParseProjectSessions(claudeProjectDir, true) // silent = true
+	err = parser.ParseProjectSessionsWithProgress(claudeProjectDir, progress)
 	if err != nil {
 		return nil, err
 	}
@@ -522,4 +525,196 @@ func FileSlugFromRootRecord(session Session) string {
 		"slug", slug)
 
 	return slug
+}
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// This is much faster than GetAgentChatSessions as it only reads minimal data from each session
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	// Get the Claude Code project directory
+	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if project directory exists
+	if _, err := os.Stat(claudeProjectDir); os.IsNotExist(err) {
+		return []spi.SessionMetadata{}, nil // No sessions if no project
+	}
+
+	// Collect all JSONL files in the project directory
+	var sessionFiles []string
+	err = filepath.Walk(claudeProjectDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(path, ".jsonl") {
+			return nil
+		}
+		sessionFiles = append(sessionFiles, path)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan project directory: %w", err)
+	}
+
+	// Extract metadata from each session file
+	sessions := make([]spi.SessionMetadata, 0, len(sessionFiles))
+	for _, filePath := range sessionFiles {
+		metadata, err := extractSessionMetadata(filePath)
+		if err != nil {
+			slog.Warn("Failed to extract session metadata",
+				"file", filePath,
+				"error", err)
+			continue
+		}
+
+		// Skip warmup-only sessions (no metadata means warmup-only)
+		if metadata == nil {
+			slog.Debug("Skipping warmup-only session", "file", filePath)
+			continue
+		}
+
+		sessions = append(sessions, *metadata)
+	}
+
+	// Sort by creation date (oldest first)
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].CreatedAt < sessions[j].CreatedAt
+	})
+
+	return sessions, nil
+}
+
+// extractSessionMetadata reads minimal data from a session file to extract metadata
+// Returns nil if the session is warmup-only (no real messages)
+func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	var sessionID string
+	var timestamp string
+	var firstUserMessage string
+	foundRealMessage := false
+
+	// Read records until we find a non-warmup message
+	lineNum := 0
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return nil, fmt.Errorf("failed to read line: %w", err)
+		}
+
+		lineNum++
+		line = strings.TrimSpace(line)
+
+		// Skip empty lines
+		if line == "" {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		// Parse JSON record
+		var record map[string]interface{}
+		if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
+			slog.Warn("Skipping malformed JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNum,
+				"error", jsonErr)
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		// Extract session ID (from any record)
+		if sessionID == "" {
+			if sid, ok := record["sessionId"].(string); ok {
+				sessionID = sid
+			}
+		}
+
+		// Check if this is a sidechain (warmup) message
+		isSidechain := false
+		if val, ok := record["isSidechain"].(bool); ok && val {
+			isSidechain = true
+		}
+
+		// Skip sidechain messages
+		if isSidechain {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		// Get record type
+		recordType, hasType := record["type"].(string)
+
+		// Skip non-message records (like file-history-snapshot) that don't have timestamps
+		if hasType && (recordType == "file-history-snapshot" || recordType == "file-change") {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		// This is the first real message record - extract timestamp
+		if !foundRealMessage {
+			foundRealMessage = true
+			if ts, ok := record["timestamp"].(string); ok {
+				timestamp = ts
+			}
+
+		}
+
+		// Extract first user message for slug (if this is a user message)
+		if firstUserMessage == "" && hasType && recordType == "user" {
+			// Skip meta user messages
+			if isMeta, ok := record["isMeta"].(bool); ok && isMeta {
+				// Continue looking for non-meta user message
+			} else if message, ok := record["message"].(map[string]interface{}); ok {
+				if content, ok := message["content"].(string); ok && content != "" {
+					// Skip messages containing "warmup"
+					if !strings.Contains(strings.ToLower(content), "warmup") {
+						firstUserMessage = content
+					}
+				}
+			}
+		}
+
+		// Break if we've found everything we need
+		if sessionID != "" && timestamp != "" && firstUserMessage != "" {
+			break
+		}
+
+		if err == io.EOF {
+			break
+		}
+	}
+
+	// If no real message was found, this is a warmup-only session
+	if !foundRealMessage {
+		return nil, nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: sessionID,
+		CreatedAt: timestamp,
+		Slug:      slug,
+		Name:      name,
+	}, nil
 }

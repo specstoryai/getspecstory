@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -259,7 +260,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves chat sessions for the given project path.
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	// Find all sessions for this project (don't stop on first)
 	sessions, err := findCodexSessions(projectPath, "", false)
 	if err != nil {
@@ -272,14 +273,20 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return nil, fmt.Errorf("failed to find codex sessions: %w", err)
 	}
 
-	// Convert to AgentChatSession structs
+	totalSessions := len(sessions)
+
+	// Convert to AgentChatSession structs with progress reporting
 	var result []spi.AgentChatSession
-	for _, sessionInfo := range sessions {
+	for i, sessionInfo := range sessions {
 		session, err := processSessionToAgentChat(&sessionInfo, projectPath, debugRaw)
 		if err != nil {
 			slog.Debug("GetAgentChatSessions: Failed to process session",
 				"sessionID", sessionInfo.SessionID,
 				"error", err)
+			// Report progress even for failed sessions
+			if progress != nil {
+				progress(i+1, totalSessions)
+			}
 			continue // Skip sessions we can't process
 		}
 
@@ -287,10 +294,19 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		if session == nil {
 			slog.Debug("GetAgentChatSessions: Skipping empty session",
 				"sessionID", sessionInfo.SessionID)
+			// Report progress even for empty sessions
+			if progress != nil {
+				progress(i+1, totalSessions)
+			}
 			continue
 		}
 
 		result = append(result, *session)
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalSessions)
+		}
 	}
 
 	return result, nil
@@ -646,11 +662,11 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 		// Parse JSON
 		var record map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			slog.Debug("readSessionRawData: Failed to parse JSON line",
-				"error", err,
-				"lineNumber", lineNumber,
-				"line", line[:min(len(line), 100)])
-			// After processing record, check if we're done
+			// Log warning and skip corrupted lines rather than failing entire parse
+			slog.Warn("Skipping corrupted JSONL line",
+				"file", filepath.Base(sessionPath),
+				"line", lineNumber,
+				"error", err)
 			if atEOF {
 				break
 			}
@@ -837,4 +853,156 @@ func findFirstUserMessage(records []map[string]interface{}) string {
 
 	slog.Debug("findFirstUserMessage: No user message found in session")
 	return ""
+}
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// This is much faster than GetAgentChatSessions as it only reads minimal data from each session
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	// Find all sessions for this project (don't stop on first)
+	sessions, err := findCodexSessions(projectPath, "", false)
+	if err != nil {
+		// If sessions directory doesn't exist, return empty list (not an error)
+		if strings.Contains(err.Error(), "sessions directory not accessible") ||
+			strings.Contains(err.Error(), "sessions root") ||
+			strings.Contains(err.Error(), "home directory") {
+			return []spi.SessionMetadata{}, nil
+		}
+		return nil, fmt.Errorf("failed to find codex sessions: %w", err)
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessions))
+	for _, sessionInfo := range sessions {
+		metadata, err := extractCodexSessionMetadata(&sessionInfo)
+		if err != nil {
+			slog.Warn("Failed to extract session metadata",
+				"sessionID", sessionInfo.SessionID,
+				"path", sessionInfo.SessionPath,
+				"error", err)
+			continue
+		}
+
+		// Skip empty sessions (no metadata means empty session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", sessionInfo.SessionID)
+			continue
+		}
+
+		result = append(result, *metadata)
+	}
+
+	// Sort by creation date (oldest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt < result[j].CreatedAt
+	})
+
+	return result, nil
+}
+
+// extractCodexSessionMetadata reads minimal data from a Codex CLI session to extract metadata
+// Returns nil if the session is empty or has no user messages
+func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMetadata, error) {
+	file, err := os.Open(sessionInfo.SessionPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	var firstUserMessage string
+	lineNum := 0
+
+	// Read records until we find a user message or reach EOF
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return nil, fmt.Errorf("failed to read line: %w", err)
+		}
+
+		lineNum++
+		line = strings.TrimSpace(line)
+
+		// Skip empty lines
+		if line == "" {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		// Parse JSON record
+		var record map[string]interface{}
+		if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
+			slog.Warn("Skipping malformed JSONL line",
+				"file", filepath.Base(sessionInfo.SessionPath),
+				"line", lineNum,
+				"error", jsonErr)
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+
+		// Look for first user message
+		if firstUserMessage == "" {
+			// Get record type
+			recordType, ok := record["type"].(string)
+			if !ok || recordType != "event_msg" {
+				if err == io.EOF {
+					break
+				}
+				continue
+			}
+
+			// Get payload
+			payload, ok := record["payload"].(map[string]interface{})
+			if !ok {
+				if err == io.EOF {
+					break
+				}
+				continue
+			}
+
+			// Check if this is a user message
+			payloadType, ok := payload["type"].(string)
+			if !ok || payloadType != "user_message" {
+				if err == io.EOF {
+					break
+				}
+				continue
+			}
+
+			// Extract the message content
+			message, ok := payload["message"].(string)
+			if ok && message != "" {
+				firstUserMessage = message
+				// Found what we need, can stop reading
+				break
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+	}
+
+	// If no user message found, session is empty
+	if firstUserMessage == "" {
+		return nil, nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: sessionInfo.SessionID,
+		CreatedAt: sessionInfo.Meta.Timestamp,
+		Slug:      slug,
+		Name:      name,
+	}, nil
 }
