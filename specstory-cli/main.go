@@ -3,6 +3,7 @@ package main
 import (
 	"bufio" // For reading user terminal input
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -1541,6 +1543,250 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 
 var syncCmd *cobra.Command
 
+// createListCommand dynamically creates the list command with provider information
+func createListCommand() *cobra.Command {
+	registry := factory.GetRegistry()
+	ids := registry.ListIDs()
+	providerList := registry.GetProviderList()
+
+	// Build dynamic examples
+	examples := `
+# List all sessions from all agents
+specstory list`
+
+	if len(ids) > 0 {
+		examples += "\n\n# List sessions from specific agent"
+		for _, id := range ids {
+			examples += fmt.Sprintf("\nspecstory list %s", id)
+		}
+	}
+
+	examples += `
+
+# Pretty print JSON output
+specstory list | jq`
+
+	longDesc := `List all sessions showing session ID, creation date, and name in JSON format.
+
+By default, lists sessions from all registered providers that have activity.
+Provide a specific agent ID to list sessions from only that provider.`
+	if providerList != "No providers registered" {
+		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
+	}
+
+	return &cobra.Command{
+		Use:     "list [provider-id]",
+		Aliases: []string{"ls"},
+		Short:   "List all sessions for terminal coding agents",
+		Long:    longDesc,
+		Example: examples,
+		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("Running list command")
+			registry := factory.GetRegistry()
+
+			// Check if user specified a provider
+			if len(args) > 0 {
+				// List specific provider
+				return listSingleProvider(registry, args[0])
+			} else {
+				// List all providers with activity
+				return listAllProviders(registry)
+			}
+		},
+	}
+}
+
+var listCmd *cobra.Command
+
+// listSingleProvider lists sessions from a specific provider
+func listSingleProvider(registry *factory.Registry, providerID string) error {
+	provider, err := registry.Get(providerID)
+	if err != nil {
+		// Provider not found - show helpful error
+		fmt.Fprintf(os.Stderr, "❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
+
+		ids := registry.ListIDs()
+		if len(ids) > 0 {
+			fmt.Fprintln(os.Stderr, "The registered providers are:")
+			for _, id := range ids {
+				if p, _ := registry.Get(id); p != nil {
+					fmt.Fprintf(os.Stderr, "  • %s - %s\n", id, p.Name())
+				}
+			}
+			fmt.Fprintf(os.Stderr, "\nExample: specstory list %s\n", ids[0])
+		}
+		return err
+	}
+
+	// Set the agent provider for analytics
+	analytics.SetAgentProviders([]string{provider.Name()})
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
+		return err
+	}
+
+	// Check if provider has activity
+	if !provider.DetectAgent(cwd, true) {
+		// Provider already output helpful message
+		return nil
+	}
+
+	// Get session metadata
+	sessions, err := provider.ListAgentChatSessions(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to list sessions for %s: %w", provider.Name(), err)
+	}
+
+	// Sort sessions by creation date (oldest first)
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].CreatedAt < sessions[j].CreatedAt
+	})
+
+	// Log before JSON output (with marker for programmatic parsing)
+	slog.Info(">>> JSON OUTPUT START <<<", "session_count", len(sessions))
+
+	// Output as JSON
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(sessions); err != nil {
+		return fmt.Errorf("failed to encode sessions as JSON: %w", err)
+	}
+
+	// Log after JSON output (with marker for programmatic parsing)
+	slog.Info(">>> JSON OUTPUT END <<<")
+
+	// Track analytics
+	analytics.TrackEvent(analytics.EventListSessions, analytics.Properties{
+		"provider":      providerID,
+		"session_count": len(sessions),
+	})
+
+	return nil
+}
+
+// sessionMetadataWithProvider wraps SessionMetadata with provider information
+// Used when listing sessions from all providers to show which provider each session came from
+type sessionMetadataWithProvider struct {
+	SessionID string `json:"session_id"` // Stable and unique identifier for the session
+	CreatedAt string `json:"created_at"` // Stable ISO 8601 timestamp when session was created
+	Slug      string `json:"slug"`       // Stable human-readable session name/slug
+	Provider  string `json:"provider"`   // Provider ID (e.g., "claude", "cursor", "codex")
+}
+
+// listAllProviders lists sessions from all providers that have activity
+func listAllProviders(registry *factory.Registry) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
+		return err
+	}
+
+	providerIDs := registry.ListIDs()
+	providersWithActivity := []string{}
+
+	// Check each provider for activity
+	for _, id := range providerIDs {
+		provider, err := registry.Get(id)
+		if err != nil {
+			slog.Warn("Failed to get provider", "id", id, "error", err)
+			continue
+		}
+
+		if provider.DetectAgent(cwd, false) {
+			providersWithActivity = append(providersWithActivity, id)
+		}
+	}
+
+	// If no providers have activity, show helpful message
+	if len(providersWithActivity) == 0 {
+		if !silent {
+			fmt.Fprintln(os.Stderr) // Add visual separation
+			log.UserWarn("No coding agent activity found for this project directory.\n\n")
+
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			for _, id := range providerIDs {
+				if provider, err := registry.Get(id); err == nil {
+					log.UserMessage("- %s\n", provider.Name())
+				}
+			}
+			log.UserMessage("\nBut didn't find any activity.\n")
+		}
+		// Log before JSON output (with marker for programmatic parsing)
+		slog.Info(">>> JSON OUTPUT START <<<", "session_count", 0)
+		// Output empty JSON array
+		fmt.Println("[]")
+		// Log after JSON output (with marker for programmatic parsing)
+		slog.Info(">>> JSON OUTPUT END <<<")
+		return nil
+	}
+
+	// Collect provider names for analytics
+	var providerNames []string
+	for _, id := range providersWithActivity {
+		if provider, err := registry.Get(id); err == nil {
+			providerNames = append(providerNames, provider.Name())
+		}
+	}
+	analytics.SetAgentProviders(providerNames)
+
+	// Collect all sessions from all providers with provider information
+	allSessions := []sessionMetadataWithProvider{}
+	var lastError error
+
+	for _, id := range providersWithActivity {
+		provider, err := registry.Get(id)
+		if err != nil {
+			continue
+		}
+
+		sessions, err := provider.ListAgentChatSessions(cwd)
+		if err != nil {
+			lastError = err
+			slog.Error("Error listing sessions for provider", "provider", id, "error", err)
+			continue
+		}
+
+		// Wrap each session with provider information
+		for _, session := range sessions {
+			allSessions = append(allSessions, sessionMetadataWithProvider{
+				SessionID: session.SessionID,
+				CreatedAt: session.CreatedAt,
+				Slug:      session.Slug,
+				Provider:  id,
+			})
+		}
+	}
+
+	// Sort all sessions by creation date (oldest first)
+	sort.Slice(allSessions, func(i, j int) bool {
+		return allSessions[i].CreatedAt < allSessions[j].CreatedAt
+	})
+
+	// Log before JSON output (with marker for programmatic parsing)
+	slog.Info(">>> JSON OUTPUT START <<<", "session_count", len(allSessions))
+
+	// Output as JSON
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(allSessions); err != nil {
+		return fmt.Errorf("failed to encode sessions as JSON: %w", err)
+	}
+
+	// Log after JSON output (with marker for programmatic parsing)
+	slog.Info(">>> JSON OUTPUT END <<<")
+
+	// Track analytics
+	analytics.TrackEvent(analytics.EventListSessions, analytics.Properties{
+		"provider":      "all",
+		"session_count": len(allSessions),
+	})
+
+	return lastError
+}
+
 // Command to show current version information
 var versionCmd = &cobra.Command{
 	Use:     "version",
@@ -2106,6 +2352,7 @@ func main() {
 	runCmd = createRunCommand()
 	watchCmd = createWatchCommand()
 	syncCmd = createSyncCommand()
+	listCmd = createListCommand()
 	checkCmd = createCheckCommand()
 
 	// Set version for the automatic version flag
@@ -2121,6 +2368,7 @@ func main() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(loginCmd)

@@ -853,3 +853,9 @@ func findFirstUserMessage(records []map[string]interface{}) string {
 	slog.Debug("findFirstUserMessage: No user message found in session")
 	return ""
 }
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// TODO: Implement efficient listing for Codex CLI sessions
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	return nil, fmt.Errorf("ListAgentChatSessions not yet implemented for Codex CLI provider")
+}

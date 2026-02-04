@@ -354,3 +354,9 @@ func writeDebugRawFiles(session *GeminiSession) error {
 	}
 	return nil
 }
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// TODO: Implement efficient listing for Gemini CLI sessions
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	return nil, fmt.Errorf("ListAgentChatSessions not yet implemented for Gemini CLI provider")
+}
