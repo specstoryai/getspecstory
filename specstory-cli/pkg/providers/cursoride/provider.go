@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -115,7 +116,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	slog.Info("GetAgentChatSessions: Loading Cursor IDE sessions",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
@@ -161,6 +162,9 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 
 	// Step 5: Convert to AgentChatSessions
 	sessions := make([]spi.AgentChatSession, 0, len(composers))
+	processedCount := 0
+	totalCount := len(composers)
+
 	for composerID, composer := range composers {
 		// Skip empty conversations
 		if len(composer.Conversation) == 0 {
@@ -188,6 +192,12 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		}
 
 		sessions = append(sessions, *session)
+
+		// Report progress
+		processedCount++
+		if progress != nil {
+			progress(processedCount, totalCount)
+		}
 	}
 
 	slog.Info("Converted sessions",
@@ -288,6 +298,74 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	return session, nil
 }
 
+// ListAgentChatSessions retrieves lightweight metadata for all sessions
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	slog.Debug("ListAgentChatSessions: Loading Cursor IDE session list",
+		"projectPath", projectPath)
+
+	// Step 1: Find workspace for project path
+	workspace, err := FindWorkspaceForProject(projectPath)
+	if err != nil {
+		slog.Debug("No workspace found for project", "error", err)
+		return []spi.SessionMetadata{}, nil // Return empty list if no workspace
+	}
+
+	slog.Debug("Found workspace for project",
+		"workspaceID", workspace.ID,
+		"projectPath", projectPath)
+
+	// Step 2: Load composer IDs from workspace database
+	composerIDs, err := LoadWorkspaceComposerIDs(workspace.DBPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer IDs from workspace: %w", err)
+	}
+
+	slog.Debug("Loaded composer IDs from workspace", "count", len(composerIDs))
+
+	if len(composerIDs) == 0 {
+		slog.Debug("No composers found in workspace")
+		return []spi.SessionMetadata{}, nil
+	}
+
+	// Step 3: Get global database path
+	globalDbPath, err := GetGlobalDatabasePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global database path: %w", err)
+	}
+
+	// Step 4: Load composer data from global database
+	composers, err := LoadComposerDataBatch(globalDbPath, composerIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer data: %w", err)
+	}
+
+	slog.Debug("Loaded composers from global database", "count", len(composers))
+
+	// Step 5: Extract metadata for each composer
+	metadataList := make([]spi.SessionMetadata, 0, len(composers))
+	for composerID, composer := range composers {
+		// Skip empty conversations
+		if len(composer.Conversation) == 0 {
+			slog.Debug("Skipping composer with no conversation", "composerID", composerID)
+			continue
+		}
+
+		metadata := extractCursorIDESessionMetadata(composer)
+		metadataList = append(metadataList, metadata)
+	}
+
+	// Step 6: Sort by creation date (oldest first)
+	sort.Slice(metadataList, func(i, j int) bool {
+		return metadataList[i].CreatedAt < metadataList[j].CreatedAt
+	})
+
+	slog.Info("Listed Cursor IDE sessions",
+		"totalComposers", len(composers),
+		"sessionCount", len(metadataList))
+
+	return metadataList, nil
+}
+
 // ExecAgentAndWatch is not supported for Cursor IDE (IDE-based, not CLI)
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	return fmt.Errorf("cursor IDE does not support execution via CLI (IDE-based, not CLI-based)")
@@ -343,4 +421,51 @@ func writeDebugOutput(session *spi.AgentChatSession) error {
 		"path", debugDir)
 
 	return nil
+}
+
+// extractCursorIDESessionMetadata extracts lightweight session metadata from a ComposerData
+// without fully parsing the conversation
+func extractCursorIDESessionMetadata(composer *ComposerData) spi.SessionMetadata {
+	// Use composer ID as session ID
+	sessionID := composer.ComposerID
+
+	// Convert timestamp (milliseconds to ISO 8601)
+	var createdAt string
+	if composer.CreatedAt > 0 {
+		t := time.Unix(composer.CreatedAt/1000, (composer.CreatedAt%1000)*1000000)
+		createdAt = t.Format(time.RFC3339)
+	} else {
+		createdAt = time.Now().Format(time.RFC3339)
+	}
+
+	// Generate slug from composer name or first user message (using existing logic)
+	slug := generateSlug(composer)
+
+	// Generate human-readable name
+	name := generateCursorIDESessionName(composer)
+
+	return spi.SessionMetadata{
+		SessionID: sessionID,
+		CreatedAt: createdAt,
+		Slug:      slug,
+		Name:      name,
+	}
+}
+
+// generateCursorIDESessionName creates a human-readable session name from composer data
+func generateCursorIDESessionName(composer *ComposerData) string {
+	// Prefer composer name if available (it's already human-readable)
+	if composer.Name != "" {
+		return spi.GenerateReadableName(composer.Name)
+	}
+
+	// Otherwise, use first user message
+	for _, bubble := range composer.Conversation {
+		if bubble.Type == 1 && bubble.Text != "" {
+			return spi.GenerateReadableName(bubble.Text)
+		}
+	}
+
+	// Fallback to empty string (shouldn't happen with non-empty conversations)
+	return ""
 }
