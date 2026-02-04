@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -109,7 +110,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return false
 }
 
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	projectDir, err := ResolveGeminiProjectDir(projectPath)
 	if err != nil {
 		return nil, err
@@ -120,11 +121,17 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return nil, err
 	}
 
+	totalSessions := len(sessions)
 	var result []spi.AgentChatSession
-	for _, s := range sessions {
+	for i, s := range sessions {
 		chatSession := convertToAgentChatSession(s, projectPath, debugRaw)
 		if chatSession != nil {
 			result = append(result, *chatSession)
+		}
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalSessions)
 		}
 	}
 	return result, nil
@@ -347,4 +354,72 @@ func writeDebugRawFiles(session *GeminiSession) error {
 		slog.Debug("writeDebugRawFiles: wrote file", "path", filename, "index", number)
 	}
 	return nil
+}
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// TODO: Implement efficient listing for Gemini CLI sessions
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	projectDir, err := ResolveGeminiProjectDir(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions, err := FindSessions(projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessions))
+	for _, session := range sessions {
+		metadata := extractGeminiSessionMetadata(session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", session.ID)
+			continue
+		}
+		result = append(result, *metadata)
+	}
+
+	// Sort by creation date (oldest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt < result[j].CreatedAt
+	})
+
+	return result, nil
+}
+
+// extractGeminiSessionMetadata extracts lightweight metadata from a Gemini session
+// Returns nil if the session has no user messages
+func extractGeminiSessionMetadata(session *GeminiSession) *spi.SessionMetadata {
+	// Find first user message
+	var firstUserMessage string
+	for _, msg := range session.Messages {
+		if msg.Type == "user" {
+			firstUserMessage = msgContent(msg)
+			if firstUserMessage != "" {
+				break
+			}
+		}
+	}
+
+	// If no user message found, session is empty
+	if firstUserMessage == "" {
+		return nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+	if slug == "" {
+		slug = "gemini-session"
+	}
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: session.ID,
+		CreatedAt: session.StartTime,
+		Slug:      slug,
+		Name:      name,
+	}
 }

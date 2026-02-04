@@ -512,7 +512,8 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 	if tool.Output != nil {
 		// Check for error first
 		if isError, ok := tool.Output["is_error"].(bool); ok && isError {
-			markdown.WriteString("```\n")
+			// Blank line before code fence helps parsers inside <details> tags
+			markdown.WriteString("\n```text\n")
 			if content, ok := tool.Output["content"].(string); ok {
 				cleaned := stripSystemReminders(content)
 				cleaned = stripANSIEscapeSequences(cleaned)
@@ -534,13 +535,14 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 						markdown.WriteString(fmt.Sprintf("\n**Answer:** %s\n", answer))
 					} else if cleaned != "" {
 						// Fallback to code block if parsing fails
-						markdown.WriteString("```\n")
+						markdown.WriteString("\n```text\n")
 						markdown.WriteString(cleaned)
 						markdown.WriteString("\n```\n")
 					}
 				} else if strings.TrimSpace(cleaned) != TodoWriteSuccessMessage && cleaned != "" {
 					// Skip TodoWrite success messages
-					markdown.WriteString("```\n")
+					// Blank line before code fence helps parsers inside <details> tags
+					markdown.WriteString("\n```text\n")
 					markdown.WriteString(cleaned)
 					markdown.WriteString("\n```\n")
 				}

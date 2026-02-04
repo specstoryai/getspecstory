@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -253,7 +254,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
 	if err != nil {
@@ -267,23 +268,35 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return []spi.AgentChatSession{}, nil
 	}
 
-	// Collect sessions
-	var sessions []spi.AgentChatSession
+	// Filter to sessions that have store.db (quick pre-pass for accurate count)
+	var validSessionIDs []string
 	for _, sessionID := range sessionIDs {
-		// Check if this session has a store.db file
-		if !HasStoreDB(hashDir, sessionID) {
-			slog.Debug("Skipping session without store.db", "sessionID", sessionID)
-			continue
+		if HasStoreDB(hashDir, sessionID) {
+			validSessionIDs = append(validSessionIDs, sessionID)
 		}
+	}
+	totalSessions := len(validSessionIDs)
 
+	// Collect sessions with progress reporting
+	var sessions []spi.AgentChatSession
+	for i, sessionID := range validSessionIDs {
 		// Get the session data
 		session, err := p.GetAgentChatSession(projectPath, sessionID, debugRaw)
 		if err != nil {
 			slog.Debug("Failed to get session", "sessionID", sessionID, "error", err)
+			// Still report progress even for failed sessions
+			if progress != nil {
+				progress(i+1, totalSessions)
+			}
 			continue // Skip sessions we can't read
 		}
 		if session != nil {
 			sessions = append(sessions, *session)
+		}
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalSessions)
 		}
 	}
 
@@ -363,7 +376,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Process any existing sessions first before starting the watcher
 	slog.Info("Processing existing sessions...")
 	existingSessionIDs := make(map[string]bool)
-	existingSessions, err := p.GetAgentChatSessions(projectPath, debugRaw)
+	existingSessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
 	if err != nil {
 		slog.Error("Failed to get existing sessions", "error", err)
 	} else {
@@ -472,7 +485,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 
 	// Get existing sessions to avoid processing pre-existing ones
 	// (unless they're being resumed, but that's handled by the watcher)
-	sessions, err := p.GetAgentChatSessions(projectPath, debugRaw)
+	sessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
 	if err != nil {
 		slog.Warn("WatchAgent: Failed to get existing sessions", "error", err)
 		// Continue anyway - not fatal
@@ -565,4 +578,86 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 	}
 
 	return nil
+}
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// TODO: Implement efficient listing for Cursor CLI sessions
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	// Get the project hash directory
+	hashDir, err := GetProjectHashDir(projectPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project hash directory: %w", err)
+	}
+
+	// Get all session directories
+	sessionIDs, err := GetCursorSessionDirs(hashDir)
+	if err != nil {
+		// No project directory exists, return empty list
+		return []spi.SessionMetadata{}, nil
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		// Check if session has store.db
+		if !HasStoreDB(hashDir, sessionID) {
+			slog.Debug("Skipping session without store.db", "sessionID", sessionID)
+			continue
+		}
+
+		sessionPath := filepath.Join(hashDir, sessionID)
+		metadata, err := extractCursorSessionMetadata(sessionPath, sessionID)
+		if err != nil {
+			slog.Warn("Failed to extract session metadata",
+				"sessionID", sessionID,
+				"path", sessionPath,
+				"error", err)
+			continue
+		}
+
+		// Skip empty sessions (no metadata means empty session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", sessionID)
+			continue
+		}
+
+		result = append(result, *metadata)
+	}
+
+	// Sort by creation date (oldest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt < result[j].CreatedAt
+	})
+
+	return result, nil
+}
+
+// extractCursorSessionMetadata reads minimal data from a Cursor session to extract metadata
+// Returns nil if the session is empty or has no user messages
+func extractCursorSessionMetadata(sessionPath string, sessionID string) (*spi.SessionMetadata, error) {
+	// Read session data from SQLite database
+	createdAt, _, blobRecords, _, err := ReadSessionData(sessionPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session data: %w", err)
+	}
+
+	// Extract first user message for both slug and name
+	firstUserMessage := extractFirstUserMessage(blobRecords)
+	if firstUserMessage == "" {
+		// No user message found, session is empty
+		return nil, nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: sessionID,
+		CreatedAt: createdAt,
+		Slug:      slug,
+		Name:      name,
+	}, nil
 }

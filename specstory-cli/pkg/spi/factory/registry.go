@@ -14,6 +14,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -72,6 +73,10 @@ func (r *Registry) registerAll() {
 	geminiProvider := geminicli.NewProvider()
 	r.providers["gemini"] = geminiProvider
 	slog.Debug("Registered provider", "id", "gemini", "name", geminiProvider.Name())
+
+	droidProvider := droidcli.NewProvider()
+	r.providers["droid"] = droidProvider
+	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
 
 	cursorideProvider := cursoride.NewProvider()
 	r.providers["cursoride"] = cursorideProvider

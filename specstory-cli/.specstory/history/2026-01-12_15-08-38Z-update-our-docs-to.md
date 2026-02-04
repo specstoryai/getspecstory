@@ -27,7 +27,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:08:42Z)**_
 List files in docs directory
 
 `ls -la ./docs/`
-```
+
+```text
 total 248
 drwxr-xr-x  13 sean  staff    416 Jan 11 21:41 .
 drwxr-xr-x  25 sean  staff    800 Jan 11 21:42 ..
@@ -114,7 +115,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:09:07Z)**_
 Verify renamed files in docs directory
 
 `ls -la ./docs/`
-```
+
+```text
 Exit code 1
 ls: ./docs/: No such file or directory
 ```
@@ -133,7 +135,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:09:11Z)**_
 Verify renamed files in docs directory
 
 `ls -la docs/`
-```
+
+```text
 Exit code 1
 ls: docs/: No such file or directory
 ```
@@ -152,7 +155,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:09:16Z)**_
 List contents of project root directory
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory/specstory-cli/`
-```
+
+```text
 total 41328
 drwxr-xr-x  25 sean  staff       800 Jan 11 21:42 .
 drwxr-xr-x  16 sean  staff       512 Jan 11 21:42 ..
@@ -195,7 +199,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:09:20Z)**_
 List docs directory contents
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/`
-```
+
+```text
 total 248
 drwxr-xr-x  13 sean  staff    416 Jan 12 10:09 .
 drwxr-xr-x  25 sean  staff    800 Jan 11 21:42 ..
@@ -258,7 +263,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:40Z)**_
 List providers directory
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/`
-```
+
+```text
 total 0
 drwxr-xr-x   6 sean  staff  192 Dec 15 16:26 .
 drwxr-xr-x   9 sean  staff  288 Jan  7 14:43 ..
@@ -274,7 +280,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:41Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `providers/gemini`
-```
+
+```text
 Found 1 file
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/factory/registry.go
 ```
@@ -297,7 +304,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:46Z)**_
 List gemini package files
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/gemini/`
-```
+
+```text
 total 192
 drwxr-xr-x  14 sean  staff    448 Jan  7 14:43 .
 drwxr-xr-x   6 sean  staff    192 Dec 15 16:26 ..
@@ -321,7 +329,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:47Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/spi/factory/registry.go`
-```
+
+```text
      1→// Package factory provides the provider registry and factory implementation.
      2→// This package imports all concrete provider implementations and manages
      3→// their registration, avoiding circular dependencies in the SPI layer.
@@ -548,7 +557,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:57Z)**_
 Check package declaration
 
 `head -5 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/gemini/provider.go`
-```
+
+```text
 package gemini
 
 import (
@@ -629,7 +639,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:16:24Z)**_
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
  pattern `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/*.go`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/gemini_exec.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/json_parser_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/path_utils_test.go
@@ -686,7 +697,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:19:32Z)**_
 Verify package declaration change
 
 `head -1 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/provider.go`
-```
+
+```text
 package geminicli
 ```
 </details></tool-use>
@@ -723,7 +735,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:19:41Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/factory/registry.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
     12→
     13→	"github.com/specstoryai/SpecStoryCLI/pkg/providers/claudecode"
@@ -747,7 +760,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:19:45Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+
+```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/factory/registry.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
     67→	codexProvider := codexcli.NewProvider()
     68→	r.providers["codex"] = codexProvider
@@ -792,7 +806,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:19:53Z)**_
 Run linter
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && golangci-lint run`
-```
+
+```text
 0 issues.
 ```
 </details></tool-use>
@@ -810,7 +825,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:20:04Z)**_
 Run all tests
 
 `go test ./...`
-```
+
+```text
 Exit code 1
 ok  	github.com/specstoryai/SpecStoryCLI	0.249s
 ?   	github.com/specstoryai/SpecStoryCLI/pkg/analytics	[no test files]
