@@ -22,6 +22,52 @@ type BlobRecord struct {
 	Data  json.RawMessage `json:"data"` // Keep as raw JSON to preserve structure
 }
 
+// extractFirstUserMessage extracts the full text of the first suitable user message
+// Returns empty string if no suitable message is found
+func extractFirstUserMessage(blobRecords []BlobRecord) string {
+	for _, record := range blobRecords {
+		// Try to parse the data to check role and content
+		var data struct {
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		}
+
+		if err := json.Unmarshal(record.Data, &data); err != nil {
+			continue // Skip if can't parse
+		}
+
+		// Check if this is a user message
+		if data.Role != "user" {
+			continue
+		}
+
+		// Check if we have content with text
+		if len(data.Content) == 0 || data.Content[0].Type != "text" {
+			continue
+		}
+
+		text := data.Content[0].Text
+
+		// Strip <user_query> tags if present
+		text = stripUserQueryTags(text)
+
+		// Skip if starts with <user_info> (may be JSON-encoded as \u003cuser_info\u003e)
+		if strings.HasPrefix(text, "<user_info>") || strings.HasPrefix(text, "\u003cuser_info\u003e") {
+			continue
+		}
+
+		// Return the full text
+		if strings.TrimSpace(text) != "" {
+			return text
+		}
+	}
+
+	return ""
+}
+
 // extractSlugFromBlobs extracts a slug from the first suitable user message
 func extractSlugFromBlobs(blobRecords []BlobRecord) string {
 	// Regex to match non-alphanumeric characters
