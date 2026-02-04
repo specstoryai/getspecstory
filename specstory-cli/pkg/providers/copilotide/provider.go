@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sort"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -211,11 +210,6 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		metadata := extractCopilotIDESessionMetadata(composer)
 		metadataList = append(metadataList, metadata)
 	}
-
-	// Step 4: Sort by creation date (oldest first)
-	sort.Slice(metadataList, func(i, j int) bool {
-		return metadataList[i].CreatedAt < metadataList[j].CreatedAt
-	})
 
 	slog.Info("Listed VS Code Copilot sessions",
 		"totalFiles", len(sessionFiles),
