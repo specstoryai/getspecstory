@@ -135,7 +135,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		return nil, fmt.Errorf("no workspace found for project path: %s", projectPath)
 	}
 
-	// If multiple matches, return the first one (could sort by timestamp if needed)
+	// If multiple matches, return the first one
 	if len(matches) > 1 {
 		slog.Warn("Multiple workspaces match project path, using first",
 			"projectPath", projectPath,
