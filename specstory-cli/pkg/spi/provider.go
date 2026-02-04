@@ -71,7 +71,7 @@ type Provider interface {
 	// ListAgentChatSessions retrieves lightweight metadata for all sessions without full parsing
 	// This is much faster than GetAgentChatSessions as it only reads session IDs, timestamps, and slugs
 	// projectPath: Agent's working directory
-	// Returns a slice of SessionMetadata sorted by creation date (oldest first)
+	// Returns a slice of SessionMetadata (ordering is provider-defined; consumers should sort if needed)
 	ListAgentChatSessions(projectPath string) ([]SessionMetadata, error)
 
 	// ExecAgentAndWatch executes the agent in interactive mode and watches for session updates

@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -558,11 +557,6 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 
 		result = append(result, *metadata)
 	}
-
-	// Sort by creation date (oldest first)
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].CreatedAt < result[j].CreatedAt
-	})
 
 	return result, nil
 }
