@@ -520,7 +520,6 @@ func writeFactoryDebugRaw(session *fdSession) error {
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing
-// TODO: Implement efficient listing for Droid CLI sessions
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
 	files, err := listSessionFiles()
 	if err != nil {
