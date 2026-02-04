@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -353,11 +352,6 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		metadata := extractCursorIDESessionMetadata(composer)
 		metadataList = append(metadataList, metadata)
 	}
-
-	// Step 6: Sort by creation date (oldest first)
-	sort.Slice(metadataList, func(i, j int) bool {
-		return metadataList[i].CreatedAt < metadataList[j].CreatedAt
-	})
 
 	slog.Info("Listed Cursor IDE sessions",
 		"totalComposers", len(composers),
