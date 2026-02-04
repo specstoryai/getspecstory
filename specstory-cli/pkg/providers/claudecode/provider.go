@@ -708,9 +708,13 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 	// Generate slug from first user message
 	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
 
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
 	return &spi.SessionMetadata{
 		SessionID: sessionID,
 		CreatedAt: timestamp,
 		Slug:      slug,
+		Name:      name,
 	}, nil
 }
