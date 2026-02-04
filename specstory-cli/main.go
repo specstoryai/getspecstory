@@ -1599,6 +1599,86 @@ Provide a specific agent ID to list sessions from only that provider.`
 
 var listCmd *cobra.Command
 
+func parseCreatedAtRFC3339(value string) (time.Time, bool) {
+	// Why: providers *should* emit stable ISO 8601 timestamps, but we still defensively
+	// parse here so list sorting is correct even when multiple providers are mixed.
+	if value == "" {
+		return time.Time{}, false
+	}
+
+	// RFC3339Nano accepts RFC3339 too, but it’s stricter about fractional seconds.
+	if t, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return t, true
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, true
+	}
+
+	return time.Time{}, false
+}
+
+func compareCreatedAtOldestFirst(a, b string) int {
+	if a == b {
+		return 0
+	}
+
+	ta, oka := parseCreatedAtRFC3339(a)
+	tb, okb := parseCreatedAtRFC3339(b)
+
+	// Prefer valid timestamps over invalid/unparseable ones.
+	if oka && okb {
+		if ta.Before(tb) {
+			return -1
+		}
+		if ta.After(tb) {
+			return 1
+		}
+		// If the parsed instants are equal but the strings differ (e.g., timezone
+		// formatting), fall back to string compare for deterministic ordering.
+		return strings.Compare(a, b)
+	}
+	if oka && !okb {
+		return -1
+	}
+	if !oka && okb {
+		return 1
+	}
+
+	// Last resort: string compare (still deterministic).
+	return strings.Compare(a, b)
+}
+
+func sortSessionMetadataOldestFirst(sessions []spi.SessionMetadata) {
+	sort.SliceStable(sessions, func(i, j int) bool {
+		a, b := sessions[i], sessions[j]
+		if cmp := compareCreatedAtOldestFirst(a.CreatedAt, b.CreatedAt); cmp != 0 {
+			return cmp < 0
+		}
+		// Tie-breakers to make output deterministic.
+		if a.SessionID != b.SessionID {
+			return a.SessionID < b.SessionID
+		}
+		return a.Slug < b.Slug
+	})
+}
+
+func sortSessionMetadataWithProviderOldestFirst(sessions []sessionMetadataWithProvider) {
+	sort.SliceStable(sessions, func(i, j int) bool {
+		a, b := sessions[i], sessions[j]
+		if cmp := compareCreatedAtOldestFirst(a.CreatedAt, b.CreatedAt); cmp != 0 {
+			return cmp < 0
+		}
+		// Tie-breakers to make output deterministic.
+		if a.Provider != b.Provider {
+			return a.Provider < b.Provider
+		}
+		if a.SessionID != b.SessionID {
+			return a.SessionID < b.SessionID
+		}
+		return a.Slug < b.Slug
+	})
+}
+
 // listSingleProvider lists sessions from a specific provider
 func listSingleProvider(registry *factory.Registry, providerID string) error {
 	provider, err := registry.Get(providerID)
@@ -1640,10 +1720,8 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 		return fmt.Errorf("failed to list sessions for %s: %w", provider.Name(), err)
 	}
 
-	// Sort sessions by creation date (oldest first)
-	sort.Slice(sessions, func(i, j int) bool {
-		return sessions[i].CreatedAt < sessions[j].CreatedAt
-	})
+	// Always sort in the list command (providers may not return sorted output).
+	sortSessionMetadataOldestFirst(sessions)
 
 	// Log before JSON output (with marker for programmatic parsing)
 	slog.Info(">>> JSON OUTPUT START <<<", "session_count", len(sessions))
@@ -1756,10 +1834,8 @@ func listAllProviders(registry *factory.Registry) error {
 		}
 	}
 
-	// Sort all sessions by creation date (oldest first)
-	sort.Slice(allSessions, func(i, j int) bool {
-		return allSessions[i].CreatedAt < allSessions[j].CreatedAt
-	})
+	// Always sort in the list command (we concatenate provider results above).
+	sortSessionMetadataWithProviderOldestFirst(allSessions)
 
 	// Log before JSON output (with marker for programmatic parsing)
 	slog.Info(">>> JSON OUTPUT START <<<", "session_count", len(allSessions))
