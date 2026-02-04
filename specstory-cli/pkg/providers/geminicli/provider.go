@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -358,5 +359,67 @@ func writeDebugRawFiles(session *GeminiSession) error {
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing
 // TODO: Implement efficient listing for Gemini CLI sessions
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
-	return nil, fmt.Errorf("ListAgentChatSessions not yet implemented for Gemini CLI provider")
+	projectDir, err := ResolveGeminiProjectDir(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
+	sessions, err := FindSessions(projectDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessions))
+	for _, session := range sessions {
+		metadata := extractGeminiSessionMetadata(session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", session.ID)
+			continue
+		}
+		result = append(result, *metadata)
+	}
+
+	// Sort by creation date (oldest first)
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].CreatedAt < result[j].CreatedAt
+	})
+
+	return result, nil
+}
+
+// extractGeminiSessionMetadata extracts lightweight metadata from a Gemini session
+// Returns nil if the session has no user messages
+func extractGeminiSessionMetadata(session *GeminiSession) *spi.SessionMetadata {
+	// Find first user message
+	var firstUserMessage string
+	for _, msg := range session.Messages {
+		if msg.Type == "user" {
+			firstUserMessage = msgContent(msg)
+			if firstUserMessage != "" {
+				break
+			}
+		}
+	}
+
+	// If no user message found, session is empty
+	if firstUserMessage == "" {
+		return nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+	if slug == "" {
+		slug = "gemini-session"
+	}
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: session.ID,
+		CreatedAt: session.StartTime,
+		Slug:      slug,
+		Name:      name,
+	}
 }
