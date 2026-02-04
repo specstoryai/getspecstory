@@ -34,6 +34,7 @@ type SessionMetadata struct {
 	SessionID string `json:"session_id" csv:"session_id"` // Stable and unique identifier for the session
 	CreatedAt string `json:"created_at" csv:"created_at"` // Stable ISO 8601 timestamp when session was created
 	Slug      string `json:"slug" csv:"slug"`             // Stable human-readable session name/slug
+	Name      string `json:"name" csv:"name"`             // Human-readable name of the session (may be empty if not available)
 }
 
 // Provider defines the interface that all agent coding tool providers must implement

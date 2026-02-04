@@ -1673,6 +1673,7 @@ type sessionMetadataWithProvider struct {
 	SessionID string `json:"session_id"` // Stable and unique identifier for the session
 	CreatedAt string `json:"created_at"` // Stable ISO 8601 timestamp when session was created
 	Slug      string `json:"slug"`       // Stable human-readable session name/slug
+	Name      string `json:"name"`       // Human-readable name of the session (may be empty if not available)
 	Provider  string `json:"provider"`   // Provider ID (e.g., "claude", "cursor", "codex")
 }
 
@@ -1755,6 +1756,7 @@ func listAllProviders(registry *factory.Registry) error {
 				SessionID: session.SessionID,
 				CreatedAt: session.CreatedAt,
 				Slug:      session.Slug,
+				Name:      session.Name,
 				Provider:  id,
 			})
 		}
