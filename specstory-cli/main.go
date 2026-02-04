@@ -65,6 +65,11 @@ func pluralSession(count int) string {
 	return "sessions"
 }
 
+const (
+	jsonOutputStartMarker = ">>> JSON OUTPUT START <<<"
+	jsonOutputEndMarker   = ">>> JSON OUTPUT END <<<"
+)
+
 // SyncStats tracks the results of a sync operation
 type SyncStats struct {
 	TotalSessions   int
@@ -1599,7 +1604,7 @@ Provide a specific agent ID to list sessions from only that provider.`
 
 var listCmd *cobra.Command
 
-func parseCreatedAtRFC3339(value string) (time.Time, bool) {
+func parseCreatedAtTimestamp(value string) (time.Time, bool) {
 	// Why: providers *should* emit stable ISO 8601 timestamps, but we still defensively
 	// parse here so list sorting is correct even when multiple providers are mixed.
 	if value == "" {
@@ -1622,8 +1627,8 @@ func compareCreatedAtOldestFirst(a, b string) int {
 		return 0
 	}
 
-	ta, oka := parseCreatedAtRFC3339(a)
-	tb, okb := parseCreatedAtRFC3339(b)
+	ta, oka := parseCreatedAtTimestamp(a)
+	tb, okb := parseCreatedAtTimestamp(b)
 
 	// Prefer valid timestamps over invalid/unparseable ones.
 	if oka && okb {
@@ -1724,7 +1729,7 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 	sortSessionMetadataOldestFirst(sessions)
 
 	// Log before JSON output (with marker for programmatic parsing)
-	slog.Info(">>> JSON OUTPUT START <<<", "session_count", len(sessions))
+	slog.Info(jsonOutputStartMarker, "session_count", len(sessions))
 
 	// Output as JSON
 	encoder := json.NewEncoder(os.Stdout)
@@ -1734,7 +1739,7 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 	}
 
 	// Log after JSON output (with marker for programmatic parsing)
-	slog.Info(">>> JSON OUTPUT END <<<")
+	slog.Info(jsonOutputEndMarker)
 
 	// Track analytics
 	analytics.TrackEvent(analytics.EventListSessions, analytics.Properties{
@@ -1791,11 +1796,11 @@ func listAllProviders(registry *factory.Registry) error {
 			log.UserMessage("\nBut didn't find any activity.\n")
 		}
 		// Log before JSON output (with marker for programmatic parsing)
-		slog.Info(">>> JSON OUTPUT START <<<", "session_count", 0)
+		slog.Info(jsonOutputStartMarker, "session_count", 0)
 		// Output empty JSON array
 		fmt.Println("[]")
 		// Log after JSON output (with marker for programmatic parsing)
-		slog.Info(">>> JSON OUTPUT END <<<")
+		slog.Info(jsonOutputEndMarker)
 		return nil
 	}
 
@@ -1838,7 +1843,7 @@ func listAllProviders(registry *factory.Registry) error {
 	sortSessionMetadataWithProviderOldestFirst(allSessions)
 
 	// Log before JSON output (with marker for programmatic parsing)
-	slog.Info(">>> JSON OUTPUT START <<<", "session_count", len(allSessions))
+	slog.Info(jsonOutputStartMarker, "session_count", len(allSessions))
 
 	// Output as JSON
 	encoder := json.NewEncoder(os.Stdout)
@@ -1848,7 +1853,7 @@ func listAllProviders(registry *factory.Registry) error {
 	}
 
 	// Log after JSON output (with marker for programmatic parsing)
-	slog.Info(">>> JSON OUTPUT END <<<")
+	slog.Info(jsonOutputEndMarker)
 
 	// Track analytics
 	analytics.TrackEvent(analytics.EventListSessions, analytics.Properties{
