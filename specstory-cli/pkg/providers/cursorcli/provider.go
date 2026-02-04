@@ -580,7 +580,6 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing
-// TODO: Implement efficient listing for Cursor CLI sessions
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
 	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
