@@ -259,3 +259,62 @@ func TestGetCanonicalPath(t *testing.T) {
 		})
 	}
 }
+
+// TestGenerateReadableName tests the generation of human-readable session names
+func TestGenerateReadableName(t *testing.T) {
+	tests := []struct {
+		name     string
+		message  string
+		expected string
+	}{
+		{
+			name:     "Empty message returns empty",
+			message:  "",
+			expected: "",
+		},
+		{
+			name:     "Short message returned as-is",
+			message:  "Let's create a session!",
+			expected: "Let's create a session!",
+		},
+		{
+			name:     "Message with newlines normalized",
+			message:  "First line\nSecond line\nThird line",
+			expected: "First line Second line Third line",
+		},
+		{
+			name:     "Message with multiple spaces normalized",
+			message:  "Hello    world     how   are   you",
+			expected: "Hello world how are you",
+		},
+		{
+			name:     "Long message truncated at word boundary",
+			message:  "This is a very long message that exceeds one hundred characters and should be truncated at a word boundary to avoid breaking words in the middle",
+			expected: "This is a very long message that exceeds one hundred characters and should be truncated at a word...",
+		},
+		{
+			name:     "Long message without spaces truncated at exactly 100 chars",
+			message:  strings.Repeat("a", 150),
+			expected: strings.Repeat("a", 100) + "...",
+		},
+		{
+			name:     "Exactly 100 characters not truncated",
+			message:  strings.Repeat("a", 100),
+			expected: strings.Repeat("a", 100),
+		},
+		{
+			name:     "Message with tabs and mixed whitespace",
+			message:  "Hello\tworld\n\nHow\t\tare   you?",
+			expected: "Hello world How are you?",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GenerateReadableName(tt.message)
+			if result != tt.expected {
+				t.Errorf("GenerateReadableName() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}

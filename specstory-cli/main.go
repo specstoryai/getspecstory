@@ -3,6 +3,7 @@ package main
 import (
 	"bufio" // For reading user terminal input
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -40,6 +42,7 @@ var outputDir string    // custom output directory for markdown and debug files
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
 var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
@@ -62,6 +65,11 @@ func pluralSession(count int) string {
 	}
 	return "sessions"
 }
+
+const (
+	jsonOutputStartMarker = ">>> JSON OUTPUT START <<<"
+	jsonOutputEndMarker   = ">>> JSON OUTPUT END <<<"
+)
 
 // SyncStats tracks the results of a sync operation
 type SyncStats struct {
@@ -88,6 +96,12 @@ func validateFlags() error {
 	}
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use --only-cloud-sync and --no-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if printToStdout && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --print and --only-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if printToStdout && noCloudSync {
+		return utils.ValidationError{Message: "--print already disables cloud sync, --no-cloud-sync is redundant"}
 	}
 	return nil
 }
@@ -734,6 +748,12 @@ specstory sync -s <session-id>
 # Sync multiple sessions
 specstory sync -s <session-id-1> -s <session-id-2> -s <session-id-3>
 
+# Output session markdown to stdout without saving
+specstory sync -s <session-id> --print
+
+# Output multiple sessions to stdout
+specstory sync -s <session-id-1> -s <session-id-2> --print
+
 # Sync all sessions for the current directory, with console output
 specstory sync --console
 
@@ -756,7 +776,11 @@ Provide a specific agent ID to sync a specific provider.`
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Session ID validation is now provider-specific, so no validation here
+			// Validate that --print requires -s flag
+			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+			if printToStdout && len(sessionIDs) == 0 {
+				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -783,6 +807,114 @@ Provide a specific agent ID to sync a specific provider.`
 	}
 }
 
+// printSessionsToStdout outputs session markdown to stdout without saving or syncing
+// Used when --print flag is specified with -s
+func printSessionsToStdout(cmd *cobra.Command, args []string, sessionIDs []string, debugRaw bool, useUTC bool) error {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
+		return err
+	}
+
+	registry := factory.GetRegistry()
+
+	// Resolve provider once if specified (fail fast if provider not found)
+	var specifiedProvider spi.Provider
+	if len(args) > 0 {
+		providerID := args[0]
+		provider, err := registry.Get(providerID)
+		if err != nil {
+			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
+		}
+		specifiedProvider = provider
+	}
+
+	// Track statistics for error reporting
+	var notFoundCount, errorCount int
+	var lastError error
+
+	// Process each session ID
+	for i, sessionID := range sessionIDs {
+		sessionID = strings.TrimSpace(sessionID)
+		if sessionID == "" {
+			continue // Skip empty session IDs
+		}
+
+		var session *spi.AgentChatSession
+
+		// Case A: Provider was specified - use it directly
+		if specifiedProvider != nil {
+			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			if err != nil {
+				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
+				errorCount++
+				lastError = err
+				continue
+			}
+			if session == nil {
+				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
+				notFoundCount++
+				continue
+			}
+		} else {
+			// Case B: No provider specified - try all providers
+			found := false
+			providerIDs := registry.ListIDs()
+			for _, id := range providerIDs {
+				provider, err := registry.Get(id)
+				if err != nil {
+					continue
+				}
+
+				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+				if err != nil {
+					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+					continue
+				}
+				if session != nil {
+					found = true
+					break // Found it, don't check other providers
+				}
+			}
+
+			if !found {
+				slog.Warn("Session not found in any provider", "sessionId", sessionID)
+				notFoundCount++
+				continue
+			}
+		}
+
+		// Generate markdown from SessionData
+		// Include header only for the first session
+		includeHeader := (i == 0)
+		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, includeHeader, useUTC)
+		if err != nil {
+			slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
+			errorCount++
+			lastError = err
+			continue
+		}
+
+		// Output markdown to stdout
+		// Add separator between sessions (but not before the first one)
+		if i > 0 {
+			fmt.Print("\n---\n\n")
+		}
+		fmt.Print(markdownContent)
+	}
+
+	// Return error if any sessions failed
+	if errorCount > 0 || (notFoundCount > 0 && notFoundCount == len(sessionIDs)) {
+		if lastError != nil {
+			return lastError
+		}
+		return fmt.Errorf("%d %s not found", notFoundCount, pluralSession(notFoundCount))
+	}
+
+	return nil
+}
+
 // syncSpecificSessions syncs one or more sessions by their IDs
 // args[0] is the optional provider ID
 func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
@@ -795,6 +927,11 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useUTC := getUseUTC(cmd)
+
+	// Handle --print mode: output markdown to stdout without saving
+	if printToStdout {
+		return printSessionsToStdout(cmd, args, sessionIDs, debugRaw, useUTC)
+	}
 
 	// Setup output configuration
 	config, err := utils.SetupOutputConfig(outputDir)
@@ -980,7 +1117,8 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	writeDebugSessionData(session, debugRaw)
 
 	// Generate markdown from SessionData
-	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+	// Always include header for individual session saves
+	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, true, useUTC)
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return fmt.Errorf("failed to generate markdown: %w", err)
@@ -1197,7 +1335,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		writeDebugSessionData(session, debugRaw)
 
 		// Generate markdown from SessionData
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+		// Always include header for individual session syncs
+		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, true, useUTC)
 		if err != nil {
 			slog.Error("Failed to generate markdown from SessionData",
 				"sessionId", session.SessionID,
@@ -1540,6 +1679,322 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 }
 
 var syncCmd *cobra.Command
+
+// createListCommand dynamically creates the list command with provider information
+func createListCommand() *cobra.Command {
+	registry := factory.GetRegistry()
+	ids := registry.ListIDs()
+	providerList := registry.GetProviderList()
+
+	// Build dynamic examples
+	examples := `
+# List all sessions from all agents
+specstory list`
+
+	if len(ids) > 0 {
+		examples += "\n\n# List sessions from specific agent"
+		for _, id := range ids {
+			examples += fmt.Sprintf("\nspecstory list %s", id)
+		}
+	}
+
+	examples += `
+
+# Pretty print JSON output
+specstory list | jq`
+
+	longDesc := `List all sessions showing session ID, creation date, and name in JSON format.
+
+By default, lists sessions from all registered providers that have activity.
+Provide a specific agent ID to list sessions from only that provider.`
+	if providerList != "No providers registered" {
+		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
+	}
+
+	return &cobra.Command{
+		Use:     "list [provider-id]",
+		Aliases: []string{"ls"},
+		Short:   "List all sessions for terminal coding agents",
+		Long:    longDesc,
+		Example: examples,
+		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			slog.Info("Running list command")
+			registry := factory.GetRegistry()
+
+			// Check if user specified a provider
+			if len(args) > 0 {
+				// List specific provider
+				return listSingleProvider(registry, args[0])
+			} else {
+				// List all providers with activity
+				return listAllProviders(registry)
+			}
+		},
+	}
+}
+
+var listCmd *cobra.Command
+
+func parseCreatedAtTimestamp(value string) (time.Time, bool) {
+	// Why: providers *should* emit stable ISO 8601 timestamps, but we still defensively
+	// parse here so list sorting is correct even when multiple providers are mixed.
+	if value == "" {
+		return time.Time{}, false
+	}
+
+	// RFC3339Nano accepts RFC3339 too, but it’s stricter about fractional seconds.
+	if t, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return t, true
+	}
+	if t, err := time.Parse(time.RFC3339, value); err == nil {
+		return t, true
+	}
+
+	return time.Time{}, false
+}
+
+func compareCreatedAtOldestFirst(a, b string) int {
+	if a == b {
+		return 0
+	}
+
+	ta, oka := parseCreatedAtTimestamp(a)
+	tb, okb := parseCreatedAtTimestamp(b)
+
+	// Prefer valid timestamps over invalid/unparseable ones.
+	if oka && okb {
+		if ta.Before(tb) {
+			return -1
+		}
+		if ta.After(tb) {
+			return 1
+		}
+		// If the parsed instants are equal but the strings differ (e.g., timezone
+		// formatting), fall back to string compare for deterministic ordering.
+		return strings.Compare(a, b)
+	}
+	if oka && !okb {
+		return -1
+	}
+	if !oka && okb {
+		return 1
+	}
+
+	// Last resort: string compare (still deterministic).
+	return strings.Compare(a, b)
+}
+
+func sortSessionMetadataOldestFirst(sessions []spi.SessionMetadata) {
+	sort.SliceStable(sessions, func(i, j int) bool {
+		a, b := sessions[i], sessions[j]
+		if cmp := compareCreatedAtOldestFirst(a.CreatedAt, b.CreatedAt); cmp != 0 {
+			return cmp < 0
+		}
+		// Tie-breakers to make output deterministic.
+		if a.SessionID != b.SessionID {
+			return a.SessionID < b.SessionID
+		}
+		return a.Slug < b.Slug
+	})
+}
+
+func sortSessionMetadataWithProviderOldestFirst(sessions []sessionMetadataWithProvider) {
+	sort.SliceStable(sessions, func(i, j int) bool {
+		a, b := sessions[i], sessions[j]
+		if cmp := compareCreatedAtOldestFirst(a.CreatedAt, b.CreatedAt); cmp != 0 {
+			return cmp < 0
+		}
+		// Tie-breakers to make output deterministic.
+		if a.Provider != b.Provider {
+			return a.Provider < b.Provider
+		}
+		if a.SessionID != b.SessionID {
+			return a.SessionID < b.SessionID
+		}
+		return a.Slug < b.Slug
+	})
+}
+
+// listSingleProvider lists sessions from a specific provider
+func listSingleProvider(registry *factory.Registry, providerID string) error {
+	provider, err := registry.Get(providerID)
+	if err != nil {
+		// Provider not found - show helpful error
+		fmt.Fprintf(os.Stderr, "❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
+
+		ids := registry.ListIDs()
+		if len(ids) > 0 {
+			fmt.Fprintln(os.Stderr, "The registered providers are:")
+			for _, id := range ids {
+				if p, _ := registry.Get(id); p != nil {
+					fmt.Fprintf(os.Stderr, "  • %s - %s\n", id, p.Name())
+				}
+			}
+			fmt.Fprintf(os.Stderr, "\nExample: specstory list %s\n", ids[0])
+		}
+		return err
+	}
+
+	// Set the agent provider for analytics
+	analytics.SetAgentProviders([]string{provider.Name()})
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
+		return err
+	}
+
+	// Check if provider has activity
+	if !provider.DetectAgent(cwd, true) {
+		// Provider already output helpful message
+		return nil
+	}
+
+	// Get session metadata
+	sessions, err := provider.ListAgentChatSessions(cwd)
+	if err != nil {
+		return fmt.Errorf("failed to list sessions for %s: %w", provider.Name(), err)
+	}
+
+	// Always sort in the list command (providers may not return sorted output).
+	sortSessionMetadataOldestFirst(sessions)
+
+	// Log before JSON output (with marker for programmatic parsing)
+	slog.Info(jsonOutputStartMarker, "session_count", len(sessions))
+
+	// Output as JSON
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(sessions); err != nil {
+		return fmt.Errorf("failed to encode sessions as JSON: %w", err)
+	}
+
+	// Log after JSON output (with marker for programmatic parsing)
+	slog.Info(jsonOutputEndMarker)
+
+	// Track analytics
+	analytics.TrackEvent(analytics.EventListSessions, analytics.Properties{
+		"provider":      providerID,
+		"session_count": len(sessions),
+	})
+
+	return nil
+}
+
+// sessionMetadataWithProvider embeds SessionMetadata and adds provider information
+// Used when listing sessions from all providers to show which provider each session came from
+type sessionMetadataWithProvider struct {
+	spi.SessionMetadata        // Embedded struct - promotes all fields with their JSON tags
+	Provider            string `json:"provider"` // Provider ID (e.g., "claude", "cursor", "codex")
+}
+
+// listAllProviders lists sessions from all providers that have activity
+func listAllProviders(registry *factory.Registry) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
+		return err
+	}
+
+	providerIDs := registry.ListIDs()
+	providersWithActivity := []string{}
+
+	// Check each provider for activity
+	for _, id := range providerIDs {
+		provider, err := registry.Get(id)
+		if err != nil {
+			slog.Warn("Failed to get provider", "id", id, "error", err)
+			continue
+		}
+
+		if provider.DetectAgent(cwd, false) {
+			providersWithActivity = append(providersWithActivity, id)
+		}
+	}
+
+	// If no providers have activity, show helpful message
+	if len(providersWithActivity) == 0 {
+		if !silent {
+			fmt.Fprintln(os.Stderr) // Add visual separation
+			log.UserWarn("No coding agent activity found for this project directory.\n\n")
+
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			for _, id := range providerIDs {
+				if provider, err := registry.Get(id); err == nil {
+					log.UserMessage("- %s\n", provider.Name())
+				}
+			}
+			log.UserMessage("\nBut didn't find any activity.\n")
+		}
+		// Log before JSON output (with marker for programmatic parsing)
+		slog.Info(jsonOutputStartMarker, "session_count", 0)
+		// Output empty JSON array
+		fmt.Println("[]")
+		// Log after JSON output (with marker for programmatic parsing)
+		slog.Info(jsonOutputEndMarker)
+		return nil
+	}
+
+	// Collect provider names for analytics
+	var providerNames []string
+	for _, id := range providersWithActivity {
+		if provider, err := registry.Get(id); err == nil {
+			providerNames = append(providerNames, provider.Name())
+		}
+	}
+	analytics.SetAgentProviders(providerNames)
+
+	// Collect all sessions from all providers with provider information
+	allSessions := []sessionMetadataWithProvider{}
+	var lastError error
+
+	for _, id := range providersWithActivity {
+		provider, err := registry.Get(id)
+		if err != nil {
+			continue
+		}
+
+		sessions, err := provider.ListAgentChatSessions(cwd)
+		if err != nil {
+			lastError = err
+			slog.Error("Error listing sessions for provider", "provider", id, "error", err)
+			continue
+		}
+
+		// Wrap each session with provider information
+		for _, session := range sessions {
+			allSessions = append(allSessions, sessionMetadataWithProvider{
+				SessionMetadata: session,
+				Provider:        id,
+			})
+		}
+	}
+
+	// Always sort in the list command (we concatenate provider results above).
+	sortSessionMetadataWithProviderOldestFirst(allSessions)
+
+	// Log before JSON output (with marker for programmatic parsing)
+	slog.Info(jsonOutputStartMarker, "session_count", len(allSessions))
+
+	// Output as JSON
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(allSessions); err != nil {
+		return fmt.Errorf("failed to encode sessions as JSON: %w", err)
+	}
+
+	// Log after JSON output (with marker for programmatic parsing)
+	slog.Info(jsonOutputEndMarker)
+
+	// Track analytics
+	analytics.TrackEvent(analytics.EventListSessions, analytics.Properties{
+		"provider":      "all",
+		"session_count": len(allSessions),
+	})
+
+	return lastError
+}
 
 // Command to show current version information
 var versionCmd = &cobra.Command{
@@ -2106,6 +2561,7 @@ func main() {
 	runCmd = createRunCommand()
 	watchCmd = createWatchCommand()
 	syncCmd = createSyncCommand()
+	listCmd = createListCommand()
 	checkCmd = createCheckCommand()
 
 	// Set version for the automatic version flag
@@ -2121,6 +2577,7 @@ func main() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(loginCmd)
@@ -2138,6 +2595,7 @@ func main() {
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
+	syncCmd.Flags().BoolVar(&printToStdout, "print", false, "output session markdown to stdout instead of saving (requires -s flag)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
