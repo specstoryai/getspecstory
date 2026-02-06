@@ -8,20 +8,30 @@
 
 Never lose a brilliant solution, code snippet, or architectural decision again. SpecStory captures, indexes, and makes searchable every interaction you have with AI coding assistants across all your projects and tools.
 
-[![CLI Open Source](https://img.shields.io/badge/CLI-Open%20Source-brightgreen?style=flat-square)](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli)
-[![Installs](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3Dinstalls&style=flat-square)](https://specstory.com/api/badge?stat=installs)
-[![Active Users](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DactiveUsers&style=flat-square)](https://specstory.com/api/badge?stat=activeUsers)
-[![Sessions Saved](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square)](https://specstory.com/api/badge?stat=sessionsSaved)
-[![Rules Generated](https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square)](https://specstory.com/api/badge?stat=rulesGenerated)
+<p align="left">
+  <strong>Install SpecStory ──▶ </strong>&nbsp;
+  <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3Dinstalls&style=flat-square" alt="Installs" style="vertical-align: middle;"></a>
+  <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DactiveUsers&style=flat-square" alt="Active Users" style="vertical-align: middle;"></a>
+  <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square" alt="Sessions Saved" style="vertical-align: middle;"></a>
+  <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square" alt="Rules Generated" style="vertical-align: middle;"></a>
+</p>
 
 <p align="left">
-  <strong>Connect with us ──▶</strong>&nbsp;
+  <strong>Contribute to OSS ──▶</strong>&nbsp;
+  <a href="https://github.com/specstoryai/getspecstory/tree/main/specstory-cli"><img src="https://img.shields.io/badge/CLI-Open%20Source-brightgreen?style=flat-square" alt="CLI Open Source" style="vertical-align: middle;"></a>
+  <a href="https://github.com/specstoryai/agent-skills"><img src="https://img.shields.io/badge/Skills-Open%20Source-brightgreen?style=flat-square" alt="Skills Open Source" style="vertical-align: middle;"></a>
+</p>
+
+<p align="left">
+  <strong>Connect with us ───▶</strong>&nbsp;
   <a href="https://twitter.com/specstoryai"><img src="https://img.shields.io/badge/X-000000?style=flat-square&logoColor=white" alt="X" style="vertical-align: middle;"></a>
   <a href="https://www.linkedin.com/company/specstory"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white" alt="LinkedIn" style="vertical-align: middle;"></a>
   <a href="https://specstory.slack.com/join/shared_invite/zt-2vq0274ck-MYS39rgOpDSmgfE1IeK9gg#/shared-invite/email"><img src="https://img.shields.io/badge/Slack-4A154B?style=flat-square&logo=slack&logoColor=white" alt="Slack" style="vertical-align: middle;"></a>
   <a href="https://discord.gg/E47yQyEUd3"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord" style="vertical-align: middle;"></a>
   <a href="https://www.youtube.com/@specstory"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube" style="vertical-align: middle;"></a>
 </p>
+
+> 🔧 **[Agent Skills](https://github.com/specstoryai/agent-skills)** - Install skills to generate session summaries, fetch project stats, organize history, and more
 
 ## How It Works
 ```
@@ -30,18 +40,20 @@ AI Coding Tools              Local First                  Cloud Platform
                                                           (Login Required)
 Cursor IDE         ┐
 Copilot IDE        │
-Claude Code CLI    ├──────►  .specstory/history/  ──────►  cloud.specstory.com
-Cursor CLI         │          (Auto-Saved Locally)        (Search, Ask & Share)
-Codex CLI          │
+Claude Code CLI    │
+Cursor CLI         ├──────►  .specstory/history/  ──────►  cloud.specstory.com
+Codex CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
+Droid CLI          │
 Gemini CLI         ┘
 ```
 
 ## Workflow
 
 1. **Capture** - Extensions save every AI interaction locally to `.specstory/history/`
-2. **Sync (Optional)** - Only if logged in, sessions sync to cloud
-3. **Search** - Find conversations locally or across all projects in cloud
-4. **Share** - Export and share specific solutions with your team
+2. **Process** - Use [Agent Skills](https://github.com/specstoryai/agent-skills) to generate summaries, stats, and insights from your history
+3. **Sync (Optional)** - Only if logged in, sessions sync to cloud
+4. **Search** - Find conversations locally or across all projects in cloud
+5. **Share** - Export and share specific solutions with your team
 
 ## Supported Development Tools
 
@@ -49,11 +61,15 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Installation
 
-| Product | Type | Source | Supported Agents | Min Version | Installation | Changelog |
-|---------|------|--------|------------------|-------------|--------------|-----------|
-| **[Cursor Extension](https://www.cursor.com/)** | IDE | Closed | [Cursor AI](https://www.cursor.com/) | v0.43.6+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE | Closed | [GitHub Copilot](https://github.com/features/copilot) | v1.300.0+ | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)** | CLI | [Open](https://github.com/specstoryai/getspecstory/tree/main/specstory-cli) | [Claude Code](https://claude.ai/claude-code)<br/>[Cursor CLI](https://cursor.com/cli)<br/>[Codex CLI](https://www.openai.com/codex)<br/>[Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | v1.0.27+<br/>v2025.09.18+<br/>v0.42.0+<br/>0.15.1+ | `brew tap specstoryai/tap`<br/>`brew install specstory` | [📋 View](https://github.com/specstoryai/getspecstory/releases) |
+| Product                                                          | Type | Source                                                                                              | Supported Agent                                                               | Min Version  | Installation                                                  | Changelog                                                                                  |
+|------------------------------------------------------------------|------|-----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|--------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| **[Cursor Extension](https://www.cursor.com/)**                  | IDE  | Closed                                                                                              | [Cursor AI](https://www.cursor.com/)                                          | v0.43.6+     | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
+| **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE  | Closed                                                                                              | [GitHub Copilot](https://github.com/features/copilot)                         | v1.300.0+    | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/claudecode) | [Claude Code](https://claude.ai/claude-code)                                  | v1.0.27+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/codexcli)   | [Codex CLI](https://www.openai.com/codex)                                     | v0.42.0+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcli)  | [Cursor CLI](https://cursor.com/cli)                                          | v2025.09.18+ | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/droidcli)   | [Droid CLI](https://factory.ai/product/cli)                                   | v0.56.3+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)  | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | 0.15.1+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 
 > [!NOTE]
 > For Cursor users: Install from within Cursor, not from the Visual Studio Marketplace website. [Learn why](https://github.com/specstoryai/getspecstory/issues/8)
@@ -70,6 +86,7 @@ specstory check
 specstory run claude    # Launch Claude Code
 specstory run cursor    # Launch Cursor CLI
 specstory run codex     # Launch Codex CLI
+specstory run droid     # Launch Droid CLI
 specstory run gemini    # Launch Gemini CLI
 specstory run           # Launch default agent
 ```
@@ -112,6 +129,7 @@ SpecStory Cloud creates your personal AI coding knowledge base:
 ## Documentation & Support
 
 - 📚 **[Full Documentation](https://docs.specstory.com/overview)** - Complete guides and [Cloud API reference](https://docs.specstory.com/api-reference/introduction)
+- 🔧 **[Agent Skills](https://github.com/specstoryai/agent-skills)** - Generate summaries, stats, and insights from your `.specstory/history`
 - 🐛 **[Report Issues](https://github.com/specstoryai/getspecstory/issues)** - We actively monitor and respond
 - 📖 **[Contribute to Docs](https://github.com/specstoryai/docs/)** - PRs welcome!
 

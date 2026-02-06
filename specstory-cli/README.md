@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding coversations from terminal coding agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, etc.).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding coversations from terminal coding agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, etc.).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -21,12 +21,15 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 ## Agent Support
 
-Agent providers:
+The following coding agents are supported in the SpecStory CLI:
 
-- [Claude Code](https://www.claude.com/product/claude-code): [Claude Code Provider](pkg/providers/claudecode/)
-- [Cursor CLI](https://cursor.com/cli): [Cursor CLI Provider](pkg/providers/cursorcli/)
-- [Codex CLI](https://www.openai.com/codex/cli/): [Codex CLI Provider](pkg/providers/codexcli/)
-- [Gemini CLI](https://ai.google.dev/gemini-cli): [Gemini CLI Provider](pkg/providers/geminicli/)
+| Agent                                                     | Provider                                | Data Format | Source Location        |
+|-----------------------------------------------------------|-----------------------------------------|-------------|------------------------|
+| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/) | JSONL       | `~/.claude/projects/`  |
+| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)     | JSONL       | `~/.codex/sessions/`   |
+| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)   | SQLite      | `~/.cursor/chats/`     |
+| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)     | JSONL       | `~/.factory/sessions/` |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)   | JSON        | `~/.gemini/tmp/`       |
 
 ### Agent Provider SPI (Service Provider Interface)
 
@@ -120,7 +123,7 @@ go list -m -u all
 
 ### Debug Raw Mode
 
-The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI).
+The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI).
 
 When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
 

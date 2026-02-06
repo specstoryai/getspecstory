@@ -45,7 +45,7 @@ func TestProviderGetAgentChatSessions(t *testing.T) {
 	}
 
 	provider := NewProvider()
-	sessions, err := provider.GetAgentChatSessions(projectPath, false)
+	sessions, err := provider.GetAgentChatSessions(projectPath, false, nil)
 	if err != nil {
 		t.Fatalf("GetAgentChatSessions failed: %v", err)
 	}

@@ -109,7 +109,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return false
 }
 
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	projectDir, err := ResolveGeminiProjectDir(projectPath)
 	if err != nil {
 		return nil, err
@@ -120,11 +120,17 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return nil, err
 	}
 
+	totalSessions := len(sessions)
 	var result []spi.AgentChatSession
-	for _, s := range sessions {
+	for i, s := range sessions {
 		chatSession := convertToAgentChatSession(s, projectPath, debugRaw)
 		if chatSession != nil {
 			result = append(result, *chatSession)
+		}
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalSessions)
 		}
 	}
 	return result, nil

@@ -1285,6 +1285,61 @@ func TestExtractSessionIDFromFile_NonexistentFile(t *testing.T) {
 	}
 }
 
+// TestParseCorruptedJSONLLine verifies that the parser gracefully handles corrupted
+// JSONL lines by skipping them and continuing to process valid lines.
+func TestParseCorruptedJSONLLine(t *testing.T) {
+	// Create a temporary JSONL file with 3 lines: valid, corrupted, valid
+	tmpFile, err := os.CreateTemp("", "test-corrupted-*.jsonl")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer func() { _ = os.Remove(tmpFile.Name()) }()
+
+	// Line 1: Valid JSON
+	line1 := `{"type":"user","uuid":"msg-1","sessionId":"test-session","timestamp":"2024-01-01T12:00:00Z","parentUuid":null}`
+	// Line 2: Corrupted JSON (missing closing brace)
+	line2 := `{"type":"assistant","uuid":"msg-2","sessionId":"test-session","timestamp":"2024-01-01T12:00:01Z"`
+	// Line 3: Valid JSON
+	line3 := `{"type":"user","uuid":"msg-3","sessionId":"test-session","timestamp":"2024-01-01T12:00:02Z","parentUuid":"msg-1"}`
+
+	content := line1 + "\n" + line2 + "\n" + line3 + "\n"
+	if _, err := tmpFile.WriteString(content); err != nil {
+		t.Fatalf("Failed to write test content: %v", err)
+	}
+	_ = tmpFile.Close()
+
+	// Parse the file - should NOT fail, should skip the corrupted line
+	parser := NewJSONLParser()
+	records, err := parser.parseSessionFile(tmpFile.Name())
+
+	if err != nil {
+		t.Errorf("Expected parser to skip corrupted line and continue, but got error: %v", err)
+		return
+	}
+
+	// Should have parsed 2 valid records (skipped the corrupted one)
+	if len(records) != 2 {
+		t.Errorf("Expected 2 records (skipping corrupted line), got %d", len(records))
+		return
+	}
+
+	// Verify we got the correct records
+	if records[0].Data["uuid"] != "msg-1" {
+		t.Errorf("Expected first record uuid to be 'msg-1', got %v", records[0].Data["uuid"])
+	}
+	if records[1].Data["uuid"] != "msg-3" {
+		t.Errorf("Expected second record uuid to be 'msg-3', got %v", records[1].Data["uuid"])
+	}
+
+	// Verify line numbers are correct
+	if records[0].Line != 1 {
+		t.Errorf("Expected first record line to be 1, got %d", records[0].Line)
+	}
+	if records[1].Line != 3 {
+		t.Errorf("Expected second record line to be 3, got %d", records[1].Line)
+	}
+}
+
 // TestParseJSONLLineWithEmbeddedNewlines verifies that the parser correctly handles
 // JSON strings containing escaped newlines (\n) without treating them as line boundaries.
 // This ensures ReadString('\n') only breaks on actual newline bytes, not escaped sequences.

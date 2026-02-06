@@ -1,5 +1,22 @@
 # Specstory CLI Changelog
 
+
+## v1.5.0 2026-01-31
+
+### ⚙️ Improvements
+
+- `specstory sync` now displays progress feedback while parsing sessions.
+- The Claude Code provider now gracefully handles corrupt JSON objects in JSONL session data, continuing to parse valid entries rather than failing to render the session.
+- The `-s` flag on `specstory sync` now accepts multiple session IDs: `specstory sync -s {id1} -s {id2}`.
+- `WebFetch` and `WebSearch` tool outputs for the Claude Code provider now include the source URL and search term in their output.
+- Improved markdown formatting for the Claude Code provider when `WebFetch` returns markdown content.
+
+## v1.4.0 2026-01-29
+
+### ⚙️ Improvements
+
+- The SpecStory CLI now supports Factory's [Droid CLI](https://factory.ai/product/cli) (i.e. `droid`) for sessions created from Factory Droid version `0.56.3` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/) and [Gemini CLI](https://github.com/google-gemini/gemini-cli).
+
 ## v1.3.0 2026-01-25
 
 ### ⚙️ Improvements

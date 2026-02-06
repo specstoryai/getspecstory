@@ -295,7 +295,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	// Get the Claude Code project directory
 	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
 	if err != nil {
@@ -307,9 +307,9 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return []spi.AgentChatSession{}, nil // No sessions if no project
 	}
 
-	// Parse JSONL files
+	// Parse JSONL files with progress callback
 	parser := NewJSONLParser()
-	err = parser.ParseProjectSessions(claudeProjectDir, true) // silent = true
+	err = parser.ParseProjectSessionsWithProgress(claudeProjectDir, progress)
 	if err != nil {
 		return nil, err
 	}

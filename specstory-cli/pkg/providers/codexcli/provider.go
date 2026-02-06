@@ -259,7 +259,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves chat sessions for the given project path.
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	// Find all sessions for this project (don't stop on first)
 	sessions, err := findCodexSessions(projectPath, "", false)
 	if err != nil {
@@ -272,14 +272,20 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return nil, fmt.Errorf("failed to find codex sessions: %w", err)
 	}
 
-	// Convert to AgentChatSession structs
+	totalSessions := len(sessions)
+
+	// Convert to AgentChatSession structs with progress reporting
 	var result []spi.AgentChatSession
-	for _, sessionInfo := range sessions {
+	for i, sessionInfo := range sessions {
 		session, err := processSessionToAgentChat(&sessionInfo, projectPath, debugRaw)
 		if err != nil {
 			slog.Debug("GetAgentChatSessions: Failed to process session",
 				"sessionID", sessionInfo.SessionID,
 				"error", err)
+			// Report progress even for failed sessions
+			if progress != nil {
+				progress(i+1, totalSessions)
+			}
 			continue // Skip sessions we can't process
 		}
 
@@ -287,10 +293,19 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		if session == nil {
 			slog.Debug("GetAgentChatSessions: Skipping empty session",
 				"sessionID", sessionInfo.SessionID)
+			// Report progress even for empty sessions
+			if progress != nil {
+				progress(i+1, totalSessions)
+			}
 			continue
 		}
 
 		result = append(result, *session)
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalSessions)
+		}
 	}
 
 	return result, nil
@@ -646,11 +661,11 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 		// Parse JSON
 		var record map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			slog.Debug("readSessionRawData: Failed to parse JSON line",
-				"error", err,
-				"lineNumber", lineNumber,
-				"line", line[:min(len(line), 100)])
-			// After processing record, check if we're done
+			// Log warning and skip corrupted lines rather than failing entire parse
+			slog.Warn("Skipping corrupted JSONL line",
+				"file", filepath.Base(sessionPath),
+				"line", lineNumber,
+				"error", err)
 			if atEOF {
 				break
 			}

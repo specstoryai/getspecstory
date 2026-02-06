@@ -253,7 +253,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
 	if err != nil {
@@ -267,23 +267,35 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]sp
 		return []spi.AgentChatSession{}, nil
 	}
 
-	// Collect sessions
-	var sessions []spi.AgentChatSession
+	// Filter to sessions that have store.db (quick pre-pass for accurate count)
+	var validSessionIDs []string
 	for _, sessionID := range sessionIDs {
-		// Check if this session has a store.db file
-		if !HasStoreDB(hashDir, sessionID) {
-			slog.Debug("Skipping session without store.db", "sessionID", sessionID)
-			continue
+		if HasStoreDB(hashDir, sessionID) {
+			validSessionIDs = append(validSessionIDs, sessionID)
 		}
+	}
+	totalSessions := len(validSessionIDs)
 
+	// Collect sessions with progress reporting
+	var sessions []spi.AgentChatSession
+	for i, sessionID := range validSessionIDs {
 		// Get the session data
 		session, err := p.GetAgentChatSession(projectPath, sessionID, debugRaw)
 		if err != nil {
 			slog.Debug("Failed to get session", "sessionID", sessionID, "error", err)
+			// Still report progress even for failed sessions
+			if progress != nil {
+				progress(i+1, totalSessions)
+			}
 			continue // Skip sessions we can't read
 		}
 		if session != nil {
 			sessions = append(sessions, *session)
+		}
+
+		// Report progress after each session
+		if progress != nil {
+			progress(i+1, totalSessions)
 		}
 	}
 
@@ -363,7 +375,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Process any existing sessions first before starting the watcher
 	slog.Info("Processing existing sessions...")
 	existingSessionIDs := make(map[string]bool)
-	existingSessions, err := p.GetAgentChatSessions(projectPath, debugRaw)
+	existingSessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
 	if err != nil {
 		slog.Error("Failed to get existing sessions", "error", err)
 	} else {
@@ -472,7 +484,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 
 	// Get existing sessions to avoid processing pre-existing ones
 	// (unless they're being resumed, but that's handled by the watcher)
-	sessions, err := p.GetAgentChatSessions(projectPath, debugRaw)
+	sessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
 	if err != nil {
 		slog.Warn("WatchAgent: Failed to get existing sessions", "error", err)
 		// Continue anyway - not fatal

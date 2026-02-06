@@ -4,13 +4,13 @@
 
 <!-- Claude Code Session b61faf06-fca5-4945-938e-d6c66a40fbb1 (2026-01-23 14:20:54Z) -->
 
-_**User (2026-01-23T14:20:54.581Z)**_
+_**User (2026-01-23 14:20:54Z)**_
 
 <command-message>pr-review</command-message>
 <command-name>/pr-review</command-name>
 <command-args>151</command-args>
 
-_**User (2026-01-23T14:20:54.581Z)**_
+_**User (2026-01-23 14:20:54Z)**_
 
 ## Context
 
@@ -404,30 +404,32 @@ ARGUMENTS: 151
 
 ---
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:20:57.203Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:20:57Z)**_
 
 I'll examine the pull request using the GitHub CLI and provide a detailed code review.
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:20:58.807Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:20:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Get PR details for #151
 
 `gh pr view 151 --json title,body,state,author,additions,deletions,files`
-```
+
+```text
 {"additions":124,"author":{"id":"MDQ6VXNlcjY0MjcwNA==","is_bot":false,"login":"bago2k4","name":"iacopo"},"body":"Add a `--only-cloud-sync` flag used to skip local save of md files and only upload them to cloud.\r\n\r\nNB: once this PR and the #152 are merged, we need to add support for the `--only-cloud-sync` flag to the watch command","deletions":89,"files":[{"path":"specstory-cli/main.go","additions":124,"deletions":89}],"state":"OPEN","title":"Only cloud sync"}
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:20:59.491Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:20:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Get PR diff for #151
 
 `gh pr diff 151`
-```
+
+```text
 diff --git a/specstory-cli/main.go b/specstory-cli/main.go
 index a79812c..4707e3b 100644
 --- a/specstory-cli/main.go
@@ -728,16 +730,17 @@ index a79812c..4707e3b 100644
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:05.095Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:05Z)**_
 
 Let me also read the full context of the affected file to better understand the changes.
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:06.781Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:06Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    700→	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false)
    701→	if err != nil {
    702→		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
@@ -891,12 +894,13 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:06.781Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:07.468Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
    900→
    901→		// Generate markdown from SessionData
    902→		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false)
@@ -1050,26 +1054,28 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:07.468Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:10.015Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:10Z)**_
 
 Now let me check if there are any existing tests for flag validation.
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:12.054Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:12Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `validateFlags|onlyCloudSync|noCloudSync`
-```
+
+```text
 No files found
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:13.006Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:13Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `func validateFlags`
-```
+
+```text
 main.go:80:func validateFlags() error {
 .specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md:50:@@ -83,6 +84,9 @@ func validateFlags() error {
 .specstory/history/2026-01-23_14-20-54Z-command-message-pr-review.md:447:@@ -83,6 +84,9 @@ func validateFlags() error {
@@ -1078,12 +1084,13 @@ main.go:80:func validateFlags() error {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:17.222Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:21:17Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./main.go`
-```
+
+```text
     75→	QuitCommandShort = "Q"
     76→	ExitCommand      = "EXIT"
     77→)
@@ -1117,7 +1124,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-23T14:21:17.222Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-23T14:22:22.052Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-23 14:22:22Z)**_
 
 Now I have a complete understanding of the changes. Let me provide a detailed code review.
 
@@ -1354,16 +1361,16 @@ The code follows existing patterns, has appropriate logging, and the analytics t
 
 ---
 
-_**User (2026-01-25T12:30:04.147Z)**_
+_**User (2026-01-25 12:30:04Z)**_
 
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
 
-_**User (2026-01-25T12:30:04.147Z)**_
+_**User (2026-01-25 12:30:04Z)**_
 
 <local-command-stdout>Catch you later!</local-command-stdout>
 
-_**User (2026-01-25T12:30:04.151Z)**_
+_**User (2026-01-25 12:30:04Z)**_
 
 <local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>

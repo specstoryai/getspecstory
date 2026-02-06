@@ -13,6 +13,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/opencode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -76,6 +77,10 @@ func (r *Registry) registerAll() {
 	opencodeProvider := opencode.NewProvider()
 	r.providers["opencode"] = opencodeProvider
 	slog.Debug("Registered provider", "id", "opencode", "name", opencodeProvider.Name())
+
+  droidProvider := droidcli.NewProvider()
+	r.providers["droid"] = droidProvider
+	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())
