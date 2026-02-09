@@ -33,6 +33,7 @@ type Config struct {
 	LocalSync    LocalSyncConfig    `toml:"local_sync"`
 	Logging      LoggingConfig      `toml:"logging"`
 	Analytics    AnalyticsConfig    `toml:"analytics"`
+	Telemetry    TelemetryConfig    `toml:"telemetry"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -72,6 +73,21 @@ type AnalyticsConfig struct {
 	Enabled *bool `toml:"enabled"`
 }
 
+// TelemetryConfig holds OpenTelemetry configuration
+type TelemetryConfig struct {
+	// Enabled explicitly enables/disables telemetry.
+	// If not set, telemetry is enabled when Endpoint is non-empty.
+	Enabled *bool `toml:"enabled"`
+
+	// Endpoint is the OTLP gRPC collector address (e.g., "localhost:4317" or "http://localhost:4317")
+	// Env var: OTEL_EXPORTER_OTLP_ENDPOINT
+	Endpoint string `toml:"endpoint"`
+
+	// ServiceName overrides the default service name ("specstory-cli")
+	// Env var: OTEL_SERVICE_NAME
+	ServiceName string `toml:"service_name"`
+}
+
 // CLIOverrides holds CLI flag values that override config file settings.
 // These are applied after config files are loaded.
 type CLIOverrides struct {
@@ -93,10 +109,16 @@ type CLIOverrides struct {
 
 	// Analytics
 	NoAnalytics bool
+
+	// Telemetry
+	NoTelemetry          bool
+	TelemetryEndpoint    string
+	TelemetryServiceName string
 }
 
 // Load reads configuration from files and CLI flags.
 // Priority: CLI flags > local project config > user-level config
+// Note: For telemetry, OTEL_* env vars take highest priority per OTel conventions.
 func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	cfg := &Config{}
 
@@ -124,6 +146,9 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	if cliOverrides != nil {
 		applyCLIOverrides(cfg, cliOverrides)
 	}
+
+	// Apply OTel environment variables (highest priority for telemetry only)
+	applyTelemetryEnvOverrides(cfg)
 
 	return cfg, nil
 }
@@ -153,6 +178,23 @@ func getLocalConfigPath() string {
 func loadTOMLFile(path string, cfg *Config) error {
 	_, err := toml.DecodeFile(path, cfg)
 	return err
+}
+
+// applyTelemetryEnvOverrides applies OTel environment variable overrides.
+// Per OTel conventions, these take highest priority for telemetry settings.
+func applyTelemetryEnvOverrides(cfg *Config) {
+	if endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); endpoint != "" {
+		cfg.Telemetry.Endpoint = endpoint
+	}
+
+	if serviceName := os.Getenv("OTEL_SERVICE_NAME"); serviceName != "" {
+		cfg.Telemetry.ServiceName = serviceName
+	}
+
+	if enabled := os.Getenv("OTEL_ENABLED"); enabled != "" {
+		val := enabled == "true" || enabled == "1"
+		cfg.Telemetry.Enabled = &val
+	}
 }
 
 // applyCLIOverrides applies CLI flag overrides to the config.
@@ -202,6 +244,18 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 	if o.NoAnalytics {
 		disabled := false
 		cfg.Analytics.Enabled = &disabled
+	}
+
+	// Telemetry
+	if o.NoTelemetry {
+		disabled := false
+		cfg.Telemetry.Enabled = &disabled
+	}
+	if o.TelemetryEndpoint != "" {
+		cfg.Telemetry.Endpoint = o.TelemetryEndpoint
+	}
+	if o.TelemetryServiceName != "" {
+		cfg.Telemetry.ServiceName = o.TelemetryServiceName
 	}
 }
 
@@ -283,4 +337,24 @@ func (c *Config) IsAnalyticsEnabled() bool {
 		return *c.Analytics.Enabled
 	}
 	return true // default enabled
+}
+
+// IsTelemetryEnabled returns whether telemetry should be enabled.
+// If Enabled is explicitly set, use that value.
+// Otherwise, enable telemetry if Endpoint is non-empty.
+func (c *Config) IsTelemetryEnabled() bool {
+	if c.Telemetry.Enabled != nil {
+		return *c.Telemetry.Enabled
+	}
+	return c.Telemetry.Endpoint != ""
+}
+
+// GetTelemetryEndpoint returns the telemetry endpoint, or empty string if not configured.
+func (c *Config) GetTelemetryEndpoint() string {
+	return c.Telemetry.Endpoint
+}
+
+// GetTelemetryServiceName returns the service name, or empty string to use default.
+func (c *Config) GetTelemetryServiceName() string {
+	return c.Telemetry.ServiceName
 }

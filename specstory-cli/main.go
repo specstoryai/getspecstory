@@ -18,6 +18,7 @@ import (
 
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
@@ -26,6 +27,8 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -49,6 +52,11 @@ var console bool // flag to enable logging to the console
 var logFile bool // flag to enable logging to the log file
 var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
+
+// Telemetry Options
+var noTelemetry bool            // flag to disable telemetry
+var telemetryEndpoint string    // OTLP gRPC collector endpoint
+var telemetryServiceName string // override the default service name
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
@@ -493,7 +501,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
+				err := processSingleSession(context.Background(), session, provider, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -660,7 +668,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						// Process the session (write markdown and sync to cloud)
 						// Don't show output during watch mode
 						// This is autosave mode (true)
-						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
+						err := processSingleSession(context.Background(), session, p, config, false, true, debugRaw, useUTC)
 						if err != nil {
 							// Log error but continue - don't fail the whole watch
 							// In watch mode, we prioritize keeping the watcher running.
@@ -864,7 +872,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 			// Process the session (show output for sync command)
 			// This is manual sync mode (false)
-			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+			if err := processSingleSession(context.Background(), session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -894,7 +902,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
 				}
 				// This is manual sync mode (false)
-				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
+				if err := processSingleSession(context.Background(), session, provider, config, true, false, debugRaw, useUTC); err != nil {
 					errorCount++
 					lastError = err
 				} else {
@@ -972,11 +980,160 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 	return t.Local().Format("2006-01-02_15-04-05-0700")
 }
 
+// --- Telemetry Helper Functions ---
+
+// buildExchangeAttributes builds a slice of OTel attributes for all exchanges,
+// using dot-notation keys for flattening (e.g., specstory.exchanges.<id>.prompt_text).
+func buildExchangeAttributes(exchanges []schema.Exchange) []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, len(exchanges)*8)
+
+	for i, exchange := range exchanges {
+		prefix := fmt.Sprintf("specstory.exchanges.%s", exchange.ExchangeID)
+
+		// Extract tool usage information
+		toolNames, toolTypes, toolCount := extractToolInfo(exchange)
+
+		attrs = append(attrs,
+			attribute.String(prefix+".prompt_text", extractUserPromptText(exchange)),
+			attribute.Int(prefix+".prompt_index", i),
+			attribute.String(prefix+".start_time", exchange.StartTime),
+			attribute.String(prefix+".end_time", exchange.EndTime),
+			attribute.Int(prefix+".message_count", len(exchange.Messages)),
+			attribute.String(prefix+".tools_used", toolNames),
+			attribute.String(prefix+".tool_types", toolTypes),
+			attribute.Int(prefix+".tool_count", toolCount),
+		)
+	}
+
+	return attrs
+}
+
+// extractToolInfo extracts tool usage information from an exchange.
+// Returns: comma-separated tool names, comma-separated unique tool types, and total tool count.
+func extractToolInfo(exchange schema.Exchange) (toolNames string, toolTypes string, toolCount int) {
+	var names []string
+	typeSet := make(map[string]bool)
+
+	for _, msg := range exchange.Messages {
+		if msg.Tool != nil && msg.Tool.Name != "" {
+			names = append(names, msg.Tool.Name)
+			if msg.Tool.Type != "" {
+				typeSet[msg.Tool.Type] = true
+			}
+		}
+	}
+
+	// Build unique tool types list
+	var types []string
+	for t := range typeSet {
+		types = append(types, t)
+	}
+
+	return strings.Join(names, ","), strings.Join(types, ","), len(names)
+}
+
+// countSessionMessages counts total messages across all exchanges.
+func countSessionMessages(exchanges []schema.Exchange) int {
+	count := 0
+	for _, exchange := range exchanges {
+		count += len(exchange.Messages)
+	}
+	return count
+}
+
+// countSessionTools counts total tool uses and unique tool types across all exchanges.
+// Returns: total tool count, unique tool type count.
+func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCount int) {
+	typeSet := make(map[string]bool)
+
+	for _, exchange := range exchanges {
+		for _, msg := range exchange.Messages {
+			if msg.Tool != nil && msg.Tool.Name != "" {
+				toolCount++
+				if msg.Tool.Type != "" {
+					typeSet[msg.Tool.Type] = true
+				}
+			}
+		}
+	}
+
+	return toolCount, len(typeSet)
+}
+
+// extractUserPromptText finds the first user message in an exchange and returns its text content.
+func extractUserPromptText(exchange schema.Exchange) string {
+	for _, msg := range exchange.Messages {
+		if msg.Role == schema.RoleUser {
+			// Concatenate all text content parts
+			var text string
+			for _, part := range msg.Content {
+				if part.Type == schema.ContentTypeText {
+					if text != "" {
+						text += "\n"
+					}
+					text += part.Text
+				}
+			}
+			return text
+		}
+	}
+	return ""
+}
+
 // processSingleSession writes markdown and triggers cloud sync for a single session
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
 // useUTC controls timestamp format (true=UTC, false=local)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
+func processSingleSession(ctx context.Context, session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
+	// Track processing start time for metrics
+	processingStart := time.Now()
+
+	// Create a context with a deterministic trace ID from the session ID.
+	// This groups all spans for the same session into a single trace, even
+	// across multiple invocations in autosave mode.
+	ctx = telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+
+	// Start an OTel span for this session processing (no-op when telemetry is disabled)
+	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
+	defer span.End()
+
+	// Set span attributes for the session
+	agentName := provider.Name()
+	sessionID := session.SessionID
+	projectPath := ""
+	if session.SessionData != nil {
+		projectPath = session.SessionData.WorkspaceRoot
+	}
+
+	// Compute session-level counts from exchanges
+	messageCount := countSessionMessages(session.SessionData.Exchanges)
+	toolCount, toolTypeCount := countSessionTools(session.SessionData.Exchanges)
+
+	// Record metrics (no-op when telemetry is disabled)
+	defer func() {
+		telemetry.RecordSessionProcessed(ctx, agentName, sessionID)
+		telemetry.RecordExchanges(ctx, agentName, sessionID, int64(len(session.SessionData.Exchanges)))
+		telemetry.RecordMessages(ctx, agentName, sessionID, int64(messageCount))
+		telemetry.RecordToolUsage(ctx, agentName, sessionID, int64(toolCount))
+		telemetry.RecordProcessingDuration(ctx, agentName, sessionID, time.Since(processingStart))
+	}()
+
+	// Base session attributes
+	span.SetAttributes(
+		attribute.String("specstory.agent", agentName),
+		attribute.String("specstory.session.id", sessionID),
+		attribute.Int("specstory.session.exchange_count", len(session.SessionData.Exchanges)),
+		attribute.Int("specstory.session.message_count", messageCount),
+		attribute.Int("specstory.session.tool_count", toolCount),
+		attribute.Int("specstory.session.tool_type_count", toolTypeCount),
+		attribute.String("specstory.project.path", projectPath),
+	)
+
+	// Add flattened exchange attributes (dot-notation keys)
+	if session.SessionData != nil {
+		span.SetAttributes(buildExchangeAttributes(session.SessionData.Exchanges)...)
+	}
+
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
@@ -1190,10 +1347,47 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	}
 
 	historyPath := config.GetHistoryDir()
+	agentName := provider.Name()
+	ctx := context.Background()
 
 	// Process each session
 	for i := range sessions {
 		session := &sessions[i]
+		processingStart := time.Now()
+
+		// Create a context with a deterministic trace ID from the session ID
+		sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+
+		// Start an OTel span for this session processing
+		sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+
+		// Compute session-level counts for span attributes
+		messageCount := 0
+		toolCount := 0
+		toolTypeCount := 0
+		projectPath := ""
+		if session.SessionData != nil {
+			messageCount = countSessionMessages(session.SessionData.Exchanges)
+			toolCount, toolTypeCount = countSessionTools(session.SessionData.Exchanges)
+			projectPath = session.SessionData.WorkspaceRoot
+		}
+
+		// Set span attributes
+		span.SetAttributes(
+			attribute.String("specstory.agent", agentName),
+			attribute.String("specstory.session.id", session.SessionID),
+			attribute.Int("specstory.session.exchange_count", len(session.SessionData.Exchanges)),
+			attribute.Int("specstory.session.message_count", messageCount),
+			attribute.Int("specstory.session.tool_count", toolCount),
+			attribute.Int("specstory.session.tool_type_count", toolTypeCount),
+			attribute.String("specstory.project.path", projectPath),
+		)
+
+		// Add flattened exchange attributes
+		if session.SessionData != nil {
+			span.SetAttributes(buildExchangeAttributes(session.SessionData.Exchanges)...)
+		}
+
 		validateSessionData(session, debugRaw)
 		writeDebugSessionData(session, debugRaw)
 
@@ -1293,6 +1487,16 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// In only-cloud-sync mode: always sync
 		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
 
+		// Record telemetry metrics for this session (reuse counts from span attributes)
+		telemetry.RecordSessionProcessed(sessionCtx, agentName, session.SessionID)
+		telemetry.RecordExchanges(sessionCtx, agentName, session.SessionID, int64(len(session.SessionData.Exchanges)))
+		telemetry.RecordMessages(sessionCtx, agentName, session.SessionID, int64(messageCount))
+		telemetry.RecordToolUsage(sessionCtx, agentName, session.SessionID, int64(toolCount))
+		telemetry.RecordProcessingDuration(sessionCtx, agentName, session.SessionID, time.Since(processingStart))
+
+		// End the span for this session
+		span.End()
+
 		// Print progress with [n/m] format
 		if !silent {
 			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
@@ -1320,6 +1524,15 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Printf("  ✨ %s%d new %s created%s\n",
 			log.ColorGreen, stats.SessionsCreated, pluralSession(stats.SessionsCreated), log.ColorReset)
 		fmt.Println()
+	}
+
+	// Force flush telemetry before returning to ensure metrics are exported
+	// This is critical for short-lived sync commands that may exit before
+	// the periodic exporter has time to run
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer flushCancel()
+	if err := telemetry.ForceFlush(flushCtx); err != nil {
+		slog.Warn("Failed to flush telemetry", "error", err)
 	}
 
 	return sessionCount, nil
@@ -2082,15 +2295,26 @@ func main() {
 			silent = true
 		case "--no-version-check":
 			noVersionCheck = true
+		case "--no-telemetry":
+			noTelemetry = true
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {
 			outputDir = strings.TrimPrefix(arg, "--output-dir=")
 		}
+		// Handle --telemetry-endpoint=value format
+		if strings.HasPrefix(arg, "--telemetry-endpoint=") {
+			telemetryEndpoint = strings.TrimPrefix(arg, "--telemetry-endpoint=")
+		}
+		// Handle --telemetry-service-name=value format
+		if strings.HasPrefix(arg, "--telemetry-service-name=") {
+			telemetryServiceName = strings.TrimPrefix(arg, "--telemetry-service-name=")
+		}
 	}
 
 	// Load configuration early (before logging setup) so TOML settings can affect logging
 	// Priority: CLI flags > local project config > user-level config
+	// Note: OTEL_* env vars take highest priority for telemetry
 	cfg, cfgErr := config.Load(&config.CLIOverrides{
 		OutputDir:            outputDir,
 		NoVersionCheck:       noVersionCheck,
@@ -2101,6 +2325,9 @@ func main() {
 		Debug:                debug,
 		Silent:               silent,
 		NoAnalytics:          noAnalytics,
+		NoTelemetry:          noTelemetry,
+		TelemetryEndpoint:    telemetryEndpoint,
+		TelemetryServiceName: telemetryServiceName,
 	})
 	if cfgErr != nil {
 		// Use fallback empty config if load fails - will log error after logging is set up
@@ -2159,9 +2386,6 @@ func main() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 
-	slog.Debug("Console enabled", "console", console)
-	slog.Debug("Analytics enabled", "noAnalytics", noAnalytics)
-
 	// Global flags available on all commands
 	// Use current variable values as defaults so config file values are preserved
 	rootCmd.PersistentFlags().BoolVar(&console, "console", console, "enable error/warn/info output to stdout")
@@ -2172,6 +2396,11 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
+
+	// Telemetry flags
+	rootCmd.PersistentFlags().BoolVar(&noTelemetry, "no-telemetry", false, "disable OpenTelemetry tracing and metrics")
+	rootCmd.PersistentFlags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "OTLP gRPC collector endpoint (e.g., localhost:4317)")
+	rootCmd.PersistentFlags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry")
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
@@ -2213,8 +2442,6 @@ func main() {
 	loginCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = loginCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 
-
-
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
 	if !noAnalytics {
@@ -2233,6 +2460,28 @@ func main() {
 	if cfgErr != nil {
 		slog.Warn("Failed to load config file, using defaults", "error", cfgErr)
 	}
+
+	// Initialize telemetry (after logging is configured)
+	if err := telemetry.Init(context.Background(), telemetry.Options{
+		ServiceName: cfg.GetTelemetryServiceName(),
+		Endpoint:    cfg.GetTelemetryEndpoint(),
+		Enabled:     cfg.IsTelemetryEnabled(),
+	}); err != nil {
+		slog.Warn("Failed to initialize telemetry", "error", err)
+	}
+	// Separate defer for telemetry cleanup to ensure it always runs
+	defer func() {
+		// Use a timeout context to ensure telemetry shutdown completes within a reasonable time.
+		// This is important for short-lived CLI operations to ensure metrics are flushed.
+		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := telemetry.ForceFlush(flushCtx); err != nil {
+			slog.Warn("Failed to flush telemetry", "error", err)
+		}
+		if err := telemetry.Shutdown(flushCtx); err != nil {
+			slog.Warn("Failed to shutdown telemetry", "error", err)
+		}
+	}()
 
 	// Check for updates (blocking)
 	utils.CheckForUpdates(version, noVersionCheck, silent)
