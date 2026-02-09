@@ -2092,15 +2092,15 @@ func main() {
 	// Load configuration early (before logging setup) so TOML settings can affect logging
 	// Priority: CLI flags > local project config > user-level config
 	cfg, cfgErr := config.Load(&config.CLIOverrides{
-		OutputDir:            outputDir,
-		NoVersionCheck:       noVersionCheck,
-		NoCloudSync:          noCloudSync,
-		OnlyCloudSync:        onlyCloudSync,
-		Console:              console,
-		Log:                  logFile,
-		Debug:                debug,
-		Silent:               silent,
-		NoAnalytics:          noAnalytics,
+		OutputDir:      outputDir,
+		NoVersionCheck: noVersionCheck,
+		NoCloudSync:    noCloudSync,
+		OnlyCloudSync:  onlyCloudSync,
+		Console:        console,
+		Log:            logFile,
+		Debug:          debug,
+		Silent:         silent,
+		NoAnalytics:    noAnalytics,
 	})
 	if cfgErr != nil {
 		// Use fallback empty config if load fails - will log error after logging is set up
