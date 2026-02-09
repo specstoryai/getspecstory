@@ -2159,9 +2159,6 @@ func main() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 
-	slog.Debug("Console enabled", "console", console)
-	slog.Debug("Analytics enabled", "noAnalytics", noAnalytics)
-
 	// Global flags available on all commands
 	// Use current variable values as defaults so config file values are preserved
 	rootCmd.PersistentFlags().BoolVar(&console, "console", console, "enable error/warn/info output to stdout")
@@ -2212,8 +2209,6 @@ func main() {
 
 	loginCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = loginCmd.Flags().MarkHidden("cloud-url") // Hidden flag
-
-
 
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
