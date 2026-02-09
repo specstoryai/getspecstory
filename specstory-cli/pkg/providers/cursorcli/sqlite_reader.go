@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
@@ -70,66 +70,14 @@ func extractFirstUserMessage(blobRecords []BlobRecord) string {
 
 // extractSlugFromBlobs extracts a slug from the first suitable user message
 func extractSlugFromBlobs(blobRecords []BlobRecord) string {
-	// Regex to match non-alphanumeric characters
-	nonAlphaNum := regexp.MustCompile(`[^a-zA-Z0-9]+`)
-
-	for _, record := range blobRecords {
-		// Try to parse the data to check role and content
-		var data struct {
-			Role    string `json:"role"`
-			Content []struct {
-				Type string `json:"type"`
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-
-		if err := json.Unmarshal(record.Data, &data); err != nil {
-			continue // Skip if can't parse
-		}
-
-		// Check if this is a user message
-		if data.Role != "user" {
-			continue
-		}
-
-		// Check if we have content with text
-		if len(data.Content) == 0 || data.Content[0].Type != "text" {
-			continue
-		}
-
-		text := data.Content[0].Text
-
-		// Strip <user_query> tags if present
-		text = stripUserQueryTags(text)
-
-		// Skip if starts with <user_info> (may be JSON-encoded as \u003cuser_info\u003e)
-		if strings.HasPrefix(text, "<user_info>") || strings.HasPrefix(text, "\u003cuser_info\u003e") {
-			continue
-		}
-
-		// Extract first 4 words
-		words := strings.Fields(text)
-		if len(words) == 0 {
-			continue
-		}
-
-		// Take up to 4 words
-		if len(words) > 4 {
-			words = words[:4]
-		}
-
-		// Join words and convert to slug format
-		slug := strings.Join(words, " ")
-		slug = strings.ToLower(slug)
-		slug = nonAlphaNum.ReplaceAllString(slug, "-")
-		slug = strings.Trim(slug, "-") // Remove leading/trailing hyphens
-
-		slog.Debug("Extracted slug from user message", "slug", slug, "rowid", record.RowID)
-		return slug
+	text := extractFirstUserMessage(blobRecords)
+	if text == "" {
+		slog.Debug("No suitable user message found for slug extraction")
+		return ""
 	}
-
-	slog.Debug("No suitable user message found for slug extraction")
-	return ""
+	slug := spi.GenerateFilenameFromUserMessage(text)
+	slog.Debug("Extracted slug from user message", "slug", slug)
+	return slug
 }
 
 // validateCursorDatabase validates that the SQLite database has the expected Cursor schema.

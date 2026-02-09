@@ -132,6 +132,9 @@ func TestExtractSlugFromBlobs(t *testing.T) {
 			expected: "",
 		},
 		{
+			// spi.GenerateFilenameFromUserMessage converts @ to "at" and # to "hash"
+			// so "Create a @component with #hashtag!" becomes words: create, a, at, component, with, hash, hashtag
+			// and takes first 4: create-a-at-component
 			name: "User message with special characters",
 			blobs: []BlobRecord{
 				{
@@ -147,7 +150,7 @@ func TestExtractSlugFromBlobs(t *testing.T) {
 					}`),
 				},
 			},
-			expected: "create-a-component-with",
+			expected: "create-a-at-component",
 		},
 		{
 			name:     "Empty blob list",
