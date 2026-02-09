@@ -21,6 +21,7 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -2088,6 +2089,38 @@ func main() {
 		}
 	}
 
+	// Load configuration early (before logging setup) so TOML settings can affect logging
+	// Priority: CLI flags > local project config > user-level config
+	cfg, cfgErr := config.Load(&config.CLIOverrides{
+		OutputDir:            outputDir,
+		NoVersionCheck:       noVersionCheck,
+		NoCloudSync:          noCloudSync,
+		OnlyCloudSync:        onlyCloudSync,
+		Console:              console,
+		Log:                  logFile,
+		Debug:                debug,
+		Silent:               silent,
+		NoAnalytics:          noAnalytics,
+	})
+	if cfgErr != nil {
+		// Use fallback empty config if load fails - will log error after logging is set up
+		cfg = &config.Config{}
+	}
+
+	// Apply config values to flag variables so the rest of the code can use them unchanged.
+	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).
+	if cfg.GetOutputDir() != "" {
+		outputDir = cfg.GetOutputDir()
+	}
+	noVersionCheck = !cfg.IsVersionCheckEnabled()
+	noCloudSync = !cfg.IsCloudSyncEnabled()
+	onlyCloudSync = !cfg.IsLocalSyncEnabled()
+	noAnalytics = !cfg.IsAnalyticsEnabled()
+	console = cfg.IsConsoleEnabled()
+	logFile = cfg.IsLogEnabled()
+	debug = cfg.IsDebugEnabled()
+	silent = cfg.IsSilentEnabled()
+
 	// Set up logging early before creating commands (which access the registry)
 	if console || logFile {
 		var logPath string
@@ -2126,21 +2159,25 @@ func main() {
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
 
+	slog.Debug("Console enabled", "console", console)
+	slog.Debug("Analytics enabled", "noAnalytics", noAnalytics)
+
 	// Global flags available on all commands
-	rootCmd.PersistentFlags().BoolVar(&console, "console", false, "enable error/warn/info output to stdout")
-	rootCmd.PersistentFlags().BoolVar(&logFile, "log", false, "write error/warn/info output to ./.specstory/debug/debug.log")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug-level output (requires --console or --log)")
-	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", false, "disable usage analytics")
-	rootCmd.PersistentFlags().BoolVar(&silent, "silent", false, "suppress all non-error output")
-	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", false, "skip checking for newer versions")
+	// Use current variable values as defaults so config file values are preserved
+	rootCmd.PersistentFlags().BoolVar(&console, "console", console, "enable error/warn/info output to stdout")
+	rootCmd.PersistentFlags().BoolVar(&logFile, "log", logFile, "write error/warn/info output to ./.specstory/debug/debug.log")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", debug, "enable debug-level output (requires --console or --log)")
+	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", noAnalytics, "disable usage analytics")
+	rootCmd.PersistentFlags().BoolVar(&silent, "silent", silent, "suppress all non-error output")
+	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -2150,8 +2187,8 @@ func main() {
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
 	runCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -2159,8 +2196,8 @@ func main() {
 	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -2176,6 +2213,8 @@ func main() {
 	loginCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = loginCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 
+
+
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
 	if !noAnalytics {
@@ -2188,6 +2227,11 @@ func main() {
 		defer func() { _ = analytics.Close() }() // Analytics errors shouldn't break the app
 	} else {
 		slog.Debug("Analytics disabled by --no-usage-analytics flag")
+	}
+
+	// Log config load error after logging is set up
+	if cfgErr != nil {
+		slog.Warn("Failed to load config file, using defaults", "error", cfgErr)
 	}
 
 	// Check for updates (blocking)
