@@ -40,6 +40,8 @@ var outputDir string    // custom output directory for markdown and debug files
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+var collectStats bool  // flag to enable statistics collection
+var noLocalSave bool   // flag to skip writing markdown files to disk
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
 var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
@@ -88,6 +90,9 @@ func validateFlags() error {
 	}
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use --only-cloud-sync and --no-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if noLocalSave && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --no-local-save and --only-cloud-sync together"}
 	}
 	return nil
 }
@@ -492,7 +497,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
+				err := processSingleSession(session, provider, providerID, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -647,7 +652,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				provider := providers[id]
 
 				// Launch a goroutine for each provider
-				go func(p spi.Provider) {
+				go func(p spi.Provider, pID string) {
 					slog.Info("Starting agent monitoring", "provider", p.Name())
 
 					// Create session callback for this provider
@@ -659,7 +664,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						// Process the session (write markdown and sync to cloud)
 						// Don't show output during watch mode
 						// This is autosave mode (true)
-						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
+						err := processSingleSession(session, p, pID, config, false, true, debugRaw, useUTC)
 						if err != nil {
 							// Log error but continue - don't fail the whole watch
 							// In watch mode, we prioritize keeping the watcher running.
@@ -685,7 +690,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 					} else {
 						errChan <- nil
 					}
-				}(provider)
+				}(provider, id)
 			}
 
 			// Wait for all watchers to complete (or error)
@@ -829,6 +834,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 	// Resolve provider once if specified (fail fast if provider not found)
 	var specifiedProvider spi.Provider
+	var specifiedProviderID string
 	if len(args) > 0 {
 		providerID := args[0]
 		provider, err := registry.Get(providerID)
@@ -837,6 +843,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			return err
 		}
 		specifiedProvider = provider
+		specifiedProviderID = providerID
 	}
 
 	// Process each session ID
@@ -863,7 +870,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 			// Process the session (show output for sync command)
 			// This is manual sync mode (false)
-			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+			if err := processSingleSession(session, specifiedProvider, specifiedProviderID, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -893,7 +900,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
 				}
 				// This is manual sync mode (false)
-				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
+				if err := processSingleSession(session, provider, id, config, true, false, debugRaw, useUTC); err != nil {
 					errorCount++
 					lastError = err
 				} else {
@@ -971,11 +978,29 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 	return t.Local().Format("2006-01-02_15-04-05-0700")
 }
 
+// collectSessionStatistics computes and saves session statistics
+func collectSessionStatistics(session *spi.AgentChatSession, markdownContent string, providerID string, config utils.OutputConfig) error {
+	stats := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+
+	specstoryDir := getSpecStoryDir(config)
+	collector := utils.NewStatisticsCollector(specstoryDir)
+	return collector.AddSessionStats(session.SessionID, stats)
+}
+
+// getSpecStoryDir determines the .specstory directory path from config
+func getSpecStoryDir(config utils.OutputConfig) string {
+	historyDir := config.GetHistoryDir()
+	if filepath.Base(historyDir) == "history" {
+		return filepath.Dir(historyDir) // Default: go up from .specstory/history to .specstory
+	}
+	return historyDir // Custom output dir: the history dir IS the base
+}
+
 // processSingleSession writes markdown and triggers cloud sync for a single session
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
 // useUTC controls timestamp format (true=UTC, false=local)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
+func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, providerID string, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
@@ -984,6 +1009,14 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return fmt.Errorf("failed to generate markdown: %w", err)
+	}
+
+	// Collect statistics if enabled
+	if collectStats {
+		if err := collectSessionStatistics(session, markdownContent, providerID, config); err != nil {
+			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+			// Don't fail the operation, just log warning
+		}
 	}
 
 	// Generate filename from timestamp and slug
@@ -1014,8 +1047,8 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 		}
 	}
 
-	// Write file if needed (skip if only-cloud-sync is enabled)
-	if !onlyCloudSync {
+	// Write file if needed (skip if only-cloud-sync or no-local-save is enabled)
+	if !onlyCloudSync && !noLocalSave {
 		if !identicalContent {
 			// Ensure history directory exists (handles deletion during long-running watch/run)
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1210,6 +1243,14 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			continue
 		}
 
+		// Collect statistics if enabled
+		if collectStats {
+			if err := collectSessionStatistics(session, markdownContent, providerID, config); err != nil {
+				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+				// Don't fail the operation, just log warning
+			}
+		}
+
 		// Generate filename from timestamp and slug
 		timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
 		timestampStr := formatFilenameTimestamp(timestamp, useUTC)
@@ -1233,8 +1274,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			}
 		}
 
-		// Write file if needed (skip if only-cloud-sync is enabled)
-		if !onlyCloudSync {
+		// Write file if needed (skip if only-cloud-sync or no-local-save is enabled)
+		if !onlyCloudSync && !noLocalSave {
 			if !identicalContent {
 				// Ensure history directory exists (handles deletion during long-running sync)
 				if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1281,10 +1322,13 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 				stats.SessionsCreated++
 			}
 		} else {
-			// In cloud-only mode, count as skipped since no local file operation occurred
+			// In cloud-only or no-local-save mode, count as skipped since no local file operation occurred
 			stats.SessionsSkipped++
-			slog.Info("Skipping local file write (only-cloud-sync mode)",
-				"sessionId", session.SessionID)
+			if onlyCloudSync {
+				slog.Info("Skipping local file write (only-cloud-sync mode)", "sessionId", session.SessionID)
+			} else if noLocalSave {
+				slog.Info("Skipping local file write (no-local-save mode)", "sessionId", session.SessionID)
+			}
 		}
 
 		// Trigger cloud sync with provider-specific data
@@ -1319,6 +1363,13 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Printf("  ✨ %s%d new %s created%s\n",
 			log.ColorGreen, stats.SessionsCreated, pluralSession(stats.SessionsCreated), log.ColorReset)
 		fmt.Println()
+	}
+
+	// Show statistics collection message
+	if collectStats && sessionCount > 0 && !silent {
+		specstoryDir := getSpecStoryDir(config)
+		statsPath := filepath.Join(specstoryDir, "statistics.json")
+		fmt.Printf("📊 Statistics collected: %s\n", statsPath)
 	}
 
 	return sessionCount, nil
@@ -2141,6 +2192,8 @@ func main() {
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	syncCmd.Flags().BoolVar(&collectStats, "stats", false, "collect session statistics and save to .specstory/statistics.json")
+	syncCmd.Flags().BoolVar(&noLocalSave, "no-local-save", false, "skip writing markdown files to disk (can be combined with --stats)")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
