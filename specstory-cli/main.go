@@ -1592,12 +1592,9 @@ Provide a specific agent ID to list sessions from only that provider.`
 
 			// Check if user specified a provider
 			if len(args) > 0 {
-				// List specific provider
 				return listSingleProvider(registry, args[0])
-			} else {
-				// List all providers with activity
-				return listAllProviders(registry)
 			}
+			return listAllProviders(registry)
 		},
 	}
 }

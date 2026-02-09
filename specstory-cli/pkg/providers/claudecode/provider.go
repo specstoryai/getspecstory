@@ -596,100 +596,69 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 	var firstUserMessage string
 	foundRealMessage := false
 
-	// Read records until we find a non-warmup message
+	// Read records until we find everything we need.
+	// Why: ReadString can return data AND io.EOF on the last line (no trailing newline),
+	// so we always process the line first, then check for EOF once at the bottom.
 	lineNum := 0
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("failed to read line: %w", err)
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && readErr != io.EOF {
+			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
 		lineNum++
 		line = strings.TrimSpace(line)
 
-		// Skip empty lines
-		if line == "" {
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
+		if line != "" {
+			// Parse JSON record
+			var record map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
+				slog.Warn("Skipping malformed JSONL line",
+					"file", filepath.Base(filePath),
+					"line", lineNum,
+					"error", jsonErr)
+			} else {
+				// Extract session ID (from any record)
+				if sessionID == "" {
+					if sid, ok := record["sessionId"].(string); ok {
+						sessionID = sid
+					}
+				}
 
-		// Parse JSON record
-		var record map[string]interface{}
-		if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
-			slog.Warn("Skipping malformed JSONL line",
-				"file", filepath.Base(filePath),
-				"line", lineNum,
-				"error", jsonErr)
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
+				// Only process non-sidechain, non-system records for message extraction
+				isSidechain, _ := record["isSidechain"].(bool)
+				recordType, hasType := record["type"].(string)
+				isSystemRecord := hasType && (recordType == "file-history-snapshot" || recordType == "file-change")
 
-		// Extract session ID (from any record)
-		if sessionID == "" {
-			if sid, ok := record["sessionId"].(string); ok {
-				sessionID = sid
-			}
-		}
+				if !isSidechain && !isSystemRecord {
+					// This is the first real message record - extract timestamp
+					if !foundRealMessage {
+						foundRealMessage = true
+						if ts, ok := record["timestamp"].(string); ok {
+							timestamp = ts
+						}
+					}
 
-		// Check if this is a sidechain (warmup) message
-		isSidechain := false
-		if val, ok := record["isSidechain"].(bool); ok && val {
-			isSidechain = true
-		}
-
-		// Skip sidechain messages
-		if isSidechain {
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		// Get record type
-		recordType, hasType := record["type"].(string)
-
-		// Skip non-message records (like file-history-snapshot) that don't have timestamps
-		if hasType && (recordType == "file-history-snapshot" || recordType == "file-change") {
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		// This is the first real message record - extract timestamp
-		if !foundRealMessage {
-			foundRealMessage = true
-			if ts, ok := record["timestamp"].(string); ok {
-				timestamp = ts
-			}
-
-		}
-
-		// Extract first user message for slug (if this is a user message)
-		if firstUserMessage == "" && hasType && recordType == "user" {
-			// Skip meta user messages
-			if isMeta, ok := record["isMeta"].(bool); ok && isMeta {
-				// Continue looking for non-meta user message
-			} else if message, ok := record["message"].(map[string]interface{}); ok {
-				if content, ok := message["content"].(string); ok && content != "" {
-					// Skip messages containing "warmup"
-					if !strings.Contains(strings.ToLower(content), "warmup") {
-						firstUserMessage = content
+					// Extract first user message for slug (if this is a user message)
+					if firstUserMessage == "" && hasType && recordType == "user" {
+						isMeta, _ := record["isMeta"].(bool)
+						if !isMeta {
+							if message, ok := record["message"].(map[string]interface{}); ok {
+								if content, ok := message["content"].(string); ok && content != "" {
+									// Skip messages containing "warmup"
+									if !strings.Contains(strings.ToLower(content), "warmup") {
+										firstUserMessage = content
+									}
+								}
+							}
+						}
 					}
 				}
 			}
 		}
 
-		// Break if we've found everything we need
-		if sessionID != "" && timestamp != "" && firstUserMessage != "" {
-			break
-		}
-
-		if err == io.EOF {
+		// Single exit: found everything we need, or reached end of file
+		if (sessionID != "" && timestamp != "" && firstUserMessage != "") || readErr == io.EOF {
 			break
 		}
 	}

@@ -1,5 +1,10 @@
 # Specstory CLI Changelog
 
+## v1.6.0 2026-02-08
+
+### ⚙️ Improvements
+
+- New `specstory list` command to list all sessions for all supported providers for the current directory. Can also be used to list sessions for a specific provider, e.g. `specstory list claude`.
 
 ## v1.5.0 2026-01-31
 
