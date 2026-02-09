@@ -540,7 +540,10 @@ specstory watch`
 	examples += `
 
 # Watch with custom output directory
-specstory watch --output-dir ~/my-sessions`
+specstory watch --output-dir ~/my-sessions
+
+# Sync all existing sessions first, then watch for new activity
+specstory watch --sync-first`
 
 	longDesc := `Watch for coding agent activity in the current directory and auto-save markdown files.
 
@@ -567,6 +570,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			// Get debug-raw flag value
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 			useUTC := getUseUTC(cmd)
+			syncFirst, _ := cmd.Flags().GetBool("sync-first")
 
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir)
@@ -624,6 +628,45 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 
 			// Track watch command activation
 			analytics.TrackEvent(analytics.EventWatchActivated, nil)
+
+			// Sync existing sessions first if --sync-first flag is set
+			if syncFirst {
+				if !silent {
+					fmt.Println("🔄 Syncing existing sessions before starting watch...")
+					fmt.Println()
+				}
+				slog.Info("Syncing existing sessions before starting watch", "syncFirst", true)
+
+				// Determine which sync function to call based on arguments
+				if len(args) > 0 {
+					// Sync single provider
+					providerID := args[0]
+					if err := syncSingleProvider(registry, providerID, cmd); err != nil {
+						// Log error but continue to watch - sync is optional
+						slog.Warn("Failed to sync existing sessions, continuing with watch", "error", err)
+						if !silent {
+							log.UserWarn("Failed to sync existing sessions: %v\n", err)
+							fmt.Println()
+						}
+					}
+				} else {
+					// Sync all providers
+					if err := syncAllProviders(registry, cmd); err != nil {
+						// Log error but continue to watch - sync is optional
+						slog.Warn("Failed to sync existing sessions, continuing with watch", "error", err)
+						if !silent {
+							log.UserWarn("Failed to sync existing sessions: %v\n", err)
+							fmt.Println()
+						}
+					}
+				}
+
+				if !silent {
+					fmt.Println("✅ Initial sync complete, starting watch mode...")
+					fmt.Println()
+				}
+				slog.Info("Initial sync complete, starting watch mode")
+			}
 
 			// Create context for graceful cancellation (Ctrl+C handling)
 			// This allows providers to clean up resources when user presses Ctrl+C
@@ -2166,6 +2209,7 @@ func main() {
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+	watchCmd.Flags().Bool("sync-first", false, "sync all existing sessions before starting watch mode")
 
 	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 
