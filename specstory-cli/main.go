@@ -40,8 +40,7 @@ var outputDir string    // custom output directory for markdown and debug files
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
-var collectStats bool  // flag to enable statistics collection
-var noLocalSave bool   // flag to skip writing markdown files to disk
+var onlyStats bool     // flag to only collect statistics, skip local markdown and cloud sync
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
 var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
@@ -91,8 +90,11 @@ func validateFlags() error {
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use --only-cloud-sync and --no-cloud-sync together. These flags are mutually exclusive"}
 	}
-	if noLocalSave && onlyCloudSync {
-		return utils.ValidationError{Message: "cannot use --no-local-save and --only-cloud-sync together"}
+	if onlyStats && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if onlyStats && noCloudSync {
+		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
 	}
 	return nil
 }
@@ -1011,12 +1013,10 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 		return fmt.Errorf("failed to generate markdown: %w", err)
 	}
 
-	// Collect statistics if enabled
-	if collectStats {
-		if err := collectSessionStatistics(session, markdownContent, providerID, config); err != nil {
-			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
-			// Don't fail the operation, just log warning
-		}
+	// Collect statistics (always enabled)
+	if err := collectSessionStatistics(session, markdownContent, providerID, config); err != nil {
+		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+		// Don't fail the operation, just log warning
 	}
 
 	// Generate filename from timestamp and slug
@@ -1047,8 +1047,8 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 		}
 	}
 
-	// Write file if needed (skip if only-cloud-sync or no-local-save is enabled)
-	if !onlyCloudSync && !noLocalSave {
+	// Write file if needed (skip if only-cloud-sync or only-stats is enabled)
+	if !onlyCloudSync && !onlyStats {
 		if !identicalContent {
 			// Ensure history directory exists (handles deletion during long-running watch/run)
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1118,17 +1118,24 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 			outcome = "created"
 		}
 	} else {
-		// Only cloud sync mode - no local file operations
-		outcome = "synced to cloud only"
-		slog.Info("Skipping local file write (only-cloud-sync mode)",
-			"sessionId", session.SessionID)
+		// Only cloud sync or only stats mode - no local file operations
+		if onlyCloudSync {
+			outcome = "synced to cloud only"
+			slog.Info("Skipping local file write (only-cloud-sync mode)", "sessionId", session.SessionID)
+		} else if onlyStats {
+			outcome = "statistics collected"
+			slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
+		}
 	}
 
 	// Trigger cloud sync with provider-specific data
+	// Skip cloud sync if: only-stats mode OR noCloudSync is enabled
 	// In only-cloud-sync mode: always sync (no file to check for identical content)
 	// In normal mode: skip sync only if identical content AND in autosave mode
-	if onlyCloudSync || !identicalContent || !isAutosave {
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), isAutosave)
+	if !onlyStats && !noCloudSync {
+		if onlyCloudSync || !identicalContent || !isAutosave {
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), isAutosave)
+		}
 	}
 
 	if showOutput && !silent {
@@ -1243,12 +1250,10 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			continue
 		}
 
-		// Collect statistics if enabled
-		if collectStats {
-			if err := collectSessionStatistics(session, markdownContent, providerID, config); err != nil {
-				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
-				// Don't fail the operation, just log warning
-			}
+		// Collect statistics (always enabled)
+		if err := collectSessionStatistics(session, markdownContent, providerID, config); err != nil {
+			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+			// Don't fail the operation, just log warning
 		}
 
 		// Generate filename from timestamp and slug
@@ -1274,8 +1279,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			}
 		}
 
-		// Write file if needed (skip if only-cloud-sync or no-local-save is enabled)
-		if !onlyCloudSync && !noLocalSave {
+		// Write file if needed (skip if only-cloud-sync or only-stats is enabled)
+		if !onlyCloudSync && !onlyStats {
 			if !identicalContent {
 				// Ensure history directory exists (handles deletion during long-running sync)
 				if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1322,19 +1327,22 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 				stats.SessionsCreated++
 			}
 		} else {
-			// In cloud-only or no-local-save mode, count as skipped since no local file operation occurred
+			// In cloud-only or only-stats mode, count as skipped since no local file operation occurred
 			stats.SessionsSkipped++
 			if onlyCloudSync {
 				slog.Info("Skipping local file write (only-cloud-sync mode)", "sessionId", session.SessionID)
-			} else if noLocalSave {
-				slog.Info("Skipping local file write (no-local-save mode)", "sessionId", session.SessionID)
+			} else if onlyStats {
+				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
 			}
 		}
 
 		// Trigger cloud sync with provider-specific data
+		// Skip cloud sync if: only-stats mode OR noCloudSync is enabled
 		// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
 		// In only-cloud-sync mode: always sync
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
+		if !onlyStats && !noCloudSync {
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
+		}
 
 		// Print progress with [n/m] format
 		if !silent {
@@ -1365,11 +1373,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Println()
 	}
 
-	// Show statistics collection message
-	if collectStats && sessionCount > 0 && !silent {
+	// Show statistics collection message (always collected)
+	if sessionCount > 0 && !silent {
 		specstoryDir := getSpecStoryDir(config)
 		statsPath := filepath.Join(specstoryDir, "statistics.json")
-		fmt.Printf("📊 Statistics collected: %s\n", statsPath)
+		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
 	}
 
 	return sessionCount, nil
@@ -2192,8 +2200,7 @@ func main() {
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
-	syncCmd.Flags().BoolVar(&collectStats, "stats", false, "collect session statistics and save to .specstory/statistics.json")
-	syncCmd.Flags().BoolVar(&noLocalSave, "no-local-save", false, "skip writing markdown files to disk (can be combined with --stats)")
+	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", false, "only collect statistics, skip local markdown files and cloud sync")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
