@@ -493,7 +493,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
+				_, err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -657,10 +657,21 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 							return
 						}
 
+						// Check if markdown file already exists to determine if this is an update or creation
+						timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
+						timestampStr := formatFilenameTimestamp(timestamp, useUTC)
+						filename := timestampStr
+						if session.Slug != "" {
+							filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
+						}
+						fileFullPath := filepath.Join(config.GetHistoryDir(), filename+".md")
+						_, fileExistsErr := os.Stat(fileFullPath)
+						fileExists := fileExistsErr == nil
+
 						// Process the session (write markdown and sync to cloud)
 						// Don't show output during watch mode
 						// This is autosave mode (true)
-						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
+						markdownSize, err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
 						if err != nil {
 							// Log error but continue - don't fail the whole watch
 							// In watch mode, we prioritize keeping the watcher running.
@@ -670,6 +681,58 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 								"sessionId", session.SessionID,
 								"provider", p.Name(),
 								"error", err)
+							return
+						}
+
+						// Output formatted line to stdout for watch mode
+						if !silent {
+							// Determine if this was an update or creation
+							action := "updated"
+							if !fileExists {
+								action = "created"
+							}
+
+							// Get timestamps from session data
+							startTime := session.CreatedAt
+							endTime := ""
+							if session.SessionData != nil && session.SessionData.UpdatedAt != "" {
+								endTime = session.SessionData.UpdatedAt
+							} else {
+								endTime = startTime // Fallback to start time if no update time
+							}
+
+							// Get provider ID from registry
+							providerID := ""
+							registry := factory.GetRegistry()
+							for _, id := range registry.ListIDs() {
+								if prov, _ := registry.Get(id); prov == p {
+									providerID = id
+									break
+								}
+							}
+
+							// Count user prompts/messages
+							userPrompts := 0
+							if session.SessionData != nil {
+								for _, exchange := range session.SessionData.Exchanges {
+									for _, msg := range exchange.Messages {
+										if msg.Role == "user" {
+											userPrompts++
+										}
+									}
+								}
+							}
+
+							// Output the formatted line
+							fmt.Printf("(%s) Session %s (%s): start time %s, end time %s, provider %s, markdown size %d, total user prompts %d\n",
+								time.Now().Format(time.RFC3339),
+								action,
+								session.SessionID,
+								startTime,
+								endTime,
+								providerID,
+								markdownSize,
+								userPrompts)
 						}
 					}
 
@@ -864,7 +927,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 			// Process the session (show output for sync command)
 			// This is manual sync mode (false)
-			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+			if _, err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -894,7 +957,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
 				}
 				// This is manual sync mode (false)
-				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
+				if _, err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
 					errorCount++
 					lastError = err
 				} else {
@@ -976,7 +1039,8 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
 // useUTC controls timestamp format (true=UTC, false=local)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
+// Returns the size of the markdown content in bytes
+func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) (int, error) {
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
@@ -984,8 +1048,11 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
-		return fmt.Errorf("failed to generate markdown: %w", err)
+		return 0, fmt.Errorf("failed to generate markdown: %w", err)
 	}
+
+	// Calculate markdown size in bytes
+	markdownSize := len(markdownContent)
 
 	// Generate filename from timestamp and slug
 	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
@@ -1020,7 +1087,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 		if !identicalContent {
 			// Ensure history directory exists (handles deletion during long-running watch/run)
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-				return fmt.Errorf("failed to ensure history directory: %w", err)
+				return 0, fmt.Errorf("failed to ensure history directory: %w", err)
 			}
 			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 			if err != nil {
@@ -1038,7 +1105,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 						"only_cloud_sync": onlyCloudSync,
 					})
 				}
-				return fmt.Errorf("error writing markdown file: %w", err)
+				return 0, fmt.Errorf("error writing markdown file: %w", err)
 			}
 
 			// Track successful write
@@ -1104,7 +1171,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 		fmt.Println() // Visual separation
 	}
 
-	return nil
+	return markdownSize, nil
 }
 
 // preloadBulkSessionSizesIfNeeded optimizes bulk syncs by fetching all session sizes upfront.
