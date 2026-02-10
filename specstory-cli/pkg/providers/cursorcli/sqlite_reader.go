@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
@@ -22,11 +22,9 @@ type BlobRecord struct {
 	Data  json.RawMessage `json:"data"` // Keep as raw JSON to preserve structure
 }
 
-// extractSlugFromBlobs extracts a slug from the first suitable user message
-func extractSlugFromBlobs(blobRecords []BlobRecord) string {
-	// Regex to match non-alphanumeric characters
-	nonAlphaNum := regexp.MustCompile(`[^a-zA-Z0-9]+`)
-
+// extractFirstUserMessage extracts the full text of the first suitable user message
+// Returns empty string if no suitable message is found
+func extractFirstUserMessage(blobRecords []BlobRecord) string {
 	for _, record := range blobRecords {
 		// Try to parse the data to check role and content
 		var data struct {
@@ -61,29 +59,25 @@ func extractSlugFromBlobs(blobRecords []BlobRecord) string {
 			continue
 		}
 
-		// Extract first 4 words
-		words := strings.Fields(text)
-		if len(words) == 0 {
-			continue
+		// Return the full text
+		if strings.TrimSpace(text) != "" {
+			return text
 		}
-
-		// Take up to 4 words
-		if len(words) > 4 {
-			words = words[:4]
-		}
-
-		// Join words and convert to slug format
-		slug := strings.Join(words, " ")
-		slug = strings.ToLower(slug)
-		slug = nonAlphaNum.ReplaceAllString(slug, "-")
-		slug = strings.Trim(slug, "-") // Remove leading/trailing hyphens
-
-		slog.Debug("Extracted slug from user message", "slug", slug, "rowid", record.RowID)
-		return slug
 	}
 
-	slog.Debug("No suitable user message found for slug extraction")
 	return ""
+}
+
+// extractSlugFromBlobs extracts a slug from the first suitable user message
+func extractSlugFromBlobs(blobRecords []BlobRecord) string {
+	text := extractFirstUserMessage(blobRecords)
+	if text == "" {
+		slog.Debug("No suitable user message found for slug extraction")
+		return ""
+	}
+	slug := spi.GenerateFilenameFromUserMessage(text)
+	slog.Debug("Extracted slug from user message", "slug", slug)
+	return slug
 }
 
 // validateCursorDatabase validates that the SQLite database has the expected Cursor schema.

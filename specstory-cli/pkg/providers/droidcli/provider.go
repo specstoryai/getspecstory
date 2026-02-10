@@ -518,3 +518,91 @@ func writeFactoryDebugRaw(session *fdSession) error {
 
 	return nil
 }
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	files, err := listSessionFiles()
+	if err != nil {
+		return nil, err
+	}
+
+	normalizedProject := strings.TrimSpace(projectPath)
+
+	// Filter files to those matching the project
+	var matchingFiles []sessionFile
+	for _, file := range files {
+		if normalizedProject != "" && !sessionMentionsProject(file.Path, normalizedProject) {
+			continue
+		}
+		matchingFiles = append(matchingFiles, file)
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(matchingFiles))
+	for _, file := range matchingFiles {
+		metadata, err := extractDroidSessionMetadata(file.Path)
+		if err != nil {
+			slog.Debug("Failed to extract session metadata",
+				"path", file.Path,
+				"error", err)
+			continue
+		}
+
+		// Skip empty sessions
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "path", file.Path)
+			continue
+		}
+
+		result = append(result, *metadata)
+	}
+
+	return result, nil
+}
+
+// extractDroidSessionMetadata extracts lightweight metadata from a Droid session file
+// Returns nil if the session is empty or has no blocks
+func extractDroidSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
+	session, err := parseFactorySession(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Skip sessions with no blocks
+	if session == nil || len(session.Blocks) == 0 {
+		return nil, nil
+	}
+
+	// Generate name from title or first user message
+	name := generateDroidSessionName(session)
+
+	return &spi.SessionMetadata{
+		SessionID: session.ID,
+		CreatedAt: session.CreatedAt,
+		Slug:      session.Slug,
+		Name:      name,
+	}, nil
+}
+
+// generateDroidSessionName generates a human-readable name for a Droid session
+// Prefers the Title field if available, otherwise uses the first user message
+func generateDroidSessionName(session *fdSession) string {
+	// Use title if available (already human-readable)
+	if title := strings.TrimSpace(session.Title); title != "" {
+		// Apply the same length limit as other providers for consistency
+		return spi.GenerateReadableName(title)
+	}
+
+	// Fall back to first user message
+	for _, block := range session.Blocks {
+		if block.Role == "user" {
+			text := strings.TrimSpace(block.Text)
+			if text != "" {
+				return spi.GenerateReadableName(text)
+			}
+		}
+	}
+
+	// No suitable content found
+	return ""
+}

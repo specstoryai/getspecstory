@@ -76,6 +76,33 @@ func GenerateFilenameFromUserMessage(message string) string {
 	return generateFilenameFromWords(words)
 }
 
+// GenerateReadableName creates a human-readable session name from a user message
+// The name is truncated to 100 characters at a word boundary and cleaned of excess whitespace
+func GenerateReadableName(message string) string {
+	if message == "" {
+		return ""
+	}
+
+	// Normalize whitespace: replace newlines and multiple spaces with single space
+	name := strings.Join(strings.Fields(message), " ")
+
+	// Truncate to reasonable length (100 chars) at word boundary
+	maxLength := 100
+	if len(name) <= maxLength {
+		return name
+	}
+
+	// Find last space before maxLength to avoid breaking words
+	truncated := name[:maxLength]
+	lastSpace := strings.LastIndex(truncated, " ")
+	if lastSpace > 0 {
+		truncated = truncated[:lastSpace]
+	}
+
+	// Add ellipsis to indicate truncation
+	return truncated + "..."
+}
+
 // appendRemainingParts appends the remaining path components from parts[startIdx:] to the
 // result path, skipping any empty components. This is used when we can't canonicalize the
 // rest of the path (e.g., directory doesn't exist or can't be read).
