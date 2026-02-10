@@ -27,6 +27,7 @@ const (
 	EventLoginFailed            = "ext_login_failed"             // Tracks failed login attempts
 	EventLogout                 = "ext_logout"                   // Tracks user logout from SpecStory Cloud
 	EventCloudSyncComplete      = "ext_cloudsync_complete"       // Tracks cloud sync completion with statistics
+	EventListSessions           = "ext_list_sessions"            // Tracks when users list sessions with the list command
 )
 
 // Properties is a type alias for event properties to avoid exposing PostHog types
@@ -74,7 +75,7 @@ func TrackEvent(eventName string, properties Properties) {
 		DistinctId:       distinctID,
 		Event:            eventName,
 		Properties:       phProperties,
-		SendFeatureFlags: false,
+		SendFeatureFlags: posthog.SendFeatureFlags(false),
 	})
 
 	if err != nil {
