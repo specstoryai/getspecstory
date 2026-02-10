@@ -986,13 +986,16 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 // buildExchangeAttributes builds a slice of OTel attributes for all exchanges,
 // using dot-notation keys for flattening (e.g., specstory.exchanges.<id>.prompt_text).
 func buildExchangeAttributes(exchanges []schema.Exchange) []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, len(exchanges)*8)
+	attrs := make([]attribute.KeyValue, 0, len(exchanges)*12)
 
 	for i, exchange := range exchanges {
 		prefix := fmt.Sprintf("specstory.exchanges.%s", exchange.ExchangeID)
 
 		// Extract tool usage information
 		toolNames, toolTypes, toolCount := extractToolInfo(exchange)
+
+		// Extract token usage for this exchange
+		tokenUsage := countExchangeTokens(exchange)
 
 		attrs = append(attrs,
 			attribute.String(prefix+".prompt_text", extractUserPromptText(exchange)),
@@ -1003,6 +1006,11 @@ func buildExchangeAttributes(exchanges []schema.Exchange) []attribute.KeyValue {
 			attribute.String(prefix+".tools_used", toolNames),
 			attribute.String(prefix+".tool_types", toolTypes),
 			attribute.Int(prefix+".tool_count", toolCount),
+			// Token usage attributes
+			attribute.Int(prefix+".input_tokens", tokenUsage.InputTokens),
+			attribute.Int(prefix+".output_tokens", tokenUsage.OutputTokens),
+			attribute.Int(prefix+".cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
+			attribute.Int(prefix+".cache_read_tokens", tokenUsage.CacheReadInputTokens),
 		)
 	}
 
@@ -1061,6 +1069,41 @@ func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCoun
 	return toolCount, len(typeSet)
 }
 
+// TokenUsage holds aggregated token counts
+type TokenUsage struct {
+	InputTokens              int
+	OutputTokens             int
+	CacheCreationInputTokens int
+	CacheReadInputTokens     int
+}
+
+// countExchangeTokens aggregates token usage for a single exchange.
+func countExchangeTokens(exchange schema.Exchange) TokenUsage {
+	var usage TokenUsage
+	for _, msg := range exchange.Messages {
+		if msg.Usage != nil {
+			usage.InputTokens += msg.Usage.InputTokens
+			usage.OutputTokens += msg.Usage.OutputTokens
+			usage.CacheCreationInputTokens += msg.Usage.CacheCreationInputTokens
+			usage.CacheReadInputTokens += msg.Usage.CacheReadInputTokens
+		}
+	}
+	return usage
+}
+
+// countSessionTokens aggregates token usage across all exchanges in a session.
+func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
+	var total TokenUsage
+	for _, exchange := range exchanges {
+		exchangeUsage := countExchangeTokens(exchange)
+		total.InputTokens += exchangeUsage.InputTokens
+		total.OutputTokens += exchangeUsage.OutputTokens
+		total.CacheCreationInputTokens += exchangeUsage.CacheCreationInputTokens
+		total.CacheReadInputTokens += exchangeUsage.CacheReadInputTokens
+	}
+	return total
+}
+
 // extractUserPromptText finds the first user message in an exchange and returns its text content.
 func extractUserPromptText(exchange schema.Exchange) string {
 	for _, msg := range exchange.Messages {
@@ -1109,6 +1152,7 @@ func processSingleSession(ctx context.Context, session *spi.AgentChatSession, pr
 	// Compute session-level counts from exchanges
 	messageCount := countSessionMessages(session.SessionData.Exchanges)
 	toolCount, toolTypeCount := countSessionTools(session.SessionData.Exchanges)
+	tokenUsage := countSessionTokens(session.SessionData.Exchanges)
 
 	// Record metrics (no-op when telemetry is disabled)
 	defer func() {
@@ -1117,6 +1161,11 @@ func processSingleSession(ctx context.Context, session *spi.AgentChatSession, pr
 		telemetry.RecordMessages(ctx, agentName, sessionID, int64(messageCount))
 		telemetry.RecordToolUsage(ctx, agentName, sessionID, int64(toolCount))
 		telemetry.RecordProcessingDuration(ctx, agentName, sessionID, time.Since(processingStart))
+		telemetry.RecordTokenUsage(ctx, agentName, sessionID,
+			int64(tokenUsage.InputTokens),
+			int64(tokenUsage.OutputTokens),
+			int64(tokenUsage.CacheCreationInputTokens),
+			int64(tokenUsage.CacheReadInputTokens))
 	}()
 
 	// Base session attributes
@@ -1128,6 +1177,11 @@ func processSingleSession(ctx context.Context, session *spi.AgentChatSession, pr
 		attribute.Int("specstory.session.tool_count", toolCount),
 		attribute.Int("specstory.session.tool_type_count", toolTypeCount),
 		attribute.String("specstory.project.path", projectPath),
+		// Token usage attributes
+		attribute.Int("specstory.session.input_tokens", tokenUsage.InputTokens),
+		attribute.Int("specstory.session.output_tokens", tokenUsage.OutputTokens),
+		attribute.Int("specstory.session.cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
+		attribute.Int("specstory.session.cache_read_tokens", tokenUsage.CacheReadInputTokens),
 	)
 
 	// Add flattened exchange attributes (dot-notation keys)
@@ -1367,9 +1421,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		toolCount := 0
 		toolTypeCount := 0
 		projectPath := ""
+		var tokenUsage TokenUsage
 		if session.SessionData != nil {
 			messageCount = countSessionMessages(session.SessionData.Exchanges)
 			toolCount, toolTypeCount = countSessionTools(session.SessionData.Exchanges)
+			tokenUsage = countSessionTokens(session.SessionData.Exchanges)
 			projectPath = session.SessionData.WorkspaceRoot
 		}
 
@@ -1382,6 +1438,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			attribute.Int("specstory.session.tool_count", toolCount),
 			attribute.Int("specstory.session.tool_type_count", toolTypeCount),
 			attribute.String("specstory.project.path", projectPath),
+			// Token usage attributes
+			attribute.Int("specstory.session.input_tokens", tokenUsage.InputTokens),
+			attribute.Int("specstory.session.output_tokens", tokenUsage.OutputTokens),
+			attribute.Int("specstory.session.cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
+			attribute.Int("specstory.session.cache_read_tokens", tokenUsage.CacheReadInputTokens),
 		)
 
 		// Add flattened exchange attributes
@@ -1494,6 +1555,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		telemetry.RecordMessages(sessionCtx, agentName, session.SessionID, int64(messageCount))
 		telemetry.RecordToolUsage(sessionCtx, agentName, session.SessionID, int64(toolCount))
 		telemetry.RecordProcessingDuration(sessionCtx, agentName, session.SessionID, time.Since(processingStart))
+		telemetry.RecordTokenUsage(sessionCtx, agentName, session.SessionID,
+			int64(tokenUsage.InputTokens),
+			int64(tokenUsage.OutputTokens),
+			int64(tokenUsage.CacheCreationInputTokens),
+			int64(tokenUsage.CacheReadInputTokens))
 
 		// End the span for this session
 		span.End()

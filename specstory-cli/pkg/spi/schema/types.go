@@ -64,6 +64,7 @@ type Message struct {
 	Content   []ContentPart          `json:"content,omitempty"`
 	Tool      *ToolInfo              `json:"tool,omitempty"`
 	PathHints []string               `json:"pathHints,omitempty"`
+	Usage     *Usage                 `json:"usage,omitempty"` // Token usage for agent messages
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -71,6 +72,14 @@ type Message struct {
 type ContentPart struct {
 	Type string `json:"type"` // "text" or "thinking"
 	Text string `json:"text"` // Content text (for both text and thinking)
+}
+
+// Usage represents token usage for an agent message
+type Usage struct {
+	InputTokens              int `json:"inputTokens,omitempty"`
+	OutputTokens             int `json:"outputTokens,omitempty"`
+	CacheCreationInputTokens int `json:"cacheCreationInputTokens,omitempty"`
+	CacheReadInputTokens     int `json:"cacheReadInputTokens,omitempty"`
 }
 
 // ToolInfo is tool use information

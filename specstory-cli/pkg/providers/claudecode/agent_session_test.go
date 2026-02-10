@@ -256,3 +256,132 @@ func TestFormatToolAsMarkdown_AskUserQuestion(t *testing.T) {
 		})
 	}
 }
+
+func TestGetIntFromMap(t *testing.T) {
+	tests := []struct {
+		name     string
+		m        map[string]interface{}
+		key      string
+		expected int
+	}{
+		{
+			name:     "float64 value (JSON default)",
+			m:        map[string]interface{}{"tokens": float64(1234)},
+			key:      "tokens",
+			expected: 1234,
+		},
+		{
+			name:     "int value",
+			m:        map[string]interface{}{"tokens": 5678},
+			key:      "tokens",
+			expected: 5678,
+		},
+		{
+			name:     "int64 value",
+			m:        map[string]interface{}{"tokens": int64(9999)},
+			key:      "tokens",
+			expected: 9999,
+		},
+		{
+			name:     "missing key returns 0",
+			m:        map[string]interface{}{"other": float64(100)},
+			key:      "tokens",
+			expected: 0,
+		},
+		{
+			name:     "nil map returns 0",
+			m:        nil,
+			key:      "tokens",
+			expected: 0,
+		},
+		{
+			name:     "wrong type returns 0",
+			m:        map[string]interface{}{"tokens": "not a number"},
+			key:      "tokens",
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getIntFromMap(tt.m, tt.key)
+			if result != tt.expected {
+				t.Errorf("getIntFromMap() = %d, want %d", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestBuildAgentMessage_WithUsage(t *testing.T) {
+	// Simulate a JSONL record with usage data (as it would be parsed from JSON)
+	// JSONLRecord.Data contains the raw parsed JSON with type, uuid, timestamp, and message fields
+	record := JSONLRecord{
+		Data: map[string]interface{}{
+			"type":      "assistant",
+			"uuid":      "test-uuid-123",
+			"timestamp": "2025-01-15T10:00:00Z",
+			"message": map[string]interface{}{
+				"model": "claude-opus-4-5-20251101",
+				"content": []interface{}{
+					map[string]interface{}{
+						"type": "text",
+						"text": "Hello, I can help with that.",
+					},
+				},
+				"usage": map[string]interface{}{
+					"input_tokens":                float64(3660),
+					"output_tokens":               float64(150),
+					"cache_creation_input_tokens": float64(5562),
+					"cache_read_input_tokens":     float64(19345),
+				},
+			},
+		},
+	}
+
+	msg := buildAgentMessage(record, "/workspace", false)
+
+	// Verify usage was extracted
+	if msg.Usage == nil {
+		t.Fatal("Expected Usage to be populated, got nil")
+	}
+
+	if msg.Usage.InputTokens != 3660 {
+		t.Errorf("InputTokens = %d, want 3660", msg.Usage.InputTokens)
+	}
+	if msg.Usage.OutputTokens != 150 {
+		t.Errorf("OutputTokens = %d, want 150", msg.Usage.OutputTokens)
+	}
+	if msg.Usage.CacheCreationInputTokens != 5562 {
+		t.Errorf("CacheCreationInputTokens = %d, want 5562", msg.Usage.CacheCreationInputTokens)
+	}
+	if msg.Usage.CacheReadInputTokens != 19345 {
+		t.Errorf("CacheReadInputTokens = %d, want 19345", msg.Usage.CacheReadInputTokens)
+	}
+}
+
+func TestBuildAgentMessage_WithoutUsage(t *testing.T) {
+	// Simulate a JSONL record without usage data
+	record := JSONLRecord{
+		Data: map[string]interface{}{
+			"type":      "assistant",
+			"uuid":      "test-uuid-456",
+			"timestamp": "2025-01-15T10:00:00Z",
+			"message": map[string]interface{}{
+				"model": "claude-opus-4-5-20251101",
+				"content": []interface{}{
+					map[string]interface{}{
+						"type": "text",
+						"text": "No usage data here.",
+					},
+				},
+			},
+		},
+	}
+
+	msg := buildAgentMessage(record, "/workspace", false)
+
+	// Verify usage is nil when not present
+	if msg.Usage != nil {
+		t.Errorf("Expected Usage to be nil, got %+v", msg.Usage)
+	}
+}
