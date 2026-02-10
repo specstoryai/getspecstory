@@ -578,3 +578,79 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 
 	return nil
 }
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	// Get the project hash directory
+	hashDir, err := GetProjectHashDir(projectPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get project hash directory: %w", err)
+	}
+
+	// Get all session directories
+	sessionIDs, err := GetCursorSessionDirs(hashDir)
+	if err != nil {
+		// No project directory exists, return empty list
+		return []spi.SessionMetadata{}, nil
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		// Check if session has store.db
+		if !HasStoreDB(hashDir, sessionID) {
+			slog.Debug("Skipping session without store.db", "sessionID", sessionID)
+			continue
+		}
+
+		sessionPath := filepath.Join(hashDir, sessionID)
+		metadata, err := extractCursorSessionMetadata(sessionPath, sessionID)
+		if err != nil {
+			slog.Warn("Failed to extract session metadata",
+				"sessionID", sessionID,
+				"path", sessionPath,
+				"error", err)
+			continue
+		}
+
+		// Skip empty sessions (no metadata means empty session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", sessionID)
+			continue
+		}
+
+		result = append(result, *metadata)
+	}
+
+	return result, nil
+}
+
+// extractCursorSessionMetadata reads minimal data from a Cursor session to extract metadata
+// Returns nil if the session is empty or has no user messages
+func extractCursorSessionMetadata(sessionPath string, sessionID string) (*spi.SessionMetadata, error) {
+	// Read session data from SQLite database
+	createdAt, _, blobRecords, _, err := ReadSessionData(sessionPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session data: %w", err)
+	}
+
+	// Extract first user message for both slug and name
+	firstUserMessage := extractFirstUserMessage(blobRecords)
+	if firstUserMessage == "" {
+		// No user message found, session is empty
+		return nil, nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: sessionID,
+		CreatedAt: createdAt,
+		Slug:      slug,
+		Name:      name,
+	}, nil
+}

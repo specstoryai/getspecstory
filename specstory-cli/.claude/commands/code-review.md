@@ -24,7 +24,7 @@ Ignore any changes to:
 
 Please code review this change.
 
-Review line by line and explain to me the purpose of each change. Use line numbers to reference the changes.
+Review line by line and explain to me the purpose of each change. Use file names and line numbers to reference the changes, but also sequentially number every observation so we can easily reference them.
 
 In the line by line review, pay attention to:
 
@@ -46,36 +46,36 @@ Format your line by line review like this example:
   cmd/remote.go
 
   Line 12 (removed): Removed unused import of pkg/service package
-  - ✅ Good - Cleaning up unused imports is proper Go hygiene
+  - (1) ✅ Good - Cleaning up unused imports is proper Go hygiene
 
   Lines 157-162 (modified): Changed from loading config directly to using RPC client
   // Old: config, err := service.LoadConfig(dir)
   // New: rpcClient, err := client.NewRPCClient(dir)
-  - ✅ Good architectural decision - Now operates via daemon RPC instead of direct file access
-  - ✅ Proper defer cleanup pattern for RPC client
-  - ✅ Variable name rpcClient is clear and follows conventions
+  - (2) ✅ Good architectural decision - Now operates via daemon RPC instead of direct file access
+  - (3) ✅ Proper defer cleanup pattern for RPC client
+  - (4) ✅ Variable name rpcClient is clear and follows conventions
 
   Lines 164-189 (new): Added remote status check before disabling
-  - ✅ Good UX - Detects current connection state to provide better feedback
-  - ✅ Type assertions use the two-value form (ok pattern) for safety
-  - ⚠️ Nested if statements become deeply indented (4 levels) - could be refactored for readability
-  - ✅ Variable names wasConnected, oldURL are descriptive
-  - ❓ Missing error handling - if remote.status call fails, we continue anyway. Should we?
+  - (5) ✅ Good UX - Detects current connection state to provide better feedback
+  - (6) ✅ Type assertions use the two-value form (ok pattern) for safety
+  - (7) ⚠️ Nested if statements become deeply indented (4 levels) - could be refactored for readability
+  - (8) ✅ Variable names wasConnected, oldURL are descriptive
+  - (9) ❓ Missing error handling - if remote.status call fails, we continue anyway. Should we?
 
   ---
   pkg/remote/sync.go
   Lines 260-265 (modified): Success messages now come after RPC call
-  - ✅ Comment "config is now saved" is helpful context
-  - ⚠️ Misleading comment placement - comment says "config is now saved" but we can't be certain from this code's perspective (that happens in the daemon)
+  - (10) ✅ Comment "config is now saved" is helpful context
+  - (11) ⚠️ Misleading comment placement - comment says "config is now saved" but we can't be certain from this code's perspective (that happens in the daemon)
 ```
 
 In addition to the line by line review, suggest the 2-5 most important improvements for this code review.
 
 In addition to the most important improvements, let's also think about if any of these changes could benefit from new, updated or expanded unit tests. We focus our unit tests on complicated logic, and combinatorial scenarios, not on coverage or completeness for completeness sake. Better to not have a unit test than to have tests that are simplistic or tautological. We also don't test 3rd party library or language features, only our own code.
 
-For any new test cases that were already added, change ONLY the assertion portion of each new test case to assert the opposite, to make sure each new test case fails in that case. Once you verify they all fail, change them back.
+For any new test cases that were added, confirm the tests are:
 
-This confirms the tests are:
 - Not tautological - They would catch real bugs
-- Well-designed - Each assertion tests specific logic
-- Reliable - They accurately verify the logic being tested
+- Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
+- Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
+- Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.

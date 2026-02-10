@@ -28,6 +28,15 @@ type AgentChatSession struct {
 	RawData     string              // Raw session data (e.g., JSON blobs for Cursor CLI, JSONL for Claude Code and Codex CLI, etc.)
 }
 
+// SessionMetadata contains lightweight metadata about a session without full content
+// Used by ListAgentChatSessions for efficient session listing
+type SessionMetadata struct {
+	SessionID string `json:"session_id" csv:"session_id"` // Stable and unique identifier for the session
+	CreatedAt string `json:"created_at" csv:"created_at"` // Stable ISO 8601 timestamp when session was created
+	Slug      string `json:"slug" csv:"slug"`             // Stable human-readable session name/slug
+	Name      string `json:"name" csv:"name"`             // Human-readable description of the session (may be empty if not available)
+}
+
 // Provider defines the interface that all agent coding tool providers must implement
 type Provider interface {
 	// Name returns the human-readable name of the provider (e.g., "Claude Code", "Cursor CLI", "Codex CLI")
@@ -58,6 +67,12 @@ type Provider interface {
 	// progress: optional callback for reporting progress during parsing (nil = no progress reporting)
 	// Returns a slice of AgentChatSession structs containing session data
 	GetAgentChatSessions(projectPath string, debugRaw bool, progress ProgressCallback) ([]AgentChatSession, error)
+
+	// ListAgentChatSessions retrieves lightweight metadata for all sessions without full parsing
+	// This should be faster than GetAgentChatSessions as it only needs to return SessionMetadata and not the full AgentChatSession
+	// projectPath: Agent's working directory
+	// Returns a slice of SessionMetadata (ordering is provider-defined; consumers will sort if needed)
+	ListAgentChatSessions(projectPath string) ([]SessionMetadata, error)
 
 	// ExecAgentAndWatch executes the agent in interactive mode and watches for session updates
 	// Blocks until the agent exits, calling sessionCallback for each new/updated session
