@@ -124,18 +124,25 @@ func BuildExchangeAttributes(exchanges []schema.Exchange) []attribute.KeyValue {
 }
 
 // extractToolInfo extracts tool usage information from an exchange.
-// Returns: comma-separated tool names, comma-separated unique tool types, and total tool count.
+// Returns: comma-separated unique tool names, comma-separated unique tool types, and total tool count.
 func extractToolInfo(exchange schema.Exchange) (toolNames string, toolTypes string, toolCount int) {
-	var names []string
+	nameSet := make(map[string]bool)
 	typeSet := make(map[string]bool)
 
 	for _, msg := range exchange.Messages {
 		if msg.Tool != nil && msg.Tool.Name != "" {
-			names = append(names, msg.Tool.Name)
+			toolCount++
+			nameSet[msg.Tool.Name] = true
 			if msg.Tool.Type != "" {
 				typeSet[msg.Tool.Type] = true
 			}
 		}
+	}
+
+	// Build unique tool names list
+	var names []string
+	for n := range nameSet {
+		names = append(names, n)
 	}
 
 	// Build unique tool types list
@@ -144,7 +151,7 @@ func extractToolInfo(exchange schema.Exchange) (toolNames string, toolTypes stri
 		types = append(types, t)
 	}
 
-	return strings.Join(names, ","), strings.Join(types, ","), len(names)
+	return strings.Join(names, ","), strings.Join(types, ","), toolCount
 }
 
 // extractUserPromptText finds the first user message in an exchange and returns its text content.
