@@ -440,6 +440,8 @@ func traceIDFromSessionID(sessionID string) trace.TraceID {
 }
 
 // --- Metric Recording Functions ---
+// These are internal functions called by RecordSessionMetrics in session_helpers.go.
+// The metricsEnabled check is done once in RecordSessionMetrics.
 
 // buildMetricAttrs combines specific metric attributes with common attributes from OTEL_RESOURCE_ATTRIBUTES.
 func buildMetricAttrs(specific ...attribute.KeyValue) []attribute.KeyValue {
@@ -449,11 +451,8 @@ func buildMetricAttrs(specific ...attribute.KeyValue) []attribute.KeyValue {
 	return attrs
 }
 
-// RecordSessionProcessed increments the sessions processed counter.
-func RecordSessionProcessed(ctx context.Context, agent string, sessionID string) {
-	if !metricsEnabled {
-		return
-	}
+// recordSessionProcessed increments the sessions processed counter.
+func recordSessionProcessed(ctx context.Context, agent string, sessionID string) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
@@ -461,11 +460,8 @@ func RecordSessionProcessed(ctx context.Context, agent string, sessionID string)
 	sessionsProcessed.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
-// RecordExchanges increments the exchanges counter by the given count.
-func RecordExchanges(ctx context.Context, agent string, sessionID string, count int64) {
-	if !metricsEnabled {
-		return
-	}
+// recordExchanges increments the exchanges counter by the given count.
+func recordExchanges(ctx context.Context, agent string, sessionID string, count int64) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
@@ -473,11 +469,8 @@ func RecordExchanges(ctx context.Context, agent string, sessionID string, count 
 	exchangesProcessed.Add(ctx, count, metric.WithAttributes(attrs...))
 }
 
-// RecordMessages increments the messages counter by the given count.
-func RecordMessages(ctx context.Context, agent string, sessionID string, count int64) {
-	if !metricsEnabled {
-		return
-	}
+// recordMessages increments the messages counter by the given count.
+func recordMessages(ctx context.Context, agent string, sessionID string, count int64) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
@@ -485,11 +478,8 @@ func RecordMessages(ctx context.Context, agent string, sessionID string, count i
 	messagesProcessed.Add(ctx, count, metric.WithAttributes(attrs...))
 }
 
-// RecordToolUsage increments the tool usage counter by the given count.
-func RecordToolUsage(ctx context.Context, agent string, sessionID string, count int64) {
-	if !metricsEnabled {
-		return
-	}
+// recordToolUsage increments the tool usage counter by the given count.
+func recordToolUsage(ctx context.Context, agent string, sessionID string, count int64) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
@@ -497,11 +487,8 @@ func RecordToolUsage(ctx context.Context, agent string, sessionID string, count 
 	toolsUsed.Add(ctx, count, metric.WithAttributes(attrs...))
 }
 
-// RecordProcessingDuration records the session processing duration.
-func RecordProcessingDuration(ctx context.Context, agent string, sessionID string, duration time.Duration) {
-	if !metricsEnabled {
-		return
-	}
+// recordProcessingDuration records the session processing duration.
+func recordProcessingDuration(ctx context.Context, agent string, sessionID string, duration time.Duration) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
@@ -509,25 +496,30 @@ func RecordProcessingDuration(ctx context.Context, agent string, sessionID strin
 	processingDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 }
 
-// RecordTokenUsage records token usage metrics for a session.
-func RecordTokenUsage(ctx context.Context, agent string, sessionID string, inputTokens, outputTokens, cacheCreation, cacheRead int64) {
-	if !metricsEnabled {
-		return
-	}
+// TokenUsage holds aggregated token counts for telemetry recording.
+type TokenUsage struct {
+	InputTokens              int
+	OutputTokens             int
+	CacheCreationInputTokens int
+	CacheReadInputTokens     int
+}
+
+// recordTokenUsage records token usage metrics for a session.
+func recordTokenUsage(ctx context.Context, agent string, sessionID string, usage TokenUsage) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
 	)
-	if inputTokens > 0 {
-		inputTokensTotal.Add(ctx, inputTokens, metric.WithAttributes(attrs...))
+	if usage.InputTokens > 0 {
+		inputTokensTotal.Add(ctx, int64(usage.InputTokens), metric.WithAttributes(attrs...))
 	}
-	if outputTokens > 0 {
-		outputTokensTotal.Add(ctx, outputTokens, metric.WithAttributes(attrs...))
+	if usage.OutputTokens > 0 {
+		outputTokensTotal.Add(ctx, int64(usage.OutputTokens), metric.WithAttributes(attrs...))
 	}
-	if cacheCreation > 0 {
-		cacheCreationTokens.Add(ctx, cacheCreation, metric.WithAttributes(attrs...))
+	if usage.CacheCreationInputTokens > 0 {
+		cacheCreationTokens.Add(ctx, int64(usage.CacheCreationInputTokens), metric.WithAttributes(attrs...))
 	}
-	if cacheRead > 0 {
-		cacheReadTokens.Add(ctx, cacheRead, metric.WithAttributes(attrs...))
+	if usage.CacheReadInputTokens > 0 {
+		cacheReadTokens.Add(ctx, int64(usage.CacheReadInputTokens), metric.WithAttributes(attrs...))
 	}
 }

@@ -15,7 +15,6 @@ import (
 
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
@@ -975,149 +974,6 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 	return t.Local().Format("2006-01-02_15-04-05-0700")
 }
 
-// --- Telemetry Helper Functions ---
-
-// buildExchangeAttributes builds a slice of OTel attributes for all exchanges,
-// using dot-notation keys for flattening (e.g., specstory.exchanges.<id>.prompt_text).
-func buildExchangeAttributes(exchanges []schema.Exchange) []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, len(exchanges)*12)
-
-	for i, exchange := range exchanges {
-		prefix := fmt.Sprintf("specstory.exchanges.%s", exchange.ExchangeID)
-
-		// Extract tool usage information
-		toolNames, toolTypes, toolCount := extractToolInfo(exchange)
-
-		// Extract token usage for this exchange
-		tokenUsage := countExchangeTokens(exchange)
-
-		attrs = append(attrs,
-			attribute.String(prefix+".prompt_text", extractUserPromptText(exchange)),
-			attribute.Int(prefix+".prompt_index", i),
-			attribute.String(prefix+".start_time", exchange.StartTime),
-			attribute.String(prefix+".end_time", exchange.EndTime),
-			attribute.Int(prefix+".message_count", len(exchange.Messages)),
-			attribute.String(prefix+".tools_used", toolNames),
-			attribute.String(prefix+".tool_types", toolTypes),
-			attribute.Int(prefix+".tool_count", toolCount),
-			// Token usage attributes
-			attribute.Int(prefix+".input_tokens", tokenUsage.InputTokens),
-			attribute.Int(prefix+".output_tokens", tokenUsage.OutputTokens),
-			attribute.Int(prefix+".cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
-			attribute.Int(prefix+".cache_read_tokens", tokenUsage.CacheReadInputTokens),
-		)
-	}
-
-	return attrs
-}
-
-// extractToolInfo extracts tool usage information from an exchange.
-// Returns: comma-separated tool names, comma-separated unique tool types, and total tool count.
-func extractToolInfo(exchange schema.Exchange) (toolNames string, toolTypes string, toolCount int) {
-	var names []string
-	typeSet := make(map[string]bool)
-
-	for _, msg := range exchange.Messages {
-		if msg.Tool != nil && msg.Tool.Name != "" {
-			names = append(names, msg.Tool.Name)
-			if msg.Tool.Type != "" {
-				typeSet[msg.Tool.Type] = true
-			}
-		}
-	}
-
-	// Build unique tool types list
-	var types []string
-	for t := range typeSet {
-		types = append(types, t)
-	}
-
-	return strings.Join(names, ","), strings.Join(types, ","), len(names)
-}
-
-// countSessionMessages counts total messages across all exchanges.
-func countSessionMessages(exchanges []schema.Exchange) int {
-	count := 0
-	for _, exchange := range exchanges {
-		count += len(exchange.Messages)
-	}
-	return count
-}
-
-// countSessionTools counts total tool uses and unique tool types across all exchanges.
-// Returns: total tool count, unique tool type count.
-func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCount int) {
-	typeSet := make(map[string]bool)
-
-	for _, exchange := range exchanges {
-		for _, msg := range exchange.Messages {
-			if msg.Tool != nil && msg.Tool.Name != "" {
-				toolCount++
-				if msg.Tool.Type != "" {
-					typeSet[msg.Tool.Type] = true
-				}
-			}
-		}
-	}
-
-	return toolCount, len(typeSet)
-}
-
-// TokenUsage holds aggregated token counts
-type TokenUsage struct {
-	InputTokens              int
-	OutputTokens             int
-	CacheCreationInputTokens int
-	CacheReadInputTokens     int
-}
-
-// countExchangeTokens aggregates token usage for a single exchange.
-func countExchangeTokens(exchange schema.Exchange) TokenUsage {
-	var usage TokenUsage
-	for _, msg := range exchange.Messages {
-		if msg.Usage != nil {
-			usage.InputTokens += msg.Usage.InputTokens
-			usage.OutputTokens += msg.Usage.OutputTokens
-			usage.CacheCreationInputTokens += msg.Usage.CacheCreationInputTokens
-			usage.CacheReadInputTokens += msg.Usage.CacheReadInputTokens
-		}
-	}
-	return usage
-}
-
-// countSessionTokens aggregates token usage across all exchanges in a session.
-func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
-	var total TokenUsage
-	for _, exchange := range exchanges {
-		exchangeUsage := countExchangeTokens(exchange)
-		total.InputTokens += exchangeUsage.InputTokens
-		total.OutputTokens += exchangeUsage.OutputTokens
-		total.CacheCreationInputTokens += exchangeUsage.CacheCreationInputTokens
-		total.CacheReadInputTokens += exchangeUsage.CacheReadInputTokens
-	}
-	return total
-}
-
-// extractUserPromptText finds the first user message in an exchange and returns its text content.
-func extractUserPromptText(exchange schema.Exchange) string {
-	for _, msg := range exchange.Messages {
-		if msg.Role == schema.RoleUser {
-			// Concatenate all text content parts
-			var text string
-			for _, part := range msg.Content {
-				if part.Type == schema.ContentTypeText {
-					if text != "" {
-						text += "\n"
-					}
-					text += part.Text
-				}
-			}
-			return text
-		}
-	}
-	return ""
-}
-
 // processSingleSession writes markdown and triggers cloud sync for a single session
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
@@ -1135,53 +991,20 @@ func processSingleSession(ctx context.Context, session *spi.AgentChatSession, pr
 	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
 	defer span.End()
 
-	// Set span attributes for the session
-	agentName := provider.Name()
-	sessionID := session.SessionID
-	projectPath := ""
-	if session.SessionData != nil {
-		projectPath = session.SessionData.WorkspaceRoot
-	}
-
-	// Compute session-level counts from exchanges
-	messageCount := countSessionMessages(session.SessionData.Exchanges)
-	toolCount, toolTypeCount := countSessionTools(session.SessionData.Exchanges)
-	tokenUsage := countSessionTokens(session.SessionData.Exchanges)
+	// Compute session statistics
+	stats := telemetry.ComputeSessionStats(provider.Name(), session)
 
 	// Record metrics (no-op when telemetry is disabled)
 	defer func() {
-		telemetry.RecordSessionProcessed(ctx, agentName, sessionID)
-		telemetry.RecordExchanges(ctx, agentName, sessionID, int64(len(session.SessionData.Exchanges)))
-		telemetry.RecordMessages(ctx, agentName, sessionID, int64(messageCount))
-		telemetry.RecordToolUsage(ctx, agentName, sessionID, int64(toolCount))
-		telemetry.RecordProcessingDuration(ctx, agentName, sessionID, time.Since(processingStart))
-		telemetry.RecordTokenUsage(ctx, agentName, sessionID,
-			int64(tokenUsage.InputTokens),
-			int64(tokenUsage.OutputTokens),
-			int64(tokenUsage.CacheCreationInputTokens),
-			int64(tokenUsage.CacheReadInputTokens))
+		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
 	}()
 
-	// Base session attributes
-	span.SetAttributes(
-		attribute.String("specstory.agent", agentName),
-		attribute.String("specstory.session.id", sessionID),
-		attribute.Int("specstory.session.exchange_count", len(session.SessionData.Exchanges)),
-		attribute.Int("specstory.session.message_count", messageCount),
-		attribute.Int("specstory.session.tool_count", toolCount),
-		attribute.Int("specstory.session.tool_type_count", toolTypeCount),
-		attribute.String("specstory.project.path", projectPath),
-		// Token usage attributes
-		attribute.Int("specstory.session.input_tokens", tokenUsage.InputTokens),
-		attribute.Int("specstory.session.output_tokens", tokenUsage.OutputTokens),
-		attribute.Int("specstory.session.cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
-		attribute.Int("specstory.session.cache_read_tokens", tokenUsage.CacheReadInputTokens),
-	)
-
-	// Add flattened exchange attributes (dot-notation keys)
+	// Set span attributes
+	var exchanges []schema.Exchange
 	if session.SessionData != nil {
-		span.SetAttributes(buildExchangeAttributes(session.SessionData.Exchanges)...)
+		exchanges = session.SessionData.Exchanges
 	}
+	telemetry.SetSessionSpanAttributes(span, stats, exchanges)
 
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
@@ -1410,39 +1233,15 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// Start an OTel span for this session processing
 		sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
 
-		// Compute session-level counts for span attributes
-		messageCount := 0
-		toolCount := 0
-		toolTypeCount := 0
-		projectPath := ""
-		var tokenUsage TokenUsage
-		if session.SessionData != nil {
-			messageCount = countSessionMessages(session.SessionData.Exchanges)
-			toolCount, toolTypeCount = countSessionTools(session.SessionData.Exchanges)
-			tokenUsage = countSessionTokens(session.SessionData.Exchanges)
-			projectPath = session.SessionData.WorkspaceRoot
-		}
+		// Compute session statistics
+		sessionStats := telemetry.ComputeSessionStats(agentName, session)
 
 		// Set span attributes
-		span.SetAttributes(
-			attribute.String("specstory.agent", agentName),
-			attribute.String("specstory.session.id", session.SessionID),
-			attribute.Int("specstory.session.exchange_count", len(session.SessionData.Exchanges)),
-			attribute.Int("specstory.session.message_count", messageCount),
-			attribute.Int("specstory.session.tool_count", toolCount),
-			attribute.Int("specstory.session.tool_type_count", toolTypeCount),
-			attribute.String("specstory.project.path", projectPath),
-			// Token usage attributes
-			attribute.Int("specstory.session.input_tokens", tokenUsage.InputTokens),
-			attribute.Int("specstory.session.output_tokens", tokenUsage.OutputTokens),
-			attribute.Int("specstory.session.cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
-			attribute.Int("specstory.session.cache_read_tokens", tokenUsage.CacheReadInputTokens),
-		)
-
-		// Add flattened exchange attributes
+		var exchanges []schema.Exchange
 		if session.SessionData != nil {
-			span.SetAttributes(buildExchangeAttributes(session.SessionData.Exchanges)...)
+			exchanges = session.SessionData.Exchanges
 		}
+		telemetry.SetSessionSpanAttributes(span, sessionStats, exchanges)
 
 		validateSessionData(session, debugRaw)
 		writeDebugSessionData(session, debugRaw)
@@ -1543,17 +1342,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// In only-cloud-sync mode: always sync
 		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
 
-		// Record telemetry metrics for this session (reuse counts from span attributes)
-		telemetry.RecordSessionProcessed(sessionCtx, agentName, session.SessionID)
-		telemetry.RecordExchanges(sessionCtx, agentName, session.SessionID, int64(len(session.SessionData.Exchanges)))
-		telemetry.RecordMessages(sessionCtx, agentName, session.SessionID, int64(messageCount))
-		telemetry.RecordToolUsage(sessionCtx, agentName, session.SessionID, int64(toolCount))
-		telemetry.RecordProcessingDuration(sessionCtx, agentName, session.SessionID, time.Since(processingStart))
-		telemetry.RecordTokenUsage(sessionCtx, agentName, session.SessionID,
-			int64(tokenUsage.InputTokens),
-			int64(tokenUsage.OutputTokens),
-			int64(tokenUsage.CacheCreationInputTokens),
-			int64(tokenUsage.CacheReadInputTokens))
+		// Record telemetry metrics for this session
+		telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
 
 		// End the span for this session
 		span.End()
