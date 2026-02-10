@@ -54,6 +54,12 @@ var (
 	toolsUsed          metric.Int64Counter
 	processingDuration metric.Float64Histogram
 
+	// Token usage metrics
+	inputTokensTotal    metric.Int64Counter
+	outputTokensTotal   metric.Int64Counter
+	cacheCreationTokens metric.Int64Counter
+	cacheReadTokens     metric.Int64Counter
+
 	// Common attributes parsed from OTEL_RESOURCE_ATTRIBUTES to include on all metrics
 	commonMetricAttrs []attribute.KeyValue
 )
@@ -286,6 +292,39 @@ func initMetricInstruments() error {
 		return err
 	}
 
+	// Token usage metrics
+	inputTokensTotal, err = meter.Int64Counter("specstory.tokens.input",
+		metric.WithDescription("Total input tokens consumed across all sessions"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	outputTokensTotal, err = meter.Int64Counter("specstory.tokens.output",
+		metric.WithDescription("Total output tokens generated across all sessions"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	cacheCreationTokens, err = meter.Int64Counter("specstory.tokens.cache_creation",
+		metric.WithDescription("Total tokens written to cache across all sessions"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	cacheReadTokens, err = meter.Int64Counter("specstory.tokens.cache_read",
+		metric.WithDescription("Total tokens read from cache across all sessions"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -468,4 +507,27 @@ func RecordProcessingDuration(ctx context.Context, agent string, sessionID strin
 		attribute.String("specstory.session.id", sessionID),
 	)
 	processingDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// RecordTokenUsage records token usage metrics for a session.
+func RecordTokenUsage(ctx context.Context, agent string, sessionID string, inputTokens, outputTokens, cacheCreation, cacheRead int64) {
+	if !metricsEnabled {
+		return
+	}
+	attrs := buildMetricAttrs(
+		attribute.String("specstory.agent", agent),
+		attribute.String("specstory.session.id", sessionID),
+	)
+	if inputTokens > 0 {
+		inputTokensTotal.Add(ctx, inputTokens, metric.WithAttributes(attrs...))
+	}
+	if outputTokens > 0 {
+		outputTokensTotal.Add(ctx, outputTokens, metric.WithAttributes(attrs...))
+	}
+	if cacheCreation > 0 {
+		cacheCreationTokens.Add(ctx, cacheCreation, metric.WithAttributes(attrs...))
+	}
+	if cacheRead > 0 {
+		cacheReadTokens.Add(ctx, cacheRead, metric.WithAttributes(attrs...))
+	}
 }
