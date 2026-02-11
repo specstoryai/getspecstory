@@ -146,11 +146,15 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 // ProcessExchangeSpans creates child spans for all exchanges in a session.
 // This is a helper that creates spans, sets attributes, and ends them immediately
 // since exchange processing is retrospective (data already exists).
-func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange) {
+// When noPrompts is true, the prompt_text attribute will be empty for privacy.
+func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange, noPrompts bool) {
 	for i, exchange := range exchanges {
 		_, exchangeSpan := StartExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
-		stats := ComputeExchangeStats(exchange, i)
-		SetExchangeSpanAttributes(exchangeSpan, stats)
+		exchangeStats := ComputeExchangeStats(exchange, i)
+		if noPrompts {
+			exchangeStats.PromptText = ""
+		}
+		SetExchangeSpanAttributes(exchangeSpan, exchangeStats)
 		exchangeSpan.End()
 	}
 }

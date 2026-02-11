@@ -54,6 +54,7 @@ var silent bool  // flag to enable silent output (no user messages)
 var noTelemetry bool            // flag to disable telemetry
 var telemetryEndpoint string    // OTLP gRPC collector endpoint
 var telemetryServiceName string // override the default service name
+var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
@@ -1003,7 +1004,7 @@ func processSingleSession(ctx context.Context, session *spi.AgentChatSession, pr
 
 	// Create child spans for each exchange
 	if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
-		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges)
+		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges, noTelemetryPrompts)
 	}
 
 	validateSessionData(session, debugRaw)
@@ -1241,7 +1242,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 		// Create child spans for each exchange
 		if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
-			telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges)
+			telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
 		}
 
 		validateSessionData(session, debugRaw)
@@ -1627,6 +1628,8 @@ func main() {
 			noVersionCheck = true
 		case "--no-telemetry":
 			noTelemetry = true
+		case "--no-telemetry-prompts":
+			noTelemetryPrompts = true
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {
@@ -1658,6 +1661,7 @@ func main() {
 		NoTelemetry:          noTelemetry,
 		TelemetryEndpoint:    telemetryEndpoint,
 		TelemetryServiceName: telemetryServiceName,
+		NoTelemetryPrompts:   noTelemetryPrompts,
 	})
 	if cfgErr != nil {
 		// Use fallback empty config if load fails - will log error after logging is set up
@@ -1677,6 +1681,8 @@ func main() {
 	logFile = cfg.IsLogEnabled()
 	debug = cfg.IsDebugEnabled()
 	silent = cfg.IsSilentEnabled()
+
+	noTelemetryPrompts = noTelemetryPrompts || cfg.IsTelemetryPromptsDisabled()
 
 	// Set up logging early before creating commands (which access the registry)
 	if console || logFile {
@@ -1734,9 +1740,10 @@ func main() {
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
 
 	// Telemetry flags
-	rootCmd.PersistentFlags().BoolVar(&noTelemetry, "no-telemetry", false, "disable OpenTelemetry tracing and metrics")
+	rootCmd.PersistentFlags().BoolVar(&noTelemetry, "no-telemetry", noTelemetry, "disable OpenTelemetry tracing and metrics")
 	rootCmd.PersistentFlags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "OTLP gRPC collector endpoint (e.g., localhost:4317)")
 	rootCmd.PersistentFlags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry")
+	rootCmd.PersistentFlags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans for privacy")
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")

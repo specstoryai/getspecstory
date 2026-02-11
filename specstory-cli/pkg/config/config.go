@@ -86,6 +86,10 @@ type TelemetryConfig struct {
 	// ServiceName overrides the default service name ("specstory-cli")
 	// Env var: OTEL_SERVICE_NAME
 	ServiceName string `toml:"service_name"`
+
+	// NoPrompts disables sending prompt text in telemetry spans.
+	// When true, the specstory.exchange.prompt_text attribute will be empty.
+	NoPrompts *bool `toml:"no_prompts"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -114,6 +118,7 @@ type CLIOverrides struct {
 	NoTelemetry          bool
 	TelemetryEndpoint    string
 	TelemetryServiceName string
+	NoTelemetryPrompts   bool
 }
 
 // Load reads configuration from files and CLI flags.
@@ -257,6 +262,10 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 	if o.TelemetryServiceName != "" {
 		cfg.Telemetry.ServiceName = o.TelemetryServiceName
 	}
+	if o.NoTelemetryPrompts {
+		enabled := true
+		cfg.Telemetry.NoPrompts = &enabled
+	}
 }
 
 // --- Getter methods ---
@@ -357,4 +366,13 @@ func (c *Config) GetTelemetryEndpoint() string {
 // GetTelemetryServiceName returns the service name, or empty string to use default.
 func (c *Config) GetTelemetryServiceName() string {
 	return c.Telemetry.ServiceName
+}
+
+// IsTelemetryPromptsDisabled returns whether prompt text should be excluded from telemetry.
+// Defaults to false (prompts are included) if not explicitly set.
+func (c *Config) IsTelemetryPromptsDisabled() bool {
+	if c.Telemetry.NoPrompts != nil {
+		return *c.Telemetry.NoPrompts
+	}
+	return false // default: prompts are included
 }
