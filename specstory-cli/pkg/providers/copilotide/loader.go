@@ -29,8 +29,8 @@ func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
 			continue
 		}
 
-		// Only include .json files
-		if !strings.HasSuffix(file.Name(), ".json") {
+		// Include both .json and .jsonl files
+		if !strings.HasSuffix(file.Name(), ".json") && !strings.HasSuffix(file.Name(), ".jsonl") {
 			continue
 		}
 
@@ -42,21 +42,35 @@ func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
 	return sessionFiles, nil
 }
 
-// LoadSessionFile reads and parses a single session JSON file
+// LoadSessionFile reads and parses a single session JSON or JSONL file
 func LoadSessionFile(sessionPath string) (*VSCodeComposer, error) {
 	data, err := os.ReadFile(sessionPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read session file: %w", err)
 	}
 
+	// Determine format based on file extension
+	isJSONL := strings.HasSuffix(sessionPath, ".jsonl")
+
 	var composer VSCodeComposer
-	if err := json.Unmarshal(data, &composer); err != nil {
-		return nil, fmt.Errorf("failed to parse session JSON: %w", err)
+
+	if isJSONL {
+		// JSONL format: each line is a separate JSON object
+		composer, err = parseJSONL(data)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse JSONL: %w", err)
+		}
+	} else {
+		// JSON format: single JSON object
+		if err := json.Unmarshal(data, &composer); err != nil {
+			return nil, fmt.Errorf("failed to parse session JSON: %w", err)
+		}
 	}
 
 	slog.Debug("Loaded session file",
 		"sessionId", composer.SessionID,
-		"requestCount", len(composer.Requests))
+		"requestCount", len(composer.Requests),
+		"isJSONL", isJSONL)
 
 	return &composer, nil
 }
@@ -64,10 +78,17 @@ func LoadSessionFile(sessionPath string) (*VSCodeComposer, error) {
 // LoadSessionByID loads a specific session by ID from the workspace
 func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
-	sessionPath := filepath.Join(chatSessionsPath, sessionID+".json")
 
-	// Check if file exists
-	if _, err := os.Stat(sessionPath); os.IsNotExist(err) {
+	// Try .jsonl first (newer format), then fall back to .json (older format)
+	jsonlPath := filepath.Join(chatSessionsPath, sessionID+".jsonl")
+	jsonPath := filepath.Join(chatSessionsPath, sessionID+".json")
+
+	var sessionPath string
+	if _, err := os.Stat(jsonlPath); err == nil {
+		sessionPath = jsonlPath
+	} else if _, err := os.Stat(jsonPath); err == nil {
+		sessionPath = jsonPath
+	} else {
 		return nil, fmt.Errorf("session not found: %s", sessionID)
 	}
 
@@ -81,21 +102,29 @@ func LoadStateFile(workspaceDir, sessionID string) (*VSCodeStateFile, error) {
 
 	// State file is optional
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
-		slog.Debug("No state file found (optional)", "sessionId", sessionID)
+		slog.Debug("No state file found (optional)", "sessionId", sessionID, "path", statePath)
 		return nil, nil
 	}
 
 	data, err := os.ReadFile(statePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read state file: %w", err)
+		slog.Warn("Failed to read state file, continuing without state",
+			"sessionId", sessionID,
+			"path", statePath,
+			"error", err)
+		return nil, nil // Return nil instead of error, state is optional
 	}
 
 	var state VSCodeStateFile
 	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("failed to parse state JSON: %w", err)
+		slog.Warn("Failed to parse state JSON, continuing without state",
+			"sessionId", sessionID,
+			"path", statePath,
+			"error", err)
+		return nil, nil // Return nil instead of error, state is optional
 	}
 
-	slog.Debug("Loaded state file", "sessionId", sessionID)
+	slog.Debug("Loaded state file", "sessionId", sessionID, "version", state.Version)
 	return &state, nil
 }
 
@@ -118,5 +147,100 @@ func WriteDebugFiles(composer *VSCodeComposer, sessionID string) error {
 	}
 
 	slog.Debug("Wrote debug files", "sessionId", sessionID, "debugDir", debugDir)
+	return nil
+}
+
+// parseJSONL parses JSONL format with incremental updates
+// First line (kind: 0) contains initial state in "v" field
+// Subsequent lines (kind: 1) contain updates with key path in "k" and value in "v"
+func parseJSONL(data []byte) (VSCodeComposer, error) {
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) == 0 {
+		return VSCodeComposer{}, fmt.Errorf("empty JSONL file")
+	}
+
+	// Parse first line - should be kind:0 with initial state
+	var firstLine struct {
+		Kind int            `json:"kind"`
+		V    VSCodeComposer `json:"v"`
+	}
+
+	if err := json.Unmarshal([]byte(lines[0]), &firstLine); err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to parse first JSONL line: %w", err)
+	}
+
+	if firstLine.Kind != 0 {
+		return VSCodeComposer{}, fmt.Errorf("expected kind:0 in first line, got kind:%d", firstLine.Kind)
+	}
+
+	composer := firstLine.V
+
+	// Apply subsequent updates (kind: 1)
+	for i := 1; i < len(lines); i++ {
+		var update struct {
+			Kind int      `json:"kind"`
+			K    []string `json:"k"` // Key path
+			V    any      `json:"v"` // Value
+		}
+
+		if err := json.Unmarshal([]byte(lines[i]), &update); err != nil {
+			slog.Warn("Failed to parse JSONL update line", "line", i+1, "error", err)
+			continue
+		}
+
+		if update.Kind == 1 && len(update.K) > 0 {
+			// Apply the update by setting the value at the key path
+			if err := applyUpdate(&composer, update.K, update.V); err != nil {
+				slog.Warn("Failed to apply JSONL update", "line", i+1, "keyPath", update.K, "error", err)
+			}
+		}
+	}
+
+	return composer, nil
+}
+
+// applyUpdate applies an update to a composer at a specific key path
+// keyPath is an array of keys representing the path (e.g., ["inputState", "inputText"])
+func applyUpdate(composer *VSCodeComposer, keyPath []string, value any) error {
+	// Convert composer to map for dynamic updates
+	composerData, err := json.Marshal(composer)
+	if err != nil {
+		return fmt.Errorf("failed to marshal composer: %w", err)
+	}
+
+	var composerMap map[string]any
+	if err := json.Unmarshal(composerData, &composerMap); err != nil {
+		return fmt.Errorf("failed to unmarshal composer to map: %w", err)
+	}
+
+	// Navigate to the parent of the target key
+	current := composerMap
+	for i := 0; i < len(keyPath)-1; i++ {
+		key := keyPath[i]
+		if _, exists := current[key]; !exists {
+			// Create intermediate maps as needed
+			current[key] = make(map[string]any)
+		}
+		if nextMap, ok := current[key].(map[string]any); ok {
+			current = nextMap
+		} else {
+			return fmt.Errorf("cannot navigate through non-map value at key: %s", key)
+		}
+	}
+
+	// Set the value at the final key
+	lastKey := keyPath[len(keyPath)-1]
+	current[lastKey] = value
+
+	// Convert back to VSCodeComposer
+	updatedData, err := json.Marshal(composerMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated map: %w", err)
+	}
+
+	if err := json.Unmarshal(updatedData, composer); err != nil {
+		return fmt.Errorf("failed to unmarshal updated composer: %w", err)
+	}
+
 	return nil
 }

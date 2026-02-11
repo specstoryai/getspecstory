@@ -97,8 +97,14 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		return nil, fmt.Errorf("failed to load session: %w", err)
 	}
 
+	// Load state file (optional)
+	state, err := LoadStateFile(workspace.Dir, sessionID)
+	if err != nil {
+		slog.Warn("Failed to load state file", "sessionId", sessionID, "error", err)
+	}
+
 	// Convert to AgentChatSession
-	agentSession := ConvertToSessionData(*session, projectPath)
+	agentSession := ConvertToSessionData(*session, projectPath, state)
 
 	// Write debug files if requested
 	if debugRaw {
@@ -137,14 +143,23 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 			continue
 		}
 
-		// Filter empty conversations
-		if len(composer.Requests) == 0 {
-			slog.Debug("Skipping empty session", "sessionId", composer.SessionID)
+		// Load state file (optional)
+		state, err := LoadStateFile(workspace.Dir, composer.SessionID)
+		if err != nil {
+			slog.Warn("Failed to load state file", "sessionId", composer.SessionID, "error", err)
+		}
+
+		// Check if session has content (either chat messages or editing operations)
+		hasConversations := len(composer.Requests) > 0
+		hasEditingOperations := hasEditingActivity(state)
+
+		if !hasConversations && !hasEditingOperations {
+			slog.Debug("Skipping empty session (no chat or editing activity)", "sessionId", composer.SessionID)
 			continue
 		}
 
 		// Convert to AgentChatSession
-		session := ConvertToSessionData(*composer, projectPath)
+		session := ConvertToSessionData(*composer, projectPath, state)
 		sessions = append(sessions, session)
 
 		// Write debug files if requested
@@ -201,9 +216,18 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 			continue
 		}
 
-		// Skip empty conversations
-		if len(composer.Requests) == 0 {
-			slog.Debug("Skipping empty session", "sessionId", composer.SessionID)
+		// Load state file to check for editing operations
+		state, err := LoadStateFile(workspace.Dir, composer.SessionID)
+		if err != nil {
+			slog.Warn("Failed to load state file", "sessionId", composer.SessionID, "error", err)
+		}
+
+		// Check if session has content (either chat messages or editing operations)
+		hasConversations := len(composer.Requests) > 0
+		hasEditingOperations := hasEditingActivity(state)
+
+		if !hasConversations && !hasEditingOperations {
+			slog.Debug("Skipping empty session (no chat or editing activity)", "sessionId", composer.SessionID)
 			continue
 		}
 
@@ -282,4 +306,38 @@ func generateCopilotIDESessionName(composer *VSCodeComposer) string {
 
 	// Fallback to empty string (shouldn't happen with non-empty conversations)
 	return ""
+}
+
+// hasEditingActivity checks if a state file contains editing operations
+func hasEditingActivity(state *VSCodeStateFile) bool {
+	if state == nil {
+		return false
+	}
+
+	// Version 2 format: check timeline.operations
+	if state.Timeline != nil && len(state.Timeline.Operations) > 0 {
+		return true
+	}
+
+	// Version 1 format: check recentSnapshot for entries
+	if state.RecentSnapshot != nil {
+		// Handle array format
+		if stopsArray, ok := state.RecentSnapshot.([]any); ok {
+			for _, stopData := range stopsArray {
+				if stopMap, ok := stopData.(map[string]any); ok {
+					if entriesData, ok := stopMap["entries"].([]any); ok && len(entriesData) > 0 {
+						return true
+					}
+				}
+			}
+		}
+		// Handle object format
+		if stopMap, ok := state.RecentSnapshot.(map[string]any); ok {
+			if entriesData, ok := stopMap["entries"].([]any); ok && len(entriesData) > 0 {
+				return true
+			}
+		}
+	}
+
+	return false
 }

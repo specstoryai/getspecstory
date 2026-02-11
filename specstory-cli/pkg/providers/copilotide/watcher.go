@@ -82,8 +82,8 @@ func WatchChatSessions(
 				return fmt.Errorf("watcher events channel closed")
 			}
 
-			// Only process JSON files
-			if !strings.HasSuffix(event.Name, ".json") {
+			// Only process JSON and JSONL files
+			if !strings.HasSuffix(event.Name, ".json") && !strings.HasSuffix(event.Name, ".jsonl") {
 				continue
 			}
 
@@ -126,8 +126,14 @@ func WatchChatSessions(
 					slog.Info("Session updated", "sessionId", sessionID, "name", composer.Name)
 				}
 
+				// Load state file (optional)
+				state, err := LoadStateFile(workspaceDir, sessionID)
+				if err != nil {
+					slog.Warn("Failed to load state file", "sessionId", sessionID, "error", err)
+				}
+
 				// Convert to AgentChatSession
-				session := ConvertToSessionData(*composer, projectPath)
+				session := ConvertToSessionData(*composer, projectPath, state)
 
 				// Write debug files if requested
 				if debugRaw {
@@ -153,6 +159,9 @@ func WatchChatSessions(
 // GetSessionIDFromPath extracts session ID from a file path
 func GetSessionIDFromPath(path string) string {
 	filename := filepath.Base(path)
-	// Remove .json extension
+	// Remove .json or .jsonl extension
+	if strings.HasSuffix(filename, ".jsonl") {
+		return strings.TrimSuffix(filename, ".jsonl")
+	}
 	return strings.TrimSuffix(filename, ".json")
 }

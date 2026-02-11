@@ -2,6 +2,7 @@ package copilotide
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -10,13 +11,22 @@ import (
 )
 
 // ConvertToSessionData converts VS Code raw format to CLI's unified schema
-func ConvertToSessionData(composer VSCodeComposer, projectPath string) spi.AgentChatSession {
+func ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VSCodeStateFile) spi.AgentChatSession {
 	// Format timestamps
 	createdAt := FormatTimestamp(composer.CreationDate)
 	updatedAt := FormatTimestamp(composer.LastMessageDate)
 
 	// Generate slug
 	slug := GenerateSlug(composer)
+
+	// Handle editing-only sessions (no chat requests but has file operations)
+	requests := composer.Requests
+	if len(requests) == 0 && state != nil {
+		syntheticRequests := createSyntheticRequestsFromEditingState(composer, state)
+		if len(syntheticRequests) > 0 {
+			requests = syntheticRequests
+		}
+	}
 
 	// Build SessionData
 	sessionData := &schema.SessionData{
@@ -31,7 +41,7 @@ func ConvertToSessionData(composer VSCodeComposer, projectPath string) spi.Agent
 		UpdatedAt:     updatedAt,
 		Slug:          slug,
 		WorkspaceRoot: projectPath,
-		Exchanges:     ConvertRequestsToExchanges(composer.Requests),
+		Exchanges:     ConvertRequestsToExchanges(requests),
 	}
 
 	// Marshal to JSON for raw data
@@ -315,4 +325,229 @@ func MapToolType(toolName string) string {
 
 	slog.Debug("Unknown tool type, mapping to generic", "toolName", toolName)
 	return schema.ToolTypeGeneric
+}
+
+// createSyntheticRequestsFromEditingState creates synthetic request blocks from editing operations
+// when there are no chat requests but file operations exist
+func createSyntheticRequestsFromEditingState(composer VSCodeComposer, state *VSCodeStateFile) []VSCodeRequestBlock {
+	if state == nil {
+		return nil
+	}
+
+	// Detect state version
+	version := state.Version
+	if version == 0 {
+		version = 1 // Default to version 1
+	}
+
+	slog.Debug("Processing editing state", "version", version, "sessionId", composer.SessionID)
+
+	var fileOperationSummaries []string
+
+	if version >= 2 {
+		// Version 2: Extract from timeline.operations
+		fileOperationSummaries = extractOperationsFromV2State(state)
+		slog.Debug("Extracted operations from v2 state", "count", len(fileOperationSummaries))
+	} else {
+		// Version 1: Extract from recentSnapshot/pendingSnapshot
+		fileOperationSummaries = extractOperationsFromV1State(state)
+		slog.Debug("Extracted operations from v1 state", "count", len(fileOperationSummaries))
+	}
+
+	// Fallback: If we couldn't extract operations but state exists, show generic message
+	if len(fileOperationSummaries) == 0 {
+		// Check if there's any indication of editing activity
+		hasRecentSnapshot := state.RecentSnapshot != nil
+		hasPendingSnapshot := state.PendingSnapshot != nil
+		hasTimeline := state.Timeline != nil
+
+		if !hasRecentSnapshot && !hasPendingSnapshot && !hasTimeline {
+			return nil // No editing activity detected
+		}
+
+		fileOperationSummaries = []string{"File editing session (details not available)"}
+	}
+
+	// Get user input text if available (from customTitle)
+	userText := composer.CustomTitle
+	if userText == "" {
+		userText = "File editing session"
+	}
+
+	// Build synthetic text for assistant message
+	var assistantText string
+	if len(fileOperationSummaries) > 0 {
+		plural := ""
+		if len(fileOperationSummaries) > 1 {
+			plural = "s"
+		}
+		assistantText = fmt.Sprintf("Performed %d file operation%s:\n\n%s",
+			len(fileOperationSummaries),
+			plural,
+			strings.Join(fileOperationSummaries, "\n"))
+	} else {
+		assistantText = "Performed file editing operations"
+	}
+
+	// Create synthetic request block
+	syntheticRequest := VSCodeRequestBlock{
+		RequestID: composer.SessionID + "-synthetic",
+		Timestamp: composer.CreationDate,
+		Message: VSCodeMessage{
+			Text: userText,
+		},
+		Response: []json.RawMessage{},
+		Result: VSCodeResult{
+			Metadata: VSCodeResultMetadata{
+				Messages: []VSCodeMetadataMessage{
+					{
+						Role:    "assistant",
+						Content: assistantText,
+					},
+				},
+			},
+		},
+		ModelID: composer.ResponderUsername,
+	}
+
+	return []VSCodeRequestBlock{syntheticRequest}
+}
+
+// extractOperationsFromV2State extracts file operations from version 2 state format (timeline.operations)
+func extractOperationsFromV2State(state *VSCodeStateFile) []string {
+	if state.Timeline == nil || len(state.Timeline.Operations) == 0 {
+		return nil
+	}
+
+	var summaries []string
+	for _, op := range state.Timeline.Operations {
+		var fileName string
+		if op.URI != nil {
+			// Extract file name from URI
+			path := op.URI.FSPath
+			if path == "" {
+				path = op.URI.Path
+			}
+			if path != "" {
+				parts := strings.Split(path, "/")
+				fileName = parts[len(parts)-1]
+			} else {
+				fileName = "unknown file"
+			}
+		} else {
+			fileName = "unknown file"
+		}
+
+		switch op.Type {
+		case "create":
+			summaries = append(summaries, fmt.Sprintf("Created file: `%s`", fileName))
+		case "textEdit":
+			editCount := len(op.Edits)
+			if editCount == 0 {
+				editCount = 1
+			}
+			plural := ""
+			if editCount > 1 {
+				plural = "s"
+			}
+			summaries = append(summaries, fmt.Sprintf("Edited `%s` (%d edit%s)", fileName, editCount, plural))
+		case "delete":
+			summaries = append(summaries, fmt.Sprintf("Deleted file: `%s`", fileName))
+		default:
+			summaries = append(summaries, fmt.Sprintf("%s: `%s`", op.Type, fileName))
+		}
+	}
+
+	return summaries
+}
+
+// extractOperationsFromV1State extracts file operations from version 1 state format (recentSnapshot/pendingSnapshot)
+func extractOperationsFromV1State(state *VSCodeStateFile) []string {
+	filesSummary := make(map[string]bool)
+
+	// Try recentSnapshot (can be array or object)
+	if state.RecentSnapshot != nil {
+		entries := extractEntriesFromSnapshot(state.RecentSnapshot)
+		for _, entry := range entries {
+			if fileName := extractFileNameFromEntry(entry); fileName != "" {
+				filesSummary[fmt.Sprintf("Modified `%s`", fileName)] = true
+			}
+		}
+	}
+
+	// Try pendingSnapshot
+	if state.PendingSnapshot != nil {
+		entries := extractEntriesFromSnapshot(state.PendingSnapshot)
+		for _, entry := range entries {
+			if fileName := extractFileNameFromEntry(entry); fileName != "" {
+				filesSummary[fmt.Sprintf("Modified `%s`", fileName)] = true
+			}
+		}
+	}
+
+	// Convert map to slice
+	var summaries []string
+	for summary := range filesSummary {
+		summaries = append(summaries, summary)
+	}
+
+	return summaries
+}
+
+// extractEntriesFromSnapshot extracts entries from a snapshot (handles both array and object formats)
+func extractEntriesFromSnapshot(snapshot any) []VSCodeStopEntry {
+	if snapshot == nil {
+		return nil
+	}
+
+	var entries []VSCodeStopEntry
+
+	// Try to unmarshal as VSCodeStop object
+	if stopMap, ok := snapshot.(map[string]any); ok {
+		if entriesData, ok := stopMap["entries"].([]any); ok {
+			for _, entryData := range entriesData {
+				if entryMap, ok := entryData.(map[string]any); ok {
+					if resource, ok := entryMap["resource"].(string); ok {
+						entries = append(entries, VSCodeStopEntry{Resource: resource})
+					}
+				}
+			}
+			return entries
+		}
+	}
+
+	// Try to unmarshal as array of VSCodeStop objects
+	if stopsArray, ok := snapshot.([]any); ok {
+		for _, stopData := range stopsArray {
+			if stopMap, ok := stopData.(map[string]any); ok {
+				if entriesData, ok := stopMap["entries"].([]any); ok {
+					for _, entryData := range entriesData {
+						if entryMap, ok := entryData.(map[string]any); ok {
+							if resource, ok := entryMap["resource"].(string); ok {
+								entries = append(entries, VSCodeStopEntry{Resource: resource})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return entries
+}
+
+// extractFileNameFromEntry extracts the file name from an entry object
+func extractFileNameFromEntry(entry VSCodeStopEntry) string {
+	if entry.Resource == "" {
+		return ""
+	}
+
+	// Handle both URI strings and file paths
+	resource := entry.Resource
+	parts := strings.Split(resource, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+
+	return resource
 }

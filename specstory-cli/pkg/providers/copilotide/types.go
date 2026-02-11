@@ -72,8 +72,29 @@ type VSCodeCodeblockUriResponse struct {
 type VSCodeConfirmationResponse struct {
 	Kind    string `json:"kind"` // "confirmation"
 	Title   string `json:"title"`
-	Message string `json:"message"`
+	Message any    `json:"message"` // Can be string or object with value field
 	IsUsed  bool   `json:"isUsed"`
+}
+
+// GetMessageText extracts the text from the message field (handles both string and object formats)
+func (c *VSCodeConfirmationResponse) GetMessageText() string {
+	if c.Message == nil {
+		return ""
+	}
+
+	// Try string first
+	if str, ok := c.Message.(string); ok {
+		return str
+	}
+
+	// If it's an object, try to get the "value" field
+	if msgMap, ok := c.Message.(map[string]any); ok {
+		if value, ok := msgMap["value"].(string); ok {
+			return value
+		}
+	}
+
+	return ""
 }
 
 // VSCodeInlineReferenceResponse represents a reference to code/files
@@ -158,10 +179,24 @@ type VSCodeRange struct {
 
 // VSCodeStateFile represents the state file for editing sessions
 type VSCodeStateFile struct {
-	Version       int                   `json:"version"`
-	SessionID     string                `json:"sessionId"`
-	LinearHistory []VSCodeLinearHistory `json:"linearHistory,omitempty"`
-	// Add other fields as needed
+	Version         int                   `json:"version"`
+	SessionID       string                `json:"sessionId"`
+	LinearHistory   []VSCodeLinearHistory `json:"linearHistory,omitempty"`
+	RecentSnapshot  any                   `json:"recentSnapshot,omitempty"`  // Can be array or object
+	PendingSnapshot any                   `json:"pendingSnapshot,omitempty"` // Can be array or object
+	Timeline        *VSCodeTimeline       `json:"timeline,omitempty"`        // Version 2 format
+}
+
+// VSCodeTimeline represents the timeline in version 2 state format
+type VSCodeTimeline struct {
+	Operations []VSCodeOperation `json:"operations,omitempty"`
+}
+
+// VSCodeOperation represents a file operation in version 2 state format
+type VSCodeOperation struct {
+	Type  string     `json:"type"`            // "create", "textEdit", "delete"
+	URI   *VSCodeUri `json:"uri,omitempty"`   // File URI
+	Edits []any      `json:"edits,omitempty"` // Edit details
 }
 
 // VSCodeLinearHistory represents the linear history of edits
@@ -172,5 +207,10 @@ type VSCodeLinearHistory struct {
 
 // VSCodeStop represents a stop in the edit history
 type VSCodeStop struct {
-	// Define as needed - can defer to phase 2
+	Entries []VSCodeStopEntry `json:"entries,omitempty"`
+}
+
+// VSCodeStopEntry represents an entry in a stop
+type VSCodeStopEntry struct {
+	Resource string `json:"resource,omitempty"` // File path or URI
 }
