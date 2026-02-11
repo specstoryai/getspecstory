@@ -40,6 +40,7 @@ type ExchangeStats struct {
 	ToolTypes    string
 	ToolCount    int
 	TokenUsage   TokenUsage
+	Model        string // The model used for this exchange (from agent messages)
 }
 
 // ComputeExchangeStats computes statistics for a single exchange.
@@ -58,6 +59,7 @@ func ComputeExchangeStats(exchange schema.Exchange, idx int) ExchangeStats {
 		ToolTypes:    toolTypes,
 		ToolCount:    toolCount,
 		TokenUsage:   tokenUsage,
+		Model:        extractModel(exchange),
 	}
 }
 
@@ -81,6 +83,7 @@ func ComputeSessionStats(agentName string, session *spi.AgentChatSession) Sessio
 
 // SetSessionSpanAttributes sets all standard session attributes on a span.
 // This sets session-level summary attributes only; exchange details are in child spans.
+// Token usage attributes are provider-specific and only non-zero values are meaningful.
 func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 	span.SetAttributes(
 		attribute.String("specstory.agent", stats.AgentName),
@@ -90,11 +93,15 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 		attribute.Int("specstory.session.tool_count", stats.ToolCount),
 		attribute.Int("specstory.session.tool_type_count", stats.ToolTypeCount),
 		attribute.String("specstory.project.path", stats.ProjectPath),
-		// Token usage attributes (session totals)
+		// Token usage attributes - common (all providers)
 		attribute.Int("specstory.session.input_tokens", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.session.output_tokens", stats.TokenUsage.OutputTokens),
+		// Token usage attributes - Claude Code specific
 		attribute.Int("specstory.session.cache_creation_tokens", stats.TokenUsage.CacheCreationInputTokens),
 		attribute.Int("specstory.session.cache_read_tokens", stats.TokenUsage.CacheReadInputTokens),
+		// Token usage attributes - Codex CLI specific
+		attribute.Int("specstory.session.cached_input_tokens", stats.TokenUsage.CachedInputTokens),
+		attribute.Int("specstory.session.reasoning_output_tokens", stats.TokenUsage.ReasoningOutputTokens),
 	)
 }
 
@@ -111,10 +118,12 @@ func StartExchangeSpan(ctx context.Context, sessionID string, exchangeID string,
 }
 
 // SetExchangeSpanAttributes sets all attributes on an exchange span.
+// Token usage attributes are provider-specific and only non-zero values are meaningful.
 func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 	span.SetAttributes(
 		attribute.String("specstory.exchange.id", stats.ExchangeID),
 		attribute.Int("specstory.exchange.index", stats.ExchangeIdx),
+		attribute.String("specstory.exchange.model", stats.Model),
 		attribute.String("specstory.exchange.prompt_text", stats.PromptText),
 		attribute.String("specstory.exchange.start_time", stats.StartTime),
 		attribute.String("specstory.exchange.end_time", stats.EndTime),
@@ -122,11 +131,15 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 		attribute.String("specstory.exchange.tools_used", stats.ToolNames),
 		attribute.String("specstory.exchange.tool_types", stats.ToolTypes),
 		attribute.Int("specstory.exchange.tool_count", stats.ToolCount),
-		// Token usage attributes for this exchange
+		// Token usage attributes - common (all providers)
 		attribute.Int("specstory.exchange.input_tokens", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.exchange.output_tokens", stats.TokenUsage.OutputTokens),
+		// Token usage attributes - Claude Code specific
 		attribute.Int("specstory.exchange.cache_creation_tokens", stats.TokenUsage.CacheCreationInputTokens),
 		attribute.Int("specstory.exchange.cache_read_tokens", stats.TokenUsage.CacheReadInputTokens),
+		// Token usage attributes - Codex CLI specific
+		attribute.Int("specstory.exchange.cached_input_tokens", stats.TokenUsage.CachedInputTokens),
+		attribute.Int("specstory.exchange.reasoning_output_tokens", stats.TokenUsage.ReasoningOutputTokens),
 	)
 }
 
@@ -209,6 +222,17 @@ func extractUserPromptText(exchange schema.Exchange) string {
 	return ""
 }
 
+// extractModel finds the model used in an exchange by looking at agent messages.
+// Returns the model from the first agent message that has one set.
+func extractModel(exchange schema.Exchange) string {
+	for _, msg := range exchange.Messages {
+		if msg.Role == schema.RoleAgent && msg.Model != "" {
+			return msg.Model
+		}
+	}
+	return ""
+}
+
 // --- Counting Helpers ---
 
 // countSessionMessages counts total messages across all exchanges.
@@ -240,28 +264,40 @@ func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCoun
 }
 
 // CountExchangeTokens aggregates token usage for a single exchange.
+// Handles both Claude Code and Codex CLI specific token fields.
 func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 	var usage TokenUsage
 	for _, msg := range exchange.Messages {
 		if msg.Usage != nil {
+			// Common fields (all providers)
 			usage.InputTokens += msg.Usage.InputTokens
 			usage.OutputTokens += msg.Usage.OutputTokens
+			// Claude Code specific
 			usage.CacheCreationInputTokens += msg.Usage.CacheCreationInputTokens
 			usage.CacheReadInputTokens += msg.Usage.CacheReadInputTokens
+			// Codex CLI specific
+			usage.CachedInputTokens += msg.Usage.CachedInputTokens
+			usage.ReasoningOutputTokens += msg.Usage.ReasoningOutputTokens
 		}
 	}
 	return usage
 }
 
 // countSessionTokens aggregates token usage across all exchanges in a session.
+// Handles both Claude Code and Codex CLI specific token fields.
 func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 	var total TokenUsage
 	for _, exchange := range exchanges {
 		exchangeUsage := CountExchangeTokens(exchange)
+		// Common fields (all providers)
 		total.InputTokens += exchangeUsage.InputTokens
 		total.OutputTokens += exchangeUsage.OutputTokens
+		// Claude Code specific
 		total.CacheCreationInputTokens += exchangeUsage.CacheCreationInputTokens
 		total.CacheReadInputTokens += exchangeUsage.CacheReadInputTokens
+		// Codex CLI specific
+		total.CachedInputTokens += exchangeUsage.CachedInputTokens
+		total.ReasoningOutputTokens += exchangeUsage.ReasoningOutputTokens
 	}
 	return total
 }
