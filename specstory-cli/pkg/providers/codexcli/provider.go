@@ -908,76 +908,39 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 	var firstUserMessage string
 	lineNum := 0
 
-	// Read records until we find a user message or reach EOF
+	// Read records until we find a user message or reach EOF.
+	// Why: ReadString can return data AND io.EOF on the last line (no trailing newline),
+	// so we always process the line first, then check for EOF once at the bottom.
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("failed to read line: %w", err)
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && readErr != io.EOF {
+			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
 		lineNum++
 		line = strings.TrimSpace(line)
 
-		// Skip empty lines
-		if line == "" {
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		// Parse JSON record
-		var record map[string]interface{}
-		if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
-			slog.Warn("Skipping malformed JSONL line",
-				"file", filepath.Base(sessionInfo.SessionPath),
-				"line", lineNum,
-				"error", jsonErr)
-			if err == io.EOF {
-				break
-			}
-			continue
-		}
-
-		// Look for first user message
-		if firstUserMessage == "" {
-			// Get record type
-			recordType, ok := record["type"].(string)
-			if !ok || recordType != "event_msg" {
-				if err == io.EOF {
-					break
+		if line != "" {
+			// Parse JSON record
+			var record map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
+				slog.Warn("Skipping malformed JSONL line",
+					"file", filepath.Base(sessionInfo.SessionPath),
+					"line", lineNum,
+					"error", jsonErr)
+			} else if recordType, ok := record["type"].(string); ok && recordType == "event_msg" {
+				if payload, ok := record["payload"].(map[string]interface{}); ok {
+					if payloadType, ok := payload["type"].(string); ok && payloadType == "user_message" {
+						if message, ok := payload["message"].(string); ok && message != "" {
+							firstUserMessage = message
+						}
+					}
 				}
-				continue
-			}
-
-			// Get payload
-			payload, ok := record["payload"].(map[string]interface{})
-			if !ok {
-				if err == io.EOF {
-					break
-				}
-				continue
-			}
-
-			// Check if this is a user message
-			payloadType, ok := payload["type"].(string)
-			if !ok || payloadType != "user_message" {
-				if err == io.EOF {
-					break
-				}
-				continue
-			}
-
-			// Extract the message content
-			message, ok := payload["message"].(string)
-			if ok && message != "" {
-				firstUserMessage = message
-				// Found what we need, can stop reading
-				break
 			}
 		}
 
-		if err == io.EOF {
+		// Single exit: found what we need, or reached end of file
+		if firstUserMessage != "" || readErr == io.EOF {
 			break
 		}
 	}
