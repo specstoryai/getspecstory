@@ -27,7 +27,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
@@ -1005,12 +1004,13 @@ func processSingleSession(ctx context.Context, session *spi.AgentChatSession, pr
 		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
 	}()
 
-	// Set span attributes
-	var exchanges []schema.Exchange
-	if session.SessionData != nil {
-		exchanges = session.SessionData.Exchanges
+	// Set session span attributes
+	telemetry.SetSessionSpanAttributes(span, stats)
+
+	// Create child spans for each exchange
+	if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges)
 	}
-	telemetry.SetSessionSpanAttributes(span, stats, exchanges)
 
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
@@ -1242,12 +1242,13 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// Compute session statistics
 		sessionStats := telemetry.ComputeSessionStats(agentName, session)
 
-		// Set span attributes
-		var exchanges []schema.Exchange
-		if session.SessionData != nil {
-			exchanges = session.SessionData.Exchanges
+		// Set session span attributes
+		telemetry.SetSessionSpanAttributes(span, sessionStats)
+
+		// Create child spans for each exchange
+		if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+			telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges)
 		}
-		telemetry.SetSessionSpanAttributes(span, sessionStats, exchanges)
 
 		validateSessionData(session, debugRaw)
 		writeDebugSessionData(session, debugRaw)
