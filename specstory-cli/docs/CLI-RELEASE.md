@@ -9,7 +9,7 @@
 3. Tag and push the release:
    ```zsh
    git tag -a specstory-cli/v1.0.0 -m "Release v1.0.0"
-   git push origin specstory-cli/v1.0.0
+   git push origin --tags
    ```
 4. Monitor the [GitHub Action](https://github.com/specstoryai/getspecstory/actions)
 5. Verify the [GitHub Release](https://github.com/specstoryai/getspecstory/releases) has correct changelog
@@ -25,6 +25,8 @@ brew update
 brew upgrade specstory
 specstory version
 ```
+
+Optional: Update the SpecStory CLI dependency version of Intent.
 
 ### Update Any Product/Feature Changes in the Documentation
 

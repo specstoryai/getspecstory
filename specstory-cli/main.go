@@ -21,6 +21,7 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -2238,6 +2239,7 @@ func main() {
 	runCmd = createRunCommand()
 	watchCmd = createWatchCommand()
 	syncCmd = createSyncCommand()
+	listCmd := cmd.CreateListCommand()
 	checkCmd = createCheckCommand()
 
 	// Set version for the automatic version flag
@@ -2253,6 +2255,7 @@ func main() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(watchCmd)
 	rootCmd.AddCommand(syncCmd)
+	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(loginCmd)
