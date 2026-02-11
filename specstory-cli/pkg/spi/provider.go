@@ -34,7 +34,7 @@ type SessionMetadata struct {
 	SessionID string `json:"session_id" csv:"session_id"` // Stable and unique identifier for the session
 	CreatedAt string `json:"created_at" csv:"created_at"` // Stable ISO 8601 timestamp when session was created
 	Slug      string `json:"slug" csv:"slug"`             // Stable human-readable session name/slug
-	Name      string `json:"name" csv:"name"`             // Human-readable name of the session (may be empty if not available)
+	Name      string `json:"name" csv:"name"`             // Human-readable description of the session (may be empty if not available)
 }
 
 // Provider defines the interface that all agent coding tool providers must implement
@@ -69,9 +69,9 @@ type Provider interface {
 	GetAgentChatSessions(projectPath string, debugRaw bool, progress ProgressCallback) ([]AgentChatSession, error)
 
 	// ListAgentChatSessions retrieves lightweight metadata for all sessions without full parsing
-	// This is much faster than GetAgentChatSessions as it only reads session IDs, timestamps, and slugs
+	// This should be faster than GetAgentChatSessions as it only needs to return SessionMetadata and not the full AgentChatSession
 	// projectPath: Agent's working directory
-	// Returns a slice of SessionMetadata (ordering is provider-defined; consumers should sort if needed)
+	// Returns a slice of SessionMetadata (ordering is provider-defined; consumers will sort if needed)
 	ListAgentChatSessions(projectPath string) ([]SessionMetadata, error)
 
 	// ExecAgentAndWatch executes the agent in interactive mode and watches for session updates

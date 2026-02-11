@@ -75,7 +75,7 @@ func TrackEvent(eventName string, properties Properties) {
 		DistinctId:       distinctID,
 		Event:            eventName,
 		Properties:       phProperties,
-		SendFeatureFlags: false,
+		SendFeatureFlags: posthog.SendFeatureFlags(false),
 	})
 
 	if err != nil {

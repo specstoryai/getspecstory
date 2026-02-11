@@ -171,11 +171,16 @@ func (h *multiHandler) WithGroup(name string) slog.Handler {
 	return &multiHandler{handlers: newHandlers}
 }
 
-// isSilent checks if silent mode is enabled
-// This is set during logger setup
+// silentMode tracks whether silent mode is enabled (set during logger setup)
 var silentMode bool
 
+// isSilent checks if silent mode is enabled (internal use)
 func isSilent() bool {
+	return silentMode
+}
+
+// IsSilent returns whether silent mode is enabled (for external packages)
+func IsSilent() bool {
 	return silentMode
 }
 
