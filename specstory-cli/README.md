@@ -123,6 +123,16 @@ silent = false
 [analytics]
 # Send anonymous usage analytics (default: true)
 enabled = true
+
+[telemetry]
+# Enable OpenTelemetry tracing and metrics (default: false, auto-enabled if endpoint is set)
+enabled = true
+# OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
+endpoint = "localhost:4317"
+# Override the default service name (default: "specstory-cli")
+service_name = "specstory-cli"
+# Exclude user prompt text from telemetry spans for privacy (default: false)
+no_prompts = false
 ```
 
 ### Configuration Options
@@ -138,6 +148,12 @@ enabled = true
 | `[logging]` | `debug` | `false` | Enable debug-level output |
 | `[logging]` | `silent` | `false` | Suppress non-error output |
 | `[analytics]` | `enabled` | `true` | Send anonymous usage analytics |
+| `[telemetry]` | `enabled` | `false`* | Enable OpenTelemetry tracing and metrics |
+| `[telemetry]` | `endpoint` | `""` | OTLP gRPC collector endpoint |
+| `[telemetry]` | `service_name` | `"specstory-cli"` | Service name for telemetry |
+| `[telemetry]` | `no_prompts` | `false` | Exclude prompt text from telemetry spans |
+
+\* Telemetry is automatically enabled when an endpoint is configured, even if `enabled` is not explicitly set.
 
 ## Development
 
@@ -342,7 +358,7 @@ go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/anal
 
 ## Open Telemetry
 
-SpecStory CLI supports OpenTelemetry (OTel) tracing for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, and tool usage.
+SpecStory CLI supports OpenTelemetry (OTel) tracing and metrics for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, tool usage, and token consumption.
 
 ### Enabling Telemetry
 
@@ -372,7 +388,31 @@ Telemetry can be enabled in three ways:
 
 **Note**: If `telemetry.enabled` is not explicitly set, telemetry is automatically enabled when an endpoint is configured.
 
-### Span Attributes
+### Telemetry Configuration Options
+
+| Option | CLI Flag | Environment Variable | Config Key | Default | Description |
+|--------|----------|---------------------|------------|---------|-------------|
+| Enable | `--no-telemetry` | `OTEL_ENABLED` | `telemetry.enabled` | `false`* | Enable/disable telemetry |
+| Endpoint | `--telemetry-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `telemetry.endpoint` | `""` | OTLP gRPC collector endpoint |
+| Service Name | `--telemetry-service-name` | `OTEL_SERVICE_NAME` | `telemetry.service_name` | `"specstory-cli"` | Service name for spans/metrics |
+| No Prompts | `--no-telemetry-prompts` | - | `telemetry.no_prompts` | `false` | Exclude prompt text from spans |
+
+\* Telemetry is automatically enabled when an endpoint is configured.
+
+### Privacy: Excluding Prompt Text
+
+For privacy, you can exclude user prompt text from telemetry spans. When enabled, the `specstory.exchange.prompt_text` attribute will be empty.
+
+```zsh
+# Via CLI flag
+specstory sync --no-telemetry-prompts
+
+# Via configuration file
+[telemetry]
+no_prompts = true
+```
+
+### Session Span Attributes
 
 Each session processing span includes the following attributes:
 
@@ -385,8 +425,31 @@ Each session processing span includes the following attributes:
 | `specstory.session.tool_count` | Total tool invocations |
 | `specstory.session.tool_type_count` | Number of unique tool types used |
 | `specstory.project.path` | Workspace root path |
+| `specstory.session.input_tokens` | Total input tokens (all providers) |
+| `specstory.session.output_tokens` | Total output tokens (all providers) |
+| `specstory.session.cache_creation_tokens` | Cache creation tokens (Claude Code) |
+| `specstory.session.cache_read_tokens` | Cache read tokens (Claude Code) |
+| `specstory.session.cached_input_tokens` | Cached input tokens (Codex CLI) |
+| `specstory.session.reasoning_output_tokens` | Reasoning output tokens (Codex CLI) |
 
-Exchange-level attributes are also included with dot-notation keys (e.g., `specstory.exchanges.<id>.prompt_text`).
+### Exchange Span Attributes
+
+Each exchange is recorded as a child span with these attributes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `specstory.exchange.id` | Exchange identifier |
+| `specstory.exchange.index` | Exchange index in session |
+| `specstory.exchange.model` | Model used for this exchange |
+| `specstory.exchange.prompt_text` | User prompt text (unless `no_prompts` is set) |
+| `specstory.exchange.start_time` | Exchange start timestamp |
+| `specstory.exchange.end_time` | Exchange end timestamp |
+| `specstory.exchange.message_count` | Messages in this exchange |
+| `specstory.exchange.tools_used` | Comma-separated tool names |
+| `specstory.exchange.tool_types` | Comma-separated tool types |
+| `specstory.exchange.tool_count` | Number of tool invocations |
+| `specstory.exchange.input_tokens` | Input tokens for this exchange |
+| `specstory.exchange.output_tokens` | Output tokens for this exchange |
 
 ### Disabling Telemetry
 
