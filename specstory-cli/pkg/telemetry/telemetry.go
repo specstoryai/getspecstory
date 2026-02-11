@@ -54,11 +54,17 @@ var (
 	toolsUsed          metric.Int64Counter
 	processingDuration metric.Float64Histogram
 
-	// Token usage metrics
-	inputTokensTotal    metric.Int64Counter
-	outputTokensTotal   metric.Int64Counter
+	// Token usage metrics (common)
+	inputTokensTotal  metric.Int64Counter
+	outputTokensTotal metric.Int64Counter
+
+	// Token usage metrics (Claude Code specific)
 	cacheCreationTokens metric.Int64Counter
 	cacheReadTokens     metric.Int64Counter
+
+	// Token usage metrics (Codex CLI specific)
+	cachedInputTokens     metric.Int64Counter
+	reasoningOutputTokens metric.Int64Counter
 
 	// Common attributes parsed from OTEL_RESOURCE_ATTRIBUTES to include on all metrics
 	commonMetricAttrs []attribute.KeyValue
@@ -318,7 +324,24 @@ func initMetricInstruments() error {
 	}
 
 	cacheReadTokens, err = meter.Int64Counter("specstory.tokens.cache_read",
-		metric.WithDescription("Total tokens read from cache across all sessions"),
+		metric.WithDescription("Total tokens read from cache across all sessions (Claude)"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	// Codex CLI specific counters
+	cachedInputTokens, err = meter.Int64Counter("specstory.tokens.cached_input",
+		metric.WithDescription("Total cached input tokens across all sessions (Codex)"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	reasoningOutputTokens, err = meter.Int64Counter("specstory.tokens.reasoning_output",
+		metric.WithDescription("Total reasoning output tokens across all sessions (Codex)"),
 		metric.WithUnit("{token}"),
 	)
 	if err != nil {
@@ -497,29 +520,52 @@ func recordProcessingDuration(ctx context.Context, agent string, sessionID strin
 }
 
 // TokenUsage holds aggregated token counts for telemetry recording.
+// Different providers track different token types:
+//   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
+//   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
 type TokenUsage struct {
-	InputTokens              int
-	OutputTokens             int
+	// Common fields (all providers)
+	InputTokens  int
+	OutputTokens int
+
+	// Claude Code specific
 	CacheCreationInputTokens int
 	CacheReadInputTokens     int
+
+	// Codex CLI specific
+	CachedInputTokens     int
+	ReasoningOutputTokens int
 }
 
 // recordTokenUsage records token usage metrics for a session.
+// Only non-zero values are recorded.
 func recordTokenUsage(ctx context.Context, agent string, sessionID string, usage TokenUsage) {
 	attrs := buildMetricAttrs(
 		attribute.String("specstory.agent", agent),
 		attribute.String("specstory.session.id", sessionID),
 	)
+
+	// Common metrics
 	if usage.InputTokens > 0 {
 		inputTokensTotal.Add(ctx, int64(usage.InputTokens), metric.WithAttributes(attrs...))
 	}
 	if usage.OutputTokens > 0 {
 		outputTokensTotal.Add(ctx, int64(usage.OutputTokens), metric.WithAttributes(attrs...))
 	}
+
+	// Claude Code specific
 	if usage.CacheCreationInputTokens > 0 {
 		cacheCreationTokens.Add(ctx, int64(usage.CacheCreationInputTokens), metric.WithAttributes(attrs...))
 	}
 	if usage.CacheReadInputTokens > 0 {
 		cacheReadTokens.Add(ctx, int64(usage.CacheReadInputTokens), metric.WithAttributes(attrs...))
+	}
+
+	// Codex CLI specific
+	if usage.CachedInputTokens > 0 {
+		cachedInputTokens.Add(ctx, int64(usage.CachedInputTokens), metric.WithAttributes(attrs...))
+	}
+	if usage.ReasoningOutputTokens > 0 {
+		reasoningOutputTokens.Add(ctx, int64(usage.ReasoningOutputTokens), metric.WithAttributes(attrs...))
 	}
 }

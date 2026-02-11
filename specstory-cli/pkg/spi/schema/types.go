@@ -74,12 +74,24 @@ type ContentPart struct {
 	Text string `json:"text"` // Content text (for both text and thinking)
 }
 
-// Usage represents token usage for an agent message
+// Usage represents token usage for an agent message.
+// Different providers track different token types:
+//   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
+//   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
+//
+// All fields use omitempty so only populated fields appear in JSON.
 type Usage struct {
-	InputTokens              int `json:"inputTokens,omitempty"`
-	OutputTokens             int `json:"outputTokens,omitempty"`
+	// Common fields (all providers)
+	InputTokens  int `json:"inputTokens,omitempty"`
+	OutputTokens int `json:"outputTokens,omitempty"`
+
+	// Claude Code specific
 	CacheCreationInputTokens int `json:"cacheCreationInputTokens,omitempty"`
 	CacheReadInputTokens     int `json:"cacheReadInputTokens,omitempty"`
+
+	// Codex CLI specific
+	CachedInputTokens     int `json:"cachedInputTokens,omitempty"`
+	ReasoningOutputTokens int `json:"reasoningOutputTokens,omitempty"`
 }
 
 // ToolInfo is tool use information
