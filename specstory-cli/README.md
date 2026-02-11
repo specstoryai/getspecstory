@@ -340,6 +340,70 @@ export POSTHOG_API_KEY="your-posthog-api-key"
 go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
 ```
 
+## Open Telemetry
+
+SpecStory CLI supports OpenTelemetry (OTel) tracing for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, and tool usage.
+
+### Enabling Telemetry
+
+Telemetry can be enabled in three ways:
+
+1. **Environment variables** (highest priority for telemetry settings):
+   ```zsh
+   export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
+   export OTEL_SERVICE_NAME="specstory-cli"
+   export OTEL_ENABLED="true"
+   export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev"
+   specstory run
+   ```
+
+2. **CLI flags**:
+   ```zsh
+   specstory sync --telemetry-endpoint localhost:4317 --telemetry-service-name my-service
+   ```
+
+3. **Configuration file** (`cli-config.toml`):
+   ```toml
+   [telemetry]
+   enabled = true
+   endpoint = "localhost:4317"
+   service_name = "specstory-cli"
+   ```
+
+**Note**: If `telemetry.enabled` is not explicitly set, telemetry is automatically enabled when an endpoint is configured.
+
+### Span Attributes
+
+Each session processing span includes the following attributes:
+
+| Attribute | Description |
+|-----------|-------------|
+| `specstory.agent` | The agent provider name (e.g., "claude-code") |
+| `specstory.session.id` | Unique session identifier |
+| `specstory.session.exchange_count` | Number of exchanges in the session |
+| `specstory.session.message_count` | Total messages across all exchanges |
+| `specstory.session.tool_count` | Total tool invocations |
+| `specstory.session.tool_type_count` | Number of unique tool types used |
+| `specstory.project.path` | Workspace root path |
+
+Exchange-level attributes are also included with dot-notation keys (e.g., `specstory.exchanges.<id>.prompt_text`).
+
+### Disabling Telemetry
+
+To explicitly disable telemetry:
+
+```zsh
+# Via CLI flag
+specstory sync --no-telemetry
+
+# Via environment variable
+export OTEL_ENABLED="false"
+
+# Via configuration file
+[telemetry]
+enabled = false
+```
+
 ## License
 
 The SpecStory CLI is licensed under the [Apache 2.0 open source license](LICENSE.txt).
