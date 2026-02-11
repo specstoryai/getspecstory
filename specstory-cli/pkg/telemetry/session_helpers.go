@@ -49,10 +49,6 @@ func ComputeSessionStats(agentName string, session *spi.AgentChatSession) Sessio
 
 // SetSessionSpanAttributes sets all standard session attributes on a span.
 func SetSessionSpanAttributes(span trace.Span, stats SessionStats, exchanges []schema.Exchange) {
-	fmt.Printf("Input tokens: %d\n", stats.TokenUsage.InputTokens)
-	fmt.Printf("Output tokens: %d\n", stats.TokenUsage.OutputTokens)
-	fmt.Printf("Cache creation tokens: %d\n", stats.TokenUsage.CacheCreationInputTokens)
-	fmt.Printf("Cache read tokens: %d\n", stats.TokenUsage.CacheReadInputTokens)
 	span.SetAttributes(
 		attribute.String("specstory.agent", stats.AgentName),
 		attribute.String("specstory.session.id", stats.SessionID),
