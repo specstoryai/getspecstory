@@ -4,7 +4,6 @@ package telemetry
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -29,6 +28,39 @@ type SessionStats struct {
 	TokenUsage    TokenUsage
 }
 
+// ExchangeStats holds computed statistics for a single exchange, used for child span attributes.
+type ExchangeStats struct {
+	ExchangeID   string
+	ExchangeIdx  int
+	PromptText   string
+	StartTime    string
+	EndTime      string
+	MessageCount int
+	ToolNames    string
+	ToolTypes    string
+	ToolCount    int
+	TokenUsage   TokenUsage
+}
+
+// ComputeExchangeStats computes statistics for a single exchange.
+func ComputeExchangeStats(exchange schema.Exchange, idx int) ExchangeStats {
+	toolNames, toolTypes, toolCount := extractToolInfo(exchange)
+	tokenUsage := CountExchangeTokens(exchange)
+
+	return ExchangeStats{
+		ExchangeID:   exchange.ExchangeID,
+		ExchangeIdx:  idx,
+		PromptText:   extractUserPromptText(exchange),
+		StartTime:    exchange.StartTime,
+		EndTime:      exchange.EndTime,
+		MessageCount: len(exchange.Messages),
+		ToolNames:    toolNames,
+		ToolTypes:    toolTypes,
+		ToolCount:    toolCount,
+		TokenUsage:   tokenUsage,
+	}
+}
+
 // ComputeSessionStats computes all statistics for a session from its SessionData.
 func ComputeSessionStats(agentName string, session *spi.AgentChatSession) SessionStats {
 	stats := SessionStats{
@@ -48,7 +80,8 @@ func ComputeSessionStats(agentName string, session *spi.AgentChatSession) Sessio
 }
 
 // SetSessionSpanAttributes sets all standard session attributes on a span.
-func SetSessionSpanAttributes(span trace.Span, stats SessionStats, exchanges []schema.Exchange) {
+// This sets session-level summary attributes only; exchange details are in child spans.
+func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 	span.SetAttributes(
 		attribute.String("specstory.agent", stats.AgentName),
 		attribute.String("specstory.session.id", stats.SessionID),
@@ -57,16 +90,55 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats, exchanges []s
 		attribute.Int("specstory.session.tool_count", stats.ToolCount),
 		attribute.Int("specstory.session.tool_type_count", stats.ToolTypeCount),
 		attribute.String("specstory.project.path", stats.ProjectPath),
-		// Token usage attributes
+		// Token usage attributes (session totals)
 		attribute.Int("specstory.session.input_tokens", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.session.output_tokens", stats.TokenUsage.OutputTokens),
 		attribute.Int("specstory.session.cache_creation_tokens", stats.TokenUsage.CacheCreationInputTokens),
 		attribute.Int("specstory.session.cache_read_tokens", stats.TokenUsage.CacheReadInputTokens),
 	)
+}
 
-	// Add flattened exchange attributes (dot-notation keys)
-	if len(exchanges) > 0 {
-		span.SetAttributes(BuildExchangeAttributes(exchanges)...)
+// StartExchangeSpan creates a child span for processing a single exchange.
+// The returned span should be ended by the caller when exchange processing is complete.
+func StartExchangeSpan(ctx context.Context, sessionID string, exchangeID string, idx int) (context.Context, trace.Span) {
+	return Tracer("specstory").Start(ctx, "process_exchange",
+		trace.WithAttributes(
+			attribute.String("specstory.session.id", sessionID),
+			attribute.String("specstory.exchange.id", exchangeID),
+			attribute.Int("specstory.exchange.index", idx),
+		),
+	)
+}
+
+// SetExchangeSpanAttributes sets all attributes on an exchange span.
+func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
+	span.SetAttributes(
+		attribute.String("specstory.exchange.id", stats.ExchangeID),
+		attribute.Int("specstory.exchange.index", stats.ExchangeIdx),
+		attribute.String("specstory.exchange.prompt_text", stats.PromptText),
+		attribute.String("specstory.exchange.start_time", stats.StartTime),
+		attribute.String("specstory.exchange.end_time", stats.EndTime),
+		attribute.Int("specstory.exchange.message_count", stats.MessageCount),
+		attribute.String("specstory.exchange.tools_used", stats.ToolNames),
+		attribute.String("specstory.exchange.tool_types", stats.ToolTypes),
+		attribute.Int("specstory.exchange.tool_count", stats.ToolCount),
+		// Token usage attributes for this exchange
+		attribute.Int("specstory.exchange.input_tokens", stats.TokenUsage.InputTokens),
+		attribute.Int("specstory.exchange.output_tokens", stats.TokenUsage.OutputTokens),
+		attribute.Int("specstory.exchange.cache_creation_tokens", stats.TokenUsage.CacheCreationInputTokens),
+		attribute.Int("specstory.exchange.cache_read_tokens", stats.TokenUsage.CacheReadInputTokens),
+	)
+}
+
+// ProcessExchangeSpans creates child spans for all exchanges in a session.
+// This is a helper that creates spans, sets attributes, and ends them immediately
+// since exchange processing is retrospective (data already exists).
+func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange) {
+	for i, exchange := range exchanges {
+		_, exchangeSpan := StartExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
+		stats := ComputeExchangeStats(exchange, i)
+		SetExchangeSpanAttributes(exchangeSpan, stats)
+		exchangeSpan.End()
 	}
 }
 
@@ -84,40 +156,7 @@ func RecordSessionMetrics(ctx context.Context, stats SessionStats, duration time
 	recordTokenUsage(ctx, stats.AgentName, stats.SessionID, stats.TokenUsage)
 }
 
-// --- Exchange Attributes ---
-
-// BuildExchangeAttributes creates span attributes for all exchanges in a session.
-func BuildExchangeAttributes(exchanges []schema.Exchange) []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, len(exchanges)*12)
-
-	for i, exchange := range exchanges {
-		prefix := fmt.Sprintf("specstory.exchanges.%s", exchange.ExchangeID)
-
-		// Extract tool usage information
-		toolNames, toolTypes, toolCount := extractToolInfo(exchange)
-
-		// Extract token usage for this exchange
-		tokenUsage := CountExchangeTokens(exchange)
-
-		attrs = append(attrs,
-			attribute.String(prefix+".prompt_text", extractUserPromptText(exchange)),
-			attribute.Int(prefix+".prompt_index", i),
-			attribute.String(prefix+".start_time", exchange.StartTime),
-			attribute.String(prefix+".end_time", exchange.EndTime),
-			attribute.Int(prefix+".message_count", len(exchange.Messages)),
-			attribute.String(prefix+".tools_used", toolNames),
-			attribute.String(prefix+".tool_types", toolTypes),
-			attribute.Int(prefix+".tool_count", toolCount),
-			// Token usage attributes
-			attribute.Int(prefix+".input_tokens", tokenUsage.InputTokens),
-			attribute.Int(prefix+".output_tokens", tokenUsage.OutputTokens),
-			attribute.Int(prefix+".cache_creation_tokens", tokenUsage.CacheCreationInputTokens),
-			attribute.Int(prefix+".cache_read_tokens", tokenUsage.CacheReadInputTokens),
-		)
-	}
-
-	return attrs
-}
+// --- Exchange Helpers ---
 
 // extractToolInfo extracts tool usage information from an exchange.
 // Returns: comma-separated unique tool names, comma-separated unique tool types, and total tool count.
