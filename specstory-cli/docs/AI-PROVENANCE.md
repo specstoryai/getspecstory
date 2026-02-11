@@ -1,387 +1,430 @@
-# AI Provenance CLI Integration Plan
+# AI Provenance
 
-## Context
+## Overview
 
-The `ai-provenance-lib` (Phase 1-3 complete) provides a correlation engine that matches filesystem changes to AI agent activity. This plan covers Phase 4: integrating the library into `specstory-cli` so that `run` and `watch` commands can track which file changes were made by AI agents.
+The provenance system determines **which file changes were caused by which AI agent interactions**. It does this by:
 
-The integration is incremental — each phase is independently testable with unit tests and manual verification before moving to the next.
+1. **Receiving file events** — consumers push filesystem changes (create, modify, delete, rename)
+2. **Receiving agent events** — consumers push records of agent file operations extracted from session data
+3. **Storing both** — maintains internal SQLite storage for file events and agent activity
+4. **Correlating on each event** — when a file event or agent event arrives, matches by path + timing
+5. **Emitting provenance records** — attributions linking file changes to specific agent exchanges
 
-## Architecture Overview
+The core engine lives in `pkg/provenance/`. It was originally extracted from Intent's correlation engine into a standalone library (`ai-provenance-lib`), then moved directly into specstory-cli so that both CLI and Intent can use it — Intent already imports specstory-cli as a library.
 
-Provenance is a cross-cutting concern added at the CLI command level. The existing Provider interface and SPI are **not modified**. Instead, provenance wraps the existing session callback pattern:
-
-```
-main.go (run/watch commands)
-    │
-    ├── provenance.Engine (created if --provenance flag)
-    ├── provenance.FSWatcher (watches project dir → pushes FileEvents)
-    │
-    └── sessionCallback (wraps existing callback)
-        ├── processSingleSession (existing — markdown + cloud sync)
-        └── provenance.PushAgentEvent (new — extracts from SessionData, pushes AgentEvent)
-```
-
-New code lives in `pkg/provenance/` in the CLI repo. The provenance library is imported as `github.com/specstoryai/ai-provenance-lib`.
-
-## Key Files Reference
-
-| File                                  | Role                                                |
-|---------------------------------------|-----------------------------------------------------|
-| `main.go`                             | Command definitions, flag setup, session callbacks  |
-| `pkg/spi/schema/types.go`             | SessionData, Exchange, Message, ToolInfo, PathHints |
-| `../ai-provenance-lib/types.go`       | FileEvent, AgentEvent, ProvenanceRecord             |
-
----
-
-## Phase 1: Local Build Setup
-
-**Goal:** CLI compiles with the provenance library as a dependency.
-
-### Steps
-
-1. **Add `go.work.example` to specstory-cli root** (committed to git):
-
+**Import path for consumers:**
 ```go
-// Copy this file to go.work and adjust paths as needed.
-// go.work is gitignored — it's a local development convenience.
-go 1.25.6
-
-use (
-    .
-    ../ai-provenance-lib
-)
+import "github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 ```
 
-2. **Add `go.work` to `.gitignore`** (and `go.work.sum`)
+---
 
-3. **Create local `go.work`** by copying `go.work.example`
+## Architecture
 
-4. **Add dependency to `go.mod`:**
+### Core Components
 
-```go
-require github.com/specstoryai/ai-provenance-lib v0.1.0
+| File                        | Role                                                                                                                  |
+|-----------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| `pkg/provenance/types.go`   | Input types (`FileEvent`, `AgentEvent`), output type (`ProvenanceRecord`), `NormalizePath()`, validation methods      |
+| `pkg/provenance/engine.go`  | Correlation engine — `NewEngine()`, `PushFileEvent()`, `PushAgentEvent()`, path suffix matching, best-match selection |
+| `pkg/provenance/store.go`   | SQLite persistence — WAL mode, event storage, unmatched queries, bidirectional match marking                          |
+
+### Matching Algorithm
+
+A file event correlates to an agent event when:
+
+1. The agent path (normalized) is a **suffix** of the FS path **at a `/` directory boundary**, AND
+2. The events occurred within **±5 seconds** of each other (configurable via `WithMatchWindow`)
+
+**Path normalization:** Agent paths have backslashes replaced with `/` and a leading `/` added if missing.
+
+**Multiple matches:** If multiple unmatched events match, the one with the **closest timestamp** wins.
+
+**Consumption:** Once matched, both events get their `matched_with` field set and are excluded from future correlation.
+
+**Examples:**
+
+| FS Path                  | Agent Path            | Normalized            | Match?       | Why                 |
+|--------------------------|-----------------------|-----------------------|--------------|---------------------|
+| `/project/src/foo.go`    | `foo.go`              | `/foo.go`             | Yes (if ±5s) | Suffix at `/`       |
+| `/project/src/foo.go`    | `src/foo.go`          | `/src/foo.go`         | Yes (if ±5s) | Suffix at `/`       |
+| `/project/src/foo.go`    | `/project/src/foo.go` | `/project/src/foo.go` | Yes (if ±5s) | Exact match         |
+| `/project/src/foo.go`    | `bar.go`              | `/bar.go`             | No           | Not a suffix        |
+| `/project/src/foobar.go` | `bar.go`              | `/bar.go`             | No           | Not a suffix        |
+| `/project/src/afoo.go`   | `foo.go`              | `/foo.go`             | No           | Not at `/` boundary |
+| `/project/xsrc/foo.go`   | `src/foo.go`          | `/src/foo.go`         | No           | Not at `/` boundary |
+
+### SQLite Storage
+
+**Location:** `~/.specstory/provenance/provenance.db` (centralized, not per-project)
+
+The database is centralized because:
+- Agents can work on files outside their project directory
+- Multiple consumers (CLI instances, Intent) may run simultaneously
+- Need to correlate all FS events with all agent events globally
+
+SQLite with WAL mode handles concurrent access from multiple processes.
+
+**Schema:**
+
+```sql
+CREATE TABLE events (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,           -- 'file_event' or 'agent_event'
+    file_path TEXT NOT NULL,      -- normalized path (forward slashes)
+    timestamp INTEGER NOT NULL,   -- UnixNano (int64)
+    matched_with TEXT,            -- ID of correlated entry (NULL = unmatched)
+    payload TEXT NOT NULL         -- JSON: full FileEvent or AgentEvent data
+);
+
+CREATE INDEX idx_events_unmatched
+    ON events(type, timestamp) WHERE matched_with IS NULL;
 ```
 
-With `go.work` active, Go resolves this locally. CI will use `GOPRIVATE` + GitHub PAT.
+**Schema evolution strategy:** Uses SQLite `PRAGMA user_version` (integer in DB header). On startup, read version, run any needed `ALTER TABLE` statements, bump version. No migration framework needed.
 
-5. **Verify build:** `go build -o specstory`
+**Performance pragmas:** `synchronous=NORMAL`, `cache_size=-64000`, `temp_store=MEMORY`, `mmap_size=268435456`, `page_size=8192`, `busy_timeout=15000`.
 
-### Verification
+### Data Flow
 
-- `go build -o specstory` succeeds
-- `go test ./...` passes (no behavioral changes)
-- `golangci-lint run` passes
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FILESYSTEM (fsnotify)                            │
+│  File Changes → Create, Modify, Delete, Rename                      │
+└───────────────────────┬─────────────────────────────────────────────┘
+                        │
+                        ↓
+        ┌───────────────────────────────────────────────────┐
+        │   CLI: FSWatcher (pkg/provenance/fswatcher.go)    │
+        │   - Watches project directory recursively         │
+        │   - Filters: .gitignore, binary files, temp files │
+        │   - Debounces rapid changes                       │
+        │                                                   │
+        │   Output: FileEvent                               │
+        └───────────────────────┬───────────────────────────┘
+                                │
+                                ↓
+        ┌───────────────────────────────────────────────────┐
+        │   Engine.PushFileEvent() (pkg/provenance/)        │
+        │   - Stores FileEvent in SQLite                    │
+        │   - Correlates against unmatched agent events     │
+        │   - Returns *ProvenanceRecord if match found      │
+        └───────────────────────────────────────────────────┘
 
----
 
-## Phase 2: --provenance Flag & Engine Lifecycle
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AGENT SESSION (CLI Agent Watcher)                │
+│  SessionData → Exchanges → Messages → Tool Use → PathHints          │
+└───────────────────────┬─────────────────────────────────────────────┘
+                        │
+                        ↓
+        ┌───────────────────────────────────────────────────┐
+        │   CLI: Session Update Handler                     │
+        │   - Extracts file operations from PathHints       │
+        │   - Tool types: write, shell, generic             │
+        │   - Deterministic ID for deduplication            │
+        │   - SessionID, ExchangeID, MessageID              │
+        │   - AgentType, AgentModel from session            │
+        │                                                   │
+        │   Output: AgentEvent                              │
+        └───────────────────────┬───────────────────────────┘
+                                │
+                                ↓
+        ┌───────────────────────────────────────────────────┐
+        │   Engine.PushAgentEvent() (pkg/provenance/)       │
+        │   - Stores AgentEvent in SQLite                   │
+        │   - Correlates against unmatched file events      │
+        │   - Returns *ProvenanceRecord if match found      │
+        └───────────────────────────────────────────────────┘
 
-**Goal:** `run` and `watch` accept `--provenance`. When set, a provenance Engine is created and cleanly shut down.
+                                │
+                                ↓ (if record != nil)
 
-### Steps
-
-1. **Create `pkg/provenance/provenance.go`** — engine lifecycle management:
-
-- `StartEngine(dbPath string) (*provenance.Engine, error)` — creates engine with optional custom DB path
-- `StopEngine(engine *provenance.Engine)` — closes engine
-- Uses the library's default DB path by not specifying one (`~/.specstory/provenance/provenance.db`)
-
-2. **Add flags in `main.go`:**
-
-- `--provenance` (bool) on `runCmd` and `watchCmd`
-- Add flag variable: `var provenanceEnabled bool`
-
-3. **Wire up in run/watch command handlers:**
-
-- If `--provenance` is true, call `StartEngine()`
-- Defer `StopEngine()` for cleanup
-- Log engine creation at INFO level
-- Log engine stop at INFO level
-
-### Verification
-
-- `specstory run --provenance` starts normally, logs "Provenance engine started", creates DB file at `~/.specstory/provenance/provenance.db`
-- `specstory run` (without flag) works unchanged
-- `specstory watch --provenance` same behavior
-
----
-
-## Phase 3: Extracting & Pushing Agent Events
-
-**Goal:** When provenance is enabled, extract file-modifying tool uses from SessionData and push them as AgentEvents.
-
-### Steps
-
-1. **In `pkg/provenance/provenance.go`:**
-
-- **Which tools generate AgentEvents:**
-  - `write`, `shell`, `generic` when there is a path hint, create one AgentEvent per path hint
-  - Skip: `read`, `search`, `task`, `unknown` (don't modify files directly)
-
-- `ExtractAgentEvents(sessionData *schema.SessionData) []provenance.AgentEvent`
-  - Iterates exchanges → messages
-  - For each message with a specified type tool AND PathHints:
-  - Creates an AgentEvent per PathHint
-  - Deterministic ID: SHA-256 of `sessionID + exchangeID + messageID + path` (stable across re-processing)
-  - Maps tool type to change type: `write` tools → `"write"`, could refine later to `"create"` vs `"edit"`
-  - Timestamp from message timestamp
-  - SessionID, ExchangeID from exchange
-  - MessageID from message ID
-  - AgentType from `sessionData.Provider.ID` (e.g., "claude-code")
-  - AgentModel from message Model field
-  - Returns deduplicated list
-
-2. **In `pkg/provenance/provenance.go`:**
-
-- `PushAgentEvents(ctx context.Context, engine *provenance.Engine, events []provenance.AgentEvent) []*provenance.ProvenanceRecord`
-  - Pushes each event to engine
-  - Collects and returns any non-nil ProvenanceRecords
-  - Logs each push at DEBUG level, each match at INFO level
-
-1. **Wire into session callback in `main.go`:**
-
-- When provenance is enabled, after `processSingleSession()`:
-
-    ```go
-    if provenanceEngine != nil && session.SessionData != nil {
-        events := provenance.ExtractAgentEvents(session.SessionData)
-        records := provenance.PushAgentEvents(ctx, provenanceEngine, events)
-        // records logged inside PushAgentEvents
-    }
-    ```
-
-- The library handles dedup via `INSERT OR IGNORE`, so pushing the same events on every callback is safe
-
-### Verification
-
-- Unit tests for `ExtractAgentEvents`:
-- SessionData with Write tool + PathHints → produces AgentEvent
-- SessionData with Read tool → produces nothing
-- Multiple PathHints on one tool → multiple AgentEvents
-- Deterministic IDs: same input → same ID
-- Empty SessionData → empty result
-- Manual test: `specstory run --provenance --console --debug`, use Claude Code to edit a file, see "Agent event pushed" log entries
-- `golangci-lint run` passes
+        ┌───────────────────────────────────────────────────┐
+        │   CLI: Provenance Handler                         │
+        │   - Log attribution (file ← exchange)             │
+        │   - Store in CLI's provenance storage             │
+        │   - Eventually: git notes construction            │
+        └───────────────────────────────────────────────────┘
+```
 
 ---
 
-## Phase 4: Project Directory File Watching
+## Implementation Status
 
-**Goal:** Watch the user's project directory for file changes and push FileEvents to the provenance engine.
+### Complete: Core Engine (`pkg/provenance/`)
 
-### Steps
+The correlation engine is fully implemented and tested:
 
-1. **Create `pkg/provenance/fswatcher.go`:**
+- **`types.go`** — `FileEvent`, `AgentEvent`, `ProvenanceRecord`, `NormalizePath()`, validation methods with sentinel errors
+- **`store.go`** — SQLite with WAL mode, `OpenStore()`, `PushFileEvent()`, `PushAgentEvent()`, `QueryUnmatchedFileEvents()`, `QueryUnmatchedAgentEvents()`, `SetMatchedWith()`, `INSERT OR IGNORE` for idempotent inserts
+- **`engine.go`** — `NewEngine()` with functional options (`WithDBPath`, `WithMatchWindow`), `PushFileEvent()`, `PushAgentEvent()`, `pathSuffixMatch()`, `findBestMatch()`, `buildRecord()`, `Close()`
+- **20 tests** across 3 test files (9 engine, 8 store, 3 types) — all passing
 
-- `FSWatcher` struct:
-  - Wraps `fsnotify.Watcher` (already a CLI dependency)
-  - Watches project directory **recursively** (walk tree, add each subdirectory, add new dirs on Create events)
-  - On file Create/Write/Remove events, generates `provenance.FileEvent`
-  - Pushes to engine via `PushFileEvent`
-  - Debounces rapid changes (same file within 100ms)
-
-- `NewFSWatcher(engine *provenance.Engine, projectDir string) (*FSWatcher, error)`
-- `Start(ctx context.Context) error` — begins watching
-- `Stop()` — stops watching, cleans up
-
-- **Recursive watching pattern** (fsnotify doesn't do this natively):
-  - `filepath.WalkDir` to add all subdirectories on startup
-  - On `fsnotify.Create` of a directory, add it to the watcher
-  - On `fsnotify.Remove` of a directory, remove it (fsnotify may do this automatically)
-
-1. **Create `pkg/provenance/filter.go`:**
-
-- File/directory filtering logic:
-  - **Hardcoded directory exclusions:** `.git`, `.specstory`, `node_modules`, `.next`, `__pycache__`, `.venv`, `vendor`, `.idea`, `.vscode`
-  - **Hardcoded file exclusions:** binary extensions (`.exe`, `.bin`, `.o`, `.so`, `.dylib`, `.png`, `.jpg`, `.gif`, `.pdf`, `.zip`, `.tar`, `.gz`), lock files (`package-lock.json`, `yarn.lock`,
-`go.sum`), temp files (`*~`, `.swp`, `.swo`)
-  - **Gitignore-style patterns:** Parse `.gitignore` and `.intentignore` files from the project root
-  - For gitignore parsing: evaluate `sabhiram/go-gitignore` (lightweight, popular) or `go-git/go-git/plumbing/format/gitignore` (from go-git, heavier). Recommend `sabhiram/go-gitignore` for
-simplicity — new dependency, needs approval.
-- `ShouldWatch(path string, isDir bool) bool` — returns whether a path should be watched
-
-1. **Wire into run/watch commands in `main.go`:**
-
-- When provenance is enabled:
-
-    ```go
-    fsWatcher, err := provenance.NewFSWatcher(provenanceEngine, cwd)
-    fsWatcher.Start(ctx)
-    defer fsWatcher.Stop()
-    ```
-
-1. **FileEvent details:**
-
-- ID: UUID (each FS event is unique, no dedup needed)
-- Path: absolute path from fsnotify (already absolute)
-- ChangeType: map fsnotify ops → "create", "modify", "delete"
-- Timestamp: file's ModTime from `os.Stat()` (not event time)
-
-### Verification
-
-- Unit tests for `filter.go`:
-- `.git/` excluded
-- `.specstory/` excluded
-- `node_modules/` excluded
-- Binary files excluded
-- Normal source files included
-- `.gitignore` patterns respected
-- `.intentignore` patterns respected
-- Unit tests for `fswatcher.go`:
-- Mock or temp dir with file creates/modifications
-- Verify FileEvents generated with correct paths and types
-- Manual test: `specstory run --provenance --console --debug`, edit a file in the project, see:
-- "File event pushed" log
-- If agent is also editing → "Provenance match!" log showing correlation
-- `golangci-lint run` passes
+**Dependencies:** `modernc.org/sqlite` (pure Go SQLite driver, already in CLI's `go.mod`)
 
 ---
 
-## Phase 5: Logging ProvenanceRecords
+### Complete: `--provenance` Flag & Engine Lifecycle
 
-**Goal:** Formalize structured logging of provenance matches for observability.
+**Status:** Complete
 
-### Steps
+`run` and `watch` accept `--provenance`. When set, a provenance Engine is created via the shared `startProvenanceEngine()` helper and cleanly shut down on exit. DB created at `~/.specstory/provenance/provenance.db`.
 
-1. **Enhance logging in `pkg/provenance/push.go`:**
-- When `PushFileEvent` or `PushAgentEvent` returns a non-nil ProvenanceRecord:
-    ```
-    slog.Info("Provenance match",
-        "filePath", record.FilePath,
-        "changeType", record.ChangeType,
-        "sessionID", record.SessionID,
-        "exchangeID", record.ExchangeID,
-        "agentType", record.AgentType,
-        "agentModel", record.AgentModel,
-        "matchedAt", record.MatchedAt)
-    ```
-- Also log summary statistics periodically or on shutdown:
-    - Total file events pushed
-    - Total agent events pushed
-    - Total matches found
-
-1. **Log provenance summary on CLI exit** (in the deferred shutdown):
-- "Provenance: X file events, Y agent events, Z matches"
-
-### Verification
-
-- Manual test: run a full coding session with `--provenance --console`, verify readable provenance output
-- Verify no provenance logging when `--provenance` is not set
+**Key files:** `main.go`
 
 ---
 
-## Phase 6: Storing ProvenanceRecords
+### Complete: Extracting & Pushing Agent Events
 
-**Goal:** Persist ProvenanceRecords so they can be used for git notes construction later.
+**Status:** Complete
 
-### Steps
+When provenance is enabled, `agent.go` extracts file-modifying tool uses from SessionData and pushes them as AgentEvents. The shared `processProvenanceEvents()` helper in `main.go` wires this into both `run` and `watch` session callbacks. Dedup is handled via `INSERT OR IGNORE` on deterministic IDs (SHA-256 of sessionID + exchangeID + messageID + path).
 
-1. **Design storage in `pkg/provenance/store.go`:**
-- Store ProvenanceRecords in a local file: `.specstory/provenance/records.json` (append-only JSON lines)
-- Each line is a JSON-serialized ProvenanceRecord
-- Keyed by file path + timestamp for later lookup
-- Alternative: use a SQLite table in the provenance lib's DB (would require adding a method to the lib). **Decision point — discuss with user when we reach this phase.**
+- **Tool types that generate events:** `write`, `shell`, `generic` (when PathHints present)
+- **Skipped:** `read`, `search`, `task`, `unknown`
 
-1. **Write on match:**
-- When PushFileEvent or PushAgentEvent returns non-nil, append to store
-- Flush on shutdown
-
-1. **Query interface:**
-- `GetRecordsForSession(sessionID string) []ProvenanceRecord`
-- `GetRecordsForFile(filePath string) []ProvenanceRecord`
-
-### Verification
-
-- Unit tests for store read/write
-- Manual test: run a session, verify records appear in storage file
-- Verify records survive across CLI restarts
+**Key files:** `pkg/provenance/agent.go`, `main.go`
 
 ---
 
-## Phase 7: Diff Patches for FS Events
+### Complete: Project Directory File Watching
 
-**Goal:** Capture file diffs on each filesystem change so we have the actual content changes alongside provenance attribution.
+**Status:** Complete
 
-### Steps
+FSWatcher (`pkg/provenance/fswatcher.go`) watches the project directory recursively using `fsnotify.Watcher`. Debounces rapid changes (100ms). Wired into both `run` and `watch` commands via `startProvenanceFSWatcher()` in `main.go`.
 
-1. **Approach: TBD** — decided to defer this choice. Options:
+**Filtering** (checks ordered cheapest to most expensive):
+
+1. **Excluded directories** (basename match): `.git`, `.specstory`, `node_modules`, `.next`, `__pycache__`, `.venv`, `venv`, `vendor`, `.idea`, `.vscode`, `dist`, `.claude`, `.cursor`, `.codex`, `.aider`, `.copilot`, `.github`, `.gradle`, `.mvn`, `build`, `target`, `.terraform`, `.cache`, `.tox`, `.eggs`, `.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `coverage`
+2. **Hidden files/directories** (basename starts with `.`)
+3. **Excluded extensions**: `.exe`, `.dll`, `.so`, `.dylib`, `.o`, `.a`, `.out`, `.class`, `.jar`, `.pyc`, `.pyo`, `.wasm`, `.swp`, `.swo`, `.tmp`, `.bak`, `.log`
+4. **`.gitignore` patterns** — loaded from every directory (scoped: patterns only apply under their directory)
+5. **`.intentignore` patterns** — loaded from project root only
+
+- **New dependency:** `sabhiram/go-gitignore` for gitignore pattern parsing
+- **13 tests** in `fswatcher_test.go` covering filtering, gitignore, nested gitignore scoping, intentignore, debounce, event generation, and excluded directories
+
+**Key files:** `pkg/provenance/fswatcher.go`, `pkg/provenance/fswatcher_test.go`, `main.go`
+
+---
+
+### Phase 4: Logging ProvenanceRecords
+
+**Goal:** Structured logging of provenance matches for observability.
+
+**Steps:**
+
+1. When `PushFileEvent` or `PushAgentEvent` returns a non-nil ProvenanceRecord, log:
+   ```go
+   slog.Info("Provenance match",
+       "filePath", record.FilePath,
+       "changeType", record.ChangeType,
+       "sessionID", record.SessionID,
+       "exchangeID", record.ExchangeID,
+       "agentType", record.AgentType,
+       "agentModel", record.AgentModel,
+       "matchedAt", record.MatchedAt)
+   ```
+
+2. Log provenance summary on CLI exit:
+   - "Provenance: X file events, Y agent events, Z matches"
+
+**Verification:**
+- Manual: run a session with `--provenance --console`, verify readable provenance output
+- No provenance logging when `--provenance` is not set
+
+---
+
+### Phase 5: Storing ProvenanceRecords
+
+**Goal:** Persist ProvenanceRecords for later use (git notes construction, querying).
+
+**Steps:**
+
+1. Design storage — **decision point:**
+   - Option A: `.specstory/provenance/records.json` (append-only JSON lines)
+   - Option B: SQLite table in the provenance engine's DB (would add a method to the engine)
+
+2. Write on match: when push returns non-nil, append to store; flush on shutdown
+
+3. Query interface:
+   - `GetRecordsForSession(sessionID string) []ProvenanceRecord`
+   - `GetRecordsForFile(filePath string) []ProvenanceRecord`
+
+**Key files:** `pkg/provenance/store.go` (extend) or `pkg/provenance/records.go` (new)
+
+---
+
+### Phase 6: Diff Patches for FS Events
+
+**Goal:** Capture file diffs on each filesystem change for line-level attribution.
+
+The CLI doesn't have a CRDT like Intent. It uses micro-diff chains to track incremental changes:
+
+**On each file event:**
+1. Compute diff from previous state
+2. Store the micro-diff with the FileEvent ID
+3. When ProvenanceRecord arrives, associate the micro-diff with that provenance
+
+**At commit time:**
+1. Collect all micro-diffs for files in the commit
+2. "Play forward" the diff chain to determine final line provenance
+3. Write per-line attribution to git notes
+
+**Diff chain example:**
+```
+v0 (baseline, msg1):     v1 (msg3, +lines 4-5):   v2 (msg7, ~line 4):
+1 - a                    1 - a                    1 - a
+2 - b                    2 - b                    2 - b
+3 - c                    3 - c                    3 - c
+                         4 - d                    4 - d'
+                         5 - e                    5 - e
+```
+
+**Provenance tracking walks diff results:**
+- EQUAL lines: keep existing provenance
+- DELETE lines: remove from tracking
+- INSERT lines: provenance = current version
+
+**Approach decision deferred** — options:
 - `git diff` via shell (standard unified diffs, requires git)
-- Pure Go diff library (no git dependency for this piece)
+- Pure Go diff library: [sergi/go-diff](https://github.com/sergi/go-diff) or [bluekeyes/go-gitdiff](https://github.com/bluekeyes/go-gitdiff)
 
-1. **Capture flow:**
-- On each FileEvent, before pushing to engine:
-    - Read current file content
-    - Compute diff from previous known state
-    - Store diff patch associated with the FileEvent ID
-
-1. **Baseline management:**
-- Need to track "last known state" of each file
-- On first seen: baseline is the file content at watcher start (or empty for new files)
+**Baseline management:**
+- First seen: baseline is file content at watcher start (or empty for new files)
 - On each change: update baseline after capturing diff
 
-1. **Storage:**
-- Diff patches stored alongside ProvenanceRecords
-- Associated by FileEvent ID
-
-### Verification
-
-- Unit tests for diff capture
-- Manual test: edit a file, verify diff patch is captured and associated with provenance
-- Verify diffs are standard unified diff format
-
 ---
 
-## Phase 8: Git Notes Construction
+### Phase 7: Git Notes Construction
 
 **Goal:** Construct and write git notes from stored diffs and provenance records.
 
-### Steps
+**Steps:**
 
-1. **Design git note format** — structured content that records:
-- Which files were changed by AI in a commit
-- Which agent session/exchange made each change
-- The diff patches for each attributed change
+1. Design git note format — structured content recording:
+   - Which files were changed by AI in a commit
+   - Which agent session/exchange made each change
+   - The diff patches for each attributed change
+   - Per-line attribution from diff chain playback
 
-1. **Trigger:** On demand (new CLI command or flag) or at commit time (git hook)
+2. Trigger: on demand (new CLI command or flag) or at commit time (git hook)
 
-2. **Implementation:**
-- Collect all ProvenanceRecords for files in the commit
-- Collect associated diff patches
-- Construct note content
-- Write via `git notes add` or `git notes append`
-
-### Verification
-
-- Manual test: make AI-attributed changes, commit, verify git note content
-- `git notes show` displays attribution data
+3. Implementation:
+   - Collect all ProvenanceRecords for files in the commit
+   - Collect associated diff patches
+   - Play forward diff chain for line-level attribution
+   - Construct note content
+   - Write via `git notes add` or `git notes append`
 
 ---
 
-## New Files Summary
+### Phase 8: DB Cleanup
 
-| File                                | Purpose                                                         |
-|-------------------------------------|-----------------------------------------------------------------|
-| `go.work.example`                   | Template for local development workspace                        |
-| `pkg/provenance/provenance.go`      | Engine lifecycle (start/stop)                                   |
-|                                     | Extract AgentEvents from SessionData                            |
-|                                     | Push events to engine, handle records                           |
-| `pkg/provenance/provenance_test.go` | Unit tests for agent event extraction                           |
-| `pkg/provenance/fswatcher.go`       | Project directory file watcher                                  |
-|                                     | File/directory filtering (.gitignore, .intentignore, hardcoded) |
-| `pkg/provenance/fswatcher_test.go`  | Unit tests for file filtering                                   |
-|                                     | Unit tests for file watcher                                     |
-| `pkg/provenance/store.go`           | ProvenanceRecord persistence                                    |
-| `pkg/provenance/store_test.go`      | Unit tests for record storage                                   |
+**Goal:** Prevent unbounded growth of the events table.
+
+**Steps:**
+
+- Add TTL-based cleanup or `PruneOlderThan(time.Duration)` method to engine
+- Run on startup or periodically
+- Matched events can be pruned more aggressively than unmatched ones
+
+---
+
+## Consumer: Intent Integration
+
+Intent already imports specstory-cli. To use the provenance engine:
+
+```go
+import "github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+
+engine, _ := provenance.NewEngine()
+
+// FileWatcher pushes filesystem changes
+record, _ := engine.PushFileEvent(ctx, provenance.FileEvent{...})
+
+// AgentObserver pushes agent operations
+record, _ := engine.PushAgentEvent(ctx, provenance.AgentEvent{...})
+
+// ProvenanceRecord → CRDT storage
+if record != nil {
+    persistToCRDT(*record)
+}
+```
+
+Intent's migration involves:
+- Replacing `pkg/correlation/engine.go` with the shared engine
+- Deleting `pkg/correlation/matchers.go` (scoring system removed)
+- Adapting FileWatcher to convert events to `provenance.FileEvent`
+- Adapting AgentObserver to convert events to `provenance.AgentEvent`
+- Mapping `ProvenanceRecord` output to CRDT storage
+
+Detailed Intent migration planning stays in Intent's own docs.
+
+---
+
+## Key Types Reference
+
+### FileEvent (input)
+
+| Field        | Type        | Required | Description                            |
+|--------------|-------------|----------|----------------------------------------|
+| `ID`         | `string`    | Yes      | Unique identifier                      |
+| `Path`       | `string`    | Yes      | Absolute path, forward slashes         |
+| `ChangeType` | `string`    | Yes      | "create", "modify", "delete", "rename" |
+| `Timestamp`  | `time.Time` | Yes      | File ModTime                           |
+
+### AgentEvent (input)
+
+| Field           | Type        | Required | Description                              |
+|-----------------|-------------|----------|------------------------------------------|
+| `ID`            | `string`    | Yes      | Deterministic ID for deduplication       |
+| `FilePath`      | `string`    | Yes      | Path the agent touched (may be relative) |
+| `ChangeType`    | `string`    | Yes      | "create", "edit", "write", "delete"      |
+| `Timestamp`     | `time.Time` | Yes      | When the operation was recorded          |
+| `SessionID`     | `string`    | Yes      | Agent session ID                         |
+| `ExchangeID`    | `string`    | Yes      | Specific exchange within session         |
+| `MessageID`     | `string`    | No       | Agent message ID                         |
+| `AgentType`     | `string`    | Yes      | "claude-code", "cursor", etc.            |
+| `AgentModel`    | `string`    | No       | "claude-sonnet-4-20250514", etc.         |
+| `ActorHost`     | `string`    | No       | Machine hostname                         |
+| `ActorUsername` | `string`    | No       | OS user                                  |
+
+### ProvenanceRecord (output)
+
+| Field           | Type        | Description                              |
+|-----------------|-------------|------------------------------------------|
+| `FilePath`      | `string`    | Absolute path, forward slashes           |
+| `ChangeType`    | `string`    | "create", "modify", "delete", "rename"   |
+| `Timestamp`     | `time.Time` | When file changed                        |
+| `SessionID`     | `string`    | Agent session that caused the change     |
+| `ExchangeID`    | `string`    | Specific exchange that caused the change |
+| `AgentType`     | `string`    | "claude-code", "cursor", etc.            |
+| `AgentModel`    | `string`    | Model used                               |
+| `MessageID`     | `string`    | For tracing                              |
+| `ActorHost`     | `string`    | Machine hostname                         |
+| `ActorUsername` | `string`    | OS user                                  |
+| `MatchedAt`     | `time.Time` | When correlation occurred                |
+
+---
+
+## Files Summary
+
+| File                            | Status   | Purpose                                                          |
+|---------------------------------|----------|------------------------------------------------------------------|
+| `pkg/provenance/types.go`       | Complete | Input/output types, validation, path normalization               |
+| `pkg/provenance/engine.go`      | Complete | Correlation engine, path matching, best-match selection          |
+| `pkg/provenance/store.go`       | Complete | SQLite persistence, event storage, unmatched queries             |
+| `pkg/provenance/agent.go`       | Complete | Extract AgentEvents from SessionData, push to engine             |
+| `pkg/provenance/fswatcher.go`   | Phase 3  | Project directory file watcher with file/directory filtering     |
 
 ## New Dependencies
 
-| Dependency                                      | Purpose                          | Phase              |
-|-------------------------------------------------|----------------------------------|--------------------|
-| `github.com/specstoryai/ai-provenance-lib`      | Provenance correlation engine    | 1                  |
-| `github.com/sabhiram/go-gitignore` (or similar) | .gitignore/.intentignore parsing | 4 (needs approval) |
+`github.com/sabhiram/go-gitignore` (or similar) - .gitignore/.intentignore parsing
 
 ## Decisions Deferred
 
-- **Phase 6:** Storage format — JSON lines file vs SQLite table
-- **Phase 7:** Diff approach — git shell vs Go library
-- **Phase 8:** Git notes format and trigger mechanism
+- **Phase 5:** Storage format — JSON lines file vs SQLite table
+- **Phase 6:** Diff approach — git shell vs Go library
+- **Phase 7:** Git notes format and trigger mechanism

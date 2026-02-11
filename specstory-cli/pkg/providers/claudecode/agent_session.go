@@ -133,7 +133,7 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 			if isToolResult {
 				// This is a tool result - merge it into the previous tool use
 				if currentExchange != nil {
-					mergeToolResultIntoExchange(currentExchange, messageContent)
+					mergeToolResultIntoExchange(currentExchange, messageContent, timestamp)
 					currentExchange.EndTime = timestamp
 				}
 			} else {
@@ -191,8 +191,9 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 	return exchanges, nil
 }
 
-// mergeToolResultIntoExchange finds the tool use in the exchange and adds the result to it
-func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{}) {
+// mergeToolResultIntoExchange finds the tool use in the exchange and adds the result to it.
+// The resultTimestamp is the time the tool completed (from the tool_result JSONL record).
+func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{}, resultTimestamp string) {
 	// Extract tool_result data from message content
 	if len(messageContent) == 0 {
 		return
@@ -232,11 +233,13 @@ func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{
 	for i := range exchange.Messages {
 		msg := &exchange.Messages[i]
 		if msg.Tool != nil && msg.Tool.UseID == toolUseID {
-			// Add the output to this tool
 			msg.Tool.Output = map[string]interface{}{
 				"content":  content,
 				"is_error": isError,
 			}
+			// Update message timestamp to when the tool actually completed,
+			// not when the agent requested it (needed for provenance correlation)
+			msg.Timestamp = resultTimestamp
 			return
 		}
 	}
