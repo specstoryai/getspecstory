@@ -102,6 +102,10 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 		// Token usage attributes - Codex CLI specific
 		attribute.Int("specstory.session.cached_input_tokens", stats.TokenUsage.CachedInputTokens),
 		attribute.Int("specstory.session.reasoning_output_tokens", stats.TokenUsage.ReasoningOutputTokens),
+		// Token usage attributes - Gemini CLI specific
+		attribute.Int("specstory.session.cached_tokens", stats.TokenUsage.CachedTokens),
+		attribute.Int("specstory.session.thought_tokens", stats.TokenUsage.ThoughtTokens),
+		attribute.Int("specstory.session.tool_tokens", stats.TokenUsage.ToolTokens),
 	)
 }
 
@@ -140,6 +144,10 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 		// Token usage attributes - Codex CLI specific
 		attribute.Int("specstory.exchange.cached_input_tokens", stats.TokenUsage.CachedInputTokens),
 		attribute.Int("specstory.exchange.reasoning_output_tokens", stats.TokenUsage.ReasoningOutputTokens),
+		// Token usage attributes - Gemini CLI specific
+		attribute.Int("specstory.exchange.cached_tokens", stats.TokenUsage.CachedTokens),
+		attribute.Int("specstory.exchange.thought_tokens", stats.TokenUsage.ThoughtTokens),
+		attribute.Int("specstory.exchange.tool_tokens", stats.TokenUsage.ToolTokens),
 	)
 }
 
@@ -268,7 +276,7 @@ func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCoun
 }
 
 // CountExchangeTokens aggregates token usage for a single exchange.
-// Handles both Claude Code and Codex CLI specific token fields.
+// Handles Claude Code, Codex CLI, and Gemini CLI specific token fields.
 func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 	var usage TokenUsage
 	for _, msg := range exchange.Messages {
@@ -282,13 +290,17 @@ func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 			// Codex CLI specific
 			usage.CachedInputTokens += msg.Usage.CachedInputTokens
 			usage.ReasoningOutputTokens += msg.Usage.ReasoningOutputTokens
+			// Gemini CLI specific
+			usage.CachedTokens += msg.Usage.CachedTokens
+			usage.ThoughtTokens += msg.Usage.ThoughtTokens
+			usage.ToolTokens += msg.Usage.ToolTokens
 		}
 	}
 	return usage
 }
 
 // countSessionTokens aggregates token usage across all exchanges in a session.
-// Handles both Claude Code and Codex CLI specific token fields.
+// Handles Claude Code, Codex CLI, and Gemini CLI specific token fields.
 func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 	var total TokenUsage
 	for _, exchange := range exchanges {
@@ -302,6 +314,10 @@ func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 		// Codex CLI specific
 		total.CachedInputTokens += exchangeUsage.CachedInputTokens
 		total.ReasoningOutputTokens += exchangeUsage.ReasoningOutputTokens
+		// Gemini CLI specific
+		total.CachedTokens += exchangeUsage.CachedTokens
+		total.ThoughtTokens += exchangeUsage.ThoughtTokens
+		total.ToolTokens += exchangeUsage.ToolTokens
 	}
 	return total
 }
