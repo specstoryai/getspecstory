@@ -183,6 +183,60 @@ func TestIsAuthenticated(t *testing.T) {
 			description:    "Should return false when JWT parts are not valid base64",
 		},
 		{
+			name: "expired access token with valid refresh token returns true",
+			setup: func() {
+				ResetAuthCache()
+				if err := os.MkdirAll(authDir, 0755); err != nil {
+					t.Fatalf("Failed to create auth directory: %v", err)
+				}
+				pastTime := time.Now().UTC().Add(-24 * time.Hour).Format(time.RFC3339)
+				futureTime := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+				authData := AuthData{
+					CloudRefresh: &CloudRefreshData{
+						Token:     "valid-refresh-token",
+						As:        "user@example.com",
+						CreatedAt: time.Now().UTC().Format(time.RFC3339),
+						ExpiresAt: futureTime,
+					},
+					CloudAccess: &CloudAccessData{
+						Token:     "expired-access-token",
+						UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+						ExpiresAt: pastTime,
+					},
+				}
+				data, _ := json.Marshal(authData)
+				if err := os.WriteFile(authPath, data, 0644); err != nil {
+					t.Fatalf("Failed to write auth file: %v", err)
+				}
+			},
+			expectedResult: true,
+			description:    "Should return true when access token is expired but refresh token is valid (refresh deferred to GetCloudToken)",
+		},
+		{
+			name: "valid refresh token with no access token",
+			setup: func() {
+				ResetAuthCache()
+				if err := os.MkdirAll(authDir, 0755); err != nil {
+					t.Fatalf("Failed to create auth directory: %v", err)
+				}
+				futureTime := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+				authData := AuthData{
+					CloudRefresh: &CloudRefreshData{
+						Token:     "valid-refresh-token",
+						As:        "user@example.com",
+						CreatedAt: time.Now().UTC().Format(time.RFC3339),
+						ExpiresAt: futureTime,
+					},
+				}
+				data, _ := json.Marshal(authData)
+				if err := os.WriteFile(authPath, data, 0644); err != nil {
+					t.Fatalf("Failed to write auth file: %v", err)
+				}
+			},
+			expectedResult: true,
+			description:    "Should return true when refresh token is valid even without any access token",
+		},
+		{
 			name: "auth file is a directory instead of file",
 			setup: func() {
 				ResetAuthCache()
