@@ -853,3 +853,113 @@ func findFirstUserMessage(records []map[string]interface{}) string {
 	slog.Debug("findFirstUserMessage: No user message found in session")
 	return ""
 }
+
+// ListAgentChatSessions retrieves lightweight session metadata without full parsing
+// This is much faster than GetAgentChatSessions as it only reads minimal data from each session
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	// Find all sessions for this project (don't stop on first)
+	sessions, err := findCodexSessions(projectPath, "", false)
+	if err != nil {
+		// If sessions directory doesn't exist, return empty list (not an error)
+		if strings.Contains(err.Error(), "sessions directory not accessible") ||
+			strings.Contains(err.Error(), "sessions root") ||
+			strings.Contains(err.Error(), "home directory") {
+			return []spi.SessionMetadata{}, nil
+		}
+		return nil, fmt.Errorf("failed to find codex sessions: %w", err)
+	}
+
+	// Extract metadata from each session
+	result := make([]spi.SessionMetadata, 0, len(sessions))
+	for _, sessionInfo := range sessions {
+		metadata, err := extractCodexSessionMetadata(&sessionInfo)
+		if err != nil {
+			slog.Warn("Failed to extract session metadata",
+				"sessionID", sessionInfo.SessionID,
+				"path", sessionInfo.SessionPath,
+				"error", err)
+			continue
+		}
+
+		// Skip empty sessions (no metadata means empty session)
+		if metadata == nil {
+			slog.Debug("Skipping empty session", "sessionID", sessionInfo.SessionID)
+			continue
+		}
+
+		result = append(result, *metadata)
+	}
+
+	return result, nil
+}
+
+// extractCodexSessionMetadata reads minimal data from a Codex CLI session to extract metadata
+// Returns nil if the session is empty or has no user messages
+func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMetadata, error) {
+	file, err := os.Open(sessionInfo.SessionPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	reader := bufio.NewReader(file)
+	var firstUserMessage string
+	lineNum := 0
+
+	// Read records until we find a user message or reach EOF.
+	// Why: ReadString can return data AND io.EOF on the last line (no trailing newline),
+	// so we always process the line first, then check for EOF once at the bottom.
+	for {
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && readErr != io.EOF {
+			return nil, fmt.Errorf("failed to read line: %w", readErr)
+		}
+
+		lineNum++
+		line = strings.TrimSpace(line)
+
+		if line != "" {
+			// Parse JSON record
+			var record map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(line), &record); jsonErr != nil {
+				slog.Warn("Skipping malformed JSONL line",
+					"file", filepath.Base(sessionInfo.SessionPath),
+					"line", lineNum,
+					"error", jsonErr)
+			} else if recordType, ok := record["type"].(string); ok && recordType == "event_msg" {
+				if payload, ok := record["payload"].(map[string]interface{}); ok {
+					if payloadType, ok := payload["type"].(string); ok && payloadType == "user_message" {
+						if message, ok := payload["message"].(string); ok && message != "" {
+							firstUserMessage = message
+						}
+					}
+				}
+			}
+		}
+
+		// Single exit: found what we need, or reached end of file
+		if firstUserMessage != "" || readErr == io.EOF {
+			break
+		}
+	}
+
+	// If no user message found, session is empty
+	if firstUserMessage == "" {
+		return nil, nil
+	}
+
+	// Generate slug from first user message
+	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
+
+	// Generate human-readable name from first user message
+	name := spi.GenerateReadableName(firstUserMessage)
+
+	return &spi.SessionMetadata{
+		SessionID: sessionInfo.SessionID,
+		CreatedAt: sessionInfo.Meta.Timestamp,
+		Slug:      slug,
+		Name:      name,
+	}, nil
+}

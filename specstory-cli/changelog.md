@@ -1,5 +1,21 @@
 # Specstory CLI Changelog
 
+## v1.7.0 2026-02-12
+
+### ⚙️ Improvements
+
+- New `--print` flag for `specstory sync -s {session-ID} --print` command to output the markdown to stdout rather than sync it to a file. The flag works for multiple sessions with `specstory sync -s {id1} -s {id2} --print`.
+
+### 🐛 Bug Fixes
+
+- Fixed slow `specstory run` startup when logged into SpecStory Cloud but the service is unavailable.
+
+## v1.6.0 2026-02-08
+
+### ⚙️ Improvements
+
+- New `specstory list` command to list all sessions for all supported providers for the current project directory. Can also be used to list sessions for a specific provider, e.g. `specstory list claude`.
+- `specstory list --json` flag for easily parsable output.
 
 ## v1.5.0 2026-01-31
 
