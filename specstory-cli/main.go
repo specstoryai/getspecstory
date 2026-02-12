@@ -798,115 +798,8 @@ Provide a specific agent ID to sync a specific provider.`
 	}
 }
 
-// printSessionsToStdout outputs session markdown to stdout without saving or syncing
-// Used when --print flag is specified with -s
-func printSessionsToStdout(cmd *cobra.Command, args []string, sessionIDs []string, debugRaw bool, useUTC bool) error {
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
-		return err
-	}
-
-	registry := factory.GetRegistry()
-
-	// Resolve provider once if specified (fail fast if provider not found)
-	var specifiedProvider spi.Provider
-	if len(args) > 0 {
-		providerID := args[0]
-		provider, err := registry.Get(providerID)
-		if err != nil {
-			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
-		}
-		specifiedProvider = provider
-	}
-
-	// Track statistics for error reporting
-	var notFoundCount, errorCount int
-	var lastError error
-
-	// Process each session ID
-	for i, sessionID := range sessionIDs {
-		sessionID = strings.TrimSpace(sessionID)
-		if sessionID == "" {
-			continue // Skip empty session IDs
-		}
-
-		var session *spi.AgentChatSession
-
-		// Case A: Provider was specified - use it directly
-		if specifiedProvider != nil {
-			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
-				errorCount++
-				lastError = err
-				continue
-			}
-			if session == nil {
-				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
-				notFoundCount++
-				continue
-			}
-		} else {
-			// Case B: No provider specified - try all providers
-			found := false
-			providerIDs := registry.ListIDs()
-			for _, id := range providerIDs {
-				provider, err := registry.Get(id)
-				if err != nil {
-					continue
-				}
-
-				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-				if err != nil {
-					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
-					continue
-				}
-				if session != nil {
-					found = true
-					break // Found it, don't check other providers
-				}
-			}
-
-			if !found {
-				slog.Warn("Session not found in any provider", "sessionId", sessionID)
-				notFoundCount++
-				continue
-			}
-		}
-
-		// Generate markdown from SessionData
-		// Include header only for the first session
-		includeHeader := (i == 0)
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, includeHeader, useUTC)
-		if err != nil {
-			slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
-			errorCount++
-			lastError = err
-			continue
-		}
-
-		// Output markdown to stdout
-		// Add separator between sessions (but not before the first one)
-		if i > 0 {
-			fmt.Print("\n---\n\n")
-		}
-		fmt.Print(markdownContent)
-	}
-
-	// Return error if any sessions failed
-	if errorCount > 0 || (notFoundCount > 0 && notFoundCount == len(sessionIDs)) {
-		if lastError != nil {
-			return lastError
-		}
-		return fmt.Errorf("%d %s not found", notFoundCount, pluralSession(notFoundCount))
-	}
-
-	return nil
-}
-
 // syncSpecificSessions syncs one or more sessions by their IDs
+// When printToStdout is set, outputs markdown to stdout instead of saving to files.
 // args[0] is the optional provider ID
 func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
 	if len(sessionIDs) == 1 {
@@ -919,34 +812,30 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useUTC := getUseUTC(cmd)
 
-	// Handle --print mode: output markdown to stdout without saving
-	if printToStdout {
-		return printSessionsToStdout(cmd, args, sessionIDs, debugRaw, useUTC)
-	}
-
-	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
-	if err != nil {
-		return err
-	}
-
-	// Initialize project identity
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
-	identityManager := utils.NewProjectIdentityManager(cwd)
-	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
-		slog.Error("Failed to ensure project identity", "error", err)
-	}
 
-	// Check authentication for cloud sync
-	checkAndWarnAuthentication()
+	// Setup file output and cloud sync (not needed for --print mode)
+	var config utils.OutputConfig
+	if !printToStdout {
+		config, err = utils.SetupOutputConfig(outputDir)
+		if err != nil {
+			return err
+		}
 
-	// Ensure history directory exists
-	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-		return err
+		identityManager := utils.NewProjectIdentityManager(cwd)
+		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+			slog.Error("Failed to ensure project identity", "error", err)
+		}
+
+		checkAndWarnAuthentication()
+
+		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+			return err
+		}
 	}
 
 	registry := factory.GetRegistry()
@@ -961,84 +850,112 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		providerID := args[0]
 		provider, err := registry.Get(providerID)
 		if err != nil {
-			fmt.Printf("❌ Provider '%s' not found\n", providerID)
-			return err
+			if !printToStdout {
+				fmt.Printf("❌ Provider '%s' not found\n", providerID)
+			}
+			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
 		}
 		specifiedProvider = provider
 	}
 
 	// Process each session ID
+	var printedSessions int // tracks sessions printed to stdout for separator logic
 	for _, sessionID := range sessionIDs {
 		sessionID = strings.TrimSpace(sessionID)
 		if sessionID == "" {
 			continue // Skip empty session IDs
 		}
 
+		// Find session across providers
+		var session *spi.AgentChatSession
+		var sessionProvider spi.Provider
+
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
-			session, err := specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
 			if err != nil {
-				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				if !printToStdout {
+					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				}
+				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
 				errorCount++
 				lastError = err
 				continue
 			}
 			if session == nil {
-				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				}
+				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
 				notFoundCount++
 				continue
 			}
+			sessionProvider = specifiedProvider
+		} else {
+			// Case B: No provider specified - try all providers
+			providerIDs := registry.ListIDs()
+			for _, id := range providerIDs {
+				provider, err := registry.Get(id)
+				if err != nil {
+					continue
+				}
 
-			// Process the session (show output for sync command)
-			// This is manual sync mode (false)
-			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+				if err != nil {
+					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+					continue
+				}
+				if session != nil {
+					sessionProvider = provider
+					if !silent && !printToStdout {
+						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
+					}
+					break // Found it, don't check other providers
+				}
+			}
+
+			if session == nil {
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
+				}
+				slog.Warn("Session not found in any provider", "sessionId", sessionID)
+				notFoundCount++
+				continue
+			}
+		}
+
+		// Process the found session
+		if printToStdout {
+			validateSessionData(session, debugRaw)
+
+			markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+			if err != nil {
+				slog.Error("Failed to generate markdown", "sessionId", session.SessionID, "error", err)
+				errorCount++
+				lastError = err
+				continue
+			}
+
+			// Separate multiple sessions with a horizontal rule
+			if printedSessions > 0 {
+				fmt.Print("\n---\n\n")
+			}
+			fmt.Print(markdownContent)
+			printedSessions++
+			successCount++
+		} else {
+			// Normal sync: write to file and optionally cloud sync
+			if err := processSingleSession(session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
 				successCount++
 			}
-			continue
-		}
-
-		// Case B: No provider specified - try all providers
-		found := false
-		providerIDs := registry.ListIDs()
-		for _, id := range providerIDs {
-			provider, err := registry.Get(id)
-			if err != nil {
-				continue
-			}
-
-			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
-				continue
-			}
-			if session != nil {
-				// Found the session!
-				found = true
-				if !silent {
-					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
-				}
-				// This is manual sync mode (false)
-				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
-					errorCount++
-					lastError = err
-				} else {
-					successCount++
-				}
-				break // Found it, don't check other providers
-			}
-		}
-
-		if !found {
-			fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
-			notFoundCount++
 		}
 	}
 
-	// Print summary if multiple sessions were processed
-	if len(sessionIDs) > 1 && !silent {
+	// Print summary if multiple sessions were processed (not for --print mode)
+	if !printToStdout && len(sessionIDs) > 1 && !silent {
 		fmt.Println()
 		fmt.Println("📊 Session sync summary:")
 		fmt.Printf("  ✅ %d %s successfully synced\n", successCount, pluralSession(successCount))
@@ -1108,8 +1025,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	writeDebugSessionData(session, debugRaw)
 
 	// Generate markdown from SessionData
-	// Always include header for individual session saves
-	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, true, useUTC)
+	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return fmt.Errorf("failed to generate markdown: %w", err)
@@ -1326,8 +1242,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		writeDebugSessionData(session, debugRaw)
 
 		// Generate markdown from SessionData
-		// Always include header for individual session syncs
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, true, useUTC)
+		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 		if err != nil {
 			slog.Error("Failed to generate markdown from SessionData",
 				"sessionId", session.SessionID,
