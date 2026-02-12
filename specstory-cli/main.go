@@ -41,6 +41,7 @@ var outputDir string    // custom output directory for markdown and debug files
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
 var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
@@ -89,6 +90,12 @@ func validateFlags() error {
 	}
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use --only-cloud-sync and --no-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if printToStdout && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --print and --only-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if printToStdout && console {
+		return utils.ValidationError{Message: "cannot use --print and --console together. Console debug output would interleave with markdown on stdout"}
 	}
 	return nil
 }
@@ -798,6 +805,12 @@ specstory sync -s <session-id>
 # Sync multiple sessions
 specstory sync -s <session-id-1> -s <session-id-2> -s <session-id-3>
 
+# Output session markdown to stdout without saving
+specstory sync -s <session-id> --print
+
+# Output multiple sessions to stdout
+specstory sync -s <session-id-1> -s <session-id-2> --print
+
 # Sync all sessions for the current directory, with console output
 specstory sync --console
 
@@ -820,7 +833,11 @@ Provide a specific agent ID to sync a specific provider.`
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		PreRunE: func(cmd *cobra.Command, args []string) error {
-			// Session ID validation is now provider-specific, so no validation here
+			// Validate that --print requires -s flag
+			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+			if printToStdout && len(sessionIDs) == 0 {
+				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -848,6 +865,7 @@ Provide a specific agent ID to sync a specific provider.`
 }
 
 // syncSpecificSessions syncs one or more sessions by their IDs
+// When printToStdout is set, outputs markdown to stdout instead of saving to files.
 // args[0] is the optional provider ID
 func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
 	if len(sessionIDs) == 1 {
@@ -860,29 +878,30 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useUTC := getUseUTC(cmd)
 
-	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
-	if err != nil {
-		return err
-	}
-
-	// Initialize project identity
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
-	identityManager := utils.NewProjectIdentityManager(cwd)
-	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
-		slog.Error("Failed to ensure project identity", "error", err)
-	}
 
-	// Check authentication for cloud sync
-	checkAndWarnAuthentication()
+	// Setup file output and cloud sync (not needed for --print mode)
+	var config utils.OutputConfig
+	if !printToStdout {
+		config, err = utils.SetupOutputConfig(outputDir)
+		if err != nil {
+			return err
+		}
 
-	// Ensure history directory exists
-	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-		return err
+		identityManager := utils.NewProjectIdentityManager(cwd)
+		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+			slog.Error("Failed to ensure project identity", "error", err)
+		}
+
+		checkAndWarnAuthentication()
+
+		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+			return err
+		}
 	}
 
 	registry := factory.GetRegistry()
@@ -897,84 +916,122 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		providerID := args[0]
 		provider, err := registry.Get(providerID)
 		if err != nil {
-			fmt.Printf("❌ Provider '%s' not found\n", providerID)
-			return err
+			if !printToStdout {
+				fmt.Printf("❌ Provider '%s' not found\n", providerID)
+			}
+			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
 		}
 		specifiedProvider = provider
 	}
 
 	// Process each session ID
+	var printedSessions int // tracks sessions printed to stdout for separator logic
 	for _, sessionID := range sessionIDs {
 		sessionID = strings.TrimSpace(sessionID)
 		if sessionID == "" {
 			continue // Skip empty session IDs
 		}
 
+		// Find session across providers
+		var session *spi.AgentChatSession
+		var sessionProvider spi.Provider
+
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
-			session, err := specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
 			if err != nil {
-				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				if !printToStdout {
+					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				}
+				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
 				errorCount++
 				lastError = err
 				continue
 			}
 			if session == nil {
-				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				}
+				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
 				notFoundCount++
 				continue
 			}
+			sessionProvider = specifiedProvider
+		} else {
+			// Case B: No provider specified - try all providers
+			providerIDs := registry.ListIDs()
+			for _, id := range providerIDs {
+				provider, err := registry.Get(id)
+				if err != nil {
+					continue
+				}
 
-			// Process the session (show output for sync command)
-			// This is manual sync mode (false)
-			if _, err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+				if err != nil {
+					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+					continue
+				}
+				if session != nil {
+					sessionProvider = provider
+					if !silent && !printToStdout {
+						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
+					}
+					break // Found it, don't check other providers
+				}
+			}
+
+			if session == nil {
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
+				}
+				slog.Warn("Session not found in any provider", "sessionId", sessionID)
+				notFoundCount++
+				continue
+			}
+		}
+
+		// Process the found session
+		if printToStdout {
+			validateSessionData(session, debugRaw)
+			writeDebugSessionData(session, debugRaw)
+
+			markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+			if err != nil {
+				slog.Error("Failed to generate markdown", "sessionId", session.SessionID, "error", err)
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID,
+					"error":      err.Error(),
+					"mode":       "print",
+				})
+				errorCount++
+				lastError = err
+				continue
+			}
+
+			// Separate multiple sessions with a horizontal rule
+			if printedSessions > 0 {
+				fmt.Print("\n---\n\n")
+			}
+			fmt.Print(markdownContent)
+			printedSessions++
+			successCount++
+			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+				"session_id": session.SessionID,
+				"mode":       "print",
+			})
+		} else {
+			// Normal sync: write to file and optionally cloud sync
+			if _, err := processSingleSession(session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
 				successCount++
 			}
-			continue
-		}
-
-		// Case B: No provider specified - try all providers
-		found := false
-		providerIDs := registry.ListIDs()
-		for _, id := range providerIDs {
-			provider, err := registry.Get(id)
-			if err != nil {
-				continue
-			}
-
-			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
-				continue
-			}
-			if session != nil {
-				// Found the session!
-				found = true
-				if !silent {
-					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
-				}
-				// This is manual sync mode (false)
-				if _, err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
-					errorCount++
-					lastError = err
-				} else {
-					successCount++
-				}
-				break // Found it, don't check other providers
-			}
-		}
-
-		if !found {
-			fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
-			notFoundCount++
 		}
 	}
 
-	// Print summary if multiple sessions were processed
-	if len(sessionIDs) > 1 && !silent {
+	// Print summary if multiple sessions were processed (not for --print mode)
+	if !printToStdout && len(sessionIDs) > 1 && !silent {
 		fmt.Println()
 		fmt.Println("📊 Session sync summary:")
 		fmt.Printf("  ✅ %d %s successfully synced\n", successCount, pluralSession(successCount))
@@ -2208,6 +2265,7 @@ func main() {
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
+	syncCmd.Flags().BoolVar(&printToStdout, "print", false, "output session markdown to stdout instead of saving (requires -s flag)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
