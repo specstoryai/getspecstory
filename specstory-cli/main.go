@@ -94,6 +94,9 @@ func validateFlags() error {
 	if printToStdout && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --print and --only-cloud-sync together. These flags are mutually exclusive"}
 	}
+	if printToStdout && console {
+		return utils.ValidationError{Message: "cannot use --print and --console together. Console debug output would interleave with markdown on stdout"}
+	}
 	return nil
 }
 
@@ -927,10 +930,16 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		// Process the found session
 		if printToStdout {
 			validateSessionData(session, debugRaw)
+			writeDebugSessionData(session, debugRaw)
 
 			markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 			if err != nil {
 				slog.Error("Failed to generate markdown", "sessionId", session.SessionID, "error", err)
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID,
+					"error":      err.Error(),
+					"mode":       "print",
+				})
 				errorCount++
 				lastError = err
 				continue
@@ -943,6 +952,10 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			fmt.Print(markdownContent)
 			printedSessions++
 			successCount++
+			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+				"session_id": session.SessionID,
+				"mode":       "print",
+			})
 		} else {
 			// Normal sync: write to file and optionally cloud sync
 			if err := processSingleSession(session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
