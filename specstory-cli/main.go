@@ -94,9 +94,6 @@ func validateFlags() error {
 	if printToStdout && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --print and --only-cloud-sync together. These flags are mutually exclusive"}
 	}
-	if printToStdout && noCloudSync {
-		return utils.ValidationError{Message: "--print already disables cloud sync, --no-cloud-sync is redundant"}
-	}
 	return nil
 }
 
