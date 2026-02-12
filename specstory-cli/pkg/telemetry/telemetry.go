@@ -66,6 +66,11 @@ var (
 	cachedInputTokens     metric.Int64Counter
 	reasoningOutputTokens metric.Int64Counter
 
+	// Token usage metrics (Gemini CLI specific)
+	cachedTokens  metric.Int64Counter
+	thoughtTokens metric.Int64Counter
+	toolTokens    metric.Int64Counter
+
 	// Common attributes parsed from OTEL_RESOURCE_ATTRIBUTES to include on all metrics
 	commonMetricAttrs []attribute.KeyValue
 )
@@ -348,6 +353,31 @@ func initMetricInstruments() error {
 		return err
 	}
 
+	// Gemini CLI specific counters
+	cachedTokens, err = meter.Int64Counter("specstory.tokens.cached",
+		metric.WithDescription("Total cached input tokens across all sessions (Gemini)"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	thoughtTokens, err = meter.Int64Counter("specstory.tokens.thought",
+		metric.WithDescription("Total thought/reasoning tokens across all sessions (Gemini)"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
+	toolTokens, err = meter.Int64Counter("specstory.tokens.tool",
+		metric.WithDescription("Total tool-related tokens across all sessions (Gemini)"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -523,6 +553,7 @@ func recordProcessingDuration(ctx context.Context, agent string, sessionID strin
 // Different providers track different token types:
 //   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
 //   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
+//   - Gemini CLI: InputTokens, OutputTokens, CachedTokens, ThoughtTokens, ToolTokens
 type TokenUsage struct {
 	// Common fields (all providers)
 	InputTokens  int
@@ -535,6 +566,11 @@ type TokenUsage struct {
 	// Codex CLI specific
 	CachedInputTokens     int
 	ReasoningOutputTokens int
+
+	// Gemini CLI specific
+	CachedTokens  int
+	ThoughtTokens int
+	ToolTokens    int
 }
 
 // recordTokenUsage records token usage metrics for a session.
@@ -567,5 +603,16 @@ func recordTokenUsage(ctx context.Context, agent string, sessionID string, usage
 	}
 	if usage.ReasoningOutputTokens > 0 {
 		reasoningOutputTokens.Add(ctx, int64(usage.ReasoningOutputTokens), metric.WithAttributes(attrs...))
+	}
+
+	// Gemini CLI specific
+	if usage.CachedTokens > 0 {
+		cachedTokens.Add(ctx, int64(usage.CachedTokens), metric.WithAttributes(attrs...))
+	}
+	if usage.ThoughtTokens > 0 {
+		thoughtTokens.Add(ctx, int64(usage.ThoughtTokens), metric.WithAttributes(attrs...))
+	}
+	if usage.ToolTokens > 0 {
+		toolTokens.Add(ctx, int64(usage.ToolTokens), metric.WithAttributes(attrs...))
 	}
 }

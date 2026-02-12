@@ -78,6 +78,7 @@ type ContentPart struct {
 // Different providers track different token types:
 //   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
 //   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
+//   - Gemini CLI: InputTokens, OutputTokens, CachedTokens, ThoughtTokens, ToolTokens
 //
 // All fields use omitempty so only populated fields appear in JSON.
 type Usage struct {
@@ -92,6 +93,11 @@ type Usage struct {
 	// Codex CLI specific
 	CachedInputTokens     int `json:"cachedInputTokens,omitempty"`
 	ReasoningOutputTokens int `json:"reasoningOutputTokens,omitempty"`
+
+	// Gemini CLI specific
+	CachedTokens  int `json:"cachedTokens,omitempty"`  // cached input tokens
+	ThoughtTokens int `json:"thoughtTokens,omitempty"` // reasoning/thinking tokens
+	ToolTokens    int `json:"toolTokens,omitempty"`    // tool-related tokens
 }
 
 // ToolInfo is tool use information

@@ -2,6 +2,8 @@ package geminicli
 
 import (
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 func TestClassifyGeminiToolType(t *testing.T) {
@@ -120,6 +122,90 @@ func TestExtractReferencedSections(t *testing.T) {
 
 			if tt.wantSectionCount > 0 && len(gotSections) > 0 && gotSections[0] != tt.wantFirstSection {
 				t.Errorf("first section = %q, want %q", gotSections[0], tt.wantFirstSection)
+			}
+		})
+	}
+}
+
+func TestConvertTokensToUsage(t *testing.T) {
+	tests := []struct {
+		name   string
+		tokens *GeminiTokens
+		want   *schema.Usage
+	}{
+		{
+			name:   "nil tokens returns nil",
+			tokens: nil,
+			want:   nil,
+		},
+		{
+			name: "populated tokens returns correct Usage",
+			tokens: &GeminiTokens{
+				Input:    7815,
+				Output:   169,
+				Cached:   5597,
+				Thoughts: 33,
+				Tool:     42,
+				Total:    8017, // Total is ignored
+			},
+			want: &schema.Usage{
+				InputTokens:   7815,
+				OutputTokens:  169,
+				CachedTokens:  5597,
+				ThoughtTokens: 33,
+				ToolTokens:    42,
+			},
+		},
+		{
+			name: "zero values are preserved",
+			tokens: &GeminiTokens{
+				Input:    100,
+				Output:   50,
+				Cached:   0,
+				Thoughts: 0,
+				Tool:     0,
+				Total:    150,
+			},
+			want: &schema.Usage{
+				InputTokens:   100,
+				OutputTokens:  50,
+				CachedTokens:  0,
+				ThoughtTokens: 0,
+				ToolTokens:    0,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := convertTokensToUsage(tt.tokens)
+
+			if tt.want == nil {
+				if got != nil {
+					t.Errorf("convertTokensToUsage() = %v, want nil", got)
+				}
+				return
+			}
+
+			if got == nil {
+				t.Errorf("convertTokensToUsage() = nil, want %v", tt.want)
+				return
+			}
+
+			if got.InputTokens != tt.want.InputTokens {
+				t.Errorf("InputTokens = %d, want %d", got.InputTokens, tt.want.InputTokens)
+			}
+			if got.OutputTokens != tt.want.OutputTokens {
+				t.Errorf("OutputTokens = %d, want %d", got.OutputTokens, tt.want.OutputTokens)
+			}
+			if got.CachedTokens != tt.want.CachedTokens {
+				t.Errorf("CachedTokens = %d, want %d", got.CachedTokens, tt.want.CachedTokens)
+			}
+			if got.ThoughtTokens != tt.want.ThoughtTokens {
+				t.Errorf("ThoughtTokens = %d, want %d", got.ThoughtTokens, tt.want.ThoughtTokens)
+			}
+			if got.ToolTokens != tt.want.ToolTokens {
+				t.Errorf("ToolTokens = %d, want %d", got.ToolTokens, tt.want.ToolTokens)
 			}
 		})
 	}
