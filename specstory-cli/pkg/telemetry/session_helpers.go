@@ -94,18 +94,18 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 		attribute.Int("specstory.session.tool_type_count", stats.ToolTypeCount),
 		attribute.String("specstory.project.path", stats.ProjectPath),
 		// Token usage attributes - common (all providers)
-		attribute.Int("specstory.session.input_tokens", stats.TokenUsage.InputTokens),
-		attribute.Int("specstory.session.output_tokens", stats.TokenUsage.OutputTokens),
+		attribute.Int("specstory.session.tokens.input", stats.TokenUsage.InputTokens),
+		attribute.Int("specstory.session.tokens.output", stats.TokenUsage.OutputTokens),
 		// Token usage attributes - Claude Code specific
-		attribute.Int("specstory.session.cache_creation_tokens", stats.TokenUsage.CacheCreationInputTokens),
-		attribute.Int("specstory.session.cache_read_tokens", stats.TokenUsage.CacheReadInputTokens),
+		attribute.Int("specstory.session.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
+		attribute.Int("specstory.session.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
 		// Token usage attributes - Codex CLI specific
-		attribute.Int("specstory.session.cached_input_tokens", stats.TokenUsage.CachedInputTokens),
-		attribute.Int("specstory.session.reasoning_output_tokens", stats.TokenUsage.ReasoningOutputTokens),
+		attribute.Int("specstory.session.tokens.cached_input", stats.TokenUsage.CachedInputTokens),
+		attribute.Int("specstory.session.tokens.reasoning_output", stats.TokenUsage.ReasoningOutputTokens),
 		// Token usage attributes - Gemini CLI specific
-		attribute.Int("specstory.session.cached_tokens", stats.TokenUsage.CachedTokens),
-		attribute.Int("specstory.session.thought_tokens", stats.TokenUsage.ThoughtTokens),
-		attribute.Int("specstory.session.tool_tokens", stats.TokenUsage.ToolTokens),
+		attribute.Int("specstory.session.tokens.cached", stats.TokenUsage.CachedTokens),
+		attribute.Int("specstory.session.tokens.thought", stats.TokenUsage.ThoughtTokens),
+		attribute.Int("specstory.session.tokens.tool", stats.TokenUsage.ToolTokens),
 	)
 }
 
@@ -136,18 +136,18 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 		attribute.String("specstory.exchange.tool_types", stats.ToolTypes),
 		attribute.Int("specstory.exchange.tool_count", stats.ToolCount),
 		// Token usage attributes - common (all providers)
-		attribute.Int("specstory.exchange.input_tokens", stats.TokenUsage.InputTokens),
-		attribute.Int("specstory.exchange.output_tokens", stats.TokenUsage.OutputTokens),
+		attribute.Int("specstory.exchange.tokens.input", stats.TokenUsage.InputTokens),
+		attribute.Int("specstory.exchange.tokens.output", stats.TokenUsage.OutputTokens),
 		// Token usage attributes - Claude Code specific
-		attribute.Int("specstory.exchange.cache_creation_tokens", stats.TokenUsage.CacheCreationInputTokens),
-		attribute.Int("specstory.exchange.cache_read_tokens", stats.TokenUsage.CacheReadInputTokens),
+		attribute.Int("specstory.exchange.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
+		attribute.Int("specstory.exchange.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
 		// Token usage attributes - Codex CLI specific
-		attribute.Int("specstory.exchange.cached_input_tokens", stats.TokenUsage.CachedInputTokens),
-		attribute.Int("specstory.exchange.reasoning_output_tokens", stats.TokenUsage.ReasoningOutputTokens),
+		attribute.Int("specstory.exchange.tokens.cached_input", stats.TokenUsage.CachedInputTokens),
+		attribute.Int("specstory.exchange.tokens.reasoning_output", stats.TokenUsage.ReasoningOutputTokens),
 		// Token usage attributes - Gemini CLI specific
-		attribute.Int("specstory.exchange.cached_tokens", stats.TokenUsage.CachedTokens),
-		attribute.Int("specstory.exchange.thought_tokens", stats.TokenUsage.ThoughtTokens),
-		attribute.Int("specstory.exchange.tool_tokens", stats.TokenUsage.ToolTokens),
+		attribute.Int("specstory.exchange.tokens.cached", stats.TokenUsage.CachedTokens),
+		attribute.Int("specstory.exchange.tokens.thought", stats.TokenUsage.ThoughtTokens),
+		attribute.Int("specstory.exchange.tokens.tool", stats.TokenUsage.ToolTokens),
 	)
 }
 
