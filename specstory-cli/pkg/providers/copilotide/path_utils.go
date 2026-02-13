@@ -2,6 +2,7 @@ package copilotide
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -23,15 +24,27 @@ func GetWorkspaceStoragePath() string {
 	case "linux":
 		// Linux: ~/.config/Code/User/workspaceStorage/
 		storagePath = filepath.Join(homeDir, ".config", "Code", "User", "workspaceStorage")
+	case "windows":
+		// Windows: %APPDATA%\Code\User\workspaceStorage\
+		appData := os.Getenv("APPDATA")
+		slog.Debug("Windows APPDATA environment variable", "appData", appData)
+		if appData == "" {
+			slog.Warn("APPDATA environment variable not set")
+			return ""
+		}
+		storagePath = filepath.Join(appData, "Code", "User", "workspaceStorage")
+		slog.Debug("Checking Windows workspace storage path", "path", storagePath)
 	default:
 		return ""
 	}
 
 	// Check if directory exists
 	if _, err := os.Stat(storagePath); os.IsNotExist(err) {
+		slog.Debug("Workspace storage directory does not exist", "path", storagePath)
 		return ""
 	}
 
+	slog.Debug("Found VS Code workspace storage", "path", storagePath)
 	return storagePath
 }
 

@@ -210,11 +210,23 @@ func uriToPath(uri string) (string, error) {
 		return "", fmt.Errorf("failed to parse URI: %w", err)
 	}
 
-	// Get the path from the URI
-	path := parsedURI.Path
+	// Get the path from the URI and decode it
+	// This converts %3A to : and other URL-encoded characters
+	path, err := url.PathUnescape(parsedURI.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode URI path: %w", err)
+	}
 
-	// On Windows, URL paths have an extra leading slash (e.g., /C:/Users)
-	// but we don't support Windows, so we can just use the path as-is
+	// On Windows, URL paths have an extra leading slash (e.g., file:///c:/Users becomes /c:/Users)
+	// We need to remove the leading slash and normalize the path
+	if filepath.Separator == '\\' {
+		// Remove leading slash on Windows
+		if len(path) > 0 && path[0] == '/' {
+			path = path[1:]
+		}
+		// Normalize path separators to backslashes
+		path = filepath.FromSlash(path)
+	}
 
 	return path, nil
 }
