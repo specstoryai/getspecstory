@@ -1,17 +1,14 @@
 package main
 
 import (
-	"bufio" // For reading user terminal input
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -73,13 +70,6 @@ type SyncStats struct {
 	SessionsCreated int // Newly created markdown files
 }
 
-// Login command quit constants - commands that cancel the login flow
-const (
-	QuitCommandFull  = "QUIT"
-	QuitCommandShort = "Q"
-	ExitCommand      = "EXIT"
-)
-
 // validateFlags checks for mutually exclusive flag combinations
 func validateFlags() error {
 	if console && silent {
@@ -94,8 +84,8 @@ func validateFlags() error {
 	if printToStdout && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --print and --only-cloud-sync together. These flags are mutually exclusive"}
 	}
-	if printToStdout && noCloudSync {
-		return utils.ValidationError{Message: "--print already disables cloud sync, --no-cloud-sync is redundant"}
+	if printToStdout && console {
+		return utils.ValidationError{Message: "cannot use --print and --console together. Console debug output would interleave with markdown on stdout"}
 	}
 	return nil
 }
@@ -103,32 +93,6 @@ func validateFlags() error {
 // validateUUID checks if the given string is a valid UUID format
 func validateUUID(uuid string) bool {
 	return uuidRegex.MatchString(uuid)
-}
-
-// normalizeDeviceCode normalizes and validates a 6-character device code.
-// Accepts formats: "ABC123" or "ABC-123" (case insensitive)
-// Returns the normalized code (without dash) and whether it's valid
-func normalizeDeviceCode(code string) (string, bool) {
-	// Remove dash if present (handle xxx-xxx format)
-	// Only remove a single dash in the middle position
-	if len(code) == 7 && code[3] == '-' {
-		code = code[:3] + code[4:]
-	}
-
-	// Validate code format (6 alphanumeric characters after normalization)
-	// Accept both uppercase and lowercase letters
-	if len(code) != 6 {
-		return "", false
-	}
-
-	for _, ch := range code {
-		// Check if character is alphanumeric
-		if (ch < 'A' || ch > 'Z') && (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') {
-			return "", false
-		}
-	}
-
-	return code, true
 }
 
 // getUseUTC reads the local-time-zone flag and converts it to useUTC format.
@@ -154,33 +118,6 @@ func checkAndWarnAuthentication() {
 			log.UserMessage("ℹ️ Use `specstory login` to authenticate, or `--no-cloud-sync` to skip this warning.\n")
 		}
 	}
-}
-
-func displayLogoAndHelp(cmd *cobra.Command) {
-	fmt.Println() // Add visual separation before the logo
-	fmt.Println(utils.GetRandomLogo())
-	_ = cmd.Help()
-}
-
-// Opens the default browser to the specified URL, used in the login command to auth the user
-func openBrowser(url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = "open"
-		args = []string{url}
-	case "linux":
-		cmd = "xdg-open"
-		args = []string{url}
-	default:
-		slog.Warn("Unsupported platform for opening browser", "platform", runtime.GOOS)
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
-
-	slog.Debug("Opening browser", "command", cmd, "url", url)
-	return exec.Command(cmd, args...).Start()
 }
 
 // createRootCommand dynamically creates the root command with provider information
@@ -315,14 +252,14 @@ specstory watch`
 
 			return nil
 		},
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(c *cobra.Command, args []string) {
 			// Track help command usage (when no command is specified)
 			analytics.TrackEvent(analytics.EventHelpCommand, analytics.Properties{
 				"help_topic":  "general",
 				"help_reason": "requested",
 			})
 			// If no command is specified, show logo then help
-			displayLogoAndHelp(cmd)
+			cmd.DisplayLogoAndHelp(c)
 		},
 	}
 }
@@ -801,115 +738,8 @@ Provide a specific agent ID to sync a specific provider.`
 	}
 }
 
-// printSessionsToStdout outputs session markdown to stdout without saving or syncing
-// Used when --print flag is specified with -s
-func printSessionsToStdout(cmd *cobra.Command, args []string, sessionIDs []string, debugRaw bool, useUTC bool) error {
-	// Get current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
-		return err
-	}
-
-	registry := factory.GetRegistry()
-
-	// Resolve provider once if specified (fail fast if provider not found)
-	var specifiedProvider spi.Provider
-	if len(args) > 0 {
-		providerID := args[0]
-		provider, err := registry.Get(providerID)
-		if err != nil {
-			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
-		}
-		specifiedProvider = provider
-	}
-
-	// Track statistics for error reporting
-	var notFoundCount, errorCount int
-	var lastError error
-
-	// Process each session ID
-	for i, sessionID := range sessionIDs {
-		sessionID = strings.TrimSpace(sessionID)
-		if sessionID == "" {
-			continue // Skip empty session IDs
-		}
-
-		var session *spi.AgentChatSession
-
-		// Case A: Provider was specified - use it directly
-		if specifiedProvider != nil {
-			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
-				errorCount++
-				lastError = err
-				continue
-			}
-			if session == nil {
-				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
-				notFoundCount++
-				continue
-			}
-		} else {
-			// Case B: No provider specified - try all providers
-			found := false
-			providerIDs := registry.ListIDs()
-			for _, id := range providerIDs {
-				provider, err := registry.Get(id)
-				if err != nil {
-					continue
-				}
-
-				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-				if err != nil {
-					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
-					continue
-				}
-				if session != nil {
-					found = true
-					break // Found it, don't check other providers
-				}
-			}
-
-			if !found {
-				slog.Warn("Session not found in any provider", "sessionId", sessionID)
-				notFoundCount++
-				continue
-			}
-		}
-
-		// Generate markdown from SessionData
-		// Include header only for the first session
-		includeHeader := (i == 0)
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, includeHeader, useUTC)
-		if err != nil {
-			slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
-			errorCount++
-			lastError = err
-			continue
-		}
-
-		// Output markdown to stdout
-		// Add separator between sessions (but not before the first one)
-		if i > 0 {
-			fmt.Print("\n---\n\n")
-		}
-		fmt.Print(markdownContent)
-	}
-
-	// Return error if any sessions failed
-	if errorCount > 0 || (notFoundCount > 0 && notFoundCount == len(sessionIDs)) {
-		if lastError != nil {
-			return lastError
-		}
-		return fmt.Errorf("%d %s not found", notFoundCount, pluralSession(notFoundCount))
-	}
-
-	return nil
-}
-
 // syncSpecificSessions syncs one or more sessions by their IDs
+// When printToStdout is set, outputs markdown to stdout instead of saving to files.
 // args[0] is the optional provider ID
 func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
 	if len(sessionIDs) == 1 {
@@ -922,34 +752,30 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useUTC := getUseUTC(cmd)
 
-	// Handle --print mode: output markdown to stdout without saving
-	if printToStdout {
-		return printSessionsToStdout(cmd, args, sessionIDs, debugRaw, useUTC)
-	}
-
-	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
-	if err != nil {
-		return err
-	}
-
-	// Initialize project identity
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
-	identityManager := utils.NewProjectIdentityManager(cwd)
-	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
-		slog.Error("Failed to ensure project identity", "error", err)
-	}
 
-	// Check authentication for cloud sync
-	checkAndWarnAuthentication()
+	// Setup file output and cloud sync (not needed for --print mode)
+	var config utils.OutputConfig
+	if !printToStdout {
+		config, err = utils.SetupOutputConfig(outputDir)
+		if err != nil {
+			return err
+		}
 
-	// Ensure history directory exists
-	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-		return err
+		identityManager := utils.NewProjectIdentityManager(cwd)
+		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+			slog.Error("Failed to ensure project identity", "error", err)
+		}
+
+		checkAndWarnAuthentication()
+
+		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+			return err
+		}
 	}
 
 	registry := factory.GetRegistry()
@@ -964,84 +790,122 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		providerID := args[0]
 		provider, err := registry.Get(providerID)
 		if err != nil {
-			fmt.Printf("❌ Provider '%s' not found\n", providerID)
-			return err
+			if !printToStdout {
+				fmt.Printf("❌ Provider '%s' not found\n", providerID)
+			}
+			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
 		}
 		specifiedProvider = provider
 	}
 
 	// Process each session ID
+	var printedSessions int // tracks sessions printed to stdout for separator logic
 	for _, sessionID := range sessionIDs {
 		sessionID = strings.TrimSpace(sessionID)
 		if sessionID == "" {
 			continue // Skip empty session IDs
 		}
 
+		// Find session across providers
+		var session *spi.AgentChatSession
+		var sessionProvider spi.Provider
+
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
-			session, err := specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
 			if err != nil {
-				fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				if !printToStdout {
+					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+				}
+				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
 				errorCount++
 				lastError = err
 				continue
 			}
 			if session == nil {
-				fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+				}
+				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
 				notFoundCount++
 				continue
 			}
+			sessionProvider = specifiedProvider
+		} else {
+			// Case B: No provider specified - try all providers
+			providerIDs := registry.ListIDs()
+			for _, id := range providerIDs {
+				provider, err := registry.Get(id)
+				if err != nil {
+					continue
+				}
 
-			// Process the session (show output for sync command)
-			// This is manual sync mode (false)
-			if err := processSingleSession(session, specifiedProvider, config, true, false, debugRaw, useUTC); err != nil {
+				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+				if err != nil {
+					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+					continue
+				}
+				if session != nil {
+					sessionProvider = provider
+					if !silent && !printToStdout {
+						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
+					}
+					break // Found it, don't check other providers
+				}
+			}
+
+			if session == nil {
+				if !printToStdout {
+					fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
+				}
+				slog.Warn("Session not found in any provider", "sessionId", sessionID)
+				notFoundCount++
+				continue
+			}
+		}
+
+		// Process the found session
+		if printToStdout {
+			validateSessionData(session, debugRaw)
+			writeDebugSessionData(session, debugRaw)
+
+			markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+			if err != nil {
+				slog.Error("Failed to generate markdown", "sessionId", session.SessionID, "error", err)
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID,
+					"error":      err.Error(),
+					"mode":       "print",
+				})
+				errorCount++
+				lastError = err
+				continue
+			}
+
+			// Separate multiple sessions with a horizontal rule
+			if printedSessions > 0 {
+				fmt.Print("\n---\n\n")
+			}
+			fmt.Print(markdownContent)
+			printedSessions++
+			successCount++
+			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+				"session_id": session.SessionID,
+				"mode":       "print",
+			})
+		} else {
+			// Normal sync: write to file and optionally cloud sync
+			if err := processSingleSession(session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
 				successCount++
 			}
-			continue
-		}
-
-		// Case B: No provider specified - try all providers
-		found := false
-		providerIDs := registry.ListIDs()
-		for _, id := range providerIDs {
-			provider, err := registry.Get(id)
-			if err != nil {
-				continue
-			}
-
-			session, err := provider.GetAgentChatSession(cwd, sessionID, debugRaw)
-			if err != nil {
-				slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
-				continue
-			}
-			if session != nil {
-				// Found the session!
-				found = true
-				if !silent {
-					fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
-				}
-				// This is manual sync mode (false)
-				if err := processSingleSession(session, provider, config, true, false, debugRaw, useUTC); err != nil {
-					errorCount++
-					lastError = err
-				} else {
-					successCount++
-				}
-				break // Found it, don't check other providers
-			}
-		}
-
-		if !found {
-			fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
-			notFoundCount++
 		}
 	}
 
-	// Print summary if multiple sessions were processed
-	if len(sessionIDs) > 1 && !silent {
+	// Print summary if multiple sessions were processed (not for --print mode)
+	if !printToStdout && len(sessionIDs) > 1 && !silent {
 		fmt.Println()
 		fmt.Println("📊 Session sync summary:")
 		fmt.Printf("  ✅ %d %s successfully synced\n", successCount, pluralSession(successCount))
@@ -1111,8 +975,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	writeDebugSessionData(session, debugRaw)
 
 	// Generate markdown from SessionData
-	// Always include header for individual session saves
-	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, true, useUTC)
+	markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return fmt.Errorf("failed to generate markdown: %w", err)
@@ -1329,8 +1192,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		writeDebugSessionData(session, debugRaw)
 
 		// Generate markdown from SessionData
-		// Always include header for individual session syncs
-		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, true, useUTC)
+		markdownContent, err := markdown.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
 		if err != nil {
 			slog.Error("Failed to generate markdown from SessionData",
 				"sessionId", session.SessionID,
@@ -1674,528 +1536,6 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 
 var syncCmd *cobra.Command
 
-// Command to show current version information
-var versionCmd = &cobra.Command{
-	Use:     "version",
-	Aliases: []string{"v", "ver"},
-	Short:   "Show SpecStory version information",
-	Run: func(cmd *cobra.Command, args []string) {
-		// Track version command usage
-		analytics.TrackEvent(analytics.EventVersionCommand, analytics.Properties{
-			"version": version,
-		})
-		fmt.Printf("%s (SpecStory)\n", version)
-	},
-}
-
-// createCheckCommand dynamically creates the check command with provider information
-func createCheckCommand() *cobra.Command {
-	registry := factory.GetRegistry()
-	ids := registry.ListIDs()
-
-	// Build dynamic examples
-	examples := `
-# Check all coding agents
-specstory check`
-
-	if len(ids) > 0 {
-		examples += "\n\n# Check specific coding agent"
-		for _, id := range ids {
-			examples += fmt.Sprintf("\nspecstory check %s", id)
-		}
-
-		// Use first provider for custom command example
-		examples += fmt.Sprintf("\n\n# Check a specific coding agent with a custom command\nspecstory check %s -c \"/custom/path/to/agent\"", ids[0])
-	}
-
-	return &cobra.Command{
-		Use:   "check [provider-id]",
-		Short: "Check if terminal coding agents are properly installed",
-		Long: `Check if terminal coding agents are properly installed and can be invoked by SpecStory.
-
-By default, checks all registered coding agents providers.
-Specify a specific agent ID to check only a specific coding agent.`,
-		Example: examples,
-		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument
-		RunE: func(cmd *cobra.Command, args []string) error {
-			slog.Info("Running in check-install mode")
-			registry := factory.GetRegistry()
-
-			// Get custom command if provided via flag
-			customCmd, _ := cmd.Flags().GetString("command")
-
-			// Validate that -c flag requires a provider
-			if customCmd != "" && len(args) == 0 {
-				registry := factory.GetRegistry()
-				ids := registry.ListIDs()
-				example := "specstory check <provider> -c \"/custom/path/to/agent\""
-				if len(ids) > 0 {
-					example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
-				}
-				return utils.ValidationError{
-					Message: "The -c/--command flag requires a provider to be specified.\n" +
-						"Example: " + example,
-				}
-			}
-
-			if len(args) == 0 {
-				// Check all providers
-				return checkAllProviders(registry)
-			} else {
-				// Check specific provider
-				return checkSingleProvider(registry, args[0], customCmd)
-			}
-		},
-	}
-}
-
-var checkCmd *cobra.Command
-
-// printDivider prints a divider line for visual separation
-func printDivider() {
-	fmt.Println("\n--------")
-}
-
-// checkSingleProvider checks a specific provider
-func checkSingleProvider(registry *factory.Registry, providerID, customCmd string) error {
-	provider, err := registry.Get(providerID)
-	if err != nil {
-		// Provider not found - show helpful error
-		fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
-
-		ids := registry.ListIDs()
-		if len(ids) > 0 {
-			fmt.Println("The registered providers are:")
-			for _, id := range ids {
-				if p, _ := registry.Get(id); p != nil {
-					fmt.Printf("  • %s - %s\n", id, p.Name())
-				}
-			}
-			fmt.Println("\nExample: specstory check " + ids[0])
-		}
-		return err
-	}
-
-	// Set the agent provider for analytics
-	analytics.SetAgentProviders([]string{provider.Name()})
-
-	// Run the check
-	result := provider.Check(customCmd)
-
-	// Display results with the nice formatting
-	if result.Success {
-		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-		fmt.Printf("  📦 Version: %s\n", result.Version)
-		fmt.Printf("  📍 Location: %s\n", result.Location)
-		fmt.Printf("  ✅ Status: All systems go!\n\n")
-
-		fmt.Println("🚀 Ready to sync your sessions! 💪")
-		normalizedID := strings.ToLower(providerID)
-		fmt.Printf("   • specstory run %s\n", normalizedID)
-		fmt.Println("   • specstory sync - Save markdown files for existing sessions")
-		fmt.Println()
-
-		return nil
-	} else {
-		fmt.Printf("\n❌ %s check failed!\n", provider.Name())
-		if result.ErrorMessage != "" {
-			fmt.Printf("\n%s\n", result.ErrorMessage)
-		}
-		return errors.New("check failed")
-	}
-}
-
-// checkAllProviders checks all registered providers
-func checkAllProviders(registry *factory.Registry) error {
-	// Sort for consistent output
-	ids := registry.ListIDs()
-
-	// Collect all provider names for analytics
-	var providerNames []string
-	for _, id := range ids {
-		if provider, err := registry.Get(id); err == nil {
-			providerNames = append(providerNames, provider.Name())
-		}
-	}
-	analytics.SetAgentProviders(providerNames)
-
-	anySuccess := false
-	type providerInfo struct {
-		id   string
-		name string
-	}
-	var successfulProviders []providerInfo
-	first := true
-
-	for _, id := range ids {
-		provider, _ := registry.Get(id)
-		// Invoke Check() here to keep registry limited to registration/lookup
-		result := provider.Check("")
-
-		// Add divider between providers (but not before the first one)
-		if !first {
-			printDivider()
-		}
-		first = false
-
-		if result.Success {
-			anySuccess = true
-			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
-			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-			fmt.Printf("  📦 Version: %s\n", result.Version)
-			fmt.Printf("  📍 Location: %s\n", result.Location)
-			fmt.Printf("  ✅ Status: All systems go!\n")
-		} else {
-			fmt.Printf("\n❌ %s check failed!\n\n", provider.Name())
-			if result.ErrorMessage != "" {
-				// Show just first line of error for summary view
-				lines := strings.Split(result.ErrorMessage, "\n")
-				fmt.Printf("  Error: %s\n", strings.TrimSpace(lines[0]))
-			}
-		}
-	}
-
-	// Show ready message if at least one provider is working
-	if anySuccess {
-		printDivider()
-		fmt.Println("\n🚀 Ready to sync your sessions! 💪")
-		for _, info := range successfulProviders {
-			fmt.Printf("   • specstory run %s\n", info.id)
-		}
-		fmt.Println("   • specstory sync - Save markdown files for existing sessions")
-		fmt.Println()
-	} else {
-		printDivider()
-		fmt.Println("\n⚠️  No providers are currently available")
-		fmt.Println("   Install at least one provider to use SpecStory")
-		fmt.Println("\n💡 Tip: Use 'specstory check <provider>' for detailed installation help")
-
-		// Try to show an example with the first registered provider ID
-		ids := registry.ListIDs()
-		if len(ids) > 0 {
-			fmt.Printf("   Example: specstory check %s\n", ids[0])
-		} else {
-			fmt.Println("   Example: specstory check <provider>")
-		}
-	}
-
-	// Return error only if ALL providers failed
-	if !anySuccess {
-		return errors.New("check failed")
-	}
-
-	return nil
-}
-
-// Command to log in to SpecStory Cloud
-var loginCmd = &cobra.Command{
-	Use:   "login",
-	Short: "Log in to SpecStory Cloud",
-	Long:  `Log in to SpecStory Cloud to enable cloud sync functionality.`,
-	Example: `
-# Log in
-specstory login`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Running login command")
-
-		// Check if user is already authenticated
-		if cloud.IsAuthenticated() {
-			// Get user details
-			username, loginTime := cloud.AuthenticatedAs()
-
-			// Already logged in - be friendly and show who they are!
-			fmt.Println()
-			fmt.Println("🔐 You're already logged in!")
-			fmt.Println()
-
-			// Show user details if available
-			if username != "" {
-				fmt.Printf("👤 Logged in as: %s\n", username)
-			}
-			if loginTime != "" {
-				// Parse and format the login time
-				if t, err := time.Parse(time.RFC3339, loginTime); err == nil {
-					fmt.Printf("🕐 Logged in at: %s (UTC)\n", t.Format("2006-01-02 15:04:05"))
-				} else {
-					// Fallback to raw time if parsing fails
-					fmt.Printf("🕐 Logged in at: %s\n", loginTime)
-				}
-			}
-
-			fmt.Println()
-			fmt.Println("🚀 Ready to sync with SpecStory Cloud! 💪")
-			fmt.Println()
-			return nil
-		}
-
-		// User is not authenticated - start login flow
-		slog.Info("Starting login flow")
-		analytics.TrackEvent(analytics.EventLoginAttempted, nil)
-		loginURL := cloud.GetAPIBaseURL() + "/cli-login"
-
-		fmt.Println()
-		fmt.Println("🌐 Opening your browser to log in to SpecStory Cloud...")
-		fmt.Println()
-
-		// Try to open the browser
-		if err := openBrowser(loginURL); err != nil {
-			slog.Warn("Failed to open browser automatically", "error", err)
-			// Don't fail, just inform the user
-		}
-
-		// Display the URL for manual access
-		fmt.Println("📋 If your browser didn't open, please visit:")
-		fmt.Printf("   %s\n", loginURL)
-		fmt.Println()
-
-		// Loop to allow retrying code entry
-		reader := bufio.NewReader(os.Stdin)
-
-		// Track number of invalid attempts
-		const maxAttempts = 5
-		var invalidAttempts int
-
-		for {
-			fmt.Println("🔑 Enter the 6-character code shown in your browser (or 'quit' to cancel):")
-			fmt.Print("   Code: ")
-
-			// Read the code from user input
-			code, err := reader.ReadString('\n')
-			if err != nil {
-				slog.Error("Failed to read authentication code", "error", err)
-				analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-					"error": err.Error(),
-					"stage": "reading_code",
-				})
-				return fmt.Errorf("failed to read authentication code: %w", err)
-			}
-
-			// Trim whitespace
-			code = strings.TrimSpace(code)
-
-			// Check if user wants to quit (case-insensitive)
-			upperCode := strings.ToUpper(code)
-			if upperCode == QuitCommandFull || upperCode == QuitCommandShort || upperCode == ExitCommand {
-				slog.Info("Login cancelled by user")
-				analytics.TrackEvent(analytics.EventLoginCancelled, nil)
-				fmt.Println()
-				fmt.Println("👋 Login cancelled.")
-				fmt.Println()
-				return nil
-			}
-
-			// Normalize and validate the device code
-			normalizedCode, valid := normalizeDeviceCode(code)
-			if !valid {
-				invalidAttempts++
-				slog.Debug("Invalid code format entered", "original", code, "attempt", invalidAttempts)
-
-				if invalidAttempts >= maxAttempts {
-					analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-						"error": "max_attempts_exceeded",
-						"stage": "code_validation",
-					})
-					return fmt.Errorf("maximum login attempts exceeded")
-				}
-
-				fmt.Println()
-				fmt.Println("❌ Invalid code format. The code should be 6 alphanumeric characters.")
-				fmt.Println("   Examples: Ab1c23 or Ab1-c23")
-				fmt.Println()
-				continue // Try again
-			}
-
-			// Valid code format - proceed with authentication
-			// Format the code for display (add dash back for readability)
-			displayCode := normalizedCode[:3] + "-" + normalizedCode[3:]
-			slog.Info("Valid authentication code received", "code", displayCode)
-
-			fmt.Println()
-			fmt.Printf("✅ Code received: %s\n", displayCode)
-			fmt.Println("🔄 Authenticating...")
-			fmt.Println()
-
-			// Exchange code for authentication tokens
-			if err := cloud.LoginWithDeviceCode(normalizedCode); err != nil {
-				invalidAttempts++
-				slog.Error("Failed to authenticate with device code", "error", err)
-				analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-					"error": err.Error(),
-					"stage": "device_login",
-				})
-
-				// Check if it's an invalid code error
-				if strings.Contains(err.Error(), "invalid") || strings.Contains(err.Error(), "expired") {
-					if invalidAttempts >= maxAttempts {
-						analytics.TrackEvent(analytics.EventLoginFailed, analytics.Properties{
-							"error": "max_attempts_exceeded",
-							"stage": "device_login",
-						})
-						return fmt.Errorf("maximum login attempts exceeded")
-					}
-
-					fmt.Println("❌ Authentication failed: " + err.Error())
-					fmt.Println()
-					fmt.Println("Please try entering the code again.")
-					fmt.Println()
-					continue // Let user try again
-				}
-
-				// Other errors are fatal
-				return fmt.Errorf("authentication failed: %w", err)
-			}
-
-			// Get user details to show who they logged in as
-			username, _ := cloud.AuthenticatedAs()
-
-			fmt.Println("🎉 Success! You're now logged in to SpecStory Cloud!")
-			if username != "" {
-				fmt.Printf("👤 Logged in as: %s\n", username)
-			}
-			fmt.Println()
-			fmt.Println("🚀 Ready to sync your sessions to SpecStory Cloud! 💪")
-			fmt.Println("   • specstory run  - Launch terminal coding agents with auto-sync'ing")
-			fmt.Println("   • specstory sync - Sync markdown files for existing sessions")
-			fmt.Println()
-
-			analytics.TrackEvent(analytics.EventLoginSuccess, analytics.Properties{
-				"user":   username,
-				"method": "device_code",
-			})
-			slog.Info("Login flow completed successfully", "user", username)
-			return nil
-		}
-	},
-}
-
-// Command to log out from SpecStory Cloud
-var logoutCmd = &cobra.Command{
-	Use:   "logout",
-	Short: "Log out from SpecStory Cloud",
-	Long:  `Log out from SpecStory Cloud by removing authentication credentials.`,
-	Example: `
-# Log out
-specstory logout
-
-# Log out without a confirmation prompt
-specstory logout --force`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		slog.Info("Running logout command")
-
-		// Check if user is authenticated
-		if !cloud.IsAuthenticated() {
-			// Not logged in - but still clean up any auth file that might exist
-			_ = cloud.Logout() // Always attempt to remove the file
-
-			// Not logged in - be friendly and funky!
-			fmt.Println()
-			fmt.Println("🎉 Good news! You're not logged in!")
-			fmt.Println("✨ Nothing to log out from - All is well in the universe! 💫")
-			fmt.Println()
-			return nil
-		}
-
-		// Get the force flag value
-		force, _ := cmd.Flags().GetBool("force")
-
-		// If not forcing, ask for confirmation
-		if !force {
-			// User is logged in - ask for confirmation with style
-			fmt.Println()
-			fmt.Println("🔐 You're currently logged in to SpecStory Cloud.")
-			fmt.Println("🤔 Are you sure you want to log out?")
-			fmt.Println()
-			fmt.Print("Type 'yes' to confirm logout, or anything else to stay connected: ")
-
-			// Read user input
-			reader := bufio.NewReader(os.Stdin)
-			input, err := reader.ReadString('\n')
-			if err != nil {
-				slog.Error("Failed to read user input", "error", err)
-				return fmt.Errorf("failed to read confirmation: %w", err)
-			}
-
-			// Trim whitespace and convert to lowercase
-			input = strings.TrimSpace(strings.ToLower(input))
-
-			if input != "yes" {
-				// User chose not to logout - celebrate their decision!
-				fmt.Println()
-				fmt.Println("🎊 Awesome! You're staying connected!")
-				fmt.Println("🚀 Keep on building amazing things! 💪")
-				fmt.Println()
-				return nil
-			}
-		}
-
-		// Proceed with logout
-		if err := cloud.Logout(); err != nil {
-			slog.Error("Logout failed", "error", err)
-			// Track logout error
-			analytics.TrackEvent(analytics.EventLogout, analytics.Properties{
-				"success": false,
-				"forced":  force,
-				"error":   err.Error(),
-			})
-			fmt.Println()
-			fmt.Println("❌ Oops! Something went wrong during logout:")
-			fmt.Printf("   %v\n", err)
-			fmt.Println()
-			return err
-		}
-
-		// Track successful logout
-		analytics.TrackEvent(analytics.EventLogout, analytics.Properties{
-			"success": true,
-			"forced":  force,
-		})
-
-		// Success!
-		fmt.Println()
-		fmt.Println("👋 Successfully logged out from SpecStory Cloud.")
-		fmt.Println("💝 Thanks for using SpecStory! See you again soon! ✨")
-		fmt.Println()
-
-		return nil
-	},
-}
-
-// Custom help command, needed over built-in help command to display our logo
-var helpCmd = &cobra.Command{
-	Use:     "help [command]",
-	Aliases: []string{"h"},
-	Short:   "Help about any command",
-	Run: func(cmd *cobra.Command, args []string) {
-		// Track help command usage with context about why help was shown
-		helpTopic := "general"
-		helpReason := "requested"
-
-		// If a subcommand is specified, determine if it's valid
-		if len(args) > 0 {
-			targetCmd, _, err := rootCmd.Find(args)
-			if err != nil {
-				// Unknown command - track as error-triggered help
-				helpReason = "unknown_command"
-				fmt.Printf("Unknown command: %s\n", args[0])
-				displayLogoAndHelp(rootCmd)
-			} else {
-				// Valid command - track the specific topic
-				helpTopic = args[0]
-				displayLogoAndHelp(targetCmd)
-			}
-		} else {
-			// No command specified - general help requested
-			displayLogoAndHelp(rootCmd)
-		}
-
-		// Track analytics after determining the context
-		analytics.TrackEvent(analytics.EventHelpCommand, analytics.Properties{
-			"help_topic":  helpTopic,
-			"help_reason": helpReason,
-		})
-	},
-}
-
 // Main entry point for the CLI
 func main() {
 	// Parse critical flags early by manually checking os.Args
@@ -2240,7 +1580,10 @@ func main() {
 	watchCmd = createWatchCommand()
 	syncCmd = createSyncCommand()
 	listCmd := cmd.CreateListCommand()
-	checkCmd = createCheckCommand()
+	checkCmd := cmd.CreateCheckCommand()
+	versionCmd := cmd.CreateVersionCommand(version)
+	loginCmd := cmd.CreateLoginCommand(&cloudURL)
+	logoutCmd := cmd.CreateLogoutCommand(&cloudURL)
 
 	// Set version for the automatic version flag
 	rootCmd.Version = version
@@ -2249,6 +1592,7 @@ func main() {
 	rootCmd.SetVersionTemplate("{{.Version}} (SpecStory)")
 
 	// Set our custom help command (for "specstory help")
+	helpCmd := cmd.CreateHelpCommand(rootCmd)
 	rootCmd.SetHelpCommand(helpCmd)
 
 	// Add the subcommands
@@ -2302,15 +1646,6 @@ func main() {
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
-
-	checkCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
-
-	logoutCmd.Flags().Bool("force", false, "skip confirmation prompt and logout immediately")
-	logoutCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = logoutCmd.Flags().MarkHidden("cloud-url") // Hidden flag
-
-	loginCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = loginCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
