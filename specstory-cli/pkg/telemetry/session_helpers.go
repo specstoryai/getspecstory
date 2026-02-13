@@ -96,7 +96,7 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 		// Token usage attributes - common (all providers)
 		attribute.Int("specstory.session.tokens.input", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.session.tokens.output", stats.TokenUsage.OutputTokens),
-		// Token usage attributes - Claude Code specific
+		// Token usage attributes - Claude Code specific (also used by Droid CLI)
 		attribute.Int("specstory.session.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
 		attribute.Int("specstory.session.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
 		// Token usage attributes - Codex CLI specific
@@ -106,6 +106,8 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 		attribute.Int("specstory.session.tokens.cached", stats.TokenUsage.CachedTokens),
 		attribute.Int("specstory.session.tokens.thought", stats.TokenUsage.ThoughtTokens),
 		attribute.Int("specstory.session.tokens.tool", stats.TokenUsage.ToolTokens),
+		// Token usage attributes - Droid CLI specific
+		attribute.Int("specstory.session.tokens.thinking", stats.TokenUsage.ThinkingTokens),
 	)
 }
 
@@ -138,7 +140,7 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 		// Token usage attributes - common (all providers)
 		attribute.Int("specstory.exchange.tokens.input", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.exchange.tokens.output", stats.TokenUsage.OutputTokens),
-		// Token usage attributes - Claude Code specific
+		// Token usage attributes - Claude Code specific (also used by Droid CLI)
 		attribute.Int("specstory.exchange.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
 		attribute.Int("specstory.exchange.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
 		// Token usage attributes - Codex CLI specific
@@ -148,6 +150,8 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 		attribute.Int("specstory.exchange.tokens.cached", stats.TokenUsage.CachedTokens),
 		attribute.Int("specstory.exchange.tokens.thought", stats.TokenUsage.ThoughtTokens),
 		attribute.Int("specstory.exchange.tokens.tool", stats.TokenUsage.ToolTokens),
+		// Token usage attributes - Droid CLI specific
+		attribute.Int("specstory.exchange.tokens.thinking", stats.TokenUsage.ThinkingTokens),
 	)
 }
 
@@ -276,7 +280,7 @@ func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCoun
 }
 
 // CountExchangeTokens aggregates token usage for a single exchange.
-// Handles Claude Code, Codex CLI, and Gemini CLI specific token fields.
+// Handles Claude Code, Codex CLI, Gemini CLI, and Droid CLI specific token fields.
 func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 	var usage TokenUsage
 	for _, msg := range exchange.Messages {
@@ -284,7 +288,7 @@ func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 			// Common fields (all providers)
 			usage.InputTokens += msg.Usage.InputTokens
 			usage.OutputTokens += msg.Usage.OutputTokens
-			// Claude Code specific
+			// Claude Code specific (also used by Droid CLI)
 			usage.CacheCreationInputTokens += msg.Usage.CacheCreationInputTokens
 			usage.CacheReadInputTokens += msg.Usage.CacheReadInputTokens
 			// Codex CLI specific
@@ -294,13 +298,15 @@ func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 			usage.CachedTokens += msg.Usage.CachedTokens
 			usage.ThoughtTokens += msg.Usage.ThoughtTokens
 			usage.ToolTokens += msg.Usage.ToolTokens
+			// Droid CLI specific
+			usage.ThinkingTokens += msg.Usage.ThinkingTokens
 		}
 	}
 	return usage
 }
 
 // countSessionTokens aggregates token usage across all exchanges in a session.
-// Handles Claude Code, Codex CLI, and Gemini CLI specific token fields.
+// Handles Claude Code, Codex CLI, Gemini CLI, and Droid CLI specific token fields.
 func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 	var total TokenUsage
 	for _, exchange := range exchanges {
@@ -308,7 +314,7 @@ func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 		// Common fields (all providers)
 		total.InputTokens += exchangeUsage.InputTokens
 		total.OutputTokens += exchangeUsage.OutputTokens
-		// Claude Code specific
+		// Claude Code specific (also used by Droid CLI)
 		total.CacheCreationInputTokens += exchangeUsage.CacheCreationInputTokens
 		total.CacheReadInputTokens += exchangeUsage.CacheReadInputTokens
 		// Codex CLI specific
@@ -318,6 +324,8 @@ func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 		total.CachedTokens += exchangeUsage.CachedTokens
 		total.ThoughtTokens += exchangeUsage.ThoughtTokens
 		total.ToolTokens += exchangeUsage.ToolTokens
+		// Droid CLI specific
+		total.ThinkingTokens += exchangeUsage.ThinkingTokens
 	}
 	return total
 }
