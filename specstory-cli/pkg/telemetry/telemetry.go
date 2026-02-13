@@ -71,6 +71,9 @@ var (
 	thoughtTokens metric.Int64Counter
 	toolTokens    metric.Int64Counter
 
+	// Token usage metrics (Droid CLI specific)
+	thinkingTokens metric.Int64Counter
+
 	// Common attributes parsed from OTEL_RESOURCE_ATTRIBUTES to include on all metrics
 	commonMetricAttrs []attribute.KeyValue
 )
@@ -378,6 +381,15 @@ func initMetricInstruments() error {
 		return err
 	}
 
+	// Droid CLI specific counters
+	thinkingTokens, err = meter.Int64Counter("specstory.tokens.thinking",
+		metric.WithDescription("Total thinking/reasoning tokens across all sessions (Droid)"),
+		metric.WithUnit("{token}"),
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -554,12 +566,13 @@ func recordProcessingDuration(ctx context.Context, agent string, sessionID strin
 //   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
 //   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
 //   - Gemini CLI: InputTokens, OutputTokens, CachedTokens, ThoughtTokens, ToolTokens
+//   - Droid CLI: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens, ThinkingTokens
 type TokenUsage struct {
 	// Common fields (all providers)
 	InputTokens  int
 	OutputTokens int
 
-	// Claude Code specific
+	// Claude Code specific (also used by Droid CLI)
 	CacheCreationInputTokens int
 	CacheReadInputTokens     int
 
@@ -571,6 +584,9 @@ type TokenUsage struct {
 	CachedTokens  int
 	ThoughtTokens int
 	ToolTokens    int
+
+	// Droid CLI specific
+	ThinkingTokens int
 }
 
 // recordTokenUsage records token usage metrics for a session.
@@ -614,5 +630,10 @@ func recordTokenUsage(ctx context.Context, agent string, sessionID string, usage
 	}
 	if usage.ToolTokens > 0 {
 		toolTokens.Add(ctx, int64(usage.ToolTokens), metric.WithAttributes(attrs...))
+	}
+
+	// Droid CLI specific
+	if usage.ThinkingTokens > 0 {
+		thinkingTokens.Add(ctx, int64(usage.ThinkingTokens), metric.WithAttributes(attrs...))
 	}
 }
