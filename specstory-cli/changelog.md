@@ -1,10 +1,11 @@
 # Specstory CLI Changelog
 
-## v1.7.0 2026-02-12
+## v1.7.0 2026-02-16
 
 ### ⚙️ Improvements
 
 - New `--print` flag for `specstory sync -s {session-ID} --print` command to output the markdown to stdout rather than sync it to a file. The flag works for multiple sessions with `specstory sync -s {id1} -s {id2} --print`.
+- For the `specstory run claude` command, prefer the Claude Code "native install", `~/.local/bin/claude`, over the npm install, `~/.claude/local/claude`, when both are present.
 
 ### 🐛 Bug Fixes
 
