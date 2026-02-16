@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -380,7 +381,7 @@ func TestParseErrorHandling(t *testing.T) {
 			if tt.wantError {
 				if err == nil {
 					t.Errorf("Load() returned no error, want error containing %q", tt.errorContains)
-				} else if tt.errorContains != "" && !contains(err.Error(), tt.errorContains) {
+				} else if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
 					t.Errorf("Load() error = %q, want error containing %q", err.Error(), tt.errorContains)
 				}
 			} else {
@@ -568,19 +569,4 @@ func TestDefaultValues(t *testing.T) {
 	if cfg.GetOutputDir() != "" {
 		t.Errorf("GetOutputDir() = %q, want empty string", cfg.GetOutputDir())
 	}
-}
-
-// contains checks if s contains substr
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && searchString(s, substr)))
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
