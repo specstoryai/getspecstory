@@ -1185,6 +1185,10 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 	historyPath := config.GetHistoryDir()
 
+	// Track used filenames to detect collisions within this sync run
+	// Maps base filename (without .md) to the session ID that claimed it
+	usedFilenames := make(map[string]string)
+
 	// Process each session
 	for i := range sessions {
 		session := &sessions[i]
@@ -1209,10 +1213,29 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
 		timestampStr := formatFilenameTimestamp(timestamp, useUTC)
 
-		filename := timestampStr
+		baseFilename := timestampStr
 		if session.Slug != "" {
-			filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
+			baseFilename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
 		}
+
+		// Check for filename collision with another session in this sync run
+		filename := baseFilename
+		if existingSessionID, exists := usedFilenames[baseFilename]; exists && existingSessionID != session.SessionID {
+			// Collision detected - append short session ID to make unique
+			// Use last 8 characters of session ID for brevity
+			shortID := session.SessionID
+			if len(shortID) > 8 {
+				shortID = shortID[len(shortID)-8:]
+			}
+			filename = fmt.Sprintf("%s-%s", baseFilename, shortID)
+			slog.Debug("Filename collision detected, using unique filename",
+				"baseFilename", baseFilename,
+				"sessionId", session.SessionID,
+				"collidingSessionId", existingSessionID,
+				"newFilename", filename)
+		}
+		usedFilenames[baseFilename] = session.SessionID
+
 		fileFullPath := filepath.Join(historyPath, filename+".md")
 
 		// Check if file already exists with same content
