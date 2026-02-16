@@ -123,15 +123,14 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if err != nil {
 		errorType := classifyCheckError(err)
 		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":            "codex",
-			"custom_command":      isCustomCommand,
-			"command_path":        codexCmd,
-			"resolved_path":       resolvedPath,
-			"error_type":          errorType,
-			"version_flag":        versionFlag,
-			"stderr":              stderrOutput,
-			"error_message":       err.Error(),
-			"path_classification": classifyCodexPath(codexCmd, resolvedPath),
+			"provider":       "codex",
+			"custom_command": isCustomCommand,
+			"command_path":   codexCmd,
+			"resolved_path":  resolvedPath,
+			"error_type":     errorType,
+			"version_flag":   versionFlag,
+			"stderr":         stderrOutput,
+			"error_message":  err.Error(),
 		})
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
@@ -147,14 +146,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if versionOutput == "" {
 		errorType := "no_output"
 		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":            "codex",
-			"custom_command":      isCustomCommand,
-			"command_path":        codexCmd,
-			"resolved_path":       resolvedPath,
-			"error_type":          errorType,
-			"version_flag":        versionFlag,
-			"stderr":              stderrOutput,
-			"path_classification": classifyCodexPath(codexCmd, resolvedPath),
+			"provider":       "codex",
+			"custom_command": isCustomCommand,
+			"command_path":   codexCmd,
+			"resolved_path":  resolvedPath,
+			"error_type":     errorType,
+			"version_flag":   versionFlag,
+			"stderr":         stderrOutput,
 		})
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
@@ -167,12 +165,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		}
 	}
 
-	pathType := classifyCodexPath(codexCmd, resolvedPath)
 	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
 		"provider":       "codex",
 		"custom_command": isCustomCommand,
 		"command_path":   resolvedPath,
-		"path_type":      pathType,
 		"version":        versionOutput,
 		"version_flag":   versionFlag,
 	})
