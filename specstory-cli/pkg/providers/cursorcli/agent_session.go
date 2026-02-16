@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -395,8 +395,7 @@ func extractCursorPathHints(input map[string]interface{}, workspaceRoot string) 
 
 	for _, field := range pathFields {
 		if value, ok := input[field].(string); ok && value != "" {
-			// Normalize path if possible
-			normalizedPath := normalizeCursorPath(value, workspaceRoot)
+			normalizedPath := spi.NormalizePath(value, workspaceRoot)
 			if !containsPath(paths, normalizedPath) {
 				paths = append(paths, normalizedPath)
 			}
@@ -408,7 +407,7 @@ func extractCursorPathHints(input map[string]interface{}, workspaceRoot string) 
 		for _, item := range pathsArray {
 			if pathObj, ok := item.(map[string]interface{}); ok {
 				if filePath, ok := pathObj["file_path"].(string); ok && filePath != "" {
-					normalizedPath := normalizeCursorPath(filePath, workspaceRoot)
+					normalizedPath := spi.NormalizePath(filePath, workspaceRoot)
 					if !containsPath(paths, normalizedPath) {
 						paths = append(paths, normalizedPath)
 					}
@@ -417,24 +416,21 @@ func extractCursorPathHints(input map[string]interface{}, workspaceRoot string) 
 		}
 	}
 
-	return paths
-}
-
-// normalizeCursorPath converts absolute paths to workspace-relative paths when possible
-func normalizeCursorPath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
+	// Extract paths from shell commands (redirect targets, file-creating commands).
+	// Cursor's Shell tool input only contains "command" and "description" — no CWD field.
+	// The tool result also lacks CWD info. So we fall back to workspaceRoot as the best
+	// approximation. This means relative paths in commands run after a `cd` will resolve
+	// against the wrong directory, but there's nothing better available from Cursor's data.
+	if command, ok := input["command"].(string); ok && command != "" {
+		shellPaths := spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot)
+		for _, sp := range shellPaths {
+			if !containsPath(paths, sp) {
+				paths = append(paths, sp)
+			}
 		}
 	}
 
-	return path
+	return paths
 }
 
 // containsPath checks if a string slice contains a path

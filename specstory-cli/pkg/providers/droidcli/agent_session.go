@@ -3,9 +3,9 @@ package droidcli
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -346,6 +346,27 @@ func extractPathHints(input map[string]interface{}, workspaceRoot string) []stri
 			addPathHint(&hints, v.String(), workspaceRoot)
 		}
 	}
+
+	// Extract paths from shell commands (redirect targets, file-creating commands)
+	// Check both "command" and "cmd" field names for shell tools
+	command, _ := input["command"].(string)
+	if command == "" {
+		command, _ = input["cmd"].(string)
+	}
+	if command != "" {
+		cwd, _ := input["workdir"].(string)
+		if cwd == "" {
+			cwd, _ = input["cwd"].(string)
+		}
+		if cwd == "" {
+			cwd = workspaceRoot
+		}
+		shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+		for _, sp := range shellPaths {
+			addPathHint(&hints, sp, workspaceRoot)
+		}
+	}
+
 	return hints
 }
 
@@ -354,29 +375,11 @@ func addPathHint(hints *[]string, value string, workspaceRoot string) {
 	if value == "" {
 		return
 	}
-	normalized := normalizeWorkspacePath(value, workspaceRoot)
+	normalized := spi.NormalizePath(value, workspaceRoot)
 	for _, existing := range *hints {
 		if existing == normalized {
 			return
 		}
 	}
 	*hints = append(*hints, normalized)
-}
-
-func normalizeWorkspacePath(path string, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-	if filepath.IsAbs(path) {
-		if rel, err := filepath.Rel(workspaceRoot, path); err == nil {
-			rel = filepath.Clean(rel)
-			if rel == "." {
-				return "."
-			}
-			if !strings.HasPrefix(rel, "..") {
-				return rel
-			}
-		}
-	}
-	return path
 }

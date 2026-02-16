@@ -73,7 +73,7 @@ func ExtractAgentEvents(sessionData *schema.SessionData) []AgentEvent {
 				events = append(events, AgentEvent{
 					ID:         deterministicID(sessionData.SessionID, exchange.ExchangeID, msg.ID, path),
 					FilePath:   path,
-					ChangeType: msg.Tool.Type,
+					ChangeType: "write",
 					Timestamp:  ts,
 					SessionID:  sessionData.SessionID,
 					ExchangeID: exchange.ExchangeID,
