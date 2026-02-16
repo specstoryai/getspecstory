@@ -211,8 +211,9 @@ func applyTelemetryEnvOverrides(cfg *Config) {
 		cfg.Telemetry.ServiceName = serviceName
 	}
 
-	if enabled := os.Getenv("OTEL_ENABLED"); enabled != "" {
-		val := enabled == "true" || enabled == "1"
+	// OTEL_SDK_DISABLED is the standard OTel convention: "true" to disable telemetry
+	if disabled := os.Getenv("OTEL_SDK_DISABLED"); disabled != "" {
+		val := disabled != "true" && disabled != "1"
 		cfg.Telemetry.Enabled = &val
 	}
 }

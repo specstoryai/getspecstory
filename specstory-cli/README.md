@@ -425,12 +425,16 @@ Each session processing span includes the following attributes:
 | `specstory.session.tool_count` | Total tool invocations |
 | `specstory.session.tool_type_count` | Number of unique tool types used |
 | `specstory.project.path` | Workspace root path |
-| `specstory.session.input_tokens` | Total input tokens (all providers) |
-| `specstory.session.output_tokens` | Total output tokens (all providers) |
-| `specstory.session.cache_creation_tokens` | Cache creation tokens (Claude Code) |
-| `specstory.session.cache_read_tokens` | Cache read tokens (Claude Code) |
-| `specstory.session.cached_input_tokens` | Cached input tokens (Codex CLI) |
-| `specstory.session.reasoning_output_tokens` | Reasoning output tokens (Codex CLI) |
+| `specstory.session.tokens.input` | Total input tokens (all providers) |
+| `specstory.session.tokens.output` | Total output tokens (all providers) |
+| `specstory.session.tokens.cache_creation` | Cache creation tokens (Claude Code, Droid CLI) |
+| `specstory.session.tokens.cache_read` | Cache read tokens (Claude Code, Droid CLI) |
+| `specstory.session.tokens.cached_input` | Cached input tokens (Codex CLI) |
+| `specstory.session.tokens.reasoning_output` | Reasoning output tokens (Codex CLI) |
+| `specstory.session.tokens.cached` | Cached tokens (Gemini CLI) |
+| `specstory.session.tokens.thought` | Thought/reasoning tokens (Gemini CLI) |
+| `specstory.session.tokens.tool` | Tool-related tokens (Gemini CLI) |
+| `specstory.session.tokens.thinking` | Thinking tokens (Droid CLI) |
 
 ### Exchange Span Attributes
 
@@ -448,8 +452,16 @@ Each exchange is recorded as a child span with these attributes:
 | `specstory.exchange.tools_used` | Comma-separated tool names |
 | `specstory.exchange.tool_types` | Comma-separated tool types |
 | `specstory.exchange.tool_count` | Number of tool invocations |
-| `specstory.exchange.input_tokens` | Input tokens for this exchange |
-| `specstory.exchange.output_tokens` | Output tokens for this exchange |
+| `specstory.exchange.tokens.input` | Input tokens for this exchange |
+| `specstory.exchange.tokens.output` | Output tokens for this exchange |
+| `specstory.exchange.tokens.cache_creation` | Cache creation tokens (Claude Code, Droid CLI) |
+| `specstory.exchange.tokens.cache_read` | Cache read tokens (Claude Code, Droid CLI) |
+| `specstory.exchange.tokens.cached_input` | Cached input tokens (Codex CLI) |
+| `specstory.exchange.tokens.reasoning_output` | Reasoning output tokens (Codex CLI) |
+| `specstory.exchange.tokens.cached` | Cached tokens (Gemini CLI) |
+| `specstory.exchange.tokens.thought` | Thought/reasoning tokens (Gemini CLI) |
+| `specstory.exchange.tokens.tool` | Tool-related tokens (Gemini CLI) |
+| `specstory.exchange.tokens.thinking` | Thinking tokens (Droid CLI) |
 
 ### Disabling Telemetry
 
@@ -459,8 +471,8 @@ To explicitly disable telemetry:
 # Via CLI flag
 specstory sync --no-telemetry
 
-# Via environment variable
-export OTEL_ENABLED="false"
+# Via environment variable (standard OTel convention)
+export OTEL_SDK_DISABLED="true"
 
 # Via configuration file
 [telemetry]

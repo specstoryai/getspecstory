@@ -180,6 +180,15 @@ func Init(ctx context.Context, opts Options) error {
 
 		// Initialize metrics
 		if err := initMetrics(ctx, host, insecure, res); err != nil {
+			// Roll back tracing initialization to avoid half-initialized state
+			telemetryLogger().Warn("Metrics init failed, rolling back tracing", "error", err)
+			if traceProvider != nil {
+				if shutdownErr := traceProvider.Shutdown(ctx); shutdownErr != nil {
+					telemetryLogger().Warn("Failed to shutdown trace provider during rollback", "error", shutdownErr)
+				}
+				traceProvider = nil
+				otel.SetTracerProvider(nil)
+			}
 			initErr = err
 			return
 		}
@@ -482,13 +491,16 @@ func Meter() metric.Meter {
 // called repeatedly as the session file grows).
 func ContextWithSessionTrace(ctx context.Context, sessionID string) context.Context {
 	traceID := traceIDFromSessionID(sessionID)
+	spanID := spanIDFromSessionID(sessionID)
 
-	// Create a SpanContext with the deterministic trace ID but no span ID.
-	// When we start a span with this as parent, OTel will generate a new span ID
-	// but inherit the trace ID.
+	// Create a SpanContext with both deterministic trace ID and span ID.
+	// In OpenTelemetry-Go, a SpanContext is only valid if both TraceID and SpanID
+	// are valid. We mark it as Remote so child spans inherit the trace ID.
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID:    traceID,
+		SpanID:     spanID,
 		TraceFlags: trace.FlagsSampled, // Ensure it's sampled
+		Remote:     true,               // Mark as remote parent
 	})
 
 	// Inject the SpanContext as a remote parent so child spans inherit the trace ID
@@ -502,6 +514,16 @@ func traceIDFromSessionID(sessionID string) trace.TraceID {
 	var traceID trace.TraceID
 	copy(traceID[:], hash[:16])
 	return traceID
+}
+
+// spanIDFromSessionID generates a deterministic 8-byte span ID from a session ID
+// by hashing the session ID with SHA-256 and taking bytes 16-24.
+// This ensures the span ID is different from the trace ID but still deterministic.
+func spanIDFromSessionID(sessionID string) trace.SpanID {
+	hash := sha256.Sum256([]byte(sessionID))
+	var spanID trace.SpanID
+	copy(spanID[:], hash[16:24])
+	return spanID
 }
 
 // --- Metric Recording Functions ---

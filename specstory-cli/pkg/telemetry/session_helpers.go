@@ -4,6 +4,7 @@ package telemetry
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"time"
 
@@ -203,17 +204,19 @@ func extractToolInfo(exchange schema.Exchange) (toolNames string, toolTypes stri
 		}
 	}
 
-	// Build unique tool names list
+	// Build unique tool names list (sorted for deterministic output)
 	var names []string
 	for n := range nameSet {
 		names = append(names, n)
 	}
+	sort.Strings(names)
 
-	// Build unique tool types list
+	// Build unique tool types list (sorted for deterministic output)
 	var types []string
 	for t := range typeSet {
 		types = append(types, t)
 	}
+	sort.Strings(types)
 
 	return strings.Join(names, ","), strings.Join(types, ","), toolCount
 }

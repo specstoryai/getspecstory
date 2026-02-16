@@ -1629,6 +1629,17 @@ func main() {
 				outputDir = args[i+1]
 				i++ // Skip the value in next iteration
 			}
+		case "--telemetry-endpoint":
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				telemetryEndpoint = args[i+1]
+				i++ // Skip the value in next iteration
+			}
+		case "--telemetry-service-name":
+			// Handle --telemetry-service-name <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				telemetryServiceName = args[i+1]
+				i++ // Skip the value in next iteration
+			}
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {
