@@ -310,6 +310,21 @@ When `--debug-raw` flag is passed:
 4. **OS-Specific Paths:**
    - macOS: `~/Library/Application Support/Cursor/User/workspaceStorage/`
    - Linux: `~/.config/Cursor/User/workspaceStorage/`
+   - WSL: `/mnt/c/Users/<username>/AppData/Roaming/Cursor/User/workspaceStorage/`
+
+### WSL (Windows Subsystem for Linux) Support
+
+When Cursor IDE runs on Windows but operates on WSL projects, the CLI (running inside WSL) must handle several unique challenges:
+
+**Storage location:** Cursor stores all data on the Windows filesystem, even for WSL projects. The CLI detects WSL via `/proc/version` (looking for "microsoft" or "wsl") and searches the Windows side at `/mnt/c/Users/*/AppData/Roaming/Cursor/User/` for both the global database and workspace storage.
+
+**WSL-specific workspace URI formats:** Cursor uses two non-standard URI formats for WSL projects, neither of which is a plain `file:///path`:
+
+1. **`file://wsl.localhost/{DistroName}/path`** — The host is `wsl.localhost` and the first path component is the WSL distro name (e.g., `Ubuntu`). The `uriToPath()` function must detect the `wsl.localhost` host and strip the distro name prefix to recover the actual WSL filesystem path.
+
+2. **`vscode-remote://wsl%2B{distro}/path`** — The scheme is `vscode-remote` and the host encodes the distro as `wsl+ubuntu` (percent-encoded as `wsl%2Bubuntu`). Go's `url.Parse()` rejects `%2B` in the host component, so the `parseVSCodeRemoteURI()` function parses these URIs manually (string splitting) to extract the path.
+
+**Multiple workspace entries per project:** Because Cursor can store the same WSL project under different URI formats, a single project may have two or more matching workspace directories — each potentially containing different conversations. The `FindAllWorkspacesForProject()` function returns all matches, and `LoadComposerIDsFromAllWorkspaces()` aggregates and deduplicates composer IDs across all of them. This ensures no conversations are missed regardless of which URI format was active when they were created.
 
 ### Error Handling
 1. **Missing Databases:** Graceful failure if global DB or workspace storage doesn't exist

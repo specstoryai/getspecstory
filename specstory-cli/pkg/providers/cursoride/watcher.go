@@ -15,7 +15,7 @@ import (
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath       string
-	workspace         *WorkspaceMatch
+	workspaces        []WorkspaceMatch
 	globalDbPath      string
 	debugRaw          bool
 	sessionCallback   func(*spi.AgentChatSession)
@@ -39,8 +39,8 @@ func NewCursorIDEWatcher(
 	sessionCallback func(*spi.AgentChatSession),
 	checkInterval time.Duration,
 ) (*CursorIDEWatcher, error) {
-	// Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// Find all workspaces for project (WSL may have multiple entries)
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace for project: %w", err)
 	}
@@ -66,7 +66,7 @@ func NewCursorIDEWatcher(
 
 	return &CursorIDEWatcher{
 		projectPath:       projectPath,
-		workspace:         workspace,
+		workspaces:        workspaces,
 		globalDbPath:      globalDbPath,
 		debugRaw:          debugRaw,
 		sessionCallback:   sessionCallback,
@@ -85,15 +85,18 @@ func NewCursorIDEWatcher(
 func (w *CursorIDEWatcher) Start() error {
 	slog.Info("Starting Cursor IDE watcher",
 		"projectPath", w.projectPath,
-		"workspaceID", w.workspace.ID,
-		"workspaceDbPath", w.workspace.DBPath,
+		"workspaceCount", len(w.workspaces),
 		"globalDbPath", w.globalDbPath,
 		"checkInterval", w.checkInterval,
 		"throttleDuration", w.throttleDuration)
 
-	// Set up file watching on workspace database
-	if err := w.watchDatabaseFiles(w.workspace.DBPath); err != nil {
-		slog.Warn("Failed to watch workspace database files", "error", err)
+	// Set up file watching on all workspace databases
+	for _, ws := range w.workspaces {
+		if err := w.watchDatabaseFiles(ws.DBPath); err != nil {
+			slog.Warn("Failed to watch workspace database files",
+				"workspaceID", ws.ID,
+				"error", err)
+		}
 	}
 
 	// Set up file watching on global database
@@ -271,8 +274,8 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 	w.lastCheck = time.Now()
 	w.mu.Unlock()
 
-	// Load composer IDs from workspace database
-	composerIDs, err := LoadWorkspaceComposerIDs(w.workspace.DBPath)
+	// Load composer IDs from all workspace databases
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(w.workspaces)
 	if err != nil {
 		slog.Error("Failed to load workspace composer IDs", "error", err)
 		return

@@ -946,6 +946,21 @@ When `--debug-raw` flag is passed:
 4. **OS-Specific Paths:**
    - macOS: `~/Library/Application Support/Code/User/workspaceStorage/`
    - Linux: `~/.config/Code/User/workspaceStorage/`
+   - WSL: `/mnt/c/Users/<username>/AppData/Roaming/Code/User/workspaceStorage/`
+
+### WSL (Windows Subsystem for Linux) Support
+
+When VS Code runs on Windows but operates on WSL projects, the CLI (running inside WSL) must handle several unique challenges:
+
+**Storage location:** VS Code stores all data on the Windows filesystem, even for WSL projects. The CLI detects WSL via `/proc/version` (looking for "microsoft" or "wsl") and searches the Windows side at `/mnt/c/Users/*/AppData/Roaming/Code/User/workspaceStorage/`.
+
+**WSL-specific workspace URI formats:** VS Code uses two non-standard URI formats for WSL projects, neither of which is a plain `file:///path`:
+
+1. **`file://wsl.localhost/{DistroName}/path`** — The host is `wsl.localhost` and the first path component is the WSL distro name (e.g., `Ubuntu`). The `uriToPath()` function must detect the `wsl.localhost` host and strip the distro name prefix to recover the actual WSL filesystem path.
+
+2. **`vscode-remote://wsl%2B{distro}/path`** — The scheme is `vscode-remote` and the host encodes the distro as `wsl+ubuntu` (percent-encoded as `wsl%2Bubuntu`). Go's `url.Parse()` rejects `%2B` in the host component, so the `parseVSCodeRemoteURI()` function parses these URIs manually (string splitting) to extract the path.
+
+**Multiple workspace entries per project:** Because VS Code can store the same WSL project under different URI formats, a single project may have two or more matching workspace directories — each potentially containing different chat sessions. The `FindAllWorkspacesForProject()` function returns all matches, and session files are aggregated from all matching workspaces with deduplication by session ID. This ensures no conversations are missed regardless of which URI format was active when they were created.
 
 ### Response Polymorphism
 VS Code uses polymorphic response arrays with "kind" discriminator:
