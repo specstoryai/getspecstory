@@ -16,32 +16,42 @@ import (
 var (
 	osUserHomeDir = os.UserHomeDir
 	osStat        = os.Stat
+	execLookPath  = exec.LookPath
 )
 
 // getDefaultClaudeCommand returns the default claude command.
-// It checks for local installations in this order:
-// 1. ~/.claude/local/claude (development installation)
-// 2. ~/.local/bin/claude (user-specific installation)
-// 3. "claude" (which will be resolved from PATH)
-// This allows developers to test with local builds without affecting their PATH.
+// It checks for installations in this order:
+// 1. ~/.local/bin/claude (preferred native installation)
+// 2. "claude" resolved from PATH
+// 3. ~/.claude/local/claude (legacy npm installation)
+// 4. "claude" bare fallback
 func getDefaultClaudeCommand() string {
-	homeDir, err := osUserHomeDir()
-	if err == nil {
-		// Check ~/.claude/local/claude first
-		localClaude := filepath.Join(homeDir, ".claude", "local", "claude")
-		if _, err := osStat(localClaude); err == nil {
-			slog.Info("Found Claude Code", "path", localClaude)
-			return localClaude
-		}
-
-		// Check ~/.local/bin/claude second
-		userBinClaude := filepath.Join(homeDir, ".local", "bin", "claude")
-		if _, err := osStat(userBinClaude); err == nil {
-			slog.Info("Found Claude Code", "path", userBinClaude)
-			return userBinClaude
+	homeDir, homeDirErr := osUserHomeDir()
+	if homeDirErr == nil {
+		// Preferred native installation
+		nativeClaude := filepath.Join(homeDir, ".local", "bin", "claude")
+		if _, err := osStat(nativeClaude); err == nil {
+			slog.Info("Found Claude Code", "path", nativeClaude)
+			return nativeClaude
 		}
 	}
-	slog.Info("Using Claude Code from PATH")
+
+	// Check if claude is available on PATH
+	if path, err := execLookPath("claude"); err == nil {
+		slog.Info("Found Claude Code on PATH", "path", path)
+		return "claude"
+	}
+
+	if homeDirErr == nil {
+		// Legacy npm installation
+		legacyClaude := filepath.Join(homeDir, ".claude", "local", "claude")
+		if _, err := osStat(legacyClaude); err == nil {
+			slog.Info("Found Claude Code", "path", legacyClaude)
+			return legacyClaude
+		}
+	}
+
+	slog.Info("Using Claude Code bare fallback")
 	return "claude"
 }
 
@@ -54,19 +64,6 @@ func expandTilde(path string) string {
 		}
 	}
 	return path
-}
-
-// getPathType determines the type of path being used for Claude Code
-func getPathType(claudeCmd, resolvedPath string) string {
-	if strings.Contains(resolvedPath, "/.claude/local/") {
-		return "local_development"
-	} else if strings.Contains(resolvedPath, "/.local/bin/") {
-		return "user_local"
-	} else if filepath.IsAbs(claudeCmd) {
-		return "absolute_path"
-	} else {
-		return "system_path"
-	}
 }
 
 // parseClaudeCommand parses a custom command string into executable and arguments.
