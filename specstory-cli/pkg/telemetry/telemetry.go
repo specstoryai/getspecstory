@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 const (
@@ -187,7 +188,8 @@ func Init(ctx context.Context, opts Options) error {
 					telemetryLogger().Warn("Failed to shutdown trace provider during rollback", "error", shutdownErr)
 				}
 				traceProvider = nil
-				otel.SetTracerProvider(nil)
+				// Use no-op provider instead of nil per OTel documentation
+				otel.SetTracerProvider(noop.NewTracerProvider())
 			}
 			initErr = err
 			return
