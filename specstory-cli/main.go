@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -52,9 +51,6 @@ var silent bool  // flag to enable silent output (no user messages)
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
 
-// UUID regex pattern: 8-4-4-4-12 hexadecimal characters
-var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
-
 // pluralSession returns "session" or "sessions" based on count for proper grammar
 func pluralSession(count int) string {
 	if count == 1 {
@@ -89,11 +85,6 @@ func validateFlags() error {
 		return utils.ValidationError{Message: "cannot use --print and --console together. Console debug output would interleave with markdown on stdout"}
 	}
 	return nil
-}
-
-// validateUUID checks if the given string is a valid UUID format
-func validateUUID(uuid string) bool {
-	return uuidRegex.MatchString(uuid)
 }
 
 // getUseUTC reads the local-time-zone flag and converts it to useUTC format.
@@ -1541,7 +1532,9 @@ var syncCmd *cobra.Command
 func main() {
 	// Parse critical flags early by manually checking os.Args
 	// This is necessary because cobra's ParseFlags doesn't work correctly before subcommands are added
-	for _, arg := range os.Args[1:] {
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "--no-usage-analytics":
 			noAnalytics = true
@@ -1555,6 +1548,12 @@ func main() {
 			silent = true
 		case "--no-version-check":
 			noVersionCheck = true
+		case "--output-dir":
+			// Handle --output-dir <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				outputDir = args[i+1]
+				i++ // Skip the value in next iteration
+			}
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {

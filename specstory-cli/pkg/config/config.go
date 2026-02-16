@@ -9,6 +9,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -97,6 +98,10 @@ type CLIOverrides struct {
 
 // Load reads configuration from files and CLI flags.
 // Priority: CLI flags > local project config > user-level config
+//
+// Returns an error if a config file exists but cannot be parsed (TOML syntax error)
+// or cannot be read (permission denied, I/O error). Missing config files are not
+// treated as errors - they are simply skipped.
 func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	cfg := &Config{}
 
@@ -104,7 +109,12 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	userConfigPath := getUserConfigPath()
 	if userConfigPath != "" {
 		if err := loadTOMLFile(userConfigPath, cfg); err != nil {
-			slog.Debug("No user-level config loaded", "path", userConfigPath, "error", err)
+			if os.IsNotExist(err) {
+				slog.Debug("No user-level config file found", "path", userConfigPath)
+			} else {
+				// Parse error or permission denied - return error to caller
+				return cfg, fmt.Errorf("failed to load user config %s: %w", userConfigPath, err)
+			}
 		} else {
 			slog.Debug("Loaded user-level config", "path", userConfigPath)
 		}
@@ -114,7 +124,12 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	localConfigPath := getLocalConfigPath()
 	if localConfigPath != "" {
 		if err := loadTOMLFile(localConfigPath, cfg); err != nil {
-			slog.Debug("No local project config loaded", "path", localConfigPath, "error", err)
+			if os.IsNotExist(err) {
+				slog.Debug("No local project config file found", "path", localConfigPath)
+			} else {
+				// Parse error or permission denied - return error to caller
+				return cfg, fmt.Errorf("failed to load project config %s: %w", localConfigPath, err)
+			}
 		} else {
 			slog.Debug("Loaded local project config", "path", localConfigPath)
 		}
