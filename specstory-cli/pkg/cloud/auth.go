@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -114,6 +115,13 @@ var (
 	sessionRefreshToken string
 	sessionAccessToken  string
 	hasSessionToken     bool
+
+	// Lazy refresh state for GetCloudToken()
+	// Access token refresh is deferred from IsAuthenticated() to GetCloudToken()
+	// to avoid blocking startup when SpecStory Cloud is unreachable
+	refreshMu          sync.Mutex        // Serializes access token refresh attempts across goroutines
+	lastRefreshAttempt time.Time         // When the last refresh was attempted (success or failure)
+	refreshCooldown    = 2 * time.Minute // Minimum time between refresh attempts when cloud is down
 )
 
 // ===== Device Metadata Functions =====
@@ -265,41 +273,13 @@ func IsAuthenticated() bool {
 		}
 	}
 
-	// Check if we have a valid refresh token to get/refresh the access token
+	// Check if we have a valid refresh token
+	// Access token refresh is deferred to GetCloudToken() to avoid blocking
+	// startup when SpecStory Cloud is unreachable (the refresh HTTP call has
+	// a 30-second timeout that would delay agent launch)
 	if authData.CloudRefresh != nil && authData.CloudRefresh.Token != "" {
 		if !isTokenExpired(authData.CloudRefresh.ExpiresAt) {
-			// Determine if we need to refresh the access token
-			needsRefresh := authData.CloudAccess == nil ||
-				authData.CloudAccess.Token == "" ||
-				isTokenExpired(authData.CloudAccess.ExpiresAt)
-
-			if needsRefresh {
-				// Log appropriate message based on why we're refreshing
-				if authData.CloudAccess == nil || authData.CloudAccess.Token == "" {
-					slog.Info("No access token, attempting to get one with refresh token")
-				} else {
-					slog.Info("Access token expired, attempting refresh")
-				}
-
-				if err := refreshAccessToken(authData.CloudRefresh.Token); err != nil {
-					slog.Error("Failed to refresh access token", "error", err)
-					// Check if this was a 401 authentication failure
-					var authErr *ErrAuthenticationFailed
-					if errors.As(err, &authErr) {
-						return false
-					}
-					// Refresh token is valid but refresh failed (maybe network issue)
-					// Still consider authenticated
-					isAuthenticated = true
-					return true
-				}
-				// Refresh successful
-				isAuthenticated = true
-				return true
-			}
-
-			// Have valid refresh token but access token is still valid
-			// This shouldn't happen but handle gracefully
+			slog.Info("Authentication successful (refresh token valid, access token refresh deferred)")
 			isAuthenticated = true
 			return true
 		}
@@ -595,23 +575,81 @@ func AuthenticatedAs() (username string, loginTime string) {
 	return "", ""
 }
 
-// GetCloudToken returns the current access token for API calls
+// GetCloudToken returns the current access token for API calls.
+// If the access token is expired or missing, lazily attempts to refresh it
+// using the refresh token. This defers the network call from startup to the
+// point where the token is actually needed (sync operations).
 func GetCloudToken() string {
-	// If session token was set via `--cloud-token` flag, return the session access token
+	// Guard: session token path is independent of the normal auth flow
 	if hasSessionToken && sessionAccessToken != "" {
 		return sessionAccessToken
 	}
 
 	var token string
 
-	// Since IsAuthenticated() caches the result and we know we're authenticated,
-	// we can safely read the auth file
-	authPath, _ := utils.GetAuthPath()
+	authPath, err := utils.GetAuthPath()
+	if err != nil {
+		slog.Error("Failed to get auth path for token retrieval", "error", err)
+		return token
+	}
 
-	// Read auth data
+	authData, err := readAuthData(authPath)
+	if err != nil {
+		slog.Error("Failed to read auth data for token retrieval", "error", err)
+		return token
+	}
+
+	// Fast path: access token exists and is not expired
+	if authData.CloudAccess != nil && authData.CloudAccess.Token != "" &&
+		!isTokenExpired(authData.CloudAccess.ExpiresAt) {
+		token = authData.CloudAccess.Token
+	} else if authData.CloudRefresh != nil && authData.CloudRefresh.Token != "" &&
+		!isTokenExpired(authData.CloudRefresh.ExpiresAt) {
+		// Access token expired or missing — attempt lazy refresh using the refresh token
+		token = lazyRefreshAccessToken(authPath, authData.CloudRefresh.Token)
+	}
+
+	return token
+}
+
+// lazyRefreshAccessToken attempts to refresh the access token with mutex serialization
+// and cooldown to avoid hammering the server when cloud is unreachable.
+// Returns the new access token on success, or empty string on failure.
+func lazyRefreshAccessToken(authPath string, refreshToken string) string {
+	refreshMu.Lock()
+	defer refreshMu.Unlock()
+
+	// Double-check: another goroutine may have refreshed while we waited for the lock
 	if authData, err := readAuthData(authPath); err == nil {
-		if authData.CloudAccess != nil && authData.CloudAccess.Token != "" {
+		if authData.CloudAccess != nil && authData.CloudAccess.Token != "" &&
+			!isTokenExpired(authData.CloudAccess.ExpiresAt) {
+			slog.Debug("Access token was refreshed by another goroutine")
 			return authData.CloudAccess.Token
+		}
+	}
+
+	// Cooldown: avoid hammering the server when cloud is down
+	if !lastRefreshAttempt.IsZero() && time.Since(lastRefreshAttempt) < refreshCooldown {
+		slog.Debug("Skipping lazy token refresh (cooldown active)",
+			"lastAttempt", lastRefreshAttempt,
+			"cooldown", refreshCooldown)
+		return ""
+	}
+
+	slog.Info("Lazily refreshing access token")
+	lastRefreshAttempt = time.Now()
+
+	if err := refreshAccessToken(refreshToken); err != nil {
+		slog.Error("Lazy access token refresh failed", "error", err)
+		return ""
+	}
+
+	// Refresh succeeded — read the updated token from disk
+	var token string
+	if authData, err := readAuthData(authPath); err == nil {
+		if authData.CloudAccess != nil {
+			token = authData.CloudAccess.Token
+			slog.Info("Lazy access token refresh successful")
 		}
 	}
 
@@ -704,6 +742,8 @@ func ResetAuthCache() {
 	sessionRefreshToken = ""
 	sessionAccessToken = ""
 	hasSessionToken = false
+	// Reset lazy refresh state
+	lastRefreshAttempt = time.Time{}
 }
 
 // HadAuthFailure returns true if we encountered a 401 authentication failure
