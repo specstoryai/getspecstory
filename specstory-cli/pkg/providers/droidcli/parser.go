@@ -195,7 +195,44 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 	session.Slug = slugFromContent(firstUserText, session.Title, session.CreatedAt)
 	session.RawData = rawBuilder.String()
 
+	// Read token usage from the companion .settings.json file
+	session.TokenUsage = readSessionSettings(filePath)
+
 	return session, nil
+}
+
+// readSessionSettings reads the .settings.json companion file for a session
+// and extracts token usage data. Returns nil if the file doesn't exist or can't be parsed.
+func readSessionSettings(sessionPath string) *fdTokenUsage {
+	settingsPath := settingsPathFromSession(sessionPath)
+
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		// Settings file may not exist for older sessions
+		slog.Debug("droidcli: settings file not found", "path", settingsPath)
+		return nil
+	}
+
+	var settings fdSettings
+	if err := json.Unmarshal(data, &settings); err != nil {
+		slog.Warn("droidcli: failed to parse settings file", "path", settingsPath, "error", err)
+		return nil
+	}
+
+	if settings.TokenUsage == nil {
+		slog.Debug("droidcli: no token usage in settings file", "path", settingsPath)
+		return nil
+	}
+
+	slog.Debug("droidcli: loaded token usage from settings",
+		"path", settingsPath,
+		"inputTokens", settings.TokenUsage.InputTokens,
+		"outputTokens", settings.TokenUsage.OutputTokens,
+		"cacheCreationTokens", settings.TokenUsage.CacheCreationTokens,
+		"cacheReadTokens", settings.TokenUsage.CacheReadTokens,
+		"thinkingTokens", settings.TokenUsage.ThinkingTokens)
+
+	return settings.TokenUsage
 }
 
 func handleMessageEvent(session *fdSession, event *messageEvent, toolIndex map[string]*fdToolCall) {

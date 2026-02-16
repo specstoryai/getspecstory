@@ -9,6 +9,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
+// Type aliases for convenience - use the shared schema types
 type (
 	SessionData  = schema.SessionData
 	ProviderInfo = schema.ProviderInfo
@@ -16,7 +17,23 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
+
+// convertTokenUsage converts Droid's token usage structure to the shared Usage type.
+// Returns nil if tokenUsage is nil.
+func convertTokenUsage(tokenUsage *fdTokenUsage) *Usage {
+	if tokenUsage == nil {
+		return nil
+	}
+	return &Usage{
+		InputTokens:              tokenUsage.InputTokens,
+		OutputTokens:             tokenUsage.OutputTokens,
+		CacheCreationInputTokens: tokenUsage.CacheCreationTokens,
+		CacheReadInputTokens:     tokenUsage.CacheReadTokens,
+		ThinkingTokens:           tokenUsage.ThinkingTokens,
+	}
+}
 
 // GenerateAgentSession converts an fdSession into the shared SessionData schema.
 func GenerateAgentSession(session *fdSession, workspaceRoot string) (*SessionData, error) {
@@ -37,6 +54,15 @@ func GenerateAgentSession(session *fdSession, workspaceRoot string) (*SessionDat
 	for idx := range exchanges {
 		exchanges[idx].ExchangeID = fmt.Sprintf("%s:%d", session.ID, idx)
 		ensureExchangeTimestamps(&exchanges[idx])
+	}
+
+	// Apply session-level token usage to the last message of the last exchange.
+	// Droid CLI provides aggregate token usage for the entire session, not per-message.
+	// Attaching to the last message ensures proper aggregation in telemetry.
+	if usage := convertTokenUsage(session.TokenUsage); usage != nil {
+		if lastExchange := &exchanges[len(exchanges)-1]; len(lastExchange.Messages) > 0 {
+			lastExchange.Messages[len(lastExchange.Messages)-1].Usage = usage
+		}
 	}
 
 	created := strings.TrimSpace(session.CreatedAt)

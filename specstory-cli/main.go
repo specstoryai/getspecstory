@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -19,10 +18,12 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -48,11 +49,14 @@ var logFile bool // flag to enable logging to the log file
 var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
 
+// Telemetry Options
+var noTelemetry bool            // flag to disable telemetry
+var telemetryEndpoint string    // OTLP gRPC collector endpoint
+var telemetryServiceName string // override the default service name
+var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
+
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
-
-// UUID regex pattern: 8-4-4-4-12 hexadecimal characters
-var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 // pluralSession returns "session" or "sessions" based on count for proper grammar
 func pluralSession(count int) string {
@@ -88,11 +92,6 @@ func validateFlags() error {
 		return utils.ValidationError{Message: "cannot use --print and --console together. Console debug output would interleave with markdown on stdout"}
 	}
 	return nil
-}
-
-// validateUUID checks if the given string is a valid UUID format
-func validateUUID(uuid string) bool {
-	return uuidRegex.MatchString(uuid)
 }
 
 // getUseUTC reads the local-time-zone flag and converts it to useUTC format.
@@ -437,7 +436,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
+				err := processSingleSession(context.Background(), session, provider, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -604,7 +603,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						// Process the session (write markdown and sync to cloud)
 						// Don't show output during watch mode
 						// This is autosave mode (true)
-						err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
+						err := processSingleSession(context.Background(), session, p, config, false, true, debugRaw, useUTC)
 						if err != nil {
 							// Log error but continue - don't fail the whole watch
 							// In watch mode, we prioritize keeping the watcher running.
@@ -895,7 +894,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			})
 		} else {
 			// Normal sync: write to file and optionally cloud sync
-			if err := processSingleSession(session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
+			if err := processSingleSession(context.Background(), session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -970,7 +969,35 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
 // useUTC controls timestamp format (true=UTC, false=local)
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
+func processSingleSession(ctx context.Context, session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) error {
+	// Track processing start time for metrics
+	processingStart := time.Now()
+
+	// Create a context with a deterministic trace ID from the session ID.
+	// This groups all spans for the same session into a single trace, even
+	// across multiple invocations in autosave mode.
+	ctx = telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+
+	// Start an OTel span for this session processing (no-op when telemetry is disabled)
+	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
+	defer span.End()
+
+	// Compute session statistics
+	stats := telemetry.ComputeSessionStats(provider.Name(), session)
+
+	// Record metrics (no-op when telemetry is disabled)
+	defer func() {
+		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
+	}()
+
+	// Set session span attributes
+	telemetry.SetSessionSpanAttributes(span, stats)
+
+	// Create child spans for each exchange
+	if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges, noTelemetryPrompts)
+	}
+
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
@@ -1184,10 +1211,31 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	}
 
 	historyPath := config.GetHistoryDir()
+	agentName := provider.Name()
+	ctx := context.Background()
 
 	// Process each session
 	for i := range sessions {
 		session := &sessions[i]
+		processingStart := time.Now()
+
+		// Create a context with a deterministic trace ID from the session ID
+		sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+
+		// Start an OTel span for this session processing
+		sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+
+		// Compute session statistics
+		sessionStats := telemetry.ComputeSessionStats(agentName, session)
+
+		// Set session span attributes
+		telemetry.SetSessionSpanAttributes(span, sessionStats)
+
+		// Create child spans for each exchange
+		if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+			telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
+		}
+
 		validateSessionData(session, debugRaw)
 		writeDebugSessionData(session, debugRaw)
 
@@ -1287,6 +1335,12 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		// In only-cloud-sync mode: always sync
 		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
 
+		// Record telemetry metrics for this session
+		telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+
+		// End the span for this session
+		span.End()
+
 		// Print progress with [n/m] format
 		if !silent {
 			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
@@ -1314,6 +1368,15 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Printf("  ✨ %s%d new %s created%s\n",
 			log.ColorGreen, stats.SessionsCreated, pluralSession(stats.SessionsCreated), log.ColorReset)
 		fmt.Println()
+	}
+
+	// Force flush telemetry before returning to ensure metrics are exported
+	// This is critical for short-lived sync commands that may exit before
+	// the periodic exporter has time to run
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer flushCancel()
+	if err := telemetry.ForceFlush(flushCtx); err != nil {
+		slog.Warn("Failed to flush telemetry", "error", err)
 	}
 
 	return sessionCount, nil
@@ -1540,7 +1603,9 @@ var syncCmd *cobra.Command
 func main() {
 	// Parse critical flags early by manually checking os.Args
 	// This is necessary because cobra's ParseFlags doesn't work correctly before subcommands are added
-	for _, arg := range os.Args[1:] {
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "--no-usage-analytics":
 			noAnalytics = true
@@ -1554,12 +1619,80 @@ func main() {
 			silent = true
 		case "--no-version-check":
 			noVersionCheck = true
+		case "--no-telemetry":
+			noTelemetry = true
+		case "--no-telemetry-prompts":
+			noTelemetryPrompts = true
+		case "--output-dir":
+			// Handle --output-dir <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				outputDir = args[i+1]
+				i++ // Skip the value in next iteration
+			}
+		case "--telemetry-endpoint":
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				telemetryEndpoint = args[i+1]
+				i++ // Skip the value in next iteration
+			}
+		case "--telemetry-service-name":
+			// Handle --telemetry-service-name <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				telemetryServiceName = args[i+1]
+				i++ // Skip the value in next iteration
+			}
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {
 			outputDir = strings.TrimPrefix(arg, "--output-dir=")
 		}
+		// Handle --telemetry-endpoint=value format
+		if strings.HasPrefix(arg, "--telemetry-endpoint=") {
+			telemetryEndpoint = strings.TrimPrefix(arg, "--telemetry-endpoint=")
+		}
+		// Handle --telemetry-service-name=value format
+		if strings.HasPrefix(arg, "--telemetry-service-name=") {
+			telemetryServiceName = strings.TrimPrefix(arg, "--telemetry-service-name=")
+		}
 	}
+
+	// Load configuration early (before logging setup) so TOML settings can affect logging
+	// Priority: CLI flags > local project config > user-level config
+	// Note: OTEL_* env vars take highest priority for telemetry
+	cfg, cfgErr := config.Load(&config.CLIOverrides{
+		OutputDir:            outputDir,
+		NoVersionCheck:       noVersionCheck,
+		NoCloudSync:          noCloudSync,
+		OnlyCloudSync:        onlyCloudSync,
+		Console:              console,
+		Log:                  logFile,
+		Debug:                debug,
+		Silent:               silent,
+		NoAnalytics:          noAnalytics,
+		NoTelemetry:          noTelemetry,
+		TelemetryEndpoint:    telemetryEndpoint,
+		TelemetryServiceName: telemetryServiceName,
+		NoTelemetryPrompts:   noTelemetryPrompts,
+	})
+	if cfgErr != nil {
+		// Use fallback empty config if load fails - will log error after logging is set up
+		cfg = &config.Config{}
+	}
+
+	// Apply config values to flag variables so the rest of the code can use them unchanged.
+	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).
+	if cfg.GetOutputDir() != "" {
+		outputDir = cfg.GetOutputDir()
+	}
+	noVersionCheck = !cfg.IsVersionCheckEnabled()
+	noCloudSync = !cfg.IsCloudSyncEnabled()
+	onlyCloudSync = !cfg.IsLocalSyncEnabled()
+	noAnalytics = !cfg.IsAnalyticsEnabled()
+	console = cfg.IsConsoleEnabled()
+	logFile = cfg.IsLogEnabled()
+	debug = cfg.IsDebugEnabled()
+	silent = cfg.IsSilentEnabled()
+
+	noTelemetryPrompts = noTelemetryPrompts || cfg.IsTelemetryPromptsDisabled()
 
 	// Set up logging early before creating commands (which access the registry)
 	if console || logFile {
@@ -1606,21 +1739,28 @@ func main() {
 	rootCmd.AddCommand(logoutCmd)
 
 	// Global flags available on all commands
-	rootCmd.PersistentFlags().BoolVar(&console, "console", false, "enable error/warn/info output to stdout")
-	rootCmd.PersistentFlags().BoolVar(&logFile, "log", false, "write error/warn/info output to ./.specstory/debug/debug.log")
-	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug-level output (requires --console or --log)")
-	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", false, "disable usage analytics")
-	rootCmd.PersistentFlags().BoolVar(&silent, "silent", false, "suppress all non-error output")
-	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", false, "skip checking for newer versions")
+	// Use current variable values as defaults so config file values are preserved
+	rootCmd.PersistentFlags().BoolVar(&console, "console", console, "enable error/warn/info output to stdout")
+	rootCmd.PersistentFlags().BoolVar(&logFile, "log", logFile, "write error/warn/info output to ./.specstory/debug/debug.log")
+	rootCmd.PersistentFlags().BoolVar(&debug, "debug", debug, "enable debug-level output (requires --console or --log)")
+	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", noAnalytics, "disable usage analytics")
+	rootCmd.PersistentFlags().BoolVar(&silent, "silent", silent, "suppress all non-error output")
+	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
 
+	// Telemetry flags
+	rootCmd.PersistentFlags().BoolVar(&noTelemetry, "no-telemetry", noTelemetry, "disable OpenTelemetry tracing and metrics")
+	rootCmd.PersistentFlags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "OTLP gRPC collector endpoint (e.g., localhost:4317)")
+	rootCmd.PersistentFlags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry")
+	rootCmd.PersistentFlags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans for privacy")
+
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
-	syncCmd.Flags().BoolVar(&printToStdout, "print", false, "output session markdown to stdout instead of saving (requires -s flag)")
-	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
+	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -1629,18 +1769,18 @@ func main() {
 
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
-	runCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
-	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
-	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
-	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	watchCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -1660,6 +1800,33 @@ func main() {
 	} else {
 		slog.Debug("Analytics disabled by --no-usage-analytics flag")
 	}
+
+	// Log config load error after logging is set up
+	if cfgErr != nil {
+		slog.Warn("Failed to load config file, using defaults", "error", cfgErr)
+	}
+
+	// Initialize telemetry (after logging is configured)
+	if err := telemetry.Init(context.Background(), telemetry.Options{
+		ServiceName: cfg.GetTelemetryServiceName(),
+		Endpoint:    cfg.GetTelemetryEndpoint(),
+		Enabled:     cfg.IsTelemetryEnabled(),
+	}); err != nil {
+		slog.Warn("Failed to initialize telemetry", "error", err)
+	}
+	// Separate defer for telemetry cleanup to ensure it always runs
+	defer func() {
+		// Use a timeout context to ensure telemetry shutdown completes within a reasonable time.
+		// This is important for short-lived CLI operations to ensure metrics are flushed.
+		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := telemetry.ForceFlush(flushCtx); err != nil {
+			slog.Warn("Failed to flush telemetry", "error", err)
+		}
+		if err := telemetry.Shutdown(flushCtx); err != nil {
+			slog.Warn("Failed to shutdown telemetry", "error", err)
+		}
+	}()
 
 	// Check for updates (blocking)
 	utils.CheckForUpdates(version, noVersionCheck, silent)

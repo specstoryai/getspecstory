@@ -69,4 +69,21 @@ type fdSession struct {
 	Blocks        []fdBlock
 	Slug          string
 	RawData       string
+	TokenUsage    *fdTokenUsage // Session-level token usage from settings file
+}
+
+// fdTokenUsage holds token usage data from the Droid settings.json file.
+// This is session-level aggregate data (not per-message).
+type fdTokenUsage struct {
+	InputTokens         int `json:"inputTokens"`
+	OutputTokens        int `json:"outputTokens"`
+	CacheCreationTokens int `json:"cacheCreationTokens"`
+	CacheReadTokens     int `json:"cacheReadTokens"`
+	ThinkingTokens      int `json:"thinkingTokens"`
+}
+
+// fdSettings represents the Droid .settings.json file structure.
+type fdSettings struct {
+	Model      string        `json:"model"`
+	TokenUsage *fdTokenUsage `json:"tokenUsage"`
 }

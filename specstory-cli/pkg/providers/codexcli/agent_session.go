@@ -18,6 +18,7 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
 
 // Codex-specific record structures for type safety
@@ -296,6 +297,31 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 				}
 				currentExchange.Messages = append(currentExchange.Messages, reasoningMsg)
 				currentExchange.EndTime = timestamp
+
+			case "token_count":
+				// Token usage event - attach to the most recent agent message
+				if currentExchange == nil || len(currentExchange.Messages) == 0 {
+					continue
+				}
+
+				usage := extractUsageFromTokenCount(payload)
+				if usage == nil {
+					continue
+				}
+
+				// Find the most recent agent message to attach usage to
+				for j := len(currentExchange.Messages) - 1; j >= 0; j-- {
+					if currentExchange.Messages[j].Role == "agent" {
+						currentExchange.Messages[j].Usage = usage
+						slog.Debug("Attached token usage to agent message",
+							"messageID", currentExchange.Messages[j].ID,
+							"inputTokens", usage.InputTokens,
+							"outputTokens", usage.OutputTokens,
+							"cachedInputTokens", usage.CachedInputTokens,
+							"reasoningOutputTokens", usage.ReasoningOutputTokens)
+						break
+					}
+				}
 			}
 
 		case "response_item":
@@ -637,4 +663,61 @@ func contains(slice []string, value string) bool {
 		}
 	}
 	return false
+}
+
+// getIntFromMap safely extracts an int from a map[string]interface{}
+// JSON numbers are unmarshaled as float64, so we handle that case
+func getIntFromMap(m map[string]interface{}, key string) int {
+	if m == nil {
+		return 0
+	}
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return int(v)
+		case int64:
+			return int(v)
+		case int:
+			return v
+		}
+	}
+	return 0
+}
+
+// extractUsageFromTokenCount extracts token usage from a token_count event's info.last_token_usage
+// Codex CLI emits token_count events with the structure:
+//
+//	{
+//	  "type": "event_msg",
+//	  "payload": {
+//	    "type": "token_count",
+//	    "info": {
+//	      "last_token_usage": { "input_tokens": N, "cached_input_tokens": N, "output_tokens": N, "reasoning_output_tokens": N, ... },
+//	      "total_token_usage": { ... }
+//	    }
+//	  }
+//	}
+//
+// We use last_token_usage for per-turn usage (total_token_usage is cumulative).
+// Codex CLI uses its own token field names, stored in the Codex-specific fields of Usage.
+func extractUsageFromTokenCount(payload map[string]interface{}) *Usage {
+	info, ok := payload["info"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Use last_token_usage for per-turn metrics (not cumulative)
+	lastUsage, ok := info["last_token_usage"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	return &Usage{
+		// Common fields
+		InputTokens:  getIntFromMap(lastUsage, "input_tokens"),
+		OutputTokens: getIntFromMap(lastUsage, "output_tokens"),
+		// Codex CLI specific fields
+		CachedInputTokens:     getIntFromMap(lastUsage, "cached_input_tokens"),
+		ReasoningOutputTokens: getIntFromMap(lastUsage, "reasoning_output_tokens"),
+	}
 }
