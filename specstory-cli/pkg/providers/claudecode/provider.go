@@ -246,12 +246,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	pathType := getPathType(claudeCmd, resolvedPath)
 	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
 		"provider":       "claude",
 		"custom_command": isCustomCommand,
 		"command_path":   resolvedPath,
-		"path_type":      pathType,
 		"version":        strings.TrimSpace(output),
 	})
 

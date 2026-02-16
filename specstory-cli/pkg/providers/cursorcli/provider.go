@@ -172,12 +172,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	pathType := getPathType(cursorCmd, resolvedPath)
 	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
 		"provider":       "cursor",
 		"custom_command": isCustomCommand,
 		"command_path":   resolvedPath,
-		"path_type":      pathType,
 		"version":        output,
 	})
 
