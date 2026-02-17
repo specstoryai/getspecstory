@@ -996,6 +996,48 @@ Match by:    Both end with basename "myproject" ✓
 
 **Implementation note:** Since Copilot IDE uses the same workspace infrastructure as Cursor IDE, the SSH support implementation can directly reuse the URI parsing logic from the Cursor IDE provider (`parseVSCodeRemoteURI()` function). This ensures consistent behavior across both providers.
 
+### Workspace Matching Strategy and Trade-offs
+
+**Current implementation:** The CLI matches workspaces by **repository basename** (folder name) rather than by exact workspace URI. This design decision has important implications:
+
+**Why basename matching:**
+When a user runs the CLI from a local directory (e.g., `C:\Users\Admin\code\myrepo`), we want to find conversations from all environments where they've worked on the same repository:
+- Local workspace: `file:///c:/Users/Admin/code/myrepo`
+- WSL workspace: `vscode-remote://wsl+ubuntu/home/user/code/myrepo`
+- SSH workspace: `vscode-remote://ssh-remote+server/home/ubuntu/code/myrepo`
+
+All three workspaces represent the same repository (`myrepo`) in different environments. Basename matching allows the CLI to find conversations across all these environments with a single command.
+
+**The trade-off:**
+This approach returns conversations from **all matching workspaces**, not just the current environment. For example, running `specstory sync` from the local Windows path will include conversations from local, WSL, and SSH remote workspaces if they all exist.
+
+**For VS Code extension use (precise matching needed):**
+When the CLI is invoked from a VS Code extension, the extension typically wants conversations from only its specific workspace (not all environments). This requires a different approach:
+
+**WSL scenario (minor challenge):**
+- The CLI can detect it's running in WSL (check `/proc/version`)
+- Filter workspaces to only match WSL-type URIs (`vscode-remote://wsl+...`)
+- Implementation: Add environment detection and URI type filtering
+- **Solution complexity:** Low - code change only
+
+**SSH scenario (requires parameter):**
+- The extension knows its workspace URI via `vscode.workspace.workspaceFolders[0].uri.toString()`
+- The extension needs to pass this URI to the CLI as a parameter
+- The CLI filters to only the workspace matching that specific URI
+- Implementation: Add `--workspace-uri` flag to accept and filter by exact URI
+- **Solution complexity:** Medium - requires new parameter and exact URI matching logic
+
+**Future enhancement:**
+```bash
+# Extension passes exact workspace URI for precise matching
+specstory sync --workspace-uri="vscode-remote://ssh-remote%2Bserver/home/ubuntu/code/myrepo"
+
+# CLI returns only conversations from that specific workspace
+# Not from local or WSL workspaces of the same repository
+```
+
+This enhancement would provide precise workspace filtering while maintaining backward compatibility with the current basename matching behavior (when `--workspace-uri` is not specified).
+
 ### Response Polymorphism
 VS Code uses polymorphic response arrays with "kind" discriminator:
 ```json

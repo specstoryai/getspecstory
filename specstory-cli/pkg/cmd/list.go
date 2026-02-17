@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -29,7 +30,8 @@ const (
 
 // listFlags holds the flags for the list command.
 type listFlags struct {
-	json bool
+	json       bool
+	folderName string
 }
 
 var flags listFlags
@@ -94,8 +96,28 @@ Provide a specific agent ID to list sessions from only that provider.`
 	}
 
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Output as JSON (default is human-readable table)")
+	cmd.Flags().StringVar(&flags.folderName, "folder-name", "", "Folder name to match workspaces by (overrides current directory)")
 
 	return cmd
+}
+
+// getEffectiveProjectPath returns the project path to use for workspace matching.
+// If --folder-name is provided, constructs a path with that folder name.
+// Otherwise, uses the current working directory.
+func getEffectiveProjectPath() (string, error) {
+	if flags.folderName != "" {
+		// Use provided folder name - construct a path that will yield the correct basename
+		// The actual path doesn't need to exist; we only use its basename for matching
+		return filepath.Join("C:\\", flags.folderName), nil
+	}
+
+	// Fall back to current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
+		return "", err
+	}
+	return cwd, nil
 }
 
 // listSingleProvider lists sessions from a specific provider.
@@ -119,17 +141,16 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 
 	analytics.SetAgentProviders([]string{provider.Name()})
 
-	cwd, err := os.Getwd()
+	projectPath, err := getEffectiveProjectPath()
 	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
 
-	if !provider.DetectAgent(cwd, true) {
+	if !provider.DetectAgent(projectPath, true) {
 		return nil
 	}
 
-	sessions, err := provider.ListAgentChatSessions(cwd)
+	sessions, err := provider.ListAgentChatSessions(projectPath)
 	if err != nil {
 		return fmt.Errorf("failed to list sessions for %s: %w", provider.Name(), err)
 	}
@@ -159,9 +180,8 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 
 // listAllProviders lists sessions from all providers that have activity.
 func listAllProviders(registry *factory.Registry) error {
-	cwd, err := os.Getwd()
+	projectPath, err := getEffectiveProjectPath()
 	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
 
@@ -175,7 +195,7 @@ func listAllProviders(registry *factory.Registry) error {
 			continue
 		}
 
-		if provider.DetectAgent(cwd, false) {
+		if provider.DetectAgent(projectPath, false) {
 			providersWithActivity = append(providersWithActivity, id)
 		}
 	}
@@ -185,7 +205,7 @@ func listAllProviders(registry *factory.Registry) error {
 			fmt.Fprintln(os.Stderr)
 			log.UserWarn("No coding agent activity found for this project directory.\n\n")
 
-			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", projectPath)
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
 					log.UserMessage("- %s\n", provider.Name())
@@ -217,7 +237,7 @@ func listAllProviders(registry *factory.Registry) error {
 			continue
 		}
 
-		sessions, err := provider.ListAgentChatSessions(cwd)
+		sessions, err := provider.ListAgentChatSessions(projectPath)
 		if err != nil {
 			lastError = err
 			slog.Error("Error listing sessions for provider", "provider", id, "error", err)

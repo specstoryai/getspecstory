@@ -230,23 +230,31 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// Method 1: Direct path matching (works for local and WSL workspaces)
 		isMatch := canonicalProjectPath == canonicalWorkspacePath
 
-		// Method 2: SSH remote matching based on repository name
-		// For SSH remotes, the workspace path is on a different machine, so direct
-		// path comparison will fail. Instead, we match based on repository basename.
-		if !isMatch && isSSHRemoteURI(workspaceURI) {
-			// Check if the workspace could be the same repository
-			// by comparing repository names (basename of paths)
+		// Method 2: Basename matching (for SSH remotes and --folder-name usage)
+		// When direct path comparison fails, fall back to basename matching.
+		// This handles:
+		// - SSH remotes: workspace path is on different machine
+		// - --folder-name flag: fake project path used for matching
+		if !isMatch {
 			workspaceBasename := filepath.Base(canonicalWorkspacePath)
 
 			if projectBasename == workspaceBasename {
-				// Repository names match - this is likely the same project via SSH
 				isMatch = true
-				slog.Info("Matched SSH remote workspace by repository name",
-					"workspaceID", workspaceID,
-					"workspaceURI", workspaceURI,
-					"localPath", canonicalProjectPath,
-					"remotePath", canonicalWorkspacePath,
-					"repoName", projectBasename)
+				if isSSHRemoteURI(workspaceURI) {
+					slog.Info("Matched SSH remote workspace by repository name",
+						"workspaceID", workspaceID,
+						"workspaceURI", workspaceURI,
+						"localPath", canonicalProjectPath,
+						"remotePath", canonicalWorkspacePath,
+						"repoName", projectBasename)
+				} else {
+					slog.Debug("Matched workspace by folder basename",
+						"workspaceID", workspaceID,
+						"workspaceURI", workspaceURI,
+						"projectPath", canonicalProjectPath,
+						"workspacePath", canonicalWorkspacePath,
+						"folderName", projectBasename)
+				}
 			}
 		}
 
