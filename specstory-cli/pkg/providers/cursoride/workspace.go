@@ -147,6 +147,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 // FindAllWorkspacesForProject finds all workspace directories that match the given project path.
 // In WSL, the same project may have multiple workspaces with different URI formats
 // (e.g., file://wsl.localhost/... and vscode-remote://wsl+...).
+// For SSH remotes, matches are based on Git repository identity when available.
 func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	// Get canonical project path (resolve symlinks, normalize case)
 	absProjectPath, err := filepath.Abs(projectPath)
@@ -162,9 +163,14 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		canonicalProjectPath = absProjectPath
 	}
 
+	// Get the project basename for SSH remote matching
+	// SSH remotes have paths on different machines, so we match by repository name
+	projectBasename := filepath.Base(canonicalProjectPath)
+
 	slog.Debug("Searching for all workspaces matching project",
 		"projectPath", projectPath,
-		"canonicalPath", canonicalProjectPath)
+		"canonicalPath", canonicalProjectPath,
+		"projectBasename", projectBasename)
 
 	// Get workspace storage directory
 	workspaceStoragePath, err := GetWorkspaceStoragePath()
@@ -213,7 +219,30 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 			canonicalWorkspacePath = workspaceFilePath
 		}
 
-		if canonicalProjectPath == canonicalWorkspacePath {
+		// Method 1: Direct path matching (works for local and WSL workspaces)
+		isMatch := canonicalProjectPath == canonicalWorkspacePath
+
+		// Method 2: SSH remote matching based on repository name
+		// For SSH remotes, the workspace path is on a different machine, so direct
+		// path comparison will fail. Instead, we match based on repository basename.
+		if !isMatch && isSSHRemoteURI(workspaceURI) {
+			// Check if the workspace could be the same repository
+			// by comparing repository names (basename of paths)
+			workspaceBasename := filepath.Base(canonicalWorkspacePath)
+
+			if projectBasename == workspaceBasename {
+				// Repository names match - this is likely the same project via SSH
+				isMatch = true
+				slog.Info("Matched SSH remote workspace by repository name",
+					"workspaceID", workspaceID,
+					"workspaceURI", workspaceURI,
+					"localPath", canonicalProjectPath,
+					"remotePath", canonicalWorkspacePath,
+					"repoName", projectBasename)
+			}
+		}
+
+		if isMatch {
 			dbPath := filepath.Join(workspacePath, "state.vscdb")
 			if _, err := os.Stat(dbPath); err != nil {
 				continue
@@ -241,6 +270,11 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		"matchCount", len(matches))
 
 	return matches, nil
+}
+
+// isSSHRemoteURI checks if a URI is a vscode-remote SSH URI
+func isSSHRemoteURI(uri string) bool {
+	return strings.HasPrefix(uri, "vscode-remote://ssh-remote")
 }
 
 // LoadComposerIDsFromAllWorkspaces loads and deduplicates composer IDs from all matching workspaces.
@@ -286,7 +320,8 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 
 // uriToPath converts a workspace URI to a local file path.
 // Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
-// and vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL.
+// vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL,
+// and vscode-remote://ssh-remote+config/path URIs for SSH remotes.
 func uriToPath(uri string) (string, error) {
 	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
 	// rejects percent-encoded characters like %2B in the host component
@@ -343,15 +378,16 @@ func uriToPath(uri string) (string, error) {
 }
 
 // parseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI.
-// These URIs use the format vscode-remote://wsl%2B{distro}/{path} where the host
-// identifies a WSL distro and the path is the WSL filesystem path.
+// Handles two types of remote URIs:
+// 1. WSL: vscode-remote://wsl%2B{distro}/{path} - path is the WSL filesystem path
+// 2. SSH: vscode-remote://ssh-remote%2B{config-hex}/{path} - path is the remote filesystem path
 // Go's url.Parse rejects %2B in the host component, so we parse manually.
 func parseVSCodeRemoteURI(uri string) (string, error) {
 	// Strip scheme prefix: "vscode-remote://"
 	remainder := strings.TrimPrefix(uri, "vscode-remote://")
 
 	// Split host from path at the first unencoded slash after the host
-	// The host is percent-encoded (e.g., "wsl%2Bubuntu")
+	// The host is percent-encoded (e.g., "wsl%2Bubuntu" or "ssh-remote%2B{config-hex}")
 	slashIdx := strings.Index(remainder, "/")
 	if slashIdx < 0 {
 		return "", fmt.Errorf("malformed vscode-remote URI (no path): %s", uri)
@@ -360,13 +396,19 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 	host := remainder[:slashIdx]
 	pathPart := remainder[slashIdx:]
 
-	// Decode the host to check if it's a WSL remote
+	// Decode the host to determine remote type
 	decodedHost, err := url.PathUnescape(host)
 	if err != nil {
 		decodedHost = host
 	}
 
-	if !strings.HasPrefix(strings.ToLower(decodedHost), "wsl+") && !strings.EqualFold(decodedHost, "wsl") {
+	hostLower := strings.ToLower(decodedHost)
+
+	// Check if it's a supported remote type
+	if !strings.HasPrefix(hostLower, "wsl+") &&
+		!strings.EqualFold(decodedHost, "wsl") &&
+		!strings.HasPrefix(hostLower, "ssh-remote+") &&
+		!strings.EqualFold(decodedHost, "ssh-remote") {
 		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
 	}
 
@@ -376,6 +418,12 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 		return "", fmt.Errorf("failed to decode vscode-remote URI path: %w", err)
 	}
 
-	slog.Debug("Converted vscode-remote WSL URI to path", "uri", uri, "path", path)
+	// Log the conversion with appropriate context
+	if strings.HasPrefix(hostLower, "ssh-remote") {
+		slog.Debug("Converted vscode-remote SSH URI to path", "uri", uri, "path", path)
+	} else {
+		slog.Debug("Converted vscode-remote WSL URI to path", "uri", uri, "path", path)
+	}
+
 	return path, nil
 }

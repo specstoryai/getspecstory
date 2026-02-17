@@ -326,6 +326,38 @@ When Cursor IDE runs on Windows but operates on WSL projects, the CLI (running i
 
 **Multiple workspace entries per project:** Because Cursor can store the same WSL project under different URI formats, a single project may have two or more matching workspace directories — each potentially containing different conversations. The `FindAllWorkspacesForProject()` function returns all matches, and `LoadComposerIDsFromAllWorkspaces()` aggregates and deduplicates composer IDs across all of them. This ensures no conversations are missed regardless of which URI format was active when they were created.
 
+### SSH Remote Support
+
+When Cursor IDE connects to remote servers via SSH (using VS Code's Remote-SSH extension), conversations are stored locally on the client machine but reference remote filesystem paths. The CLI must handle this scenario when a user wants to sync conversations from their local machine that were created while connected to a remote server.
+
+**Storage location:** All conversation data remains on the local client machine in the standard Cursor storage locations (`workspaceStorage/` and `globalStorage/state.vscdb`), even though the code being edited is on a remote server via SSH.
+
+**SSH remote workspace URI format:** Cursor uses a `vscode-remote://ssh-remote+{config}/path` URI format where:
+- Scheme: `vscode-remote`
+- Host: `ssh-remote+{hex-encoded-json-config}` (e.g., `ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d` where the hex decodes to `{"hostName":"mac-mini"}`)
+- Path: The remote filesystem path (e.g., `/Users/bago/code/getspecstory`)
+
+**Path matching challenge:** The remote path in the workspace URI (e.g., `/Users/bago/code/getspecstory` on macOS) won't directly match the local path where the CLI runs (e.g., `C:\Users\Admin\code\getspecstory` on Windows). Direct path comparison fails because:
+- Different operating systems (Windows client vs Unix remote)
+- Different user directories
+- Only the repository name is guaranteed to match
+
+**Repository name matching solution:** The `parseVSCodeRemoteURI()` function extracts the remote path from SSH URIs, and `FindAllWorkspacesForProject()` implements a fallback matching strategy:
+1. **Primary:** Direct path matching (for local and WSL workspaces)
+2. **Fallback for SSH:** Repository basename matching when:
+   - The workspace URI is detected as SSH remote (`vscode-remote://ssh-remote+...`)
+   - Direct path comparison fails
+   - The repository basename (directory name) matches between local and remote paths
+
+This approach works because users typically clone the same repository with the same name on both machines (e.g., both have a directory named `getspecstory`). While this is a heuristic that could theoretically match different repositories with the same name, in practice it reliably identifies the same project across local and remote environments.
+
+**Example SSH workspace matching:**
+```
+Local path:  C:\Users\Admin\code\getspecstory (Windows)
+Remote URI:  vscode-remote://ssh-remote%2B.../Users/bago/code/getspecstory (macOS)
+Match by:    Both end with basename "getspecstory" ✓
+```
+
 ### Error Handling
 1. **Missing Databases:** Graceful failure if global DB or workspace storage doesn't exist
 2. **No Workspace Match:** Clear error message explaining workspace detection

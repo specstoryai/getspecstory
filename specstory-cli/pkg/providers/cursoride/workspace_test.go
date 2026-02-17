@@ -74,6 +74,11 @@ func TestUriToPath(t *testing.T) {
 			uri:      "vscode-remote://wsl+ubuntu/home/user/project",
 			wantPath: "/home/user/project",
 		},
+		{
+			name:     "vscode-remote SSH URI with hex-encoded config",
+			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
+			wantPath: "/Users/bago/code/getspecstory",
+		},
 
 		// Unsupported schemes
 		{
@@ -196,16 +201,28 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			wantPath: "/",
 		},
 
+		// Valid SSH remote URIs
+		{
+			name:     "ssh-remote with simple config",
+			uri:      "vscode-remote://ssh-remote+myserver/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "ssh-remote with hex-encoded config",
+			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
+			wantPath: "/Users/bago/code/getspecstory",
+		},
+		{
+			name:     "ssh-remote case insensitive",
+			uri:      "vscode-remote://SSH-REMOTE+myserver/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
 		// Error cases
 		{
 			name:      "no path component",
 			uri:       "vscode-remote://wsl%2Bubuntu",
 			wantError: "malformed vscode-remote URI (no path)",
-		},
-		{
-			name:      "unsupported SSH host",
-			uri:       "vscode-remote://ssh-remote+myserver/home/user/project",
-			wantError: "unsupported vscode-remote host",
 		},
 		{
 			name:      "unsupported dev container host",

@@ -962,6 +962,40 @@ When VS Code runs on Windows but operates on WSL projects, the CLI (running insi
 
 **Multiple workspace entries per project:** Because VS Code can store the same WSL project under different URI formats, a single project may have two or more matching workspace directories — each potentially containing different chat sessions. The `FindAllWorkspacesForProject()` function returns all matches, and session files are aggregated from all matching workspaces with deduplication by session ID. This ensures no conversations are missed regardless of which URI format was active when they were created.
 
+### SSH Remote Support
+
+When VS Code connects to remote servers via SSH (using the Remote-SSH extension), chat sessions are stored locally on the client machine but reference remote filesystem paths. The implementation approach is identical to Cursor IDE's SSH support since both use VS Code's remote infrastructure.
+
+**Storage location:** All chat session data remains on the local client machine in the standard VS Code storage locations (`workspaceStorage/*/chatSessions/`), even though the code being edited is on a remote server via SSH.
+
+**SSH remote workspace URI format:** VS Code uses a `vscode-remote://ssh-remote+{config}/path` URI format where:
+- Scheme: `vscode-remote`
+- Host: `ssh-remote+{hex-encoded-json-config}` (e.g., `ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d` where the hex decodes to `{"hostName":"mac-mini"}`)
+- Path: The remote filesystem path (e.g., `/Users/bago/code/myproject`)
+
+**Path matching challenge:** The remote path in the workspace URI (e.g., `/Users/bago/code/myproject` on a remote server) won't directly match the local path where the CLI runs (e.g., `C:\Users\Admin\code\myproject` on Windows). Direct path comparison fails because:
+- Different operating systems (Windows client vs Unix remote)
+- Different user directories
+- Only the repository name is guaranteed to match
+
+**Repository name matching solution:** The `parseVSCodeRemoteURI()` function extracts the remote path from SSH URIs, and `FindAllWorkspacesForProject()` implements a fallback matching strategy:
+1. **Primary:** Direct path matching (for local and WSL workspaces)
+2. **Fallback for SSH:** Repository basename matching when:
+   - The workspace URI is detected as SSH remote (`vscode-remote://ssh-remote+...`)
+   - Direct path comparison fails
+   - The repository basename (directory name) matches between local and remote paths
+
+This approach works because users typically clone the same repository with the same name on both machines (e.g., both have a directory named `myproject`). While this is a heuristic that could theoretically match different repositories with the same name, in practice it reliably identifies the same project across local and remote environments.
+
+**Example SSH workspace matching:**
+```
+Local path:  C:\Users\Admin\code\myproject (Windows)
+Remote URI:  vscode-remote://ssh-remote%2B.../home/user/code/myproject (Linux)
+Match by:    Both end with basename "myproject" ✓
+```
+
+**Implementation note:** Since Copilot IDE uses the same workspace infrastructure as Cursor IDE, the SSH support implementation can directly reuse the URI parsing logic from the Cursor IDE provider (`parseVSCodeRemoteURI()` function). This ensures consistent behavior across both providers.
+
 ### Response Polymorphism
 VS Code uses polymorphic response arrays with "kind" discriminator:
 ```json
