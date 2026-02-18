@@ -94,13 +94,38 @@ What one-time setup is required, and how involved is it? What does a developer n
 
 ## 7 Existing Options to Investigate (+ Wild Cards?)
 
-First, for each of these 7 existing AI provenance systems, create 1 markdown document per system in `./docs/git-provenance/systems`. Each document provides a complete description of exactly how the system works, how it deals with each of the 7 enumerated challenges, and what its current activity level and level of interest/support/community are.
+First, for each of these 7 existing AI provenance systems, create 1 markdown document per system in `./docs/git-provenance/systems`. Each document must provide a complete description of exactly how the system works in practice, how it deals with each of the 7 enumerated challenges, and what its current activity level and level of interest/support/community are.
 
 Next, for each of the 7 enumerated challenges, create 1 markdown document per challenge in `./docs/git-provenance/challenges`. Each document provides a description of all the different ways the challenge is addressed by the 9 existing systems, and importantly, how these various solutions compare to each other and the pros and cons of each.
 
-Then, create a summary document as `./docs/git-provenance/SUMMARY.md` that focuses on summary tables comparing the 7 systems and the 7 challenge areas. Describe the big picture differences in approaches, the most important trade-offs and pros and cons. This should act as a good "executive summary" / tl;dr of the 
+Then, create a summary document as `./docs/git-provenance/SUMMARY.md` that focuses on summary tables comparing the 7 systems and the 7 challenge areas. Describe the big picture differences in approaches, the most important trade-offs and pros and cons. This should act as a good "executive summary" / tl;dr of the full research output.
 
 Finally, prepare a single recommendations document as `./docs/git-provenance/RECOMMENDATIONS.md`
+
+## Research Quality Bar (must follow)
+
+The output should optimize for **mechanics clarity**, not just source collection. Evidence is necessary, but explanation quality is the deciding factor.
+
+### Per-system document requirements
+
+- Stay focused on what the system **actually does today** (as implemented/documented), not what it could do in theory.
+- For each of the 7 challenges, include a concrete "how it works" explanation that walks through the mechanism step-by-step.
+- Do not rely on a large evidence table to carry the section. Evidence tables support the section; they do not replace the explanation.
+- Clearly label what is directly observed in code/docs vs what is inferred.
+
+### Challenge-specific requirements
+
+- **Challenge 1 (Capturing Agent Activity)** must explicitly list supported agents/providers for that system, and note confidence level/source (docs vs code vs both). This is foundational.
+- **Challenge 4 (Representing Agent Provenance)** must include one or more sample representations:
+  - Prefer real examples from docs/repo.
+  - If real examples are unavailable, include generated examples clearly marked as synthetic but faithful to observed schema/behavior.
+  - Explain how each important field in the sample is used later (especially for blame or provenance lookup).
+
+### Tables / diagrams requirements
+
+- Delivery cadence should be an actual release table (row-per-release), not a one-row summary.
+- Use this minimum cadence table shape: `Repo | Version | Published (UTC) | Channel`.
+- Mermaid diagrams must be valid and parse cleanly in common Mermaid renderers (avoid parser-fragile label syntax).
 
 ### Git AI
 
