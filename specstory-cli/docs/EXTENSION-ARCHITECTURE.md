@@ -100,7 +100,7 @@ When users run the CLI manually from the command line:
 
 ### Scenario 1: Running on Local Windows Machine
 
-```bash
+```zsh
 cd C:\Users\Admin\code\myproject
 specstory list
 ```
@@ -122,7 +122,7 @@ specstory list
 
 ### Scenario 2: Running on Remote SSH Machine
 
-```bash
+```zsh
 # SSH'd into remote server
 cd /home/user/code/myproject
 specstory list
@@ -145,7 +145,7 @@ specstory list
 
 ### Scenario 3: Running in WSL
 
-```bash
+```zsh
 # In WSL terminal
 cd /home/user/code/myproject
 specstory list
@@ -164,11 +164,31 @@ specstory list
 4. **Could** access Windows storage via `/mnt/c/Users/Admin/AppData/...` but currently doesn't
 5. Would need additional logic to detect WSL and map to Windows paths
 
+## CLI Output Files: Read and Write Behaviour
+
+The CLI reads and writes two categories of files in `.specstory/`:
+
+### `.specstory/.project.json`
+
+**Written:** On every `run`, `watch`, or `sync` invocation. Creates the file if it doesn't exist, otherwise updates it.
+
+**Read back:** On every subsequent invocation, to reuse the existing `workspace_id` and `project_name`. Without this file, the CLI generates a new identity each run, which breaks cloud sync matching and causes duplicate project entries.
+
+### `.specstory/history/*.md`
+
+**Written:** Once per conversation session. Filename encodes the session timestamp and slug.
+
+**Read back:** Before each write, the CLI reads the existing file (if any) to compare content. If identical, the write is skipped. This dedup check avoids unnecessary writes and downstream sync churn.
+
+**Consequence for the extension:** Because both file types are also read back, the temp directory used by the extension must be **persistent across runs** — not cleaned up after each sync.
+
 ## Extension-Integrated Usage
 
-When the VS Code extension runs the CLI:
+When the VS Code extension runs the CLI, it operates in one of two modes depending on the workspace type.
 
-### Architecture: Local Execution + Remote File Writing
+### Mode A: Local Workspace — Direct Write
+
+For local workspaces (including WSL with bidirectional filesystem access), the CLI can write directly to the workspace. The extension passes the workspace's own `.specstory/` directory as `--specstory-dir`. No copying is needed.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -177,105 +197,162 @@ When the VS Code extension runs the CLI:
 │  ┌─────────────────┐                           │
 │  │ VS Code         │                           │
 │  │ Extension       │                           │
-│  │ (UI Mode)       │                           │
 │  └────────┬────────┘                           │
-│           │                                     │
-│           │ 1. Spawn CLI process               │
+│           │ 1. Spawn CLI                       │
 │           ▼                                     │
-│  ┌─────────────────┐                           │
-│  │ SpecStory CLI   │                           │
-│  │                 │                           │
-│  │ Flags:          │                           │
-│  │ --folder-name   │                           │
-│  │ --output-dir    │                           │
-│  └────────┬────────┘                           │
-│           │                                     │
-│           │ 2. Export to temp dir              │
+│  ┌─────────────────────────────────┐           │
+│  │ SpecStory CLI                   │           │
+│  │ --specstory-dir {workspace}/    │           │
+│  │                 .specstory/     │           │
+│  └────────┬────────────────────────┘           │
+│           │ 2. Write directly                  │
 │           ▼                                     │
-│  ┌─────────────────┐                           │
-│  │ C:\Temp\        │                           │
-│  │ specstory-xxx\  │                           │
-│  │ ├─ conv1.md     │                           │
-│  │ ├─ conv2.md     │                           │
-│  │ └─ conv3.md     │                           │
-│  └────────┬────────┘                           │
-│           │                                     │
-│           │ 3. Extension reads files           │
-│           ▼                                     │
-│  ┌─────────────────┐                           │
-│  │ Extension       │                           │
-│  │ File Reader     │                           │
-│  └────────┬────────┘                           │
-│           │                                     │
-│           │ 4. Write via VS Code FS API        │
-│           ▼                                     │
-└───────────┼─────────────────────────────────────┘
-            │
-            │ vscode.workspace.fs.writeFile()
-            │ (works for local, WSL, SSH)
-            │
-            ▼
-┌─────────────────────────────────────────────────┐
-│ Workspace (Local, WSL, or SSH)                  │
-│                                                 │
-│  /path/to/myproject/                           │
-│  └─ .specstory/                                │
-│     └─ history/                                │
-│        ├─ conv1.md                             │
-│        ├─ conv2.md                             │
-│        └─ conv3.md                             │
+│  ┌─────────────────────┐                       │
+│  │ {workspace}/        │                       │
+│  │ .specstory/         │                       │
+│  │ ├─ .project.json    │                       │
+│  │ └─ history/         │                       │
+│  │    ├─ conv1.md      │                       │
+│  │    └─ conv2.md      │                       │
+│  └─────────────────────┘                       │
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-### Step-by-Step Flow
+**Step-by-step:**
 
-1. **Extension gets workspace info:**
+1. **Extension gets workspace path** (local filesystem path, directly accessible):
    ```typescript
-   const workspaceUri = vscode.workspace.workspaceFolders[0].uri;
-   // e.g., "vscode-remote://ssh-remote+server/home/user/code/myproject"
-
-   const folderName = path.basename(workspaceUri.path);
-   // e.g., "myproject"
+   const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+   // e.g., "C:\Users\Admin\code\myproject"
+   const specstoryDir = path.join(workspacePath, '.specstory');
    ```
 
-2. **Extension creates temp directory:**
-   ```typescript
-   const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'specstory-'));
-   // e.g., "C:\Users\Admin\AppData\Local\Temp\specstory-abc123\"
-   ```
-
-3. **Extension spawns CLI:**
+2. **Extension spawns CLI:**
    ```typescript
    spawn('./specstory.exe', [
        'sync',
-       '--folder-name', 'myproject',
-       '--output-dir', tempDir
-   ]);
+       '--specstory-dir', specstoryDir
+   ], { cwd: workspacePath });
    ```
 
-4. **CLI exports to temp:**
-   - Finds all workspaces matching `myproject` basename
-   - Reads Cursor IDE conversations from Windows workspace storage
-   - Reads Copilot IDE conversations from Windows workspace storage
-   - Exports markdown files to temp directory
+3. **CLI writes directly to workspace** — no further action needed from the extension.
 
-5. **Extension copies to workspace:**
+### Mode B: Remote Workspace (SSH) — Temp Dir + Copy
+
+For SSH remote workspaces, the local filesystem and the remote are separated by a network boundary. The CLI cannot write to the remote directly, so the extension uses a persistent local temp directory as an intermediary, then copies the output via the VS Code FS API (which handles SSH transparently).
+
+```
+┌─────────────────────────────────────────────────┐
+│ Windows Client                                  │
+│                                                 │
+│  ┌─────────────────┐                           │
+│  │ VS Code         │                           │
+│  │ Extension       │                           │
+│  └────────┬────────┘                           │
+│           │ 1. Spawn CLI                       │
+│           ▼                                     │
+│  ┌─────────────────────────────────┐           │
+│  │ SpecStory CLI                   │           │
+│  │ --specstory-dir {tempDir}       │           │
+│  └────────┬────────────────────────┘           │
+│           │ 2. Write to temp                   │
+│           ▼                                     │
+│  ┌─────────────────────┐                       │
+│  │ C:\Temp\            │                       │
+│  │ specstory-{hash}\   │  ← persistent         │
+│  │ ├─ .project.json    │                       │
+│  │ └─ history\         │                       │
+│  │    ├─ conv1.md      │                       │
+│  │    └─ conv2.md      │                       │
+│  └────────┬────────────┘                       │
+│           │ 3. Extension copies via FS API     │
+│           ▼                                     │
+└───────────┼─────────────────────────────────────┘
+            │
+            │ vscode.workspace.fs.writeFile()
+            │ (SSH: transparent upload)
+            │
+            ▼
+┌─────────────────────────────────────────────────┐
+│ SSH Remote Workspace                            │
+│                                                 │
+│  /path/to/myproject/                           │
+│  └─ .specstory/                                │
+│     ├─ .project.json                           │
+│     └─ history/                                │
+│        ├─ conv1.md                             │
+│        └─ conv2.md                             │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+**Step-by-step:**
+
+1. **Extension gets workspace URI and determines it is remote:**
    ```typescript
-   const remotePath = vscode.Uri.joinPath(
-       workspaceUri,
-       '.specstory',
-       'history',
-       'conversation.md'
+   const workspaceUri = vscode.workspace.workspaceFolders[0].uri;
+   // e.g., "vscode-remote://ssh-remote+server/home/user/code/myproject"
+   const isRemote = workspaceUri.scheme === 'vscode-remote';
+   ```
+
+2. **Extension creates (or reuses) a persistent local temp directory:**
+   ```typescript
+   // Stable per-workspace dir, NOT cleaned up between runs.
+   // CLI reads .project.json back on every invocation, so the dir must persist.
+   const tempDir = path.join(os.tmpdir(), 'specstory-' + workspaceHash);
+   await fs.mkdir(tempDir, { recursive: true });
+   ```
+
+3. **Extension bootstraps identity on first use:**
+   ```typescript
+   // If the remote workspace already has a .project.json (e.g. from a previous
+   // manual CLI run on the remote), copy it into the temp dir so the CLI reuses
+   // the same identity rather than generating a new one.
+   const remoteProjectJson = vscode.Uri.joinPath(workspaceUri, '.specstory', '.project.json');
+   const localProjectJson = path.join(tempDir, '.project.json');
+   if (!fs.existsSync(localProjectJson)) {
+       try {
+           const content = await vscode.workspace.fs.readFile(remoteProjectJson);
+           await fs.writeFile(localProjectJson, content);
+       } catch {
+           // Remote doesn't have one yet — CLI will create a new identity.
+       }
+   }
+   ```
+
+4. **Extension spawns CLI:**
+   ```typescript
+   spawn('./specstory.exe', [
+       'sync',
+       '--specstory-dir', tempDir
+   ], { cwd: workspacePath });
+   ```
+
+5. **CLI exports to temp:**
+   - Reads Cursor IDE / Copilot IDE conversations from Windows workspace storage
+   - Reads `{tempDir}/.project.json` to reuse existing identity (or creates one)
+   - Reads `{tempDir}/history/*.md` to skip unchanged files
+   - Writes `{tempDir}/.project.json` and `{tempDir}/history/*.md`
+
+6. **Extension copies to remote workspace:**
+   ```typescript
+   // Copy .project.json
+   const projectJson = await fs.readFile(path.join(tempDir, '.project.json'));
+   await vscode.workspace.fs.writeFile(
+       vscode.Uri.joinPath(workspaceUri, '.specstory', '.project.json'),
+       projectJson
    );
 
-   await vscode.workspace.fs.writeFile(remotePath, content);
+   // Copy each new or changed markdown file
+   for (const file of markdownFiles) {
+       const content = await fs.readFile(path.join(tempDir, 'history', file));
+       await vscode.workspace.fs.writeFile(
+           vscode.Uri.joinPath(workspaceUri, '.specstory', 'history', file),
+           content
+       );
+   }
    ```
-
-   - VS Code FS API handles local vs. remote automatically
-   - For SSH: transparently uploads via SSH connection
-   - For WSL: writes to WSL filesystem
-   - For local: writes to local filesystem
 
 ### What the Extension Can Access
 
@@ -324,7 +401,7 @@ function scheduleSync() {
 1. Extension watches workspace storage directories on Windows
 2. When file changes detected (new conversation, edited message), schedule sync
 3. Debounce timer ensures sync only runs after 2 seconds of quiet
-4. Sync runs CLI → exports to temp → copies to workspace
+4. Sync runs CLI → exports to persistent temp dir → copies to workspace
 
 ## WSL vs. SSH: Key Differences
 
@@ -382,43 +459,32 @@ function scheduleSync() {
 
 ## CLI Flags for Extension Integration
 
-### `--folder-name <name>`
+### `--output-dir <path>` (existing)
 
-**Purpose:** Override current working directory for workspace matching.
+**Purpose:** Export markdown history files to a specific directory instead of `.specstory/history/`.
 
-**Use case:** When extension runs CLI from arbitrary directory, it can specify which folder to match.
+**Limitation:** Only controls where `history/*.md` files are written. `.project.json` is still written relative to the working directory at `{cwd}/.specstory/.project.json`. This makes `--output-dir` alone insufficient for the remote workspace use case, where the extension needs to intercept **all** CLI output files via a temp directory.
 
-**Example:**
-```bash
-# Extension runs from extension directory
-cd C:\Users\Admin\.vscode\extensions\specstory\
+### `--specstory-dir <path>` (planned)
 
-# But wants to match workspace named "myproject"
-specstory list --folder-name myproject
-```
+**Purpose:** Redirect all `.specstory/` output — both `.project.json` and `history/*.md` — to a specific directory. This is the flag the extension will use for remote workspaces.
 
-**How it works:**
-- CLI constructs fake path: `C:\myproject`
-- Extracts basename: `myproject`
-- Searches workspace storage for workspaces matching `myproject`
-- Works because only basename is used for matching, not full path
+**Use case:** Extension wants to capture all CLI output in a temp directory, then copy everything to the final remote destination via the VS Code FS API.
 
-### `--output-dir <path>`
-
-**Purpose:** Export markdown files to specific directory instead of `.specstory/history`.
-
-**Use case:** Extension wants to export to temp directory, then copy files to final destination.
+**Behaviour when set:**
+- `.project.json` → `{specstory-dir}/.project.json`
+- `history/*.md` → `{specstory-dir}/history/*.md`
+- `--output-dir` can still override the history path further if needed (takes precedence)
 
 **Example:**
-```bash
-specstory sync --folder-name myproject --output-dir C:\Temp\specstory-abc123
+```zsh
+specstory sync --specstory-dir C:\Temp\specstory-{workspace-hash}
 ```
 
-**How it works:**
-- CLI exports all markdown files to specified directory
-- Extension reads files from temp directory
-- Extension writes files to workspace using VS Code FS API
-- Temp directory is cleaned up after
+**Implementation plan:**
+1. Add `specstoryDir` global variable and register `--specstory-dir` flag on `sync`, `run`, `watch`
+2. Thread through `SetupOutputConfig()` in `pkg/utils/path_utils.go`
+3. In `pkg/utils/project_identity.go`, accept an override base directory so `.project.json` resolves to `{specstory-dir}/.project.json` instead of `{cwd}/.specstory/.project.json`
 
 ## Future Enhancements
 
@@ -452,25 +518,27 @@ To access Claude Code conversations created on SSH remote machines:
 - Not from all workspaces with that name
 
 **Example:**
-```bash
+```zsh
 specstory list \
-    --folder-name myproject \
     --workspace-uri "vscode-remote://ssh-remote+server/home/user/code/myproject"
 ```
 
 **Implementation:**
-1. Find all workspaces matching `myproject` basename
-2. Filter to only workspace with matching URI
-3. Return conversations from that specific workspace
+1. Find all workspaces whose URI matches the provided URI
+2. Return conversations from that specific workspace
 
 ## Summary
 
 ### Architecture Decisions
 
 1. **Run CLI on Windows client** - Direct access to IDE data (primary use case)
-2. **Use temp directory + copy pattern** - Works uniformly for local, WSL, SSH
-3. **Extension watches files** - VS Code FS API handles cross-platform/remote
-4. **Basename matching** - Simpler than full path, works across environments
+2. **Two write modes based on workspace type:**
+   - **Local**: pass `--specstory-dir {workspace}/.specstory` — CLI writes directly, no copying
+   - **Remote (SSH)**: pass `--specstory-dir {tempDir}` — CLI writes to persistent temp, extension copies via VS Code FS API
+3. **Persistent temp dir for remote only** - Must persist across runs so CLI can read back `.project.json` and skip unchanged `.md` files
+4. **Extension bootstraps identity for remote** - Copies remote `.project.json` into temp dir on first use so CLI maintains a consistent project identity
+5. **Extension watches files** - VS Code FS API handles cross-platform/remote writes
+6. **Basename matching** - Simpler than full path, works across environments
 
 ### Trade-offs
 

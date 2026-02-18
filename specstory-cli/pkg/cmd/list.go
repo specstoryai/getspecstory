@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -30,8 +29,7 @@ const (
 
 // listFlags holds the flags for the list command.
 type listFlags struct {
-	json       bool
-	folderName string
+	json bool
 }
 
 var flags listFlags
@@ -96,28 +94,8 @@ Provide a specific agent ID to list sessions from only that provider.`
 	}
 
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Output as JSON (default is human-readable table)")
-	cmd.Flags().StringVar(&flags.folderName, "folder-name", "", "Folder name to match workspaces by (overrides current directory)")
 
 	return cmd
-}
-
-// getEffectiveProjectPath returns the project path to use for workspace matching.
-// If --folder-name is provided, constructs a path with that folder name.
-// Otherwise, uses the current working directory.
-func getEffectiveProjectPath() (string, error) {
-	if flags.folderName != "" {
-		// Use provided folder name - construct a path that will yield the correct basename
-		// The actual path doesn't need to exist; we only use its basename for matching
-		return filepath.Join("C:\\", flags.folderName), nil
-	}
-
-	// Fall back to current working directory
-	cwd, err := os.Getwd()
-	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
-		return "", err
-	}
-	return cwd, nil
 }
 
 // listSingleProvider lists sessions from a specific provider.
@@ -141,8 +119,9 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 
 	analytics.SetAgentProviders([]string{provider.Name()})
 
-	projectPath, err := getEffectiveProjectPath()
+	projectPath, err := os.Getwd()
 	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
 
@@ -180,8 +159,9 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 
 // listAllProviders lists sessions from all providers that have activity.
 func listAllProviders(registry *factory.Registry) error {
-	projectPath, err := getEffectiveProjectPath()
+	projectPath, err := os.Getwd()
 	if err != nil {
+		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
 

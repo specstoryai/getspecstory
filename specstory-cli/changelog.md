@@ -6,11 +6,9 @@
 
 - **SSH Remote Support**: Cursor IDE and Copilot IDE providers now support SSH remote workspaces. When working via VS Code Remote-SSH (e.g., `vscode-remote://ssh-remote+...`), the CLI can detect and sync conversations by matching repository names across local and remote paths.
 
-- **Extension Integration Flags**: Added `--folder-name` and `--output-dir` flags to support VS Code extension integration:
-  - `--folder-name`: Override current directory for workspace matching (enables running CLI from any directory)
-  - `--output-dir`: Export markdown files to custom directory (enables temp directory workflow for extensions)
+- **Extension Integration**: Added `--output-dir` flag to support VS Code extension integration, allowing markdown files to be exported to a custom directory (enables temp directory workflow for extensions).
 
-- **Enhanced Workspace Matching**: Workspace matching now uses basename fallback for all workspace types, not just SSH remotes. This enables the `--folder-name` flag to work correctly and allows matching workspaces even when the CLI is run from a different directory.
+- **Enhanced Workspace Matching**: Workspace matching now uses basename fallback for all workspace types, not just SSH remotes. This allows matching workspaces when the folder basename matches even if the full path differs (e.g., SSH remotes).
 
 ### 📚 Documentation
 

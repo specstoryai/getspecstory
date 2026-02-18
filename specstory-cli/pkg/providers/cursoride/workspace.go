@@ -222,11 +222,9 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// Method 1: Direct path matching (works for local and WSL workspaces)
 		isMatch := canonicalProjectPath == canonicalWorkspacePath
 
-		// Method 2: Basename matching (for SSH remotes and --folder-name usage)
+		// Method 2: Basename matching (for SSH remotes)
 		// When direct path comparison fails, fall back to basename matching.
-		// This handles:
-		// - SSH remotes: workspace path is on different machine
-		// - --folder-name flag: fake project path used for matching
+		// This handles SSH remotes where the workspace path is on a different machine.
 		if !isMatch {
 			workspaceBasename := filepath.Base(canonicalWorkspacePath)
 
@@ -245,7 +243,7 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 						"workspaceURI", workspaceURI,
 						"projectPath", canonicalProjectPath,
 						"workspacePath", canonicalWorkspacePath,
-						"folderName", projectBasename)
+						"baseName", projectBasename)
 				}
 			}
 		}
