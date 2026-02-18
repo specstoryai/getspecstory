@@ -32,7 +32,7 @@ do
   CGO_ENABLED=0 GOOS="$os" GOARCH="$goarch" go build -ldflags="$LDFLAGS" -o "$out" ./main.go
 done
 
-echo "Building $DEST_DIR/specstory_win32.exe..."
+echo "Building $DEST_DIR/specstory_win32_amd64.exe..."
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DEST_DIR/specstory_win32.exe" ./main.go
 
 echo "Done. Binaries in $DEST_DIR"
