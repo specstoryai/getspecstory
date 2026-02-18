@@ -34,7 +34,8 @@ var version = "dev" // Replaced with actual version in the production build proc
 // General Options
 var noAnalytics bool    // flag to disable usage analytics
 var noVersionCheck bool // flag to skip checking for newer versions
-var outputDir string    // custom output directory for markdown and debug files
+var outputDir string    // custom output directory for markdown and debug files (--output-dir)
+var specstoryDir string // custom base directory for all .specstory outputs (--specstory-dir)
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
@@ -192,7 +193,7 @@ specstory watch`
 				// Create output config to get proper log path if needed
 				var logPath string
 				if logFile {
-					config, err := utils.SetupOutputConfig(outputDir)
+					config, err := utils.SetupOutputConfig(outputDir, specstoryDir)
 					if err != nil {
 						return err
 					}
@@ -388,7 +389,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			analytics.SetAgentProviders([]string{provider.Name()})
 
 			// Setup output configuration
-			config, err := utils.SetupOutputConfig(outputDir)
+			config, err := utils.SetupOutputConfig(outputDir, specstoryDir)
 			if err != nil {
 				return err
 			}
@@ -403,7 +404,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			identityManager := utils.NewProjectIdentityManager(cwd)
+			identityManager := utils.NewProjectIdentityManager(cwd, specstoryDir)
 			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
@@ -521,7 +522,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			useUTC := getUseUTC(cmd)
 
 			// Setup output configuration
-			config, err := utils.SetupOutputConfig(outputDir)
+			config, err := utils.SetupOutputConfig(outputDir, specstoryDir)
 			if err != nil {
 				return err
 			}
@@ -537,7 +538,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+			if _, err := utils.NewProjectIdentityManager(cwd, specstoryDir).EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
@@ -768,12 +769,12 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	// Setup file output and cloud sync (not needed for --print mode)
 	var config utils.OutputConfig
 	if !printToStdout {
-		config, err = utils.SetupOutputConfig(outputDir)
+		config, err = utils.SetupOutputConfig(outputDir, specstoryDir)
 		if err != nil {
 			return err
 		}
 
-		identityManager := utils.NewProjectIdentityManager(cwd)
+		identityManager := utils.NewProjectIdentityManager(cwd, specstoryDir)
 		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 			slog.Error("Failed to ensure project identity", "error", err)
 		}
@@ -983,18 +984,8 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 func collectSessionStatistics(session *spi.AgentChatSession, markdownContent string, providerID string, config utils.OutputConfig) error {
 	stats := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 
-	specstoryDir := getSpecStoryDir(config)
-	collector := utils.NewStatisticsCollector(specstoryDir)
+	collector := utils.NewStatisticsCollector(config.GetSpecstoryDir())
 	return collector.AddSessionStats(session.SessionID, stats)
-}
-
-// getSpecStoryDir determines the .specstory directory path from config
-func getSpecStoryDir(config utils.OutputConfig) string {
-	historyDir := config.GetHistoryDir()
-	if filepath.Base(historyDir) == "history" {
-		return filepath.Dir(historyDir) // Default: go up from .specstory/history to .specstory
-	}
-	return historyDir // Custom output dir: the history dir IS the base
 }
 
 // processSingleSession writes markdown and triggers cloud sync for a single session
@@ -1374,8 +1365,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 	// Show statistics collection message (always collected)
 	if sessionCount > 0 && !silent {
-		specstoryDir := getSpecStoryDir(config)
-		statsPath := filepath.Join(specstoryDir, "statistics.json")
+		statsPath := filepath.Join(config.GetSpecstoryDir(), "statistics.json")
 		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
 	}
 
@@ -1443,13 +1433,13 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	analytics.SetAgentProviders(providerNames)
 
 	// Setup output configuration (once for all providers)
-	config, err := utils.SetupOutputConfig(outputDir)
+	config, err := utils.SetupOutputConfig(outputDir, specstoryDir)
 	if err != nil {
 		return err
 	}
 
 	// Initialize project identity (once for all providers)
-	identityManager := utils.NewProjectIdentityManager(cwd)
+	identityManager := utils.NewProjectIdentityManager(cwd, specstoryDir)
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1548,13 +1538,13 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
+	config, err := utils.SetupOutputConfig(outputDir, specstoryDir)
 	if err != nil {
 		return err
 	}
 
 	// Initialize project identity
-	identityManager := utils.NewProjectIdentityManager(cwd)
+	identityManager := utils.NewProjectIdentityManager(cwd, specstoryDir)
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1618,9 +1608,12 @@ func main() {
 		case "--no-version-check":
 			noVersionCheck = true
 		}
-		// Handle --output-dir=value format
+		// Handle --output-dir=value and --specstory-dir=value formats
 		if strings.HasPrefix(arg, "--output-dir=") {
 			outputDir = strings.TrimPrefix(arg, "--output-dir=")
+		}
+		if strings.HasPrefix(arg, "--specstory-dir=") {
+			specstoryDir = strings.TrimPrefix(arg, "--specstory-dir=")
 		}
 	}
 
@@ -1628,7 +1621,7 @@ func main() {
 	if console || logFile {
 		var logPath string
 		if logFile {
-			config, _ := utils.SetupOutputConfig(outputDir)
+			config, _ := utils.SetupOutputConfig(outputDir, specstoryDir)
 			logPath = config.GetLogPath()
 		}
 		_ = log.SetupLogger(console, logFile, debug, logPath)
@@ -1682,6 +1675,7 @@ func main() {
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().BoolVar(&printToStdout, "print", false, "output session markdown to stdout instead of saving (requires -s flag)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	syncCmd.Flags().StringVar(&specstoryDir, "specstory-dir", "", "base directory for all .specstory outputs: .project.json and history/ (default: ./.specstory)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", false, "only collect statistics, skip local markdown files and cloud sync")
@@ -1694,6 +1688,7 @@ func main() {
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
 	runCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	runCmd.Flags().StringVar(&specstoryDir, "specstory-dir", "", "base directory for all .specstory outputs: .project.json and history/ (default: ./.specstory)")
 	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
@@ -1703,6 +1698,7 @@ func main() {
 	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	watchCmd.Flags().StringVar(&specstoryDir, "specstory-dir", "", "base directory for all .specstory outputs: .project.json and history/ (default: ./.specstory)")
 	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
@@ -1794,7 +1790,7 @@ func main() {
 				// Display link to SpecStory Cloud (deep link to session if from run command)
 				cwd, cwdErr := os.Getwd()
 				if cwdErr == nil {
-					identityManager := utils.NewProjectIdentityManager(cwd)
+					identityManager := utils.NewProjectIdentityManager(cwd, specstoryDir)
 					if projectID, err := identityManager.GetProjectID(); err == nil {
 						fmt.Printf("💡 Search and chat with your AI conversation history at:\n")
 						if lastRunSessionID != "" {

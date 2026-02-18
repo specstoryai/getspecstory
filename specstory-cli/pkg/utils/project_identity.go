@@ -28,29 +28,40 @@ type ProjectIdentity struct {
 
 // ProjectIdentityManager handles project identity operations
 type ProjectIdentityManager struct {
-	projectRoot string
+	projectRoot  string
+	specstoryDir string // optional override for the .specstory directory location (from --specstory-dir)
 }
 
-// NewProjectIdentityManager creates a new project identity manager
-func NewProjectIdentityManager(projectRoot string) *ProjectIdentityManager {
+// NewProjectIdentityManager creates a new project identity manager.
+// specstoryDir overrides the default {projectRoot}/.specstory location when non-empty,
+// directing .project.json reads and writes to that directory instead.
+func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentityManager {
 	return &ProjectIdentityManager{
-		projectRoot: projectRoot,
+		projectRoot:  projectRoot,
+		specstoryDir: specstoryDir,
 	}
 }
 
-// getProjectJSONPath returns the path to .specstory/.project.json
+// getSpecstoryDir returns the .specstory directory to use for this project.
+func (m *ProjectIdentityManager) getSpecstoryDir() string {
+	if m.specstoryDir != "" {
+		return m.specstoryDir
+	}
+	return filepath.Join(m.projectRoot, SPECSTORY_DIR)
+}
+
+// getProjectJSONPath returns the path to .project.json
 func (m *ProjectIdentityManager) getProjectJSONPath() string {
-	return filepath.Join(m.projectRoot, SPECSTORY_DIR, PROJECT_JSON_FILE)
+	return filepath.Join(m.getSpecstoryDir(), PROJECT_JSON_FILE)
 }
 
 // EnsureProjectIdentity initializes or updates the project identity
 // Returns true if the identity was created or modified
 func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
-	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot)
+	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot, "specstoryDir", m.getSpecstoryDir())
 
-	// Ensure .specstory directory exists (create if needed)
-	specstoryDir := filepath.Join(m.projectRoot, SPECSTORY_DIR)
-	if err := os.MkdirAll(specstoryDir, 0755); err != nil {
+	// Ensure the specstory directory exists (create if needed)
+	if err := os.MkdirAll(m.getSpecstoryDir(), 0755); err != nil {
 		return false, fmt.Errorf("failed to create .specstory directory: %w", err)
 	}
 

@@ -17,15 +17,51 @@ const DEBUG_LOG_FILE = "debug.log"
 type OutputConfig interface {
 	GetHistoryDir() string
 	GetDebugDir() string
+	GetSpecstoryDir() string
 }
 
 // OutputPathConfig manages all output directory configuration
 type OutputPathConfig struct {
-	BaseDir string // The validated absolute path
+	BaseDir      string // Validated absolute path for --output-dir (history/*.md only)
+	SpecstoryDir string // Validated absolute path for --specstory-dir (.project.json + history/)
 }
 
 // Ensure OutputPathConfig implements OutputConfig interface
 var _ OutputConfig = (*OutputPathConfig)(nil)
+
+// resolveDir converts dir to an absolute path, creates it if needed, and verifies it is writable.
+// Returns the resolved absolute path or an error.
+func resolveDir(dir string) (string, error) {
+	absPath, err := filepath.Abs(dir)
+	if err != nil {
+		return "", ValidationError{Message: fmt.Sprintf("invalid directory path: %v", err)}
+	}
+
+	info, err := os.Stat(absPath)
+	if err == nil {
+		if !info.IsDir() {
+			return "", ValidationError{Message: fmt.Sprintf("path exists but is not a directory: %s", absPath)}
+		}
+		// Verify write permission
+		if file, err := os.CreateTemp(absPath, ".specstory_write_test_*"); err != nil {
+			return "", ValidationError{Message: fmt.Sprintf("directory is not writable: %s", absPath)}
+		} else {
+			_ = file.Close()
+			_ = os.Remove(file.Name())
+		}
+		slog.Debug("Using existing directory", "path", absPath)
+	} else if os.IsNotExist(err) {
+		slog.Info("Creating directory", "path", absPath)
+		if err := os.MkdirAll(absPath, 0755); err != nil {
+			return "", ValidationError{Message: fmt.Sprintf("failed to create directory: %v", err)}
+		}
+		slog.Info("Created directory", "path", absPath)
+	} else {
+		return "", ValidationError{Message: fmt.Sprintf("error checking directory: %v", err)}
+	}
+
+	return absPath, nil
+}
 
 // NewOutputPathConfig creates and validates an output configuration
 func NewOutputPathConfig(dir string) (*OutputPathConfig, error) {
@@ -33,47 +69,20 @@ func NewOutputPathConfig(dir string) (*OutputPathConfig, error) {
 		return &OutputPathConfig{}, nil // Use defaults
 	}
 
-	// Convert to absolute path if relative
-	absPath, err := filepath.Abs(dir)
+	absPath, err := resolveDir(dir)
 	if err != nil {
-		return nil, ValidationError{Message: fmt.Sprintf("invalid output directory path: %v", err)}
-	}
-
-	// Check if path exists
-	info, err := os.Stat(absPath)
-	if err == nil {
-		// Path exists, check if it's a directory
-		if !info.IsDir() {
-			return nil, ValidationError{Message: fmt.Sprintf("output path exists but is not a directory: %s", absPath)}
-		}
-		// Check write permissions by attempting to create a temp file
-		if file, err := os.CreateTemp(absPath, ".specstory_write_test_*"); err != nil {
-			return nil, ValidationError{Message: fmt.Sprintf("output directory is not writable: %s", absPath)}
-		} else {
-			// Clean up test file
-			_ = file.Close()
-			_ = os.Remove(file.Name())
-		}
-		slog.Debug("Using existing output directory", "path", absPath)
-	} else if os.IsNotExist(err) {
-		// Path doesn't exist, try to create it
-		slog.Info("Creating output directory", "path", absPath)
-		if err := os.MkdirAll(absPath, 0755); err != nil {
-			return nil, ValidationError{Message: fmt.Sprintf("failed to create output directory: %v", err)}
-		}
-		slog.Info("Created output directory", "path", absPath)
-	} else {
-		// Some other error occurred
-		return nil, ValidationError{Message: fmt.Sprintf("error checking output directory: %v", err)}
+		return nil, err
 	}
 
 	return &OutputPathConfig{BaseDir: absPath}, nil
 }
 
-// getBasePath returns the base path for specstory files
+// getBasePath returns the .specstory-equivalent base directory.
+// When --specstory-dir is set it uses that; otherwise falls back to {cwd}/.specstory.
+// Note: --output-dir (BaseDir) does NOT affect this — it only overrides the history path.
 func (c *OutputPathConfig) getBasePath() string {
-	if c.BaseDir != "" {
-		return c.BaseDir
+	if c.SpecstoryDir != "" {
+		return c.SpecstoryDir
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -82,18 +91,24 @@ func (c *OutputPathConfig) getBasePath() string {
 	return filepath.Join(cwd, SPECSTORY_DIR)
 }
 
-// GetHistoryDir returns the history directory path
+// GetHistoryDir returns the history directory path.
+// --output-dir takes precedence; otherwise history lives inside the specstory base dir.
 func (c *OutputPathConfig) GetHistoryDir() string {
-	basePath := c.getBasePath()
 	if c.BaseDir != "" {
-		return basePath
+		return c.BaseDir
 	}
-	return filepath.Join(basePath, HISTORY_DIR)
+	return filepath.Join(c.getBasePath(), HISTORY_DIR)
 }
 
 // GetDebugDir returns the debug directory path
 func (c *OutputPathConfig) GetDebugDir() string {
 	return filepath.Join(c.getBasePath(), DEBUG_DIR)
+}
+
+// GetSpecstoryDir returns the .specstory base directory path.
+// This is where .project.json, statistics.json, and other non-history files live.
+func (c *OutputPathConfig) GetSpecstoryDir() string {
+	return c.getBasePath()
 }
 
 // GetLogPath returns the debug log file path
@@ -130,12 +145,24 @@ func EnsureHistoryDirectoryExists(config OutputConfig) error {
 	return nil
 }
 
-// SetupOutputConfig creates and configures the output configuration
-func SetupOutputConfig(outputDir string) (*OutputPathConfig, error) {
+// SetupOutputConfig creates and configures the output configuration.
+// outputDir (--output-dir) overrides where history/*.md files are written.
+// specstoryDir (--specstory-dir) sets the base directory for all .specstory outputs
+// (.project.json, history/, debug/). outputDir takes precedence over specstoryDir for history.
+func SetupOutputConfig(outputDir, specstoryDir string) (*OutputPathConfig, error) {
 	config, err := NewOutputPathConfig(outputDir)
 	if err != nil {
 		return nil, err
 	}
+
+	if specstoryDir != "" {
+		absPath, err := resolveDir(specstoryDir)
+		if err != nil {
+			return nil, ValidationError{Message: fmt.Sprintf("invalid --specstory-dir: %v", err)}
+		}
+		config.SpecstoryDir = absPath
+	}
+
 	return config, nil
 }
 
