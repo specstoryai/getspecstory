@@ -42,10 +42,9 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
 		msg := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
-		trackCheckFailure("droid", isCustom, cmdName, "", classifyDroidPath(cmdName, ""), versionFlag, "", "not_found", err.Error())
+		trackCheckFailure("droid", isCustom, cmdName, "", versionFlag, "", "not_found", err.Error())
 		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
 	}
-	pathType := classifyDroidPath(cmdName, resolved)
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(resolved, versionFlag)
@@ -55,7 +54,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		errorType := classifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
-		trackCheckFailure("droid", isCustom, cmdName, resolved, pathType, versionFlag, stderrOutput, errorType, err.Error())
+		trackCheckFailure("droid", isCustom, cmdName, resolved, versionFlag, stderrOutput, errorType, err.Error())
 		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
 	}
 
@@ -64,7 +63,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = strings.TrimSpace(versionOutput)
 	}
-	trackCheckSuccess("droid", isCustom, cmdName, resolved, pathType, version, versionFlag)
+	trackCheckSuccess("droid", isCustom, cmdName, resolved, version, versionFlag)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -294,26 +293,24 @@ func extractDroidVersion(raw string) string {
 	return filtered[len(filtered)-1]
 }
 
-func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, pathType string, version string, versionFlag string) {
+func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string, versionFlag string) {
 	props := analytics.Properties{
 		"provider":       provider,
 		"custom_command": custom,
 		"command_path":   commandPath,
 		"resolved_path":  resolvedPath,
-		"path_type":      pathType,
 		"version":        version,
 		"version_flag":   versionFlag,
 	}
 	analytics.TrackEvent(analytics.EventCheckInstallSuccess, props)
 }
 
-func trackCheckFailure(provider string, custom bool, commandPath string, resolvedPath string, pathType string, versionFlag string, stderrOutput string, errorType string, message string) {
+func trackCheckFailure(provider string, custom bool, commandPath string, resolvedPath string, versionFlag string, stderrOutput string, errorType string, message string) {
 	props := analytics.Properties{
 		"provider":       provider,
 		"custom_command": custom,
 		"command_path":   commandPath,
 		"resolved_path":  resolvedPath,
-		"path_type":      pathType,
 		"version_flag":   versionFlag,
 		"error_type":     errorType,
 		"error_message":  message,
@@ -322,29 +319,6 @@ func trackCheckFailure(provider string, custom bool, commandPath string, resolve
 		props["stderr"] = stderrOutput
 	}
 	analytics.TrackEvent(analytics.EventCheckInstallFailed, props)
-}
-
-func classifyDroidPath(command string, resolvedPath string) string {
-	if resolvedPath == "" {
-		if filepath.IsAbs(command) {
-			return "absolute_path"
-		}
-		return "unknown"
-	}
-	resolvedLower := strings.ToLower(resolvedPath)
-	if strings.Contains(resolvedLower, "homebrew") || strings.Contains(resolvedLower, "/opt/homebrew/") {
-		return "homebrew"
-	}
-	if strings.Contains(resolvedLower, "/.local/bin/") {
-		return "user_local"
-	}
-	if strings.Contains(resolvedLower, "/.factory/") {
-		return "factory_local"
-	}
-	if filepath.IsAbs(command) {
-		return "absolute_path"
-	}
-	return "system_path"
 }
 
 func printDetectionHelp() {
