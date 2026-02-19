@@ -240,8 +240,9 @@ func TestNewOutputPathConfig(t *testing.T) {
 }
 
 func TestOutputPathConfigMethods(t *testing.T) {
-	// --output-dir only redirects history/*.md; debug stays in the specstory base dir.
-	t.Run("with output-dir only (BaseDir)", func(t *testing.T) {
+	// When --output-dir is set, all outputs go there: history directly in BaseDir,
+	// .project.json / statistics.json at BaseDir, debug/ inside BaseDir.
+	t.Run("with output-dir set (BaseDir)", func(t *testing.T) {
 		baseDir := t.TempDir()
 		config := &OutputPathConfig{BaseDir: baseDir}
 
@@ -251,57 +252,24 @@ func TestOutputPathConfigMethods(t *testing.T) {
 			t.Errorf("GetHistoryDir() = %v, want %v", historyDir, baseDir)
 		}
 
-		// Debug falls back to {cwd}/.specstory/debug (BaseDir does not affect it)
-		debugDir := config.GetDebugDir()
-		if !strings.Contains(debugDir, SPECSTORY_DIR) || !strings.Contains(debugDir, DEBUG_DIR) {
-			t.Errorf("GetDebugDir() = %v, want path containing %s/%s", debugDir, SPECSTORY_DIR, DEBUG_DIR)
-		}
-	})
-
-	// --specstory-dir redirects all .specstory outputs: history/, debug/, .project.json.
-	t.Run("with specstory-dir only (SpecstoryDir)", func(t *testing.T) {
-		specstoryDir := t.TempDir()
-		config := &OutputPathConfig{SpecstoryDir: specstoryDir}
-
-		// History goes to {specstoryDir}/history/
-		historyDir := config.GetHistoryDir()
-		expectedHistoryDir := filepath.Join(specstoryDir, HISTORY_DIR)
-		if historyDir != expectedHistoryDir {
-			t.Errorf("GetHistoryDir() = %v, want %v", historyDir, expectedHistoryDir)
+		// Specstory dir is also BaseDir (.project.json and statistics.json land here)
+		specstoryDir := config.GetSpecstoryDir()
+		if specstoryDir != baseDir {
+			t.Errorf("GetSpecstoryDir() = %v, want %v", specstoryDir, baseDir)
 		}
 
-		// Debug goes to {specstoryDir}/debug/
+		// Debug goes to {BaseDir}/debug/
 		debugDir := config.GetDebugDir()
-		expectedDebugDir := filepath.Join(specstoryDir, DEBUG_DIR)
+		expectedDebugDir := filepath.Join(baseDir, DEBUG_DIR)
 		if debugDir != expectedDebugDir {
 			t.Errorf("GetDebugDir() = %v, want %v", debugDir, expectedDebugDir)
 		}
 
-		// Log file goes to {specstoryDir}/debug/debug.log
+		// Log file goes to {BaseDir}/debug/debug.log
 		logPath := config.GetLogPath()
 		expectedLogPath := filepath.Join(expectedDebugDir, DEBUG_LOG_FILE)
 		if logPath != expectedLogPath {
 			t.Errorf("GetLogPath() = %v, want %v", logPath, expectedLogPath)
-		}
-	})
-
-	// When both are set, --output-dir wins for history; --specstory-dir governs debug.
-	t.Run("with both BaseDir and SpecstoryDir", func(t *testing.T) {
-		baseDir := t.TempDir()
-		specstoryDir := t.TempDir()
-		config := &OutputPathConfig{BaseDir: baseDir, SpecstoryDir: specstoryDir}
-
-		// History goes directly to BaseDir (--output-dir takes precedence)
-		historyDir := config.GetHistoryDir()
-		if historyDir != baseDir {
-			t.Errorf("GetHistoryDir() = %v, want %v", historyDir, baseDir)
-		}
-
-		// Debug goes to {specstoryDir}/debug/
-		debugDir := config.GetDebugDir()
-		expectedDebugDir := filepath.Join(specstoryDir, DEBUG_DIR)
-		if debugDir != expectedDebugDir {
-			t.Errorf("GetDebugDir() = %v, want %v", debugDir, expectedDebugDir)
 		}
 	})
 

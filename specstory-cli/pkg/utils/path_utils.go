@@ -22,8 +22,7 @@ type OutputConfig interface {
 
 // OutputPathConfig manages all output directory configuration
 type OutputPathConfig struct {
-	BaseDir      string // Validated absolute path for --output-dir (history/*.md only)
-	SpecstoryDir string // Validated absolute path for --specstory-dir (.project.json + history/)
+	BaseDir string // Validated absolute path for --output-dir; when set, all outputs go here
 }
 
 // Ensure OutputPathConfig implements OutputConfig interface
@@ -77,12 +76,11 @@ func NewOutputPathConfig(dir string) (*OutputPathConfig, error) {
 	return &OutputPathConfig{BaseDir: absPath}, nil
 }
 
-// getBasePath returns the .specstory-equivalent base directory.
-// When --specstory-dir is set it uses that; otherwise falls back to {cwd}/.specstory.
-// Note: --output-dir (BaseDir) does NOT affect this — it only overrides the history path.
+// getBasePath returns the base directory for all non-history outputs (.project.json, statistics.json, debug/).
+// When --output-dir is set it uses that directory; otherwise falls back to {cwd}/.specstory.
 func (c *OutputPathConfig) getBasePath() string {
-	if c.SpecstoryDir != "" {
-		return c.SpecstoryDir
+	if c.BaseDir != "" {
+		return c.BaseDir
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -91,8 +89,9 @@ func (c *OutputPathConfig) getBasePath() string {
 	return filepath.Join(cwd, SPECSTORY_DIR)
 }
 
-// GetHistoryDir returns the history directory path.
-// --output-dir takes precedence; otherwise history lives inside the specstory base dir.
+// GetHistoryDir returns the directory where markdown files are written.
+// When --output-dir is set, markdown files go directly in that directory (no history/ subfolder).
+// Otherwise they live in {cwd}/.specstory/history/.
 func (c *OutputPathConfig) GetHistoryDir() string {
 	if c.BaseDir != "" {
 		return c.BaseDir
@@ -105,8 +104,8 @@ func (c *OutputPathConfig) GetDebugDir() string {
 	return filepath.Join(c.getBasePath(), DEBUG_DIR)
 }
 
-// GetSpecstoryDir returns the .specstory base directory path.
-// This is where .project.json, statistics.json, and other non-history files live.
+// GetSpecstoryDir returns the base directory for .project.json, statistics.json, and debug/.
+// When --output-dir is set this returns that directory; otherwise returns {cwd}/.specstory.
 func (c *OutputPathConfig) GetSpecstoryDir() string {
 	return c.getBasePath()
 }
@@ -143,27 +142,6 @@ func EnsureHistoryDirectoryExists(config OutputConfig) error {
 	}
 
 	return nil
-}
-
-// SetupOutputConfig creates and configures the output configuration.
-// outputDir (--output-dir) overrides where history/*.md files are written.
-// specstoryDir (--specstory-dir) sets the base directory for all .specstory outputs
-// (.project.json, history/, debug/). outputDir takes precedence over specstoryDir for history.
-func SetupOutputConfig(outputDir, specstoryDir string) (*OutputPathConfig, error) {
-	config, err := NewOutputPathConfig(outputDir)
-	if err != nil {
-		return nil, err
-	}
-
-	if specstoryDir != "" {
-		absPath, err := resolveDir(specstoryDir)
-		if err != nil {
-			return nil, ValidationError{Message: fmt.Sprintf("invalid --specstory-dir: %v", err)}
-		}
-		config.SpecstoryDir = absPath
-	}
-
-	return config, nil
 }
 
 // GetAuthPath returns the path to the auth.json file
