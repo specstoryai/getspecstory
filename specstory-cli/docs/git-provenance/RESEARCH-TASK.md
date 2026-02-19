@@ -92,9 +92,9 @@ AI provenance is a "nice-to-have" but not "must-have". As long as the coding age
 
 What one-time setup is required, and how involved is it? What does a developer need to remember to do so that AI provenance is captured? What existing habits of use in commands/tools/UIs need changed to use the AI system? What new commands/tools/UI does a developer need to learn and how simple or complex are they? What mental model does the system suggest, and how well does this map on to the developer's existing mental model?
 
-## 7 Existing Options to Investigate (+ Wild Cards?)
+## 10 Existing Options to Investigate
 
-First, for each of these 7 existing AI provenance systems, create 1 markdown document per system in `./docs/git-provenance/systems`. Each document must provide a complete description of exactly how the system works in practice, how it deals with each of the 7 enumerated challenges, and what its current activity level and level of interest/support/community are.
+First, for each of these 10 existing AI provenance systems, create 1 markdown document per system in `./docs/git-provenance/systems`. Each document must provide a complete description of exactly how the system works in practice, how it deals with each of the 7 enumerated challenges, and what its current activity level and level of interest/support/community are.
 
 Next, for each of the 7 enumerated challenges, create 1 markdown document per challenge in `./docs/git-provenance/challenges`. Each document provides a description of all the different ways the challenge is addressed by the 9 existing systems, and importantly, how these various solutions compare to each other and the pros and cons of each.
 
