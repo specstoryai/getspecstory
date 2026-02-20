@@ -32,8 +32,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:06Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:06Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg --files docs/git-provenance`</summary>
 ```
 Chunk ID: f26886
 Wall time: 0.0518 seconds
@@ -69,8 +69,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:17Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:17Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `wc -l docs/git-provenance/RESEARCH-TASK.md docs/git-provenance/systems/*.md docs/git-provenance/standards/*.md`</summary>
 ```
 Chunk ID: e77d5a
 Wall time: 0.0517 seconds
@@ -116,8 +116,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:23Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:24Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/RESEARCH-TASK.md docs/git-provenance/systems/*.md; do echo "===== $f"; rg '^#{1,6} ' "$f"; echo; done`</summary>
 ```
 Chunk ID: 7204af
 Wall time: 0.0527 seconds
@@ -312,8 +312,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:28Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:28Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,220p' docs/git-provenance/systems/agentblame.md`</summary>
 ```
 Chunk ID: e904eb
 Wall time: 0.0529 seconds
@@ -426,8 +426,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:33Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:33Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg -n "W3C|PROV|C2PA|in-toto|SLSA|OpenTelemetry|OTel|Agent Trace|standard|Standards|SemConv|attestation|provenance" docs/git-provenance/systems/*.md`</summary>
 ```
 Chunk ID: 3d2616
 Wall time: 0.0523 seconds
@@ -480,8 +480,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:38Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:38Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/RESEARCH-TASK.md`</summary>
 ```
 Chunk ID: 7ca1e1
 Wall time: 0.0530 seconds
@@ -567,8 +567,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:43Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:44Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg -n -i "agent trace|c2pa|in-toto|slsa|w3c prov|w3c|opentelemetry|semconv|prov-o|provenance standard" docs/git-provenance/systems/*.md`</summary>
 ```
 Chunk ID: 916f1c
 Wall time: 0.0521 seconds
@@ -596,8 +596,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:56Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:56Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/standards/*.md; do echo "===== $f"; rg '^#{1,6} ' "$f"; echo; done`</summary>
 ```
 Chunk ID: 9f728e
 Wall time: 0.0517 seconds
@@ -731,8 +731,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:04Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:05Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/standards/*.md; do echo "\n===== $f =====\n"; cat "$f"; done`</summary>
 ```
 Chunk ID: dece2c
 Wall time: 0.0518 seconds
@@ -891,8 +891,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:13Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:16Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/*.md; do echo "\n===== $f =====\n"; awk 'BEGIN{show=0} /^## Executive Summary/{show=1} /^## System At A Glance/{show=1} /^## Challenge 4: Representing Agent Provenance/{show=1} /^## Challenge 5: Storing Agent Provenance/{show=1} /^## Challenge 6: AI Blame/{show=1} /^## Overall Assessment/{show=1} /^## Overall Assessment For SpecStory Research/{show=1} /^## Sources/{if(show){print; show=0; next}} /^## /{if(show && $0 !~ /^## (Executive Summary|System At A Glance|Challenge 4: Representing Agent Provenance|Challenge 5: Storing Agent Provenance|Challenge 6: AI Blame|Overall Assessment|Overall Assessment For SpecStory Research)/){show=0}} {if(show) print}' "$f"; done`</summary>
 ```
 Chunk ID: 39be5e
 Wall time: 0.0515 seconds
@@ -1027,8 +1027,8 @@ I extracted the core sections from all 10 systems, but `entire.md` and `git-ai.m
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:23Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/entire.md`</summary>
 ```
 Chunk ID: 5d1803
 Wall time: 0.0520 seconds
@@ -1136,8 +1136,8 @@ Entire supports two micro-versioning strategies:
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:26Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/git-ai.md`</summary>
 ```
 Chunk ID: c0b3b0
 Wall time: 0.0512 seconds
@@ -1260,8 +1260,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/aider.md`</summary>
 ```
 Chunk ID: f6d4a2
 Wall time: 0.0518 seconds
@@ -1427,8 +1427,8 @@ Aider provides no dedicated AI blame command. Typical approach:
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/aittributor.md`</summary>
 ```
 Chunk ID: 60906c
 Wall time: 0.0506 seconds
@@ -1581,8 +1581,8 @@ No dedicated AI blame command. Teams can parse trailers after `git blame` identi
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/tempo-cli.md`</summary>
 ```
 Chunk ID: 0c531e
 Wall time: 0.0506 seconds
@@ -1766,8 +1766,8 @@ No built-in blame UX. Users must manually inspect `.tempo/pending/` data or exte
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/whogitit.md`</summary>
 ```
 Chunk ID: 8aaa52
 Wall time: 0.0514 seconds
@@ -1919,8 +1919,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/agentblame.md`</summary>
 ```
 Chunk ID: 47a343
 Wall time: 0.0515 seconds
@@ -2017,8 +2017,8 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/cnotes.md`</summary>
 ```
 Chunk ID: cde0df
 Wall time: 0.0507 seconds
@@ -2126,8 +2126,8 @@ cnotes does **not** maintain per-edit checkpoints or delta logs. Its capture bou
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/git-with-intent.md`</summary>
 ```
 Chunk ID: 3eb954
 Wall time: 0.0509 seconds
@@ -2225,8 +2225,8 @@ Result: Git flattening behavior remai
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/intent-git-mode.md`</summary>
 ```
 Chunk ID: 2025e8
 Wall time: 0.0507 seconds
@@ -2365,8 +2365,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:48Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:49Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `wc -l docs/git-provenance/SYSTEM-SUMMARY.md && rg '^#{1,6} ' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: ec1f7e
 Wall time: 0.0526 seconds
@@ -2390,8 +2390,8 @@ Output:
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:52Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: c9dea2
 Wall time: 0.0521 seconds
@@ -2580,8 +2580,8 @@ I’ve drafted `docs/git-provenance/STANDARD-SUMMARY.md` with executive prose pl
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:00:52Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/STANDARD-SUMMARY.md`</summary>
 ```
 Chunk ID: 38b8b3
 Wall time: 0.0525 seconds
@@ -2671,8 +2671,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:00:56Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:00:56Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `git status --short`</summary>
 ```
 Chunk ID: 702b77
 Wall time: 0.0515 seconds
@@ -3005,8 +3005,93 @@ I hit a patch mismatch while replacing the file, so I’m rewriting the file con
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:07:31Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command**</summary>
+```bash
+cat > docs/git-provenance/STANDARD-SUMMARY.md <<'EOF'
+# AI Provenance Representation Standards Summary (6 Standards)
+
+_Last updated: 2026-02-20 (UTC)_
+
+This summary is intentionally scoped to **Challenge 4: Representing Agent Provenance**.  
+It does **not** evaluate capture, storage, sync, or blame UX mechanics except where those constraints directly affect representation design.
+
+## What A Representation Must Encode (SpecStory Lens)
+
+For this research task, a strong provenance representation should support:
+
+1. File + line range linkage
+2. AI vs human actor identity
+3. Prompt linkage (user input that led to a change)
+4. Tool-use linkage (which tool edited what)
+5. Assistant context linkage (pre/post commentary around tool use)
+6. Commit/revision anchor
+7. Optional integrity/signature metadata for trust
+
+## Big Picture: Three Representation Families
+
+1. **AI-attribution schema**: Agent Trace (closest to line-level coding provenance payloads)
+2. **General provenance model**: W3C PROV (very expressive graph model, not coding-specific)
+3. **Attestation/telemetry framing**: in-toto, SLSA, C2PA, OTel GenAI (strong for envelopes, trust, or live telemetry, weaker as direct line-level code attribution schemas)
+
+## Representation Model Comparison
+
+| Standard | Core Representation Unit | Native Line-Range Semantics | Prompt/Tool/Assistant Semantics | AI vs Human Actor Semantics | Revision Binding |
+|---|---|---|---|---|---|
+| Agent Trace | `TraceRecord` with `files[].conversations[].ranges[]` | **Strong** | **Strong** for conversation linkage; tool details are implementation-dependent | **Strong** (`contributor.type`) | **Strong** (`vcs.revision`) |
+| W3C PROV | Entity-Activity-Agent graph + relations | Partial (must be modeled) | Partial (must define domain mapping) | **Strong** (agent typing) | Partial (must model Git entities/activities) |
+| OpenTelemetry GenAI | Spans/events with `gen_ai.*` attributes | Weak (not line-oriented) | Partial to strong for request/response/tool telemetry | Partial (provider/model fields; actor role usually custom) | Weak (Git revision not native) |
+| in-toto Statement | Envelope: `subject[]` + typed `predicate` | Partial (possible in custom predicate) | Partial (possible in custom predicate) | Partial (possible in predicate) | **Strong** at artifact identity; Git commit can be embedded |
+| SLSA Provenance | in-toto predicate for build provenance | Weak for source-line attribution | Weak for prompt/tool/dialogue semantics | Weak for coding-session actor semantics | **Strong** for build input/dependency revision binding |
+| C2PA | Signed manifest with assertions/ingredients | Weak for source-line attribution | Weak for coding prompt/tool semantics | Partial for producer/claim agent identity | Partial (can reference source lineage, not Git-native line mapping) |
+
+## Field-Level Fit To Challenge 4 Requirements
+
+Legend: `High` = native/first-class, `Medium` = possible with extensions, `Low` = unnatural fit.
+
+| Standard | File+Line | Prompt | Tool Use | Assistant Context | AI/Human Distinction | Integrity/Signature |
+|---|---|---|---|---|---|---|
+| Agent Trace | High | High | Medium | High | High | Low |
+| W3C PROV | Medium | Medium | Medium | Medium | High | Low |
+| OpenTelemetry GenAI | Low | Medium | Medium | Medium | Medium | Low |
+| in-toto Statement | Medium | Medium | Medium | Medium | Medium | High (with DSSE/signing) |
+| SLSA Provenance | Low | Low | Low | Low | Low | High |
+| C2PA | Low | Low | Low | Low | Medium | High |
+
+## Most Important Trade-offs
+
+### 1) Coding-Specific Fidelity vs General Interoperability
+
+- **Agent Trace** gives the cleanest coding-provenance shape out of the box.
+- **W3C PROV** is more universal but requires substantial mapping discipline to avoid ambiguous implementations.
+
+### 2) Rich Attribution Semantics vs Cryptographic Trust
+
+- **Agent Trace / W3C PROV / OTel** are better at expressing activity context.
+- **in-toto / SLSA / C2PA** are better at verifiable integrity and trust chains.
+- No single candidate is best at both without layering.
+
+### 3) Event Telemetry vs Durable Attribution Records
+
+- **OpenTelemetry GenAI** is excellent for live operation telemetry vocabulary.
+- It is not, by itself, a durable line-level provenance representation format for Git history.
+
+### 4) Schema Simplicity vs Extension Burden
+
+- **Agent Trace**: low extension burden for AI coding attribution.
+- **in-toto/SLSA**: high extension burden for coding-line semantics, but strong trust ecosystem once modeled.
+
+## Executive Takeaways (Challenge 4 Only)
+
+1. **Best direct fit for AI coding provenance representation:** Agent Trace.
+2. **Best general conceptual model for cross-domain provenance graphs:** W3C PROV.
+3. **Best trust envelope for signed provenance artifacts:** in-toto (with optional SLSA where build provenance is relevant).
+4. **Best complementary telemetry vocabulary:** OpenTelemetry GenAI (supporting input, not final representation).
+5. **Lowest fit for direct source-code line-level representation:** SLSA and C2PA (strong elsewhere, not this target).
+
+Bottom line: for Challenge 4, the strongest path is a layered representation strategy: a coding-native attribution schema (Agent Trace-like), optionally projected to PROV, and optionally signed/enveloped with in-toto for verification.
+EOF
+```
 ```
 Chunk ID: a43f42
 Wall time: 0.0511 seconds
@@ -3018,8 +3103,8 @@ Output:
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:07:38Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/STANDARD-SUMMARY.md`</summary>
 ```
 Chunk ID: b811b0
 Wall time: 0.0514 seconds
@@ -3148,8 +3233,8 @@ I’ll refactor that section now by replacing the single wide comparison table w
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:10:01Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/STANDARD-SUMMARY.md | sed -n '20,90p'`</summary>
 ```
 Chunk ID: 4b6275
 Wall time: 0.0516 seconds
@@ -3287,8 +3372,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:10:21Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:10:23Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/STANDARD-SUMMARY.md | sed -n '20,120p'`</summary>
 ```
 Chunk ID: e21db8
 Wall time: 0.0519 seconds
@@ -3496,8 +3581,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:12:00Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:12:00Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '24,90p' docs/git-provenance/STANDARD-SUMMARY.md`</summary>
 ```
 Chunk ID: 9c8b26
 Wall time: 0.0510 seconds
@@ -3626,8 +3711,8 @@ I added framing paragraphs to each of the five representation subsections. I’m
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:12:15Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '24,100p' docs/git-provenance/STANDARD-SUMMARY.md`</summary>
 ```
 Chunk ID: f194a6
 Wall time: 0.0518 seconds

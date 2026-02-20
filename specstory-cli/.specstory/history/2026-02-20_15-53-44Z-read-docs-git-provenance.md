@@ -43,8 +43,8 @@ Plan updated
 
 _**Agent (gpt-5.2 2026-02-20 15:53:55Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `ls -1 docs/git-provenance && echo '---' && ls -1 docs/git-provenance/systems`</summary>
 ```
 Chunk ID: eed436
 Wall time: 0.0522 seconds
@@ -70,8 +70,8 @@ whogitit.md
 
 _**Agent (gpt-5.2 2026-02-20 15:53:59Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,200p' docs/git-provenance/RESEARCH-TASK.md`</summary>
 ```
 Chunk ID: 30d4e9
 Wall time: 0.0528 seconds
@@ -151,8 +151,8 @@ Once a system has a handle on what files are changing and what agent activity is
 
 _**Agent (gpt-5.2 2026-02-20 15:53:59Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/*.md; do echo '###' $f; sed -n '1,240p' $f; echo; done`</summary>
 ```
 Chunk ID: 523804
 Wall time: 0.0516 seconds
@@ -264,8 +264,8 @@ Reading each of the 10 system reports for their “executive summary” + how th
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,220p' docs/git-provenance/systems/aider.md`</summary>
 ```
 Chunk ID: 20d020
 Wall time: 0.0520 seconds
@@ -431,8 +431,8 @@ Aider provides no dedicated AI blame command. Typical approach:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,240p' docs/git-provenance/systems/aittributor.md`</summary>
 ```
 Chunk ID: 473df7
 Wall time: 0.0520 seconds
@@ -585,8 +585,8 @@ No dedicated AI blame command. Teams can parse trailers after `git blame` identi
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,240p' docs/git-provenance/systems/cnotes.md`</summary>
 ```
 Chunk ID: b7e761
 Wall time: 0.0520 seconds
@@ -694,8 +694,8 @@ cnotes does **not** maintain per-edit checkpoints or delta logs. Its capture bou
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/entire.md`</summary>
 ```
 Chunk ID: bed34e
 Wall time: 0.0521 seconds
@@ -803,8 +803,8 @@ Entire supports two micro-versioning strategies:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '240,560p' docs/git-provenance/systems/entire.md`</summary>
 ```
 Chunk ID: b65ca1
 Wall time: 0.0522 seconds
@@ -922,8 +922,8 @@ Entire does **not** currently provide a nat
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/git-ai.md`</summary>
 ```
 Chunk ID: 0ea07c
 Wall time: 0.0512 seconds
@@ -1030,8 +1030,8 @@ Coverage note:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/git-with-intent.md`</summary>
 ```
 Chunk ID: d90753
 Wall time: 0.0513 seconds
@@ -1129,8 +1129,8 @@ Result: Git flattening behavior remai
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,320p' docs/git-provenance/systems/intent-git-mode.md`</summary>
 ```
 Chunk ID: 741692
 Wall time: 0.0513 seconds
@@ -1253,8 +1253,8 @@ Intent uses two aligned representations:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/tempo-cli.md`</summary>
 ```
 Chunk ID: a5bad2
 Wall time: 0.0522 seconds
@@ -1438,8 +1438,8 @@ No built-in blame UX. Users must manually inspect `.tempo/pending/` data or exte
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/whogitit.md`</summary>
 ```
 Chunk ID: 9d665a
 Wall time: 0.0520 seconds
@@ -1585,8 +1585,8 @@ Field usage for blame:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/agentblame.md`</summary>
 ```
 Chunk ID: edc8b2
 Wall time: 0.0521 seconds
@@ -1683,8 +1683,8 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '260,680p' docs/git-provenance/systems/git-ai.md`</summary>
 ```
 Chunk ID: e8b23d
 Wall time: 0.0520 seconds
@@ -1785,8 +1785,8 @@ Git AI optimizes for low-friction adoption:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:37Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg -n "## Challenge (5|6|7):" docs/git-provenance/systems/agentblame.md && echo '---' && rg -n "## Challenge (5|6|7):" docs/git-provenance/systems/agentblame.md -n`</summary>
 ```
 Chunk ID: b4115f
 Wall time: 0.1001 seconds
@@ -1805,8 +1805,8 @@ Output:
 
 _**Agent (gpt-5.2 2026-02-20 15:54:39Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '250,430p' docs/git-provenance/systems/agentblame.md`</summary>
 ```
 Chunk ID: b0214e
 Wall time: 0.0520 seconds
@@ -1945,8 +1945,8 @@ I should also address privacy and compliance, debating the storage of prompts in
 
 _**Agent (gpt-5.2 2026-02-20 15:54:56Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `ls -1 docs/git-provenance`</summary>
 ```
 Chunk ID: e097f5
 Wall time: 0.0521 seconds
@@ -2121,8 +2121,8 @@ Plan updated
 
 _**Agent (gpt-5.2 2026-02-20 15:56:42Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '1,240p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: 917aad
 Wall time: 0.0527 seconds
@@ -2217,8 +2217,8 @@ I need to convert all curly quotes to ASCII quotes and apostrophes, and replace 
 
 _**Agent (gpt-5.2 2026-02-20 15:57:05Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `LC_ALL=C rg -n "[^ -~]" docs/git-provenance/SYSTEM-SUMMARY.md || true`</summary>
 ```
 Chunk ID: 247afb
 Wall time: 0.0515 seconds
@@ -2377,8 +2377,8 @@ Oh no, I accidentally inserted a duplicate line for "Entire" because I didn't re
 
 _**Agent (gpt-5.2 2026-02-20 15:58:06Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `LC_ALL=C rg -n "[^ -~]" docs/git-provenance/SYSTEM-SUMMARY.md || true`</summary>
 ```
 Chunk ID: a4a671
 Wall time: 0.0520 seconds
@@ -2420,8 +2420,8 @@ _**Agent (gpt-5.2 2026-02-20 15:58:13Z)**_
 
 _**Agent (gpt-5.2 2026-02-20 15:58:15Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `LC_ALL=C rg -n "[^ -~]" docs/git-provenance/SYSTEM-SUMMARY.md || true`</summary>
 ```
 Chunk ID: 70fd46
 Wall time: 0.0517 seconds
@@ -2441,8 +2441,8 @@ I see the file is in ASCII format, which is great. Now, I need to check the cont
 
 _**Agent (gpt-5.2 2026-02-20 15:58:27Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '15,40p' docs/git-provenance/SYSTEM-SUMMARY.md && echo '---' && sed -n '90,115p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: 9039b8
 Wall time: 0.0523 seconds
@@ -2527,8 +2527,8 @@ _**Agent (gpt-5.2 2026-02-20 15:58:34Z)**_
 
 _**Agent (gpt-5.2 2026-02-20 15:58:37Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '100,112p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: 833be9
 Wall time: 0.0525 seconds
@@ -2593,8 +2593,8 @@ instead make 7 tables, 1 for each challenge area
 
 _**Agent (gpt-5.2 2026-02-20 16:02:44Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '35,90p'`</summary>
 ```
 Chunk ID: cb280f
 Wall time: 0.0514 seconds
@@ -2767,8 +2767,8 @@ _**Agent (gpt-5.2 2026-02-20 16:03:47Z)**_
 
 _**Agent (gpt-5.2 2026-02-20 16:03:49Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '35,170p'`</summary>
 ```
 Chunk ID: ecd76f
 Wall time: 0.0515 seconds
@@ -2858,8 +2858,8 @@ I need to ensure that there aren't any duplicate lines or overly wide columns in
 
 _**Agent (gpt-5.2 2026-02-20 16:03:58Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `LC_ALL=C rg -n "[^ -~]" docs/git-provenance/SYSTEM-SUMMARY.md || true`</summary>
 ```
 Chunk ID: 09de9a
 Wall time: 0.0508 seconds
@@ -3047,8 +3047,8 @@ It seems the patch failed, possibly due to whitespace or changes in the text. I 
 
 _**Agent (gpt-5.2 2026-02-20 16:09:03Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '38,120p'`</summary>
 ```
 Chunk ID: a91cd8
 Wall time: 0.0521 seconds
@@ -3120,8 +3120,8 @@ Output:
 
 _**Agent (gpt-5.2 2026-02-20 16:09:09Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '120,190p'`</summary>
 ```
 Chunk ID: de0982
 Wall time: 0.0516 seconds
@@ -3305,8 +3305,8 @@ _**Agent (gpt-5.2 2026-02-20 16:09:51Z)**_
 
 _**Agent (gpt-5.2 2026-02-20 16:09:55Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '40,120p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: dda04e
 Wall time: 0.0525 seconds
@@ -3373,8 +3373,8 @@ Correlation decides whether provenance is precise (attached to the right files/l
 
 _**Agent (gpt-5.2 2026-02-20 16:09:57Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '120,210p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: 246ee2
 Wall time: 0.0525 seconds
@@ -3433,8 +3433,8 @@ Major options:
 
 _**Agent (gpt-5.2 2026-02-20 16:10:00Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `LC_ALL=C rg -n "[^ -~]" docs/git-provenance/SYSTEM-SUMMARY.md || true`</summary>
 ```
 Chunk ID: 0fa6f4
 Wall time: 0.0516 seconds
@@ -3469,8 +3469,8 @@ I'm planning to use apply_patch to update the necessary sections. It's important
 
 _**Agent (gpt-5.2 2026-02-20 16:12:58Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '20,60p'`</summary>
 ```
 Chunk ID: 7d65b0
 Wall time: 0.0518 seconds
@@ -3526,8 +3526,8 @@ I need to update the examples list, specifically to change "Intent Git Mode" to 
 
 _**Agent (gpt-5.2 2026-02-20 16:13:05Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '56,120p'`</summary>
 ```
 Chunk ID: b06161
 Wall time: 0.0510 seconds
@@ -3587,8 +3587,8 @@ Output:
 
 _**Agent (gpt-5.2 2026-02-20 16:13:08Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '114,190p'`</summary>
 ```
 Chunk ID: 86fa4d
 Wall time: 0.0516 seconds
@@ -3644,8 +3644,8 @@ Output:
 
 _**Agent (gpt-5.2 2026-02-20 16:13:10Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '190,235p'`</summary>
 ```
 Chunk ID: 18a31e
 Wall time: 0.0516 seconds
@@ -3841,8 +3841,8 @@ _**Agent (gpt-5.2 2026-02-20 16:14:01Z)**_
 
 _**Agent (gpt-5.2 2026-02-20 16:14:04Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg -n "Intent Git Mode\b" docs/git-provenance/SYSTEM-SUMMARY.md || true`</summary>
 ```
 Chunk ID: 5b5ee8
 Wall time: 0.0512 seconds
@@ -3875,8 +3875,8 @@ I notice that line 262 mentions "Intent Git Mode" in the "When to use" section, 
 
 _**Agent (gpt-5.2 2026-02-20 16:14:13Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `nl -ba docs/git-provenance/SYSTEM-SUMMARY.md | sed -n '250,270p'`</summary>
 ```
 Chunk ID: 9fc1cc
 Wall time: 0.0521 seconds
@@ -3916,8 +3916,8 @@ _**Agent (gpt-5.2 2026-02-20 16:14:18Z)**_
 
 _**Agent (gpt-5.2 2026-02-20 16:14:24Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg -n "\| Intent Git Mode" -n docs/git-provenance/SYSTEM-SUMMARY.md && echo '---' && rg -n "Intent Git Mode\b" docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: 73c96b
 Wall time: 0.0520 seconds
@@ -3959,8 +3959,8 @@ I need to make sure the first row in each table is correct. I should start by lo
 
 _**Agent (gpt-5.2 2026-02-20 16:14:29Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '24,40p' docs/git-provenance/SYSTEM-SUMMARY.md && echo '---' && sed -n '52,70p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: cc1c84
 Wall time: 0.0516 seconds
@@ -4014,8 +4014,8 @@ I need to check the micro-versioning table and start inspecting it around the In
 
 _**Agent (gpt-5.2 2026-02-20 16:14:34Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `sed -n '74,110p' docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: f271f2
 Wall time: 0.0516 seconds

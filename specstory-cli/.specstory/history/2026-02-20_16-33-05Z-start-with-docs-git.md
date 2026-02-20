@@ -30,8 +30,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:33:14Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:14Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg --files docs/git-provenance -g '*.md' | sort`</summary>
 ```
 Chunk ID: 452364
 Wall time: 0.0516 seconds
@@ -72,8 +72,8 @@ I found 19 markdown files under `docs/git-provenance/`. I’m reading `RESEARCH-
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:17Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/RESEARCH-TASK.md`</summary>
 ```
 Chunk ID: 8ee4b7
 Wall time: 0.0524 seconds
@@ -163,8 +163,8 @@ I’ve finished `RESEARCH-TASK.md`. Next I’m reading the two top-level summari
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:25Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/STANDARD-SUMMARY.md`</summary>
 ```
 Chunk ID: b32d78
 Wall time: 0.0515 seconds
@@ -259,8 +259,8 @@ A provenance representation needs to anchor to a stable revision identity. This 
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:25Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/SYSTEM-SUMMARY.md`</summary>
 ```
 Chunk ID: 35d2b9
 Wall time: 0.0522 seconds
@@ -325,8 +325,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:33:39Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:39Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `wc -l docs/git-provenance/standards/*.md docs/git-provenance/systems/*.md | sort -n`</summary>
 ```
 Chunk ID: 4a335b
 Wall time: 0.0509 seconds
@@ -365,8 +365,8 @@ I checked sizes; total remaining content is about 3,874 lines, so I can read all
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:44Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/standards/*.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
 ```
 Chunk ID: 985afa
 Wall time: 0.0521 seconds
@@ -532,8 +532,8 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:33:53Z)**_
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:53Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/aittributor.md docs/git-provenance/systems/tempo-cli.md docs/git-provenance/systems/aider.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
 ```
 Chunk ID: a31217
 Wall time: 0.0519 seconds
@@ -697,8 +697,8 @@ First batch of system docs is done (`aittributor`, `tempo-cli`, `aider`). I’m 
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:57Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/whogitit.md docs/git-provenance/systems/git-with-intent.md docs/git-provenance/systems/intent-git-mode.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
 ```
 Chunk ID: aad200
 Wall time: 0.0512 seconds
@@ -851,8 +851,8 @@ Second batch is complete. I’m reading the final four system docs now: `agentbl
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:01Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/agentblame.md docs/git-provenance/systems/cnotes.md docs/git-provenance/systems/entire.md docs/git-provenance/systems/git-ai.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
 ```
 Chunk ID: 8a9483
 Wall time: 0.0520 seconds
@@ -960,8 +960,8 @@ The combined output truncated part of `cnotes.md`/`entire.md`, so I’m re-readi
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:06Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/cnotes.md`</summary>
 ```
 Chunk ID: f9d837
 Wall time: 0.0522 seconds
@@ -1069,8 +1069,8 @@ cnotes does **not** maintain per-edit checkpoints or delta logs. Its capture bou
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:06Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `cat docs/git-provenance/systems/entire.md`</summary>
 ```
 Chunk ID: 9d6da9
 Wall time: 0.0522 seconds
@@ -1188,8 +1188,8 @@ I’ve now read all previously listed files, including full `cnotes.md` and `ent
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:12Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `find docs/git-provenance -type f \( -iname '*.md' -o -iname '*.markdown' \) | sort`</summary>
 ```
 Chunk ID: 3f6152
 Wall time: 0.0520 seconds
@@ -1579,8 +1579,8 @@ I’ve written `docs/git-provenance/RECOMMENDATIONS.md`. I’m doing a quick rea
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:37:08Z)**_
 
-<tool-use data-tool-type="unknown" data-tool-name="exec_command"><details>
-<summary>Tool use: **exec_command**</summary>
+<tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
+<summary>Tool use: **exec_command** `rg -n "^#|^##|Attribution Map|Exchange Record|Flow A|Flow B|Flow C|Pros And Cons" docs/git-provenance/RECOMMENDATIONS.md && wc -l docs/git-provenance/RECOMMENDATIONS.md`</summary>
 ```
 Chunk ID: 136c2b
 Wall time: 0.0518 seconds
