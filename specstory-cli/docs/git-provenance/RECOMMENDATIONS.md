@@ -1,7 +1,5 @@
 # AI Git Provenance Recommendations
 
-_Last updated: 2026-02-20 (UTC)_
-
 ## Executive Recommendation
 
 Build a **line-aware, Git-native provenance system** with a **dual-layer data model**:
@@ -114,13 +112,13 @@ Blame needs compact range lookup. Explainability needs richer context. Splitting
 
 ### Pros And Cons Of This Representation
 
-| Aspect | Pros | Cons |
-|---|---|---|
-| Query speed | Fast line lookup from compact range map | Requires join to fetch full context |
-| Explainability depth | Rich prompt/tool/assistant context available | More objects to manage and sync |
-| Privacy control | Can redact/summarize exchange content independently | Policy complexity across teams |
-| Interoperability | Maps cleanly to Agent Trace/W3C PROV concepts | Requires schema governance/versioning |
-| Storage efficiency | Deduplicates repeated prompt/session metadata | Slightly higher implementation complexity |
+| Aspect               | Pros                                                | Cons                                      |
+|----------------------|-----------------------------------------------------|-------------------------------------------|
+| Query speed          | Fast line lookup from compact range map             | Requires join to fetch full context       |
+| Explainability depth | Rich prompt/tool/assistant context available        | More objects to manage and sync           |
+| Privacy control      | Can redact/summarize exchange content independently | Policy complexity across teams            |
+| Interoperability     | Maps cleanly to Agent Trace/W3C PROV concepts       | Requires schema governance/versioning     |
+| Storage efficiency   | Deduplicates repeated prompt/session metadata       | Slightly higher implementation complexity |
 
 ### Example: Attribution Map Note
 
