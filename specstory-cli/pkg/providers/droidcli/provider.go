@@ -249,14 +249,14 @@ func buildCheckErrorMessage(errorType string, command string, isCustom bool, std
 		builder.WriteString("Factory Droid CLI was not found.\n\n")
 		if isCustom {
 			builder.WriteString("• Verify the custom path you provided is executable.\n")
-			builder.WriteString(fmt.Sprintf("• Provided command: %s\n", command))
+			fmt.Fprintf(&builder, "• Provided command: %s\n", command)
 		} else {
 			builder.WriteString("• Install the Factory CLI and ensure `droid` is on your PATH.\n")
 			builder.WriteString("• Re-run `specstory check droid` after installation.\n")
 		}
 	case "permission_denied":
 		builder.WriteString("SpecStory cannot execute the Factory CLI due to permissions.\n\n")
-		builder.WriteString(fmt.Sprintf("Try: chmod +x %s\n", command))
+		fmt.Fprintf(&builder, "Try: chmod +x %s\n", command)
 	default:
 		builder.WriteString("`droid --version` failed.\n\n")
 		if stderr != "" {

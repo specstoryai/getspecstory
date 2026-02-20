@@ -237,7 +237,7 @@ func buildThinkingMessage(msg GeminiMessage) Message {
 		if description == "" {
 			description = "(no description)"
 		}
-		thinkingText.WriteString(fmt.Sprintf("- **%s** — %s\n", subject, description))
+		fmt.Fprintf(&thinkingText, "- **%s** — %s\n", subject, description)
 	}
 
 	// Trim trailing newline to avoid double-newline when markdown adds closing tag
