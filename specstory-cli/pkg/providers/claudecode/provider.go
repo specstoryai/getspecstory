@@ -500,6 +500,11 @@ func findFirstUserMessage(session Session) string {
 				if strings.Contains(strings.ToLower(content), "warmup") {
 					continue
 				}
+				// Skip Claude Code session title generation prompts
+				// These are synthetic messages wrapping the real user prompt in <TEXTBLOCK> tags
+				if strings.Contains(content, "<TEXTBLOCK>") {
+					continue
+				}
 				return content
 			}
 		}
@@ -643,8 +648,8 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 						if !isMeta {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								if content, ok := message["content"].(string); ok && content != "" {
-									// Skip messages containing "warmup"
-									if !strings.Contains(strings.ToLower(content), "warmup") {
+									// Skip warmup messages and Claude Code session title generation prompts
+									if !strings.Contains(strings.ToLower(content), "warmup") && !strings.Contains(content, "<TEXTBLOCK>") {
 										firstUserMessage = content
 									}
 								}
