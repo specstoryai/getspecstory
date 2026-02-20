@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -45,10 +46,11 @@ var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
 var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
 // Logging and Debugging Options
-var console bool // flag to enable logging to the console
-var logFile bool // flag to enable logging to the log file
-var debug bool   // flag to enable debug level logging
-var silent bool  // flag to enable silent output (no user messages)
+var console bool    // flag to enable logging to the console
+var logFile bool    // flag to enable logging to the log file
+var debug bool      // flag to enable debug level logging
+var silent bool     // flag to enable silent output (no user messages)
+var jsonOutput bool // flag to output session updates as JSON lines (watch mode)
 // Provenance Options
 var provenanceEnabled bool // flag to enable AI provenance tracking
 
@@ -663,7 +665,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			}
 			defer fsCleanup()
 
-			if !silent {
+			if !silent && !jsonOutput {
 				fmt.Println()
 				agentWord := "agents"
 				if len(providerNames) == 1 {
@@ -738,15 +740,32 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 							}
 
 							// Output the formatted line
-							fmt.Printf("(%s) Session %s (%s): start time %s, end time %s, provider %s, markdown size %d, total user prompts %d\n",
-								time.Now().Format(time.RFC3339),
-								action,
-								session.SessionID,
-								startTime,
-								endTime,
-								providerID,
-								markdownSize,
-								userPrompts)
+							if jsonOutput {
+								record := map[string]interface{}{
+									"timestamp":          time.Now().Format(time.RFC3339),
+									"action":             action,
+									"session_id":         session.SessionID,
+									"start_time":         startTime,
+									"end_time":           endTime,
+									"provider":           providerID,
+									"markdown_size":      markdownSize,
+									"total_user_prompts": userPrompts,
+								}
+								if !onlyCloudSync {
+									record["markdown_file"] = fileFullPath
+								}
+								_ = json.NewEncoder(os.Stdout).Encode(record)
+							} else {
+								fmt.Printf("(%s) Session %s (%s): start time %s, end time %s, provider %s, markdown size %d, total user prompts %d\n",
+									time.Now().Format(time.RFC3339),
+									action,
+									session.SessionID,
+									startTime,
+									endTime,
+									providerID,
+									markdownSize,
+									userPrompts)
+							}
 						}
 
 						// Push agent events to provenance engine for correlation
@@ -1788,6 +1807,7 @@ func main() {
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+	watchCmd.Flags().BoolVar(&jsonOutput, "json", false, "output session updates as JSON lines (one JSON object per line)")
 	watchCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	// Initialize analytics with the full CLI command (unless disabled)
