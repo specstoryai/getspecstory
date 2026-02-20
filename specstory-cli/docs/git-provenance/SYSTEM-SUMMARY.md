@@ -1,7 +1,5 @@
 # AI Git Provenance Systems Summary (10 Systems)
 
-_Last updated: 2026-02-20 (UTC)_
-
 This document is an executive summary / tl;dr comparing 10 existing approaches to "AI blame" and AI code provenance using (or adjacent to) Git. It focuses on the **big picture differences**, the **most important trade-offs**, and **side-by-side tables** across the **7 challenge areas** from `docs/git-provenance/RESEARCH-TASK.md`.
 
 ## Big Picture: Three "Provenance Granularities"

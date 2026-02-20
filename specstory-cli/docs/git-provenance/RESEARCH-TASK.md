@@ -102,7 +102,7 @@ Next, create a summary document as `./docs/git-provenance/SYSTEM-SUMMARY.md` tha
 
 Then, create a summary document as `./docs/git-provenance/STANDARD-SUMMARY.md` that focuses on summary prose and tables comparing the 6 standards. Describe the big picture differences in approaches, the most important trade-offs and pros and cons. This should act as a good "executive summary" / tl;dr of the full research output.
 
-Finally, prepare a single recommendations document as `./docs/git-provenance/RECOMMENDATIONS.md`
+Finally, prepare a single recommendations document for how to best approach the 7 challenge areas, and how to represent the provenance. Include the justification for the recommendation. The pros and cons of the representation. Examples of the representation. And end-to-end flows on how the whole recommended system should work. Write this as `./docs/git-provenance/RECOMMENDATIONS.md`
 
 ## Research Quality Bar (must follow)
 

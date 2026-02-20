@@ -1,8 +1,7 @@
 # AI Provenance Representation Standards Summary (6 Standards)
 
-_Last updated: 2026-02-20 (UTC)_
-
 This summary is intentionally scoped to **Challenge 4: Representing Agent Provenance**.  
+
 It does **not** evaluate capture, storage, sync, or blame UX mechanics except where those constraints directly affect representation design.
 
 ## What A Representation Must Encode (SpecStory Lens)
