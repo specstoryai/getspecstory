@@ -12,6 +12,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/google/uuid"
 	ignore "github.com/sabhiram/go-gitignore"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 const debounceWindow = 100 * time.Millisecond
@@ -98,6 +99,13 @@ type FSWatcher struct {
 // all subdirectories (plus .intentignore at root), then recursively adds all
 // non-excluded directories. The watcher is not running yet — call Start to begin.
 func NewFSWatcher(engine *Engine, rootDir string) (*FSWatcher, error) {
+	// Canonicalize rootDir so fsnotify events use the true filesystem case.
+	// On macOS (case-insensitive APFS) the CWD may have non-canonical casing
+	// which would cause path suffix matching to fail against agent-reported paths.
+	if canonical, err := spi.GetCanonicalPath(rootDir); err == nil {
+		rootDir = canonical
+	}
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err

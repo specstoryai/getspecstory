@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestShouldWatch(t *testing.T) {
@@ -154,8 +155,10 @@ func TestShouldWatch_Intentignore(t *testing.T) {
 }
 
 func TestFSWatcher_FileEvents(t *testing.T) {
-	// Create a temp directory to watch
-	tmpDir := t.TempDir()
+	// Create a temp directory to watch.
+	// Canonicalize it because NewFSWatcher now resolves symlinks (e.g. /var -> /private/var on macOS)
+	// and event paths will use the canonical form.
+	tmpDir, _ := spi.GetCanonicalPath(t.TempDir())
 
 	// Create a provenance engine with a temp DB
 	dbPath := filepath.Join(t.TempDir(), "test-provenance.db")
@@ -258,7 +261,7 @@ func TestFSWatcher_ExcludedDirs(t *testing.T) {
 }
 
 func TestFSWatcher_Debounce(t *testing.T) {
-	tmpDir := t.TempDir()
+	tmpDir, _ := spi.GetCanonicalPath(t.TempDir())
 
 	dbPath := filepath.Join(t.TempDir(), "test-provenance.db")
 	engine, err := NewEngine(WithDBPath(dbPath))
