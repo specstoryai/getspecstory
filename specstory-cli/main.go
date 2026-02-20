@@ -24,6 +24,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -679,7 +680,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				provider := providers[id]
 
 				// Launch a goroutine for each provider
-				go func(p spi.Provider) {
+				go func(p spi.Provider, providerID string) {
 					slog.Info("Starting agent monitoring", "provider", p.Name())
 
 					// Create session callback for this provider
@@ -689,13 +690,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						}
 
 						// Check if markdown file already exists to determine if this is an update or creation
-						timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-						timestampStr := formatFilenameTimestamp(timestamp, useUTC)
-						filename := timestampStr
-						if session.Slug != "" {
-							filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
-						}
-						fileFullPath := filepath.Join(config.GetHistoryDir(), filename+".md")
+						fileFullPath := buildSessionFilePath(session, config.GetHistoryDir(), useUTC)
 						_, fileExistsErr := os.Stat(fileFullPath)
 						fileExists := fileExistsErr == nil
 
@@ -725,21 +720,9 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 
 							// Get timestamps from session data
 							startTime := session.CreatedAt
-							endTime := ""
+							endTime := startTime
 							if session.SessionData != nil && session.SessionData.UpdatedAt != "" {
 								endTime = session.SessionData.UpdatedAt
-							} else {
-								endTime = startTime // Fallback to start time if no update time
-							}
-
-							// Get provider ID from registry
-							providerID := ""
-							registry := factory.GetRegistry()
-							for _, id := range registry.ListIDs() {
-								if prov, _ := registry.Get(id); prov == p {
-									providerID = id
-									break
-								}
 							}
 
 							// Count user prompts/messages
@@ -747,7 +730,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 							if session.SessionData != nil {
 								for _, exchange := range session.SessionData.Exchanges {
 									for _, msg := range exchange.Messages {
-										if msg.Role == "user" {
+										if msg.Role == schema.RoleUser {
 											userPrompts++
 										}
 									}
@@ -783,7 +766,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 					} else {
 						errChan <- nil
 					}
-				}(provider)
+				}(provider, id)
 			}
 
 			// Wait for all watchers to complete (or error)
@@ -1119,6 +1102,19 @@ func formatFilenameTimestamp(t time.Time, useUTC bool) string {
 	return t.Local().Format("2006-01-02_15-04-05-0700")
 }
 
+// buildSessionFilePath constructs the full markdown file path for a session.
+// All callers need consistent filename generation from session metadata.
+func buildSessionFilePath(session *spi.AgentChatSession, historyDir string, useUTC bool) string {
+	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
+	timestampStr := formatFilenameTimestamp(timestamp, useUTC)
+
+	filename := timestampStr
+	if session.Slug != "" {
+		filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
+	}
+	return filepath.Join(historyDir, filename+".md")
+}
+
 // processSingleSession writes markdown and triggers cloud sync for a single session
 // isAutosave indicates if this is being called from the run command (true) or sync command (false)
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
@@ -1139,14 +1135,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	markdownSize := len(markdownContent)
 
 	// Generate filename from timestamp and slug
-	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-	timestampStr := formatFilenameTimestamp(timestamp, useUTC)
-
-	filename := timestampStr
-	if session.Slug != "" {
-		filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
-	}
-	fileFullPath := filepath.Join(config.GetHistoryDir(), filename+".md")
+	fileFullPath := buildSessionFilePath(session, config.GetHistoryDir(), useUTC)
 
 	if showOutput && !silent {
 		fmt.Printf("Processing session %s...", session.SessionID)
@@ -1363,14 +1352,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		}
 
 		// Generate filename from timestamp and slug
-		timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
-		timestampStr := formatFilenameTimestamp(timestamp, useUTC)
-
-		filename := timestampStr
-		if session.Slug != "" {
-			filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
-		}
-		fileFullPath := filepath.Join(historyPath, filename+".md")
+		fileFullPath := buildSessionFilePath(session, historyPath, useUTC)
 
 		// Check if file already exists with same content
 		identicalContent := false

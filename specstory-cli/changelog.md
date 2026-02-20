@@ -1,9 +1,11 @@
 # Specstory CLI Changelog
 
-## v1.x.0 2026-02-xx
+## v1.8.0 2026-02-xx
 
 ### ⚙️ Improvements
 
+- Provide terminal agent activity updates to stdout while `specstory watch` is running.
+- `specstory watch --json` flag for easily parsable output.
 - Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
 
 ### 🐛 Bug Fixes
