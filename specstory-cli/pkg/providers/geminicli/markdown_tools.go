@@ -175,7 +175,7 @@ func formatShellBodyFromInput(input map[string]interface{}) string {
 
 	var builder strings.Builder
 	if dir != "" {
-		builder.WriteString(fmt.Sprintf("Directory: `%s`\n\n", dir))
+		fmt.Fprintf(&builder, "Directory: `%s`\n\n", dir)
 	}
 
 	if command != "" {
@@ -196,7 +196,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 
 	var builder strings.Builder
 	if path != "" {
-		builder.WriteString(fmt.Sprintf("Path: `%s`\n\n", path))
+		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
 		builder.WriteString("```")
@@ -217,7 +217,7 @@ func formatReplaceBodyFromInput(input map[string]interface{}) string {
 
 	var builder strings.Builder
 	if path != "" {
-		builder.WriteString(fmt.Sprintf("Path: `%s`\n\n", path))
+		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if newString != "" {
 		builder.WriteString("```diff\n")
@@ -256,7 +256,7 @@ func formatTodoBodyFromInput(input map[string]interface{}) string {
 		if todo, ok := raw.(map[string]interface{}); ok {
 			desc, _ := todo["description"].(string)
 			status, _ := todo["status"].(string)
-			builder.WriteString(fmt.Sprintf("- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc)))
+			fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc))
 		}
 	}
 	return builder.String()

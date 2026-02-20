@@ -144,9 +144,9 @@ func formatBashTool(toolName string, input map[string]interface{}, description s
 			// If command includes \n we wrap it in a code block
 			if strings.Contains(command, "\n") {
 				escapedCommand := strings.ReplaceAll(command, "```", "\\```")
-				result.WriteString(fmt.Sprintf("\n```bash\n%s\n```", escapedCommand))
+				fmt.Fprintf(&result, "\n```bash\n%s\n```", escapedCommand)
 			} else {
-				result.WriteString(fmt.Sprintf("\n`%s`", command))
+				fmt.Fprintf(&result, "\n`%s`", command)
 			}
 		}
 	}
@@ -175,7 +175,7 @@ func formatWriteTool(toolName string, input map[string]interface{}, description 
 			// Escape triple backticks in content
 			escapedContent := strings.ReplaceAll(content, "```", "\\```")
 
-			result.WriteString(fmt.Sprintf("\n```%s\n%s\n```", lang, escapedContent))
+			fmt.Fprintf(&result, "\n```%s\n%s\n```", lang, escapedContent)
 		}
 	}
 
@@ -348,7 +348,7 @@ func formatTodoList(todos []interface{}) string {
 			}
 
 			// Format the todo line
-			result.WriteString(fmt.Sprintf("%s %s %s\n", checkbox, priorityEmoji, content))
+			fmt.Fprintf(&result, "%s %s %s\n", checkbox, priorityEmoji, content)
 		}
 	}
 
@@ -388,9 +388,9 @@ func formatAskUserQuestionTool(toolName string, input map[string]interface{}, de
 		// Write question with multi-select indicator if applicable
 		multiSelect, _ := questionMap["multiSelect"].(bool)
 		if multiSelect {
-			result.WriteString(fmt.Sprintf("**%s** _(select multiple)_\n", questionText))
+			fmt.Fprintf(&result, "**%s** _(select multiple)_\n", questionText)
 		} else {
-			result.WriteString(fmt.Sprintf("**%s**\n", questionText))
+			fmt.Fprintf(&result, "**%s**\n", questionText)
 		}
 
 		// Extract and format options
@@ -408,9 +408,9 @@ func formatAskUserQuestionTool(toolName string, input map[string]interface{}, de
 
 				if label != "" {
 					if desc != "" {
-						result.WriteString(fmt.Sprintf("- **%s** - %s\n", label, desc))
+						fmt.Fprintf(&result, "- **%s** - %s\n", label, desc)
 					} else {
-						result.WriteString(fmt.Sprintf("- **%s**\n", label))
+						fmt.Fprintf(&result, "- **%s**\n", label)
 					}
 				}
 			}

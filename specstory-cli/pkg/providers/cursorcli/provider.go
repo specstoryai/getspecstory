@@ -37,13 +37,13 @@ func buildCheckErrorMessage(errorType string, cursorCmd string, isCustom bool, s
 
 	switch errorType {
 	case "not_found":
-		errorMsg.WriteString(fmt.Sprintf("  🔍 Could not find Cursor CLI at: %s\n", cursorCmd))
+		fmt.Fprintf(&errorMsg, "  🔍 Could not find Cursor CLI at: %s\n", cursorCmd)
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Here's how to fix this:\n")
 		errorMsg.WriteString("\n")
 		if isCustom {
 			errorMsg.WriteString("     The specified path doesn't exist. Please check:\n")
-			errorMsg.WriteString(fmt.Sprintf("     • Is cursor-agent installed at %s?\n", cursorCmd))
+			fmt.Fprintf(&errorMsg, "     • Is cursor-agent installed at %s?\n", cursorCmd)
 			errorMsg.WriteString("     • Did you type the path correctly?")
 		} else {
 			errorMsg.WriteString("     1. Make sure the Cursor CLI is installed:\n")
@@ -55,10 +55,10 @@ func buildCheckErrorMessage(errorType string, cursorCmd string, isCustom bool, s
 			errorMsg.WriteString("        • Example: specstory check cursor -c \"~/.cursor/bin/cursor-agent\"")
 		}
 	case "permission_denied":
-		errorMsg.WriteString(fmt.Sprintf("  🔒 Permission denied when trying to run: %s\n", cursorCmd))
+		fmt.Fprintf(&errorMsg, "  🔒 Permission denied when trying to run: %s\n", cursorCmd)
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Here's how to fix this:\n")
-		errorMsg.WriteString(fmt.Sprintf("     • Check file permissions: chmod +x %s\n", cursorCmd))
+		fmt.Fprintf(&errorMsg, "     • Check file permissions: chmod +x %s\n", cursorCmd)
 		errorMsg.WriteString("     • Try running with elevated permissions if needed")
 	case "no_output":
 		errorMsg.WriteString("  ⚠️  No version information from cursor-agent\n")
@@ -73,7 +73,7 @@ func buildCheckErrorMessage(errorType string, cursorCmd string, isCustom bool, s
 	default:
 		errorMsg.WriteString("  ⚠️  Error running 'cursor-agent --version'\n")
 		if stderrOutput != "" {
-			errorMsg.WriteString(fmt.Sprintf("  📋 Error details: %s\n", stderrOutput))
+			fmt.Fprintf(&errorMsg, "  📋 Error details: %s\n", stderrOutput)
 		}
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Troubleshooting tips:\n")

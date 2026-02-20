@@ -534,7 +534,7 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 				if tool.Name == "AskUserQuestion" {
 					answer := parseAskUserQuestionAnswer(cleaned)
 					if answer != "" {
-						markdown.WriteString(fmt.Sprintf("\n**Answer:** %s\n", answer))
+						fmt.Fprintf(&markdown, "\n**Answer:** %s\n", answer)
 					} else if cleaned != "" {
 						// Fallback to code block if parsing fails
 						markdown.WriteString("\n```text\n")
