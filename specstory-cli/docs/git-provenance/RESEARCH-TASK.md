@@ -98,7 +98,9 @@ First, for each of these 10 existing AI provenance systems, create 1 markdown do
 
 Next, for each of the 7 enumerated challenges, create 1 markdown document per challenge in `./docs/git-provenance/challenges`. Each document provides a description of all the different ways the challenge is addressed by the 9 existing systems, and importantly, how these various solutions compare to each other and the pros and cons of each.
 
-Then, create a summary document as `./docs/git-provenance/SUMMARY.md` that focuses on summary tables comparing the 7 systems and the 7 challenge areas. Describe the big picture differences in approaches, the most important trade-offs and pros and cons. This should act as a good "executive summary" / tl;dr of the full research output.
+Next, create a summary document as `./docs/git-provenance/SYSTEM-SUMMARY.md` that focuses on summary prose and tables comparing the 10 systems and the 7 challenge areas. Describe the big picture differences in approaches, the most important trade-offs and pros and cons. This should act as a good "executive summary" / tl;dr of the full research output.
+
+Then, create a summary document as `./docs/git-provenance/STANDARD-SUMMARY.md` that focuses on summary prose and tables comparing the 6 standards. Describe the big picture differences in approaches, the most important trade-offs and pros and cons. This should act as a good "executive summary" / tl;dr of the full research output.
 
 Finally, prepare a single recommendations document as `./docs/git-provenance/RECOMMENDATIONS.md`
 
