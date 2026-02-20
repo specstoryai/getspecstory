@@ -327,7 +327,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	}
 
 	// Generate SessionData from blob records
-	sessionData, err := GenerateAgentSession(blobRecords, projectPath, sessionID, createdAt, slug)
+	sessionData, err := GenerateAgentSession(blobRecords, projectPath, sessionID, createdAt, slug, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate SessionData: %w", err)
 	}

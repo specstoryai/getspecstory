@@ -21,6 +21,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/markdown"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -47,9 +48,61 @@ var console bool // flag to enable logging to the console
 var logFile bool // flag to enable logging to the log file
 var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
+// Provenance Options
+var provenanceEnabled bool // flag to enable AI provenance tracking
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
+
+// startProvenanceEngine creates and returns a provenance engine if --provenance is enabled.
+// Returns nil engine and nil cleanup if provenance is not enabled.
+// The caller must invoke the returned cleanup function (typically via defer).
+func startProvenanceEngine() (*provenance.Engine, func(), error) {
+	if !provenanceEnabled {
+		return nil, func() {}, nil
+	}
+
+	engine, err := provenance.NewEngine()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to start provenance engine: %w", err)
+	}
+
+	cleanup := func() {
+		if closeErr := engine.Close(); closeErr != nil {
+			slog.Error("Failed to close provenance engine", "error", closeErr)
+		}
+		slog.Info("Provenance engine stopped")
+	}
+
+	return engine, cleanup, nil
+}
+
+// startProvenanceFSWatcher creates a filesystem watcher that pushes FileEvents
+// to the provenance engine for correlation with agent activity. Returns a cleanup
+// function the caller must invoke (typically via defer). If the engine is nil
+// (provenance disabled), returns a no-op cleanup.
+func startProvenanceFSWatcher(ctx context.Context, engine *provenance.Engine, rootDir string) (func(), error) {
+	if engine == nil {
+		return func() {}, nil
+	}
+
+	watcher, err := provenance.NewFSWatcher(engine, rootDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start provenance FS watcher: %w", err)
+	}
+
+	watcher.Start(ctx)
+	return watcher.Stop, nil
+}
+
+// processProvenanceEvents extracts agent events from the session and pushes them
+// to the provenance engine. Safe to call with nil engine (no-op).
+func processProvenanceEvents(ctx context.Context, engine *provenance.Engine, session *spi.AgentChatSession) {
+	if engine == nil || session == nil || session.SessionData == nil {
+		return
+	}
+	provenance.ProcessSessionEvents(ctx, engine, session.SessionData)
+}
 
 // UUID regex pattern: 8-4-4-4-12 hexadecimal characters
 var uuidRegex = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -402,6 +455,23 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
 
+			// Create context for graceful cancellation (Ctrl+C handling)
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer cancel()
+
+			// Start provenance infrastructure before the agent so all file changes are captured
+			provenanceEngine, provenanceCleanup, err := startProvenanceEngine()
+			if err != nil {
+				return err
+			}
+			defer provenanceCleanup()
+
+			fsCleanup, err := startProvenanceFSWatcher(ctx, provenanceEngine, cwd)
+			if err != nil {
+				return err
+			}
+			defer fsCleanup()
+
 			// Check authentication for cloud sync
 			checkAndWarnAuthentication()
 			// Track extension activation
@@ -447,6 +517,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 						"sessionId", session.SessionID,
 						"error", err)
 				}
+
+				// Push agent events to provenance engine for correlation
+				processProvenanceEvents(ctx, provenanceEngine, session)
 			}
 
 			// Execute the agent and watch for updates
@@ -543,6 +616,13 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
 			}
 
+			// Start provenance engine if enabled (used in later phases for event correlation)
+			provenanceEngine, provenanceCleanup, err := startProvenanceEngine()
+			if err != nil {
+				return err
+			}
+			defer provenanceCleanup()
+
 			providerIDs := registry.ListIDs()
 			if len(providerIDs) == 0 {
 				return fmt.Errorf("no providers registered")
@@ -574,6 +654,13 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			// This allows providers to clean up resources when user presses Ctrl+C
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
+
+			// Start filesystem watcher for provenance correlation (uses signal context for Ctrl+C)
+			fsCleanup, err := startProvenanceFSWatcher(ctx, provenanceEngine, cwd)
+			if err != nil {
+				return err
+			}
+			defer fsCleanup()
 
 			if !silent {
 				fmt.Println()
@@ -678,6 +765,9 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 								markdownSize,
 								userPrompts)
 						}
+
+						// Push agent events to provenance engine for correlation
+						processProvenanceEvents(ctx, provenanceEngine, session)
 					}
 
 					err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
@@ -1694,6 +1784,8 @@ func main() {
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
+	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
 	runCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
@@ -1705,6 +1797,8 @@ func main() {
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 
+	watchCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+	_ = watchCmd.Flags().MarkHidden("provenance") // Hidden flag
 	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
 	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
 	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")

@@ -1,5 +1,15 @@
 # Specstory CLI Changelog
 
+## v1.x.0 2026-02-xx
+
+### ⚙️ Improvements
+
+- Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
+
+### 🐛 Bug Fixes
+
+- Updated processing of tool call results in Gemini CLI provider to fix broken session rendering with newer versions of Gemini CLI.
+
 ## v1.7.0 2026-02-16
 
 ### ⚙️ Improvements

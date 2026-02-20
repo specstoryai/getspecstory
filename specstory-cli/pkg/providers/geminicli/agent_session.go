@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
-	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -281,9 +281,11 @@ func convertToolCall(toolCall GeminiToolCall) *ToolInfo {
 	}
 
 	// If no structured output, try ResultDisplay
-	if output == nil && toolCall.ResultDisplay != "" {
-		output = map[string]interface{}{
-			"output": toolCall.ResultDisplay,
+	if output == nil {
+		if display := resultDisplayString(toolCall.ResultDisplay); display != "" {
+			output = map[string]interface{}{
+				"output": display,
+			}
 		}
 	}
 
@@ -326,31 +328,28 @@ func extractPathHintsFromTool(toolCall GeminiToolCall, workspaceRoot string) []s
 
 	for _, field := range pathFields {
 		if value := inputAsString(toolCall.Args, field); value != "" {
-			normalizedPath := normalizeGeminiPath(value, workspaceRoot)
+			normalizedPath := spi.NormalizePath(value, workspaceRoot)
 			if !slices.Contains(paths, normalizedPath) {
 				paths = append(paths, normalizedPath)
 			}
 		}
 	}
 
-	return paths
-}
-
-// normalizeGeminiPath converts absolute paths to workspace-relative paths when possible
-func normalizeGeminiPath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
+	// Extract paths from shell commands (redirect targets, file-creating commands)
+	if command := inputAsString(toolCall.Args, "command"); command != "" {
+		cwd := inputAsString(toolCall.Args, "dir_path")
+		if cwd == "" {
+			cwd = workspaceRoot
+		}
+		shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+		for _, sp := range shellPaths {
+			if !slices.Contains(paths, sp) {
+				paths = append(paths, sp)
+			}
 		}
 	}
 
-	return path
+	return paths
 }
 
 // extractReferencedSections extracts "--- Content from referenced files ---" sections from a message

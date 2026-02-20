@@ -4,7 +4,7 @@ module github.com/specstoryai/getspecstory/specstory-cli
 //   - .golangci.yml (run.go)
 //   - ../.github/workflows/ci.yml (setup-go)
 //   - ../.github/workflows/release.yml (setup-go)
-go 1.25.6
+go 1.26.0
 
 // To check for outdated direct dependencies:
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
@@ -13,11 +13,12 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
 	github.com/posthog/posthog-go v1.10.0 // Analytics tracking
+	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
 	golang.org/x/term v0.40.0 // Terminal and console support packages
 	golang.org/x/text v0.34.0 // Text processing and Unicode normalization
-	modernc.org/sqlite v1.45.0 // Pure Go SQLite database driver
+	modernc.org/sqlite v1.46.1 // Pure Go SQLite database driver
 )
 
 require (

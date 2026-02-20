@@ -183,6 +183,59 @@ func TestClassifyToolType(t *testing.T) {
 	}
 }
 
+func TestExtractPathHints_ShellCommand(t *testing.T) {
+	workspaceRoot := "/Users/me/prov-1"
+
+	tests := []struct {
+		name      string
+		command   string
+		cwd       string // shell's working directory from the JSONL record
+		wantPaths []string
+	}{
+		{
+			name:      "absolute path via redirection",
+			command:   `echo "The moon spills silver on the sleeping sea." > /Users/me/prov-1/poem2.txt`,
+			cwd:       workspaceRoot,
+			wantPaths: []string{"poem2.txt"},
+		},
+		{
+			name:      "relative path via redirection",
+			command:   `echo "The moon spills silver on the sleeping sea." > ./prov-1/poem2.txt`,
+			cwd:       workspaceRoot,
+			wantPaths: []string{"prov-1/poem2.txt"},
+		},
+		{
+			name:      "bare filename via redirection",
+			command:   `echo "The moon spills silver on the sleeping sea." > poem2.txt`,
+			cwd:       workspaceRoot,
+			wantPaths: []string{"poem2.txt"},
+		},
+		{
+			name:      "bare filename after cd resolves against record cwd",
+			command:   `echo "hello" > 1.txt`,
+			cwd:       "/Users/me/prov-1/foo/bar",
+			wantPaths: []string{"foo/bar/1.txt"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := map[string]interface{}{
+				"command": tt.command,
+			}
+			paths := extractPathHints(input, tt.cwd, workspaceRoot)
+			if len(paths) != len(tt.wantPaths) {
+				t.Fatalf("got %d paths %v, want %d paths %v", len(paths), paths, len(tt.wantPaths), tt.wantPaths)
+			}
+			for i, want := range tt.wantPaths {
+				if paths[i] != want {
+					t.Errorf("paths[%d] = %q, want %q", i, paths[i], want)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatToolAsMarkdown_AskUserQuestion(t *testing.T) {
 	tests := []struct {
 		name        string
