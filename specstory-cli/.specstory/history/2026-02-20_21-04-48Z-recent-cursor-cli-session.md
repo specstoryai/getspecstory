@@ -18,7 +18,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:04:55Z)**_
 
 Let me investigate the relevant files to understand the issue.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:06:44Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:05:01Z)**_
 
 <tool-use data-tool-type="generic" data-tool-name="Task"><details>
 <summary>Tool use: **Task**</summary>
@@ -438,7 +438,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:03Z)**_
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:11Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:03Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
@@ -449,7 +449,7 @@ File content (32326 tokens) exceeds maximum allowed tokens (25000). Please use o
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:14Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -462,7 +462,7 @@ List contents of debug session directory
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:14Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -475,7 +475,7 @@ List provenance database directory
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:13Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:04Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
@@ -2939,7 +2939,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:18Z)**_
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:19Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -2965,7 +2965,7 @@ drwxr-xr-x  17 sean  staff    544 Feb 16 12:31 f3d86446-65c1-4c1a-b3e7-6a43b4263
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:55Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -2982,7 +2982,7 @@ Find markdown files in history directory
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:20Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -3215,7 +3215,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:57Z)**_
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:58Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -3240,7 +3240,7 @@ drwxr-xr-x  13 sean  staff    416 Feb 20 16:01 ..
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:59Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:05:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -3899,7 +3899,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:06:02Z)**_
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:06:04Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:06:03Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -3927,7 +3927,7 @@ Search for agent/file event related code
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:06:05Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:06:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -5419,7 +5419,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:06:57Z)**_
 
 Now let me look at the provenance system and how it extracts agent events from SessionData.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:07:51Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:07:03Z)**_
 
 <tool-use data-tool-type="generic" data-tool-name="Task"><details>
 <summary>Tool use: **Task**</summary>
@@ -5746,7 +5746,7 @@ pkg/provenance/agent_test.go
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:06Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:05Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -5850,7 +5850,7 @@ pkg/providers/claudecode/watcher.go
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:09Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:08Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
@@ -8052,7 +8052,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:15Z)**_
 
 Now let me search for SessionData and how it's used in the providers:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:17Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:07:16Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -10713,7 +10713,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:08:53Z)**_
 
 Now let me read the rest of the debug log to find the hello.rb session processing.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:08:55Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:08:54Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
@@ -10933,7 +10933,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:09:00Z)**_
 
 Let me check the session data JSON for the hello world session to see if the Write tool had output.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:09:04Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:09:03Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -11963,7 +11963,7 @@ pkg/provenance/types.go
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:18:46Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:18:45Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -11986,7 +11986,7 @@ pkg/spi/shell_path_hints.go:12:func NormalizePath(path, workspaceRoot string) st
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:18:51Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:18:50Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -12144,7 +12144,7 @@ Find it. It's probably in Intent's file watcher... but in any case, we need to b
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-20 21:33:34Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:33:07Z)**_
 
 <tool-use data-tool-type="generic" data-tool-name="Task"><details>
 <summary>Tool use: **Task**</summary>
@@ -13542,7 +13542,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:33:16Z)**_
 
 Perfect! I found the function you're looking for. Let me verify the intent repository path exists first:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:33:20Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:33:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -13572,7 +13572,7 @@ drwxr-xr-x  21 sean  staff    672 Feb 20 15:57 specstory-cli
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:33:20Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-20 21:33:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -13821,7 +13821,7 @@ pkg/provenance/fswatcher_test.go-127-		lastSeen: make(map[string]time.Time),
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:33:56Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:33:55Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -13930,7 +13930,7 @@ No matches found
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:34:07Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:34:06Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -14009,7 +14009,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:34:10Z)**_
 
 There it is. Both call sites pass `cwd` as the rootDir (lines 469 and 659). The fix is to canonicalize `cwd` before passing it. Let me check where `cwd` is defined.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:34:12Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:34:11Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
@@ -14191,7 +14191,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:34:59Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:35:19Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:35:03Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
@@ -14201,7 +14201,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/provenance/
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:35:28Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:35:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
@@ -14355,7 +14355,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:35:41Z)**_
 
 Looks good. Now let me build and lint.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:35:45Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:35:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14364,7 +14364,7 @@ Build the project
 `go build -o specstory 2>&1`
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:35:52Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:35:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14373,7 +14373,7 @@ Build the project
 `go build -o specstory 2>&1`
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:35:57Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:35:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14386,7 +14386,7 @@ Run linter
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:36:03Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:36:00Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14566,7 +14566,7 @@ There's one test failure. Let me find which test failed - let me scan the output
 Actually, looking at the output carefully, I can see there's a "FAIL" at the end but I didn't see a specific test failure. Let me re-run with the full output to find which test is failing.
 </details></think>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:36:14Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:36:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14583,7 +14583,7 @@ FAIL
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:36:23Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:36:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14895,7 +14895,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/provenance/
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:37:11Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:37:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14925,7 +14925,7 @@ _**Agent (claude-opus-4-6 2026-02-20 21:37:14Z)**_
 
 Both passing. Let me run the full test suite.
 
-_**Agent (claude-opus-4-6 2026-02-20 21:37:24Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:37:15Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14953,7 +14953,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	1.007s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-20 21:37:29Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:37:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -14982,7 +14982,7 @@ look at the unstaged changes and summarize what we have here
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-20 21:51:43Z)**_
+_**Agent (claude-opus-4-6 2026-02-20 21:51:42Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -15256,3 +15256,136 @@ Here's what's in the unstaged changes:
 - `agent_session_test.go`: All test call sites updated to pass `nil` as the new tsCache parameter
 
 The FSWatcher fix is ours. The timestamp work was already unstaged on the branch — it addresses the other half of the problem (Issue 1 from the earlier analysis: agent events had no timestamps, so provenance validation rejected them).
+
+---
+
+_**User (2026-02-20 22:25:53Z)**_
+
+Hide the provenance flag in the run and watch commands
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-20 22:25:58Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `provenance`
+
+```text
+24:	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+52:var provenanceEnabled bool // flag to enable AI provenance tracking
+57:// startProvenanceEngine creates and returns a provenance engine if --provenance is enabled.
+58:// Returns nil engine and nil cleanup if provenance is not enabled.
+60:func startProvenanceEngine() (*provenance.Engine, func(), error) {
+61:	if !provenanceEnabled {
+65:	engine, err := provenance.NewEngine()
+67:		return nil, nil, fmt.Errorf("failed to start provenance engine: %w", err)
+72:			slog.Error("Failed to close provenance engine", "error", closeErr)
+81:// to the provenance engine for correlation with agent activity. Returns a cleanup
+83:// (provenance disabled), returns a no-op cleanup.
+84:func startProvenanceFSWatcher(ctx context.Context, engine *provenance.Engine, rootDir string) (func(), error) {
+89:	watcher, err := provenance.NewFSWatcher(engine, rootDir)
+91:		return nil, fmt.Errorf("failed to start provenance FS watcher: %w", err)
+99:// to the provenance engine. Safe to call with nil engine (no-op).
+100:func processProvenanceEvents(ctx context.Context, engine *provenance.Engine, session *spi.AgentChatSession) {
+104:	provenance.ProcessSessionEvents(ctx, engine, session.SessionData)
+462:			// Start provenance infrastructure before the agent so all file changes are captured
+463:			provenanceEngine, provenanceCleanup, err := startProvenanceEngine()
+467:			defer provenanceCleanup()
+469:			fsCleanup, err := startProvenanceFSWatcher(ctx, provenanceEngine, cwd)
+521:				// Push agent events to provenance engine for correlation
+522:				processProvenanceEvents(ctx, provenanceEngine, session)
+619:			// Start provenance engine if enabled (used in later phases for event correlation)
+620:			provenanceEngine, provenanceCleanup, err := startProvenanceEngine()
+624:			defer provenanceCleanup()
+658:			// Start filesystem watcher for provenance correlation (uses signal context for Ctrl+C)
+659:			fsCleanup, err := startProvenanceFSWatcher(ctx, provenanceEngine, cwd)
+706:						// Push agent events to provenance engine for correlation
+707:						processProvenanceEvents(ctx, provenanceEngine, session)
+1720:	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+1732:	watchCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-20 22:26:12Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+  1718→	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+  1719→
+  1720→	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+  1721→	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+  1722→	runCmd.Flags().String("resume", "", "resume a specific session by ID")
+  1723→	runCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+  1724→	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
+  1725→	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+  1726→	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  1727→	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  1728→	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  1729→	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  1730→	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+  1731→
+  1732→	watchCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+  1733→	watchCmd.Flags().StringVar(&outputDir, "output-dir", "", "custom output directory for markdown and debug files (default: ./.specstory/history)")
+  1734→	watchCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", false, "disable cloud sync functionality")
+  1735→	watchCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+  1736→	watchCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  1737→	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-20 22:26:16Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-20 22:26:26Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-20 22:26:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and lint
+
+`go build -o specstory 2>&1 && golangci-lint run 2>&1`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-20 22:26:41Z)**_
+
+Done. The `--provenance` flag is now hidden on both `run` and `watch` commands — it still works but won't show up in `--help` output.
+
+---
+
+_**User (2026-02-20 22:26:47Z)**_
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
+
+_**User (2026-02-20 22:26:47Z)**_
+
+<command-name>/exit</command-name>
+            <command-message>exit</command-message>
+            <command-args></command-args>
+
+_**User (2026-02-20 22:26:47Z)**_
+
+<local-command-stdout>Catch you later!</local-command-stdout>
