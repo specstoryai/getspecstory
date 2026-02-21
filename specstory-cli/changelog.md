@@ -4,8 +4,8 @@
 
 ### ⚙️ Improvements
 
-- Provide terminal agent activity updates to stdout while `specstory watch` is running.
-- `specstory watch --json` flag for easily parsable output.
+- Provide activity updates to stdout while `specstory watch` is running.
+- `specstory watch --json` flag for easily parsable output acitivity updates.
 - Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
 
 ### 🐛 Bug Fixes

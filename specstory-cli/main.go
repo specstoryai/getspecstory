@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -685,6 +686,12 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				fmt.Println()
 			}
 
+			// Track sessions we've seen to suppress initial-scan output.
+			// Existing sessions found at startup get their markdown refreshed
+			// but don't produce output — only new activity does.
+			var seenMu sync.Mutex
+			seenSessions := make(map[string]bool)
+
 			// Session callback for watch mode output
 			sessionCallback := func(providerID string, session *spi.AgentChatSession) {
 				// Check if markdown file already exists to determine if this is an update or creation
@@ -705,6 +712,16 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						"sessionId", session.SessionID,
 						"provider", providerID,
 						"error", err)
+					return
+				}
+
+				// Suppress output for existing sessions seen for the first time (initial scan).
+				// New sessions (!fileExists) always get output since they represent real activity.
+				seenMu.Lock()
+				firstSeen := !seenSessions[session.SessionID]
+				seenSessions[session.SessionID] = true
+				seenMu.Unlock()
+				if firstSeen && fileExists {
 					return
 				}
 
