@@ -41,6 +41,13 @@ func WatchAgents(ctx context.Context, projectPath string, debugRaw bool, session
 func WatchProviders(ctx context.Context, projectPath string, providers map[string]spi.Provider, debugRaw bool, sessionCallback func(providerID string, session *spi.AgentChatSession)) error {
 	slog.Info("WatchProviders: Starting multi-provider watch", "projectPath", projectPath, "providerCount", len(providers), "debugRaw", debugRaw)
 
+	// Track last-seen message count per session to suppress duplicate callbacks.
+	// Providers fire callbacks on every JSONL change, but not all changes produce
+	// new messages in the parsed SessionData. Messages are append-only, so a
+	// matching total count means nothing meaningful changed.
+	var mu sync.Mutex
+	lastMsgCount := make(map[string]int)
+
 	var wg sync.WaitGroup
 	errChan := make(chan error, len(providers))
 
@@ -54,16 +61,36 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 
 			slog.Info("WatchProviders: Starting watcher for provider", "providerID", providerID, "providerName", provider.Name())
 
-			// Wrap the callback to include provider ID
+			// Wrap the callback to deduplicate and include provider ID
 			wrappedCallback := func(session *spi.AgentChatSession) {
 				if session == nil || session.SessionData == nil {
 					return
 				}
 
+				// Count total messages across all exchanges
+				totalMsgs := 0
+				for _, exchange := range session.SessionData.Exchanges {
+					totalMsgs += len(exchange.Messages)
+				}
+
+				// Skip if message count hasn't changed for this session
+				mu.Lock()
+				prev, seen := lastMsgCount[session.SessionID]
+				if seen && prev == totalMsgs {
+					mu.Unlock()
+					slog.Debug("WatchProviders: Skipping duplicate callback",
+						"providerID", providerID,
+						"sessionID", session.SessionID,
+						"totalMsgs", totalMsgs)
+					return
+				}
+				lastMsgCount[session.SessionID] = totalMsgs
+				mu.Unlock()
+
 				slog.Debug("WatchProviders: Provider callback fired",
 					"providerID", providerID,
 					"sessionID", session.SessionID,
-					"exchanges", len(session.SessionData.Exchanges))
+					"totalMsgs", totalMsgs)
 
 				sessionCallback(providerID, session)
 			}
