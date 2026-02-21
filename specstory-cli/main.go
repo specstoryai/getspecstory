@@ -118,6 +118,16 @@ func pluralSession(count int) string {
 	return "sessions"
 }
 
+// truncateSessionID shortens a UUID to first5...last5 for display.
+// Full IDs are available in --json output; the short form is enough
+// to visually distinguish sessions.
+func truncateSessionID(id string) string {
+	if len(id) <= 13 {
+		return id
+	}
+	return id[:5] + "..." + id[len(id)-5:]
+}
+
 // SyncStats tracks the results of a sync operation
 type SyncStats struct {
 	TotalSessions   int
@@ -727,13 +737,16 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 								endTime = session.SessionData.UpdatedAt
 							}
 
-							// Count user prompts/messages
+							// Count messages by role
 							userPrompts := 0
+							agentActivity := 0
 							if session.SessionData != nil {
 								for _, exchange := range session.SessionData.Exchanges {
 									for _, msg := range exchange.Messages {
 										if msg.Role == schema.RoleUser {
 											userPrompts++
+										} else {
+											agentActivity++
 										}
 									}
 								}
@@ -750,21 +763,34 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 									"provider":           providerID,
 									"markdown_size":      markdownSize,
 									"total_user_prompts": userPrompts,
+									"agent_activity":     agentActivity,
 								}
 								if !onlyCloudSync {
 									record["markdown_file"] = fileFullPath
 								}
 								_ = json.NewEncoder(os.Stdout).Encode(record)
 							} else {
-								fmt.Printf("(%s) Session %s (%s): start time %s, end time %s, provider %s, markdown size %d, total user prompts %d\n",
-									time.Now().Format(time.RFC3339),
-									action,
-									session.SessionID,
-									startTime,
-									endTime,
+								emoji := "♻️"
+								if action == "created" {
+									emoji = "✨"
+								}
+								activityWord := "activities"
+								if agentActivity == 1 {
+									activityWord = "activity"
+								}
+								promptWord := "prompts"
+								if userPrompts == 1 {
+									promptWord = "prompt"
+								}
+								fmt.Printf("  %s  %s  %s · %s · %d %s · %d agent %s\n",
+									time.Now().Format("15:04:05"),
+									emoji,
 									providerID,
-									markdownSize,
-									userPrompts)
+									truncateSessionID(session.SessionID),
+									userPrompts,
+									promptWord,
+									agentActivity,
+									activityWord)
 							}
 						}
 
