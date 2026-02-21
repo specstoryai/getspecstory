@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -686,148 +685,106 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				fmt.Println()
 			}
 
-			// Watch each provider concurrently
-			errChan := make(chan error, len(providerIDs))
-			for _, id := range providerIDs {
-				provider := providers[id]
+			// Session callback for watch mode output
+			sessionCallback := func(providerID string, session *spi.AgentChatSession) {
+				// Check if markdown file already exists to determine if this is an update or creation
+				fileFullPath := buildSessionFilePath(session, config.GetHistoryDir(), useUTC)
+				_, fileExistsErr := os.Stat(fileFullPath)
+				fileExists := fileExistsErr == nil
 
-				// Launch a goroutine for each provider
-				go func(p spi.Provider, providerID string) {
-					slog.Info("Starting agent monitoring", "provider", p.Name())
+				// Process the session (write markdown and sync to cloud)
+				// Don't show output during watch mode
+				// This is autosave mode (true)
+				markdownSize, err := processSingleSession(session, config, false, true, debugRaw, useUTC)
+				if err != nil {
+					// Log error but continue - don't fail the whole watch
+					// In watch mode, we prioritize keeping the watcher running.
+					// Failed markdown writes or cloud syncs can be retried later via
+					// the sync command, so we just log and continue.
+					slog.Error("Failed to process session update",
+						"sessionId", session.SessionID,
+						"provider", providerID,
+						"error", err)
+					return
+				}
 
-					// Create session callback for this provider
-					sessionCallback := func(session *spi.AgentChatSession) {
-						if session == nil {
-							return
-						}
-
-						// Check if markdown file already exists to determine if this is an update or creation
-						fileFullPath := buildSessionFilePath(session, config.GetHistoryDir(), useUTC)
-						_, fileExistsErr := os.Stat(fileFullPath)
-						fileExists := fileExistsErr == nil
-
-						// Process the session (write markdown and sync to cloud)
-						// Don't show output during watch mode
-						// This is autosave mode (true)
-						markdownSize, err := processSingleSession(session, config, false, true, debugRaw, useUTC)
-						if err != nil {
-							// Log error but continue - don't fail the whole watch
-							// In watch mode, we prioritize keeping the watcher running.
-							// Failed markdown writes or cloud syncs can be retried later via
-							// the sync command, so we just log and continue.
-							slog.Error("Failed to process session update",
-								"sessionId", session.SessionID,
-								"provider", p.Name(),
-								"error", err)
-							return
-						}
-
-						// Output formatted line to stdout for watch mode
-						if !silent {
-							// Determine if this was an update or creation
-							action := "updated"
-							if !fileExists {
-								action = "created"
-							}
-
-							// Get timestamps from session data
-							startTime := session.CreatedAt
-							endTime := startTime
-							if session.SessionData != nil && session.SessionData.UpdatedAt != "" {
-								endTime = session.SessionData.UpdatedAt
-							}
-
-							// Count messages by role
-							userPrompts := 0
-							agentActivity := 0
-							if session.SessionData != nil {
-								for _, exchange := range session.SessionData.Exchanges {
-									for _, msg := range exchange.Messages {
-										if msg.Role == schema.RoleUser {
-											userPrompts++
-										} else {
-											agentActivity++
-										}
-									}
-								}
-							}
-
-							// Output the formatted line
-							if jsonOutput {
-								record := map[string]interface{}{
-									"timestamp":          time.Now().Format(time.RFC3339),
-									"action":             action,
-									"session_id":         session.SessionID,
-									"start_time":         startTime,
-									"end_time":           endTime,
-									"provider":           providerID,
-									"markdown_size":      markdownSize,
-									"total_user_prompts": userPrompts,
-									"agent_activity":     agentActivity,
-								}
-								if !onlyCloudSync {
-									record["markdown_file"] = fileFullPath
-								}
-								_ = json.NewEncoder(os.Stdout).Encode(record)
-							} else {
-								emoji := "♻️"
-								if action == "created" {
-									emoji = "✨"
-								}
-								activityWord := "activities"
-								if agentActivity == 1 {
-									activityWord = "activity"
-								}
-								promptWord := "prompts"
-								if userPrompts == 1 {
-									promptWord = "prompt"
-								}
-								fmt.Printf("  %s  %s  %s · %s · %d %s · %d agent %s\n",
-									time.Now().Format("15:04:05"),
-									emoji,
-									providerID,
-									truncateSessionID(session.SessionID),
-									userPrompts,
-									promptWord,
-									agentActivity,
-									activityWord)
-							}
-						}
-
-						// Push agent events to provenance engine for correlation
-						processProvenanceEvents(ctx, provenanceEngine, session)
+				// Output formatted line to stdout for watch mode
+				if !silent {
+					// Determine if this was an update or creation
+					action := "updated"
+					if !fileExists {
+						action = "created"
 					}
 
-					err := p.WatchAgent(ctx, cwd, debugRaw, sessionCallback)
-					if err != nil {
-						// Context cancellation is expected when user presses Ctrl+C, not an error
-						if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-							slog.Info("Agent monitoring stopped", "provider", p.Name())
-							errChan <- nil
-						} else {
-							slog.Error("Agent watching failed", "provider", p.Name(), "error", err)
-							errChan <- fmt.Errorf("%s: %w", p.Name(), err)
+					// Get timestamps from session data
+					startTime := session.CreatedAt
+					endTime := startTime
+					if session.SessionData != nil && session.SessionData.UpdatedAt != "" {
+						endTime = session.SessionData.UpdatedAt
+					}
+
+					// Count messages by role
+					userPrompts := 0
+					agentActivity := 0
+					if session.SessionData != nil {
+						for _, exchange := range session.SessionData.Exchanges {
+							for _, msg := range exchange.Messages {
+								if msg.Role == schema.RoleUser {
+									userPrompts++
+								} else {
+									agentActivity++
+								}
+							}
 						}
+					}
+
+					// Output the formatted line
+					if jsonOutput {
+						record := map[string]interface{}{
+							"timestamp":          time.Now().Format(time.RFC3339),
+							"action":             action,
+							"session_id":         session.SessionID,
+							"start_time":         startTime,
+							"end_time":           endTime,
+							"provider":           providerID,
+							"markdown_size":      markdownSize,
+							"total_user_prompts": userPrompts,
+							"agent_activity":     agentActivity,
+						}
+						if !onlyCloudSync {
+							record["markdown_file"] = fileFullPath
+						}
+						_ = json.NewEncoder(os.Stdout).Encode(record)
 					} else {
-						errChan <- nil
-					}
-				}(provider, id)
-			}
-
-			// Wait for all watchers to complete (or error)
-			// In practice, they should run indefinitely until Ctrl+C
-			var lastError error
-			for i := 0; i < len(providerIDs); i++ {
-				if err := <-errChan; err != nil {
-					// Ignore context cancellation - it's expected on Ctrl+C
-					if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-						lastError = err
-						slog.Error("Provider watch error", "error", err)
+						emoji := "♻️"
+						if action == "created" {
+							emoji = "✨"
+						}
+						activityWord := "activities"
+						if agentActivity == 1 {
+							activityWord = "activity"
+						}
+						promptWord := "prompts"
+						if userPrompts == 1 {
+							promptWord = "prompt"
+						}
+						fmt.Printf("  %s  %s  %s · %s · %d %s · %d agent %s\n",
+							time.Now().Format("15:04:05"),
+							emoji,
+							providerID,
+							truncateSessionID(session.SessionID),
+							userPrompts,
+							promptWord,
+							agentActivity,
+							activityWord)
 					}
 				}
+
+				// Push agent events to provenance engine for correlation
+				processProvenanceEvents(ctx, provenanceEngine, session)
 			}
 
-			return lastError
+			return utils.WatchProviders(ctx, cwd, providers, debugRaw, sessionCallback)
 		},
 	}
 }
