@@ -520,7 +520,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				_, err := processSingleSession(session, provider, config, false, true, debugRaw, useUTC)
+				_, err := processSingleSession(session, config, false, true, debugRaw, useUTC)
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -668,7 +668,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()
 
-			// Start filesystem watcher for provenance correlation (uses signal context for Ctrl+C)
+			// Start filesystem watcher for provenance correlation if enabled (uses signal context for Ctrl+C)
 			fsCleanup, err := startProvenanceFSWatcher(ctx, provenanceEngine, cwd)
 			if err != nil {
 				return err
@@ -709,7 +709,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						// Process the session (write markdown and sync to cloud)
 						// Don't show output during watch mode
 						// This is autosave mode (true)
-						markdownSize, err := processSingleSession(session, p, config, false, true, debugRaw, useUTC)
+						markdownSize, err := processSingleSession(session, config, false, true, debugRaw, useUTC)
 						if err != nil {
 							// Log error but continue - don't fail the whole watch
 							// In watch mode, we prioritize keeping the watcher running.
@@ -989,7 +989,6 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 		// Find session across providers
 		var session *spi.AgentChatSession
-		var sessionProvider spi.Provider
 
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
@@ -1011,7 +1010,6 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 				notFoundCount++
 				continue
 			}
-			sessionProvider = specifiedProvider
 		} else {
 			// Case B: No provider specified - try all providers
 			providerIDs := registry.ListIDs()
@@ -1027,7 +1025,6 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					continue
 				}
 				if session != nil {
-					sessionProvider = provider
 					if !silent && !printToStdout {
 						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
 					}
@@ -1076,7 +1073,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			})
 		} else {
 			// Normal sync: write to file and optionally cloud sync
-			if _, err := processSingleSession(session, sessionProvider, config, true, false, debugRaw, useUTC); err != nil {
+			if _, err := processSingleSession(session, config, true, false, debugRaw, useUTC); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -1165,7 +1162,7 @@ func buildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 // debugRaw enables schema validation (only run in debug mode to avoid overhead)
 // useUTC controls timestamp format (true=UTC, false=local)
 // Returns the size of the markdown content in bytes
-func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) (int, error) {
+func processSingleSession(session *spi.AgentChatSession, config utils.OutputConfig, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) (int, error) {
 	validateSessionData(session, debugRaw)
 	writeDebugSessionData(session, debugRaw)
 
@@ -1281,7 +1278,7 @@ func processSingleSession(session *spi.AgentChatSession, provider spi.Provider, 
 	// In only-cloud-sync mode: always sync (no file to check for identical content)
 	// In normal mode: skip sync only if identical content AND in autosave mode
 	if onlyCloudSync || !identicalContent || !isAutosave {
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), isAutosave)
+		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionData.Provider.Name, isAutosave)
 	}
 
 	if showOutput && !silent {

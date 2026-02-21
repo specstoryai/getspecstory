@@ -55,6 +55,10 @@ func WatchAgents(ctx context.Context, projectPath string, debugRaw bool, session
 
 			// Wrap the callback to include provider ID
 			wrappedCallback := func(session *spi.AgentChatSession) {
+				if session == nil || session.SessionData == nil {
+					return
+				}
+
 				slog.Debug("WatchAgents: Provider callback fired",
 					"providerID", providerID,
 					"sessionID", session.SessionID,
