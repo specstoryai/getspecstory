@@ -4,7 +4,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Project Overview
 
-SpecStory CLI is a wrapper for coding agents that tracks conversations and generates markdown files from JSONL outputs. The project uses the Go language and follows standard Go project conventions.
+SpecStory CLI is a wrapper for coding agents that tracks conversations and generates markdown files. The project uses the Go language and follows standard Go project conventions.
 
 ## Key Commands
 
@@ -76,34 +76,29 @@ To see debug output, you can use the following commands:
 ./specstory sync --debug-raw          # Debug mode to output pretty-printed raw data files
 ```
 
-## Code Structure
-
-The codebase follows a clean package structure:
-
-- `main.go` - Entry point and command parsing
-- `pkg/spi/` - SPI implementation for provider implementations
-- `pkg/providers/claudecode` - Claude Code provider implementation including file watching, JSONL processing, and markdown generation
-- `pkg/cloud` - Cloud sync integration
-- `pkg/analytics/` - PostHog analytics integration
-- `pkg/log/` - Logging utilities
-- `pkg/utils/` - Helper functions (filename generation, etc.)
-
 ## Technical Details
 
-### Dependencies
+### Code Structure
 
-- **spf13/cobra** - Command-line interface framework that powers the CLI structure with subcommands, flags, and help text
-- **charmbracelet/fang** - Terminal UI components for elegant error formatting and styled terminal output
-- **fsnotify/fsnotify** - File system event notifications for watching Claude Code's JSONL files in real-time auto-save mode
-- **google/uuid** - UUID generation and validation for session IDs and shared analytics identifiers
-- **posthog/posthog-go** - Analytics tracking for sending usage events like session starts, sync operations, and errors
-- **golang.org/x/text** - Text processing and Unicode normalization for handling international characters in filenames
+The codebase package structure:
+
+- `main.go` - CLI entry point
+- `pkg/analytics/` - PostHog analytics integration
+- `pkg/cloud` - Cloud sync integration
+- `pkg/cmd` - CLI commands and command parsing
+- `pkg/config` - Optional TOML config file handling
+- `pkg/log/` - Logging utilities
+- `pkg/provenance/` - Optional AI provenance tracking
+- `pkg/providers/*` - Provider implementations including file watching, data processing, and session data generation
+- `pkg/session/` - Session data validation, helpers and markdown generation
+- `pkg/spi/` - SPI implementation for provider implementations
+- `pkg/utils/` - Helper functions
 
 ### JSONL File Behavior
 
-- Claude Code creates JSONL files in `~/.claude/projects/<dir-derived-from-project-dir>/<session-id>.jsonl`
-- File grows during conversation (append-only)
-- `run` command uses fsnotify for real-time monitoring of the project directory
+- Session data files grow during conversation (append-only)
+- `run` and `watch` commands uses fsnotify for real-time monitoring of the agent's session data directory
+- Many agents (e.g. Claude Code) use JSONL files for session data (e.g. `~/.claude/projects/<dir-derived-from-project-dir>/<session-id>.jsonl`)
 
 ### Analytics Events
 

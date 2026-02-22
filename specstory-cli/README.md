@@ -79,7 +79,67 @@ With a specific session UUID:
 specstory sync -s <session-uuid>
 ```
 
-## Development 
+## Configuration File
+
+SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:
+
+1. **User-level config**: `~/.specstory/cli/config.toml` - applies to all projects
+2. **Project-level config**: `.specstory/cli/config.toml` - applies only to the current project
+
+Configuration is loaded with the following priority (highest to lowest):
+1. CLI flags
+2. Project-level config (`.specstory/cli/config.toml`)
+3. User-level config (`~/.specstory/cli/config.toml`)
+
+### Example Configuration
+
+```toml
+# Custom output directory for markdown and debug files
+output_dir = "/path/to/output"
+
+[version_check]
+# Check for newer versions on startup (default: true)
+enabled = true
+
+[cloud_sync]
+# Sync sessions to SpecStory Cloud (default: true)
+enabled = true
+
+[local_sync]
+# Write local markdown files (default: true)
+# When false, only cloud sync is performed (equivalent to --only-cloud-sync)
+enabled = true
+
+[logging]
+# Enable console output for error/warn/info messages (default: false)
+console = false
+# Write logs to .specstory/debug/debug.log (default: false)
+log = false
+# Enable debug-level logging output (default: false)
+debug = false
+# Suppress all non-error output (default: false)
+silent = false
+
+[analytics]
+# Send anonymous usage analytics (default: true)
+enabled = true
+```
+
+### Configuration Options
+
+| Section | Option | Default | Description |
+|---------|--------|---------|-------------|
+| (root) | `output_dir` | `.specstory/history` | Custom output directory for markdown files |
+| `[version_check]` | `enabled` | `true` | Check for newer CLI versions on startup |
+| `[cloud_sync]` | `enabled` | `true` | Sync sessions to SpecStory Cloud |
+| `[local_sync]` | `enabled` | `true` | Write local markdown files |
+| `[logging]` | `console` | `false` | Output logs to stdout |
+| `[logging]` | `log` | `false` | Write logs to debug file |
+| `[logging]` | `debug` | `false` | Enable debug-level output |
+| `[logging]` | `silent` | `false` | Suppress non-error output |
+| `[analytics]` | `enabled` | `true` | Send anonymous usage analytics |
+
+## Development
 
 ### Development Prerequisites
 
