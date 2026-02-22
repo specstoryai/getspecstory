@@ -1,8 +1,8 @@
 // Package config provides configuration management for the SpecStory CLI.
 // Configuration is loaded with the following priority (highest to lowest):
 //  1. CLI flags
-//  2. Local project config: .specstory/cli-config.toml
-//  3. User-level config: ~/.specstory/cli-config.toml
+//  2. Local project config: .specstory/cli/config.toml
+//  3. User-level config: ~/.specstory/cli/config.toml
 //
 // Note: For telemetry settings, environment variables (OTEL_*) take highest priority
 // per OpenTelemetry conventions.
@@ -19,10 +19,55 @@ import (
 
 const (
 	// ConfigFileName is the name of the configuration file
-	ConfigFileName = "cli-config.toml"
+	ConfigFileName = "config.toml"
 	// SpecStoryDir is the directory name for SpecStory files
 	SpecStoryDir = ".specstory"
+	// CLIDir is the subdirectory for CLI-specific files (config, auth, etc.)
+	CLIDir = "cli"
 )
+
+// defaultConfigTemplate is the content written to a new user-level config file.
+// All options are commented out so the file is self-documenting but inert.
+const defaultConfigTemplate = `# SpecStory CLI Configuration
+#
+# This is the user-level config file for SpecStory CLI.
+# All settings here apply to every project unless overridden by a
+# project-level config at .specstory/cli/config.toml or CLI flags.
+#
+# Uncomment and edit any setting below to change the default behavior.
+# For more information, see: https://github.com/specstoryai/specstory
+
+# Custom output directory for markdown and debug files.
+# Default: .specstory (relative to the project directory)
+# output_dir = ""
+
+# [version_check]
+# Check for newer versions of the CLI on startup.
+# Default: true
+# enabled = true
+
+# [cloud_sync]
+# Sync session data to SpecStory Cloud.
+# Default: true
+# enabled = true
+
+# [local_sync]
+# Write markdown files locally.
+# When false, only cloud sync is performed (equivalent to --only-cloud-sync).
+# Default: true
+# enabled = true
+
+# [logging]
+# console = false    # Error/warn/info output to stdout (default: false)
+# log = false        # Write logs to .specstory/debug/debug.log (default: false)
+# debug = false      # Debug-level output, requires console or log (default: false)
+# silent = false     # Suppress all non-error output (default: false)
+
+# [analytics]
+# Send anonymous usage analytics to help improve SpecStory.
+# Default: true
+# enabled = true
+`
 
 // Config represents the complete CLI configuration
 type Config struct {
@@ -111,6 +156,7 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 		if err := loadTOMLFile(userConfigPath, cfg); err != nil {
 			if os.IsNotExist(err) {
 				slog.Debug("No user-level config file found", "path", userConfigPath)
+				ensureDefaultUserConfig(userConfigPath)
 			} else {
 				// Parse error or permission denied - return error to caller
 				return cfg, fmt.Errorf("failed to load user config %s: %w", userConfigPath, err)
@@ -143,24 +189,41 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	return cfg, nil
 }
 
-// getUserConfigPath returns the path to ~/.specstory/cli-config.toml
+// getUserConfigPath returns the path to ~/.specstory/cli/config.toml
 func getUserConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		slog.Debug("Could not determine home directory", "error", err)
 		return ""
 	}
-	return filepath.Join(home, SpecStoryDir, ConfigFileName)
+	return filepath.Join(home, SpecStoryDir, CLIDir, ConfigFileName)
 }
 
-// getLocalConfigPath returns the path to .specstory/cli-config.toml in the current directory
+// getLocalConfigPath returns the path to .specstory/cli/config.toml in the current directory
 func getLocalConfigPath() string {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Debug("Could not determine current directory", "error", err)
 		return ""
 	}
-	return filepath.Join(cwd, SpecStoryDir, ConfigFileName)
+	return filepath.Join(cwd, SpecStoryDir, CLIDir, ConfigFileName)
+}
+
+// ensureDefaultUserConfig creates a default user-level config file with all
+// options commented out. This makes the config discoverable without changing
+// any behavior. Failures are silently ignored — this is a convenience, not
+// a requirement.
+func ensureDefaultUserConfig(path string) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Debug("Could not create config directory", "path", dir, "error", err)
+		return
+	}
+	if err := os.WriteFile(path, []byte(defaultConfigTemplate), 0644); err != nil {
+		slog.Debug("Could not write default config file", "path", path, "error", err)
+		return
+	}
+	slog.Debug("Created default user config file", "path", path)
 }
 
 // loadTOMLFile reads a TOML file and decodes it into the config struct.

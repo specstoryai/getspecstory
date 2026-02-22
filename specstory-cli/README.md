@@ -83,13 +83,13 @@ specstory sync -s <session-uuid>
 
 SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:
 
-1. **User-level config**: `~/.specstory/cli-config.toml` - applies to all projects
-2. **Project-level config**: `.specstory/cli-config.toml` - applies only to the current project
+1. **User-level config**: `~/.specstory/cli/config.toml` - applies to all projects
+2. **Project-level config**: `.specstory/cli/config.toml` - applies only to the current project
 
 Configuration is loaded with the following priority (highest to lowest):
 1. CLI flags
-2. Project-level config (`.specstory/cli-config.toml`)
-3. User-level config (`~/.specstory/cli-config.toml`)
+2. Project-level config (`.specstory/cli/config.toml`)
+3. User-level config (`~/.specstory/cli/config.toml`)
 
 ### Example Configuration
 

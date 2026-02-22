@@ -5,16 +5,18 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Helper to create a temporary config file with the given content
 func createTempConfigFile(t *testing.T, dir, content string) string {
 	t.Helper()
-	specstoryDir := filepath.Join(dir, SpecStoryDir)
-	if err := os.MkdirAll(specstoryDir, 0755); err != nil {
-		t.Fatalf("Failed to create .specstory dir: %v", err)
+	configDir := filepath.Join(dir, SpecStoryDir, CLIDir)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
 	}
-	configPath := filepath.Join(specstoryDir, ConfigFileName)
+	configPath := filepath.Join(configDir, ConfigFileName)
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
@@ -474,12 +476,12 @@ func TestMissingFileHandling(t *testing.T) {
 
 			// Create directories if needed
 			if tt.createUserDir {
-				userSpecstoryDir := filepath.Join(tempHome, SpecStoryDir)
-				if err := os.MkdirAll(userSpecstoryDir, 0755); err != nil {
-					t.Fatalf("Failed to create user .specstory dir: %v", err)
+				userConfigDir := filepath.Join(tempHome, SpecStoryDir, CLIDir)
+				if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+					t.Fatalf("Failed to create user config dir: %v", err)
 				}
 				if tt.createUserConf {
-					configPath := filepath.Join(userSpecstoryDir, ConfigFileName)
+					configPath := filepath.Join(userConfigDir, ConfigFileName)
 					if err := os.WriteFile(configPath, []byte(`output_dir = "/user"`), 0644); err != nil {
 						t.Fatalf("Failed to create user config: %v", err)
 					}
@@ -487,12 +489,12 @@ func TestMissingFileHandling(t *testing.T) {
 			}
 
 			if tt.createProjDir {
-				projSpecstoryDir := filepath.Join(tempProject, SpecStoryDir)
-				if err := os.MkdirAll(projSpecstoryDir, 0755); err != nil {
-					t.Fatalf("Failed to create project .specstory dir: %v", err)
+				projConfigDir := filepath.Join(tempProject, SpecStoryDir, CLIDir)
+				if err := os.MkdirAll(projConfigDir, 0755); err != nil {
+					t.Fatalf("Failed to create project config dir: %v", err)
 				}
 				if tt.createProjConf {
-					configPath := filepath.Join(projSpecstoryDir, ConfigFileName)
+					configPath := filepath.Join(projConfigDir, ConfigFileName)
 					if err := os.WriteFile(configPath, []byte(`output_dir = "/project"`), 0644); err != nil {
 						t.Fatalf("Failed to create project config: %v", err)
 					}
@@ -568,5 +570,197 @@ func TestDefaultValues(t *testing.T) {
 	// OutputDir should be empty string (no default path)
 	if cfg.GetOutputDir() != "" {
 		t.Errorf("GetOutputDir() = %q, want empty string", cfg.GetOutputDir())
+	}
+}
+
+// TestEnsureDefaultUserConfig tests auto-creation of the default user config file
+func TestEnsureDefaultUserConfig(t *testing.T) {
+	// Save and restore original working directory
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	// Save and restore original HOME
+	origHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	t.Run("creates file when none exists", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// Load config — no user config exists, should auto-create
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// Verify the file was created at the correct path
+		expectedPath := filepath.Join(tempHome, SpecStoryDir, CLIDir, ConfigFileName)
+		if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+			t.Fatalf("Default config file was not created at %s", expectedPath)
+		}
+
+		// Verify content matches the template
+		content, err := os.ReadFile(expectedPath)
+		if err != nil {
+			t.Fatalf("Failed to read created config: %v", err)
+		}
+		if string(content) != defaultConfigTemplate {
+			t.Errorf("Created config content does not match template")
+		}
+
+		// Verify all config values are still defaults (everything is commented out)
+		if cfg.GetOutputDir() != "" {
+			t.Errorf("GetOutputDir() = %q, want empty", cfg.GetOutputDir())
+		}
+		if !cfg.IsVersionCheckEnabled() {
+			t.Errorf("IsVersionCheckEnabled() = false, want true")
+		}
+		if !cfg.IsCloudSyncEnabled() {
+			t.Errorf("IsCloudSyncEnabled() = false, want true")
+		}
+		if !cfg.IsLocalSyncEnabled() {
+			t.Errorf("IsLocalSyncEnabled() = false, want true")
+		}
+		if !cfg.IsAnalyticsEnabled() {
+			t.Errorf("IsAnalyticsEnabled() = false, want true")
+		}
+	})
+
+	t.Run("does not overwrite existing file", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// Create an existing user config with custom settings
+		existingContent := `output_dir = "/my/custom/path"`
+		createTempConfigFile(t, tempHome, existingContent)
+
+		// Load config — file exists, should NOT overwrite
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// Verify existing config was preserved and loaded
+		if cfg.GetOutputDir() != "/my/custom/path" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/my/custom/path")
+		}
+
+		// Verify file content is still the original
+		configPath := filepath.Join(tempHome, SpecStoryDir, CLIDir, ConfigFileName)
+		content, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("Failed to read config: %v", err)
+		}
+		if string(content) != existingContent {
+			t.Errorf("Config file was modified, got %q, want %q", string(content), existingContent)
+		}
+	})
+
+	t.Run("handles unwritable directory gracefully", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// Make .specstory directory read-only so config creation fails
+		specstoryDir := filepath.Join(tempHome, SpecStoryDir)
+		if err := os.MkdirAll(specstoryDir, 0755); err != nil {
+			t.Fatalf("Failed to create dir: %v", err)
+		}
+		if err := os.Chmod(specstoryDir, 0555); err != nil {
+			t.Fatalf("Failed to chmod: %v", err)
+		}
+		// Restore permissions for cleanup
+		defer func() { _ = os.Chmod(specstoryDir, 0755) }()
+
+		// Load should succeed even though config creation fails
+		_, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v, want no error", err)
+		}
+
+		// Verify no config file was created
+		configPath := filepath.Join(tempHome, SpecStoryDir, CLIDir, ConfigFileName)
+		if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+			t.Errorf("Config file should not exist at %s", configPath)
+		}
+	})
+
+	t.Run("created file is loadable on subsequent calls", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// First Load — creates the default config
+		_, err := Load(nil)
+		if err != nil {
+			t.Fatalf("First Load() returned error: %v", err)
+		}
+
+		// Second Load — reads the created config
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Second Load() returned error: %v", err)
+		}
+
+		// Defaults should still hold
+		if cfg.GetOutputDir() != "" {
+			t.Errorf("GetOutputDir() = %q, want empty", cfg.GetOutputDir())
+		}
+		if !cfg.IsVersionCheckEnabled() {
+			t.Errorf("IsVersionCheckEnabled() = false, want true")
+		}
+	})
+}
+
+// TestDefaultConfigTemplateParsesWhenUncommented verifies the default config
+// template is valid TOML when all comment prefixes are removed. This guards
+// against template syntax rot.
+func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
+	var uncommented strings.Builder
+	for line := range strings.SplitSeq(defaultConfigTemplate, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Skip blank lines and pure prose comment lines (no "=" or "[")
+		if trimmed == "" || (strings.HasPrefix(trimmed, "#") && !strings.Contains(trimmed, "=") && !strings.Contains(trimmed, "[")) {
+			continue
+		}
+		// Strip leading "# " from commented-out TOML lines
+		trimmed = strings.TrimPrefix(trimmed, "# ")
+		uncommented.WriteString(trimmed)
+		uncommented.WriteString("\n")
+	}
+
+	var cfg Config
+	if _, err := toml.Decode(uncommented.String(), &cfg); err != nil {
+		t.Fatalf("Default config template is not valid TOML when uncommented:\n%s\nError: %v",
+			uncommented.String(), err)
 	}
 }
