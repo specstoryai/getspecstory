@@ -1,4 +1,4 @@
-package markdown
+package session
 
 import (
 	"fmt"
@@ -42,7 +42,7 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 
 	// Create title from session info
 	title := generateTitle(sessionData, useUTC)
-	markdown.WriteString(fmt.Sprintf("# %s\n\n", title))
+	fmt.Fprintf(&markdown, "# %s\n\n", title)
 
 	// Add session metadata comment using the same timestamp format as the title
 	var commentTimestamp string
@@ -51,10 +51,10 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	} else {
 		commentTimestamp = formatTimestamp(sessionData.CreatedAt, useUTC)
 	}
-	markdown.WriteString(fmt.Sprintf("<!-- %s Session %s (%s) -->\n\n",
+	fmt.Fprintf(&markdown, "<!-- %s Session %s (%s) -->\n\n",
 		sessionData.Provider.Name,
 		sessionData.SessionID,
-		commentTimestamp))
+		commentTimestamp)
 
 	// Render each exchange, tracking role across exchanges for proper separators
 	prevRole := ""
@@ -112,7 +112,7 @@ func renderMessage(msg Message, prevRole string, includeMessageIDs bool, useUTC 
 		// Strip one trailing newline so the message ID comment appears on the next line
 		roleHeader = strings.TrimSuffix(roleHeader, "\n")
 		markdown.WriteString(roleHeader)
-		markdown.WriteString(fmt.Sprintf("<!-- message-id: %s -->\n\n", msg.ID))
+		fmt.Fprintf(&markdown, "<!-- message-id: %s -->\n\n", msg.ID)
 	} else {
 		markdown.WriteString(roleHeader)
 	}
@@ -201,16 +201,16 @@ func renderToolInfo(tool *ToolInfo) string {
 	}
 
 	// Open tool-use tag
-	markdown.WriteString(fmt.Sprintf(ToolUseOpenTag, toolType, tool.Name))
+	fmt.Fprintf(&markdown, ToolUseOpenTag, toolType, tool.Name)
 	markdown.WriteString("\n")
 
 	// Generate summary tag
 	if tool.Summary != nil && *tool.Summary != "" {
 		// Provider provided custom summary content
-		markdown.WriteString(fmt.Sprintf("<summary>%s</summary>\n", *tool.Summary))
+		fmt.Fprintf(&markdown, "<summary>%s</summary>\n", *tool.Summary)
 	} else {
 		// Generate default summary
-		markdown.WriteString(fmt.Sprintf("<summary>Tool use: **%s**</summary>\n", tool.Name))
+		fmt.Fprintf(&markdown, "<summary>Tool use: **%s**</summary>\n", tool.Name)
 	}
 
 	// Use pre-formatted markdown from provider if present
@@ -256,7 +256,7 @@ func renderGenericTool(tool *ToolInfo) string {
 		sort.Strings(keys)
 
 		for _, key := range keys {
-			markdown.WriteString(fmt.Sprintf("- %s: `%v`\n", key, tool.Input[key]))
+			fmt.Fprintf(&markdown, "- %s: `%v`\n", key, tool.Input[key])
 		}
 		markdown.WriteString("\n")
 	}

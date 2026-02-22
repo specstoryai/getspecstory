@@ -29,6 +29,7 @@ type CursorWatcher struct {
 	resumedSession  string                      // Session ID being resumed (watch for changes)
 	sessionCallback func(*spi.AgentChatSession) // Callback for session updates
 	debugRaw        bool                        // Whether to write debug raw data files
+	tsCache         *MessageTimestampCache      // Tracks first-seen timestamps for messages in run/watch mode
 	mu              sync.RWMutex                // Protects maps
 }
 
@@ -53,6 +54,7 @@ func NewCursorWatcher(projectPath string, debugRaw bool, sessionCallback func(*s
 		resumedSession:  "",
 		sessionCallback: sessionCallback,
 		debugRaw:        debugRaw,
+		tsCache:         NewMessageTimestampCache(),
 	}, nil
 }
 
@@ -291,7 +293,7 @@ func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) {
 	}
 
 	// Generate SessionData from blob records
-	sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug)
+	sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug, w.tsCache)
 	if err != nil {
 		slog.Error("Failed to generate SessionData", "sessionId", sessionID, "error", err)
 		return

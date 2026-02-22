@@ -1,5 +1,17 @@
 # Specstory CLI Changelog
 
+## v1.8.0 2026-02-22
+
+### ⚙️ Improvements
+
+- Provide activity updates to stdout while `specstory watch` is running.
+- `specstory watch --json` flag for easily parsable output activity updates.
+- Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
+
+### 🐛 Bug Fixes
+
+- Updated processing of tool call results in Gemini CLI provider to fix broken session rendering with newer versions of Gemini CLI.
+
 ## v1.7.0 2026-02-16
 
 ### ⚙️ Improvements

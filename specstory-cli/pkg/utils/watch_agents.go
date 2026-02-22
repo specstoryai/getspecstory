@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -10,23 +11,9 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
 
-// WatchAgents starts watchers for all registered providers concurrently
-// Calls sessionCallback when any provider detects activity
-// Continues watching even if individual providers error (logs errors but keeps running)
-// Runs until context is cancelled or all watchers stop
-//
-// Parameters:
-//   - ctx: Context for cancellation and timeout control
-//   - projectPath: Agent's working directory to watch
-//   - debugRaw: whether to write debug raw data files
-//   - sessionCallback: called with provider ID and AgentChatSession data on each update
-//
-// The callback includes the provider ID to help consumers route/filter sessions.
-// The callback should not block as it may delay other provider notifications.
+// WatchAgents starts watchers for all registered providers concurrently.
+// Convenience wrapper around WatchProviders that resolves the full provider registry.
 func WatchAgents(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(providerID string, session *spi.AgentChatSession)) error {
-	slog.Info("WatchAgents: Starting multi-provider watch", "projectPath", projectPath, "debugRaw", debugRaw)
-
-	// Get all registered providers
 	registry := factory.GetRegistry()
 	providers := registry.GetAll()
 
@@ -34,92 +21,100 @@ func WatchAgents(ctx context.Context, projectPath string, debugRaw bool, session
 		return fmt.Errorf("no providers registered")
 	}
 
-	slog.Info("WatchAgents: Found providers", "count", len(providers))
+	return WatchProviders(ctx, projectPath, providers, debugRaw, sessionCallback)
+}
 
-	// Create a WaitGroup to track all watcher goroutines
+// WatchProviders starts watchers for the given providers concurrently.
+// Calls sessionCallback when any provider detects activity.
+// Runs until context is cancelled or all watchers stop.
+// Context cancellation (Ctrl+C) is treated as a clean exit, not an error.
+//
+// Parameters:
+//   - ctx: Context for cancellation and timeout control
+//   - projectPath: Agent's working directory to watch
+//   - providers: map of provider ID to provider instance to watch
+//   - debugRaw: whether to write debug raw data files
+//   - sessionCallback: called with provider ID and AgentChatSession data on each update
+//
+// The callback includes the provider ID to help consumers route/filter sessions.
+// The callback should not block as it may delay other provider notifications.
+func WatchProviders(ctx context.Context, projectPath string, providers map[string]spi.Provider, debugRaw bool, sessionCallback func(providerID string, session *spi.AgentChatSession)) error {
+	slog.Info("WatchProviders: Starting multi-provider watch", "projectPath", projectPath, "providerCount", len(providers), "debugRaw", debugRaw)
+
+	// Track last-seen message count per session to suppress duplicate callbacks.
+	// Providers fire callbacks on every JSONL change, but not all changes produce
+	// new messages in the parsed SessionData. Messages are append-only, so a
+	// matching total count means nothing meaningful changed.
+	var mu sync.Mutex
+	lastMsgCount := make(map[string]int)
+
 	var wg sync.WaitGroup
+	errChan := make(chan error, len(providers))
 
-	// Create a channel to collect errors from watchers
-	errorChan := make(chan error, len(providers))
-
-	// Start a watcher for each provider
 	for providerID, provider := range providers {
-		providerID := providerID // Capture loop variable
-		provider := provider     // Capture loop variable
-
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
-			slog.Info("WatchAgents: Starting watcher for provider", "providerID", providerID, "providerName", provider.Name())
+			slog.Info("WatchProviders: Starting watcher for provider", "providerID", providerID, "providerName", provider.Name())
 
-			// Wrap the callback to include provider ID
+			// Wrap the callback to deduplicate and include provider ID
 			wrappedCallback := func(session *spi.AgentChatSession) {
-				slog.Debug("WatchAgents: Provider callback fired",
+				if session == nil || session.SessionData == nil {
+					return
+				}
+
+				// Count total messages across all exchanges
+				totalMsgs := 0
+				for _, exchange := range session.SessionData.Exchanges {
+					totalMsgs += len(exchange.Messages)
+				}
+
+				// Skip if message count hasn't changed for this session
+				mu.Lock()
+				prev, seen := lastMsgCount[session.SessionID]
+				if seen && prev == totalMsgs {
+					mu.Unlock()
+					slog.Debug("WatchProviders: Skipping duplicate callback",
+						"providerID", providerID,
+						"sessionID", session.SessionID,
+						"totalMsgs", totalMsgs)
+					return
+				}
+				lastMsgCount[session.SessionID] = totalMsgs
+				mu.Unlock()
+
+				slog.Debug("WatchProviders: Provider callback fired",
 					"providerID", providerID,
 					"sessionID", session.SessionID,
-					"exchanges", len(session.SessionData.Exchanges))
+					"totalMsgs", totalMsgs)
 
-				// Call the user's callback with provider ID
 				sessionCallback(providerID, session)
 			}
 
-			// Call the provider's WatchAgent method with context
 			err := provider.WatchAgent(ctx, projectPath, debugRaw, wrappedCallback)
-
 			if err != nil {
-				slog.Warn("WatchAgents: Provider watcher stopped with error",
-					"providerID", providerID,
-					"providerName", provider.Name(),
-					"error", err)
-
-				// Send error to channel (non-blocking)
-				select {
-				case errorChan <- fmt.Errorf("provider %s (%s): %w", providerID, provider.Name(), err):
-				default:
-					// Error channel full, log but continue
-					slog.Warn("WatchAgents: Error channel full, discarding error", "providerID", providerID)
+				// Context cancellation is expected when user presses Ctrl+C, not an error
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					slog.Info("WatchProviders: Provider watcher stopped", "provider", provider.Name())
+					errChan <- nil
+				} else {
+					slog.Error("WatchProviders: Provider watcher failed", "provider", provider.Name(), "error", err)
+					errChan <- fmt.Errorf("%s: %w", provider.Name(), err)
 				}
 			} else {
-				slog.Info("WatchAgents: Provider watcher stopped normally",
-					"providerID", providerID,
-					"providerName", provider.Name())
+				errChan <- nil
 			}
 		}()
 	}
 
-	// Wait for either context cancellation or all watchers to stop
-	done := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(done)
-	}()
+	// Wait for all watchers to complete (they run until Ctrl+C)
+	wg.Wait()
 
-	select {
-	case <-ctx.Done():
-		slog.Info("WatchAgents: Context cancelled, stopping all watchers")
-		// Wait for all goroutines to finish
-		wg.Wait()
-		return ctx.Err()
-
-	case <-done:
-		slog.Info("WatchAgents: All watchers stopped")
-		// Collect any errors (non-blocking)
-		close(errorChan)
-
-		var errors []error
-		for err := range errorChan {
-			errors = append(errors, err)
-		}
-
-		if len(errors) > 0 {
-			slog.Warn("WatchAgents: Some watchers encountered errors", "errorCount", len(errors))
-			// Log all errors but don't fail - we continue watching even if some providers error
-			for _, err := range errors {
-				slog.Warn("WatchAgents: Watcher error", "error", err)
-			}
-		}
-
-		return nil
+	// Drain error channel — errors are already logged in the goroutines with full context
+	for range len(providers) {
+		<-errChan
 	}
+
+	return nil
 }

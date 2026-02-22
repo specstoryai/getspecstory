@@ -45,7 +45,7 @@ func TestGenerateAgentSession_Basic(t *testing.T) {
 	workspaceRoot := "/test/workspace"
 
 	// Generate agent session
-	agentSession, err := GenerateAgentSession(blobRecords, workspaceRoot, sessionID, createdAt, slug)
+	agentSession, err := GenerateAgentSession(blobRecords, workspaceRoot, sessionID, createdAt, slug, nil)
 	if err != nil {
 		t.Fatalf("GenerateAgentSession failed: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestGenerateAgentSession_WithTools(t *testing.T) {
 		},
 	}
 
-	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test")
+	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test", nil)
 	if err != nil {
 		t.Fatalf("GenerateAgentSession failed: %v", err)
 	}
@@ -292,7 +292,7 @@ func TestGenerateAgentSession_MultipleExchanges(t *testing.T) {
 		},
 	}
 
-	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test")
+	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test", nil)
 	if err != nil {
 		t.Fatalf("GenerateAgentSession failed: %v", err)
 	}
@@ -450,7 +450,7 @@ func TestGenerateAgentSession_SkipUserInfo(t *testing.T) {
 		},
 	}
 
-	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test")
+	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test", nil)
 	if err != nil {
 		t.Fatalf("GenerateAgentSession failed: %v", err)
 	}
@@ -488,7 +488,7 @@ func TestGenerateAgentSession_StripUserQueryTags(t *testing.T) {
 		},
 	}
 
-	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test")
+	agentSession, err := GenerateAgentSession(blobRecords, "/test", "session-1", "2025-01-15T10:00:00Z", "test", nil)
 	if err != nil {
 		t.Fatalf("GenerateAgentSession failed: %v", err)
 	}
