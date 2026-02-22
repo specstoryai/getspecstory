@@ -52,9 +52,6 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 	errChan := make(chan error, len(providers))
 
 	for providerID, provider := range providers {
-		providerID := providerID // Capture loop variable
-		provider := provider     // Capture loop variable
-
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -114,14 +111,10 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 	// Wait for all watchers to complete (they run until Ctrl+C)
 	wg.Wait()
 
-	// Collect errors
-	var lastError error
+	// Drain error channel — errors are already logged in the goroutines with full context
 	for range len(providers) {
-		if err := <-errChan; err != nil {
-			lastError = err
-			slog.Error("WatchProviders: Provider watch error", "error", err)
-		}
+		<-errChan
 	}
 
-	return lastError
+	return nil
 }

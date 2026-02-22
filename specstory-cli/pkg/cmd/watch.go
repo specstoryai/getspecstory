@@ -36,7 +36,8 @@ func truncateSessionID(id string) string {
 }
 
 // CreateWatchCommand dynamically creates the watch command with provider information.
-func CreateWatchCommand() *cobra.Command {
+// cloudURL binds to the parent's --cloud-url flag so PersistentPreRunE can apply it.
+func CreateWatchCommand(cloudURL *string) *cobra.Command {
 	registry := factory.GetRegistry()
 	ids := registry.ListIDs()
 	providerList := registry.GetProviderList()
@@ -306,7 +307,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().Bool("local-time-zone", false, "use local timezone for file name and content timestamps (when not present: UTC)")
 	watchCmd.Flags().Bool("provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = watchCmd.Flags().MarkHidden("provenance") // Hidden flag
-	watchCmd.Flags().String("cloud-url", "", "override the default cloud API base URL")
+	watchCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 
 	return watchCmd

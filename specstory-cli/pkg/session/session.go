@@ -71,6 +71,10 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 // useUTC controls timestamp format (true=UTC, false=local).
 // Returns the size of the markdown content in bytes.
 func ProcessSingleSession(session *spi.AgentChatSession, config utils.OutputConfig, onlyCloudSync bool, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) (int, error) {
+	if session == nil || session.SessionData == nil {
+		return 0, fmt.Errorf("session or session data is nil")
+	}
+
 	ValidateSessionData(session, debugRaw)
 	WriteDebugSessionData(session, debugRaw)
 

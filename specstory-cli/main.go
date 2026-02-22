@@ -1206,7 +1206,7 @@ func main() {
 	// NOW create the commands - after logging is configured
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
-	watchCmd := cmdpkg.CreateWatchCommand()
+	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()
 	checkCmd := cmdpkg.CreateCheckCommand()
