@@ -18,7 +18,7 @@ func TestFormatToolAsMarkdownShell(t *testing.T) {
 
 	out := formatToolAsMarkdown(tool)
 
-	// Should NOT have wrapper tags (those are added by pkg/markdown)
+	// Should NOT have wrapper tags (those are added by pkg/session)
 	if strings.Contains(out, "<tool-use") {
 		t.Fatalf("should not contain <tool-use> wrapper tags: %s", out)
 	}

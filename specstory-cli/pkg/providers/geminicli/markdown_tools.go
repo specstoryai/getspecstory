@@ -8,7 +8,7 @@ import (
 )
 
 // formatToolAsMarkdown generates formatted markdown for a ToolInfo (input + output)
-// Returns the inner content only (no <tool-use> tags - those are added by pkg/markdown)
+// Returns the inner content only (no <tool-use> tags - those are added by pkg/session)
 // Also sets tool.Summary if a custom summary is needed
 func formatToolAsMarkdown(tool *ToolInfo) string {
 	if tool == nil {
