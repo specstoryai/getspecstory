@@ -308,6 +308,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.EnsureDefaultProjectConfig()
 			slog.Info("Running in interactive mode")
 
 			// Get custom command if provided via flag
@@ -517,6 +518,8 @@ Provide a specific agent ID to sync a specific provider.`
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.EnsureDefaultProjectConfig()
+
 			// Get session IDs if provided via flag
 			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
 

@@ -199,6 +199,144 @@ enabled = false
 	}
 }
 
+// TestConfigMerge tests that user and project configs are merged, not replaced.
+// Non-overlapping settings from both levels should coexist, with project-level
+// taking precedence where both define the same key.
+func TestConfigMerge(t *testing.T) {
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	origHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	t.Run("non-overlapping settings from both configs are preserved", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User config sets output_dir and disables analytics
+		createTempConfigFile(t, tempHome, `
+[local_sync]
+output_dir = "/user/output"
+
+[analytics]
+enabled = false
+`)
+		// Project config sets debug_dir and disables cloud sync — no overlap
+		createTempConfigFile(t, tempProject, `
+[logging]
+debug_dir = "/project/debug"
+
+[cloud_sync]
+enabled = false
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// User-level output_dir should survive (project didn't set it)
+		if cfg.GetOutputDir() != "/user/output" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/user/output")
+		}
+		// User-level analytics=false should survive (project didn't set it)
+		if cfg.IsAnalyticsEnabled() {
+			t.Errorf("IsAnalyticsEnabled() = true, want false (from user config)")
+		}
+		// Project-level debug_dir should be present
+		if cfg.GetDebugDir() != "/project/debug" {
+			t.Errorf("GetDebugDir() = %q, want %q", cfg.GetDebugDir(), "/project/debug")
+		}
+		// Project-level cloud_sync=false should be present
+		if cfg.IsCloudSyncEnabled() {
+			t.Errorf("IsCloudSyncEnabled() = true, want false (from project config)")
+		}
+	})
+
+	t.Run("project overrides user for same key, preserves rest", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User sets output_dir and enables console logging
+		createTempConfigFile(t, tempHome, `
+[local_sync]
+output_dir = "/user/output"
+
+[logging]
+console = true
+`)
+		// Project overrides output_dir but doesn't mention console
+		createTempConfigFile(t, tempProject, `
+[local_sync]
+output_dir = "/project/output"
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// output_dir should be the project value
+		if cfg.GetOutputDir() != "/project/output" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/project/output")
+		}
+		// console should still be true from user config
+		if !cfg.IsConsoleEnabled() {
+			t.Errorf("IsConsoleEnabled() = false, want true (from user config)")
+		}
+	})
+
+	t.Run("CLI flags override both user and project config", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User sets output_dir
+		createTempConfigFile(t, tempHome, `
+[local_sync]
+output_dir = "/user/output"
+`)
+		// Project also sets output_dir
+		createTempConfigFile(t, tempProject, `
+[local_sync]
+output_dir = "/project/output"
+`)
+
+		// CLI flag overrides both
+		cfg, err := Load(&CLIOverrides{OutputDir: "/cli/output"})
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		if cfg.GetOutputDir() != "/cli/output" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/cli/output")
+		}
+	})
+}
+
 // TestCLIOverrides tests that CLI flags override config file settings
 func TestCLIOverrides(t *testing.T) {
 	// Save and restore original working directory

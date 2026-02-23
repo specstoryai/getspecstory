@@ -367,6 +367,35 @@ func ensureDefaultUserConfig(path string) {
 	slog.Debug("Created default user config file", "path", path)
 }
 
+// EnsureDefaultProjectConfig creates a default project-level config file at
+// .specstory/cli/config.toml if one doesn't already exist. All options are
+// commented out so the file is self-documenting but inert.
+//
+// This should only be called from commands that imply active project work
+// (run, sync, watch) to avoid scattering config files in arbitrary directories.
+// Failures are silently ignored — this is a convenience, not a requirement.
+func EnsureDefaultProjectConfig() {
+	path := getLocalConfigPath()
+	if path == "" {
+		return
+	}
+	// Don't overwrite an existing file
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Debug("Could not create config directory", "path", dir, "error", err)
+		return
+	}
+	processed := processTemplate(defaultConfigTemplate, "project")
+	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+		slog.Debug("Could not write default config file", "path", path, "error", err)
+		return
+	}
+	slog.Debug("Created default project config file", "path", path)
+}
+
 // loadTOMLFile reads a TOML file and decodes it into the config struct.
 // Fields are merged (later calls overwrite earlier values).
 func loadTOMLFile(path string, cfg *Config) error {

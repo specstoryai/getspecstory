@@ -16,6 +16,7 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
@@ -78,6 +79,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		RunE: func(cmd *cobra.Command, args []string) error {
+			config.EnsureDefaultProjectConfig()
 			slog.Info("Running in watch mode")
 
 			registry := factory.GetRegistry()
