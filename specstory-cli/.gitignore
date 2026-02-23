@@ -57,3 +57,5 @@ dist/
 
 # Our binary
 specstory
+specstory-cli
+specstory_arm64
