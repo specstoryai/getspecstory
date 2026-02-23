@@ -303,7 +303,7 @@ prompts = false
 
 ### Disabling Telemetry
 
-Telemetry is disabled unless you configure an OLTP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can use `OTEL_SDK_DISABLED`, which is a standard OTel convention:
+Telemetry is disabled unless you configure an OTLP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can use `OTEL_SDK_DISABLED`, which is a standard OTel convention:
 
 ```zsh
 export OTEL_SDK_DISABLED="true"
