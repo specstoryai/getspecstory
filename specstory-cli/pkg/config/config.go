@@ -71,7 +71,7 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # debug = true # equivalent to --debug 
 
 # Suppress all non-error output (default: false)
-# silent = true	# equivalent to --silence
+# silent = true	# equivalent to --silent
 
 [version_check]
 # Check for new versions of the CLI on startup.
