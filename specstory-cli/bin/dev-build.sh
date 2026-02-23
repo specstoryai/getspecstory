@@ -24,15 +24,14 @@ for target in \
   "linux amd64 x86_64" \
   "linux arm64 arm64" \
   "darwin amd64 x86_64" \
-  "darwin arm64 arm64"
+  "darwin arm64 arm64" \
+  "windows amd64 x86_64" \
+  "windows arm64 arm64"
 do
   read -r os goarch filename_arch <<< "$target"
   out="$DEST_DIR/specstory_${os}_${filename_arch}"
   echo "Building $out..."
   CGO_ENABLED=0 GOOS="$os" GOARCH="$goarch" go build -ldflags="$LDFLAGS" -o "$out" ./main.go
 done
-
-echo "Building $DEST_DIR/specstory_win32_amd64.exe..."
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="$LDFLAGS" -o "$DEST_DIR/specstory_win32.exe" ./main.go
 
 echo "Done. Binaries in $DEST_DIR"
