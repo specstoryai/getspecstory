@@ -69,26 +69,6 @@ func expandTilde(path string) string {
 	return path
 }
 
-// getPathType determines the type of path being used for Cursor CLI.
-// Returns one of the following for analytics tracking:
-//   - "cursor_bin": Cursor's standard installation directory (~/.cursor/bin/)
-//   - "user_local": User's local bin directory (~/.local/bin/)
-//   - "absolute_path": Custom absolute path provided by user
-//   - "system_path": Found in system PATH environment variable
-//
-// This helps understand how users have Cursor CLI installed for support and usage patterns.
-func getPathType(cursorCmd, resolvedPath string) string {
-	if strings.Contains(resolvedPath, "/.cursor/bin/") {
-		return "cursor_bin"
-	} else if strings.Contains(resolvedPath, "/.local/bin/") {
-		return "user_local"
-	} else if filepath.IsAbs(cursorCmd) {
-		return "absolute_path"
-	} else {
-		return "system_path"
-	}
-}
-
 // parseCursorCommand parses a custom command string into executable and arguments.
 // If customCommand is empty, returns the default command.
 // Supports quoted strings with spaces: cursor-agent --arg "value with spaces"

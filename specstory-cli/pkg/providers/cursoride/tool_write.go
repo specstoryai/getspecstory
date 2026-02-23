@@ -53,23 +53,23 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 
 	// Build summary line
 	if params.RelativeWorkspacePath != "" {
-		message.WriteString(fmt.Sprintf(`<details><summary>Tool use: **%s** • Edit file: %s</summary>
+		fmt.Fprintf(&message, `<details><summary>Tool use: **%s** • Edit file: %s</summary>
 
-`, bubble.Name, params.RelativeWorkspacePath))
+`, bubble.Name, params.RelativeWorkspacePath)
 	} else {
-		message.WriteString(fmt.Sprintf(`<details><summary>Tool use: **%s**</summary>
+		fmt.Fprintf(&message, `<details><summary>Tool use: **%s**</summary>
 
-`, bubble.Name))
+`, bubble.Name)
 	}
 
 	// Add instructions if present
 	if params.Instructions != "" {
-		message.WriteString(fmt.Sprintf("%s\n\n", params.Instructions))
+		fmt.Fprintf(&message, "%s\n\n", params.Instructions)
 	}
 
 	// Add status if not completed
 	if bubble.Status != "" && bubble.Status != "completed" {
-		message.WriteString(fmt.Sprintf("Status: **%s**\n\n", bubble.Status))
+		fmt.Fprintf(&message, "Status: **%s**\n\n", bubble.Status)
 	}
 
 	// Add apply failed message
@@ -80,10 +80,10 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 	// Add diff chunks if present
 	if result.Diff != nil && len(result.Diff.Chunks) > 0 {
 		for i, chunk := range result.Diff.Chunks {
-			message.WriteString(fmt.Sprintf("**Chunk %d**\n", i+1))
-			message.WriteString(fmt.Sprintf("Lines added: %d, lines removed: %d\n\n", chunk.LinesAdded, chunk.LinesRemoved))
+			fmt.Fprintf(&message, "**Chunk %d**\n", i+1)
+			fmt.Fprintf(&message, "Lines added: %d, lines removed: %d\n\n", chunk.LinesAdded, chunk.LinesRemoved)
 			message.WriteString("```diff\n")
-			message.WriteString(fmt.Sprintf("@@ -%d,%d +%d,%d @@\n", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines))
+			fmt.Fprintf(&message, "@@ -%d,%d +%d,%d @@\n", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines)
 			message.WriteString(escapeCodeBlock(chunk.DiffString))
 			message.WriteString("\n```\n\n")
 		}
@@ -95,7 +95,7 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 				if languageId, hasLang := codeblockData["languageId"].(string); hasLang {
 					lang = languageId
 				}
-				message.WriteString(fmt.Sprintf("```%s\n%s\n```\n\n", lang, content))
+				fmt.Fprintf(&message, "```%s\n%s\n```\n\n", lang, content)
 			}
 		}
 	}
@@ -127,12 +127,12 @@ func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	}
 
 	var message strings.Builder
-	message.WriteString(fmt.Sprintf(`<details><summary>Tool use: **%s**</summary>
+	fmt.Fprintf(&message, `<details><summary>Tool use: **%s**</summary>
 
-`, bubble.Name))
+`, bubble.Name)
 
 	if rawArgs.Explanation != "" {
-		message.WriteString(fmt.Sprintf("Explanation: %s\n\n", rawArgs.Explanation))
+		fmt.Fprintf(&message, "Explanation: %s\n\n", rawArgs.Explanation)
 	}
 
 	message.WriteString("\n</details>")
@@ -163,12 +163,12 @@ func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	}
 
 	var message strings.Builder
-	message.WriteString(fmt.Sprintf(`<details>
+	fmt.Fprintf(&message, `<details>
         <summary>Tool use: **%s** • Apply patch for %s</summary>
-      `, bubble.Name, rawArgs.FilePath))
+      `, bubble.Name, rawArgs.FilePath)
 
 	if rawArgs.Patch != "" {
-		message.WriteString(fmt.Sprintf("\n\n```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch)))
+		fmt.Fprintf(&message, "\n\n```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
 	}
 
 	message.WriteString("\n</details>")
@@ -248,10 +248,10 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 	}
 
 	var message strings.Builder
-	message.WriteString(fmt.Sprintf(`<details>
+	fmt.Fprintf(&message, `<details>
 <summary>Tool use: **%s** • %s</summary>
 
-`, bubble.Name, invocationMsg))
+`, bubble.Name, invocationMsg)
 
 	// Check if operation failed
 	if bubble.Status == "error" && bubble.Error != "" {
@@ -260,7 +260,7 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 		}
 		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil {
 			message.WriteString("**❌ Patch Failed**\n\n")
-			message.WriteString(fmt.Sprintf("%s\n", errorData.Message))
+			fmt.Fprintf(&message, "%s\n", errorData.Message)
 		}
 	} else {
 		// Add the collected content
@@ -276,14 +276,14 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 				}
 			}
 			language := extensionToLanguage(extension)
-			message.WriteString(fmt.Sprintf("```%s\n%s\n```\n\n", language, result.TextEditContent))
+			fmt.Fprintf(&message, "```%s\n%s\n```\n\n", language, result.TextEditContent)
 		} else {
 			message.WriteString("_No content to show_\n")
 		}
 
 		// Add past tense message if available
 		if result.PastTenseMessage != "" {
-			message.WriteString(fmt.Sprintf("\n**Status:** %s\n", result.PastTenseMessage))
+			fmt.Fprintf(&message, "\n**Status:** %s\n", result.PastTenseMessage)
 		}
 	}
 

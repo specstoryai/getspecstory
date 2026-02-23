@@ -93,25 +93,25 @@ func formatStrReplaceTool(args map[string]interface{}) string {
 
 		// Add file path as a header if available
 		if filePath != "" {
-			result.WriteString(fmt.Sprintf("--- %s\n", filePath))
-			result.WriteString(fmt.Sprintf("+++ %s\n", filePath))
+			fmt.Fprintf(&result, "--- %s\n", filePath)
+			fmt.Fprintf(&result, "+++ %s\n", filePath)
 		}
 
 		// Add old lines with - prefix
 		for _, line := range oldLines {
-			result.WriteString(fmt.Sprintf("-%s\n", line))
+			fmt.Fprintf(&result, "-%s\n", line)
 		}
 
 		// Add new lines with + prefix
 		for _, line := range newLines {
-			result.WriteString(fmt.Sprintf("+%s\n", line))
+			fmt.Fprintf(&result, "+%s\n", line)
 		}
 
 		result.WriteString("```")
 	} else {
 		// Fallback if arguments are missing
 		if filePath != "" {
-			result.WriteString(fmt.Sprintf("File: %s", filePath))
+			fmt.Fprintf(&result, "File: %s", filePath)
 		}
 	}
 
@@ -221,7 +221,7 @@ func formatMultiStrReplaceTool(args map[string]interface{}) string {
 	// Get the file path
 	filePath, hasPath := args["file_path"].(string)
 	if hasPath && filePath != "" {
-		result.WriteString(fmt.Sprintf("`%s`", filePath))
+		fmt.Fprintf(&result, "`%s`", filePath)
 	}
 
 	// Get the edits array
@@ -235,7 +235,7 @@ func formatMultiStrReplaceTool(args map[string]interface{}) string {
 				replaceAll, hasReplaceAll := edit["replace_all"].(bool)
 
 				if hasOld && hasNew {
-					result.WriteString(fmt.Sprintf("- Replace: `%s` → `%s`", oldStr, newStr))
+					fmt.Fprintf(&result, "- Replace: `%s` → `%s`", oldStr, newStr)
 					if hasReplaceAll && replaceAll {
 						result.WriteString(" (all occurrences)")
 					}
@@ -282,7 +282,7 @@ func formatToolResult(result string) string {
 	// Escape triple backticks in result to prevent breaking the code block
 	escapedResult := strings.ReplaceAll(result, "```", "\\```")
 
-	output.WriteString(fmt.Sprintf("```\n%s\n```", escapedResult))
+	fmt.Fprintf(&output, "```\n%s\n```", escapedResult)
 
 	return output.String()
 }
@@ -336,7 +336,7 @@ func formatTodoList(todos []interface{}) string {
 			}
 
 			// Format the todo line
-			result.WriteString(fmt.Sprintf("%s %s\n", checkbox, content))
+			fmt.Fprintf(&result, "%s %s\n", checkbox, content)
 		}
 	}
 
