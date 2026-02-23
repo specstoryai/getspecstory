@@ -44,10 +44,10 @@ type ExchangeStats struct {
 	Model        string // The model used for this exchange (from agent messages)
 }
 
-// ComputeExchangeStats computes statistics for a single exchange.
-func ComputeExchangeStats(exchange schema.Exchange, idx int) ExchangeStats {
+// computeExchangeStats computes statistics for a single exchange.
+func computeExchangeStats(exchange schema.Exchange, idx int) ExchangeStats {
 	toolNames, toolTypes, toolCount := extractToolInfo(exchange)
-	tokenUsage := CountExchangeTokens(exchange)
+	tokenUsage := countExchangeTokens(exchange)
 
 	return ExchangeStats{
 		ExchangeID:   exchange.ExchangeID,
@@ -112,9 +112,9 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 	)
 }
 
-// StartExchangeSpan creates a child span for processing a single exchange.
+// startExchangeSpan creates a child span for processing a single exchange.
 // The returned span should be ended by the caller when exchange processing is complete.
-func StartExchangeSpan(ctx context.Context, sessionID string, exchangeID string, idx int) (context.Context, trace.Span) {
+func startExchangeSpan(ctx context.Context, sessionID string, exchangeID string, idx int) (context.Context, trace.Span) {
 	return Tracer("specstory").Start(ctx, "process_exchange",
 		trace.WithAttributes(
 			attribute.String("specstory.session.id", sessionID),
@@ -124,9 +124,9 @@ func StartExchangeSpan(ctx context.Context, sessionID string, exchangeID string,
 	)
 }
 
-// SetExchangeSpanAttributes sets all attributes on an exchange span.
+// setExchangeSpanAttributes sets all attributes on an exchange span.
 // Token usage attributes are provider-specific and only non-zero values are meaningful.
-func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
+func setExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 	span.SetAttributes(
 		attribute.String("specstory.exchange.id", stats.ExchangeID),
 		attribute.Int("specstory.exchange.index", stats.ExchangeIdx),
@@ -162,12 +162,12 @@ func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 // When noPrompts is true, the prompt_text attribute will be empty for privacy.
 func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange, noPrompts bool) {
 	for i, exchange := range exchanges {
-		_, exchangeSpan := StartExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
-		exchangeStats := ComputeExchangeStats(exchange, i)
+		_, exchangeSpan := startExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
+		exchangeStats := computeExchangeStats(exchange, i)
 		if noPrompts {
 			exchangeStats.PromptText = ""
 		}
-		SetExchangeSpanAttributes(exchangeSpan, exchangeStats)
+		setExchangeSpanAttributes(exchangeSpan, exchangeStats)
 		exchangeSpan.End()
 	}
 }
@@ -282,9 +282,9 @@ func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCoun
 	return toolCount, len(typeSet)
 }
 
-// CountExchangeTokens aggregates token usage for a single exchange.
+// countExchangeTokens aggregates token usage for a single exchange.
 // Handles Claude Code, Codex CLI, Gemini CLI, and Droid CLI specific token fields.
-func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
+func countExchangeTokens(exchange schema.Exchange) TokenUsage {
 	var usage TokenUsage
 	for _, msg := range exchange.Messages {
 		if msg.Usage != nil {
@@ -313,7 +313,7 @@ func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
 func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
 	var total TokenUsage
 	for _, exchange := range exchanges {
-		exchangeUsage := CountExchangeTokens(exchange)
+		exchangeUsage := countExchangeTokens(exchange)
 		// Common fields (all providers)
 		total.InputTokens += exchangeUsage.InputTokens
 		total.OutputTokens += exchangeUsage.OutputTokens

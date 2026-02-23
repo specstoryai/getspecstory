@@ -14026,3 +14026,760 @@ Build to verify
 _**Agent (claude-opus-4-6 2026-02-23 17:44:01Z)**_
 
 Builds clean. Diagnostics were stale from the brief moment both files existed.
+
+---
+
+_**User (2026-02-23 19:43:06Z)**_
+
+Instead of session_helpers.go name it stats_heplers.go
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 19:43:11Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rename session_helpers.go to stats_helpers.go
+
+`mv /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/session_helpers.go /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:43:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build to verify
+
+`go build -o specstory 2>&1`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:43:18Z)**_
+
+Done.
+
+---
+
+_**User (2026-02-23 19:43:45Z)**_
+
+uhh... the tests?
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 19:43:49Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Glob"><details>
+<summary>Tool use: **Glob**</summary>
+ pattern `**/telemetry/*_test.go`
+
+```text
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/session_helpers_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:43:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Rename the test file to match
+
+`mv /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/session_helpers_test.go /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers_test.go`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:43:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run telemetry tests
+
+`go test ./pkg/telemetry/... 2>&1`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	0.222s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:01Z)**_
+
+Sorry about that. Both files renamed, tests pass.
+
+---
+
+_**User (2026-02-23 19:44:39Z)**_
+
+is every function in stats_helpers scoped properly (upper vs. lower case)
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:42Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/telemetry/stats_helpers.go`
+
+```text
+     1→// Package telemetry provides session statistics helpers for computing and recording
+     2→// telemetry data from agent chat sessions.
+     3→package telemetry
+     4→
+     5→import (
+     6→	"context"
+     7→	"sort"
+     8→	"strings"
+     9→	"time"
+    10→
+    11→	"go.opentelemetry.io/otel/attribute"
+    12→	"go.opentelemetry.io/otel/trace"
+    13→
+    14→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    15→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+    16→)
+    17→
+    18→// --- Session Statistics ---
+    19→
+    20→// SessionStats holds computed statistics for a session, used for telemetry and span attributes.
+    21→type SessionStats struct {
+    22→	AgentName     string
+    23→	SessionID     string
+    24→	ProjectPath   string
+    25→	ExchangeCount int
+    26→	MessageCount  int
+    27→	ToolCount     int
+    28→	ToolTypeCount int
+    29→	TokenUsage    TokenUsage
+    30→}
+    31→
+    32→// ExchangeStats holds computed statistics for a single exchange, used for child span attributes.
+    33→type ExchangeStats struct {
+    34→	ExchangeID   string
+    35→	ExchangeIdx  int
+    36→	PromptText   string
+    37→	StartTime    string
+    38→	EndTime      string
+    39→	MessageCount int
+    40→	ToolNames    string
+    41→	ToolTypes    string
+    42→	ToolCount    int
+    43→	TokenUsage   TokenUsage
+    44→	Model        string // The model used for this exchange (from agent messages)
+    45→}
+    46→
+    47→// ComputeExchangeStats computes statistics for a single exchange.
+    48→func ComputeExchangeStats(exchange schema.Exchange, idx int) ExchangeStats {
+    49→	toolNames, toolTypes, toolCount := extractToolInfo(exchange)
+    50→	tokenUsage := CountExchangeTokens(exchange)
+    51→
+    52→	return ExchangeStats{
+    53→		ExchangeID:   exchange.ExchangeID,
+    54→		ExchangeIdx:  idx,
+    55→		PromptText:   extractUserPromptText(exchange),
+    56→		StartTime:    exchange.StartTime,
+    57→		EndTime:      exchange.EndTime,
+    58→		MessageCount: len(exchange.Messages),
+    59→		ToolNames:    toolNames,
+    60→		ToolTypes:    toolTypes,
+    61→		ToolCount:    toolCount,
+    62→		TokenUsage:   tokenUsage,
+    63→		Model:        extractModel(exchange),
+    64→	}
+    65→}
+    66→
+    67→// ComputeSessionStats computes all statistics for a session from its SessionData.
+    68→func ComputeSessionStats(agentName string, session *spi.AgentChatSession) SessionStats {
+    69→	stats := SessionStats{
+    70→		AgentName: agentName,
+    71→		SessionID: session.SessionID,
+    72→	}
+    73→
+    74→	if session.SessionData != nil {
+    75→		stats.ProjectPath = session.SessionData.WorkspaceRoot
+    76→		stats.ExchangeCount = len(session.SessionData.Exchanges)
+    77→		stats.MessageCount = countSessionMessages(session.SessionData.Exchanges)
+    78→		stats.ToolCount, stats.ToolTypeCount = countSessionTools(session.SessionData.Exchanges)
+    79→		stats.TokenUsage = countSessionTokens(session.SessionData.Exchanges)
+    80→	}
+    81→
+    82→	return stats
+    83→}
+    84→
+    85→// SetSessionSpanAttributes sets all standard session attributes on a span.
+    86→// This sets session-level summary attributes only; exchange details are in child spans.
+    87→// Token usage attributes are provider-specific and only non-zero values are meaningful.
+    88→func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
+    89→	span.SetAttributes(
+    90→		attribute.String("specstory.agent", stats.AgentName),
+    91→		attribute.String("specstory.session.id", stats.SessionID),
+    92→		attribute.Int("specstory.session.exchange_count", stats.ExchangeCount),
+    93→		attribute.Int("specstory.session.message_count", stats.MessageCount),
+    94→		attribute.Int("specstory.session.tool_count", stats.ToolCount),
+    95→		attribute.Int("specstory.session.tool_type_count", stats.ToolTypeCount),
+    96→		attribute.String("specstory.project.path", stats.ProjectPath),
+    97→		// Token usage attributes - common (all providers)
+    98→		attribute.Int("specstory.session.tokens.input", stats.TokenUsage.InputTokens),
+    99→		attribute.Int("specstory.session.tokens.output", stats.TokenUsage.OutputTokens),
+   100→		// Token usage attributes - Claude Code specific (also used by Droid CLI)
+   101→		attribute.Int("specstory.session.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
+   102→		attribute.Int("specstory.session.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
+   103→		// Token usage attributes - Codex CLI specific
+   104→		attribute.Int("specstory.session.tokens.cached_input", stats.TokenUsage.CachedInputTokens),
+   105→		attribute.Int("specstory.session.tokens.reasoning_output", stats.TokenUsage.ReasoningOutputTokens),
+   106→		// Token usage attributes - Gemini CLI specific
+   107→		attribute.Int("specstory.session.tokens.cached", stats.TokenUsage.CachedTokens),
+   108→		attribute.Int("specstory.session.tokens.thought", stats.TokenUsage.ThoughtTokens),
+   109→		attribute.Int("specstory.session.tokens.tool", stats.TokenUsage.ToolTokens),
+   110→		// Token usage attributes - Droid CLI specific
+   111→		attribute.Int("specstory.session.tokens.thinking", stats.TokenUsage.ThinkingTokens),
+   112→	)
+   113→}
+   114→
+   115→// StartExchangeSpan creates a child span for processing a single exchange.
+   116→// The returned span should be ended by the caller when exchange processing is complete.
+   117→func StartExchangeSpan(ctx context.Context, sessionID string, exchangeID string, idx int) (context.Context, trace.Span) {
+   118→	return Tracer("specstory").Start(ctx, "process_exchange",
+   119→		trace.WithAttributes(
+   120→			attribute.String("specstory.session.id", sessionID),
+   121→			attribute.String("specstory.exchange.id", exchangeID),
+   122→			attribute.Int("specstory.exchange.index", idx),
+   123→		),
+   124→	)
+   125→}
+   126→
+   127→// SetExchangeSpanAttributes sets all attributes on an exchange span.
+   128→// Token usage attributes are provider-specific and only non-zero values are meaningful.
+   129→func SetExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
+   130→	span.SetAttributes(
+   131→		attribute.String("specstory.exchange.id", stats.ExchangeID),
+   132→		attribute.Int("specstory.exchange.index", stats.ExchangeIdx),
+   133→		attribute.String("specstory.exchange.model", stats.Model),
+   134→		attribute.String("specstory.exchange.prompt_text", stats.PromptText),
+   135→		attribute.String("specstory.exchange.start_time", stats.StartTime),
+   136→		attribute.String("specstory.exchange.end_time", stats.EndTime),
+   137→		attribute.Int("specstory.exchange.message_count", stats.MessageCount),
+   138→		attribute.String("specstory.exchange.tools_used", stats.ToolNames),
+   139→		attribute.String("specstory.exchange.tool_types", stats.ToolTypes),
+   140→		attribute.Int("specstory.exchange.tool_count", stats.ToolCount),
+   141→		// Token usage attributes - common (all providers)
+   142→		attribute.Int("specstory.exchange.tokens.input", stats.TokenUsage.InputTokens),
+   143→		attribute.Int("specstory.exchange.tokens.output", stats.TokenUsage.OutputTokens),
+   144→		// Token usage attributes - Claude Code specific (also used by Droid CLI)
+   145→		attribute.Int("specstory.exchange.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
+   146→		attribute.Int("specstory.exchange.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
+   147→		// Token usage attributes - Codex CLI specific
+   148→		attribute.Int("specstory.exchange.tokens.cached_input", stats.TokenUsage.CachedInputTokens),
+   149→		attribute.Int("specstory.exchange.tokens.reasoning_output", stats.TokenUsage.ReasoningOutputTokens),
+   150→		// Token usage attributes - Gemini CLI specific
+   151→		attribute.Int("specstory.exchange.tokens.cached", stats.TokenUsage.CachedTokens),
+   152→		attribute.Int("specstory.exchange.tokens.thought", stats.TokenUsage.ThoughtTokens),
+   153→		attribute.Int("specstory.exchange.tokens.tool", stats.TokenUsage.ToolTokens),
+   154→		// Token usage attributes - Droid CLI specific
+   155→		attribute.Int("specstory.exchange.tokens.thinking", stats.TokenUsage.ThinkingTokens),
+   156→	)
+   157→}
+   158→
+   159→// ProcessExchangeSpans creates child spans for all exchanges in a session.
+   160→// This is a helper that creates spans, sets attributes, and ends them immediately
+   161→// since exchange processing is retrospective (data already exists).
+   162→// When noPrompts is true, the prompt_text attribute will be empty for privacy.
+   163→func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange, noPrompts bool) {
+   164→	for i, exchange := range exchanges {
+   165→		_, exchangeSpan := StartExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
+   166→		exchangeStats := ComputeExchangeStats(exchange, i)
+   167→		if noPrompts {
+   168→			exchangeStats.PromptText = ""
+   169→		}
+   170→		SetExchangeSpanAttributes(exchangeSpan, exchangeStats)
+   171→		exchangeSpan.End()
+   172→	}
+   173→}
+   174→
+   175→// RecordSessionMetrics records all telemetry metrics for a session.
+   176→// This is a no-op when telemetry is disabled.
+   177→func RecordSessionMetrics(ctx context.Context, stats SessionStats, duration time.Duration) {
+   178→	if !metricsEnabled {
+   179→		return
+   180→	}
+   181→	recordSessionProcessed(ctx, stats.AgentName, stats.SessionID)
+   182→	recordExchanges(ctx, stats.AgentName, stats.SessionID, int64(stats.ExchangeCount))
+   183→	recordMessages(ctx, stats.AgentName, stats.SessionID, int64(stats.MessageCount))
+   184→	recordToolUsage(ctx, stats.AgentName, stats.SessionID, int64(stats.ToolCount))
+   185→	recordProcessingDuration(ctx, stats.AgentName, stats.SessionID, duration)
+   186→	recordTokenUsage(ctx, stats.AgentName, stats.SessionID, stats.TokenUsage)
+   187→}
+   188→
+   189→// --- Exchange Helpers ---
+   190→
+   191→// extractToolInfo extracts tool usage information from an exchange.
+   192→// Returns: comma-separated unique tool names, comma-separated unique tool types, and total tool count.
+   193→func extractToolInfo(exchange schema.Exchange) (toolNames string, toolTypes string, toolCount int) {
+   194→	nameSet := make(map[string]bool)
+   195→	typeSet := make(map[string]bool)
+   196→
+   197→	for _, msg := range exchange.Messages {
+   198→		if msg.Tool != nil && msg.Tool.Name != "" {
+   199→			toolCount++
+   200→			nameSet[msg.Tool.Name] = true
+   201→			if msg.Tool.Type != "" {
+   202→				typeSet[msg.Tool.Type] = true
+   203→			}
+   204→		}
+   205→	}
+   206→
+   207→	// Build unique tool names list (sorted for deterministic output)
+   208→	var names []string
+   209→	for n := range nameSet {
+   210→		names = append(names, n)
+   211→	}
+   212→	sort.Strings(names)
+   213→
+   214→	// Build unique tool types list (sorted for deterministic output)
+   215→	var types []string
+   216→	for t := range typeSet {
+   217→		types = append(types, t)
+   218→	}
+   219→	sort.Strings(types)
+   220→
+   221→	return strings.Join(names, ","), strings.Join(types, ","), toolCount
+   222→}
+   223→
+   224→// extractUserPromptText finds the first user message in an exchange and returns its text content.
+   225→func extractUserPromptText(exchange schema.Exchange) string {
+   226→	for _, msg := range exchange.Messages {
+   227→		if msg.Role == schema.RoleUser {
+   228→			// Concatenate all text content parts
+   229→			var text string
+   230→			for _, part := range msg.Content {
+   231→				if part.Type == schema.ContentTypeText {
+   232→					if text != "" {
+   233→						text += "\n"
+   234→					}
+   235→					text += part.Text
+   236→				}
+   237→			}
+   238→			return text
+   239→		}
+   240→	}
+   241→	return ""
+   242→}
+   243→
+   244→// extractModel finds the model used in an exchange by looking at agent messages.
+   245→// Returns the model from the first agent message that has one set.
+   246→func extractModel(exchange schema.Exchange) string {
+   247→	for _, msg := range exchange.Messages {
+   248→		if msg.Role == schema.RoleAgent && msg.Model != "" {
+   249→			return msg.Model
+   250→		}
+   251→	}
+   252→	return ""
+   253→}
+   254→
+   255→// --- Counting Helpers ---
+   256→
+   257→// countSessionMessages counts total messages across all exchanges.
+   258→func countSessionMessages(exchanges []schema.Exchange) int {
+   259→	count := 0
+   260→	for _, exchange := range exchanges {
+   261→		count += len(exchange.Messages)
+   262→	}
+   263→	return count
+   264→}
+   265→
+   266→// countSessionTools counts total tools and unique tool types across all exchanges.
+   267→// Returns: total tool count, unique tool type count.
+   268→func countSessionTools(exchanges []schema.Exchange) (toolCount int, toolTypeCount int) {
+   269→	typeSet := make(map[string]bool)
+   270→
+   271→	for _, exchange := range exchanges {
+   272→		for _, msg := range exchange.Messages {
+   273→			if msg.Tool != nil && msg.Tool.Name != "" {
+   274→				toolCount++
+   275→				if msg.Tool.Type != "" {
+   276→					typeSet[msg.Tool.Type] = true
+   277→				}
+   278→			}
+   279→		}
+   280→	}
+   281→
+   282→	return toolCount, len(typeSet)
+   283→}
+   284→
+   285→// CountExchangeTokens aggregates token usage for a single exchange.
+   286→// Handles Claude Code, Codex CLI, Gemini CLI, and Droid CLI specific token fields.
+   287→func CountExchangeTokens(exchange schema.Exchange) TokenUsage {
+   288→	var usage TokenUsage
+   289→	for _, msg := range exchange.Messages {
+   290→		if msg.Usage != nil {
+   291→			// Common fields (all providers)
+   292→			usage.InputTokens += msg.Usage.InputTokens
+   293→			usage.OutputTokens += msg.Usage.OutputTokens
+   294→			// Claude Code specific (also used by Droid CLI)
+   295→			usage.CacheCreationInputTokens += msg.Usage.CacheCreationInputTokens
+   296→			usage.CacheReadInputTokens += msg.Usage.CacheReadInputTokens
+   297→			// Codex CLI specific
+   298→			usage.CachedInputTokens += msg.Usage.CachedInputTokens
+   299→			usage.ReasoningOutputTokens += msg.Usage.ReasoningOutputTokens
+   300→			// Gemini CLI specific
+   301→			usage.CachedTokens += msg.Usage.CachedTokens
+   302→			usage.ThoughtTokens += msg.Usage.ThoughtTokens
+   303→			usage.ToolTokens += msg.Usage.ToolTokens
+   304→			// Droid CLI specific
+   305→			usage.ThinkingTokens += msg.Usage.ThinkingTokens
+   306→		}
+   307→	}
+   308→	return usage
+   309→}
+   310→
+   311→// countSessionTokens aggregates token usage across all exchanges in a session.
+   312→// Handles Claude Code, Codex CLI, Gemini CLI, and Droid CLI specific token fields.
+   313→func countSessionTokens(exchanges []schema.Exchange) TokenUsage {
+   314→	var total TokenUsage
+   315→	for _, exchange := range exchanges {
+   316→		exchangeUsage := CountExchangeTokens(exchange)
+   317→		// Common fields (all providers)
+   318→		total.InputTokens += exchangeUsage.InputTokens
+   319→		total.OutputTokens += exchangeUsage.OutputTokens
+   320→		// Claude Code specific (also used by Droid CLI)
+   321→		total.CacheCreationInputTokens += exchangeUsage.CacheCreationInputTokens
+   322→		total.CacheReadInputTokens += exchangeUsage.CacheReadInputTokens
+   323→		// Codex CLI specific
+   324→		total.CachedInputTokens += exchangeUsage.CachedInputTokens
+   325→		total.ReasoningOutputTokens += exchangeUsage.ReasoningOutputTokens
+   326→		// Gemini CLI specific
+   327→		total.CachedTokens += exchangeUsage.CachedTokens
+   328→		total.ThoughtTokens += exchangeUsage.ThoughtTokens
+   329→		total.ToolTokens += exchangeUsage.ToolTokens
+   330→		// Droid CLI specific
+   331→		total.ThinkingTokens += exchangeUsage.ThinkingTokens
+   332→	}
+   333→	return total
+   334→}
+   335→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:51Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is asking whether functions are properly exported (uppercase) vs unexported (lowercase). Let me check each function:
+
+**Exported (uppercase):**
+- `ComputeExchangeStats` - called from `ProcessExchangeSpans` (same package) and nowhere else externally
+- `ComputeSessionStats` - called from `session.go` and `main.go`
+- `SetSessionSpanAttributes` - called from `session.go` and `main.go`
+- `StartExchangeSpan` - called from `ProcessExchangeSpans` (same package) only
+- `SetExchangeSpanAttributes` - called from `ProcessExchangeSpans` (same package) only
+
+
+- `ProcessExchangeSpans` - called from `session.go` and `main.go`
+- `RecordSessionMetrics` - called from `session.go` and `main.go`
+- `CountExchangeTokens` - called from `countSessionTokens` (same package) and externally
+
+**Unexported (lowercase):**
+- `extractToolInfo` - same package only ✓
+- `extractUserPromptText` - same package only ✓
+- `extractModel` - same package only ✓
+- `countSessionMessages` - same package only ✓
+- `countSessionTools` - same package only ✓
+- `countSessionTokens` - same package only ✓
+
+Now I need to verify which exported functions are actually being used outside their package.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:51Z)**_
+
+Let me check which exported functions are actually called from outside the `telemetry` package.
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:52Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./` pattern `telemetry\.(ComputeExchangeStats|StartExchangeSpan|SetExchangeSpanAttributes|CountExchangeTokens)`
+
+```text
+No matches found
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:56Z)**_
+
+These four are only used within the `telemetry` package (by `ProcessExchangeSpans`) but are exported. They should be lowercase:
+
+- `ComputeExchangeStats` → `computeExchangeStats`
+- `StartExchangeSpan` → `startExchangeSpan`
+- `SetExchangeSpanAttributes` → `setExchangeSpanAttributes`
+- `CountExchangeTokens` → `countExchangeTokens`
+
+Let me also check the test file to see if they're referenced there (same package, so lowercase still works).
+
+_**Agent (claude-opus-4-6 2026-02-23 19:44:58Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/telemetry/stats_helpers_test.go` pattern `ComputeExchangeStats|StartExchangeSpan|SetExchangeSpanAttributes|CountExchangeTokens`
+
+```text
+403:// --- CountExchangeTokens tests ---
+405:func TestCountExchangeTokens(t *testing.T) {
+565:			got := CountExchangeTokens(tt.exchange)
+567:				t.Errorf("CountExchangeTokens() = %+v, want %+v", got, tt.want)
+649:// --- ComputeExchangeStats tests ---
+651:func TestComputeExchangeStats(t *testing.T) {
+712:			got := ComputeExchangeStats(tt.exchange, tt.idx)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:00Z)**_
+
+Tests reference `CountExchangeTokens` and `ComputeExchangeStats` directly. Since the tests are in the same package, lowercase will still work. Let me make the renames.
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:02Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go has been updated. All occurrences of 'ComputeExchangeStats' were successfully replaced with 'computeExchangeStats'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:06Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go has been updated. All occurrences of 'StartExchangeSpan' were successfully replaced with 'startExchangeSpan'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:08Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go has been updated. All occurrences of 'SetExchangeSpanAttributes' were successfully replaced with 'setExchangeSpanAttributes'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:11Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go has been updated. All occurrences of 'CountExchangeTokens' were successfully replaced with 'countExchangeTokens'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:14Z)**_
+
+Now update the test file to match.
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:15Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers_test.go has been updated. All occurrences of 'CountExchangeTokens' were successfully replaced with 'countExchangeTokens'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:18Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers_test.go has been updated. All occurrences of 'ComputeExchangeStats' were successfully replaced with 'computeExchangeStats'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and lint
+
+`go build -o specstory 2>&1 && golangci-lint run 2>&1`
+
+```text
+Exit code 1
+pkg/telemetry/stats_helpers_test.go:405:6: tests: TestcountExchangeTokens has malformed name: first letter after 'Test' must not be lowercase (govet)
+func TestcountExchangeTokens(t *testing.T) {
+     ^
+pkg/telemetry/stats_helpers_test.go:651:6: tests: TestcomputeExchangeStats has malformed name: first letter after 'Test' must not be lowercase (govet)
+func TestcomputeExchangeStats(t *testing.T) {
+     ^
+2 issues:
+* govet: 2
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:31Z)**_
+
+Right — Go test function names must start with an uppercase letter after `Test`. I need to rename the test functions to use underscore separation.
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:32Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers_test.go has been updated. All occurrences of 'TestcountExchangeTokens' were successfully replaced with 'Test_countExchangeTokens'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:36Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers_test.go has been updated. All occurrences of 'TestcomputeExchangeStats' were successfully replaced with 'Test_computeExchangeStats'.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:41Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and lint
+
+`go build -o specstory 2>&1 && golangci-lint run 2>&1`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:45Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run telemetry tests verbose
+
+`go test ./pkg/telemetry/... -v 2>&1`
+
+```text
+=== RUN   TestExtractToolInfo
+=== RUN   TestExtractToolInfo/empty_exchange
+=== RUN   TestExtractToolInfo/no_tools_in_messages
+=== RUN   TestExtractToolInfo/single_tool
+=== RUN   TestExtractToolInfo/multiple_different_tools
+=== RUN   TestExtractToolInfo/duplicate_tool_names_counted_separately_but_listed_once
+=== RUN   TestExtractToolInfo/tool_with_empty_type
+=== RUN   TestExtractToolInfo/tool_with_nil_Tool_pointer_ignored
+=== RUN   TestExtractToolInfo/tool_with_empty_name_ignored
+--- PASS: TestExtractToolInfo (0.00s)
+    --- PASS: TestExtractToolInfo/empty_exchange (0.00s)
+    --- PASS: TestExtractToolInfo/no_tools_in_messages (0.00s)
+    --- PASS: TestExtractToolInfo/single_tool (0.00s)
+    --- PASS: TestExtractToolInfo/multiple_different_tools (0.00s)
+    --- PASS: TestExtractToolInfo/duplicate_tool_names_counted_separately_but_listed_once (0.00s)
+    --- PASS: TestExtractToolInfo/tool_with_empty_type (0.00s)
+    --- PASS: TestExtractToolInfo/tool_with_nil_Tool_pointer_ignored (0.00s)
+    --- PASS: TestExtractToolInfo/tool_with_empty_name_ignored (0.00s)
+=== RUN   TestExtractUserPromptText
+=== RUN   TestExtractUserPromptText/empty_exchange
+=== RUN   TestExtractUserPromptText/no_user_message
+=== RUN   TestExtractUserPromptText/single_user_message_with_text
+=== RUN   TestExtractUserPromptText/user_message_with_multiple_text_parts
+=== RUN   TestExtractUserPromptText/user_message_with_mixed_content_types
+=== RUN   TestExtractUserPromptText/first_user_message_is_used
+=== RUN   TestExtractUserPromptText/user_message_with_empty_content
+--- PASS: TestExtractUserPromptText (0.00s)
+    --- PASS: TestExtractUserPromptText/empty_exchange (0.00s)
+    --- PASS: TestExtractUserPromptText/no_user_message (0.00s)
+    --- PASS: TestExtractUserPromptText/single_user_message_with_text (0.00s)
+    --- PASS: TestExtractUserPromptText/user_message_with_multiple_text_parts (0.00s)
+    --- PASS: TestExtractUserPromptText/user_message_with_mixed_content_types (0.00s)
+    --- PASS: TestExtractUserPromptText/first_user_message_is_used (0.00s)
+    --- PASS: TestExtractUserPromptText/user_message_with_empty_content (0.00s)
+=== RUN   TestExtractModel
+=== RUN   TestExtractModel/empty_exchange
+=== RUN   TestExtractModel/no_agent_message
+=== RUN   TestExtractModel/agent_message_with_model
+=== RUN   TestExtractModel/first_agent_message_with_model_is_used
+=== RUN   TestExtractModel/agent_message_without_model_skipped
+--- PASS: TestExtractModel (0.00s)
+    --- PASS: TestExtractModel/empty_exchange (0.00s)
+    --- PASS: TestExtractModel/no_agent_message (0.00s)
+    --- PASS: TestExtractModel/agent_message_with_model (0.00s)
+    --- PASS: TestExtractModel/first_agent_message_with_model_is_used (0.00s)
+    --- PASS: TestExtractModel/agent_message_without_model_skipped (0.00s)
+=== RUN   TestCountSessionMessages
+=== RUN   TestCountSessionMessages/empty_exchanges
+=== RUN   TestCountSessionMessages/single_exchange_with_messages
+=== RUN   TestCountSessionMessages/multiple_exchanges
+=== RUN   TestCountSessionMessages/exchange_with_no_messages
+--- PASS: TestCountSessionMessages (0.00s)
+    --- PASS: TestCountSessionMessages/empty_exchanges (0.00s)
+    --- PASS: TestCountSessionMessages/single_exchange_with_messages (0.00s)
+    --- PASS: TestCountSessionMessages/multiple_exchanges (0.00s)
+    --- PASS: TestCountSessionMessages/exchange_with_no_messages (0.00s)
+=== RUN   TestCountSessionTools
+=== RUN   TestCountSessionTools/empty_exchanges
+=== RUN   TestCountSessionTools/no_tools
+=== RUN   TestCountSessionTools/single_tool
+=== RUN   TestCountSessionTools/tools_across_multiple_exchanges
+=== RUN   TestCountSessionTools/duplicate_tool_types_counted_once
+--- PASS: TestCountSessionTools (0.00s)
+    --- PASS: TestCountSessionTools/empty_exchanges (0.00s)
+    --- PASS: TestCountSessionTools/no_tools (0.00s)
+    --- PASS: TestCountSessionTools/single_tool (0.00s)
+    --- PASS: TestCountSessionTools/tools_across_multiple_exchanges (0.00s)
+    --- PASS: TestCountSessionTools/duplicate_tool_types_counted_once (0.00s)
+=== RUN   Test_countExchangeTokens
+=== RUN   Test_countExchangeTokens/empty_exchange
+=== RUN   Test_countExchangeTokens/messages_without_usage
+=== RUN   Test_countExchangeTokens/single_message_with_common_tokens
+=== RUN   Test_countExchangeTokens/multiple_messages_tokens_aggregated
+=== RUN   Test_countExchangeTokens/Claude_Code_specific_tokens
+=== RUN   Test_countExchangeTokens/Codex_CLI_specific_tokens
+=== RUN   Test_countExchangeTokens/Gemini_CLI_specific_tokens
+=== RUN   Test_countExchangeTokens/Droid_CLI_specific_tokens
+=== RUN   Test_countExchangeTokens/all_token_types_aggregated
+--- PASS: Test_countExchangeTokens (0.00s)
+    --- PASS: Test_countExchangeTokens/empty_exchange (0.00s)
+    --- PASS: Test_countExchangeTokens/messages_without_usage (0.00s)
+    --- PASS: Test_countExchangeTokens/single_message_with_common_tokens (0.00s)
+    --- PASS: Test_countExchangeTokens/multiple_messages_tokens_aggregated (0.00s)
+    --- PASS: Test_countExchangeTokens/Claude_Code_specific_tokens (0.00s)
+    --- PASS: Test_countExchangeTokens/Codex_CLI_specific_tokens (0.00s)
+    --- PASS: Test_countExchangeTokens/Gemini_CLI_specific_tokens (0.00s)
+    --- PASS: Test_countExchangeTokens/Droid_CLI_specific_tokens (0.00s)
+    --- PASS: Test_countExchangeTokens/all_token_types_aggregated (0.00s)
+=== RUN   TestCountSessionTokens
+=== RUN   TestCountSessionTokens/empty_exchanges
+=== RUN   TestCountSessionTokens/single_exchange
+=== RUN   TestCountSessionTokens/multiple_exchanges_aggregated
+=== RUN   TestCountSessionTokens/all_token_types_across_exchanges
+--- PASS: TestCountSessionTokens (0.00s)
+    --- PASS: TestCountSessionTokens/empty_exchanges (0.00s)
+    --- PASS: TestCountSessionTokens/single_exchange (0.00s)
+    --- PASS: TestCountSessionTokens/multiple_exchanges_aggregated (0.00s)
+    --- PASS: TestCountSessionTokens/all_token_types_across_exchanges (0.00s)
+=== RUN   Test_computeExchangeStats
+=== RUN   Test_computeExchangeStats/empty_exchange
+=== RUN   Test_computeExchangeStats/full_exchange
+--- PASS: Test_computeExchangeStats (0.00s)
+    --- PASS: Test_computeExchangeStats/empty_exchange (0.00s)
+    --- PASS: Test_computeExchangeStats/full_exchange (0.00s)
+=== RUN   TestComputeSessionStats
+=== RUN   TestComputeSessionStats/nil_SessionData
+=== RUN   TestComputeSessionStats/empty_SessionData
+=== RUN   TestComputeSessionStats/full_session
+=== RUN   TestComputeSessionStats/session_with_duplicate_tool_types
+--- PASS: TestComputeSessionStats (0.00s)
+    --- PASS: TestComputeSessionStats/nil_SessionData (0.00s)
+    --- PASS: TestComputeSessionStats/empty_SessionData (0.00s)
+    --- PASS: TestComputeSessionStats/full_session (0.00s)
+    --- PASS: TestComputeSessionStats/session_with_duplicate_tool_types (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	0.224s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 19:45:50Z)**_
+
+All pass. Four functions that were only used within the `telemetry` package (`ComputeExchangeStats`, `StartExchangeSpan`, `SetExchangeSpanAttributes`, `CountExchangeTokens`) are now unexported. Test function names updated to `Test_lowerCase` format to satisfy `govet`.

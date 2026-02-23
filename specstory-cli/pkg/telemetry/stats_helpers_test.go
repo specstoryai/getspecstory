@@ -400,9 +400,9 @@ func TestCountSessionTools(t *testing.T) {
 	}
 }
 
-// --- CountExchangeTokens tests ---
+// --- countExchangeTokens tests ---
 
-func TestCountExchangeTokens(t *testing.T) {
+func Test_countExchangeTokens(t *testing.T) {
 	tests := []struct {
 		name     string
 		exchange schema.Exchange
@@ -562,9 +562,9 @@ func TestCountExchangeTokens(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CountExchangeTokens(tt.exchange)
+			got := countExchangeTokens(tt.exchange)
 			if got != tt.want {
-				t.Errorf("CountExchangeTokens() = %+v, want %+v", got, tt.want)
+				t.Errorf("countExchangeTokens() = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -646,9 +646,9 @@ func TestCountSessionTokens(t *testing.T) {
 	}
 }
 
-// --- ComputeExchangeStats tests ---
+// --- computeExchangeStats tests ---
 
-func TestComputeExchangeStats(t *testing.T) {
+func Test_computeExchangeStats(t *testing.T) {
 	tests := []struct {
 		name     string
 		exchange schema.Exchange
@@ -709,7 +709,7 @@ func TestComputeExchangeStats(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ComputeExchangeStats(tt.exchange, tt.idx)
+			got := computeExchangeStats(tt.exchange, tt.idx)
 			if got.ExchangeID != tt.want.ExchangeID {
 				t.Errorf("ExchangeID = %q, want %q", got.ExchangeID, tt.want.ExchangeID)
 			}
