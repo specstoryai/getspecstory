@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -24,6 +25,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
+
+func telemetryLogger() *slog.Logger {
+	return slog.Default().With("component", "telemetry")
+}
 
 const (
 	// defaultEndpoint is the OTLP gRPC collector address used when

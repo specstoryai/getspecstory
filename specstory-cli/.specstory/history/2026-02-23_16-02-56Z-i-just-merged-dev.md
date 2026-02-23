@@ -13864,3 +13864,165 @@ Build, lint, and tests all pass. Here's what changed:
 **`pkg/cmd/watch.go`:**
 - Added the 3 telemetry flags to `watchCmd.Flags()`
 - Fixed a bug: the `--no-telemetry-prompts` flag value is now read and passed to `ProcessSingleSession` instead of being hardcoded as `false`
+
+---
+
+_**User (2026-02-23 17:42:41Z)**_
+
+Why do we have @pkg/telemetry/logging.go ? This file should not be needed.
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 17:42:46Z)**_
+
+
+
+You're right — it's just a one-liner wrapper around `slog.Default().With("component", "telemetry")`. Let me check if anything actually uses it.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:42:47Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/telemetry` pattern `telemetryLogger`
+
+```text
+pkg/telemetry/telemetry.go:142:			telemetryLogger().Info("Telemetry disabled, using no-op provider")
+pkg/telemetry/telemetry.go:171:		telemetryLogger().Debug("Resource attributes created",
+pkg/telemetry/telemetry.go:185:			telemetryLogger().Warn("Metrics init failed, rolling back tracing", "error", err)
+pkg/telemetry/telemetry.go:188:					telemetryLogger().Warn("Failed to shutdown trace provider during rollback", "error", shutdownErr)
+pkg/telemetry/telemetry.go:205:			telemetryLogger().Debug("Parsed OTEL_RESOURCE_ATTRIBUTES for metrics",
+pkg/telemetry/telemetry.go:211:		telemetryLogger().Info("Telemetry initialised",
+pkg/telemetry/telemetry.go:415:		telemetryLogger().Info("Flushing and shutting down trace provider")
+pkg/telemetry/telemetry.go:420:			telemetryLogger().Warn("Failed to flush trace provider", "error", err)
+pkg/telemetry/telemetry.go:428:		telemetryLogger().Info("Flushing and shutting down meter provider")
+pkg/telemetry/telemetry.go:433:			telemetryLogger().Warn("Failed to flush meter provider", "error", err)
+pkg/telemetry/telemetry.go:453:		telemetryLogger().Debug("Force flushing trace provider")
+pkg/telemetry/telemetry.go:455:			telemetryLogger().Warn("Failed to force flush trace provider", "error", err)
+pkg/telemetry/telemetry.go:461:		telemetryLogger().Debug("Force flushing meter provider")
+pkg/telemetry/telemetry.go:463:			telemetryLogger().Warn("Failed to force flush meter provider", "error", err)
+pkg/telemetry/logging.go:5:func telemetryLogger() *slog.Logger {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:42:50Z)**_
+
+It's used extensively throughout `telemetry.go`. The function exists to add a `"component": "telemetry"` tag to all log messages from the telemetry package, which is useful for filtering logs. It's a reasonable helper — not dead code.
+
+---
+
+_**User (2026-02-23 17:43:11Z)**_
+
+yeah, but it doesn't need its own file
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:14Z)**_
+
+
+
+True. Let me move it into `telemetry.go`.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:15Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/telemetry/telemetry.go`
+
+```text
+     1→// Package telemetry provides OpenTelemetry trace and metric initialization for the SpecStory CLI.
+     2→// It follows the same idempotent-init pattern as pkg/analytics: first call to Init wins,
+     3→// disabled path uses the OTel no-op provider (zero overhead, no nil checks needed).
+     4→package telemetry
+     5→
+     6→import (
+     7→	"context"
+     8→	"crypto/sha256"
+     9→	"fmt"
+    10→	"net/url"
+    11→	"os"
+    12→	"strings"
+    13→	"sync"
+    14→	"time"
+    15→
+    16→	"go.opentelemetry.io/otel"
+    17→	"go.opentelemetry.io/otel/attribute"
+    18→	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+    19→	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    20→	"go.opentelemetry.io/otel/metric"
+    21→	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+    22→	"go.opentelemetry.io/otel/sdk/resource"
+    23→	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+    24→	"go.opentelemetry.io/otel/trace"
+    25→	"go.opentelemetry.io/otel/trace/noop"
+    26→)
+    27→
+    28→const (
+    29→	// defaultEndpoint is the OTLP gRPC collector address used when
+    30→	// OTEL_EXPORTER_OTLP_ENDPOINT is set but Options.Endpoint is empty.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:17Z)**_
+
+`log/slog` isn't imported in `telemetry.go` yet. I'll add it and inline the function.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:36Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/telemetry.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:40Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/telemetry/telemetry.go`
+
+```text
+    27→)
+    28→
+    29→const (
+    30→	// defaultEndpoint is the OTLP gRPC collector address used when
+    31→	// OTEL_EXPORTER_OTLP_ENDPOINT is set but Options.Endpoint is empty.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:42Z)**_
+
+Now add the function right before the `const` block, then delete the file.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:47Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/telemetry.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Delete the now-redundant logging.go file
+
+`rm /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/logging.go`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:43:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build to verify
+
+`go build -o specstory 2>&1`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:44:01Z)**_
+
+Builds clean. Diagnostics were stale from the brief moment both files existed.
