@@ -204,7 +204,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during watch mode
 				// This is autosave mode (true)
-				markdownSize, err := session.ProcessSingleSession(context.Background(), sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
 				if err != nil {
 					// Log error but continue - don't fail the whole watch
 					// In watch mode, we prioritize keeping the watcher running.
