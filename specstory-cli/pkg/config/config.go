@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -26,54 +27,85 @@ const (
 	CLIDir = "cli"
 )
 
-// defaultConfigTemplate is the content written to a new user-level config file.
+// defaultConfigTemplate is the content written to a newly created config file.
 // All options are commented out so the file is self-documenting but inert.
 const defaultConfigTemplate = `# SpecStory CLI Configuration
 #
-# This is the user-level config file for SpecStory CLI.
-# All settings here apply to every project unless overridden by a
-# project-level config at .specstory/cli/config.toml or CLI flags.
+# {u This is the user-level config file for SpecStory CLI.
+# All settings here apply to every project unless overridden
+# by a project-level config at ./.specstory/cli/config.toml
+# or overridden by CLI flags.}
+# {p This is the project-level config file for SpecStory CLI.
+# All settings here apply to this project unless overridden by CLI flags.}
 #
-# Uncomment and edit any setting below to change the default behavior.
-# For more information, see: https://github.com/specstoryai/specstory
+# Uncomment (remove the #) the line and edit any setting below to change the default behavior.
+# For more information, see: https://docs.specstory.com/integrations/terminal-coding-agents/usage
 
-# Custom output directory for markdown and debug files.
-# Default: .specstory (relative to the project directory)
-# output_dir = ""
+[local_sync]
+# Write markdown files locally. (default: true)
+# enabled = false # equivalent to --only-cloud-sync
 
-# [version_check]
-# Check for newer versions of the CLI on startup.
+# Custom output directory for markdown files.
+# Default: ./.specstory/history (relative to the project directory)
+# output_dir = "~/.specstory/history" # equivalent to --output-dir "~/.specstory/history"
+
+# Use local timezone for file name and content timestamps (default: false, UTC)
+# local_time_zone = true # equivalent to --local-time-zone
+
+[cloud_sync]
+# Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
+# enabled = false # equivalent to --no-cloud-sync
+
+[logging]
+# Custom output directory for debug data.
+# Default: ./.specstory/debug (relative to the project directory)
+# debug_dir = "~/.specstory/debug" # equivalent to --debug-dir "~/.specstory/debug"
+
+# Error/warn/info output to stdout (default: false)
+# console = true # equivalent to --console
+
+# Write logs to .specstory/debug/debug.log (default: false)
+# log = true # equivalent to --log        
+
+# Debug-level output, requires console or log (default: false)
+# debug = true # equivalent to --debug 
+
+# Suppress all non-error output (default: false)
+# silent = true	# equivalent to --silence
+
+[version_check]
+# Check for new versions of the CLI on startup.
 # Default: true
-# enabled = true
+# enabled = false # equivalent to --no-version-check
 
-# [cloud_sync]
-# Sync session data to SpecStory Cloud.
+[analytics]
+# Send anonymous product usage analytics to help improve SpecStory.
 # Default: true
-# enabled = true
+# enabled = false # equivalent to --no-usage-analytics
 
-# [local_sync]
-# Write markdown files locally.
-# When false, only cloud sync is performed (equivalent to --only-cloud-sync).
-# Default: true
-# enabled = true
+[providers]
+# Agent execution commands by provider (used by specstory run)
+# Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
+# Use of these is equivalent to -c "custom command"
 
-# [logging]
-# console = false    # Error/warn/info output to stdout (default: false)
-# log = false        # Write logs to .specstory/debug/debug.log (default: false)
-# debug = false      # Debug-level output, requires console or log (default: false)
-# silent = false     # Suppress all non-error output (default: false)
+# Claude Code command
+# claude_cmd = "claude"
 
-# [analytics]
-# Send anonymous usage analytics to help improve SpecStory.
-# Default: true
-# enabled = true
+# Codex CLI command
+# codex_cmd = "codex"
+
+# Cursor CLI command
+# cursor_cmd = "cursor-agent"
+
+# Droid CLI command
+# droid_cmd = "droid"
+
+# Gemini CLI command
+# gemini_cmd = "gemini"
 `
 
 // Config represents the complete CLI configuration
 type Config struct {
-	// OutputDir is the custom output directory for markdown and debug files
-	OutputDir string `toml:"output_dir"`
-
 	VersionCheck VersionCheckConfig `toml:"version_check"`
 	CloudSync    CloudSyncConfig    `toml:"cloud_sync"`
 	LocalSync    LocalSyncConfig    `toml:"local_sync"`
@@ -98,10 +130,16 @@ type LocalSyncConfig struct {
 	// Enabled controls whether local markdown files are written
 	// When false, only cloud sync is performed (equivalent to --only-cloud-sync)
 	Enabled *bool `toml:"enabled"`
+	// OutputDir is the custom output directory for markdown files
+	OutputDir string `toml:"output_dir"`
+	// LocalTimeZone enables local timezone for file name and content timestamps
+	LocalTimeZone *bool `toml:"local_time_zone"`
 }
 
 // LoggingConfig holds logging settings
 type LoggingConfig struct {
+	// DebugDir is the custom output directory for debug data
+	DebugDir string `toml:"debug_dir"`
 	// Console enables error/warn/info output to stdout
 	Console *bool `toml:"console"`
 	// Log enables writing error/warn/info output to .specstory/debug/debug.log
@@ -122,7 +160,8 @@ type AnalyticsConfig struct {
 // These are applied after config files are loaded.
 type CLIOverrides struct {
 	// General
-	OutputDir string
+	OutputDir     string
+	LocalTimeZone bool
 
 	// Version check
 	NoVersionCheck bool
@@ -132,10 +171,11 @@ type CLIOverrides struct {
 	OnlyCloudSync bool
 
 	// Logging
-	Console bool
-	Log     bool
-	Debug   bool
-	Silent  bool
+	DebugDir string
+	Console  bool
+	Log      bool
+	Debug    bool
+	Silent   bool
 
 	// Analytics
 	NoAnalytics bool
@@ -209,6 +249,106 @@ func getLocalConfigPath() string {
 	return filepath.Join(cwd, SpecStoryDir, CLIDir, ConfigFileName)
 }
 
+// processTemplate processes the default config template for a given level
+// ("user" or "project"). Template markers {u ...} and {p ...} delimit content
+// specific to user-level or project-level config files respectively.
+//
+// For level "user": content inside {u ...} is kept (markers stripped),
+// content inside {p ...} is removed entirely.
+// For level "project": the opposite applies.
+//
+// Markers can span multiple lines. The opening marker ({u or {p) appears at
+// the start of a line (after optional whitespace/comment prefix), and the
+// closing } appears at the end of a line.
+func processTemplate(template, level string) string {
+	var result strings.Builder
+	keepTag := "{u"
+	stripTag := "{p"
+	if level == "project" {
+		keepTag = "{p"
+		stripTag = "{u"
+	}
+
+	insideKeep := false
+	insideStrip := false
+
+	for line := range strings.SplitSeq(template, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Remove any leading "# " to inspect the marker
+		bare := strings.TrimPrefix(trimmed, "# ")
+
+		switch {
+		case insideStrip:
+			// Check for closing brace — ends the stripped block
+			if strings.HasSuffix(bare, "}") {
+				insideStrip = false
+			}
+			// Drop the entire line regardless
+			continue
+
+		case insideKeep:
+			// Check for closing brace — ends the kept block
+			if strings.HasSuffix(bare, "}") {
+				insideKeep = false
+				// Strip the trailing } from the line
+				idx := strings.LastIndex(line, "}")
+				line = line[:idx]
+				// Only emit if something remains after stripping
+				if strings.TrimSpace(line) == "" || strings.TrimSpace(line) == "#" {
+					continue
+				}
+			}
+			result.WriteString(line)
+			result.WriteString("\n")
+
+		case strings.HasPrefix(bare, keepTag+" "):
+			insideKeep = true
+			// prefix is everything before the bare marker (e.g. "# ")
+			prefix := line[:strings.Index(line, bare)]
+			// Check if single-line block (closing } on same line)
+			if strings.HasSuffix(bare, "}") {
+				insideKeep = false
+				// Extract content between tag and closing brace
+				content := strings.TrimSpace(bare[len(keepTag)+1 : len(bare)-1])
+				reconstructed := prefix + content
+				if strings.TrimSpace(reconstructed) == "" || strings.TrimSpace(reconstructed) == "#" {
+					continue
+				}
+				result.WriteString(reconstructed)
+				result.WriteString("\n")
+			} else {
+				// Multi-line: strip the marker prefix, keep content after it
+				content := strings.TrimSpace(bare[len(keepTag)+1:])
+				reconstructed := prefix + content
+				if strings.TrimSpace(reconstructed) == "" || strings.TrimSpace(reconstructed) == "#" {
+					continue
+				}
+				result.WriteString(reconstructed)
+				result.WriteString("\n")
+			}
+
+		case strings.HasPrefix(bare, stripTag+" "):
+			insideStrip = true
+			// Check if single-line block (closing } on same line)
+			if strings.HasSuffix(bare, "}") {
+				insideStrip = false
+			}
+			continue
+
+		default:
+			result.WriteString(line)
+			result.WriteString("\n")
+		}
+	}
+
+	// Remove trailing extra newline that accumulates from the split
+	out := result.String()
+	if strings.HasSuffix(out, "\n\n") && !strings.HasSuffix(template, "\n\n") {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
 // ensureDefaultUserConfig creates a default user-level config file with all
 // options commented out. This makes the config discoverable without changing
 // any behavior. Failures are silently ignored — this is a convenience, not
@@ -219,7 +359,8 @@ func ensureDefaultUserConfig(path string) {
 		slog.Debug("Could not create config directory", "path", dir, "error", err)
 		return
 	}
-	if err := os.WriteFile(path, []byte(defaultConfigTemplate), 0644); err != nil {
+	processed := processTemplate(defaultConfigTemplate, "user")
+	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
 		slog.Debug("Could not write default config file", "path", path, "error", err)
 		return
 	}
@@ -235,9 +376,16 @@ func loadTOMLFile(path string, cfg *Config) error {
 
 // applyCLIOverrides applies CLI flag overrides to the config.
 func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
-	// General
+	// Local sync
 	if o.OutputDir != "" {
-		cfg.OutputDir = o.OutputDir
+		cfg.LocalSync.OutputDir = o.OutputDir
+	}
+	if o.LocalTimeZone {
+		enabled := true
+		cfg.LocalSync.LocalTimeZone = &enabled
+	}
+	if o.DebugDir != "" {
+		cfg.Logging.DebugDir = o.DebugDir
 	}
 
 	// Version check (--no-version-check sets enabled to false)
@@ -287,7 +435,7 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 
 // GetOutputDir returns the output directory, or empty string to use default.
 func (c *Config) GetOutputDir() string {
-	return c.OutputDir
+	return c.LocalSync.OutputDir
 }
 
 // IsVersionCheckEnabled returns whether version check is enabled.
@@ -361,4 +509,18 @@ func (c *Config) IsAnalyticsEnabled() bool {
 		return *c.Analytics.Enabled
 	}
 	return true // default enabled
+}
+
+// GetDebugDir returns the custom debug directory, or empty string to use default.
+func (c *Config) GetDebugDir() string {
+	return c.Logging.DebugDir
+}
+
+// IsLocalTimeZoneEnabled returns whether local timezone is enabled.
+// Defaults to false if not explicitly set (UTC is default).
+func (c *Config) IsLocalTimeZoneEnabled() bool {
+	if c.LocalSync.LocalTimeZone != nil {
+		return *c.LocalSync.LocalTimeZone
+	}
+	return false
 }

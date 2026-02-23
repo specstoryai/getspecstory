@@ -34,7 +34,9 @@ var version = "dev" // Replaced with actual version in the production build proc
 // General Options
 var noAnalytics bool    // flag to disable usage analytics
 var noVersionCheck bool // flag to skip checking for newer versions
-var outputDir string    // custom output directory for markdown and debug files
+var outputDir string    // custom output directory for markdown files
+var debugDir string     // custom output directory for debug files
+var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
@@ -72,19 +74,19 @@ type SyncStats struct {
 // validateFlags checks for mutually exclusive flag combinations
 func validateFlags() error {
 	if console && silent {
-		return utils.ValidationError{Message: "cannot use --console and --silent together. These flags are mutually exclusive"}
+		return utils.ValidationError{Message: "cannot use `console` and `silent` together. These are mutually exclusive"}
 	}
 	if debug && !console && !logFile {
-		return utils.ValidationError{Message: "--debug requires either --console or --log to be specified"}
+		return utils.ValidationError{Message: "`debug` requires either `console` or `log` to be specified"}
 	}
 	if onlyCloudSync && noCloudSync {
-		return utils.ValidationError{Message: "cannot use --only-cloud-sync and --no-cloud-sync together. These flags are mutually exclusive"}
+		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
 	}
 	if printToStdout && onlyCloudSync {
-		return utils.ValidationError{Message: "cannot use --print and --only-cloud-sync together. These flags are mutually exclusive"}
+		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
 	}
 	if printToStdout && console {
-		return utils.ValidationError{Message: "cannot use --print and --console together. Console debug output would interleave with markdown on stdout"}
+		return utils.ValidationError{Message: "cannot use --print and `console` together. Console debug output would interleave with markdown on stdout"}
 	}
 	return nil
 }
@@ -154,7 +156,7 @@ specstory watch`
 				// Create output config to get proper log path if needed
 				var logPath string
 				if logFile {
-					config, err := utils.SetupOutputConfig(outputDir)
+					config, err := utils.SetupOutputConfig(outputDir, debugDir)
 					if err != nil {
 						return err
 					}
@@ -350,7 +352,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			analytics.SetAgentProviders([]string{provider.Name()})
 
 			// Setup output configuration
-			config, err := utils.SetupOutputConfig(outputDir)
+			config, err := utils.SetupOutputConfig(outputDir, debugDir)
 			if err != nil {
 				return err
 			}
@@ -404,8 +406,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get debug-raw flag value (must be before callback to capture in closure)
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-			useUTC := !useLocalTimezone
+			useUTC := !localTimeZone
 
 			// This callback pattern enables real-time processing of agent sessions
 			// without blocking the agent's execution. As the agent writes updates to its
@@ -551,8 +552,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	useUTC := !useLocalTimezone
+	useUTC := !localTimeZone
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -563,7 +563,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 	// Setup file output and cloud sync (not needed for --print mode)
 	var config utils.OutputConfig
 	if !printToStdout {
-		config, err = utils.SetupOutputConfig(outputDir)
+		config, err = utils.SetupOutputConfig(outputDir, debugDir)
 		if err != nil {
 			return err
 		}
@@ -943,8 +943,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	useUTC := !useLocalTimezone
+	useUTC := !localTimeZone
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -1001,7 +1000,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	analytics.SetAgentProviders(providerNames)
 
 	// Setup output configuration (once for all providers)
-	config, err := utils.SetupOutputConfig(outputDir)
+	config, err := utils.SetupOutputConfig(outputDir, debugDir)
 	if err != nil {
 		return err
 	}
@@ -1070,8 +1069,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobra.Command) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-	useUTC := !useLocalTimezone
+	useUTC := !localTimeZone
 
 	provider, err := registry.Get(providerID)
 	if err != nil {
@@ -1107,7 +1105,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Setup output configuration
-	config, err := utils.SetupOutputConfig(outputDir)
+	config, err := utils.SetupOutputConfig(outputDir, debugDir)
 	if err != nil {
 		return err
 	}
@@ -1181,13 +1179,25 @@ func main() {
 		case "--output-dir":
 			// Handle --output-dir <value> format (space-separated)
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
-				outputDir = args[i+1]
+				outputDir = utils.ExpandTilde(args[i+1])
 				i++ // Skip the value in next iteration
 			}
+		case "--debug-dir":
+			// Handle --debug-dir <value> format (space-separated)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				debugDir = utils.ExpandTilde(args[i+1])
+				i++ // Skip the value in next iteration
+			}
+		case "--local-time-zone":
+			localTimeZone = true
 		}
 		// Handle --output-dir=value format
 		if strings.HasPrefix(arg, "--output-dir=") {
-			outputDir = strings.TrimPrefix(arg, "--output-dir=")
+			outputDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--output-dir="))
+		}
+		// Handle --debug-dir=value format
+		if strings.HasPrefix(arg, "--debug-dir=") {
+			debugDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--debug-dir="))
 		}
 	}
 
@@ -1195,9 +1205,11 @@ func main() {
 	// Priority: CLI flags > local project config > user-level config
 	cfg, cfgErr := config.Load(&config.CLIOverrides{
 		OutputDir:      outputDir,
+		LocalTimeZone:  localTimeZone,
 		NoVersionCheck: noVersionCheck,
 		NoCloudSync:    noCloudSync,
 		OnlyCloudSync:  onlyCloudSync,
+		DebugDir:       debugDir,
 		Console:        console,
 		Log:            logFile,
 		Debug:          debug,
@@ -1212,8 +1224,12 @@ func main() {
 	// Apply config values to flag variables so the rest of the code can use them unchanged.
 	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).
 	if cfg.GetOutputDir() != "" {
-		outputDir = cfg.GetOutputDir()
+		outputDir = utils.ExpandTilde(cfg.GetOutputDir())
 	}
+	if cfg.GetDebugDir() != "" {
+		debugDir = utils.ExpandTilde(cfg.GetDebugDir())
+	}
+	localTimeZone = cfg.IsLocalTimeZoneEnabled()
 	noVersionCheck = !cfg.IsVersionCheckEnabled()
 	noCloudSync = !cfg.IsCloudSyncEnabled()
 	onlyCloudSync = !cfg.IsLocalSyncEnabled()
@@ -1223,11 +1239,16 @@ func main() {
 	debug = cfg.IsDebugEnabled()
 	silent = cfg.IsSilentEnabled()
 
+	// Set SPI debug dir override before any commands run
+	if debugDir != "" {
+		spi.SetDebugBaseDir(debugDir)
+	}
+
 	// Set up logging early before creating commands (which access the registry)
 	if console || logFile {
 		var logPath string
 		if logFile {
-			config, _ := utils.SetupOutputConfig(outputDir)
+			config, _ := utils.SetupOutputConfig(outputDir, debugDir)
 			logPath = config.GetLogPath()
 		}
 		_ = log.SetupLogger(console, logFile, debug, logPath)
@@ -1239,7 +1260,7 @@ func main() {
 	// NOW create the commands - after logging is configured
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
-	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL)
+	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()
 	checkCmd := cmdpkg.CreateCheckCommand()
@@ -1281,27 +1302,29 @@ func main() {
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
-	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	syncCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+	syncCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
 	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
-	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown and debug files (default: ./.specstory/history)")
+	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+	runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	runCmd.Flags().BoolP("local-time-zone", "", false, "use local timezone for file name and content timestamps (when not present: UTC)")
+	runCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
 
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)

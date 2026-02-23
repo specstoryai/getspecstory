@@ -94,50 +94,94 @@ Configuration is loaded with the following priority (highest to lowest):
 ### Example Configuration
 
 ```toml
-# Custom output directory for markdown and debug files
-output_dir = "/path/to/output"
-
-[version_check]
-# Check for newer versions on startup (default: true)
-enabled = true
-
-[cloud_sync]
-# Sync sessions to SpecStory Cloud (default: true)
-enabled = true
+# SpecStory CLI Configuration
+#
+# Uncomment (remove the #) the line and edit any setting below to change the default behavior.
+# For more information, see: https://docs.specstory.com/integrations/terminal-coding-agents/usage
 
 [local_sync]
-# Write local markdown files (default: true)
-# When false, only cloud sync is performed (equivalent to --only-cloud-sync)
-enabled = true
+# Write markdown files locally. (default: true)
+# enabled = false # equivalent to --only-cloud-sync
+
+# Custom output directory for markdown files.
+# Default: ./.specstory/history (relative to the project directory)
+# output_dir = "~/.specstory/history" # equivalent to --output-dir "~/.specstory/history"
+
+# Use local timezone for file name and content timestamps (default: false, UTC)
+# local_time_zone = true # equivalent to --local-time-zone
+
+[cloud_sync]
+# Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
+# enabled = false # equivalent to --no-cloud-sync
 
 [logging]
-# Enable console output for error/warn/info messages (default: false)
-console = false
+# Custom output directory for debug data.
+# Default: ./.specstory/debug (relative to the project directory)
+# debug_dir = "~/.specstory/debug" # equivalent to --debug-dir "~/.specstory/debug"
+
+# Error/warn/info output to stdout (default: false)
+# console = true # equivalent to --console
+
 # Write logs to .specstory/debug/debug.log (default: false)
-log = false
-# Enable debug-level logging output (default: false)
-debug = false
+# log = true # equivalent to --log
+
+# Debug-level output, requires console or log (default: false)
+# debug = true # equivalent to --debug
+
 # Suppress all non-error output (default: false)
-silent = false
+# silent = true # equivalent to --silence
+
+[version_check]
+# Check for new versions of the CLI on startup.
+# Default: true
+# enabled = false # equivalent to --no-version-check
 
 [analytics]
-# Send anonymous usage analytics (default: true)
-enabled = true
+# Send anonymous product usage analytics to help improve SpecStory.
+# Default: true
+# enabled = false # equivalent to --no-usage-analytics
+
+[providers]
+# Agent execution commands by provider (used by specstory run)
+# Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
+# Use of these is equivalent to -c "custom command"
+
+# Claude Code command
+# claude_cmd = "claude"
+
+# Codex CLI command
+# codex_cmd = "codex"
+
+# Cursor CLI command
+# cursor_cmd = "cursor-agent"
+
+# Droid CLI command
+# droid_cmd = "droid"
+
+# Gemini CLI command
+# gemini_cmd = "gemini"
 ```
 
 ### Configuration Options
 
-| Section | Option | Default | Description |
-|---------|--------|---------|-------------|
-| (root) | `output_dir` | `.specstory/history` | Custom output directory for markdown files |
-| `[version_check]` | `enabled` | `true` | Check for newer CLI versions on startup |
-| `[cloud_sync]` | `enabled` | `true` | Sync sessions to SpecStory Cloud |
-| `[local_sync]` | `enabled` | `true` | Write local markdown files |
-| `[logging]` | `console` | `false` | Output logs to stdout |
-| `[logging]` | `log` | `false` | Write logs to debug file |
-| `[logging]` | `debug` | `false` | Enable debug-level output |
-| `[logging]` | `silent` | `false` | Suppress non-error output |
-| `[analytics]` | `enabled` | `true` | Send anonymous usage analytics |
+| Section           | Option            | Default              | Description                                |
+|-------------------|-------------------|----------------------|--------------------------------------------|
+| `[local_sync]`    | `enabled`         | `true`               | Write local markdown files                 |
+| `[local_sync]`    | `output_dir`      | `.specstory/history` | Custom output directory for markdown files |
+| `[local_sync]`    | `local_time_zone` | `false`              | Use local timezone for timestamps          |
+| `[cloud_sync]`    | `enabled`         | `true`               | Sync sessions to SpecStory Cloud           |
+| `[logging]`       | `debug_dir`       | `.specstory/debug`   | Custom output directory for debug data     |
+| `[logging]`       | `console`         | `false`              | Output logs to stdout                      |
+| `[logging]`       | `log`             | `false`              | Write logs to debug file                   |
+| `[logging]`       | `debug`           | `false`              | Enable debug-level output                  |
+| `[logging]`       | `silent`          | `false`              | Suppress non-error output                  |
+| `[version_check]` | `enabled`         | `true`               | Check for newer CLI versions on startup    |
+| `[analytics]`     | `enabled`         | `true`               | Send anonymous usage analytics             |
+| `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
+| `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
+| `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
+| `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
+| `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 
 ## Development
 

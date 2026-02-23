@@ -23,6 +23,78 @@ func createTempConfigFile(t *testing.T, dir, content string) string {
 	return configPath
 }
 
+// TestProcessTemplate tests the template processing for user/project levels
+func TestProcessTemplate(t *testing.T) {
+	template := `# Header
+# {u This is user-level text.}
+# {p This is project-level text.}
+# Shared line
+`
+
+	t.Run("user level keeps {u} and strips {p}", func(t *testing.T) {
+		result := processTemplate(template, "user")
+		if !strings.Contains(result, "This is user-level text.") {
+			t.Errorf("User template should contain user-level text, got:\n%s", result)
+		}
+		if strings.Contains(result, "This is project-level text.") {
+			t.Errorf("User template should not contain project-level text, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Shared line") {
+			t.Errorf("User template should contain shared lines, got:\n%s", result)
+		}
+		// Should not contain raw markers
+		if strings.Contains(result, "{u") || strings.Contains(result, "{p") {
+			t.Errorf("Processed template should not contain raw markers, got:\n%s", result)
+		}
+	})
+
+	t.Run("project level keeps {p} and strips {u}", func(t *testing.T) {
+		result := processTemplate(template, "project")
+		if strings.Contains(result, "This is user-level text.") {
+			t.Errorf("Project template should not contain user-level text, got:\n%s", result)
+		}
+		if !strings.Contains(result, "This is project-level text.") {
+			t.Errorf("Project template should contain project-level text, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Shared line") {
+			t.Errorf("Project template should contain shared lines, got:\n%s", result)
+		}
+	})
+
+	t.Run("multi-line blocks", func(t *testing.T) {
+		multiLine := `# {u Line one of user block.
+# Line two of user block.}
+# {p Line one of project block.
+# Line two of project block.}
+# Common line
+`
+		result := processTemplate(multiLine, "user")
+		if !strings.Contains(result, "Line one of user block.") {
+			t.Errorf("Should contain first line of user block, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Line two of user block.") {
+			t.Errorf("Should contain second line of user block, got:\n%s", result)
+		}
+		if strings.Contains(result, "Line one of project block.") {
+			t.Errorf("Should not contain project block content, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Common line") {
+			t.Errorf("Should contain common line, got:\n%s", result)
+		}
+	})
+
+	t.Run("defaultConfigTemplate produces valid output for user level", func(t *testing.T) {
+		result := processTemplate(defaultConfigTemplate, "user")
+		if strings.Contains(result, "{u") || strings.Contains(result, "{p") {
+			t.Errorf("Processed default template should not contain raw markers, got:\n%s", result)
+		}
+		// Should still contain the shared content
+		if !strings.Contains(result, "SpecStory CLI Configuration") {
+			t.Errorf("Processed template should contain header, got:\n%s", result)
+		}
+	})
+}
+
 // TestLoadPrecedence tests that project config overrides user config
 func TestLoadPrecedence(t *testing.T) {
 	// Save and restore original working directory
@@ -44,20 +116,20 @@ func TestLoadPrecedence(t *testing.T) {
 	}{
 		{
 			name:           "project config overrides user config",
-			userConfig:     `output_dir = "/user/path"`,
-			projectConfig:  `output_dir = "/project/path"`,
+			userConfig:     "[local_sync]\noutput_dir = \"/user/path\"",
+			projectConfig:  "[local_sync]\noutput_dir = \"/project/path\"",
 			expectedOutDir: "/project/path",
 		},
 		{
 			name:           "user config used when no project config",
-			userConfig:     `output_dir = "/user/path"`,
+			userConfig:     "[local_sync]\noutput_dir = \"/user/path\"",
 			projectConfig:  "",
 			expectedOutDir: "/user/path",
 		},
 		{
 			name:           "project config used when no user config",
 			userConfig:     "",
-			projectConfig:  `output_dir = "/project/path"`,
+			projectConfig:  "[local_sync]\noutput_dir = \"/project/path\"",
 			expectedOutDir: "/project/path",
 		},
 		{
@@ -148,7 +220,7 @@ func TestCLIOverrides(t *testing.T) {
 	}{
 		{
 			name:       "OutputDir override",
-			configFile: `output_dir = "/config/path"`,
+			configFile: "[local_sync]\noutput_dir = \"/config/path\"",
 			overrides:  &CLIOverrides{OutputDir: "/cli/path"},
 			checkFunc: func(t *testing.T, cfg *Config) {
 				if cfg.GetOutputDir() != "/cli/path" {
@@ -261,8 +333,31 @@ enabled = true
 			},
 		},
 		{
+			name: "DebugDir override (--debug-dir)",
+			configFile: `
+[logging]
+debug_dir = "/config/debug"
+`,
+			overrides: &CLIOverrides{DebugDir: "/cli/debug"},
+			checkFunc: func(t *testing.T, cfg *Config) {
+				if cfg.GetDebugDir() != "/cli/debug" {
+					t.Errorf("GetDebugDir() = %q, want %q", cfg.GetDebugDir(), "/cli/debug")
+				}
+			},
+		},
+		{
+			name:       "LocalTimeZone override (--local-time-zone)",
+			configFile: ``,
+			overrides:  &CLIOverrides{LocalTimeZone: true},
+			checkFunc: func(t *testing.T, cfg *Config) {
+				if !cfg.IsLocalTimeZoneEnabled() {
+					t.Errorf("IsLocalTimeZoneEnabled() = false, want true")
+				}
+			},
+		},
+		{
 			name:       "Empty CLI override doesn't change config value",
-			configFile: `output_dir = "/config/path"`,
+			configFile: "[local_sync]\noutput_dir = \"/config/path\"",
 			overrides:  &CLIOverrides{OutputDir: ""},
 			checkFunc: func(t *testing.T, cfg *Config) {
 				if cfg.GetOutputDir() != "/config/path" {
@@ -272,7 +367,7 @@ enabled = true
 		},
 		{
 			name:       "Nil CLI overrides doesn't panic",
-			configFile: `output_dir = "/config/path"`,
+			configFile: "[local_sync]\noutput_dir = \"/config/path\"",
 			overrides:  nil,
 			checkFunc: func(t *testing.T, cfg *Config) {
 				if cfg.GetOutputDir() != "/config/path" {
@@ -335,7 +430,7 @@ func TestParseErrorHandling(t *testing.T) {
 	}{
 		{
 			name:          "valid TOML parses successfully",
-			configContent: `output_dir = "/valid/path"`,
+			configContent: "[local_sync]\noutput_dir = \"/valid/path\"",
 			wantError:     false,
 		},
 		{
@@ -346,7 +441,7 @@ func TestParseErrorHandling(t *testing.T) {
 		},
 		{
 			name:          "unclosed quote returns error",
-			configContent: `output_dir = "/unclosed`,
+			configContent: "[local_sync]\noutput_dir = \"/unclosed",
 			wantError:     true,
 			errorContains: "failed to load project config",
 		},
@@ -482,7 +577,7 @@ func TestMissingFileHandling(t *testing.T) {
 				}
 				if tt.createUserConf {
 					configPath := filepath.Join(userConfigDir, ConfigFileName)
-					if err := os.WriteFile(configPath, []byte(`output_dir = "/user"`), 0644); err != nil {
+					if err := os.WriteFile(configPath, []byte("[local_sync]\noutput_dir = \"/user\""), 0644); err != nil {
 						t.Fatalf("Failed to create user config: %v", err)
 					}
 				}
@@ -495,7 +590,7 @@ func TestMissingFileHandling(t *testing.T) {
 				}
 				if tt.createProjConf {
 					configPath := filepath.Join(projConfigDir, ConfigFileName)
-					if err := os.WriteFile(configPath, []byte(`output_dir = "/project"`), 0644); err != nil {
+					if err := os.WriteFile(configPath, []byte("[local_sync]\noutput_dir = \"/project\""), 0644); err != nil {
 						t.Fatalf("Failed to create project config: %v", err)
 					}
 				}
@@ -557,6 +652,7 @@ func TestDefaultValues(t *testing.T) {
 		{"IsLogEnabled default", cfg.IsLogEnabled(), false},
 		{"IsDebugEnabled default", cfg.IsDebugEnabled(), false},
 		{"IsSilentEnabled default", cfg.IsSilentEnabled(), false},
+		{"IsLocalTimeZoneEnabled default", cfg.IsLocalTimeZoneEnabled(), false},
 	}
 
 	for _, tt := range tests {
@@ -570,6 +666,11 @@ func TestDefaultValues(t *testing.T) {
 	// OutputDir should be empty string (no default path)
 	if cfg.GetOutputDir() != "" {
 		t.Errorf("GetOutputDir() = %q, want empty string", cfg.GetOutputDir())
+	}
+
+	// DebugDir should be empty string (no default path)
+	if cfg.GetDebugDir() != "" {
+		t.Errorf("GetDebugDir() = %q, want empty string", cfg.GetDebugDir())
 	}
 }
 
@@ -609,13 +710,14 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 			t.Fatalf("Default config file was not created at %s", expectedPath)
 		}
 
-		// Verify content matches the template
+		// Verify content matches the processed user-level template
 		content, err := os.ReadFile(expectedPath)
 		if err != nil {
 			t.Fatalf("Failed to read created config: %v", err)
 		}
-		if string(content) != defaultConfigTemplate {
-			t.Errorf("Created config content does not match template")
+		expected := processTemplate(defaultConfigTemplate, "user")
+		if string(content) != expected {
+			t.Errorf("Created config content does not match processed user template")
 		}
 
 		// Verify all config values are still defaults (everything is commented out)
@@ -648,7 +750,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		}
 
 		// Create an existing user config with custom settings
-		existingContent := `output_dir = "/my/custom/path"`
+		existingContent := "[local_sync]\noutput_dir = \"/my/custom/path\""
 		createTempConfigFile(t, tempHome, existingContent)
 
 		// Load config — file exists, should NOT overwrite
@@ -743,18 +845,29 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 
 // TestDefaultConfigTemplateParsesWhenUncommented verifies the default config
 // template is valid TOML when all comment prefixes are removed. This guards
-// against template syntax rot.
+// against template syntax rot. We process the template first to strip markers.
 func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
+	// Process template to strip {u ...} / {p ...} markers before uncommenting
+	processed := processTemplate(defaultConfigTemplate, "user")
+
 	var uncommented strings.Builder
-	for line := range strings.SplitSeq(defaultConfigTemplate, "\n") {
+	for line := range strings.SplitSeq(processed, "\n") {
 		trimmed := strings.TrimSpace(line)
-		// Skip blank lines and pure prose comment lines (no "=" or "[")
-		if trimmed == "" || (strings.HasPrefix(trimmed, "#") && !strings.Contains(trimmed, "=") && !strings.Contains(trimmed, "[")) {
+		// Skip blank lines
+		if trimmed == "" {
 			continue
 		}
-		// Strip leading "# " from commented-out TOML lines
-		trimmed = strings.TrimPrefix(trimmed, "# ")
-		uncommented.WriteString(trimmed)
+		// Strip leading "# " to inspect the content
+		stripped := strings.TrimPrefix(trimmed, "# ")
+		// Keep section headers like [logging] and key = value lines
+		// A TOML key-value line starts with a word character before the =
+		// Skip prose comment lines that happen to contain = (e.g. examples in parentheses)
+		isSection := strings.HasPrefix(stripped, "[")
+		isKeyValue := strings.Contains(stripped, " = ") && !strings.Contains(stripped, "(")
+		if strings.HasPrefix(trimmed, "#") && !isSection && !isKeyValue {
+			continue
+		}
+		uncommented.WriteString(stripped)
 		uncommented.WriteString("\n")
 	}
 
