@@ -5,20 +5,94 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Helper to create a temporary config file with the given content
 func createTempConfigFile(t *testing.T, dir, content string) string {
 	t.Helper()
-	specstoryDir := filepath.Join(dir, SpecStoryDir)
-	if err := os.MkdirAll(specstoryDir, 0755); err != nil {
-		t.Fatalf("Failed to create .specstory dir: %v", err)
+	configDir := filepath.Join(dir, SpecStoryDir, CLIDir)
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("Failed to create config dir: %v", err)
 	}
-	configPath := filepath.Join(specstoryDir, ConfigFileName)
+	configPath := filepath.Join(configDir, ConfigFileName)
 	if err := os.WriteFile(configPath, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 	return configPath
+}
+
+// TestProcessTemplate tests the template processing for user/project levels
+func TestProcessTemplate(t *testing.T) {
+	template := `# Header
+# {u This is user-level text.}
+# {p This is project-level text.}
+# Shared line
+`
+
+	t.Run("user level keeps {u} and strips {p}", func(t *testing.T) {
+		result := processTemplate(template, "user")
+		if !strings.Contains(result, "This is user-level text.") {
+			t.Errorf("User template should contain user-level text, got:\n%s", result)
+		}
+		if strings.Contains(result, "This is project-level text.") {
+			t.Errorf("User template should not contain project-level text, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Shared line") {
+			t.Errorf("User template should contain shared lines, got:\n%s", result)
+		}
+		// Should not contain raw markers
+		if strings.Contains(result, "{u") || strings.Contains(result, "{p") {
+			t.Errorf("Processed template should not contain raw markers, got:\n%s", result)
+		}
+	})
+
+	t.Run("project level keeps {p} and strips {u}", func(t *testing.T) {
+		result := processTemplate(template, "project")
+		if strings.Contains(result, "This is user-level text.") {
+			t.Errorf("Project template should not contain user-level text, got:\n%s", result)
+		}
+		if !strings.Contains(result, "This is project-level text.") {
+			t.Errorf("Project template should contain project-level text, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Shared line") {
+			t.Errorf("Project template should contain shared lines, got:\n%s", result)
+		}
+	})
+
+	t.Run("multi-line blocks", func(t *testing.T) {
+		multiLine := `# {u Line one of user block.
+# Line two of user block.}
+# {p Line one of project block.
+# Line two of project block.}
+# Common line
+`
+		result := processTemplate(multiLine, "user")
+		if !strings.Contains(result, "Line one of user block.") {
+			t.Errorf("Should contain first line of user block, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Line two of user block.") {
+			t.Errorf("Should contain second line of user block, got:\n%s", result)
+		}
+		if strings.Contains(result, "Line one of project block.") {
+			t.Errorf("Should not contain project block content, got:\n%s", result)
+		}
+		if !strings.Contains(result, "Common line") {
+			t.Errorf("Should contain common line, got:\n%s", result)
+		}
+	})
+
+	t.Run("defaultConfigTemplate produces valid output for user level", func(t *testing.T) {
+		result := processTemplate(defaultConfigTemplate, "user")
+		if strings.Contains(result, "{u") || strings.Contains(result, "{p") {
+			t.Errorf("Processed default template should not contain raw markers, got:\n%s", result)
+		}
+		// Should still contain the shared content
+		if !strings.Contains(result, "SpecStory CLI Configuration") {
+			t.Errorf("Processed template should contain header, got:\n%s", result)
+		}
+	})
 }
 
 // TestLoadPrecedence tests that project config overrides user config
@@ -42,20 +116,20 @@ func TestLoadPrecedence(t *testing.T) {
 	}{
 		{
 			name:           "project config overrides user config",
-			userConfig:     `output_dir = "/user/path"`,
-			projectConfig:  `output_dir = "/project/path"`,
+			userConfig:     "[local_sync]\noutput_dir = \"/user/path\"",
+			projectConfig:  "[local_sync]\noutput_dir = \"/project/path\"",
 			expectedOutDir: "/project/path",
 		},
 		{
 			name:           "user config used when no project config",
-			userConfig:     `output_dir = "/user/path"`,
+			userConfig:     "[local_sync]\noutput_dir = \"/user/path\"",
 			projectConfig:  "",
 			expectedOutDir: "/user/path",
 		},
 		{
 			name:           "project config used when no user config",
 			userConfig:     "",
-			projectConfig:  `output_dir = "/project/path"`,
+			projectConfig:  "[local_sync]\noutput_dir = \"/project/path\"",
 			expectedOutDir: "/project/path",
 		},
 		{
@@ -125,6 +199,144 @@ enabled = false
 	}
 }
 
+// TestConfigMerge tests that user and project configs are merged, not replaced.
+// Non-overlapping settings from both levels should coexist, with project-level
+// taking precedence where both define the same key.
+func TestConfigMerge(t *testing.T) {
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	origHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	t.Run("non-overlapping settings from both configs are preserved", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User config sets output_dir and disables analytics
+		createTempConfigFile(t, tempHome, `
+[local_sync]
+output_dir = "/user/output"
+
+[analytics]
+enabled = false
+`)
+		// Project config sets debug_dir and disables cloud sync — no overlap
+		createTempConfigFile(t, tempProject, `
+[logging]
+debug_dir = "/project/debug"
+
+[cloud_sync]
+enabled = false
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// User-level output_dir should survive (project didn't set it)
+		if cfg.GetOutputDir() != "/user/output" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/user/output")
+		}
+		// User-level analytics=false should survive (project didn't set it)
+		if cfg.IsAnalyticsEnabled() {
+			t.Errorf("IsAnalyticsEnabled() = true, want false (from user config)")
+		}
+		// Project-level debug_dir should be present
+		if cfg.GetDebugDir() != "/project/debug" {
+			t.Errorf("GetDebugDir() = %q, want %q", cfg.GetDebugDir(), "/project/debug")
+		}
+		// Project-level cloud_sync=false should be present
+		if cfg.IsCloudSyncEnabled() {
+			t.Errorf("IsCloudSyncEnabled() = true, want false (from project config)")
+		}
+	})
+
+	t.Run("project overrides user for same key, preserves rest", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User sets output_dir and enables console logging
+		createTempConfigFile(t, tempHome, `
+[local_sync]
+output_dir = "/user/output"
+
+[logging]
+console = true
+`)
+		// Project overrides output_dir but doesn't mention console
+		createTempConfigFile(t, tempProject, `
+[local_sync]
+output_dir = "/project/output"
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// output_dir should be the project value
+		if cfg.GetOutputDir() != "/project/output" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/project/output")
+		}
+		// console should still be true from user config
+		if !cfg.IsConsoleEnabled() {
+			t.Errorf("IsConsoleEnabled() = false, want true (from user config)")
+		}
+	})
+
+	t.Run("CLI flags override both user and project config", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User sets output_dir
+		createTempConfigFile(t, tempHome, `
+[local_sync]
+output_dir = "/user/output"
+`)
+		// Project also sets output_dir
+		createTempConfigFile(t, tempProject, `
+[local_sync]
+output_dir = "/project/output"
+`)
+
+		// CLI flag overrides both
+		cfg, err := Load(&CLIOverrides{OutputDir: "/cli/output"})
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		if cfg.GetOutputDir() != "/cli/output" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/cli/output")
+		}
+	})
+}
+
 // TestCLIOverrides tests that CLI flags override config file settings
 func TestCLIOverrides(t *testing.T) {
 	// Save and restore original working directory
@@ -146,7 +358,7 @@ func TestCLIOverrides(t *testing.T) {
 	}{
 		{
 			name:       "OutputDir override",
-			configFile: `output_dir = "/config/path"`,
+			configFile: "[local_sync]\noutput_dir = \"/config/path\"",
 			overrides:  &CLIOverrides{OutputDir: "/cli/path"},
 			checkFunc: func(t *testing.T, cfg *Config) {
 				if cfg.GetOutputDir() != "/cli/path" {
@@ -259,8 +471,31 @@ enabled = true
 			},
 		},
 		{
+			name: "DebugDir override (--debug-dir)",
+			configFile: `
+[logging]
+debug_dir = "/config/debug"
+`,
+			overrides: &CLIOverrides{DebugDir: "/cli/debug"},
+			checkFunc: func(t *testing.T, cfg *Config) {
+				if cfg.GetDebugDir() != "/cli/debug" {
+					t.Errorf("GetDebugDir() = %q, want %q", cfg.GetDebugDir(), "/cli/debug")
+				}
+			},
+		},
+		{
+			name:       "LocalTimeZone override (--local-time-zone)",
+			configFile: ``,
+			overrides:  &CLIOverrides{LocalTimeZone: true},
+			checkFunc: func(t *testing.T, cfg *Config) {
+				if !cfg.IsLocalTimeZoneEnabled() {
+					t.Errorf("IsLocalTimeZoneEnabled() = false, want true")
+				}
+			},
+		},
+		{
 			name:       "Empty CLI override doesn't change config value",
-			configFile: `output_dir = "/config/path"`,
+			configFile: "[local_sync]\noutput_dir = \"/config/path\"",
 			overrides:  &CLIOverrides{OutputDir: ""},
 			checkFunc: func(t *testing.T, cfg *Config) {
 				if cfg.GetOutputDir() != "/config/path" {
@@ -270,7 +505,7 @@ enabled = true
 		},
 		{
 			name:       "Nil CLI overrides doesn't panic",
-			configFile: `output_dir = "/config/path"`,
+			configFile: "[local_sync]\noutput_dir = \"/config/path\"",
 			overrides:  nil,
 			checkFunc: func(t *testing.T, cfg *Config) {
 				if cfg.GetOutputDir() != "/config/path" {
@@ -333,7 +568,7 @@ func TestParseErrorHandling(t *testing.T) {
 	}{
 		{
 			name:          "valid TOML parses successfully",
-			configContent: `output_dir = "/valid/path"`,
+			configContent: "[local_sync]\noutput_dir = \"/valid/path\"",
 			wantError:     false,
 		},
 		{
@@ -344,7 +579,7 @@ func TestParseErrorHandling(t *testing.T) {
 		},
 		{
 			name:          "unclosed quote returns error",
-			configContent: `output_dir = "/unclosed`,
+			configContent: "[local_sync]\noutput_dir = \"/unclosed",
 			wantError:     true,
 			errorContains: "failed to load project config",
 		},
@@ -474,26 +709,26 @@ func TestMissingFileHandling(t *testing.T) {
 
 			// Create directories if needed
 			if tt.createUserDir {
-				userSpecstoryDir := filepath.Join(tempHome, SpecStoryDir)
-				if err := os.MkdirAll(userSpecstoryDir, 0755); err != nil {
-					t.Fatalf("Failed to create user .specstory dir: %v", err)
+				userConfigDir := filepath.Join(tempHome, SpecStoryDir, CLIDir)
+				if err := os.MkdirAll(userConfigDir, 0755); err != nil {
+					t.Fatalf("Failed to create user config dir: %v", err)
 				}
 				if tt.createUserConf {
-					configPath := filepath.Join(userSpecstoryDir, ConfigFileName)
-					if err := os.WriteFile(configPath, []byte(`output_dir = "/user"`), 0644); err != nil {
+					configPath := filepath.Join(userConfigDir, ConfigFileName)
+					if err := os.WriteFile(configPath, []byte("[local_sync]\noutput_dir = \"/user\""), 0644); err != nil {
 						t.Fatalf("Failed to create user config: %v", err)
 					}
 				}
 			}
 
 			if tt.createProjDir {
-				projSpecstoryDir := filepath.Join(tempProject, SpecStoryDir)
-				if err := os.MkdirAll(projSpecstoryDir, 0755); err != nil {
-					t.Fatalf("Failed to create project .specstory dir: %v", err)
+				projConfigDir := filepath.Join(tempProject, SpecStoryDir, CLIDir)
+				if err := os.MkdirAll(projConfigDir, 0755); err != nil {
+					t.Fatalf("Failed to create project config dir: %v", err)
 				}
 				if tt.createProjConf {
-					configPath := filepath.Join(projSpecstoryDir, ConfigFileName)
-					if err := os.WriteFile(configPath, []byte(`output_dir = "/project"`), 0644); err != nil {
+					configPath := filepath.Join(projConfigDir, ConfigFileName)
+					if err := os.WriteFile(configPath, []byte("[local_sync]\noutput_dir = \"/project\""), 0644); err != nil {
 						t.Fatalf("Failed to create project config: %v", err)
 					}
 				}
@@ -555,6 +790,7 @@ func TestDefaultValues(t *testing.T) {
 		{"IsLogEnabled default", cfg.IsLogEnabled(), false},
 		{"IsDebugEnabled default", cfg.IsDebugEnabled(), false},
 		{"IsSilentEnabled default", cfg.IsSilentEnabled(), false},
+		{"IsLocalTimeZoneEnabled default", cfg.IsLocalTimeZoneEnabled(), false},
 	}
 
 	for _, tt := range tests {
@@ -569,4 +805,477 @@ func TestDefaultValues(t *testing.T) {
 	if cfg.GetOutputDir() != "" {
 		t.Errorf("GetOutputDir() = %q, want empty string", cfg.GetOutputDir())
 	}
+
+	// DebugDir should be empty string (no default path)
+	if cfg.GetDebugDir() != "" {
+		t.Errorf("GetDebugDir() = %q, want empty string", cfg.GetDebugDir())
+	}
+}
+
+// TestEnsureDefaultUserConfig tests auto-creation of the default user config file
+func TestEnsureDefaultUserConfig(t *testing.T) {
+	// Save and restore original working directory
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	// Save and restore original HOME
+	origHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	t.Run("creates file when none exists", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// Load config — no user config exists, should auto-create
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// Verify the file was created at the correct path
+		expectedPath := filepath.Join(tempHome, SpecStoryDir, CLIDir, ConfigFileName)
+		if _, err := os.Stat(expectedPath); os.IsNotExist(err) {
+			t.Fatalf("Default config file was not created at %s", expectedPath)
+		}
+
+		// Verify content matches the processed user-level template
+		content, err := os.ReadFile(expectedPath)
+		if err != nil {
+			t.Fatalf("Failed to read created config: %v", err)
+		}
+		expected := processTemplate(defaultConfigTemplate, "user")
+		if string(content) != expected {
+			t.Errorf("Created config content does not match processed user template")
+		}
+
+		// Verify all config values are still defaults (everything is commented out)
+		if cfg.GetOutputDir() != "" {
+			t.Errorf("GetOutputDir() = %q, want empty", cfg.GetOutputDir())
+		}
+		if !cfg.IsVersionCheckEnabled() {
+			t.Errorf("IsVersionCheckEnabled() = false, want true")
+		}
+		if !cfg.IsCloudSyncEnabled() {
+			t.Errorf("IsCloudSyncEnabled() = false, want true")
+		}
+		if !cfg.IsLocalSyncEnabled() {
+			t.Errorf("IsLocalSyncEnabled() = false, want true")
+		}
+		if !cfg.IsAnalyticsEnabled() {
+			t.Errorf("IsAnalyticsEnabled() = false, want true")
+		}
+	})
+
+	t.Run("does not overwrite existing file", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// Create an existing user config with custom settings
+		existingContent := "[local_sync]\noutput_dir = \"/my/custom/path\""
+		createTempConfigFile(t, tempHome, existingContent)
+
+		// Load config — file exists, should NOT overwrite
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// Verify existing config was preserved and loaded
+		if cfg.GetOutputDir() != "/my/custom/path" {
+			t.Errorf("GetOutputDir() = %q, want %q", cfg.GetOutputDir(), "/my/custom/path")
+		}
+
+		// Verify file content is still the original
+		configPath := filepath.Join(tempHome, SpecStoryDir, CLIDir, ConfigFileName)
+		content, err := os.ReadFile(configPath)
+		if err != nil {
+			t.Fatalf("Failed to read config: %v", err)
+		}
+		if string(content) != existingContent {
+			t.Errorf("Config file was modified, got %q, want %q", string(content), existingContent)
+		}
+	})
+
+	t.Run("handles unwritable directory gracefully", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// Make .specstory directory read-only so config creation fails
+		specstoryDir := filepath.Join(tempHome, SpecStoryDir)
+		if err := os.MkdirAll(specstoryDir, 0755); err != nil {
+			t.Fatalf("Failed to create dir: %v", err)
+		}
+		if err := os.Chmod(specstoryDir, 0555); err != nil {
+			t.Fatalf("Failed to chmod: %v", err)
+		}
+		// Restore permissions for cleanup
+		defer func() { _ = os.Chmod(specstoryDir, 0755) }()
+
+		// Load should succeed even though config creation fails
+		_, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v, want no error", err)
+		}
+
+		// Verify no config file was created
+		configPath := filepath.Join(tempHome, SpecStoryDir, CLIDir, ConfigFileName)
+		if _, statErr := os.Stat(configPath); !os.IsNotExist(statErr) {
+			t.Errorf("Config file should not exist at %s", configPath)
+		}
+	})
+
+	t.Run("created file is loadable on subsequent calls", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// First Load — creates the default config
+		_, err := Load(nil)
+		if err != nil {
+			t.Fatalf("First Load() returned error: %v", err)
+		}
+
+		// Second Load — reads the created config
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Second Load() returned error: %v", err)
+		}
+
+		// Defaults should still hold
+		if cfg.GetOutputDir() != "" {
+			t.Errorf("GetOutputDir() = %q, want empty", cfg.GetOutputDir())
+		}
+		if !cfg.IsVersionCheckEnabled() {
+			t.Errorf("IsVersionCheckEnabled() = false, want true")
+		}
+	})
+}
+
+// TestDefaultConfigTemplateParsesWhenUncommented verifies the default config
+// template is valid TOML when all comment prefixes are removed. This guards
+// against template syntax rot. We process the template first to strip markers.
+func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
+	// Process template to strip {u ...} / {p ...} markers before uncommenting
+	processed := processTemplate(defaultConfigTemplate, "user")
+
+	var uncommented strings.Builder
+	for line := range strings.SplitSeq(processed, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Skip blank lines
+		if trimmed == "" {
+			continue
+		}
+		// Strip leading "# " to inspect the content
+		stripped := strings.TrimPrefix(trimmed, "# ")
+		// Keep section headers like [logging] and key = value lines
+		// A TOML key-value line starts with a word character before the =
+		// Skip prose comment lines that happen to contain = (e.g. examples in parentheses)
+		isSection := strings.HasPrefix(stripped, "[")
+		isKeyValue := strings.Contains(stripped, " = ") && !strings.Contains(stripped, "(")
+		if strings.HasPrefix(trimmed, "#") && !isSection && !isKeyValue {
+			continue
+		}
+		uncommented.WriteString(stripped)
+		uncommented.WriteString("\n")
+	}
+
+	var cfg Config
+	if _, err := toml.Decode(uncommented.String(), &cfg); err != nil {
+		t.Fatalf("Default config template is not valid TOML when uncommented:\n%s\nError: %v",
+			uncommented.String(), err)
+	}
+}
+
+// TestValidateConfigFile tests config file validation
+func TestValidateConfigFile(t *testing.T) {
+	t.Run("non-existent file", func(t *testing.T) {
+		result := ValidateConfigFile("/tmp/does-not-exist-config.toml")
+		if result.Exists {
+			t.Error("Exists should be false for non-existent file")
+		}
+		if result.ValidTOML {
+			t.Error("ValidTOML should be false for non-existent file")
+		}
+	})
+
+	t.Run("valid config with known keys", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[local_sync]
+output_dir = "/some/path"
+enabled = true
+
+[cloud_sync]
+enabled = false
+
+[providers]
+claude_cmd = "claude --fast"
+`
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.Exists {
+			t.Error("Exists should be true")
+		}
+		if !result.ValidTOML {
+			t.Errorf("ValidTOML should be true, got parse error: %s", result.ParseError)
+		}
+		if len(result.UnknownKeys) > 0 {
+			t.Errorf("UnknownKeys should be empty, got: %v", result.UnknownKeys)
+		}
+	})
+
+	t.Run("invalid TOML syntax", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		if err := os.WriteFile(path, []byte(`this is not valid [[[`), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.Exists {
+			t.Error("Exists should be true")
+		}
+		if result.ValidTOML {
+			t.Error("ValidTOML should be false for invalid TOML")
+		}
+		if result.ParseError == "" {
+			t.Error("ParseError should be set for invalid TOML")
+		}
+	})
+
+	t.Run("unknown section", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[local_sync]
+output_dir = "/some/path"
+
+[bogus_section]
+foo = "bar"
+`
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.ValidTOML {
+			t.Errorf("ValidTOML should be true, got parse error: %s", result.ParseError)
+		}
+		// Should report the unknown section but not its child keys
+		if len(result.UnknownKeys) != 1 {
+			t.Errorf("UnknownKeys should have exactly 1 entry (the section), got: %v", result.UnknownKeys)
+		}
+		if len(result.UnknownKeys) > 0 && result.UnknownKeys[0] != "bogus_section" {
+			t.Errorf("UnknownKeys[0] = %q, want %q", result.UnknownKeys[0], "bogus_section")
+		}
+	})
+
+	t.Run("unknown property in known section", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[logging]
+console = true
+nonexistent_option = "oops"
+`
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.ValidTOML {
+			t.Errorf("ValidTOML should be true, got parse error: %s", result.ParseError)
+		}
+		if len(result.UnknownKeys) == 0 {
+			t.Error("UnknownKeys should not be empty for unknown property")
+		}
+		found := false
+		for _, key := range result.UnknownKeys {
+			if strings.Contains(key, "nonexistent_option") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("UnknownKeys should contain 'nonexistent_option', got: %v", result.UnknownKeys)
+		}
+	})
+}
+
+// TestGetProviderCmd tests the provider command lookup by provider ID
+func TestGetProviderCmd(t *testing.T) {
+	cfg := &Config{
+		Providers: ProvidersConfig{
+			ClaudeCmd: "claude --dangerously-skip-permissions",
+			CodexCmd:  "/usr/local/bin/codex",
+			CursorCmd: "cursor-agent --fast",
+			DroidCmd:  "droid --verbose",
+			GeminiCmd: "gemini --model pro",
+		},
+	}
+
+	tests := []struct {
+		providerID string
+		expected   string
+	}{
+		{"claude", "claude --dangerously-skip-permissions"},
+		{"codex", "/usr/local/bin/codex"},
+		{"cursor", "cursor-agent --fast"},
+		{"droid", "droid --verbose"},
+		{"gemini", "gemini --model pro"},
+		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
+		{"CODEX", "/usr/local/bin/codex"},                   // case-insensitive
+		{"unknown", ""},                                     // unknown provider
+		{"", ""},                                            // empty provider
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.providerID, func(t *testing.T) {
+			got := cfg.GetProviderCmd(tt.providerID)
+			if got != tt.expected {
+				t.Errorf("GetProviderCmd(%q) = %q, want %q", tt.providerID, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestProviderCmdFromConfig tests that provider commands are loaded from TOML config files
+func TestProviderCmdFromConfig(t *testing.T) {
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	origHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	t.Run("provider commands loaded from user config", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		createTempConfigFile(t, tempHome, `
+[providers]
+claude_cmd = "claude --allow-dangerously-skip-permissions"
+codex_cmd = "/custom/codex"
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		if got := cfg.GetProviderCmd("claude"); got != "claude --allow-dangerously-skip-permissions" {
+			t.Errorf("GetProviderCmd(claude) = %q, want %q", got, "claude --allow-dangerously-skip-permissions")
+		}
+		if got := cfg.GetProviderCmd("codex"); got != "/custom/codex" {
+			t.Errorf("GetProviderCmd(codex) = %q, want %q", got, "/custom/codex")
+		}
+		// Unset provider should return empty
+		if got := cfg.GetProviderCmd("cursor"); got != "" {
+			t.Errorf("GetProviderCmd(cursor) = %q, want empty", got)
+		}
+	})
+
+	t.Run("project config overrides user config for provider commands", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User config sets claude_cmd and codex_cmd
+		createTempConfigFile(t, tempHome, `
+[providers]
+claude_cmd = "claude --user-level"
+codex_cmd = "codex --user-level"
+`)
+		// Project config overrides only claude_cmd
+		createTempConfigFile(t, tempProject, `
+[providers]
+claude_cmd = "claude --project-level"
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// claude_cmd should be project value
+		if got := cfg.GetProviderCmd("claude"); got != "claude --project-level" {
+			t.Errorf("GetProviderCmd(claude) = %q, want %q", got, "claude --project-level")
+		}
+		// codex_cmd should survive from user config
+		if got := cfg.GetProviderCmd("codex"); got != "codex --user-level" {
+			t.Errorf("GetProviderCmd(codex) = %q, want %q", got, "codex --user-level")
+		}
+	})
+
+	t.Run("empty config returns empty provider commands", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		for _, id := range []string{"claude", "codex", "cursor", "droid", "gemini"} {
+			if got := cfg.GetProviderCmd(id); got != "" {
+				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)
+			}
+		}
+	})
 }

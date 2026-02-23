@@ -1,8 +1,8 @@
 // Package config provides configuration management for the SpecStory CLI.
 // Configuration is loaded with the following priority (highest to lowest):
 //  1. CLI flags
-//  2. Local project config: .specstory/cli-config.toml
-//  3. User-level config: ~/.specstory/cli-config.toml
+//  2. Local project config: .specstory/cli/config.toml
+//  3. User-level config: ~/.specstory/cli/config.toml
 //
 // Note: For telemetry settings, environment variables (OTEL_*) take highest priority
 // per OpenTelemetry conventions.
@@ -13,28 +13,116 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
 
 const (
 	// ConfigFileName is the name of the configuration file
-	ConfigFileName = "cli-config.toml"
+	ConfigFileName = "config.toml"
 	// SpecStoryDir is the directory name for SpecStory files
 	SpecStoryDir = ".specstory"
+	// CLIDir is the subdirectory for CLI-specific files (config, auth, etc.)
+	CLIDir = "cli"
 )
+
+// defaultConfigTemplate is the content written to a newly created config file.
+// All options are commented out so the file is self-documenting but inert.
+const defaultConfigTemplate = `# SpecStory CLI Configuration
+#
+# {u This is the user-level config file for SpecStory CLI.
+# All settings here apply to every project unless overridden
+# by a project-level config at ./.specstory/cli/config.toml
+# or overridden by CLI flags.}
+# {p This is the project-level config file for SpecStory CLI.
+# All settings here apply to this project unless overridden by CLI flags.}
+#
+# Uncomment (remove the #) the line and edit any setting below to change the default behavior.
+# For more information, see: https://docs.specstory.com/integrations/terminal-coding-agents/usage
+
+[local_sync]
+# Write markdown files locally. (default: true)
+# enabled = false # equivalent to --only-cloud-sync
+
+# Custom output directory for markdown files.
+# Default: ./.specstory/history (relative to the project directory)
+# output_dir = "~/.specstory/history" # equivalent to --output-dir "~/.specstory/history"
+
+# Use local timezone for file name and content timestamps (default: false, UTC)
+# local_time_zone = true # equivalent to --local-time-zone
+
+[cloud_sync]
+# Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
+# enabled = false # equivalent to --no-cloud-sync
+
+[logging]
+# Custom output directory for debug data.
+# Default: ./.specstory/debug (relative to the project directory)
+# debug_dir = "~/.specstory/debug" # equivalent to --debug-dir "~/.specstory/debug"
+
+# Error/warn/info output to stdout (default: false)
+# console = true # equivalent to --console
+
+# Write logs to .specstory/debug/debug.log (default: false)
+# log = true # equivalent to --log        
+
+# Debug-level output, requires console or log (default: false)
+# debug = true # equivalent to --debug 
+
+# Suppress all non-error output (default: false)
+# silent = true	# equivalent to --silence
+
+[version_check]
+# Check for new versions of the CLI on startup.
+# Default: true
+# enabled = false # equivalent to --no-version-check
+
+[analytics]
+# Send anonymous product usage analytics to help improve SpecStory.
+# Default: true
+# enabled = false # equivalent to --no-usage-analytics
+
+[telemetry]
+# OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
+# endpoint = "localhost:4317"
+
+# Override the default service name (default: "specstory-cli")
+# service_name = "my-service-name"
+
+# Exclude user prompt text from telemetry spans for privacy (default: true)
+# prompts = false
+
+[providers]
+# Agent execution commands by provider (used by specstory run)
+# Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
+# Use of these is equivalent to -c "custom command"
+
+# Claude Code command
+# claude_cmd = "claude"
+
+# Codex CLI command
+# codex_cmd = "codex"
+
+# Cursor CLI command
+# cursor_cmd = "cursor-agent"
+
+# Droid CLI command
+# droid_cmd = "droid"
+
+# Gemini CLI command
+# gemini_cmd = "gemini"
+`
 
 // Config represents the complete CLI configuration
 type Config struct {
-	// OutputDir is the custom output directory for markdown and debug files
-	OutputDir string `toml:"output_dir"`
-
 	VersionCheck VersionCheckConfig `toml:"version_check"`
 	CloudSync    CloudSyncConfig    `toml:"cloud_sync"`
 	LocalSync    LocalSyncConfig    `toml:"local_sync"`
 	Logging      LoggingConfig      `toml:"logging"`
 	Analytics    AnalyticsConfig    `toml:"analytics"`
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
+	Providers    ProvidersConfig    `toml:"providers"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -54,10 +142,16 @@ type LocalSyncConfig struct {
 	// Enabled controls whether local markdown files are written
 	// When false, only cloud sync is performed (equivalent to --only-cloud-sync)
 	Enabled *bool `toml:"enabled"`
+	// OutputDir is the custom output directory for markdown files
+	OutputDir string `toml:"output_dir"`
+	// LocalTimeZone enables local timezone for file name and content timestamps
+	LocalTimeZone *bool `toml:"local_time_zone"`
 }
 
 // LoggingConfig holds logging settings
 type LoggingConfig struct {
+	// DebugDir is the custom output directory for debug data
+	DebugDir string `toml:"debug_dir"`
 	// Console enables error/warn/info output to stdout
 	Console *bool `toml:"console"`
 	// Log enables writing error/warn/info output to .specstory/debug/debug.log
@@ -74,12 +168,9 @@ type AnalyticsConfig struct {
 	Enabled *bool `toml:"enabled"`
 }
 
-// TelemetryConfig holds OpenTelemetry configuration
+// TelemetryConfig holds OpenTelemetry configuration.
+// Telemetry is enabled when Endpoint is non-empty (no separate "enabled" flag).
 type TelemetryConfig struct {
-	// Enabled explicitly enables/disables telemetry.
-	// If not set, telemetry is enabled when Endpoint is non-empty.
-	Enabled *bool `toml:"enabled"`
-
 	// Endpoint is the OTLP gRPC collector address (e.g., "localhost:4317" or "http://localhost:4317")
 	// Env var: OTEL_EXPORTER_OTLP_ENDPOINT
 	Endpoint string `toml:"endpoint"`
@@ -88,16 +179,29 @@ type TelemetryConfig struct {
 	// Env var: OTEL_SERVICE_NAME
 	ServiceName string `toml:"service_name"`
 
-	// NoPrompts disables sending prompt text in telemetry spans.
-	// When true, the specstory.exchange.prompt_text attribute will be empty.
-	NoPrompts *bool `toml:"no_prompts"`
+	// Prompts controls whether user prompt text is included in telemetry spans.
+	// Defaults to true (prompts are included). Set to false to exclude prompt text
+	// from the specstory.exchange.prompt_text attribute for privacy.
+	Prompts *bool `toml:"prompts"`
+}
+
+// ProvidersConfig holds custom agent execution commands by provider.
+// These are used by `specstory run` as the equivalent of the -c flag,
+// scoped to a specific provider.
+type ProvidersConfig struct {
+	ClaudeCmd string `toml:"claude_cmd"`
+	CodexCmd  string `toml:"codex_cmd"`
+	CursorCmd string `toml:"cursor_cmd"`
+	DroidCmd  string `toml:"droid_cmd"`
+	GeminiCmd string `toml:"gemini_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
 // These are applied after config files are loaded.
 type CLIOverrides struct {
 	// General
-	OutputDir string
+	OutputDir     string
+	LocalTimeZone bool
 
 	// Version check
 	NoVersionCheck bool
@@ -107,16 +211,16 @@ type CLIOverrides struct {
 	OnlyCloudSync bool
 
 	// Logging
-	Console bool
-	Log     bool
-	Debug   bool
-	Silent  bool
+	DebugDir string
+	Console  bool
+	Log      bool
+	Debug    bool
+	Silent   bool
 
 	// Analytics
 	NoAnalytics bool
 
 	// Telemetry
-	NoTelemetry          bool
 	TelemetryEndpoint    string
 	TelemetryServiceName string
 	NoTelemetryPrompts   bool
@@ -138,6 +242,7 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 		if err := loadTOMLFile(userConfigPath, cfg); err != nil {
 			if os.IsNotExist(err) {
 				slog.Debug("No user-level config file found", "path", userConfigPath)
+				ensureDefaultUserConfig(userConfigPath)
 			} else {
 				// Parse error or permission denied - return error to caller
 				return cfg, fmt.Errorf("failed to load user config %s: %w", userConfigPath, err)
@@ -173,24 +278,181 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	return cfg, nil
 }
 
-// getUserConfigPath returns the path to ~/.specstory/cli-config.toml
+// GetUserConfigPath returns the path to ~/.specstory/cli/config.toml
+func GetUserConfigPath() string {
+	return getUserConfigPath()
+}
+
+// GetLocalConfigPath returns the path to .specstory/cli/config.toml in the current directory
+func GetLocalConfigPath() string {
+	return getLocalConfigPath()
+}
+
+// getUserConfigPath returns the path to ~/.specstory/cli/config.toml
 func getUserConfigPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		slog.Debug("Could not determine home directory", "error", err)
 		return ""
 	}
-	return filepath.Join(home, SpecStoryDir, ConfigFileName)
+	return filepath.Join(home, SpecStoryDir, CLIDir, ConfigFileName)
 }
 
-// getLocalConfigPath returns the path to .specstory/cli-config.toml in the current directory
+// getLocalConfigPath returns the path to .specstory/cli/config.toml in the current directory
 func getLocalConfigPath() string {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Debug("Could not determine current directory", "error", err)
 		return ""
 	}
-	return filepath.Join(cwd, SpecStoryDir, ConfigFileName)
+	return filepath.Join(cwd, SpecStoryDir, CLIDir, ConfigFileName)
+}
+
+// processTemplate processes the default config template for a given level
+// ("user" or "project"). Template markers {u ...} and {p ...} delimit content
+// specific to user-level or project-level config files respectively.
+//
+// For level "user": content inside {u ...} is kept (markers stripped),
+// content inside {p ...} is removed entirely.
+// For level "project": the opposite applies.
+//
+// Markers can span multiple lines. The opening marker ({u or {p) appears at
+// the start of a line (after optional whitespace/comment prefix), and the
+// closing } appears at the end of a line.
+func processTemplate(template, level string) string {
+	var result strings.Builder
+	keepTag := "{u"
+	stripTag := "{p"
+	if level == "project" {
+		keepTag = "{p"
+		stripTag = "{u"
+	}
+
+	insideKeep := false
+	insideStrip := false
+
+	for line := range strings.SplitSeq(template, "\n") {
+		trimmed := strings.TrimSpace(line)
+		// Remove any leading "# " to inspect the marker
+		bare := strings.TrimPrefix(trimmed, "# ")
+
+		switch {
+		case insideStrip:
+			// Check for closing brace — ends the stripped block
+			if strings.HasSuffix(bare, "}") {
+				insideStrip = false
+			}
+			// Drop the entire line regardless
+			continue
+
+		case insideKeep:
+			// Check for closing brace — ends the kept block
+			if strings.HasSuffix(bare, "}") {
+				insideKeep = false
+				// Strip the trailing } from the line
+				idx := strings.LastIndex(line, "}")
+				line = line[:idx]
+				// Only emit if something remains after stripping
+				if strings.TrimSpace(line) == "" || strings.TrimSpace(line) == "#" {
+					continue
+				}
+			}
+			result.WriteString(line)
+			result.WriteString("\n")
+
+		case strings.HasPrefix(bare, keepTag+" "):
+			insideKeep = true
+			// prefix is everything before the bare marker (e.g. "# ")
+			prefix := line[:strings.Index(line, bare)]
+			// Check if single-line block (closing } on same line)
+			if strings.HasSuffix(bare, "}") {
+				insideKeep = false
+				// Extract content between tag and closing brace
+				content := strings.TrimSpace(bare[len(keepTag)+1 : len(bare)-1])
+				reconstructed := prefix + content
+				if strings.TrimSpace(reconstructed) == "" || strings.TrimSpace(reconstructed) == "#" {
+					continue
+				}
+				result.WriteString(reconstructed)
+				result.WriteString("\n")
+			} else {
+				// Multi-line: strip the marker prefix, keep content after it
+				content := strings.TrimSpace(bare[len(keepTag)+1:])
+				reconstructed := prefix + content
+				if strings.TrimSpace(reconstructed) == "" || strings.TrimSpace(reconstructed) == "#" {
+					continue
+				}
+				result.WriteString(reconstructed)
+				result.WriteString("\n")
+			}
+
+		case strings.HasPrefix(bare, stripTag+" "):
+			insideStrip = true
+			// Check if single-line block (closing } on same line)
+			if strings.HasSuffix(bare, "}") {
+				insideStrip = false
+			}
+			continue
+
+		default:
+			result.WriteString(line)
+			result.WriteString("\n")
+		}
+	}
+
+	// Remove trailing extra newline that accumulates from the split
+	out := result.String()
+	if strings.HasSuffix(out, "\n\n") && !strings.HasSuffix(template, "\n\n") {
+		out = out[:len(out)-1]
+	}
+	return out
+}
+
+// ensureDefaultUserConfig creates a default user-level config file with all
+// options commented out. This makes the config discoverable without changing
+// any behavior. Failures are silently ignored — this is a convenience, not
+// a requirement.
+func ensureDefaultUserConfig(path string) {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Debug("Could not create config directory", "path", dir, "error", err)
+		return
+	}
+	processed := processTemplate(defaultConfigTemplate, "user")
+	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+		slog.Debug("Could not write default config file", "path", path, "error", err)
+		return
+	}
+	slog.Debug("Created default user config file", "path", path)
+}
+
+// EnsureDefaultProjectConfig creates a default project-level config file at
+// .specstory/cli/config.toml if one doesn't already exist. All options are
+// commented out so the file is self-documenting but inert.
+//
+// This should only be called from commands that imply active project work
+// (run, sync, watch) to avoid scattering config files in arbitrary directories.
+// Failures are silently ignored — this is a convenience, not a requirement.
+func EnsureDefaultProjectConfig() {
+	path := getLocalConfigPath()
+	if path == "" {
+		return
+	}
+	// Don't overwrite an existing file
+	if _, err := os.Stat(path); err == nil {
+		return
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Debug("Could not create config directory", "path", dir, "error", err)
+		return
+	}
+	processed := processTemplate(defaultConfigTemplate, "project")
+	if err := os.WriteFile(path, []byte(processed), 0644); err != nil {
+		slog.Debug("Could not write default config file", "path", path, "error", err)
+		return
+	}
+	slog.Debug("Created default project config file", "path", path)
 }
 
 // loadTOMLFile reads a TOML file and decodes it into the config struct.
@@ -211,18 +473,74 @@ func applyTelemetryEnvOverrides(cfg *Config) {
 		cfg.Telemetry.ServiceName = serviceName
 	}
 
-	// OTEL_SDK_DISABLED is the standard OTel convention: "true" to disable telemetry
-	if disabled := os.Getenv("OTEL_SDK_DISABLED"); disabled != "" {
-		val := disabled != "true" && disabled != "1"
-		cfg.Telemetry.Enabled = &val
+	// Note: OTEL_SDK_DISABLED is handled in IsTelemetryEnabled() rather than
+	// stored in the config struct, since there is no Enabled field — telemetry
+	// is enabled when an endpoint is configured.
+}
+
+// ConfigValidationResult holds the result of validating a config file.
+type ConfigValidationResult struct {
+	Path        string   // Path to the config file
+	Exists      bool     // Whether the file exists
+	ValidTOML   bool     // Whether the file is valid TOML
+	ParseError  string   // TOML parse error message, if any
+	UnknownKeys []string // Keys in the file that don't map to any known config field
+}
+
+// ValidateConfigFile checks a config file for validity and schema conformance.
+// Returns a result indicating whether the file exists, is valid TOML, and
+// whether it contains any unknown sections or properties.
+func ValidateConfigFile(path string) ConfigValidationResult {
+	result := ConfigValidationResult{Path: path}
+
+	// Check if file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return result
 	}
+	result.Exists = true
+
+	// Try to decode and check for unknown keys
+	var cfg Config
+	md, err := toml.DecodeFile(path, &cfg)
+	if err != nil {
+		result.ParseError = err.Error()
+		return result
+	}
+	result.ValidTOML = true
+
+	// Check for keys in the TOML that didn't map to any struct field.
+	// Filter out child keys when the parent section is already unknown
+	// (e.g., if [bogus] is unknown, don't also report bogus.foo).
+	undecoded := md.Undecoded()
+	unknownSections := make(map[string]bool)
+	for _, key := range undecoded {
+		if len(key) == 1 {
+			unknownSections[key[0]] = true
+		}
+	}
+	for _, key := range undecoded {
+		// Skip child keys whose parent section is already flagged
+		if len(key) > 1 && unknownSections[key[0]] {
+			continue
+		}
+		result.UnknownKeys = append(result.UnknownKeys, key.String())
+	}
+
+	return result
 }
 
 // applyCLIOverrides applies CLI flag overrides to the config.
 func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
-	// General
+	// Local sync
 	if o.OutputDir != "" {
-		cfg.OutputDir = o.OutputDir
+		cfg.LocalSync.OutputDir = o.OutputDir
+	}
+	if o.LocalTimeZone {
+		enabled := true
+		cfg.LocalSync.LocalTimeZone = &enabled
+	}
+	if o.DebugDir != "" {
+		cfg.Logging.DebugDir = o.DebugDir
 	}
 
 	// Version check (--no-version-check sets enabled to false)
@@ -268,10 +586,6 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 	}
 
 	// Telemetry
-	if o.NoTelemetry {
-		disabled := false
-		cfg.Telemetry.Enabled = &disabled
-	}
 	if o.TelemetryEndpoint != "" {
 		cfg.Telemetry.Endpoint = o.TelemetryEndpoint
 	}
@@ -279,8 +593,8 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 		cfg.Telemetry.ServiceName = o.TelemetryServiceName
 	}
 	if o.NoTelemetryPrompts {
-		enabled := true
-		cfg.Telemetry.NoPrompts = &enabled
+		disabled := false
+		cfg.Telemetry.Prompts = &disabled
 	}
 }
 
@@ -288,7 +602,7 @@ func applyCLIOverrides(cfg *Config, o *CLIOverrides) {
 
 // GetOutputDir returns the output directory, or empty string to use default.
 func (c *Config) GetOutputDir() string {
-	return c.OutputDir
+	return c.LocalSync.OutputDir
 }
 
 // IsVersionCheckEnabled returns whether version check is enabled.
@@ -365,11 +679,11 @@ func (c *Config) IsAnalyticsEnabled() bool {
 }
 
 // IsTelemetryEnabled returns whether telemetry should be enabled.
-// If Enabled is explicitly set, use that value.
-// Otherwise, enable telemetry if Endpoint is non-empty.
+// Telemetry is enabled when an endpoint is configured.
+// The standard OTEL_SDK_DISABLED env var ("true" or "1") overrides this.
 func (c *Config) IsTelemetryEnabled() bool {
-	if c.Telemetry.Enabled != nil {
-		return *c.Telemetry.Enabled
+	if disabled := os.Getenv("OTEL_SDK_DISABLED"); disabled == "true" || disabled == "1" {
+		return false
 	}
 	return c.Telemetry.Endpoint != ""
 }
@@ -385,10 +699,44 @@ func (c *Config) GetTelemetryServiceName() string {
 }
 
 // IsTelemetryPromptsDisabled returns whether prompt text should be excluded from telemetry.
-// Defaults to false (prompts are included) if not explicitly set.
+// The config field "prompts" defaults to true (included). When set to false, prompts are excluded.
 func (c *Config) IsTelemetryPromptsDisabled() bool {
-	if c.Telemetry.NoPrompts != nil {
-		return *c.Telemetry.NoPrompts
+	if c.Telemetry.Prompts != nil {
+		return !*c.Telemetry.Prompts
 	}
 	return false // default: prompts are included
+}
+
+// GetDebugDir returns the custom debug directory, or empty string to use default.
+func (c *Config) GetDebugDir() string {
+	return c.Logging.DebugDir
+}
+
+// IsLocalTimeZoneEnabled returns whether local timezone is enabled.
+// Defaults to false if not explicitly set (UTC is default).
+func (c *Config) IsLocalTimeZoneEnabled() bool {
+	if c.LocalSync.LocalTimeZone != nil {
+		return *c.LocalSync.LocalTimeZone
+	}
+	return false
+}
+
+// GetProviderCmd returns the custom execution command for a provider, or empty
+// string if none is configured. The providerID should match a registered
+// provider ID (e.g., "claude", "codex", "cursor", "droid", "gemini").
+func (c *Config) GetProviderCmd(providerID string) string {
+	switch strings.ToLower(providerID) {
+	case "claude":
+		return c.Providers.ClaudeCmd
+	case "codex":
+		return c.Providers.CodexCmd
+	case "cursor":
+		return c.Providers.CursorCmd
+	case "droid":
+		return c.Providers.DroidCmd
+	case "gemini":
+		return c.Providers.GeminiCmd
+	default:
+		return ""
+	}
 }

@@ -83,84 +83,128 @@ specstory sync -s <session-uuid>
 
 SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:
 
-1. **User-level config**: `~/.specstory/cli-config.toml` - applies to all projects
-2. **Project-level config**: `.specstory/cli-config.toml` - applies only to the current project
+1. **User-level config**: `~/.specstory/cli/config.toml` - applies to all projects
+2. **Project-level config**: `.specstory/cli/config.toml` - applies only to the current project
 
-Configuration is loaded with the following priority (highest to lowest):
+The configuration is determined with the following priority (highest priority to lowest priority):
+
 1. CLI flags
-2. Project-level config (`.specstory/cli-config.toml`)
-3. User-level config (`~/.specstory/cli-config.toml`)
+2. Project-level config (`.specstory/cli/config.toml`)
+3. User-level config (`~/.specstory/cli/config.toml`)
 
 ### Example Configuration
 
 ```toml
-# Custom output directory for markdown and debug files
-output_dir = "/path/to/output"
-
-[version_check]
-# Check for newer versions on startup (default: true)
-enabled = true
-
-[cloud_sync]
-# Sync sessions to SpecStory Cloud (default: true)
-enabled = true
+# SpecStory CLI Configuration
+#
+# Uncomment (remove the #) the line and edit any setting below to change the default behavior.
+# For more information, see: https://docs.specstory.com/integrations/terminal-coding-agents/usage
 
 [local_sync]
-# Write local markdown files (default: true)
-# When false, only cloud sync is performed (equivalent to --only-cloud-sync)
-enabled = true
+# Write markdown files locally. (default: true)
+# enabled = false # equivalent to --only-cloud-sync
+
+# Custom output directory for markdown files.
+# Default: ./.specstory/history (relative to the project directory)
+# output_dir = "~/.specstory/history" # equivalent to --output-dir "~/.specstory/history"
+
+# Use local timezone for file name and content timestamps (default: false, UTC)
+# local_time_zone = true # equivalent to --local-time-zone
+
+[cloud_sync]
+# Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
+# enabled = false # equivalent to --no-cloud-sync
 
 [logging]
-# Enable console output for error/warn/info messages (default: false)
-console = false
+# Custom output directory for debug data.
+# Default: ./.specstory/debug (relative to the project directory)
+# debug_dir = "~/.specstory/debug" # equivalent to --debug-dir "~/.specstory/debug"
+
+# Error/warn/info output to stdout (default: false)
+# console = true # equivalent to --console
+
 # Write logs to .specstory/debug/debug.log (default: false)
-log = false
-# Enable debug-level logging output (default: false)
-debug = false
+# log = true # equivalent to --log
+
+# Debug-level output, requires console or log (default: false)
+# debug = true # equivalent to --debug
+
 # Suppress all non-error output (default: false)
-silent = false
+# silent = true # equivalent to --silence
+
+[version_check]
+# Check for new versions of the CLI on startup.
+# Default: true
+# enabled = false # equivalent to --no-version-check
 
 [analytics]
-# Send anonymous usage analytics (default: true)
-enabled = true
+# Send anonymous product usage analytics to help improve SpecStory.
+# Default: true
+# enabled = false # equivalent to --no-usage-analytics
 
 [telemetry]
-# Enable OpenTelemetry tracing and metrics (default: false, auto-enabled if endpoint is set)
-enabled = true
 # OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
-endpoint = "localhost:4317"
+# endpoint = "localhost:4317"
+
 # Override the default service name (default: "specstory-cli")
-service_name = "specstory-cli"
-# Exclude user prompt text from telemetry spans for privacy (default: false)
-no_prompts = false
+# service_name = "my-service-name"
+
+# Exclude user prompt text from telemetry spans for privacy (default: true)
+# prompts = false
+
+[providers]
+# Agent execution commands by provider (used by specstory run)
+# Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
+# Use of these is equivalent to -c "custom command"
+
+# Claude Code command
+# claude_cmd = "claude"
+
+# Codex CLI command
+# codex_cmd = "codex"
+
+# Cursor CLI command
+# cursor_cmd = "cursor-agent"
+
+# Droid CLI command
+# droid_cmd = "droid"
+
+# Gemini CLI command
+# gemini_cmd = "gemini"
 ```
 
 ### Configuration Options
 
-| Section | Option | Default | Description |
-|---------|--------|---------|-------------|
-| (root) | `output_dir` | `.specstory/history` | Custom output directory for markdown files |
-| `[version_check]` | `enabled` | `true` | Check for newer CLI versions on startup |
-| `[cloud_sync]` | `enabled` | `true` | Sync sessions to SpecStory Cloud |
-| `[local_sync]` | `enabled` | `true` | Write local markdown files |
-| `[logging]` | `console` | `false` | Output logs to stdout |
-| `[logging]` | `log` | `false` | Write logs to debug file |
-| `[logging]` | `debug` | `false` | Enable debug-level output |
-| `[logging]` | `silent` | `false` | Suppress non-error output |
-| `[analytics]` | `enabled` | `true` | Send anonymous usage analytics |
-| `[telemetry]` | `enabled` | `false`* | Enable OpenTelemetry tracing and metrics |
-| `[telemetry]` | `endpoint` | `""` | OTLP gRPC collector endpoint |
-| `[telemetry]` | `service_name` | `"specstory-cli"` | Service name for telemetry |
-| `[telemetry]` | `no_prompts` | `false` | Exclude prompt text from telemetry spans |
+| Section           | Option            | Default              | Description                                |
+|-------------------|-------------------|----------------------|--------------------------------------------|
+| `[local_sync]`    | `enabled`         | `true`               | Write local markdown files                 |
+| `[local_sync]`    | `output_dir`      | `.specstory/history` | Custom output directory for markdown files |
+| `[local_sync]`    | `local_time_zone` | `false`              | Use local timezone for timestamps          |
+| `[cloud_sync]`    | `enabled`         | `true`               | Sync sessions to SpecStory Cloud           |
+| `[logging]`       | `debug_dir`       | `.specstory/debug`   | Custom output directory for debug data     |
+| `[logging]`       | `console`         | `false`              | Output logs to stdout                      |
+| `[logging]`       | `log`             | `false`              | Write logs to debug file                   |
+| `[logging]`       | `debug`           | `false`              | Enable debug-level output                  |
+| `[logging]`       | `silent`          | `false`              | Suppress non-error output                  |
+| `[version_check]` | `enabled`         | `true`               | Check for newer CLI versions on startup    |
+| `[analytics]`     | `enabled`         | `true`               | Send anonymous usage analytics             |
+| `[telemetry]`     | `endpoint`        | disabled*            | OTLP gRPC collector endpoint               |
+| `[telemetry]`     | `service_name`    | `"specstory-cli"`    | Service name for telemetry                 |
+| `[telemetry]`     | `prompts`         | `true`               | Include prompt text in telemetry spans     |
+| `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
+| `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
+| `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
+| `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
+| `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 
-\* Telemetry is automatically enabled when an endpoint is configured, even if `enabled` is not explicitly set.
+\* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
 ## Development
 
 ### Development Prerequisites
 
 - macOS development environment
-- Go 1.25.1 or later
+- Go 1.26.0 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 

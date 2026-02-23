@@ -64,7 +64,7 @@ func buildCheckErrorMessage(errorType string, codexCmd string, isCustom bool, st
 
 	switch errorType {
 	case "not_found":
-		errorMsg.WriteString(fmt.Sprintf("  🔍 Could not find Codex CLI at: %s\n\n", codexCmd))
+		fmt.Fprintf(&errorMsg, "  🔍 Could not find Codex CLI at: %s\n\n", codexCmd)
 		errorMsg.WriteString("  💡 Here's how to fix this:\n\n")
 		if isCustom {
 			errorMsg.WriteString("     • Double-check the custom command/path you provided\n")
@@ -81,9 +81,9 @@ func buildCheckErrorMessage(errorType string, codexCmd string, isCustom bool, st
 			errorMsg.WriteString("        • Example: specstory check codex -c \"/opt/local/bin/codex\"")
 		}
 	case "permission_denied":
-		errorMsg.WriteString(fmt.Sprintf("  🔒 Permission denied when trying to run: %s\n\n", codexCmd))
+		fmt.Fprintf(&errorMsg, "  🔒 Permission denied when trying to run: %s\n\n", codexCmd)
 		errorMsg.WriteString("  💡 Try the following:\n")
-		errorMsg.WriteString(fmt.Sprintf("     • Ensure the binary is executable: chmod +x %s\n", codexCmd))
+		fmt.Fprintf(&errorMsg, "     • Ensure the binary is executable: chmod +x %s\n", codexCmd)
 		errorMsg.WriteString("     • Run the command manually to confirm it works outside SpecStory\n")
 	case "no_output":
 		errorMsg.WriteString("  ⚠️  No version information from codex\n\n")
@@ -93,9 +93,9 @@ func buildCheckErrorMessage(errorType string, codexCmd string, isCustom bool, st
 		errorMsg.WriteString("     • Try running '" + codexCmd + " --version' directly\n")
 		errorMsg.WriteString("     • If you're using a wrapper script, pass the real codex binary with -c\n")
 	default:
-		errorMsg.WriteString(fmt.Sprintf("  ⚠️  Error running '%s --version'\n", codexCmd))
+		fmt.Fprintf(&errorMsg, "  ⚠️  Error running '%s --version'\n", codexCmd)
 		if stderrOutput != "" {
-			errorMsg.WriteString(fmt.Sprintf("  📋 Error details: %s\n", stderrOutput))
+			fmt.Fprintf(&errorMsg, "  📋 Error details: %s\n", stderrOutput)
 		}
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Troubleshooting tips:\n")

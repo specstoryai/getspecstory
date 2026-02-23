@@ -57,7 +57,7 @@ func formatUpdatePlan(toolName string, argumentsJSON string) string {
 			}
 
 			// Format the todo line (no priority emoji for Codex)
-			result.WriteString(fmt.Sprintf("%s %s\n", checkbox, step))
+			fmt.Fprintf(&result, "%s %s\n", checkbox, step)
 		}
 	}
 
@@ -197,7 +197,7 @@ func formatApplyPatch(toolName string, input string) string {
 			currentFile = strings.TrimPrefix(line, "*** Delete File: ")
 			patchContent.Reset()
 			// For delete operations, just show the header
-			result.WriteString(fmt.Sprintf("**Delete: `%s`**\n\n", currentFile))
+			fmt.Fprintf(&result, "**Delete: `%s`**\n\n", currentFile)
 			currentFile = ""
 			currentOp = ""
 		} else if currentFile != "" {
