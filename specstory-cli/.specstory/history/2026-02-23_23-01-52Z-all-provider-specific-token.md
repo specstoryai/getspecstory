@@ -875,3 +875,821 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	0.406s
 _**Agent (claude-opus-4-6 2026-02-23 23:07:36Z)**_
 
 Both renamed tests pass. Renamed `Test_countExchangeTokens` → `TestCountExchangeTokens` and `Test_computeExchangeStats` → `TestComputeExchangeStats` to match the PascalCase convention used by every other test in the file.
+
+---
+
+_**User (2026-02-23 23:29:03Z)**_
+
+ProcessSingleSession in @pkg/session/session.go has 9 args, including some bool, that makes it tough at the call site. Add a processing options struct to make this less unweildy.
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:07Z)**_
+
+
+
+Let me first understand all the call sites to see how this function is currently used.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:09Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./` pattern `ProcessSingleSession`
+
+```text
+pkg/session/session.go:69:// ProcessSingleSession writes markdown and triggers cloud sync for a single session.
+pkg/session/session.go:77:func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, onlyCloudSync bool, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool, noTelemetryPrompts bool) (int, error) {
+main.go:443:				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+main.go:714:			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, true, false, debugRaw, useUTC, noTelemetryPrompts); err != nil {
+pkg/cmd/watch.go:207:				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:13Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   430→			// don't stop execution because transient failures (e.g., network issues) shouldn't
+   431→			// interrupt the user's coding session.
+   432→			sessionCallback := func(session *spi.AgentChatSession) {
+   433→				if session == nil {
+   434→					return
+   435→				}
+   436→
+   437→				// Track the session ID for deep linking on exit
+   438→				lastRunSessionID = session.SessionID
+   439→
+   440→				// Process the session (write markdown and sync to cloud)
+   441→				// Don't show output during interactive run mode
+   442→				// This is autosave mode (true)
+   443→				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+   444→				if err != nil {
+   445→					// Log error but continue - don't fail the whole run
+   446→					// In interactive mode, we prioritize keeping the agent running.
+   447→					// Failed markdown writes or cloud syncs can be retried later via
+   448→					// the sync command, so we just log and continue.
+   449→					slog.Error("Failed to process session update",
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:14Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   700→
+   701→			// Separate multiple sessions with a horizontal rule
+   702→			if printedSessions > 0 {
+   703→				fmt.Print("\n---\n\n")
+   704→			}
+   705→			fmt.Print(markdownContent)
+   706→			printedSessions++
+   707→			successCount++
+   708→			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+   709→				"session_id": session.SessionID,
+   710→				"mode":       "print",
+   711→			})
+   712→		} else {
+   713→			// Normal sync: write to file and optionally cloud sync
+   714→			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, true, false, debugRaw, useUTC, noTelemetryPrompts); err != nil {
+   715→				errorCount++
+   716→				lastError = err
+   717→			} else {
+   718→				successCount++
+   719→			}
+   720→		}
+   721→	}
+   722→
+   723→	// Print summary if multiple sessions were processed (not for --print mode)
+   724→	if !printToStdout && len(sessionIDs) > 1 && !silent {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:14Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/watch.go`
+
+```text
+   195→			seenSessions := make(map[string]bool)
+   196→
+   197→			// Session callback for watch mode output
+   198→			sessionCallback := func(providerID string, sess *spi.AgentChatSession) {
+   199→				// Check if markdown file already exists to determine if this is an update or creation
+   200→				fileFullPath := session.BuildSessionFilePath(sess, config.GetHistoryDir(), useUTC)
+   201→				_, fileExistsErr := os.Stat(fileFullPath)
+   202→				fileExists := fileExistsErr == nil
+   203→
+   204→				// Process the session (write markdown and sync to cloud)
+   205→				// Don't show output during watch mode
+   206→				// This is autosave mode (true)
+   207→				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+   208→				if err != nil {
+   209→					// Log error but continue - don't fail the whole watch
+   210→					// In watch mode, we prioritize keeping the watcher running.
+   211→					// Failed markdown writes or cloud syncs can be retried later via
+   212→					// the sync command, so we just log and continue.
+   213→					slog.Error("Failed to process session update",
+   214→						"sessionId", sess.SessionID,
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:26Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I have a clear picture. There are 3 call sites:
+
+1. `main.go:443` - run mode (autosave): `ProcessSingleSession(context.Background(), session, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)`
+2. `main.go:714` - sync mode: `ProcessSingleSession(context.Background(), session, config, onlyCloudSync, true, false, debugRaw, useUTC, noTelemetryPrompts)`
+3. `pkg/cmd/watch.go:207` - watch mode (autosave): `ProcessSingleSession(ctx, sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)`
+
+
+I can see the pattern now—`showOutput` is true only in sync mode while `isAutosave` is true in run and watch modes, and the other flags vary across call sites. I'll consolidate these boolean parameters into a `ProcessingOptions` struct, keeping the context, session, and config as direct parameters since they represent fundamentally different concerns, then update all three call sites.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:26Z)**_
+
+All three call sites pass the same 6 booleans in the same order — easy to mix up. I'll introduce a `ProcessingOptions` struct for those flags, keeping `ctx`, `session`, and `config` as direct params since they're fundamentally different (context, data, output config).
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:27Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/session.go`
+
+```text
+     1→package session
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"path/filepath"
+     9→	"time"
+    10→
+    11→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+    12→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+    13→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+    14→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    15→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
+    16→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+    17→)
+    18→
+    19→// ValidateSessionData runs schema validation on SessionData when in debug mode.
+    20→// Validation is only performed when debugRaw is true to avoid overhead in normal operation.
+    21→// Returns true if validation passed or was skipped, false if validation failed.
+    22→func ValidateSessionData(session *spi.AgentChatSession, debugRaw bool) bool {
+    23→	if !debugRaw || session.SessionData == nil {
+    24→		return true
+    25→	}
+    26→	if !session.SessionData.Validate() {
+    27→		slog.Warn("SessionData failed schema validation, proceeding anyway",
+    28→			"sessionId", session.SessionID)
+    29→		return false
+    30→	}
+    31→	return true
+    32→}
+    33→
+    34→// WriteDebugSessionData writes debug session data when debugRaw is enabled.
+    35→// Logs warnings on failure but does not fail the operation.
+    36→func WriteDebugSessionData(session *spi.AgentChatSession, debugRaw bool) {
+    37→	if !debugRaw || session.SessionData == nil {
+    38→		return
+    39→	}
+    40→	if err := spi.WriteDebugSessionData(session.SessionID, session.SessionData); err != nil {
+    41→		slog.Warn("Failed to write debug session data", "sessionId", session.SessionID, "error", err)
+    42→	}
+    43→}
+    44→
+    45→// FormatFilenameTimestamp formats a timestamp for use in filenames.
+    46→// The format is filesystem-safe and matches the markdown title format.
+    47→func FormatFilenameTimestamp(t time.Time, useUTC bool) string {
+    48→	if useUTC {
+    49→		// Use UTC with Z suffix: "2006-01-02_15-04-05Z"
+    50→		return t.UTC().Format("2006-01-02_15-04-05") + "Z"
+    51→	}
+    52→	// Use local timezone with offset: "2006-01-02_15-04-05-0700"
+    53→	return t.Local().Format("2006-01-02_15-04-05-0700")
+    54→}
+    55→
+    56→// BuildSessionFilePath constructs the full markdown file path for a session.
+    57→// All callers need consistent filename generation from session metadata.
+    58→func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useUTC bool) string {
+    59→	timestamp, _ := time.Parse(time.RFC3339, session.CreatedAt)
+    60→	timestampStr := FormatFilenameTimestamp(timestamp, useUTC)
+    61→
+    62→	filename := timestampStr
+    63→	if session.Slug != "" {
+    64→		filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
+    65→	}
+    66→	return filepath.Join(historyDir, filename+".md")
+    67→}
+    68→
+    69→// ProcessSingleSession writes markdown and triggers cloud sync for a single session.
+    70→// ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
+    71→// onlyCloudSync skips local markdown writes and only syncs to cloud.
+    72→// isAutosave indicates if this is being called from run/watch (true) or sync command (false).
+    73→// debugRaw enables schema validation (only run in debug mode to avoid overhead).
+    74→// useUTC controls timestamp format (true=UTC, false=local).
+    75→// noTelemetryPrompts excludes user prompt text from telemetry spans for privacy.
+    76→// Returns the size of the markdown content in bytes.
+    77→func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, onlyCloudSync bool, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool, noTelemetryPrompts bool) (int, error) {
+    78→	if session == nil || session.SessionData == nil {
+    79→		return 0, fmt.Errorf("session or session data is nil")
+    80→	}
+    81→
+    82→	// Track processing start time for metrics
+    83→	processingStart := time.Now()
+    84→
+    85→	// Create a context with a deterministic trace ID from the session ID.
+    86→	// This groups all spans for the same session into a single trace, even
+    87→	// across multiple invocations in autosave mode.
+    88→	ctx = telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+    89→
+    90→	// Start an OTel span for this session processing (no-op when telemetry is disabled)
+    91→	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
+    92→	defer span.End()
+    93→
+    94→	// Compute session statistics
+    95→	agentName := session.SessionData.Provider.Name
+    96→	stats := telemetry.ComputeSessionStats(agentName, session)
+    97→
+    98→	// Record metrics (no-op when telemetry is disabled)
+    99→	defer func() {
+   100→		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
+   101→	}()
+   102→
+   103→	// Set session span attributes
+   104→	telemetry.SetSessionSpanAttributes(span, stats)
+   105→
+   106→	// Create child spans for each exchange
+   107→	if len(session.SessionData.Exchanges) > 0 {
+   108→		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges, noTelemetryPrompts)
+   109→	}
+   110→
+   111→	ValidateSessionData(session, debugRaw)
+   112→	WriteDebugSessionData(session, debugRaw)
+   113→
+   114→	// Generate markdown from SessionData
+   115→	markdownContent, err := GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+   116→	if err != nil {
+   117→		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
+   118→		return 0, fmt.Errorf("failed to generate markdown: %w", err)
+   119→	}
+   120→
+   121→	// Calculate markdown size in bytes
+   122→	markdownSize := len(markdownContent)
+   123→
+   124→	// Generate filename from timestamp and slug
+   125→	fileFullPath := BuildSessionFilePath(session, config.GetHistoryDir(), useUTC)
+   126→
+   127→	if showOutput && !log.IsSilent() {
+   128→		fmt.Printf("Processing session %s...", session.SessionID)
+   129→	}
+   130→
+   131→	// Check if file already exists with same content
+   132→	var outcome string
+   133→	identicalContent := false
+   134→	fileExists := false
+   135→	if existingContent, err := os.ReadFile(fileFullPath); err == nil {
+   136→		fileExists = true
+   137→		if string(existingContent) == markdownContent {
+   138→			identicalContent = true
+   139→			slog.Info("Markdown file already exists with same content, skipping write",
+   140→				"sessionId", session.SessionID,
+   141→				"path", fileFullPath)
+   142→		}
+   143→	}
+   144→
+   145→	// Write file if needed (skip if only-cloud-sync is enabled)
+   146→	if !onlyCloudSync {
+   147→		if !identicalContent {
+   148→			// Ensure history directory exists (handles deletion during long-running watch/run)
+   149→			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+   150→				return 0, fmt.Errorf("failed to ensure history directory: %w", err)
+   151→			}
+   152→			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
+   153→			if err != nil {
+   154→				// Track write error
+   155→				if isAutosave {
+   156→					analytics.TrackEvent(analytics.EventAutosaveError, analytics.Properties{
+   157→						"session_id":      session.SessionID,
+   158→						"error":           err.Error(),
+   159→						"only_cloud_sync": onlyCloudSync,
+   160→					})
+   161→				} else {
+   162→					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   163→						"session_id":      session.SessionID,
+   164→						"error":           err.Error(),
+   165→						"only_cloud_sync": onlyCloudSync,
+   166→					})
+   167→				}
+   168→				return 0, fmt.Errorf("error writing markdown file: %w", err)
+   169→			}
+   170→
+   171→			// Track successful write
+   172→			if isAutosave {
+   173→				if !fileExists {
+   174→					// New file created during autosave
+   175→					analytics.TrackEvent(analytics.EventAutosaveNew, analytics.Properties{
+   176→						"session_id":      session.SessionID,
+   177→						"only_cloud_sync": onlyCloudSync,
+   178→					})
+   179→				} else {
+   180→					// File updated during autosave
+   181→					analytics.TrackEvent(analytics.EventAutosaveSuccess, analytics.Properties{
+   182→						"session_id":      session.SessionID,
+   183→						"only_cloud_sync": onlyCloudSync,
+   184→					})
+   185→				}
+   186→			} else {
+   187→				if !fileExists {
+   188→					// New file created during manual sync
+   189→					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
+   190→						"session_id":      session.SessionID,
+   191→						"only_cloud_sync": onlyCloudSync,
+   192→					})
+   193→				} else {
+   194→					// File updated during manual sync
+   195→					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+   196→						"session_id":      session.SessionID,
+   197→						"only_cloud_sync": onlyCloudSync,
+   198→					})
+   199→				}
+   200→			}
+   201→
+   202→			slog.Info("Successfully wrote file",
+   203→				"sessionId", session.SessionID,
+   204→				"path", fileFullPath)
+   205→		}
+   206→
+   207→		// Determine outcome for user feedback
+   208→		if identicalContent {
+   209→			outcome = "up to date (skipped)"
+   210→		} else if fileExists {
+   211→			outcome = "updated"
+   212→		} else {
+   213→			outcome = "created"
+   214→		}
+   215→	} else {
+   216→		// Only cloud sync mode - no local file operations
+   217→		outcome = "synced to cloud only"
+   218→		slog.Info("Skipping local file write (only-cloud-sync mode)",
+   219→			"sessionId", session.SessionID)
+   220→	}
+   221→
+   222→	// Trigger cloud sync with provider-specific data
+   223→	// In only-cloud-sync mode: always sync (no file to check for identical content)
+   224→	// In normal mode: skip sync only if identical content AND in autosave mode
+   225→	if onlyCloudSync || !identicalContent || !isAutosave {
+   226→		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionData.Provider.Name, isAutosave)
+   227→	}
+   228→
+   229→	if showOutput && !log.IsSilent() {
+   230→		fmt.Printf(" %s\n", outcome)
+   231→		fmt.Println() // Visual separation
+   232→	}
+   233→
+   234→	return markdownSize, nil
+   235→}
+   236→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:29:32Z)**_
+
+Now I'll add the struct and update the function signature, then update all three call sites.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:31:46Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:31:51Z)**_
+
+Now update all the references to the old boolean params inside the function body.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:31:59Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:32:02Z)**_
+
+Let me read the current state of the function body to update the remaining references.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:32:03Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/session.go`
+
+```text
+   125→
+   126→	// Calculate markdown size in bytes
+   127→	markdownSize := len(markdownContent)
+   128→
+   129→	// Generate filename from timestamp and slug
+   130→	fileFullPath := BuildSessionFilePath(session, config.GetHistoryDir(), useUTC)
+   131→
+   132→	if showOutput && !log.IsSilent() {
+   133→		fmt.Printf("Processing session %s...", session.SessionID)
+   134→	}
+   135→
+   136→	// Check if file already exists with same content
+   137→	var outcome string
+   138→	identicalContent := false
+   139→	fileExists := false
+   140→	if existingContent, err := os.ReadFile(fileFullPath); err == nil {
+   141→		fileExists = true
+   142→		if string(existingContent) == markdownContent {
+   143→			identicalContent = true
+   144→			slog.Info("Markdown file already exists with same content, skipping write",
+   145→				"sessionId", session.SessionID,
+   146→				"path", fileFullPath)
+   147→		}
+   148→	}
+   149→
+   150→	// Write file if needed (skip if only-cloud-sync is enabled)
+   151→	if !onlyCloudSync {
+   152→		if !identicalContent {
+   153→			// Ensure history directory exists (handles deletion during long-running watch/run)
+   154→			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+   155→				return 0, fmt.Errorf("failed to ensure history directory: %w", err)
+   156→			}
+   157→			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
+   158→			if err != nil {
+   159→				// Track write error
+   160→				if isAutosave {
+   161→					analytics.TrackEvent(analytics.EventAutosaveError, analytics.Properties{
+   162→						"session_id":      session.SessionID,
+   163→						"error":           err.Error(),
+   164→						"only_cloud_sync": onlyCloudSync,
+   165→					})
+   166→				} else {
+   167→					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   168→						"session_id":      session.SessionID,
+   169→						"error":           err.Error(),
+   170→						"only_cloud_sync": onlyCloudSync,
+   171→					})
+   172→				}
+   173→				return 0, fmt.Errorf("error writing markdown file: %w", err)
+   174→			}
+   175→
+   176→			// Track successful write
+   177→			if isAutosave {
+   178→				if !fileExists {
+   179→					// New file created during autosave
+   180→					analytics.TrackEvent(analytics.EventAutosaveNew, analytics.Properties{
+   181→						"session_id":      session.SessionID,
+   182→						"only_cloud_sync": onlyCloudSync,
+   183→					})
+   184→				} else {
+   185→					// File updated during autosave
+   186→					analytics.TrackEvent(analytics.EventAutosaveSuccess, analytics.Properties{
+   187→						"session_id":      session.SessionID,
+   188→						"only_cloud_sync": onlyCloudSync,
+   189→					})
+   190→				}
+   191→			} else {
+   192→				if !fileExists {
+   193→					// New file created during manual sync
+   194→					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
+   195→						"session_id":      session.SessionID,
+   196→						"only_cloud_sync": onlyCloudSync,
+   197→					})
+   198→				} else {
+   199→					// File updated during manual sync
+   200→					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+   201→						"session_id":      session.SessionID,
+   202→						"only_cloud_sync": onlyCloudSync,
+   203→					})
+   204→				}
+   205→			}
+   206→
+   207→			slog.Info("Successfully wrote file",
+   208→				"sessionId", session.SessionID,
+   209→				"path", fileFullPath)
+   210→		}
+   211→
+   212→		// Determine outcome for user feedback
+   213→		if identicalContent {
+   214→			outcome = "up to date (skipped)"
+   215→		} else if fileExists {
+   216→			outcome = "updated"
+   217→		} else {
+   218→			outcome = "created"
+   219→		}
+   220→	} else {
+   221→		// Only cloud sync mode - no local file operations
+   222→		outcome = "synced to cloud only"
+   223→		slog.Info("Skipping local file write (only-cloud-sync mode)",
+   224→			"sessionId", session.SessionID)
+   225→	}
+   226→
+   227→	// Trigger cloud sync with provider-specific data
+   228→	// In only-cloud-sync mode: always sync (no file to check for identical content)
+   229→	// In normal mode: skip sync only if identical content AND in autosave mode
+   230→	if onlyCloudSync || !identicalContent || !isAutosave {
+   231→		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionData.Provider.Name, isAutosave)
+   232→	}
+   233→
+   234→	if showOutput && !log.IsSilent() {
+   235→		fmt.Printf(" %s\n", outcome)
+   236→		fmt.Println() // Visual separation
+   237→	}
+   238→
+   239→	return markdownSize, nil
+   240→}
+   241→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:32:08Z)**_
+
+I'll do the remaining replacements in the function body — each bare boolean name needs `opts.` prefix.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:08Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:15Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:24Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:32Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:39Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:55Z)**_
+
+Now update the three call sites. Let me read the relevant lines for context.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:56Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   440→				// Process the session (write markdown and sync to cloud)
+   441→				// Don't show output during interactive run mode
+   442→				// This is autosave mode (true)
+   443→				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+   444→				if err != nil {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:57Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   712→		} else {
+   713→			// Normal sync: write to file and optionally cloud sync
+   714→			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, true, false, debugRaw, useUTC, noTelemetryPrompts); err != nil {
+   715→				errorCount++
+   716→				lastError = err
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:34:58Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/watch.go`
+
+```text
+   205→				// Don't show output during watch mode
+   206→				// This is autosave mode (true)
+   207→				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+   208→				if err != nil {
+   209→					// Log error but continue - don't fail the whole watch
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:03Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:08Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:13Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/watch.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:23Z)**_
+
+Now let me run the linter and tests.
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter
+
+`golangci-lint run`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:39Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all tests
+
+`go test -v ./...`
+
+```text
+<persisted-output>
+Output too large (189.8KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/a01e7312-22ab-470d-b129-94bd0d233314/tool-results/toolu_01WL2DbyFpspRLxF5ea2V8LJ.txt
+
+Preview (first 2KB):
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/no-cloud-sync_alone_-_valid
+=== RUN   TestValidateFlags_CloudSyncMutualExclusion/neither_flag_set_-_valid
+--- PASS: TestValidateFlags_CloudSyncMutualExclusion (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/both_flags_set_-_mutually_exclusive_error (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/only-cloud-sync_alone_-_valid (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/no-cloud-sync_alone_-_valid (0.00s)
+    --- PASS: TestValidateFlags_CloudSyncMutualExclusion/neither_flag_set_-_valid (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli	0.487s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
+=== RUN   TestIsAuthenticated
+=== RUN   TestIsAuthenticated/auth_file_does_not_exist
+2026/02/23 18:35:32 INFO Checking authentication path=/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TestIsAuthenticated1976714781/001/.specstory/cli/auth.json
+2026/02/23 18:35:32 INFO Auth file does not exist path=/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TestIsAuthenticated1976714781/001/.specstory/cli/auth.json
+=== RUN   TestIsAuthenticated/auth_file_exists_with_valid_cloud_token
+2026/02/23 18:35:32 INFO Checking authentication path=/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TestIsAuthenticated1976714781/001/.specstory/cli/auth.json
+2026/02/23 18:35:32 INFO Authentication successful (access token valid)
+=== RUN   TestIsAuthenticated/auth_file_exists_with_expired_cloud_token
+2026/02/23 18:35:32 INFO Checking authentication path=/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TestIsAuthenticated1976714781/001/.specstory/cli/auth.json
+2026/02/23 18:35:32 WARN No valid authentication tokens found
+...
+</persisted-output>
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:35:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check test summary
+
+`go test ./... 2>&1 | tail -20`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli	0.509s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.279s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/config	0.907s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/log	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	7.171s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	1.636s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli	1.113s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	1.291s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	1.427s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	1.709s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	1.895s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 23:36:04Z)**_
+
+All tests pass, 0 linter issues. Here's what changed:
+
+**`pkg/session/session.go`** — Added `ProcessingOptions` struct with 6 named boolean fields and updated `ProcessSingleSession` to take it as a single param instead of 6 positional bools:
+
+```go
+type ProcessingOptions struct {
+    OnlyCloudSync      bool
+    ShowOutput         bool
+    IsAutosave         bool
+    DebugRaw           bool
+    UseUTC             bool
+    NoTelemetryPrompts bool
+}
+```
+
+**`main.go`** (2 call sites) and **`pkg/cmd/watch.go`** (1 call site) — Updated to use struct literals. The intent of each call is now self-documenting:
+
+```go
+// Before: positional bools — which is onlyCloudSync vs showOutput vs isAutosave?
+sessionpkg.ProcessSingleSession(ctx, session, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+
+// After: named fields make each flag's purpose clear
+sessionpkg.ProcessSingleSession(ctx, session, config, sessionpkg.ProcessingOptions{
+    OnlyCloudSync:      onlyCloudSync,
+    IsAutosave:         true,
+    DebugRaw:           debugRaw,
+    UseUTC:             useUTC,
+    NoTelemetryPrompts: noTelemetryPrompts,
+})
+```
+
+`ctx`, `session`, and `config` stay as direct params since they're fundamentally different from behavioral flags — they represent the execution context, the data being processed, and the output configuration.
+
+---
+
+_**User (2026-02-23 23:39:45Z)**_
+
+<command-name>/exit</command-name>
+            <command-message>exit</command-message>
+            <command-args></command-args>
+
+_**User (2026-02-23 23:39:45Z)**_
+
+<local-command-stdout>Bye!</local-command-stdout>
+
+_**User (2026-02-23 23:39:45Z)**_
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>

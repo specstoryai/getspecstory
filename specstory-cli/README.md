@@ -116,18 +116,18 @@ The configuration is determined with the following priority (highest priority to
 # enabled = false # equivalent to --no-cloud-sync
 
 [logging]
+# Write logs to .specstory/debug/debug.log (default: false)
+# log = true # equivalent to --log        
+
+# Debug-level output, requires console or log (default: false)
+# debug = true # equivalent to --debug 
+
 # Custom output directory for debug data.
 # Default: ./.specstory/debug (relative to the project directory)
 # debug_dir = "~/.specstory/debug" # equivalent to --debug-dir "~/.specstory/debug"
 
 # Error/warn/info output to stdout (default: false)
 # console = true # equivalent to --console
-
-# Write logs to .specstory/debug/debug.log (default: false)
-# log = true # equivalent to --log
-
-# Debug-level output, requires console or log (default: false)
-# debug = true # equivalent to --debug
 
 # Suppress all non-error output (default: false)
 # silent = true # equivalent to --silent

@@ -440,7 +440,13 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
-				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
+				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+					OnlyCloudSync:      onlyCloudSync,
+					IsAutosave:         true,
+					DebugRaw:           debugRaw,
+					UseUTC:             useUTC,
+					NoTelemetryPrompts: noTelemetryPrompts,
+				})
 				if err != nil {
 					// Log error but continue - don't fail the whole run
 					// In interactive mode, we prioritize keeping the agent running.
@@ -711,7 +717,13 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			})
 		} else {
 			// Normal sync: write to file and optionally cloud sync
-			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, onlyCloudSync, true, false, debugRaw, useUTC, noTelemetryPrompts); err != nil {
+			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+				OnlyCloudSync:      onlyCloudSync,
+				ShowOutput:         true,
+				DebugRaw:           debugRaw,
+				UseUTC:             useUTC,
+				NoTelemetryPrompts: noTelemetryPrompts,
+			}); err != nil {
 				errorCount++
 				lastError = err
 			} else {
