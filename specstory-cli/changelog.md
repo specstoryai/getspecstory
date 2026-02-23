@@ -4,7 +4,7 @@
 
 ### 📢 Announcements
 
--  Added optional [OpenTelemetry](https://opentelemetry.io/) metrics for agent sessions. Enable via the `--telemetry-endpoint`, `--telemetry-service-name`, and `--no-telemetry-prompts` [flags](https://docs.specstory.com/integrations/terminal-coding-agents/usage#flags) on `run`, `sync`, or `watch`, or through the `telemetry` [configuration options](https://docs.specstory.com/integrations/terminal-coding-agents/usage#configuration). See the [Open Telemetry](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/README.md#open-telemetry) section of the README for more information.
+-  Added optional [OpenTelemetry](https://opentelemetry.io/) metrics for agent sessions. Enable via the `--telemetry-endpoint`, `--telemetry-service-name`, and `--no-telemetry-prompts` [flags](https://docs.specstory.com/integrations/terminal-coding-agents/usage#flags) on `run`, `sync`, or `watch`, or through the `telemetry` [configuration options](https://docs.specstory.com/integrations/terminal-coding-agents/usage#configuration). See the [OpenTelemetry](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/README.md#open-telemetry) section of the README for more information.
 
 
 ## v1.9.0 2026-02-23

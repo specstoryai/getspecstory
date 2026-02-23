@@ -6,6 +6,7 @@ package telemetry
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -26,15 +27,20 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
+var (
+	logOnce sync.Once
+	logger  *slog.Logger
+)
+
+// telemetryLogger returns a cached slog.Logger tagged with component=telemetry.
 func telemetryLogger() *slog.Logger {
-	return slog.Default().With("component", "telemetry")
+	logOnce.Do(func() {
+		logger = slog.Default().With("component", "telemetry")
+	})
+	return logger
 }
 
 const (
-	// defaultEndpoint is the OTLP gRPC collector address used when
-	// OTEL_EXPORTER_OTLP_ENDPOINT is set but Options.Endpoint is empty.
-	defaultEndpoint = "localhost:4317"
-
 	// metricExportInterval is how often metrics are exported to the collector.
 	metricExportInterval = 10 * time.Second
 )
@@ -42,7 +48,7 @@ const (
 // Options configures telemetry initialisation.
 type Options struct {
 	ServiceName string // OTel service.name resource attribute (default "specstory-cli")
-	Endpoint    string // OTLP gRPC collector address (default "localhost:4317")
+	Endpoint    string // OTLP gRPC collector address; must be non-empty when Enabled is true
 	Enabled     bool   // When false, Init is a no-op and the global no-op provider is used
 }
 
@@ -116,15 +122,10 @@ func parseResourceAttributes() []attribute.KeyValue {
 //
 // Accepted formats:
 //
-//	"localhost:4317"              → host="localhost:4317",  insecure=true
-//	"http://localhost:4317"       → host="localhost:4317",  insecure=true
-//	"https://collector.example:4317" → host="collector.example:4317", insecure=false
-//	""                            → host=defaultEndpoint,  insecure=true
+//	"localhost:4317"                 → host="localhost:4317",          insecure=true
+//	"http://localhost:4317"          → host="localhost:4317",          insecure=true
+//	"https://collector.example:4317" → host="collector.example:4317",  insecure=false
 func parseEndpoint(raw string) (host string, insecure bool) {
-	if raw == "" {
-		return defaultEndpoint, true
-	}
-
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
 		// Not a URL — treat the whole string as host:port (bare address).
@@ -448,10 +449,7 @@ func Shutdown(ctx context.Context) error {
 		}
 	}
 
-	if len(errs) > 0 {
-		return errs[0] // Return first error
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // ForceFlush explicitly flushes all pending spans and metrics.
@@ -476,10 +474,7 @@ func ForceFlush(ctx context.Context) error {
 		}
 	}
 
-	if len(errs) > 0 {
-		return errs[0]
-	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // Tracer returns a named tracer from the global provider. When telemetry is
