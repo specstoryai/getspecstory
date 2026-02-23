@@ -1,10 +1,23 @@
 # Specstory CLI Changelog
 
-## v1.7.0 2026-02-12
+## v1.8.0 2026-02-22
+
+### ⚙️ Improvements
+
+- Provide activity updates to stdout while `specstory watch` is running.
+- `specstory watch --json` flag for easily parsable output activity updates.
+- Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
+
+### 🐛 Bug Fixes
+
+- Updated processing of tool call results in Gemini CLI provider to fix broken session rendering with newer versions of Gemini CLI.
+
+## v1.7.0 2026-02-16
 
 ### ⚙️ Improvements
 
 - New `--print` flag for `specstory sync -s {session-ID} --print` command to output the markdown to stdout rather than sync it to a file. The flag works for multiple sessions with `specstory sync -s {id1} -s {id2} --print`.
+- For the `specstory run claude` command, prefer the Claude Code "native install", `~/.local/bin/claude`, over the npm install, `~/.claude/local/claude`, when both are present.
 
 ### 🐛 Bug Fixes
 

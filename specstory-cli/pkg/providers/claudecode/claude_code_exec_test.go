@@ -2,7 +2,6 @@ package claudecode
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 )
 
@@ -148,113 +147,131 @@ func TestGetDefaultClaudeCommand(t *testing.T) {
 	// Save original functions
 	originalHomeDir := osUserHomeDir
 	originalStat := osStat
+	originalLookPath := execLookPath
 	defer func() {
 		osUserHomeDir = originalHomeDir
 		osStat = originalStat
+		execLookPath = originalLookPath
 	}()
 
 	tests := []struct {
 		name           string
 		mockHomeDir    func() (string, error)
 		mockStat       func(string) (os.FileInfo, error)
+		mockLookPath   func(string) (string, error)
 		expectedResult string
 	}{
 		{
-			name: "local claude exists",
-			mockHomeDir: func() (string, error) {
-				return "/home/user", nil
-			},
-			mockStat: func(name string) (os.FileInfo, error) {
-				if name == "/home/user/.claude/local/claude" {
-					return nil, nil // File exists (we don't need actual FileInfo)
-				}
-				return nil, os.ErrNotExist
-			},
-			expectedResult: "/home/user/.claude/local/claude",
-		},
-		{
-			name: "user bin claude exists when local doesn't",
+			name: "native installation exists",
 			mockHomeDir: func() (string, error) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
 				if name == "/home/user/.local/bin/claude" {
-					return nil, nil // File exists
+					return nil, nil
 				}
 				return nil, os.ErrNotExist
+			},
+			mockLookPath: func(name string) (string, error) {
+				return "", os.ErrNotExist
 			},
 			expectedResult: "/home/user/.local/bin/claude",
 		},
 		{
-			name: "both local and user bin exist - local takes precedence",
+			name: "claude on PATH when native doesn't exist",
 			mockHomeDir: func() (string, error) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				if name == "/home/user/.claude/local/claude" || name == "/home/user/.local/bin/claude" {
-					return nil, nil // Both files exist
+				return nil, os.ErrNotExist
+			},
+			mockLookPath: func(name string) (string, error) {
+				return "/usr/bin/claude", nil
+			},
+			expectedResult: "claude",
+		},
+		{
+			name: "legacy npm installation when native and PATH don't exist",
+			mockHomeDir: func() (string, error) {
+				return "/home/user", nil
+			},
+			mockStat: func(name string) (os.FileInfo, error) {
+				if name == "/home/user/.claude/local/claude" {
+					return nil, nil
 				}
 				return nil, os.ErrNotExist
+			},
+			mockLookPath: func(name string) (string, error) {
+				return "", os.ErrNotExist
 			},
 			expectedResult: "/home/user/.claude/local/claude",
 		},
 		{
-			name: "neither local nor user bin exist",
+			name: "native takes precedence over PATH and legacy",
 			mockHomeDir: func() (string, error) {
 				return "/home/user", nil
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				return nil, os.ErrNotExist // File doesn't exist
+				if name == "/home/user/.local/bin/claude" || name == "/home/user/.claude/local/claude" {
+					return nil, nil
+				}
+				return nil, os.ErrNotExist
+			},
+			mockLookPath: func(name string) (string, error) {
+				return "/usr/bin/claude", nil
+			},
+			expectedResult: "/home/user/.local/bin/claude",
+		},
+		{
+			name: "PATH takes precedence over legacy",
+			mockHomeDir: func() (string, error) {
+				return "/home/user", nil
+			},
+			mockStat: func(name string) (os.FileInfo, error) {
+				if name == "/home/user/.claude/local/claude" {
+					return nil, nil
+				}
+				return nil, os.ErrNotExist
+			},
+			mockLookPath: func(name string) (string, error) {
+				return "/usr/bin/claude", nil
 			},
 			expectedResult: "claude",
 		},
 		{
-			name: "home dir error",
+			name: "nothing found falls back to bare claude",
+			mockHomeDir: func() (string, error) {
+				return "/home/user", nil
+			},
+			mockStat: func(name string) (os.FileInfo, error) {
+				return nil, os.ErrNotExist
+			},
+			mockLookPath: func(name string) (string, error) {
+				return "", os.ErrNotExist
+			},
+			expectedResult: "claude",
+		},
+		{
+			name: "home dir error falls back to PATH check then bare claude",
 			mockHomeDir: func() (string, error) {
 				return "", os.ErrNotExist
 			},
 			mockStat: func(name string) (os.FileInfo, error) {
-				// This shouldn't be called
 				t.Error("Stat should not be called when home dir fails")
 				return nil, os.ErrNotExist
 			},
+			mockLookPath: func(name string) (string, error) {
+				return "", os.ErrNotExist
+			},
 			expectedResult: "claude",
-		},
-		{
-			name: "home dir with windows-style path - local exists",
-			mockHomeDir: func() (string, error) {
-				return `C:\Users\TestUser`, nil
-			},
-			mockStat: func(name string) (os.FileInfo, error) {
-				expectedPath := filepath.Join(`C:\Users\TestUser`, ".claude", "local", "claude")
-				if name == expectedPath {
-					return nil, nil // File exists
-				}
-				return nil, os.ErrNotExist
-			},
-			expectedResult: filepath.Join(`C:\Users\TestUser`, ".claude", "local", "claude"),
-		},
-		{
-			name: "home dir with windows-style path - user bin exists",
-			mockHomeDir: func() (string, error) {
-				return `C:\Users\TestUser`, nil
-			},
-			mockStat: func(name string) (os.FileInfo, error) {
-				expectedPath := filepath.Join(`C:\Users\TestUser`, ".local", "bin", "claude")
-				if name == expectedPath {
-					return nil, nil // File exists
-				}
-				return nil, os.ErrNotExist
-			},
-			expectedResult: filepath.Join(`C:\Users\TestUser`, ".local", "bin", "claude"),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Replace functions with mocks
 			osUserHomeDir = tt.mockHomeDir
 			osStat = tt.mockStat
+			execLookPath = tt.mockLookPath
 
 			result := getDefaultClaudeCommand()
 			if result != tt.expectedResult {

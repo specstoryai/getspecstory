@@ -5518,7 +5518,7 @@ Good — `ErrMissingPath` is still used in `FileEvent.Validate()` (line 57), the
 
 Now let me run the tests and linter to verify everything passes.
 
-_**Agent (claude-opus-4-6 2026-02-11 21:40:57Z)**_
+_**Agent (claude-opus-4-6 2026-02-11 21:41:00Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -5803,7 +5803,7 @@ _**Agent (claude-opus-4-6 2026-02-11 21:41:04Z)**_
 
 All 37 tests pass. Now let me also run the full test suite and linter to make sure nothing else broke:
 
-_**Agent (claude-opus-4-6 2026-02-11 21:41:05Z)**_
+_**Agent (claude-opus-4-6 2026-02-11 21:41:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -5872,7 +5872,7 @@ FAIL
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-6 2026-02-11 21:41:06Z)**_
+_**Agent (claude-opus-4-6 2026-02-11 21:41:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
@@ -5889,7 +5889,7 @@ _**Agent (claude-opus-4-6 2026-02-11 21:41:17Z)**_
 
 The provenance tests all pass. The failing `TestExtractPathHints_ShellCommand` test is a pre-existing issue (it was part of the changeset but tests shell redirect path extraction which isn't implemented yet — those tests were added as aspirational/failing tests). Let me verify this is a pre-existing failure, not caused by my changes:
 
-_**Agent (claude-opus-4-6 2026-02-11 21:41:17Z)**_
+_**Agent (claude-opus-4-6 2026-02-11 21:41:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>

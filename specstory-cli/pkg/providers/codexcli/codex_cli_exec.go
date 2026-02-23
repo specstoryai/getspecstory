@@ -164,29 +164,6 @@ func isExecutable(path string) bool {
 	return !info.IsDir() && info.Mode()&0o111 != 0
 }
 
-// classifyCodexPath returns a string describing how the codex binary was resolved for analytics.
-func classifyCodexPath(command string, resolvedPath string) string {
-	if resolvedPath == "" {
-		return "unknown"
-	}
-
-	// Check npm/nvm paths before homebrew to correctly identify node-based installations.
-	if strings.Contains(resolvedPath, ".nvm") || strings.Contains(resolvedPath, "node") {
-		return "npm_global"
-	}
-
-	if strings.Contains(resolvedPath, "/homebrew/") || strings.Contains(resolvedPath, "homebrew") {
-		return "homebrew"
-	}
-
-	if filepath.IsAbs(command) || filepath.IsAbs(resolvedPath) {
-		return "absolute"
-	}
-
-	// Binary was found in PATH but doesn't match other known patterns.
-	return "path"
-}
-
 // runCodexVersionCommand tries common version flags and returns the first successful output.
 func runCodexVersionCommand(command string) (string, string, string, error) {
 	flags := []string{"--version", "-V"}
