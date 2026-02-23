@@ -45,7 +45,7 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (string, 
 	}
 
 	var message strings.Builder
-	message.WriteString(fmt.Sprintf(`<details><summary>Tool use: **%s**`, bubble.Name))
+	fmt.Fprintf(&message, `<details><summary>Tool use: **%s**`, bubble.Name)
 
 	// Get command from params or rawArgs (prefer params)
 	command := params.Command
@@ -55,17 +55,17 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (string, 
 
 	// If we have a command, show it in the summary and as a bash block
 	if command != "" {
-		message.WriteString(fmt.Sprintf(` • Run command: %s</summary>
+		fmt.Fprintf(&message, ` • Run command: %s</summary>
 
-`, command))
-		message.WriteString(fmt.Sprintf("```bash\n%s\n```", command))
+`, command)
+		fmt.Fprintf(&message, "```bash\n%s\n```", command)
 	} else {
 		message.WriteString("</summary>\n")
 	}
 
 	// If we have output, show it in a code block
 	if result.Output != "" {
-		message.WriteString(fmt.Sprintf("\n\n```\n%s\n```", escapeCodeBlock(result.Output)))
+		fmt.Fprintf(&message, "\n\n```\n%s\n```", escapeCodeBlock(result.Output))
 	}
 
 	message.WriteString("\n</details>")

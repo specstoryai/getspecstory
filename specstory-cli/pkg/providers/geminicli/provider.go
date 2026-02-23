@@ -226,19 +226,19 @@ func buildGeminiCheckErrorMessage(errorType string, geminiCmd string, isCustom b
 		b.WriteString("Gemini CLI could not be found.\n\n")
 		if isCustom {
 			b.WriteString("• Verify the path you supplied actually points to the `gemini` executable.\n")
-			b.WriteString(fmt.Sprintf("• Provided command: %s\n", geminiCmd))
+			fmt.Fprintf(&b, "• Provided command: %s\n", geminiCmd)
 		} else {
 			b.WriteString("• Install Gemini CLI from https://ai.google.dev/gemini-cli/get-started\n")
 			b.WriteString("• Ensure `gemini` is on your PATH or pass a custom command via `specstory check gemini -c \"path/to/gemini\"`.\n")
 		}
 	case "permission_denied":
 		b.WriteString("Gemini CLI exists but isn't executable.\n\n")
-		b.WriteString(fmt.Sprintf("• Fix permissions: `chmod +x %s`\n", geminiCmd))
+		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", geminiCmd)
 		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
 	default:
 		b.WriteString("`gemini --version` failed.\n\n")
 		if stderr != "" {
-			b.WriteString(fmt.Sprintf("Error output:\n%s\n\n", stderr))
+			fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
 		}
 		b.WriteString("• Try running `gemini --version` directly in your terminal.\n")
 		b.WriteString("• If you upgraded recently, reinstall the CLI to refresh dependencies.\n")

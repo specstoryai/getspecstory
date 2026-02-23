@@ -1,26 +1,16 @@
 # Specstory CLI Changelog
 
-## Unreleased
+## v1.8.0 2026-02-22
 
 ### ⚙️ Improvements
 
-- **SSH Remote Support**: Cursor IDE and Copilot IDE providers now support SSH remote workspaces. When working via VS Code Remote-SSH (e.g., `vscode-remote://ssh-remote+...`), the CLI can detect and sync conversations by matching repository names across local and remote paths.
+- Provide activity updates to stdout while `specstory watch` is running.
+- `specstory watch --json` flag for easily parsable output activity updates.
+- Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
 
-- **Extension Integration**: Added `--output-dir` flag to support VS Code extension integration, allowing markdown files to be exported to a custom directory (enables temp directory workflow for extensions).
+### 🐛 Bug Fixes
 
-- **Enhanced Workspace Matching**: Workspace matching now uses basename fallback for all workspace types, not just SSH remotes. This allows matching workspaces when the folder basename matches even if the full path differs (e.g., SSH remotes).
-
-### 📚 Documentation
-
-- **Extension Architecture**: New comprehensive documentation (`docs/EXTENSION-ARCHITECTURE.md`) explaining:
-  - How the CLI and VS Code extension work together
-  - Data locality for different tools (IDE tools vs CLI/Agent tools)
-  - Architecture decisions for local vs remote execution
-  - WSL vs SSH differences and trade-offs
-  - Manual CLI usage scenarios
-  - Extension integration patterns and watch mode
-
-- **Workspace Matching Strategy**: Updated Cursor IDE and Copilot IDE provider documentation with detailed explanation of basename matching approach, its implications, and trade-offs for different workspace types.
+- Updated processing of tool call results in Gemini CLI provider to fix broken session rendering with newer versions of Gemini CLI.
 
 ## v1.7.0 2026-02-16
 

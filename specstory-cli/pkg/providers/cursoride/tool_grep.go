@@ -121,19 +121,19 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 	if resultsLength != 1 {
 		matchWord = "matches"
 	}
-	message.WriteString(fmt.Sprintf(`<summary>Tool use: **%s** • Grep for "%s"%s • %d %s</summary>
+	fmt.Fprintf(&message, `<summary>Tool use: **%s** • Grep for "%s"%s • %d %s</summary>
 
-`, bubble.Name, params.Pattern, inString, resultsLength, matchWord))
+`, bubble.Name, params.Pattern, inString, resultsLength, matchWord)
 
 	// Add output mode
 	outputMode := params.OutputMode
 	if outputMode == "" {
 		outputMode = "content"
 	}
-	message.WriteString(fmt.Sprintf("Output mode: %s\n", outputMode))
+	fmt.Fprintf(&message, "Output mode: %s\n", outputMode)
 
 	// Add details
-	message.WriteString(fmt.Sprintf("\n%s\n", messageDetails))
+	fmt.Fprintf(&message, "\n%s\n", messageDetails)
 
 	message.WriteString("\n</details>")
 	return message.String(), nil
@@ -177,13 +177,13 @@ func (h *GrepHandler) formatContentResults(content *GrepContentResult) string {
 
 			// Add file column if needed
 			if hasFiles {
-				result.WriteString(fmt.Sprintf("| `%s` ", escapeTableCellValue(fileMatch.File)))
+				fmt.Fprintf(&result, "| `%s` ", escapeTableCellValue(fileMatch.File))
 			}
 
 			// Add content and line number
-			result.WriteString(fmt.Sprintf("| `%s` | L%d |\n",
+			fmt.Fprintf(&result, "| `%s` | L%d |\n",
 				escapeTableCellValue(match.Content),
-				match.LineNumber))
+				match.LineNumber)
 		}
 	}
 
@@ -200,7 +200,7 @@ func (h *GrepHandler) formatFilesResults(files *GrepFilesResult) string {
 	result.WriteString("\n| File |\n|------|\n")
 
 	for _, file := range files.Files {
-		result.WriteString(fmt.Sprintf("| `%s` |\n", file))
+		fmt.Fprintf(&result, "| `%s` |\n", file)
 	}
 
 	return result.String()

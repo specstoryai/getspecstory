@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -478,9 +478,15 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 		if inputStr, ok := tool.Input["input"].(string); ok {
 			// Custom tool with text input (e.g., apply_patch)
 			formattedMd.WriteString(formatCustomToolCall(tool.Name, inputStr))
-		} else if tool.Name == "shell_command" {
-			// Shell command: check if single-line or multi-line
-			inputJSON, _ := json.Marshal(tool.Input)
+		} else if tool.Name == "shell_command" || tool.Name == "exec_command" {
+			// Shell command: normalize "cmd" → "command" for exec_command
+			toolInput := tool.Input
+			if _, ok := toolInput["cmd"]; ok {
+				if _, hasCommand := toolInput["command"]; !hasCommand {
+					toolInput["command"] = toolInput["cmd"]
+				}
+			}
+			inputJSON, _ := json.Marshal(toolInput)
 			shellSummary, shellBody := formatShellWithSummary(string(inputJSON))
 			if shellSummary != "" {
 				// Single-line command goes in summary
@@ -520,7 +526,7 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 // classifyToolType maps Codex tool names to standard tool types
 func classifyToolType(toolName string) string {
 	switch toolName {
-	case "shell", "shell_command": // `shell` is legacy
+	case "shell", "shell_command", "exec_command": // `shell` is legacy
 		return "shell"
 	case "update_plan":
 		return "task"
@@ -554,9 +560,28 @@ func extractPathHints(toolName string, input map[string]interface{}, inputText s
 		pathFields := []string{"path", "file", "filename", "file_path"}
 		for _, field := range pathFields {
 			if value, ok := input[field].(string); ok && value != "" {
-				normalizedPath := normalizePath(value, workspaceRoot)
+				normalizedPath := spi.NormalizePath(value, workspaceRoot)
 				if !contains(paths, normalizedPath) {
 					paths = append(paths, normalizedPath)
+				}
+			}
+		}
+
+		// Extract paths from shell commands (redirect targets, file-creating commands)
+		// exec_command uses "cmd", shell_command uses "command"
+		command, _ := input["command"].(string)
+		if command == "" {
+			command, _ = input["cmd"].(string)
+		}
+		if command != "" {
+			cwd, _ := input["workdir"].(string)
+			if cwd == "" {
+				cwd = workspaceRoot
+			}
+			shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+			for _, sp := range shellPaths {
+				if !contains(paths, sp) {
+					paths = append(paths, sp)
 				}
 			}
 		}
@@ -588,7 +613,7 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 			if strings.HasPrefix(line, marker) {
 				path := strings.TrimSpace(strings.TrimPrefix(line, marker))
 				if path != "" {
-					normalizedPath := normalizePath(path, workspaceRoot)
+					normalizedPath := spi.NormalizePath(path, workspaceRoot)
 					if !contains(paths, normalizedPath) {
 						paths = append(paths, normalizedPath)
 					}
@@ -601,7 +626,7 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 		if strings.HasPrefix(line, "*** New Name:") {
 			path := strings.TrimSpace(strings.TrimPrefix(line, "*** New Name:"))
 			if path != "" {
-				normalizedPath := normalizePath(path, workspaceRoot)
+				normalizedPath := spi.NormalizePath(path, workspaceRoot)
 				if !contains(paths, normalizedPath) {
 					paths = append(paths, normalizedPath)
 				}
@@ -610,23 +635,6 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 	}
 
 	return paths
-}
-
-// normalizePath converts absolute paths to workspace-relative paths when possible
-func normalizePath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
-		}
-	}
-
-	return path
 }
 
 // contains checks if a string slice contains a value
