@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
@@ -66,13 +67,27 @@ Specify a specific agent ID to check only a specific coding agent.`,
 				}
 			}
 
+			// Check config files first
+			configOK := checkConfigFiles()
+			printDivider()
+
+			var providerErr error
 			if len(args) == 0 {
 				// Check all providers
-				return checkAllProviders(registry)
+				providerErr = checkAllProviders(registry)
 			} else {
 				// Check specific provider
-				return checkSingleProvider(registry, args[0], customCmd)
+				providerErr = checkSingleProvider(registry, args[0], customCmd)
 			}
+
+			// Fail if either config or provider checks failed
+			if !configOK && providerErr != nil {
+				return providerErr
+			}
+			if !configOK {
+				return errors.New("config check failed")
+			}
+			return providerErr
 		},
 	}
 
@@ -215,4 +230,69 @@ func checkAllProviders(registry *factory.Registry) error {
 	}
 
 	return nil
+}
+
+// checkConfigFiles validates user-level and project-level config files.
+// Returns true if all existing config files are valid, false if any have errors.
+func checkConfigFiles() bool {
+	fmt.Println("\n📋 Configuration Files")
+
+	allOK := true
+	checked := 0
+
+	// Check user-level config
+	userPath := config.GetUserConfigPath()
+	if userPath != "" {
+		result := config.ValidateConfigFile(userPath)
+		checked++
+		printConfigResult("User config", result)
+		if result.Exists && (!result.ValidTOML || len(result.UnknownKeys) > 0) {
+			allOK = false
+		}
+	}
+
+	// Check project-level config
+	localPath := config.GetLocalConfigPath()
+	if localPath != "" {
+		result := config.ValidateConfigFile(localPath)
+		checked++
+		printConfigResult("Project config", result)
+		if result.Exists && (!result.ValidTOML || len(result.UnknownKeys) > 0) {
+			allOK = false
+		}
+	}
+
+	if checked == 0 {
+		fmt.Println("  ⚠️  Could not determine config file paths")
+	}
+
+	return allOK
+}
+
+// printConfigResult displays the validation result for a single config file.
+func printConfigResult(label string, result config.ConfigValidationResult) {
+	if !result.Exists {
+		fmt.Printf("\n  ℹ️  %s: not found\n", label)
+		fmt.Printf("     %s\n", result.Path)
+		return
+	}
+
+	if !result.ValidTOML {
+		fmt.Printf("\n  ❌ %s: invalid TOML\n", label)
+		fmt.Printf("     %s\n", result.Path)
+		fmt.Printf("     Error: %s\n", result.ParseError)
+		return
+	}
+
+	if len(result.UnknownKeys) > 0 {
+		fmt.Printf("\n  ⚠️  %s: valid TOML, but has unknown keys\n", label)
+		fmt.Printf("     %s\n", result.Path)
+		for _, key := range result.UnknownKeys {
+			fmt.Printf("     • unknown key: %s\n", key)
+		}
+		return
+	}
+
+	fmt.Printf("\n  ✅ %s: valid\n", label)
+	fmt.Printf("     %s\n", result.Path)
 }

@@ -1016,6 +1016,126 @@ func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
 	}
 }
 
+// TestValidateConfigFile tests config file validation
+func TestValidateConfigFile(t *testing.T) {
+	t.Run("non-existent file", func(t *testing.T) {
+		result := ValidateConfigFile("/tmp/does-not-exist-config.toml")
+		if result.Exists {
+			t.Error("Exists should be false for non-existent file")
+		}
+		if result.ValidTOML {
+			t.Error("ValidTOML should be false for non-existent file")
+		}
+	})
+
+	t.Run("valid config with known keys", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[local_sync]
+output_dir = "/some/path"
+enabled = true
+
+[cloud_sync]
+enabled = false
+
+[providers]
+claude_cmd = "claude --fast"
+`
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.Exists {
+			t.Error("Exists should be true")
+		}
+		if !result.ValidTOML {
+			t.Errorf("ValidTOML should be true, got parse error: %s", result.ParseError)
+		}
+		if len(result.UnknownKeys) > 0 {
+			t.Errorf("UnknownKeys should be empty, got: %v", result.UnknownKeys)
+		}
+	})
+
+	t.Run("invalid TOML syntax", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		if err := os.WriteFile(path, []byte(`this is not valid [[[`), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.Exists {
+			t.Error("Exists should be true")
+		}
+		if result.ValidTOML {
+			t.Error("ValidTOML should be false for invalid TOML")
+		}
+		if result.ParseError == "" {
+			t.Error("ParseError should be set for invalid TOML")
+		}
+	})
+
+	t.Run("unknown section", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[local_sync]
+output_dir = "/some/path"
+
+[bogus_section]
+foo = "bar"
+`
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.ValidTOML {
+			t.Errorf("ValidTOML should be true, got parse error: %s", result.ParseError)
+		}
+		// Should report the unknown section but not its child keys
+		if len(result.UnknownKeys) != 1 {
+			t.Errorf("UnknownKeys should have exactly 1 entry (the section), got: %v", result.UnknownKeys)
+		}
+		if len(result.UnknownKeys) > 0 && result.UnknownKeys[0] != "bogus_section" {
+			t.Errorf("UnknownKeys[0] = %q, want %q", result.UnknownKeys[0], "bogus_section")
+		}
+	})
+
+	t.Run("unknown property in known section", func(t *testing.T) {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.toml")
+		content := `
+[logging]
+console = true
+nonexistent_option = "oops"
+`
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+
+		result := ValidateConfigFile(path)
+		if !result.ValidTOML {
+			t.Errorf("ValidTOML should be true, got parse error: %s", result.ParseError)
+		}
+		if len(result.UnknownKeys) == 0 {
+			t.Error("UnknownKeys should not be empty for unknown property")
+		}
+		found := false
+		for _, key := range result.UnknownKeys {
+			if strings.Contains(key, "nonexistent_option") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("UnknownKeys should contain 'nonexistent_option', got: %v", result.UnknownKeys)
+		}
+	})
+}
+
 // TestGetProviderCmd tests the provider command lookup by provider ID
 func TestGetProviderCmd(t *testing.T) {
 	cfg := &Config{

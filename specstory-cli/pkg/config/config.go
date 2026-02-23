@@ -241,6 +241,16 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 	return cfg, nil
 }
 
+// GetUserConfigPath returns the path to ~/.specstory/cli/config.toml
+func GetUserConfigPath() string {
+	return getUserConfigPath()
+}
+
+// GetLocalConfigPath returns the path to .specstory/cli/config.toml in the current directory
+func GetLocalConfigPath() string {
+	return getLocalConfigPath()
+}
+
 // getUserConfigPath returns the path to ~/.specstory/cli/config.toml
 func getUserConfigPath() string {
 	home, err := os.UserHomeDir()
@@ -413,6 +423,57 @@ func EnsureDefaultProjectConfig() {
 func loadTOMLFile(path string, cfg *Config) error {
 	_, err := toml.DecodeFile(path, cfg)
 	return err
+}
+
+// ConfigValidationResult holds the result of validating a config file.
+type ConfigValidationResult struct {
+	Path        string   // Path to the config file
+	Exists      bool     // Whether the file exists
+	ValidTOML   bool     // Whether the file is valid TOML
+	ParseError  string   // TOML parse error message, if any
+	UnknownKeys []string // Keys in the file that don't map to any known config field
+}
+
+// ValidateConfigFile checks a config file for validity and schema conformance.
+// Returns a result indicating whether the file exists, is valid TOML, and
+// whether it contains any unknown sections or properties.
+func ValidateConfigFile(path string) ConfigValidationResult {
+	result := ConfigValidationResult{Path: path}
+
+	// Check if file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return result
+	}
+	result.Exists = true
+
+	// Try to decode and check for unknown keys
+	var cfg Config
+	md, err := toml.DecodeFile(path, &cfg)
+	if err != nil {
+		result.ParseError = err.Error()
+		return result
+	}
+	result.ValidTOML = true
+
+	// Check for keys in the TOML that didn't map to any struct field.
+	// Filter out child keys when the parent section is already unknown
+	// (e.g., if [bogus] is unknown, don't also report bogus.foo).
+	undecoded := md.Undecoded()
+	unknownSections := make(map[string]bool)
+	for _, key := range undecoded {
+		if len(key) == 1 {
+			unknownSections[key[0]] = true
+		}
+	}
+	for _, key := range undecoded {
+		// Skip child keys whose parent section is already flagged
+		if len(key) > 1 && unknownSections[key[0]] {
+			continue
+		}
+		result.UnknownKeys = append(result.UnknownKeys, key.String())
+	}
+
+	return result
 }
 
 // applyCLIOverrides applies CLI flag overrides to the config.
