@@ -14783,3 +14783,1119 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	0.224s
 _**Agent (claude-opus-4-6 2026-02-23 19:45:50Z)**_
 
 All pass. Four functions that were only used within the `telemetry` package (`ComputeExchangeStats`, `StartExchangeSpan`, `SetExchangeSpanAttributes`, `CountExchangeTokens`) are now unexported. Test function names updated to `Test_lowerCase` format to satisfy `govet`.
+
+---
+
+_**User (2026-02-23 21:08:23Z)**_
+
+Why does it say telemetry disabled (line 16) /Users/sean/Source/SpecStory/compositions/git-1/.specstory/debug/debug.log
+
+it's enabled: /Users/sean/Source/SpecStory/compositions/git-1/.specstory/cli/config.toml
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 21:08:30Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/compositions/git-1/.specstory/debug/debug.log`
+
+```text
+File content (48107 tokens) exceeds maximum allowed tokens (25000). Please use offset and limit parameters to read specific portions of the file, or use the GrepTool to search for specific content.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:08:31Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/compositions/git-1/.specstory/cli/config.toml`
+
+```text
+<tool_use_error>Sibling tool call errored</tool_use_error>
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:08:35Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/compositions/git-1/.specstory/debug/debug.log`
+
+```text
+     1→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Initializing provider registry"
+     2→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Registered provider" id=claude name="Claude Code"
+     3→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Registered provider" id=cursor name="Cursor CLI"
+     4→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Registered provider" id=codex name="Codex CLI"
+     5→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Registered provider" id=gemini name="Gemini CLI"
+     6→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Registered provider" id=droid name="Factory Droid CLI"
+     7→time=2026-02-23T14:58:45.572-05:00 level=INFO msg="Provider registry initialized" count=5 providers="[claude codex cursor droid gemini]"
+     8→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Retrieved provider" requested_id=claude matched_id=claude name="Claude Code"
+     9→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Retrieved provider" requested_id=codex matched_id=codex name="Codex CLI"
+    10→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Retrieved provider" requested_id=cursor matched_id=cursor name="Cursor CLI"
+    11→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Retrieved provider" requested_id=droid matched_id=droid name="Factory Droid CLI"
+    12→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Retrieved provider" requested_id=gemini matched_id=gemini name="Gemini CLI"
+    13→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Retrieved provider" requested_id=claude matched_id=claude name="Claude Code"
+    14→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Analytics initialization check" noAnalytics=false flag_should_disable=false
+    15→time=2026-02-23T14:58:45.572-05:00 level=DEBUG msg="Initializing analytics"
+    16→time=2026-02-23T14:58:45.578-05:00 level=INFO msg="Telemetry disabled, using no-op provider" component=telemetry
+    17→time=2026-02-23T14:58:45.579-05:00 level=INFO msg="=== SpecStory Starting ==="
+    18→time=2026-02-23T14:58:45.579-05:00 level=INFO msg=Version version=dev
+    19→time=2026-02-23T14:58:45.579-05:00 level=INFO msg="Command line" args="/Users/sean/source/SpecStory/getspecstory/specstory-cli/specstory sync"
+    20→time=2026-02-23T14:58:45.579-05:00 level=INFO msg="Current working directory" cwd=/Users/sean/source/SpecStory/compositions/git-1
+    21→time=2026-02-23T14:58:45.579-05:00 level=INFO msg="========================"
+    22→time=2026-02-23T14:58:45.579-05:00 level=DEBUG msg="Cloud sync manager initialized" enabled=true maxConcurrentHTTPRequests=10
+    23→time=2026-02-23T14:58:45.579-05:00 level=DEBUG msg="Created default project config file" path=/Users/sean/source/SpecStory/compositions/git-1/.specstory/cli/config.toml
+    24→time=2026-02-23T14:58:45.579-05:00 level=INFO msg="Running sync command"
+    25→time=2026-02-23T14:58:45.579-05:00 level=DEBUG msg="Retrieved provider" requested_id=claude matched_id=claude name="Claude Code"
+    26→time=2026-02-23T14:58:45.579-05:00 level=DEBUG msg="GetClaudeCodeProjectDir: Transformed working directory to project name" cwd=/Users/sean/source/SpecStory/compositions/git-1 projectDirName=-Users-sean-source-SpecStory-compositions-git-1
+    27→time=2026-02-23T14:58:45.579-05:00 level=DEBUG msg="GetClaudeCodeProjectDir: Constructed full project path" projectPath=/Users/sean/.claude/projects/-Users-sean-source-SpecStory-compositions-git-1
+    28→time=2026-02-23T14:58:45.580-05:00 level=DEBUG msg="DetectAgent: No Claude Code project found" expected_path=/Users/sean/.claude/projects/-Users-sean-source-SpecStory-compositions-git-1
+    29→time=2026-02-23T14:58:45.580-05:00 level=DEBUG msg="Retrieved provider" requested_id=codex matched_id=codex name="Codex CLI"
+    30→time=2026-02-23T14:58:45.599-05:00 level=DEBUG msg="Retrieved provider" requested_id=cursor matched_id=cursor name="Cursor CLI"
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:08:35Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `/Users/sean/Source/SpecStory/compositions/git-1/.specstory/cli/config.toml`
+
+```text
+     1→# SpecStory CLI Configuration
+     2→#
+     3→# This is the project-level config file for SpecStory CLI.
+     4→# All settings here apply to this project unless overridden by CLI flags.
+     5→#
+     6→# Uncomment (remove the #) the line and edit any setting below to change the default behavior.
+     7→# For more information, see: https://docs.specstory.com/integrations/terminal-coding-agents/usage
+     8→
+     9→[local_sync]
+    10→# Write markdown files locally. (default: true)
+    11→# enabled = false # equivalent to --only-cloud-sync
+    12→
+    13→# Custom output directory for markdown files.
+    14→# Default: ./.specstory/history (relative to the project directory)
+    15→# output_dir = "~/.specstory/history" # equivalent to --output-dir "~/.specstory/history"
+    16→
+    17→# Use local timezone for file name and content timestamps (default: false, UTC)
+    18→# local_time_zone = true # equivalent to --local-time-zone
+    19→
+    20→[cloud_sync]
+    21→# Sync session data to SpecStory Cloud. (default: true, when logged in to SpecStory Cloud)
+    22→# enabled = false # equivalent to --no-cloud-sync
+    23→
+    24→[logging]
+    25→# Custom output directory for debug data.
+    26→# Default: ./.specstory/debug (relative to the project directory)
+    27→# debug_dir = "~/.specstory/debug" # equivalent to --debug-dir "~/.specstory/debug"
+    28→
+    29→# Error/warn/info output to stdout (default: false)
+    30→# console = true # equivalent to --console
+    31→
+    32→# Write logs to .specstory/debug/debug.log (default: false)
+    33→# log = true # equivalent to --log        
+    34→
+    35→# Debug-level output, requires console or log (default: false)
+    36→# debug = true # equivalent to --debug 
+    37→
+    38→# Suppress all non-error output (default: false)
+    39→# silent = true	# equivalent to --silence
+    40→
+    41→[version_check]
+    42→# Check for new versions of the CLI on startup.
+    43→# Default: true
+    44→# enabled = false # equivalent to --no-version-check
+    45→
+    46→[analytics]
+    47→# Send anonymous product usage analytics to help improve SpecStory.
+    48→# Default: true
+    49→# enabled = false # equivalent to --no-usage-analytics
+    50→
+    51→[telemetry]
+    52→# OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
+    53→endpoint = "localhost:4317"
+    54→
+    55→# Override the default service name (default: "specstory-cli")
+    56→# service_name = "my-service-name"
+    57→
+    58→# Exclude user prompt text from telemetry spans for privacy (default: true)
+    59→# prompts = false
+    60→
+    61→[providers]
+    62→# Agent execution commands by provider (used by specstory run)
+    63→# Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
+    64→# Use of these is equivalent to -c "custom command"
+    65→
+    66→# Claude Code command
+    67→# claude_cmd = "claude"
+    68→
+    69→# Codex CLI command
+    70→# codex_cmd = "codex"
+    71→
+    72→# Cursor CLI command
+    73→# cursor_cmd = "cursor-agent"
+    74→
+    75→# Droid CLI command
+    76→# droid_cmd = "droid"
+    77→
+    78→# Gemini CLI command
+    79→# gemini_cmd = "gemini"
+    80→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:09:21Z)**_
+
+<think><details><summary>Thought Process</summary>
+The config file has `endpoint = "localhost:4317"` set (line 53), so telemetry should be enabled. But the log says "Telemetry disabled, using no-op provider" (line 16).
+
+The issue is the order of operations in `main()`. Let me look at the flow:
+
+1. Early flag parsing reads os.Args
+2. `config.Load()` is called with CLIOverrides
+3. Config values are applied to flag variables
+4. Logging is set up
+5. Commands are created
+6. Flags are registered
+7. `telemetry.Init()` is called with `cfg.IsTelemetryEnabled()`
+   
+Ah, I see the problem now. The config is being loaded relative to the current working directory, but the user was running the command from a different directory than where the project config lives. The log shows the command was executed from `/Users/sean/source/SpecStory/compositions/git-1`, but the actual project config is in `/Users/sean/source/SpecStory/getspecstory/specstory-cli/.specstory/cli/config.toml`. The config file was created later during command execution, but the user has since edited it to add the endpoint setting. So on the initial run when telemetry was disabled, the file didn't exist yet—it was only generated after `config.Load()` had already determined there was no endpoint configured. I've only seen the first 30 lines of this massive log file, so I need to check if there are later runs that might show what's happening. The real question is whether the code would actually return true if the config has the endpoint set—let me trace through the logic to see if there's a path issue or if the config is being loaded from somewhere unexpected.
+
+Looking at the file paths in the logs, I notice the casing difference between `/Users/sean/Source/` and `/Users/sean/source/`, but on macOS that shouldn't matter since the filesystem is case-insensitive. I'm thinking the actual problem might be timing—the log I'm examining is from an earlier run before the user added the endpoint to the config.
+
+Let me check the end of the log file to see if there's a more recent run that would show the current state. The log is quite large, so there could be multiple runs captured in it.
+
+Actually, I'm wondering if the issue is in how the config is being loaded. The `config.Load()` call in `main()` reads the local project config, and then `telemetry.Init()` checks if telemetry is enabled through `cfg.IsTelemetryEnabled()`. There might be something subtle happening there that I'm missing.
+
+Let me trace through the config loading order: the user-level config at `~/.specstory/cli/config.toml` loads first, then the local project config at `.specstory/cli/config.toml` overwrites it. Since the TOML decoder merges fields, if the project config has `endpoint = "localhost:4317"`, it should override what's in the user-level config. But I need to check when `EnsureDefaultProjectConfig()` actually runs relative to the initial `config.Load()` call.
+
+Looking at the timestamps in the log, the telemetry initialized at 14:58:45.578 before the default project config was created at 14:58:45.579 — so on that first run, the config didn't exist yet when telemetry started. The user must have edited it afterward, which means they need to run the command again for the new endpoint to take effect. But if they're saying it's still not working after that, I should check the end of the log to see what's actually happening on subsequent runs.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:09:21Z)**_
+
+The config has `endpoint = "localhost:4317"` on line 53, so telemetry should be enabled. Let me check the end of the log to see if this is from the most recent run.
+
+_**Agent (claude-opus-4-6 2026-02-23 21:09:21Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `/Users/sean/Source/SpecStory/compositions/git-1/.specstory/debug/debug.log` pattern `Telemetry disabled|Telemetry initialised|=== SpecStory Starting ===`
+
+```text
+16:time=2026-02-23T14:58:45.578-05:00 level=INFO msg="Telemetry disabled, using no-op provider" component=telemetry
+17:time=2026-02-23T14:58:45.579-05:00 level=INFO msg="=== SpecStory Starting ==="
+60:time=2026-02-23T14:59:44.622-05:00 level=INFO msg="Telemetry disabled, using no-op provider" component=telemetry
+61:time=2026-02-23T14:59:44.623-05:00 level=INFO msg="=== SpecStory Starting ==="
+109:time=2026-02-23T15:00:03.467-05:00 level=INFO msg="Telemetry disabled, using no-op provider" component=telemetry
+110:time=2026-02-23T15:00:03.467-05:00 level=INFO msg="=== SpecStory Starting ==="
+284:time=2026-02-23T16:05:09.636-05:00 level=INFO msg="Telemetry initialised" component=telemetry endpoint=localhost:4317 insecure=true serviceName=specstory-cli
+285:time=2026-02-23T16:05:09.637-05:00 level=INFO msg="=== SpecStory Starting ==="
+328:time=2026-02-23T16:05:28.303-05:00 level=INFO msg="Telemetry initialised" component=telemetry endpoint=localhost:4317 insecure=true serviceName=specstory-cli
+329:time=2026-02-23T16:05:28.303-05:00 level=INFO msg="=== SpecStory Starting ==="
+371:time=2026-02-23T16:06:15.046-05:00 level=INFO msg="=== SpecStory Starting ==="
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:09:27Z)**_
+
+The first 3 runs (14:58, 14:59, 15:00) show "Telemetry disabled" — that was before the config had the endpoint set. The later runs (16:05) show "Telemetry initialised" with the endpoint. So it is actually working now.
+
+Line 16 is from the earliest run in the log, when the config was first created with defaults (all commented out). The user edited the config afterward to add the endpoint, and subsequent runs picked it up correctly.
+
+The log file just accumulates across runs — the "disabled" message at line 16 is stale history, not the current state.
+
+---
+
+_**User (2026-02-23 21:10:31Z)**_
+
+yup... hmm so there's no logging to let me know of attempts to send telemetry?
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 21:10:34Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/telemetry/telemetry.go`
+
+```text
+     1→// Package telemetry provides OpenTelemetry trace and metric initialization for the SpecStory CLI.
+     2→// It follows the same idempotent-init pattern as pkg/analytics: first call to Init wins,
+     3→// disabled path uses the OTel no-op provider (zero overhead, no nil checks needed).
+     4→package telemetry
+     5→
+     6→import (
+     7→	"context"
+     8→	"crypto/sha256"
+     9→	"fmt"
+    10→	"log/slog"
+    11→	"net/url"
+    12→	"os"
+    13→	"strings"
+    14→	"sync"
+    15→	"time"
+    16→
+    17→	"go.opentelemetry.io/otel"
+    18→	"go.opentelemetry.io/otel/attribute"
+    19→	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+    20→	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+    21→	"go.opentelemetry.io/otel/metric"
+    22→	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+    23→	"go.opentelemetry.io/otel/sdk/resource"
+    24→	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+    25→	"go.opentelemetry.io/otel/trace"
+    26→	"go.opentelemetry.io/otel/trace/noop"
+    27→)
+    28→
+    29→func telemetryLogger() *slog.Logger {
+    30→	return slog.Default().With("component", "telemetry")
+    31→}
+    32→
+    33→const (
+    34→	// defaultEndpoint is the OTLP gRPC collector address used when
+    35→	// OTEL_EXPORTER_OTLP_ENDPOINT is set but Options.Endpoint is empty.
+    36→	defaultEndpoint = "localhost:4317"
+    37→
+    38→	// metricExportInterval is how often metrics are exported to the collector.
+    39→	metricExportInterval = 10 * time.Second
+    40→)
+    41→
+    42→// Options configures telemetry initialisation.
+    43→type Options struct {
+    44→	ServiceName string // OTel service.name resource attribute (default "specstory-cli")
+    45→	Endpoint    string // OTLP gRPC collector address (default "localhost:4317")
+    46→	Enabled     bool   // When false, Init is a no-op and the global no-op provider is used
+    47→}
+    48→
+    49→var (
+    50→	initOnce       sync.Once
+    51→	traceProvider  *sdktrace.TracerProvider
+    52→	meterProvider  *sdkmetric.MeterProvider
+    53→	meter          metric.Meter
+    54→	metricsEnabled bool
+    55→
+    56→	// Metric instruments
+    57→	sessionsProcessed  metric.Int64Counter
+    58→	exchangesProcessed metric.Int64Counter
+    59→	messagesProcessed  metric.Int64Counter
+    60→	toolsUsed          metric.Int64Counter
+    61→	processingDuration metric.Float64Histogram
+    62→
+    63→	// Token usage metrics (common)
+    64→	inputTokensTotal  metric.Int64Counter
+    65→	outputTokensTotal metric.Int64Counter
+    66→
+    67→	// Token usage metrics (Claude Code specific)
+    68→	cacheCreationTokens metric.Int64Counter
+    69→	cacheReadTokens     metric.Int64Counter
+    70→
+    71→	// Token usage metrics (Codex CLI specific)
+    72→	cachedInputTokens     metric.Int64Counter
+    73→	reasoningOutputTokens metric.Int64Counter
+    74→
+    75→	// Token usage metrics (Gemini CLI specific)
+    76→	cachedTokens  metric.Int64Counter
+    77→	thoughtTokens metric.Int64Counter
+    78→	toolTokens    metric.Int64Counter
+    79→
+    80→	// Token usage metrics (Droid CLI specific)
+    81→	thinkingTokens metric.Int64Counter
+    82→
+    83→	// Common attributes parsed from OTEL_RESOURCE_ATTRIBUTES to include on all metrics
+    84→	commonMetricAttrs []attribute.KeyValue
+    85→)
+    86→
+    87→// parseResourceAttributes parses OTEL_RESOURCE_ATTRIBUTES env var into attribute.KeyValue slice.
+    88→// Format: "key1=value1,key2=value2"
+    89→func parseResourceAttributes() []attribute.KeyValue {
+    90→	envVal := os.Getenv("OTEL_RESOURCE_ATTRIBUTES")
+    91→	if envVal == "" {
+    92→		return nil
+    93→	}
+    94→
+    95→	var attrs []attribute.KeyValue
+    96→	pairs := strings.Split(envVal, ",")
+    97→	for _, pair := range pairs {
+    98→		pair = strings.TrimSpace(pair)
+    99→		if pair == "" {
+   100→			continue
+   101→		}
+   102→		kv := strings.SplitN(pair, "=", 2)
+   103→		if len(kv) == 2 {
+   104→			key := strings.TrimSpace(kv[0])
+   105→			value := strings.TrimSpace(kv[1])
+   106→			if key != "" {
+   107→				attrs = append(attrs, attribute.String(key, value))
+   108→			}
+   109→		}
+   110→	}
+   111→	return attrs
+   112→}
+   113→
+   114→// parseEndpoint normalises an OTLP endpoint string into a bare host:port suitable
+   115→// for otlptracegrpc.WithEndpoint and a flag indicating whether TLS should be disabled.
+   116→//
+   117→// Accepted formats:
+   118→//
+   119→//	"localhost:4317"              → host="localhost:4317",  insecure=true
+   120→//	"http://localhost:4317"       → host="localhost:4317",  insecure=true
+   121→//	"https://collector.example:4317" → host="collector.example:4317", insecure=false
+   122→//	""                            → host=defaultEndpoint,  insecure=true
+   123→func parseEndpoint(raw string) (host string, insecure bool) {
+   124→	if raw == "" {
+   125→		return defaultEndpoint, true
+   126→	}
+   127→
+   128→	u, err := url.Parse(raw)
+   129→	if err != nil || u.Host == "" {
+   130→		// Not a URL — treat the whole string as host:port (bare address).
+   131→		return raw, true
+   132→	}
+   133→
+   134→	// Parsed successfully as a URL with a scheme.
+   135→	host = u.Host
+   136→	insecure = u.Scheme != "https"
+   137→	return host, insecure
+   138→}
+   139→
+   140→// Init configures the OTel tracing and metrics subsystem. Thread-safe and idempotent — only the
+   141→// first call takes effect. When Enabled is false the global no-op provider remains
+   142→// active, so callers can emit spans/events and record metrics safely with zero overhead.
+   143→func Init(ctx context.Context, opts Options) error {
+   144→	var initErr error
+   145→	initOnce.Do(func() {
+   146→		if !opts.Enabled {
+   147→			telemetryLogger().Info("Telemetry disabled, using no-op provider")
+   148→			return
+   149→		}
+   150→
+   151→		serviceName := opts.ServiceName
+   152→		if serviceName == "" {
+   153→			serviceName = "specstory-cli"
+   154→		}
+   155→
+   156→		// Parse the endpoint to extract a bare host:port for WithEndpoint and
+   157→		// determine TLS mode from the scheme. OTEL_EXPORTER_OTLP_ENDPOINT is
+   158→		// conventionally a full URL (e.g. "http://localhost:4317"), but
+   159→		// WithEndpoint expects just "host:port".
+   160→		host, insecure := parseEndpoint(opts.Endpoint)
+   161→
+   162→		// Create shared resource for both traces and metrics.
+   163→		// Use resource.New() with detectors to pick up OTEL_RESOURCE_ATTRIBUTES env var.
+   164→		res, err := resource.New(ctx,
+   165→			resource.WithFromEnv(),      // OTEL_RESOURCE_ATTRIBUTES and OTEL_SERVICE_NAME
+   166→			resource.WithTelemetrySDK(), // telemetry.sdk.* attributes
+   167→			resource.WithHost(),         // host.* attributes
+   168→			resource.WithAttributes(attribute.String("service.name", serviceName)), // explicit service name (can override env)
+   169→		)
+   170→		if err != nil {
+   171→			initErr = fmt.Errorf("create OTel resource: %w", err)
+   172→			return
+   173→		}
+   174→
+   175→		// Log the resource attributes for debugging
+   176→		telemetryLogger().Debug("Resource attributes created",
+   177→			"attributes", res.Attributes(),
+   178→			"OTEL_RESOURCE_ATTRIBUTES", os.Getenv("OTEL_RESOURCE_ATTRIBUTES"),
+   179→		)
+   180→
+   181→		// Initialize tracing
+   182→		if err := initTracing(ctx, host, insecure, res); err != nil {
+   183→			initErr = err
+   184→			return
+   185→		}
+   186→
+   187→		// Initialize metrics
+   188→		if err := initMetrics(ctx, host, insecure, res); err != nil {
+   189→			// Roll back tracing initialization to avoid half-initialized state
+   190→			telemetryLogger().Warn("Metrics init failed, rolling back tracing", "error", err)
+   191→			if traceProvider != nil {
+   192→				if shutdownErr := traceProvider.Shutdown(ctx); shutdownErr != nil {
+   193→					telemetryLogger().Warn("Failed to shutdown trace provider during rollback", "error", shutdownErr)
+   194→				}
+   195→				traceProvider = nil
+   196→				// Use no-op provider instead of nil per OTel documentation
+   197→				otel.SetTracerProvider(noop.NewTracerProvider())
+   198→			}
+   199→			initErr = err
+   200→			return
+   201→		}
+   202→
+   203→		metricsEnabled = true
+   204→
+   205→		// Parse OTEL_RESOURCE_ATTRIBUTES and store as common metric attributes.
+   206→		// This ensures resource attributes appear as metric tags in backends like Datadog
+   207→		// that may not automatically promote resource-level attributes to metric tags.
+   208→		commonMetricAttrs = parseResourceAttributes()
+   209→		if len(commonMetricAttrs) > 0 {
+   210→			telemetryLogger().Debug("Parsed OTEL_RESOURCE_ATTRIBUTES for metrics",
+   211→				"count", len(commonMetricAttrs),
+   212→				"attributes", commonMetricAttrs,
+   213→			)
+   214→		}
+   215→
+   216→		telemetryLogger().Info("Telemetry initialised",
+   217→			"endpoint", host,
+   218→			"insecure", insecure,
+   219→			"serviceName", serviceName,
+   220→		)
+   221→	})
+   222→
+   223→	return initErr
+   224→}
+   225→
+   226→// initTracing sets up the trace provider and exporter.
+   227→func initTracing(ctx context.Context, host string, insecure bool, res *resource.Resource) error {
+   228→	exporterOpts := []otlptracegrpc.Option{
+   229→		otlptracegrpc.WithEndpoint(host),
+   230→	}
+   231→	if insecure {
+   232→		exporterOpts = append(exporterOpts, otlptracegrpc.WithInsecure())
+   233→	}
+   234→
+   235→	exporter, err := otlptracegrpc.New(ctx, exporterOpts...)
+   236→	if err != nil {
+   237→		return fmt.Errorf("create OTLP trace exporter: %w", err)
+   238→	}
+   239→
+   240→	traceProvider = sdktrace.NewTracerProvider(
+   241→		sdktrace.WithBatcher(exporter),
+   242→		sdktrace.WithResource(res),
+   243→	)
+   244→	otel.SetTracerProvider(traceProvider)
+   245→
+   246→	return nil
+   247→}
+   248→
+   249→// initMetrics sets up the meter provider, exporter, and metric instruments.
+   250→func initMetrics(ctx context.Context, host string, insecure bool, res *resource.Resource) error {
+   251→	exporterOpts := []otlpmetricgrpc.Option{
+   252→		otlpmetricgrpc.WithEndpoint(host),
+   253→	}
+   254→	if insecure {
+   255→		exporterOpts = append(exporterOpts, otlpmetricgrpc.WithInsecure())
+   256→	}
+   257→
+   258→	exporter, err := otlpmetricgrpc.New(ctx, exporterOpts...)
+   259→	if err != nil {
+   260→		return fmt.Errorf("create OTLP metric exporter: %w", err)
+   261→	}
+   262→
+   263→	meterProvider = sdkmetric.NewMeterProvider(
+   264→		sdkmetric.WithResource(res),
+   265→		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter,
+   266→			sdkmetric.WithInterval(metricExportInterval),
+   267→		)),
+   268→	)
+   269→	otel.SetMeterProvider(meterProvider)
+   270→
+   271→	meter = meterProvider.Meter("specstory-cli")
+   272→
+   273→	// Initialize metric instruments
+   274→	if err := initMetricInstruments(); err != nil {
+   275→		return fmt.Errorf("create metric instruments: %w", err)
+   276→	}
+   277→
+   278→	return nil
+   279→}
+   280→
+   281→// initMetricInstruments creates all the metric instruments used by the CLI.
+   282→func initMetricInstruments() error {
+   283→	var err error
+   284→
+   285→	sessionsProcessed, err = meter.Int64Counter("specstory.sessions.processed",
+   286→		metric.WithDescription("Number of sessions processed"),
+   287→		metric.WithUnit("{session}"),
+   288→	)
+   289→	if err != nil {
+   290→		return err
+   291→	}
+   292→
+   293→	exchangesProcessed, err = meter.Int64Counter("specstory.exchanges.processed",
+   294→		metric.WithDescription("Number of exchanges processed across all sessions"),
+   295→		metric.WithUnit("{exchange}"),
+   296→	)
+   297→	if err != nil {
+   298→		return err
+   299→	}
+   300→
+   301→	messagesProcessed, err = meter.Int64Counter("specstory.messages.processed",
+   302→		metric.WithDescription("Number of messages processed across all sessions"),
+   303→		metric.WithUnit("{message}"),
+   304→	)
+   305→	if err != nil {
+   306→		return err
+   307→	}
+   308→
+   309→	toolsUsed, err = meter.Int64Counter("specstory.tools.used",
+   310→		metric.WithDescription("Number of tool invocations across all sessions"),
+   311→		metric.WithUnit("{invocation}"),
+   312→	)
+   313→	if err != nil {
+   314→		return err
+   315→	}
+   316→
+   317→	processingDuration, err = meter.Float64Histogram("specstory.session.duration",
+   318→		metric.WithDescription("Session processing duration"),
+   319→		metric.WithUnit("s"),
+   320→	)
+   321→	if err != nil {
+   322→		return err
+   323→	}
+   324→
+   325→	// Token usage metrics
+   326→	inputTokensTotal, err = meter.Int64Counter("specstory.tokens.input",
+   327→		metric.WithDescription("Total input tokens consumed across all sessions"),
+   328→		metric.WithUnit("{token}"),
+   329→	)
+   330→	if err != nil {
+   331→		return err
+   332→	}
+   333→
+   334→	outputTokensTotal, err = meter.Int64Counter("specstory.tokens.output",
+   335→		metric.WithDescription("Total output tokens generated across all sessions"),
+   336→		metric.WithUnit("{token}"),
+   337→	)
+   338→	if err != nil {
+   339→		return err
+   340→	}
+   341→
+   342→	cacheCreationTokens, err = meter.Int64Counter("specstory.tokens.cache_creation",
+   343→		metric.WithDescription("Total tokens written to cache across all sessions"),
+   344→		metric.WithUnit("{token}"),
+   345→	)
+   346→	if err != nil {
+   347→		return err
+   348→	}
+   349→
+   350→	cacheReadTokens, err = meter.Int64Counter("specstory.tokens.cache_read",
+   351→		metric.WithDescription("Total tokens read from cache across all sessions (Claude)"),
+   352→		metric.WithUnit("{token}"),
+   353→	)
+   354→	if err != nil {
+   355→		return err
+   356→	}
+   357→
+   358→	// Codex CLI specific counters
+   359→	cachedInputTokens, err = meter.Int64Counter("specstory.tokens.cached_input",
+   360→		metric.WithDescription("Total cached input tokens across all sessions (Codex)"),
+   361→		metric.WithUnit("{token}"),
+   362→	)
+   363→	if err != nil {
+   364→		return err
+   365→	}
+   366→
+   367→	reasoningOutputTokens, err = meter.Int64Counter("specstory.tokens.reasoning_output",
+   368→		metric.WithDescription("Total reasoning output tokens across all sessions (Codex)"),
+   369→		metric.WithUnit("{token}"),
+   370→	)
+   371→	if err != nil {
+   372→		return err
+   373→	}
+   374→
+   375→	// Gemini CLI specific counters
+   376→	cachedTokens, err = meter.Int64Counter("specstory.tokens.cached",
+   377→		metric.WithDescription("Total cached input tokens across all sessions (Gemini)"),
+   378→		metric.WithUnit("{token}"),
+   379→	)
+   380→	if err != nil {
+   381→		return err
+   382→	}
+   383→
+   384→	thoughtTokens, err = meter.Int64Counter("specstory.tokens.thought",
+   385→		metric.WithDescription("Total thought/reasoning tokens across all sessions (Gemini)"),
+   386→		metric.WithUnit("{token}"),
+   387→	)
+   388→	if err != nil {
+   389→		return err
+   390→	}
+   391→
+   392→	toolTokens, err = meter.Int64Counter("specstory.tokens.tool",
+   393→		metric.WithDescription("Total tool-related tokens across all sessions (Gemini)"),
+   394→		metric.WithUnit("{token}"),
+   395→	)
+   396→	if err != nil {
+   397→		return err
+   398→	}
+   399→
+   400→	// Droid CLI specific counters
+   401→	thinkingTokens, err = meter.Int64Counter("specstory.tokens.thinking",
+   402→		metric.WithDescription("Total thinking/reasoning tokens across all sessions (Droid)"),
+   403→		metric.WithUnit("{token}"),
+   404→	)
+   405→	if err != nil {
+   406→		return err
+   407→	}
+   408→
+   409→	return nil
+   410→}
+   411→
+   412→// Shutdown flushes pending spans/metrics and shuts down both providers.
+   413→// Safe to call even when Init was never called or telemetry is disabled.
+   414→// For short-lived CLIs, this performs explicit ForceFlush calls before shutdown
+   415→// to ensure all data is exported before the process exits.
+   416→func Shutdown(ctx context.Context) error {
+   417→	var errs []error
+   418→
+   419→	if traceProvider != nil {
+   420→		telemetryLogger().Info("Flushing and shutting down trace provider")
+   421→		// ForceFlush ensures all pending spans are exported before shutdown.
+   422→		// This is critical for short-lived CLIs that may exit before the
+   423→		// periodic exporter has time to run.
+   424→		if err := traceProvider.ForceFlush(ctx); err != nil {
+   425→			telemetryLogger().Warn("Failed to flush trace provider", "error", err)
+   426→		}
+   427→		if err := traceProvider.Shutdown(ctx); err != nil {
+   428→			errs = append(errs, fmt.Errorf("shutdown trace provider: %w", err))
+   429→		}
+   430→	}
+   431→
+   432→	if meterProvider != nil {
+   433→		telemetryLogger().Info("Flushing and shutting down meter provider")
+   434→		// ForceFlush ensures all pending metrics are exported before shutdown.
+   435→		// The periodic reader has a 10-second interval, so without this,
+   436→		// metrics from short CLI runs would never be sent.
+   437→		if err := meterProvider.ForceFlush(ctx); err != nil {
+   438→			telemetryLogger().Warn("Failed to flush meter provider", "error", err)
+   439→		}
+   440→		if err := meterProvider.Shutdown(ctx); err != nil {
+   441→			errs = append(errs, fmt.Errorf("shutdown meter provider: %w", err))
+   442→		}
+   443→	}
+   444→
+   445→	if len(errs) > 0 {
+   446→		return errs[0] // Return first error
+   447→	}
+   448→	return nil
+   449→}
+   450→
+   451→// ForceFlush explicitly flushes all pending spans and metrics.
+   452→// Call this at the end of short-lived commands to ensure data is exported
+   453→// before the command returns. Safe to call when telemetry is disabled.
+   454→func ForceFlush(ctx context.Context) error {
+   455→	var errs []error
+   456→
+   457→	if traceProvider != nil {
+   458→		telemetryLogger().Debug("Force flushing trace provider")
+   459→		if err := traceProvider.ForceFlush(ctx); err != nil {
+   460→			telemetryLogger().Warn("Failed to force flush trace provider", "error", err)
+   461→			errs = append(errs, err)
+   462→		}
+   463→	}
+   464→
+   465→	if meterProvider != nil {
+   466→		telemetryLogger().Debug("Force flushing meter provider")
+   467→		if err := meterProvider.ForceFlush(ctx); err != nil {
+   468→			telemetryLogger().Warn("Failed to force flush meter provider", "error", err)
+   469→			errs = append(errs, err)
+   470→		}
+   471→	}
+   472→
+   473→	if len(errs) > 0 {
+   474→		return errs[0]
+   475→	}
+   476→	return nil
+   477→}
+   478→
+   479→// Tracer returns a named tracer from the global provider. When telemetry is
+   480→// disabled the returned tracer is a no-op (standard OTel behaviour).
+   481→func Tracer(name string) trace.Tracer {
+   482→	return otel.Tracer(name)
+   483→}
+   484→
+   485→// Meter returns the meter instance. When telemetry is disabled, returns the
+   486→// global no-op meter.
+   487→func Meter() metric.Meter {
+   488→	if meter != nil {
+   489→		return meter
+   490→	}
+   491→	return otel.Meter("specstory-cli")
+   492→}
+   493→
+   494→// ContextWithSessionTrace returns a context that will cause any spans started
+   495→// from it to share the same trace ID (derived deterministically from sessionID).
+   496→// This groups all spans for a given session into a single trace, even across
+   497→// multiple invocations (e.g., in autosave mode where processSingleSession is
+   498→// called repeatedly as the session file grows).
+   499→func ContextWithSessionTrace(ctx context.Context, sessionID string) context.Context {
+   500→	traceID := traceIDFromSessionID(sessionID)
+   501→	spanID := spanIDFromSessionID(sessionID)
+   502→
+   503→	// Create a SpanContext with both deterministic trace ID and span ID.
+   504→	// In OpenTelemetry-Go, a SpanContext is only valid if both TraceID and SpanID
+   505→	// are valid. We mark it as Remote so child spans inherit the trace ID.
+   506→	sc := trace.NewSpanContext(trace.SpanContextConfig{
+   507→		TraceID:    traceID,
+   508→		SpanID:     spanID,
+   509→		TraceFlags: trace.FlagsSampled, // Ensure it's sampled
+   510→		Remote:     true,               // Mark as remote parent
+   511→	})
+   512→
+   513→	// Inject the SpanContext as a remote parent so child spans inherit the trace ID
+   514→	return trace.ContextWithRemoteSpanContext(ctx, sc)
+   515→}
+   516→
+   517→// traceIDFromSessionID generates a deterministic 16-byte trace ID from a session ID
+   518→// by hashing the session ID with SHA-256 and taking the first 16 bytes.
+   519→func traceIDFromSessionID(sessionID string) trace.TraceID {
+   520→	hash := sha256.Sum256([]byte(sessionID))
+   521→	var traceID trace.TraceID
+   522→	copy(traceID[:], hash[:16])
+   523→	return traceID
+   524→}
+   525→
+   526→// spanIDFromSessionID generates a deterministic 8-byte span ID from a session ID
+   527→// by hashing the session ID with SHA-256 and taking bytes 16-24.
+   528→// This ensures the span ID is different from the trace ID but still deterministic.
+   529→func spanIDFromSessionID(sessionID string) trace.SpanID {
+   530→	hash := sha256.Sum256([]byte(sessionID))
+   531→	var spanID trace.SpanID
+   532→	copy(spanID[:], hash[16:24])
+   533→	return spanID
+   534→}
+   535→
+   536→// --- Metric Recording Functions ---
+   537→// These are internal functions called by RecordSessionMetrics in session_helpers.go.
+   538→// The metricsEnabled check is done once in RecordSessionMetrics.
+   539→
+   540→// buildMetricAttrs combines specific metric attributes with common attributes from OTEL_RESOURCE_ATTRIBUTES.
+   541→func buildMetricAttrs(specific ...attribute.KeyValue) []attribute.KeyValue {
+   542→	attrs := make([]attribute.KeyValue, 0, len(specific)+len(commonMetricAttrs))
+   543→	attrs = append(attrs, specific...)
+   544→	attrs = append(attrs, commonMetricAttrs...)
+   545→	return attrs
+   546→}
+   547→
+   548→// recordSessionProcessed increments the sessions processed counter.
+   549→func recordSessionProcessed(ctx context.Context, agent string, sessionID string) {
+   550→	attrs := buildMetricAttrs(
+   551→		attribute.String("specstory.agent", agent),
+   552→		attribute.String("specstory.session.id", sessionID),
+   553→	)
+   554→	sessionsProcessed.Add(ctx, 1, metric.WithAttributes(attrs...))
+   555→}
+   556→
+   557→// recordExchanges increments the exchanges counter by the given count.
+   558→func recordExchanges(ctx context.Context, agent string, sessionID string, count int64) {
+   559→	attrs := buildMetricAttrs(
+   560→		attribute.String("specstory.agent", agent),
+   561→		attribute.String("specstory.session.id", sessionID),
+   562→	)
+   563→	exchangesProcessed.Add(ctx, count, metric.WithAttributes(attrs...))
+   564→}
+   565→
+   566→// recordMessages increments the messages counter by the given count.
+   567→func recordMessages(ctx context.Context, agent string, sessionID string, count int64) {
+   568→	attrs := buildMetricAttrs(
+   569→		attribute.String("specstory.agent", agent),
+   570→		attribute.String("specstory.session.id", sessionID),
+   571→	)
+   572→	messagesProcessed.Add(ctx, count, metric.WithAttributes(attrs...))
+   573→}
+   574→
+   575→// recordToolUsage increments the tool usage counter by the given count.
+   576→func recordToolUsage(ctx context.Context, agent string, sessionID string, count int64) {
+   577→	attrs := buildMetricAttrs(
+   578→		attribute.String("specstory.agent", agent),
+   579→		attribute.String("specstory.session.id", sessionID),
+   580→	)
+   581→	toolsUsed.Add(ctx, count, metric.WithAttributes(attrs...))
+   582→}
+   583→
+   584→// recordProcessingDuration records the session processing duration.
+   585→func recordProcessingDuration(ctx context.Context, agent string, sessionID string, duration time.Duration) {
+   586→	attrs := buildMetricAttrs(
+   587→		attribute.String("specstory.agent", agent),
+   588→		attribute.String("specstory.session.id", sessionID),
+   589→	)
+   590→	processingDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+   591→}
+   592→
+   593→// TokenUsage holds aggregated token counts for telemetry recording.
+   594→// Different providers track different token types:
+   595→//   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
+   596→//   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
+   597→//   - Gemini CLI: InputTokens, OutputTokens, CachedTokens, ThoughtTokens, ToolTokens
+   598→//   - Droid CLI: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens, ThinkingTokens
+   599→type TokenUsage struct {
+   600→	// Common fields (all providers)
+   601→	InputTokens  int
+   602→	OutputTokens int
+   603→
+   604→	// Claude Code specific (also used by Droid CLI)
+   605→	CacheCreationInputTokens int
+   606→	CacheReadInputTokens     int
+   607→
+   608→	// Codex CLI specific
+   609→	CachedInputTokens     int
+   610→	ReasoningOutputTokens int
+   611→
+   612→	// Gemini CLI specific
+   613→	CachedTokens  int
+   614→	ThoughtTokens int
+   615→	ToolTokens    int
+   616→
+   617→	// Droid CLI specific
+   618→	ThinkingTokens int
+   619→}
+   620→
+   621→// recordTokenUsage records token usage metrics for a session.
+   622→// Only non-zero values are recorded.
+   623→func recordTokenUsage(ctx context.Context, agent string, sessionID string, usage TokenUsage) {
+   624→	attrs := buildMetricAttrs(
+   625→		attribute.String("specstory.agent", agent),
+   626→		attribute.String("specstory.session.id", sessionID),
+   627→	)
+   628→
+   629→	// Common metrics
+   630→	if usage.InputTokens > 0 {
+   631→		inputTokensTotal.Add(ctx, int64(usage.InputTokens), metric.WithAttributes(attrs...))
+   632→	}
+   633→	if usage.OutputTokens > 0 {
+   634→		outputTokensTotal.Add(ctx, int64(usage.OutputTokens), metric.WithAttributes(attrs...))
+   635→	}
+   636→
+   637→	// Claude Code specific
+   638→	if usage.CacheCreationInputTokens > 0 {
+   639→		cacheCreationTokens.Add(ctx, int64(usage.CacheCreationInputTokens), metric.WithAttributes(attrs...))
+   640→	}
+   641→	if usage.CacheReadInputTokens > 0 {
+   642→		cacheReadTokens.Add(ctx, int64(usage.CacheReadInputTokens), metric.WithAttributes(attrs...))
+   643→	}
+   644→
+   645→	// Codex CLI specific
+   646→	if usage.CachedInputTokens > 0 {
+   647→		cachedInputTokens.Add(ctx, int64(usage.CachedInputTokens), metric.WithAttributes(attrs...))
+   648→	}
+   649→	if usage.ReasoningOutputTokens > 0 {
+   650→		reasoningOutputTokens.Add(ctx, int64(usage.ReasoningOutputTokens), metric.WithAttributes(attrs...))
+   651→	}
+   652→
+   653→	// Gemini CLI specific
+   654→	if usage.CachedTokens > 0 {
+   655→		cachedTokens.Add(ctx, int64(usage.CachedTokens), metric.WithAttributes(attrs...))
+   656→	}
+   657→	if usage.ThoughtTokens > 0 {
+   658→		thoughtTokens.Add(ctx, int64(usage.ThoughtTokens), metric.WithAttributes(attrs...))
+   659→	}
+   660→	if usage.ToolTokens > 0 {
+   661→		toolTokens.Add(ctx, int64(usage.ToolTokens), metric.WithAttributes(attrs...))
+   662→	}
+   663→
+   664→	// Droid CLI specific
+   665→	if usage.ThinkingTokens > 0 {
+   666→		thinkingTokens.Add(ctx, int64(usage.ThinkingTokens), metric.WithAttributes(attrs...))
+   667→	}
+   668→}
+   669→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:10:48Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is asking about logging for telemetry export attempts. Looking at the code, there's no logging for when spans/metrics are actually exported (or fail to export) to the collector. The OTel SDK handles the actual gRPC calls to the collector internally, and failures happen silently inside the SDK.
+
+The existing logging covers:
+- Init: "Telemetry disabled" or "Telemetry initialised" 
+- Shutdown: "Flushing and shutting down trace/meter provider"
+- ForceFlush: "Force flushing trace/meter provider"
+- Errors during flush/shutdown
+
+But there's nothing logged when:
+
+
+- The OTel SDK attempts to send spans/metrics to the collector
+- The collector rejects or times out on a request
+- Individual span/metric recording happens
+
+I could leverage the OTel Go SDK's error handler mechanism by setting a custom error handler that logs SDK-level failures like connection refused or timeout errors. Additionally, I could add debug logging when telemetry data is being generated through the session metrics and exchange span recording functions, so there's visibility into the data pipeline even if the actual gRPC export isn't observable.
+
+The most practical approach would be combining both strategies—the error handler catches transport failures while debug logging confirms data is being generated upstream. This gives complete visibility into where telemetry might be getting stuck.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:10:50Z)**_
+
+Right, there's no logging between "Telemetry initialised" and "Flushing and shutting down". The OTel SDK handles gRPC exports internally and swallows errors silently.
+
+Two things we could add:
+
+1. **OTel error handler** — `otel.SetErrorHandler()` captures SDK errors (connection refused, timeouts, export failures) and routes them through slog. This is the most valuable one since it surfaces transport failures.
+
+2. **Debug logging in record/span functions** — Log when `RecordSessionMetrics` and `ProcessExchangeSpans` are called, so you can confirm data is being generated even if you can't see the actual export.
+
+Want both, or just the error handler?
+
+---
+
+_**User (2026-02-23 21:11:26Z)**_
+
+both
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:31Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/telemetry/stats_helpers.go`
+
+```text
+   159→// ProcessExchangeSpans creates child spans for all exchanges in a session.
+   160→// This is a helper that creates spans, sets attributes, and ends them immediately
+   161→// since exchange processing is retrospective (data already exists).
+   162→// When noPrompts is true, the prompt_text attribute will be empty for privacy.
+   163→func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange, noPrompts bool) {
+   164→	for i, exchange := range exchanges {
+   165→		_, exchangeSpan := startExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
+   166→		exchangeStats := computeExchangeStats(exchange, i)
+   167→		if noPrompts {
+   168→			exchangeStats.PromptText = ""
+   169→		}
+   170→		setExchangeSpanAttributes(exchangeSpan, exchangeStats)
+   171→		exchangeSpan.End()
+   172→	}
+   173→}
+   174→
+   175→// RecordSessionMetrics records all telemetry metrics for a session.
+   176→// This is a no-op when telemetry is disabled.
+   177→func RecordSessionMetrics(ctx context.Context, stats SessionStats, duration time.Duration) {
+   178→	if !metricsEnabled {
+   179→		return
+   180→	}
+   181→	recordSessionProcessed(ctx, stats.AgentName, stats.SessionID)
+   182→	recordExchanges(ctx, stats.AgentName, stats.SessionID, int64(stats.ExchangeCount))
+   183→	recordMessages(ctx, stats.AgentName, stats.SessionID, int64(stats.MessageCount))
+   184→	recordToolUsage(ctx, stats.AgentName, stats.SessionID, int64(stats.ToolCount))
+   185→	recordProcessingDuration(ctx, stats.AgentName, stats.SessionID, duration)
+   186→	recordTokenUsage(ctx, stats.AgentName, stats.SessionID, stats.TokenUsage)
+   187→}
+   188→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:34Z)**_
+
+First, add the OTel error handler in `telemetry.go` during Init, then add debug logging to the two record functions in `stats_helpers.go`.
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:50Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/telemetry.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:53Z)**_
+
+Now add debug logging to `ProcessExchangeSpans` and `RecordSessionMetrics` in stats_helpers.go. First I need to add the `slog` import.
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:54Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/telemetry/stats_helpers.go`
+
+```text
+     1→// Package telemetry provides session statistics helpers for computing and recording
+     2→// telemetry data from agent chat sessions.
+     3→package telemetry
+     4→
+     5→import (
+     6→	"context"
+     7→	"sort"
+     8→	"strings"
+     9→	"time"
+    10→
+    11→	"go.opentelemetry.io/otel/attribute"
+    12→	"go.opentelemetry.io/otel/trace"
+    13→
+    14→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    15→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+    16→)
+    17→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:56Z)**_
+
+`telemetryLogger()` is defined in the same package (telemetry.go), so no import needed — I can just use it directly.
+
+_**Agent (claude-opus-4-6 2026-02-23 21:11:58Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:12:04Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/telemetry/stats_helpers.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:12:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and lint
+
+`go build -o specstory 2>&1 && golangci-lint run 2>&1`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:12:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run telemetry tests
+
+`go test ./pkg/telemetry/... 2>&1`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	0.226s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 21:12:23Z)**_
+
+All good. Here's what was added:
+
+1. **OTel error handler** (`telemetry.go`): `otel.SetErrorHandler()` during `Init` — any SDK errors (connection refused, export timeouts, gRPC failures) now get routed through `slog` as warnings with `component=telemetry`.
+
+2. **Debug logging in `ProcessExchangeSpans`** (`stats_helpers.go`): Logs session ID, exchange count, and noPrompts setting when creating exchange spans.
+
+3. **Debug logging in `RecordSessionMetrics`** (`stats_helpers.go`): Logs session ID, agent, exchange/message/tool counts, duration, and token usage when recording metrics.
+
+All three show up in the debug log with `component=telemetry` for easy filtering.
+
+---
+
+_**User (2026-02-23 21:28:33Z)**_
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
+
+_**User (2026-02-23 21:28:33Z)**_
+
+<command-name>/exit</command-name>
+            <command-message>exit</command-message>
+            <command-args></command-args>
+
+_**User (2026-02-23 21:28:33Z)**_
+
+<local-command-stdout>Bye!</local-command-stdout>

@@ -199,6 +199,172 @@ The configuration is determined with the following priority (highest priority to
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
+## Analytics
+
+SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The following events are tracked:
+
+- Extension activation (in interacive mode) - ext_activated
+- Successful markdown sync operations - ext_sync_markdown_success
+- Failed markdown sync operations - ext_sync_markdown_error
+- First-time autosave of new sessions - ext_autosave_success
+- Failed first-time autosave of new sessions - ext_autosave_error
+
+All analytics are processed through PostHog with GeoIP enabled for general location data.
+
+### Disabling Analytics
+
+To opt out of analytics tracking, use the `--no-usage-analytics` flag:
+
+```bash
+specstory --no-usage-analytics [other options]
+```
+
+**Note**: Error tracking events include a 500ms delay before the program exits to ensure events are sent successfully. This is necessary because PostHog sends events asynchronously.
+
+### Development Analytics
+
+Analytics are disabled in development builds by default. To enable analytics during local development, build with the PostHog API key:
+
+```zsh
+export POSTHOG_API_KEY="your-posthog-api-key"
+go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
+```
+
+## Open Telemetry
+
+SpecStory CLI supports [OpenTelemetry](https://opentelemetry.io/) Protocol (OTLP) tracing and metrics for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, tool usage, and token consumption.
+
+### Enabling Telemetry
+
+Optional OpenTelemetry data can be enabled in three ways:
+
+1. **Standard OTEL Environment variables** (highest priority for telemetry settings):
+   
+   ```zsh
+   export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
+   export OTEL_SERVICE_NAME="specstory-cli"
+   export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev"
+   
+   specstory run
+   # or
+   specstory sync
+   # or
+   specstory watch
+   ```
+
+2. **CLI flags**:
+   
+   ```zsh
+   specstory sync --telemetry-endpoint localhost:4317 --telemetry-service-name my-service --no-telemetry-prompts
+   ```
+
+3. **Configuration files** (`./.spectstory/cli/config.toml` or `~/.spectstory/cli/config.toml`):
+
+   ```toml
+   [telemetry]
+   # OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
+   endpoint = "localhost:4317"
+
+   # Override the default service name (default: "specstory-cli")
+   service_name = "my-service-name"
+
+   # Exclude user prompt text from telemetry spans for privacy (default: true)
+   prompts = false
+   ```
+
+**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
+
+### Telemetry Configuration Options
+
+| Option       | CLI Flag                   | Environment Variable          | Config Key               | Default         | Description                            |
+|--------------|----------------------------|-------------------------------|--------------------------|-----------------|----------------------------------------|
+| Disable      | default                    | `OOTEL_SDK_DISABLED`          |                          |                 | Disable telemetry                      |
+| Endpoint     | `--telemetry-endpoint`     | `OTEL_EXPORTER_OTLP_ENDPOINT` | `telemetry.endpoint`     | `""`            | OTLP gRPC collector endpoint           |
+| Service Name | `--telemetry-service-name` | `OTEL_SERVICE_NAME`           | `telemetry.service_name` | `specstory-cli` | Service name for spans/metrics         |
+| No Prompts   | `--no-telemetry-prompts`   | -                             | `telemetry.prompts`      | `true`          | Include/exclude prompt text from spans |
+
+**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
+
+### Excluding Prompt Text
+
+You can exclude user prompt text from telemetry spans. When excluded, the `specstory.exchange.prompt_text` attribute will be empty.
+
+Via CLI flag:
+
+```zsh
+specstory sync --no-telemetry-prompts
+```
+
+Via configuration files:
+
+```toml
+[telemetry]
+# Exclude user prompt text from telemetry spans for privacy (default: true)
+prompts = false
+```
+
+### Disabling Telemetry
+
+Telemetry is disabled by default, as long as you do not configure an OLTP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can
+use an environment variable, which as a standard OTel convention:
+
+```zsh
+export OTEL_SDK_DISABLED="true"
+```
+
+### Telemetry Data
+
+#### Session Span Attributes
+
+Each session processing span includes the following attributes:
+
+| Attribute                                   | Description                                    |
+|---------------------------------------------|------------------------------------------------|
+| `specstory.agent`                           | The agent provider name (e.g., "claude-code")  |
+| `specstory.session.id`                      | Unique session identifier                      |
+| `specstory.session.exchange_count`          | Number of exchanges in the session             |
+| `specstory.session.message_count`           | Total messages across all exchanges            |
+| `specstory.session.tool_count`              | Total tool invocations                         |
+| `specstory.session.tool_type_count`         | Number of unique tool types used               |
+| `specstory.project.path`                    | Workspace root path                            |
+| `specstory.session.tokens.input`            | Total input tokens (all providers)             |
+| `specstory.session.tokens.output`           | Total output tokens (all providers)            |
+| `specstory.session.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
+| `specstory.session.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
+| `specstory.session.tokens.cached_input`     | Cached input tokens (Codex CLI)                |
+| `specstory.session.tokens.reasoning_output` | Reasoning output tokens (Codex CLI)            |
+| `specstory.session.tokens.cached`           | Cached tokens (Gemini CLI)                     |
+| `specstory.session.tokens.thought`          | Thought/reasoning tokens (Gemini CLI)          |
+| `specstory.session.tokens.tool`             | Tool-related tokens (Gemini CLI)               |
+| `specstory.session.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
+
+#### Exchange Span Attributes
+
+Each exchange is recorded as a child span with these attributes:
+
+| Attribute                                    | Description                                    |
+|----------------------------------------------|------------------------------------------------|
+| `specstory.exchange.id`                      | Exchange identifier                            |
+| `specstory.exchange.index`                   | Exchange index in session                      |
+| `specstory.exchange.model`                   | Model used for this exchange                   |
+| `specstory.exchange.prompt_text`             | User prompt text (unless `no_prompts` is set)  |
+| `specstory.exchange.start_time`              | Exchange start timestamp                       |
+| `specstory.exchange.end_time`                | Exchange end timestamp                         |
+| `specstory.exchange.message_count`           | Messages in this exchange                      |
+| `specstory.exchange.tools_used`              | Comma-separated tool names                     |
+| `specstory.exchange.tool_types`              | Comma-separated tool types                     |
+| `specstory.exchange.tool_count`              | Number of tool invocations                     |
+| `specstory.exchange.tokens.input`            | Input tokens for this exchange                 |
+| `specstory.exchange.tokens.output`           | Output tokens for this exchange                |
+| `specstory.exchange.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
+| `specstory.exchange.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
+| `specstory.exchange.tokens.cached_input`     | Cached input tokens (Codex CLI)                |
+| `specstory.exchange.tokens.reasoning_output` | Reasoning output tokens (Codex CLI)            |
+| `specstory.exchange.tokens.cached`           | Cached tokens (Gemini CLI)                     |
+| `specstory.exchange.tokens.thought`          | Thought/reasoning tokens (Gemini CLI)          |
+| `specstory.exchange.tokens.tool`             | Tool-related tokens (Gemini CLI)               |
+| `specstory.exchange.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
+
 ## Development
 
 ### Development Prerequisites
@@ -368,173 +534,6 @@ To see all enabled linters:
 ```zsh
 golangci-lint linters
 ```
-
-## Analytics
-
-SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The following events are tracked:
-
-- Extension activation (in interacive mode) - ext_activated
-- Successful markdown sync operations - ext_sync_markdown_success
-- Failed markdown sync operations - ext_sync_markdown_error
-- First-time autosave of new sessions - ext_autosave_success
-- Failed first-time autosave of new sessions - ext_autosave_error
-
-All analytics are processed through PostHog with GeoIP enabled for general location data.
-
-### Disabling Analytics
-
-To opt out of analytics tracking, use the `--no-usage-analytics` flag:
-
-```bash
-specstory --no-usage-analytics [other options]
-```
-
-**Note**: Error tracking events include a 500ms delay before the program exits to ensure events are sent successfully. This is necessary because PostHog sends events asynchronously.
-
-### Development Analytics
-
-Analytics are disabled in development builds by default. To enable analytics during local development, build with the PostHog API key:
-
-```zsh
-export POSTHOG_API_KEY="your-posthog-api-key"
-go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
-```
-
-## Open Telemetry
-
-SpecStory CLI supports [OpenTelemetry](https://opentelemetry.io/) Protocol (OTLP) tracing and metrics for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, tool usage, and token consumption.
-
-### Enabling Telemetry
-
-Optional OpenTelemetry data can be enabled in three ways:
-
-1. **Standard OTEL Environment variables** (highest priority for telemetry settings):
-   
-   ```zsh
-   export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
-   export OTEL_SERVICE_NAME="specstory-cli"
-   export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev"
-   
-   specstory run
-   # or
-   specstory sync
-   # or
-   specstory watch
-   ```
-
-2. **CLI flags**:
-   
-   ```zsh
-   specstory sync --telemetry-endpoint localhost:4317 --telemetry-service-name my-service --no-telemetry-prompts
-   ```
-
-3. **Configuration files** (`./.spectstory/cli/config.toml` or `~/.spectstory/cli/config.toml`):
-
-   ```toml
-   [telemetry]
-   # OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
-   endpoint = "localhost:4317"
-
-   # Override the default service name (default: "specstory-cli")
-   service_name = "my-service-name"
-
-   # Exclude user prompt text from telemetry spans for privacy (default: true)
-   prompts = false
-   ```
-
-**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
-
-### Telemetry Configuration Options
-
-| Option       | CLI Flag                   | Environment Variable          | Config Key               | Default         | Description                            |
-|--------------|----------------------------|-------------------------------|--------------------------|-----------------|----------------------------------------|
-| Disable      | default                    | `OOTEL_SDK_DISABLED`          |                          |                 | Disable telemetry                      |
-| Endpoint     | `--telemetry-endpoint`     | `OTEL_EXPORTER_OTLP_ENDPOINT` | `telemetry.endpoint`     | `""`            | OTLP gRPC collector endpoint           |
-| Service Name | `--telemetry-service-name` | `OTEL_SERVICE_NAME`           | `telemetry.service_name` | `specstory-cli` | Service name for spans/metrics         |
-| No Prompts   | `--no-telemetry-prompts`   | -                             | `telemetry.prompts`      | `true`          | Include/exclude prompt text from spans |
-
-**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
-
-### Excluding Prompt Text
-
-You can exclude user prompt text from telemetry spans. When excluded, the `specstory.exchange.prompt_text` attribute will be empty.
-
-Via CLI flag:
-
-```zsh
-specstory sync --no-telemetry-prompts
-```
-
-Via configuration files:
-
-```toml
-[telemetry]
-# Exclude user prompt text from telemetry spans for privacy (default: true)
-prompts = false
-```
-
-### Disabling Telemetry
-
-Telemetry is disabled by default, as long as you do not configure an OLTP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can
-use an environment variable, which as a standard OTel convention:
-
-```zsh
-export OTEL_SDK_DISABLED="true"
-```
-
-### Telemetry Data
-
-#### Session Span Attributes
-
-Each session processing span includes the following attributes:
-
-| Attribute                                   | Description                                    |
-|---------------------------------------------|------------------------------------------------|
-| `specstory.agent`                           | The agent provider name (e.g., "claude-code")  |
-| `specstory.session.id`                      | Unique session identifier                      |
-| `specstory.session.exchange_count`          | Number of exchanges in the session             |
-| `specstory.session.message_count`           | Total messages across all exchanges            |
-| `specstory.session.tool_count`              | Total tool invocations                         |
-| `specstory.session.tool_type_count`         | Number of unique tool types used               |
-| `specstory.project.path`                    | Workspace root path                            |
-| `specstory.session.tokens.input`            | Total input tokens (all providers)             |
-| `specstory.session.tokens.output`           | Total output tokens (all providers)            |
-| `specstory.session.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
-| `specstory.session.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
-| `specstory.session.tokens.cached_input`     | Cached input tokens (Codex CLI)                |
-| `specstory.session.tokens.reasoning_output` | Reasoning output tokens (Codex CLI)            |
-| `specstory.session.tokens.cached`           | Cached tokens (Gemini CLI)                     |
-| `specstory.session.tokens.thought`          | Thought/reasoning tokens (Gemini CLI)          |
-| `specstory.session.tokens.tool`             | Tool-related tokens (Gemini CLI)               |
-| `specstory.session.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
-
-#### Exchange Span Attributes
-
-Each exchange is recorded as a child span with these attributes:
-
-| Attribute                                    | Description                                    |
-|----------------------------------------------|------------------------------------------------|
-| `specstory.exchange.id`                      | Exchange identifier                            |
-| `specstory.exchange.index`                   | Exchange index in session                      |
-| `specstory.exchange.model`                   | Model used for this exchange                   |
-| `specstory.exchange.prompt_text`             | User prompt text (unless `no_prompts` is set)  |
-| `specstory.exchange.start_time`              | Exchange start timestamp                       |
-| `specstory.exchange.end_time`                | Exchange end timestamp                         |
-| `specstory.exchange.message_count`           | Messages in this exchange                      |
-| `specstory.exchange.tools_used`              | Comma-separated tool names                     |
-| `specstory.exchange.tool_types`              | Comma-separated tool types                     |
-| `specstory.exchange.tool_count`              | Number of tool invocations                     |
-| `specstory.exchange.tokens.input`            | Input tokens for this exchange                 |
-| `specstory.exchange.tokens.output`           | Output tokens for this exchange                |
-| `specstory.exchange.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
-| `specstory.exchange.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
-| `specstory.exchange.tokens.cached_input`     | Cached input tokens (Codex CLI)                |
-| `specstory.exchange.tokens.reasoning_output` | Reasoning output tokens (Codex CLI)            |
-| `specstory.exchange.tokens.cached`           | Cached tokens (Gemini CLI)                     |
-| `specstory.exchange.tokens.thought`          | Thought/reasoning tokens (Gemini CLI)          |
-| `specstory.exchange.tokens.tool`             | Tool-related tokens (Gemini CLI)               |
-| `specstory.exchange.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
-
 
 ## License
 

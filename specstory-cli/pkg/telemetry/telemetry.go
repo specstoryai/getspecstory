@@ -148,6 +148,12 @@ func Init(ctx context.Context, opts Options) error {
 			return
 		}
 
+		// Route OTel SDK errors (export failures, connection issues) through slog
+		// so they appear in debug logs alongside our own telemetry messages.
+		otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+			telemetryLogger().Warn("OTel SDK error", "error", err)
+		}))
+
 		serviceName := opts.ServiceName
 		if serviceName == "" {
 			serviceName = "specstory-cli"

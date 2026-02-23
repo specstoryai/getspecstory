@@ -52,5 +52,8 @@ dist/
 # SpecStory explanation file
 .specstory/.what-is-this.md
 
+# SpecStory configuration
+.specstory/cli/config.toml
+
 # Our binary
 specstory

@@ -161,6 +161,11 @@ func setExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 // since exchange processing is retrospective (data already exists).
 // When noPrompts is true, the prompt_text attribute will be empty for privacy.
 func ProcessExchangeSpans(ctx context.Context, stats SessionStats, exchanges []schema.Exchange, noPrompts bool) {
+	telemetryLogger().Debug("Creating exchange spans",
+		"sessionId", stats.SessionID,
+		"exchangeCount", len(exchanges),
+		"noPrompts", noPrompts,
+	)
 	for i, exchange := range exchanges {
 		_, exchangeSpan := startExchangeSpan(ctx, stats.SessionID, exchange.ExchangeID, i)
 		exchangeStats := computeExchangeStats(exchange, i)
@@ -178,6 +183,16 @@ func RecordSessionMetrics(ctx context.Context, stats SessionStats, duration time
 	if !metricsEnabled {
 		return
 	}
+	telemetryLogger().Debug("Recording session metrics",
+		"sessionId", stats.SessionID,
+		"agent", stats.AgentName,
+		"exchanges", stats.ExchangeCount,
+		"messages", stats.MessageCount,
+		"tools", stats.ToolCount,
+		"duration", duration,
+		"inputTokens", stats.TokenUsage.InputTokens,
+		"outputTokens", stats.TokenUsage.OutputTokens,
+	)
 	recordSessionProcessed(ctx, stats.AgentName, stats.SessionID)
 	recordExchanges(ctx, stats.AgentName, stats.SessionID, int64(stats.ExchangeCount))
 	recordMessages(ctx, stats.AgentName, stats.SessionID, int64(stats.MessageCount))
