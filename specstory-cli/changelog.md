@@ -11,7 +11,7 @@
 
 ### ⚙️ Improvements
 
-- SpecStory CLI now supports configuration files in TOML format at user (`~/.specstory/cli/config.toml`) and project (`./.specstory/cli/config.toml`) levels. See the [usage guide](https://docs.specstory.com/integrations/terminal-coding-agents/usag) for more details.
+- SpecStory CLI now supports configuration files in TOML format at user (`~/.specstory/cli/config.toml`) and project (`./.specstory/cli/config.toml`) levels. See the [usage guide](https://docs.specstory.com/integrations/terminal-coding-agents/usage) for more details.
 
 ### 🔧 CLI Configuration & Commands
 
