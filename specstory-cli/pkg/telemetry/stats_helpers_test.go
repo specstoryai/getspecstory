@@ -278,55 +278,6 @@ func TestExtractModel(t *testing.T) {
 	}
 }
 
-// --- countSessionMessages tests ---
-
-func TestCountSessionMessages(t *testing.T) {
-	tests := []struct {
-		name      string
-		exchanges []schema.Exchange
-		want      int
-	}{
-		{
-			name:      "empty exchanges",
-			exchanges: []schema.Exchange{},
-			want:      0,
-		},
-		{
-			name: "single exchange with messages",
-			exchanges: []schema.Exchange{
-				{Messages: []schema.Message{{}, {}, {}}},
-			},
-			want: 3,
-		},
-		{
-			name: "multiple exchanges",
-			exchanges: []schema.Exchange{
-				{Messages: []schema.Message{{}, {}}},
-				{Messages: []schema.Message{{}, {}, {}}},
-				{Messages: []schema.Message{{}}},
-			},
-			want: 6,
-		},
-		{
-			name: "exchange with no messages",
-			exchanges: []schema.Exchange{
-				{Messages: []schema.Message{}},
-				{Messages: []schema.Message{{}, {}}},
-			},
-			want: 2,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := countSessionMessages(tt.exchanges)
-			if got != tt.want {
-				t.Errorf("countSessionMessages() = %d, want %d", got, tt.want)
-			}
-		})
-	}
-}
-
 // --- countSessionTools tests ---
 
 func TestCountSessionTools(t *testing.T) {

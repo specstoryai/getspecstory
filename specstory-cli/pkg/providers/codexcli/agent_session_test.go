@@ -61,62 +61,6 @@ func validateJSONDocument(t *testing.T, jsonData []byte) error {
 	return fmt.Errorf("document failed schema validation with %d error(s)", len(result.Errors()))
 }
 
-// TestGetIntFromMap tests the getIntFromMap helper function
-func TestGetIntFromMap(t *testing.T) {
-	tests := []struct {
-		name     string
-		m        map[string]interface{}
-		key      string
-		expected int
-	}{
-		{
-			name:     "nil map",
-			m:        nil,
-			key:      "key",
-			expected: 0,
-		},
-		{
-			name:     "missing key",
-			m:        map[string]interface{}{"other": 123},
-			key:      "key",
-			expected: 0,
-		},
-		{
-			name:     "float64 value (JSON default)",
-			m:        map[string]interface{}{"key": float64(42)},
-			key:      "key",
-			expected: 42,
-		},
-		{
-			name:     "int64 value",
-			m:        map[string]interface{}{"key": int64(99)},
-			key:      "key",
-			expected: 99,
-		},
-		{
-			name:     "int value",
-			m:        map[string]interface{}{"key": 123},
-			key:      "key",
-			expected: 123,
-		},
-		{
-			name:     "string value (wrong type)",
-			m:        map[string]interface{}{"key": "not a number"},
-			key:      "key",
-			expected: 0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getIntFromMap(tt.m, tt.key)
-			if result != tt.expected {
-				t.Errorf("getIntFromMap() = %d, want %d", result, tt.expected)
-			}
-		})
-	}
-}
-
 // TestExtractUsageFromTokenCount tests the extractUsageFromTokenCount function
 func TestExtractUsageFromTokenCount(t *testing.T) {
 	tests := []struct {

@@ -149,7 +149,7 @@ The configuration is determined with the following priority (highest priority to
 # Override the default service name (default: "specstory-cli")
 # service_name = "my-service-name"
 
-# Exclude user prompt text from telemetry spans for privacy (default: true)
+# Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
 [providers]
@@ -215,7 +215,7 @@ All analytics are processed through PostHog with GeoIP enabled for general locat
 
 To opt out of analytics tracking, use the `--no-usage-analytics` flag:
 
-```bash
+```zsh
 specstory --no-usage-analytics [other options]
 ```
 
@@ -258,7 +258,7 @@ Optional OpenTelemetry data can be enabled in three ways:
    specstory sync --telemetry-endpoint localhost:4317 --telemetry-service-name my-service --no-telemetry-prompts
    ```
 
-3. **Configuration files** (`./.spectstory/cli/config.toml` or `~/.spectstory/cli/config.toml`):
+3. **Configuration files** (`./.specstory/cli/config.toml` or `~/.specstory/cli/config.toml`):
 
    ```toml
    [telemetry]
@@ -272,13 +272,11 @@ Optional OpenTelemetry data can be enabled in three ways:
    prompts = false
    ```
 
-**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
-
 ### Telemetry Configuration Options
 
 | Option       | CLI Flag                   | Environment Variable          | Config Key               | Default         | Description                            |
 |--------------|----------------------------|-------------------------------|--------------------------|-----------------|----------------------------------------|
-| Disable      | default                    | `OOTEL_SDK_DISABLED`          |                          |                 | Disable telemetry                      |
+| Disable      | default                    | `OTEL_SDK_DISABLED`           |                          |                 | Disable telemetry                      |
 | Endpoint     | `--telemetry-endpoint`     | `OTEL_EXPORTER_OTLP_ENDPOINT` | `telemetry.endpoint`     | `""`            | OTLP gRPC collector endpoint           |
 | Service Name | `--telemetry-service-name` | `OTEL_SERVICE_NAME`           | `telemetry.service_name` | `specstory-cli` | Service name for spans/metrics         |
 | No Prompts   | `--no-telemetry-prompts`   | -                             | `telemetry.prompts`      | `true`          | Include/exclude prompt text from spans |
@@ -305,8 +303,7 @@ prompts = false
 
 ### Disabling Telemetry
 
-Telemetry is disabled by default, as long as you do not configure an OLTP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can
-use an environment variable, which as a standard OTel convention:
+Telemetry is disabled unless you configure an OLTP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can use `OTEL_SDK_DISABLED`, which is a standard OTel convention:
 
 ```zsh
 export OTEL_SDK_DISABLED="true"

@@ -90,7 +90,7 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Override the default service name (default: "specstory-cli")
 # service_name = "my-service-name"
 
-# Exclude user prompt text from telemetry spans for privacy (default: true)
+# Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
 [providers]

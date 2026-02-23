@@ -104,6 +104,25 @@ type Usage struct {
 	ThinkingTokens int `json:"thinkingTokens,omitempty"` // thinking/reasoning tokens
 }
 
+// GetIntFromMap safely extracts an int from a map[string]interface{}.
+// JSON numbers are unmarshaled as float64, so we handle that case.
+func GetIntFromMap(m map[string]interface{}, key string) int {
+	if m == nil {
+		return 0
+	}
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return int(v)
+		case int64:
+			return int(v)
+		case int:
+			return v
+		}
+	}
+	return 0
+}
+
 // ToolInfo is tool use information
 type ToolInfo struct {
 	Name string `json:"name"` // Name of the tool

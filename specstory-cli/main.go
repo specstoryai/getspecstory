@@ -56,7 +56,7 @@ var provenanceEnabled bool // flag to enable AI provenance tracking
 // Loaded configuration (populated in main before commands are created)
 var loadedConfig *config.Config
 
-// Telemetry Options
+// Telemetry State
 var telemetryEndpoint string    // OTLP gRPC collector endpoint
 var telemetryServiceName string // override the default service name
 var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
@@ -834,122 +834,125 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	// Process each session
 	for i := range sessions {
 		session := &sessions[i]
-		processingStart := time.Now()
 
-		// Create a context with a deterministic trace ID from the session ID
-		sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+		// Process session in a closure so defers scope to each iteration,
+		// ensuring spans are ended and metrics recorded even on early returns.
+		func() {
+			processingStart := time.Now()
 
-		// Start an OTel span for this session processing
-		sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+			// Create a context with a deterministic trace ID from the session ID
+			sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
 
-		// Compute session statistics
-		sessionStats := telemetry.ComputeSessionStats(agentName, session)
+			// Start an OTel span for this session processing
+			sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+			defer span.End()
 
-		// Set session span attributes
-		telemetry.SetSessionSpanAttributes(span, sessionStats)
+			// Compute session statistics
+			sessionStats := telemetry.ComputeSessionStats(agentName, session)
+			defer func() {
+				telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+			}()
 
-		// Create child spans for each exchange
-		if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
-			telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
-		}
+			// Set session span attributes
+			telemetry.SetSessionSpanAttributes(span, sessionStats)
 
-		sessionpkg.ValidateSessionData(session, debugRaw)
-		sessionpkg.WriteDebugSessionData(session, debugRaw)
-
-		// Generate markdown from SessionData
-		markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
-		if err != nil {
-			slog.Error("Failed to generate markdown from SessionData",
-				"sessionId", session.SessionID,
-				"error", err)
-			// Track sync error
-			analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-				"session_id": session.SessionID,
-				"error":      err.Error(),
-			})
-			continue
-		}
-
-		// Generate filename from timestamp and slug
-		fileFullPath := sessionpkg.BuildSessionFilePath(session, historyPath, useUTC)
-
-		// Check if file already exists with same content
-		identicalContent := false
-		fileExists := false
-		if existingContent, err := os.ReadFile(fileFullPath); err == nil {
-			fileExists = true
-			if string(existingContent) == markdownContent {
-				identicalContent = true
-				slog.Info("Markdown file already exists with same content, skipping write",
-					"sessionId", session.SessionID,
-					"path", fileFullPath)
+			// Create child spans for each exchange
+			if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+				telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
 			}
-		}
 
-		// Write file if needed (skip if only-cloud-sync is enabled)
-		if !onlyCloudSync {
-			if !identicalContent {
-				// Ensure history directory exists (handles deletion during long-running sync)
-				if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
-					slog.Error("Failed to ensure history directory", "error", err)
-					continue
-				}
-				err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
-				if err != nil {
-					slog.Error("Error writing markdown file",
+			sessionpkg.ValidateSessionData(session, debugRaw)
+			sessionpkg.WriteDebugSessionData(session, debugRaw)
+
+			// Generate markdown from SessionData
+			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+			if err != nil {
+				slog.Error("Failed to generate markdown from SessionData",
+					"sessionId", session.SessionID,
+					"error", err)
+				// Track sync error
+				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+					"session_id": session.SessionID,
+					"error":      err.Error(),
+				})
+				return
+			}
+
+			// Generate filename from timestamp and slug
+			fileFullPath := sessionpkg.BuildSessionFilePath(session, historyPath, useUTC)
+
+			// Check if file already exists with same content
+			identicalContent := false
+			fileExists := false
+			if existingContent, err := os.ReadFile(fileFullPath); err == nil {
+				fileExists = true
+				if string(existingContent) == markdownContent {
+					identicalContent = true
+					slog.Info("Markdown file already exists with same content, skipping write",
 						"sessionId", session.SessionID,
-						"error", err)
-					// Track sync error
-					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": onlyCloudSync,
-					})
-					continue
+						"path", fileFullPath)
 				}
-				slog.Info("Successfully wrote file",
-					"sessionId", session.SessionID,
-					"path", fileFullPath)
+			}
 
-				// Track successful sync
-				if !fileExists {
-					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
+			// Write file if needed (skip if only-cloud-sync is enabled)
+			if !onlyCloudSync {
+				if !identicalContent {
+					// Ensure history directory exists (handles deletion during long-running sync)
+					if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+						slog.Error("Failed to ensure history directory", "error", err)
+						return
+					}
+					err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
+					if err != nil {
+						slog.Error("Error writing markdown file",
+							"sessionId", session.SessionID,
+							"error", err)
+						// Track sync error
+						analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+							"session_id":      session.SessionID,
+							"error":           err.Error(),
+							"only_cloud_sync": onlyCloudSync,
+						})
+						return
+					}
+					slog.Info("Successfully wrote file",
+						"sessionId", session.SessionID,
+						"path", fileFullPath)
+
+					// Track successful sync
+					if !fileExists {
+						analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
+							"session_id":      session.SessionID,
+							"only_cloud_sync": onlyCloudSync,
+						})
+					} else {
+						analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+							"session_id":      session.SessionID,
+							"only_cloud_sync": onlyCloudSync,
+						})
+					}
+				}
+
+				// Update statistics for normal mode
+				if identicalContent {
+					stats.SessionsSkipped++
+				} else if fileExists {
+					stats.SessionsUpdated++
 				} else {
-					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": onlyCloudSync,
-					})
+					stats.SessionsCreated++
 				}
-			}
-
-			// Update statistics for normal mode
-			if identicalContent {
-				stats.SessionsSkipped++
-			} else if fileExists {
-				stats.SessionsUpdated++
 			} else {
-				stats.SessionsCreated++
+				// In cloud-only mode, count as skipped since no local file operation occurred
+				stats.SessionsSkipped++
+				slog.Info("Skipping local file write (only-cloud-sync mode)",
+					"sessionId", session.SessionID)
 			}
-		} else {
-			// In cloud-only mode, count as skipped since no local file operation occurred
-			stats.SessionsSkipped++
-			slog.Info("Skipping local file write (only-cloud-sync mode)",
-				"sessionId", session.SessionID)
-		}
 
-		// Trigger cloud sync with provider-specific data
-		// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
-		// In only-cloud-sync mode: always sync
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
-
-		// Record telemetry metrics for this session
-		telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
-
-		// End the span for this session
-		span.End()
+			// Trigger cloud sync with provider-specific data
+			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
+			// In only-cloud-sync mode: always sync
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
+		}()
 
 		// Print progress with [n/m] format
 		if !silent {
@@ -978,15 +981,6 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Printf("  ✨ %s%d new %s created%s\n",
 			log.ColorGreen, stats.SessionsCreated, pluralSession(stats.SessionsCreated), log.ColorReset)
 		fmt.Println()
-	}
-
-	// Force flush telemetry before returning to ensure metrics are exported
-	// This is critical for short-lived sync commands that may exit before
-	// the periodic exporter has time to run
-	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer flushCancel()
-	if err := telemetry.ForceFlush(flushCtx); err != nil {
-		slog.Warn("Failed to flush telemetry", "error", err)
 	}
 
 	return sessionCount, nil
@@ -1441,16 +1435,11 @@ func main() {
 	}); err != nil {
 		slog.Warn("Failed to initialize telemetry", "error", err)
 	}
-	// Separate defer for telemetry cleanup to ensure it always runs
+	// Shutdown flushes pending spans/metrics before closing providers.
 	defer func() {
-		// Use a timeout context to ensure telemetry shutdown completes within a reasonable time.
-		// This is important for short-lived CLI operations to ensure metrics are flushed.
-		flushCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := telemetry.ForceFlush(flushCtx); err != nil {
-			slog.Warn("Failed to flush telemetry", "error", err)
-		}
-		if err := telemetry.Shutdown(flushCtx); err != nil {
+		if err := telemetry.Shutdown(shutdownCtx); err != nil {
 			slog.Warn("Failed to shutdown telemetry", "error", err)
 		}
 	}()

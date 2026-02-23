@@ -673,25 +673,6 @@ func contains(slice []string, value string) bool {
 	return false
 }
 
-// getIntFromMap safely extracts an int from a map[string]interface{}
-// JSON numbers are unmarshaled as float64, so we handle that case
-func getIntFromMap(m map[string]interface{}, key string) int {
-	if m == nil {
-		return 0
-	}
-	if val, ok := m[key]; ok {
-		switch v := val.(type) {
-		case float64:
-			return int(v)
-		case int64:
-			return int(v)
-		case int:
-			return v
-		}
-	}
-	return 0
-}
-
 // extractUsageFromTokenCount extracts token usage from a token_count event's info.last_token_usage
 // Codex CLI emits token_count events with the structure:
 //
@@ -722,10 +703,10 @@ func extractUsageFromTokenCount(payload map[string]interface{}) *Usage {
 
 	return &Usage{
 		// Common fields
-		InputTokens:  getIntFromMap(lastUsage, "input_tokens"),
-		OutputTokens: getIntFromMap(lastUsage, "output_tokens"),
+		InputTokens:  schema.GetIntFromMap(lastUsage, "input_tokens"),
+		OutputTokens: schema.GetIntFromMap(lastUsage, "output_tokens"),
 		// Codex CLI specific fields
-		CachedInputTokens:     getIntFromMap(lastUsage, "cached_input_tokens"),
-		ReasoningOutputTokens: getIntFromMap(lastUsage, "reasoning_output_tokens"),
+		CachedInputTokens:     schema.GetIntFromMap(lastUsage, "cached_input_tokens"),
+		ReasoningOutputTokens: schema.GetIntFromMap(lastUsage, "reasoning_output_tokens"),
 	}
 }

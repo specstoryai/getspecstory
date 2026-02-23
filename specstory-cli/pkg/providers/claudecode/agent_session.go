@@ -382,10 +382,10 @@ func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain boo
 	var usageInfo *Usage
 	if usage, ok := message["usage"].(map[string]interface{}); ok {
 		usageInfo = &Usage{
-			InputTokens:              getIntFromMap(usage, "input_tokens"),
-			OutputTokens:             getIntFromMap(usage, "output_tokens"),
-			CacheCreationInputTokens: getIntFromMap(usage, "cache_creation_input_tokens"),
-			CacheReadInputTokens:     getIntFromMap(usage, "cache_read_input_tokens"),
+			InputTokens:              schema.GetIntFromMap(usage, "input_tokens"),
+			OutputTokens:             schema.GetIntFromMap(usage, "output_tokens"),
+			CacheCreationInputTokens: schema.GetIntFromMap(usage, "cache_creation_input_tokens"),
+			CacheReadInputTokens:     schema.GetIntFromMap(usage, "cache_read_input_tokens"),
 		}
 	}
 
@@ -488,25 +488,6 @@ func contains(slice []string, value string) bool {
 		}
 	}
 	return false
-}
-
-// getIntFromMap safely extracts an int from a map[string]interface{}
-// JSON numbers are unmarshaled as float64, so we handle that case
-func getIntFromMap(m map[string]interface{}, key string) int {
-	if m == nil {
-		return 0
-	}
-	if val, ok := m[key]; ok {
-		switch v := val.(type) {
-		case float64:
-			return int(v)
-		case int64:
-			return int(v)
-		case int:
-			return v
-		}
-	}
-	return 0
 }
 
 // formatToolAsMarkdown generates formatted markdown for a tool (input + output)
