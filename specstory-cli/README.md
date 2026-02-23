@@ -230,7 +230,7 @@ export POSTHOG_API_KEY="your-posthog-api-key"
 go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
 ```
 
-## Open Telemetry
+## OpenTelemetry
 
 SpecStory CLI supports [OpenTelemetry](https://opentelemetry.io/) Protocol (OTLP) tracing and metrics for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, tool usage, and token consumption.
 
