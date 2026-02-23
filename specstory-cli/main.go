@@ -1381,11 +1381,6 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
 
-	// Telemetry flags
-	rootCmd.PersistentFlags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "OpenTelemetry Protocol (OTLP) gRPC collector endpoint (e.g., localhost:4317)")
-	rootCmd.PersistentFlags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry")
-	rootCmd.PersistentFlags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans for privacy")
-
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
@@ -1398,6 +1393,9 @@ func main() {
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	syncCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+	syncCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
@@ -1412,6 +1410,9 @@ func main() {
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
 	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
 	runCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+	runCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+	runCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+	runCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
 
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)

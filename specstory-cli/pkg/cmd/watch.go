@@ -94,6 +94,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			noCloudSync, _ := cmd.Flags().GetBool("no-cloud-sync")
 			onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
 			provenanceEnabled, _ := cmd.Flags().GetBool("provenance")
+			noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
 
 			// Apply debug dir override from flag if provided
 			if flagDebugDir != "" {
@@ -203,7 +204,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				// Process the session (write markdown and sync to cloud)
 				// Don't show output during watch mode
 				// This is autosave mode (true)
-				markdownSize, err := session.ProcessSingleSession(sess, config, onlyCloudSync, false, true, debugRaw, useUTC)
+				markdownSize, err := session.ProcessSingleSession(context.Background(), sess, config, onlyCloudSync, false, true, debugRaw, useUTC, noTelemetryPrompts)
 				if err != nil {
 					// Log error but continue - don't fail the whole watch
 					// In watch mode, we prioritize keeping the watcher running.
@@ -319,6 +320,9 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	_ = watchCmd.Flags().MarkHidden("provenance") // Hidden flag
 	watchCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+	watchCmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+	watchCmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+	watchCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
 
 	return watchCmd
 }

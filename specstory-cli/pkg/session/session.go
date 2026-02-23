@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -65,14 +67,45 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 }
 
 // ProcessSingleSession writes markdown and triggers cloud sync for a single session.
+// ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
 // onlyCloudSync skips local markdown writes and only syncs to cloud.
 // isAutosave indicates if this is being called from run/watch (true) or sync command (false).
 // debugRaw enables schema validation (only run in debug mode to avoid overhead).
 // useUTC controls timestamp format (true=UTC, false=local).
+// noTelemetryPrompts excludes user prompt text from telemetry spans for privacy.
 // Returns the size of the markdown content in bytes.
-func ProcessSingleSession(session *spi.AgentChatSession, config utils.OutputConfig, onlyCloudSync bool, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool) (int, error) {
+func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, onlyCloudSync bool, showOutput bool, isAutosave bool, debugRaw bool, useUTC bool, noTelemetryPrompts bool) (int, error) {
 	if session == nil || session.SessionData == nil {
 		return 0, fmt.Errorf("session or session data is nil")
+	}
+
+	// Track processing start time for metrics
+	processingStart := time.Now()
+
+	// Create a context with a deterministic trace ID from the session ID.
+	// This groups all spans for the same session into a single trace, even
+	// across multiple invocations in autosave mode.
+	ctx = telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+
+	// Start an OTel span for this session processing (no-op when telemetry is disabled)
+	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
+	defer span.End()
+
+	// Compute session statistics
+	agentName := session.SessionData.Provider.Name
+	stats := telemetry.ComputeSessionStats(agentName, session)
+
+	// Record metrics (no-op when telemetry is disabled)
+	defer func() {
+		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
+	}()
+
+	// Set session span attributes
+	telemetry.SetSessionSpanAttributes(span, stats)
+
+	// Create child spans for each exchange
+	if len(session.SessionData.Exchanges) > 0 {
+		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges, noTelemetryPrompts)
 	}
 
 	ValidateSessionData(session, debugRaw)

@@ -1,6 +1,7 @@
 module github.com/specstoryai/getspecstory/specstory-cli
 
 // When updating the Go version, also update:
+//   - README.md
 //   - .golangci.yml (run.go)
 //   - ../.github/workflows/ci.yml (setup-go)
 //   - ../.github/workflows/release.yml (setup-go)

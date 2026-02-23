@@ -13511,3 +13511,356 @@ Build passes, 0 lint issues, all tests pass. Here's a summary of what changed:
 - Removed `--no-telemetry` from early flag parsing switch
 - Removed `NoTelemetry: noTelemetry` from `CLIOverrides` struct literal
 - Removed `--no-telemetry` persistent flag registration
+
+---
+
+_**User (2026-02-23 17:30:05Z)**_
+
+what commands use the telemetry if it's enabled... presumably run, sync, watch are the candidates, but do all 3 use it? 
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 17:30:10Z)**_
+
+
+
+Let me trace where telemetry is actually used across the three commands.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:30:12Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./` pattern `telemetry\.`
+
+```text
+pkg/session/session.go:88:	ctx = telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+pkg/session/session.go:91:	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
+pkg/session/session.go:96:	stats := telemetry.ComputeSessionStats(agentName, session)
+pkg/session/session.go:100:		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
+pkg/session/session.go:104:	telemetry.SetSessionSpanAttributes(span, stats)
+pkg/session/session.go:108:		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges, noTelemetryPrompts)
+pkg/config/config.go:701:// IsTelemetryPromptsDisabled returns whether prompt text should be excluded from telemetry.
+pkg/telemetry/session_helpers.go:11:	"go.opentelemetry.io/otel/attribute"
+pkg/telemetry/session_helpers.go:12:	"go.opentelemetry.io/otel/trace"
+main.go:840:		sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+main.go:843:		sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+main.go:846:		sessionStats := telemetry.ComputeSessionStats(agentName, session)
+main.go:849:		telemetry.SetSessionSpanAttributes(span, sessionStats)
+main.go:853:			telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
+main.go:949:		telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+main.go:988:	if err := telemetry.ForceFlush(flushCtx); err != nil {
+main.go:1436:	if err := telemetry.Init(context.Background(), telemetry.Options{
+main.go:1449:		if err := telemetry.ForceFlush(flushCtx); err != nil {
+main.go:1452:		if err := telemetry.Shutdown(flushCtx); err != nil {
+pkg/telemetry/telemetry.go:16:	"go.opentelemetry.io/otel"
+pkg/telemetry/telemetry.go:17:	"go.opentelemetry.io/otel/attribute"
+pkg/telemetry/telemetry.go:18:	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
+pkg/telemetry/telemetry.go:19:	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+pkg/telemetry/telemetry.go:20:	"go.opentelemetry.io/otel/metric"
+pkg/telemetry/telemetry.go:21:	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+pkg/telemetry/telemetry.go:22:	"go.opentelemetry.io/otel/sdk/resource"
+pkg/telemetry/telemetry.go:23:	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+pkg/telemetry/telemetry.go:24:	"go.opentelemetry.io/otel/trace"
+pkg/telemetry/telemetry.go:25:	"go.opentelemetry.io/otel/trace/noop"
+pkg/telemetry/telemetry.go:161:			resource.WithTelemetrySDK(), // telemetry.sdk.* attributes
+pkg/providers/droidcli/agent_session.go:61:	// Attaching to the last message ensures proper aggregation in telemetry.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:30:22Z)**_
+
+Here's the breakdown:
+
+**`sync`** — Yes, uses telemetry directly. The `syncProvider` loop in `main.go` (lines 840-953) has its own inline telemetry: trace spans per session, exchange spans, metrics recording, and an explicit `ForceFlush` at the end. This is done inline rather than via `ProcessSingleSession` because sync has its own progress-tracking UI.
+
+**`run`** — Yes, uses telemetry via `ProcessSingleSession` in `session.go`. The run callback (line ~444) calls `sessionpkg.ProcessSingleSession(...)` which has the full telemetry block (trace spans, exchange spans, metrics).
+
+**`watch`** — Yes, same as run. The watch callback in `pkg/cmd/watch.go` (line 206) calls `session.ProcessSingleSession(...)` which has the same telemetry block.
+
+So all three commands use telemetry when enabled. The key difference is:
+- **`run` and `watch`**: telemetry happens inside `ProcessSingleSession` (centralized)
+- **`sync`**: telemetry is done inline in the `syncProvider` loop (because it needs interleaved progress output and per-session span lifecycle control)
+
+The `telemetry.Init()` and `telemetry.Shutdown()` happen once in `main()` regardless of command — when telemetry is disabled, all the calls are no-ops.
+
+---
+
+_**User (2026-02-23 17:31:03Z)**_
+
+ok... right now the telemetry flags are at root, but that's not right, they should be on sync, run and watch
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-23 17:31:52Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants to move the telemetry flags from root persistent flags to command-specific flags on sync, run, and watch. Let me look at what needs to change.
+
+Currently in main.go:
+1. `telemetryEndpoint` and `telemetryServiceName` are declared as package-level vars
+2. `noTelemetryPrompts` is a package-level var
+3. These are registered as `rootCmd.PersistentFlags()` (lines 1385-1387)
+4. They're also parsed in early flag parsing (lines ~1243-1278)
+5. They're passed into `config.Load()` via `CLIOverrides`
+
+
+6. The tricky part is that `run` and `sync` are in main.go and can access package-level vars, but `watch` is in a separate file and currently hardcodes `false` for `noTelemetryPrompts` when calling `ProcessSingleSession`.
+
+The telemetry initialization happens early in `main()` before any command executes, pulling values from the config file, CLI flags, and environment variables. So the flow starts with early flag parsing that reads the telemetry-related flags from the command line arguments, and those values feed into the config system.
+
+The core issue is that even if I move the flag definitions to individual commands like run, sync, or watch, the early flag parsing still scans `os.Args` directly and bypasses cobra entirely. So the flags would still be picked up regardless of where they're registered—the registration just affects help text and cobra's validation. The telemetry flags themselves are `--telemetry-endpoint`, `--telemetry-service-name`, and `--no-telemetry-prompts`, which control the OTLP endpoint and service name overrides. The watch command only needs the `--no-telemetry-prompts` flag since telemetry initialization happens in main.go before watch is called, and the watch command just uses the already-initialized telemetry when processing sessions. I'm realizing the early flag parsing scans os.Args directly, so even if I register the telemetry flags on individual commands, they'll still be picked up during config loading in main(). The cleanest approach is to remove them from the root persistent flags, add them to run and sync commands in main.go with the same variable bindings, and add them to watch.go where they'll be validated by Cobra even though the actual values flow through the early parsing mechanism. I see the user just wants the flags moved from root to the individual commands, so I'll keep it straightforward. I need to remove the telemetry flags from the root command's persistent flags in main.go, then add them to the run and sync commands there, and also add them to watch.go. Since I'm adding the flag to watch anyway, I should fix it to actually read the `--no-telemetry-prompts` value instead of hardcoding it to false when calling ProcessSingleSession.
+
+Adding flag registrations to sync and run commands...
+
+Now for watch.go, I realize the telemetry endpoint and service name flags are actually parsed early in main.go before commands run, so registering them on watchCmd is mainly for help text and validation. The key thing is handling `--no-telemetry-prompts` in the watch command—I need to read that flag and pass it through to ProcessSingleSession instead of hardcoding it to false.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:31:52Z)**_
+
+You're right. Let me move them to the three commands that actually use telemetry.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:31:53Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+  1383→
+  1384→	// Telemetry flags
+  1385→	rootCmd.PersistentFlags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "OpenTelemetry Protocol (OTLP) gRPC collector endpoint (e.g., localhost:4317)")
+  1386→	rootCmd.PersistentFlags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry")
+  1387→	rootCmd.PersistentFlags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans for privacy")
+  1388→
+  1389→	// Command-specific flags
+  1390→	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
+  1391→	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
+  1392→	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+  1393→	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+  1394→	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+  1395→	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+  1396→	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  1397→	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  1398→	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  1399→	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  1400→	syncCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+  1401→
+  1402→	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+  1403→	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
+  1404→	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+  1405→	runCmd.Flags().String("resume", "", "resume a specific session by ID")
+  1406→	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+  1407→	runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+  1408→	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+  1409→	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+  1410→	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  1411→	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  1412→	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  1413→	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  1414→	runCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+  1415→
+  1416→	// Initialize analytics with the full CLI command (unless disabled)
+  1417→	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
+  1418→	if !noAnalytics {
+  1419→		slog.Debug("Initializing analytics")
+  1420→		fullCommand := strings.Join(os.Args, " ")
+  1421→		if err := analytics.Init(fullCommand, version); err != nil {
+  1422→			// Log error but don't fail - analytics should not break the app
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:31:56Z)**_
+
+Remove the 3 telemetry lines from root and add them to syncCmd and runCmd.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:12Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:23Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:32Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:35Z)**_
+
+Now add the telemetry flags to watch.go. I also notice watch.go currently hardcodes `false` for `noTelemetryPrompts` — I'll fix it to read the flag value instead.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:36Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/watch.go`
+
+```text
+   308→
+   309→	// Watch-specific flags
+   310→	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
+   311→	watchCmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
+   312→	watchCmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+   313→	watchCmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+   314→	watchCmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
+   315→	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+   316→	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+   317→	watchCmd.Flags().Bool("local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+   318→	watchCmd.Flags().Bool("provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+   319→	_ = watchCmd.Flags().MarkHidden("provenance") // Hidden flag
+   320→	watchCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
+   321→	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+   322→
+   323→	return watchCmd
+   324→}
+   325→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:49Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/watch.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:52Z)**_
+
+Now fix the hardcoded `false` for `noTelemetryPrompts` in watch.go's callback — it should read the flag value.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:35:53Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/watch.go`
+
+```text
+    86→
+    87→			// Read flags from the command
+    88→			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+    89→			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+    90→			useUTC := !useLocalTimezone
+    91→			jsonOutput, _ := cmd.Flags().GetBool("json")
+    92→			outputDir, _ := cmd.Flags().GetString("output-dir")
+    93→			flagDebugDir, _ := cmd.Flags().GetString("debug-dir")
+    94→			noCloudSync, _ := cmd.Flags().GetBool("no-cloud-sync")
+    95→			onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:03Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/watch.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:08Z)**_
+
+Now update the `ProcessSingleSession` call to use the flag value instead of hardcoded `false`.
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:15Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/watch.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:19Z)**_
+
+<think><details><summary>Thought Process</summary>
+The diagnostic says "declared and not used: noTelemetryPrompts" at line 97. That's strange since I just used it at the ProcessSingleSession call. Let me check if there's a timing issue with the diagnostics, or if the edit didn't quite land right.
+
+Actually, the diagnostic might be stale - let me just build and see.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:22Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build to verify changes compile
+
+`go build -o specstory 2>&1`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:27Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter
+
+`golangci-lint run 2>&1`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:36Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all tests
+
+`go test ./... 2>&1`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli	(cached)
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/config	(cached)
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/log	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	5.877s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli	0.302s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.537s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-23 17:36:41Z)**_
+
+Build, lint, and tests all pass. Here's what changed:
+
+**`main.go`:**
+- Removed the 3 telemetry flags from `rootCmd.PersistentFlags()`
+- Added them to `syncCmd.Flags()` and `runCmd.Flags()`
+
+**`pkg/cmd/watch.go`:**
+- Added the 3 telemetry flags to `watchCmd.Flags()`
+- Fixed a bug: the `--no-telemetry-prompts` flag value is now read and passed to `ProcessSingleSession` instead of being hardcoded as `false`

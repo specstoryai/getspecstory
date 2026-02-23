@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git status:*), Bash(git diff:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
 description: Code review the current proposed code change
 ---
 
