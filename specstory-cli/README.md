@@ -402,126 +402,139 @@ go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/anal
 
 ## Open Telemetry
 
-SpecStory CLI supports OpenTelemetry (OTel) tracing and metrics for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, tool usage, and token consumption.
+SpecStory CLI supports [OpenTelemetry](https://opentelemetry.io/) Protocol (OTLP) tracing and metrics for observability. When enabled, it emits spans for session processing with detailed attributes about exchanges, messages, tool usage, and token consumption.
 
 ### Enabling Telemetry
 
-Telemetry can be enabled in three ways:
+Optional OpenTelemetry data can be enabled in three ways:
 
-1. **Environment variables** (highest priority for telemetry settings):
+1. **Standard OTEL Environment variables** (highest priority for telemetry settings):
+   
    ```zsh
    export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
    export OTEL_SERVICE_NAME="specstory-cli"
-   export OTEL_ENABLED="true"
    export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev"
+   
    specstory run
+   # or
+   specstory sync
+   # or
+   specstory watch
    ```
 
 2. **CLI flags**:
+   
    ```zsh
-   specstory sync --telemetry-endpoint localhost:4317 --telemetry-service-name my-service
+   specstory sync --telemetry-endpoint localhost:4317 --telemetry-service-name my-service --no-telemetry-prompts
    ```
 
-3. **Configuration file** (`cli-config.toml`):
+3. **Configuration files** (`./.spectstory/cli/config.toml` or `~/.spectstory/cli/config.toml`):
+
    ```toml
    [telemetry]
-   enabled = true
+   # OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
    endpoint = "localhost:4317"
-   service_name = "specstory-cli"
+
+   # Override the default service name (default: "specstory-cli")
+   service_name = "my-service-name"
+
+   # Exclude user prompt text from telemetry spans for privacy (default: true)
+   prompts = false
    ```
 
-**Note**: If `telemetry.enabled` is not explicitly set, telemetry is automatically enabled when an endpoint is configured.
+**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
 ### Telemetry Configuration Options
 
-| Option | CLI Flag | Environment Variable | Config Key | Default | Description |
-|--------|----------|---------------------|------------|---------|-------------|
-| Enable | `--no-telemetry` | `OTEL_ENABLED` | `telemetry.enabled` | `false`* | Enable/disable telemetry |
-| Endpoint | `--telemetry-endpoint` | `OTEL_EXPORTER_OTLP_ENDPOINT` | `telemetry.endpoint` | `""` | OTLP gRPC collector endpoint |
-| Service Name | `--telemetry-service-name` | `OTEL_SERVICE_NAME` | `telemetry.service_name` | `"specstory-cli"` | Service name for spans/metrics |
-| No Prompts | `--no-telemetry-prompts` | - | `telemetry.no_prompts` | `false` | Exclude prompt text from spans |
+| Option       | CLI Flag                   | Environment Variable          | Config Key               | Default         | Description                            |
+|--------------|----------------------------|-------------------------------|--------------------------|-----------------|----------------------------------------|
+| Disable      | default                    | `OOTEL_SDK_DISABLED`          |                          |                 | Disable telemetry                      |
+| Endpoint     | `--telemetry-endpoint`     | `OTEL_EXPORTER_OTLP_ENDPOINT` | `telemetry.endpoint`     | `""`            | OTLP gRPC collector endpoint           |
+| Service Name | `--telemetry-service-name` | `OTEL_SERVICE_NAME`           | `telemetry.service_name` | `specstory-cli` | Service name for spans/metrics         |
+| No Prompts   | `--no-telemetry-prompts`   | -                             | `telemetry.prompts`      | `true`          | Include/exclude prompt text from spans |
 
-\* Telemetry is automatically enabled when an endpoint is configured.
+**Note**: Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
-### Privacy: Excluding Prompt Text
+### Excluding Prompt Text
 
-For privacy, you can exclude user prompt text from telemetry spans. When enabled, the `specstory.exchange.prompt_text` attribute will be empty.
+You can exclude user prompt text from telemetry spans. When excluded, the `specstory.exchange.prompt_text` attribute will be empty.
+
+Via CLI flag:
 
 ```zsh
-# Via CLI flag
 specstory sync --no-telemetry-prompts
-
-# Via configuration file
-[telemetry]
-no_prompts = true
 ```
 
-### Session Span Attributes
+Via configuration files:
 
-Each session processing span includes the following attributes:
-
-| Attribute | Description |
-|-----------|-------------|
-| `specstory.agent` | The agent provider name (e.g., "claude-code") |
-| `specstory.session.id` | Unique session identifier |
-| `specstory.session.exchange_count` | Number of exchanges in the session |
-| `specstory.session.message_count` | Total messages across all exchanges |
-| `specstory.session.tool_count` | Total tool invocations |
-| `specstory.session.tool_type_count` | Number of unique tool types used |
-| `specstory.project.path` | Workspace root path |
-| `specstory.session.tokens.input` | Total input tokens (all providers) |
-| `specstory.session.tokens.output` | Total output tokens (all providers) |
-| `specstory.session.tokens.cache_creation` | Cache creation tokens (Claude Code, Droid CLI) |
-| `specstory.session.tokens.cache_read` | Cache read tokens (Claude Code, Droid CLI) |
-| `specstory.session.tokens.cached_input` | Cached input tokens (Codex CLI) |
-| `specstory.session.tokens.reasoning_output` | Reasoning output tokens (Codex CLI) |
-| `specstory.session.tokens.cached` | Cached tokens (Gemini CLI) |
-| `specstory.session.tokens.thought` | Thought/reasoning tokens (Gemini CLI) |
-| `specstory.session.tokens.tool` | Tool-related tokens (Gemini CLI) |
-| `specstory.session.tokens.thinking` | Thinking tokens (Droid CLI) |
-
-### Exchange Span Attributes
-
-Each exchange is recorded as a child span with these attributes:
-
-| Attribute | Description |
-|-----------|-------------|
-| `specstory.exchange.id` | Exchange identifier |
-| `specstory.exchange.index` | Exchange index in session |
-| `specstory.exchange.model` | Model used for this exchange |
-| `specstory.exchange.prompt_text` | User prompt text (unless `no_prompts` is set) |
-| `specstory.exchange.start_time` | Exchange start timestamp |
-| `specstory.exchange.end_time` | Exchange end timestamp |
-| `specstory.exchange.message_count` | Messages in this exchange |
-| `specstory.exchange.tools_used` | Comma-separated tool names |
-| `specstory.exchange.tool_types` | Comma-separated tool types |
-| `specstory.exchange.tool_count` | Number of tool invocations |
-| `specstory.exchange.tokens.input` | Input tokens for this exchange |
-| `specstory.exchange.tokens.output` | Output tokens for this exchange |
-| `specstory.exchange.tokens.cache_creation` | Cache creation tokens (Claude Code, Droid CLI) |
-| `specstory.exchange.tokens.cache_read` | Cache read tokens (Claude Code, Droid CLI) |
-| `specstory.exchange.tokens.cached_input` | Cached input tokens (Codex CLI) |
-| `specstory.exchange.tokens.reasoning_output` | Reasoning output tokens (Codex CLI) |
-| `specstory.exchange.tokens.cached` | Cached tokens (Gemini CLI) |
-| `specstory.exchange.tokens.thought` | Thought/reasoning tokens (Gemini CLI) |
-| `specstory.exchange.tokens.tool` | Tool-related tokens (Gemini CLI) |
-| `specstory.exchange.tokens.thinking` | Thinking tokens (Droid CLI) |
+```toml
+[telemetry]
+# Exclude user prompt text from telemetry spans for privacy (default: true)
+prompts = false
+```
 
 ### Disabling Telemetry
 
-To explicitly disable telemetry:
+Telemetry is disabled by default, as long as you do not configure an OLTP endpoint. If you do want to disable telemetry while keeping an endpoint configured, you can
+use an environment variable, which as a standard OTel convention:
 
 ```zsh
-# Via CLI flag
-specstory sync --no-telemetry
-
-# Via environment variable (standard OTel convention)
 export OTEL_SDK_DISABLED="true"
-
-# Via configuration file
-[telemetry]
-enabled = false
 ```
+
+### Telemetry Data
+
+#### Session Span Attributes
+
+Each session processing span includes the following attributes:
+
+| Attribute                                   | Description                                    |
+|---------------------------------------------|------------------------------------------------|
+| `specstory.agent`                           | The agent provider name (e.g., "claude-code")  |
+| `specstory.session.id`                      | Unique session identifier                      |
+| `specstory.session.exchange_count`          | Number of exchanges in the session             |
+| `specstory.session.message_count`           | Total messages across all exchanges            |
+| `specstory.session.tool_count`              | Total tool invocations                         |
+| `specstory.session.tool_type_count`         | Number of unique tool types used               |
+| `specstory.project.path`                    | Workspace root path                            |
+| `specstory.session.tokens.input`            | Total input tokens (all providers)             |
+| `specstory.session.tokens.output`           | Total output tokens (all providers)            |
+| `specstory.session.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
+| `specstory.session.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
+| `specstory.session.tokens.cached_input`     | Cached input tokens (Codex CLI)                |
+| `specstory.session.tokens.reasoning_output` | Reasoning output tokens (Codex CLI)            |
+| `specstory.session.tokens.cached`           | Cached tokens (Gemini CLI)                     |
+| `specstory.session.tokens.thought`          | Thought/reasoning tokens (Gemini CLI)          |
+| `specstory.session.tokens.tool`             | Tool-related tokens (Gemini CLI)               |
+| `specstory.session.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
+
+#### Exchange Span Attributes
+
+Each exchange is recorded as a child span with these attributes:
+
+| Attribute                                    | Description                                    |
+|----------------------------------------------|------------------------------------------------|
+| `specstory.exchange.id`                      | Exchange identifier                            |
+| `specstory.exchange.index`                   | Exchange index in session                      |
+| `specstory.exchange.model`                   | Model used for this exchange                   |
+| `specstory.exchange.prompt_text`             | User prompt text (unless `no_prompts` is set)  |
+| `specstory.exchange.start_time`              | Exchange start timestamp                       |
+| `specstory.exchange.end_time`                | Exchange end timestamp                         |
+| `specstory.exchange.message_count`           | Messages in this exchange                      |
+| `specstory.exchange.tools_used`              | Comma-separated tool names                     |
+| `specstory.exchange.tool_types`              | Comma-separated tool types                     |
+| `specstory.exchange.tool_count`              | Number of tool invocations                     |
+| `specstory.exchange.tokens.input`            | Input tokens for this exchange                 |
+| `specstory.exchange.tokens.output`           | Output tokens for this exchange                |
+| `specstory.exchange.tokens.cache_creation`   | Cache creation tokens (Claude Code, Droid CLI) |
+| `specstory.exchange.tokens.cache_read`       | Cache read tokens (Claude Code, Droid CLI)     |
+| `specstory.exchange.tokens.cached_input`     | Cached input tokens (Codex CLI)                |
+| `specstory.exchange.tokens.reasoning_output` | Reasoning output tokens (Codex CLI)            |
+| `specstory.exchange.tokens.cached`           | Cached tokens (Gemini CLI)                     |
+| `specstory.exchange.tokens.thought`          | Thought/reasoning tokens (Gemini CLI)          |
+| `specstory.exchange.tokens.tool`             | Tool-related tokens (Gemini CLI)               |
+| `specstory.exchange.tokens.thinking`         | Thinking tokens (Droid CLI)                    |
+
 
 ## License
 
