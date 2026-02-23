@@ -353,7 +353,7 @@ func TestCountSessionTools(t *testing.T) {
 
 // --- countExchangeTokens tests ---
 
-func Test_countExchangeTokens(t *testing.T) {
+func TestCountExchangeTokens(t *testing.T) {
 	tests := []struct {
 		name     string
 		exchange schema.Exchange
@@ -599,7 +599,7 @@ func TestCountSessionTokens(t *testing.T) {
 
 // --- computeExchangeStats tests ---
 
-func Test_computeExchangeStats(t *testing.T) {
+func TestComputeExchangeStats(t *testing.T) {
 	tests := []struct {
 		name     string
 		exchange schema.Exchange

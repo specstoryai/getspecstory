@@ -619,6 +619,42 @@ type TokenUsage struct {
 	ThinkingTokens int
 }
 
+// providerAttrs returns OTel span attributes for provider-specific token fields,
+// including only non-zero values to reduce telemetry noise. The prefix is the
+// attribute namespace (e.g. "specstory.session.tokens" or "specstory.exchange.tokens").
+func (u TokenUsage) providerAttrs(prefix string) []attribute.KeyValue {
+	var attrs []attribute.KeyValue
+	// Claude Code specific (also used by Droid CLI)
+	if u.CacheCreationInputTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".cache_creation", u.CacheCreationInputTokens))
+	}
+	if u.CacheReadInputTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".cache_read", u.CacheReadInputTokens))
+	}
+	// Codex CLI specific
+	if u.CachedInputTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".cached_input", u.CachedInputTokens))
+	}
+	if u.ReasoningOutputTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".reasoning_output", u.ReasoningOutputTokens))
+	}
+	// Gemini CLI specific
+	if u.CachedTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".cached", u.CachedTokens))
+	}
+	if u.ThoughtTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".thought", u.ThoughtTokens))
+	}
+	if u.ToolTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".tool", u.ToolTokens))
+	}
+	// Droid CLI specific
+	if u.ThinkingTokens > 0 {
+		attrs = append(attrs, attribute.Int(prefix+".thinking", u.ThinkingTokens))
+	}
+	return attrs
+}
+
 // recordTokenUsage records token usage metrics for a session.
 // Only non-zero values are recorded.
 func recordTokenUsage(ctx context.Context, agent string, sessionID string, usage TokenUsage) {

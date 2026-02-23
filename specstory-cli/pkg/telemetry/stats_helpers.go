@@ -84,7 +84,7 @@ func ComputeSessionStats(agentName string, session *spi.AgentChatSession) Sessio
 
 // SetSessionSpanAttributes sets all standard session attributes on a span.
 // This sets session-level summary attributes only; exchange details are in child spans.
-// Token usage attributes are provider-specific and only non-zero values are meaningful.
+// Token usage attributes are provider-specific and only non-zero values are set.
 func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 	span.SetAttributes(
 		attribute.String("specstory.agent", stats.AgentName),
@@ -97,19 +97,9 @@ func SetSessionSpanAttributes(span trace.Span, stats SessionStats) {
 		// Token usage attributes - common (all providers)
 		attribute.Int("specstory.session.tokens.input", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.session.tokens.output", stats.TokenUsage.OutputTokens),
-		// Token usage attributes - Claude Code specific (also used by Droid CLI)
-		attribute.Int("specstory.session.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
-		attribute.Int("specstory.session.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
-		// Token usage attributes - Codex CLI specific
-		attribute.Int("specstory.session.tokens.cached_input", stats.TokenUsage.CachedInputTokens),
-		attribute.Int("specstory.session.tokens.reasoning_output", stats.TokenUsage.ReasoningOutputTokens),
-		// Token usage attributes - Gemini CLI specific
-		attribute.Int("specstory.session.tokens.cached", stats.TokenUsage.CachedTokens),
-		attribute.Int("specstory.session.tokens.thought", stats.TokenUsage.ThoughtTokens),
-		attribute.Int("specstory.session.tokens.tool", stats.TokenUsage.ToolTokens),
-		// Token usage attributes - Droid CLI specific
-		attribute.Int("specstory.session.tokens.thinking", stats.TokenUsage.ThinkingTokens),
 	)
+	// Provider-specific token attributes - only set non-zero values to reduce telemetry noise
+	span.SetAttributes(stats.TokenUsage.providerAttrs("specstory.session.tokens")...)
 }
 
 // startExchangeSpan creates a child span for processing a single exchange.
@@ -125,7 +115,7 @@ func startExchangeSpan(ctx context.Context, sessionID string, exchangeID string,
 }
 
 // setExchangeSpanAttributes sets all attributes on an exchange span.
-// Token usage attributes are provider-specific and only non-zero values are meaningful.
+// Token usage attributes are provider-specific and only non-zero values are set.
 func setExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 	span.SetAttributes(
 		attribute.String("specstory.exchange.id", stats.ExchangeID),
@@ -141,19 +131,9 @@ func setExchangeSpanAttributes(span trace.Span, stats ExchangeStats) {
 		// Token usage attributes - common (all providers)
 		attribute.Int("specstory.exchange.tokens.input", stats.TokenUsage.InputTokens),
 		attribute.Int("specstory.exchange.tokens.output", stats.TokenUsage.OutputTokens),
-		// Token usage attributes - Claude Code specific (also used by Droid CLI)
-		attribute.Int("specstory.exchange.tokens.cache_creation", stats.TokenUsage.CacheCreationInputTokens),
-		attribute.Int("specstory.exchange.tokens.cache_read", stats.TokenUsage.CacheReadInputTokens),
-		// Token usage attributes - Codex CLI specific
-		attribute.Int("specstory.exchange.tokens.cached_input", stats.TokenUsage.CachedInputTokens),
-		attribute.Int("specstory.exchange.tokens.reasoning_output", stats.TokenUsage.ReasoningOutputTokens),
-		// Token usage attributes - Gemini CLI specific
-		attribute.Int("specstory.exchange.tokens.cached", stats.TokenUsage.CachedTokens),
-		attribute.Int("specstory.exchange.tokens.thought", stats.TokenUsage.ThoughtTokens),
-		attribute.Int("specstory.exchange.tokens.tool", stats.TokenUsage.ToolTokens),
-		// Token usage attributes - Droid CLI specific
-		attribute.Int("specstory.exchange.tokens.thinking", stats.TokenUsage.ThinkingTokens),
 	)
+	// Provider-specific token attributes - only set non-zero values to reduce telemetry noise
+	span.SetAttributes(stats.TokenUsage.providerAttrs("specstory.exchange.tokens")...)
 }
 
 // ProcessExchangeSpans creates child spans for all exchanges in a session.
