@@ -39,8 +39,10 @@ specstory check`)
 
 	cmd := &cobra.Command{
 		Use:   "check [provider-id]",
-		Short: "Check if terminal coding agents are properly installed",
-		Long: `Check if terminal coding agents are properly installed and can be invoked by SpecStory.
+		Short: "Check if the configuration is valid and terminal coding agents are properly installed",
+		Long: `Check if the configuration is valid and terminal coding agents are properly installed and can be invoked by SpecStory.
+
+Ensures the user level and project level configuration files are valid.
 
 By default, checks all registered coding agents providers.
 Specify a specific agent ID to check only a specific coding agent.`,
