@@ -1015,3 +1015,147 @@ func TestDefaultConfigTemplateParsesWhenUncommented(t *testing.T) {
 			uncommented.String(), err)
 	}
 }
+
+// TestGetProviderCmd tests the provider command lookup by provider ID
+func TestGetProviderCmd(t *testing.T) {
+	cfg := &Config{
+		Providers: ProvidersConfig{
+			ClaudeCmd: "claude --dangerously-skip-permissions",
+			CodexCmd:  "/usr/local/bin/codex",
+			CursorCmd: "cursor-agent --fast",
+			DroidCmd:  "droid --verbose",
+			GeminiCmd: "gemini --model pro",
+		},
+	}
+
+	tests := []struct {
+		providerID string
+		expected   string
+	}{
+		{"claude", "claude --dangerously-skip-permissions"},
+		{"codex", "/usr/local/bin/codex"},
+		{"cursor", "cursor-agent --fast"},
+		{"droid", "droid --verbose"},
+		{"gemini", "gemini --model pro"},
+		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
+		{"CODEX", "/usr/local/bin/codex"},                   // case-insensitive
+		{"unknown", ""},                                     // unknown provider
+		{"", ""},                                            // empty provider
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.providerID, func(t *testing.T) {
+			got := cfg.GetProviderCmd(tt.providerID)
+			if got != tt.expected {
+				t.Errorf("GetProviderCmd(%q) = %q, want %q", tt.providerID, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestProviderCmdFromConfig tests that provider commands are loaded from TOML config files
+func TestProviderCmdFromConfig(t *testing.T) {
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	origHome := os.Getenv("HOME")
+	defer func() { _ = os.Setenv("HOME", origHome) }()
+
+	t.Run("provider commands loaded from user config", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		createTempConfigFile(t, tempHome, `
+[providers]
+claude_cmd = "claude --allow-dangerously-skip-permissions"
+codex_cmd = "/custom/codex"
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		if got := cfg.GetProviderCmd("claude"); got != "claude --allow-dangerously-skip-permissions" {
+			t.Errorf("GetProviderCmd(claude) = %q, want %q", got, "claude --allow-dangerously-skip-permissions")
+		}
+		if got := cfg.GetProviderCmd("codex"); got != "/custom/codex" {
+			t.Errorf("GetProviderCmd(codex) = %q, want %q", got, "/custom/codex")
+		}
+		// Unset provider should return empty
+		if got := cfg.GetProviderCmd("cursor"); got != "" {
+			t.Errorf("GetProviderCmd(cursor) = %q, want empty", got)
+		}
+	})
+
+	t.Run("project config overrides user config for provider commands", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		// User config sets claude_cmd and codex_cmd
+		createTempConfigFile(t, tempHome, `
+[providers]
+claude_cmd = "claude --user-level"
+codex_cmd = "codex --user-level"
+`)
+		// Project config overrides only claude_cmd
+		createTempConfigFile(t, tempProject, `
+[providers]
+claude_cmd = "claude --project-level"
+`)
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		// claude_cmd should be project value
+		if got := cfg.GetProviderCmd("claude"); got != "claude --project-level" {
+			t.Errorf("GetProviderCmd(claude) = %q, want %q", got, "claude --project-level")
+		}
+		// codex_cmd should survive from user config
+		if got := cfg.GetProviderCmd("codex"); got != "codex --user-level" {
+			t.Errorf("GetProviderCmd(codex) = %q, want %q", got, "codex --user-level")
+		}
+	})
+
+	t.Run("empty config returns empty provider commands", func(t *testing.T) {
+		tempHome := t.TempDir()
+		tempProject := t.TempDir()
+
+		if err := os.Setenv("HOME", tempHome); err != nil {
+			t.Fatalf("Failed to set HOME: %v", err)
+		}
+		if err := os.Chdir(tempProject); err != nil {
+			t.Fatalf("Failed to chdir: %v", err)
+		}
+
+		cfg, err := Load(nil)
+		if err != nil {
+			t.Fatalf("Load() returned error: %v", err)
+		}
+
+		for _, id := range []string{"claude", "codex", "cursor", "droid", "gemini"} {
+			if got := cfg.GetProviderCmd(id); got != "" {
+				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)
+			}
+		}
+	})
+}

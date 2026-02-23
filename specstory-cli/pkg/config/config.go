@@ -111,6 +111,7 @@ type Config struct {
 	LocalSync    LocalSyncConfig    `toml:"local_sync"`
 	Logging      LoggingConfig      `toml:"logging"`
 	Analytics    AnalyticsConfig    `toml:"analytics"`
+	Providers    ProvidersConfig    `toml:"providers"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -154,6 +155,17 @@ type LoggingConfig struct {
 type AnalyticsConfig struct {
 	// Enabled controls whether usage analytics are sent
 	Enabled *bool `toml:"enabled"`
+}
+
+// ProvidersConfig holds custom agent execution commands by provider.
+// These are used by `specstory run` as the equivalent of the -c flag,
+// scoped to a specific provider.
+type ProvidersConfig struct {
+	ClaudeCmd string `toml:"claude_cmd"`
+	CodexCmd  string `toml:"codex_cmd"`
+	CursorCmd string `toml:"cursor_cmd"`
+	DroidCmd  string `toml:"droid_cmd"`
+	GeminiCmd string `toml:"gemini_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -552,4 +564,24 @@ func (c *Config) IsLocalTimeZoneEnabled() bool {
 		return *c.LocalSync.LocalTimeZone
 	}
 	return false
+}
+
+// GetProviderCmd returns the custom execution command for a provider, or empty
+// string if none is configured. The providerID should match a registered
+// provider ID (e.g., "claude", "codex", "cursor", "droid", "gemini").
+func (c *Config) GetProviderCmd(providerID string) string {
+	switch strings.ToLower(providerID) {
+	case "claude":
+		return c.Providers.ClaudeCmd
+	case "codex":
+		return c.Providers.CodexCmd
+	case "cursor":
+		return c.Providers.CursorCmd
+	case "droid":
+		return c.Providers.DroidCmd
+	case "gemini":
+		return c.Providers.GeminiCmd
+	default:
+		return ""
+	}
 }

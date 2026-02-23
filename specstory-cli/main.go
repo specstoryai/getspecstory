@@ -52,6 +52,9 @@ var silent bool  // flag to enable silent output (no user messages)
 // Provenance Options
 var provenanceEnabled bool // flag to enable AI provenance tracking
 
+// Loaded configuration (populated in main before commands are created)
+var loadedConfig *config.Config
+
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
 
@@ -345,6 +348,11 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 					fmt.Println("\nExample: specstory run " + ids[0])
 				}
 				return err
+			}
+
+			// Fall back to config file provider command if -c flag wasn't provided
+			if customCmd == "" && loadedConfig != nil {
+				customCmd = loadedConfig.GetProviderCmd(providerID)
 			}
 
 			slog.Info("Launching agent", "provider", provider.Name())
@@ -1223,6 +1231,8 @@ func main() {
 		// Use fallback empty config if load fails - will log error after logging is set up
 		cfg = &config.Config{}
 	}
+	// Store config for use by command functions (e.g., provider commands in run)
+	loadedConfig = cfg
 
 	// Apply config values to flag variables so the rest of the code can use them unchanged.
 	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).
