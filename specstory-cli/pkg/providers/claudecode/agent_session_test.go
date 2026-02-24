@@ -183,6 +183,59 @@ func TestClassifyToolType(t *testing.T) {
 	}
 }
 
+func TestExtractPathHints_ShellCommand(t *testing.T) {
+	workspaceRoot := "/Users/me/prov-1"
+
+	tests := []struct {
+		name      string
+		command   string
+		cwd       string // shell's working directory from the JSONL record
+		wantPaths []string
+	}{
+		{
+			name:      "absolute path via redirection",
+			command:   `echo "The moon spills silver on the sleeping sea." > /Users/me/prov-1/poem2.txt`,
+			cwd:       workspaceRoot,
+			wantPaths: []string{"poem2.txt"},
+		},
+		{
+			name:      "relative path via redirection",
+			command:   `echo "The moon spills silver on the sleeping sea." > ./prov-1/poem2.txt`,
+			cwd:       workspaceRoot,
+			wantPaths: []string{"prov-1/poem2.txt"},
+		},
+		{
+			name:      "bare filename via redirection",
+			command:   `echo "The moon spills silver on the sleeping sea." > poem2.txt`,
+			cwd:       workspaceRoot,
+			wantPaths: []string{"poem2.txt"},
+		},
+		{
+			name:      "bare filename after cd resolves against record cwd",
+			command:   `echo "hello" > 1.txt`,
+			cwd:       "/Users/me/prov-1/foo/bar",
+			wantPaths: []string{"foo/bar/1.txt"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			input := map[string]interface{}{
+				"command": tt.command,
+			}
+			paths := extractPathHints(input, tt.cwd, workspaceRoot)
+			if len(paths) != len(tt.wantPaths) {
+				t.Fatalf("got %d paths %v, want %d paths %v", len(paths), paths, len(tt.wantPaths), tt.wantPaths)
+			}
+			for i, want := range tt.wantPaths {
+				if paths[i] != want {
+					t.Errorf("paths[%d] = %q, want %q", i, paths[i], want)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatToolAsMarkdown_AskUserQuestion(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -252,6 +305,82 @@ func TestFormatToolAsMarkdown_AskUserQuestion(t *testing.T) {
 				if strings.Contains(result, substr) {
 					t.Errorf("formatToolAsMarkdown() result should not contain %q\nGot: %q", substr, result)
 				}
+			}
+		})
+	}
+}
+
+func TestBuildAgentMessage_Usage(t *testing.T) {
+	tests := []struct {
+		name          string
+		record        JSONLRecord
+		expectUsage   bool
+		expectedUsage *Usage // only checked when expectUsage is true
+	}{
+		{
+			name: "with usage data",
+			record: JSONLRecord{
+				Data: map[string]interface{}{
+					"type":      "assistant",
+					"uuid":      "test-uuid-123",
+					"timestamp": "2025-01-15T10:00:00Z",
+					"message": map[string]interface{}{
+						"model": "claude-opus-4-5-20251101",
+						"content": []interface{}{
+							map[string]interface{}{"type": "text", "text": "Hello, I can help with that."},
+						},
+						"usage": map[string]interface{}{
+							"input_tokens":                float64(3660),
+							"output_tokens":               float64(150),
+							"cache_creation_input_tokens": float64(5562),
+							"cache_read_input_tokens":     float64(19345),
+						},
+					},
+				},
+			},
+			expectUsage: true,
+			expectedUsage: &Usage{
+				InputTokens:              3660,
+				OutputTokens:             150,
+				CacheCreationInputTokens: 5562,
+				CacheReadInputTokens:     19345,
+			},
+		},
+		{
+			name: "without usage data",
+			record: JSONLRecord{
+				Data: map[string]interface{}{
+					"type":      "assistant",
+					"uuid":      "test-uuid-456",
+					"timestamp": "2025-01-15T10:00:00Z",
+					"message": map[string]interface{}{
+						"model": "claude-opus-4-5-20251101",
+						"content": []interface{}{
+							map[string]interface{}{"type": "text", "text": "No usage data here."},
+						},
+					},
+				},
+			},
+			expectUsage: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := buildAgentMessage(tt.record, "/workspace", false)
+
+			if !tt.expectUsage {
+				if msg.Usage != nil {
+					t.Errorf("Expected Usage to be nil, got %+v", msg.Usage)
+				}
+				return
+			}
+
+			if msg.Usage == nil {
+				t.Fatal("Expected Usage to be populated, got nil")
+			}
+			if *msg.Usage != *tt.expectedUsage {
+				t.Errorf("Usage = %+v, want %+v", *msg.Usage, *tt.expectedUsage)
 			}
 		})
 	}

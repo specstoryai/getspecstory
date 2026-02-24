@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -20,9 +22,38 @@ type (
 	ToolInfo     = schema.ToolInfo
 )
 
-// GenerateAgentSession creates a SessionData from Cursor CLI blob records
-// The blob records should already be DAG-sorted from ReadSessionData
-func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, createdAt, slug string) (*SessionData, error) {
+// MessageTimestampCache tracks first-seen wall clock times for Cursor messages.
+// Cursor's SQLite data doesn't include per-message timestamps, so in run/watch
+// mode we stamp each message with time.Now() when we first see it. The cache
+// ensures that when the session is regenerated (the entire session is rebuilt
+// on each poll), previously-seen messages retain their original timestamp.
+type MessageTimestampCache struct {
+	mu    sync.Mutex
+	times map[string]time.Time
+}
+
+func NewMessageTimestampCache() *MessageTimestampCache {
+	return &MessageTimestampCache{times: make(map[string]time.Time)}
+}
+
+// Stamp returns the first-seen timestamp for a message ID.
+// First call for a given ID records time.Now(); subsequent calls return the cached value.
+func (c *MessageTimestampCache) Stamp(messageID string) time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if t, ok := c.times[messageID]; ok {
+		return t
+	}
+	now := time.Now()
+	c.times[messageID] = now
+	return now
+}
+
+// GenerateAgentSession creates a SessionData from Cursor CLI blob records.
+// The blob records should already be DAG-sorted from ReadSessionData.
+// When tsCache is non-nil (run/watch mode), timestamps are assigned to messages
+// using wall clock time. When nil (sync mode), timestamps are left empty.
+func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, createdAt, slug string, tsCache *MessageTimestampCache) (*SessionData, error) {
 	slog.Info("GenerateAgentSession: Starting", "sessionID", sessionID, "blobCount", len(blobRecords))
 
 	if len(blobRecords) == 0 {
@@ -72,7 +103,38 @@ func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, cr
 		Exchanges:     exchanges,
 	}
 
+	assignTimestamps(sessionData, tsCache)
+
 	return sessionData, nil
+}
+
+// assignTimestamps fills in Message.Timestamp and Exchange start/end times for
+// run/watch mode only. Cursor's data doesn't include per-message timestamps,
+// so we use wall clock time when each message is first seen. The cache ensures
+// previously-seen messages retain their original timestamp across session
+// regenerations. When tsCache is nil (sync mode), timestamps are left empty
+// so they don't render in the markdown output.
+func assignTimestamps(sd *SessionData, tsCache *MessageTimestampCache) {
+	if tsCache == nil {
+		return
+	}
+	for i := range sd.Exchanges {
+		ex := &sd.Exchanges[i]
+		for j := range ex.Messages {
+			msg := &ex.Messages[j]
+			if msg.Timestamp == "" {
+				msg.Timestamp = tsCache.Stamp(msg.ID).UTC().Format(time.RFC3339)
+			}
+		}
+		if len(ex.Messages) > 0 {
+			if ex.StartTime == "" {
+				ex.StartTime = ex.Messages[0].Timestamp
+			}
+			if ex.EndTime == "" {
+				ex.EndTime = ex.Messages[len(ex.Messages)-1].Timestamp
+			}
+		}
+	}
 }
 
 // buildExchangesFromBlobs groups blob records into exchanges
@@ -395,8 +457,7 @@ func extractCursorPathHints(input map[string]interface{}, workspaceRoot string) 
 
 	for _, field := range pathFields {
 		if value, ok := input[field].(string); ok && value != "" {
-			// Normalize path if possible
-			normalizedPath := normalizeCursorPath(value, workspaceRoot)
+			normalizedPath := spi.NormalizePath(value, workspaceRoot)
 			if !containsPath(paths, normalizedPath) {
 				paths = append(paths, normalizedPath)
 			}
@@ -408,7 +469,7 @@ func extractCursorPathHints(input map[string]interface{}, workspaceRoot string) 
 		for _, item := range pathsArray {
 			if pathObj, ok := item.(map[string]interface{}); ok {
 				if filePath, ok := pathObj["file_path"].(string); ok && filePath != "" {
-					normalizedPath := normalizeCursorPath(filePath, workspaceRoot)
+					normalizedPath := spi.NormalizePath(filePath, workspaceRoot)
 					if !containsPath(paths, normalizedPath) {
 						paths = append(paths, normalizedPath)
 					}
@@ -417,24 +478,21 @@ func extractCursorPathHints(input map[string]interface{}, workspaceRoot string) 
 		}
 	}
 
-	return paths
-}
-
-// normalizeCursorPath converts absolute paths to workspace-relative paths when possible
-func normalizeCursorPath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
+	// Extract paths from shell commands (redirect targets, file-creating commands).
+	// Cursor's Shell tool input only contains "command" and "description" — no CWD field.
+	// The tool result also lacks CWD info. So we fall back to workspaceRoot as the best
+	// approximation. This means relative paths in commands run after a `cd` will resolve
+	// against the wrong directory, but there's nothing better available from Cursor's data.
+	if command, ok := input["command"].(string); ok && command != "" {
+		shellPaths := spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot)
+		for _, sp := range shellPaths {
+			if !containsPath(paths, sp) {
+				paths = append(paths, sp)
+			}
 		}
 	}
 
-	return path
+	return paths
 }
 
 // containsPath checks if a string slice contains a path

@@ -429,10 +429,10 @@ func renderGenerateDroidInput(args map[string]any, result *fdToolResult) string 
 
 	var builder strings.Builder
 	if description != "" {
-		builder.WriteString(fmt.Sprintf("**Description:** %s\n", description))
+		fmt.Fprintf(&builder, "**Description:** %s\n", description)
 	}
 	if location != "" {
-		builder.WriteString(fmt.Sprintf("**Location:** %s\n", location))
+		fmt.Fprintf(&builder, "**Location:** %s\n", location)
 	}
 
 	// Parse the result to get the generated droid info
@@ -444,10 +444,10 @@ func renderGenerateDroidInput(args map[string]any, result *fdToolResult) string 
 		}
 		if err := json.Unmarshal([]byte(result.Content), &output); err == nil {
 			if output.Identifier != "" {
-				builder.WriteString(fmt.Sprintf("\n**Created:** `%s`\n", output.Identifier))
+				fmt.Fprintf(&builder, "\n**Created:** `%s`\n", output.Identifier)
 			}
 			if output.Description != "" {
-				builder.WriteString(fmt.Sprintf("\n> %s\n", output.Description))
+				fmt.Fprintf(&builder, "\n> %s\n", output.Description)
 			}
 			if output.SystemPrompt != "" {
 				builder.WriteString("\n**System Prompt:**\n\n")
@@ -489,9 +489,9 @@ func renderAskUserInput(args map[string]any, result *fdToolResult) string {
 		if i > 0 {
 			builder.WriteString("\n\n")
 		}
-		builder.WriteString(fmt.Sprintf("**%s**\n\nOptions:\n", q.question))
+		fmt.Fprintf(&builder, "**%s**\n\nOptions:\n", q.question)
 		for _, opt := range q.options {
-			builder.WriteString(fmt.Sprintf("- %s\n", opt))
+			fmt.Fprintf(&builder, "- %s\n", opt)
 		}
 	}
 

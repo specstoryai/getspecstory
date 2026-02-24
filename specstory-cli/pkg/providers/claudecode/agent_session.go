@@ -3,10 +3,10 @@ package claudecode
 import (
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -18,6 +18,7 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
 
 // GenerateAgentSession creates a SessionData from a Claude Code Session
@@ -133,7 +134,7 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 			if isToolResult {
 				// This is a tool result - merge it into the previous tool use
 				if currentExchange != nil {
-					mergeToolResultIntoExchange(currentExchange, messageContent)
+					mergeToolResultIntoExchange(currentExchange, messageContent, timestamp)
 					currentExchange.EndTime = timestamp
 				}
 			} else {
@@ -191,8 +192,9 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 	return exchanges, nil
 }
 
-// mergeToolResultIntoExchange finds the tool use in the exchange and adds the result to it
-func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{}) {
+// mergeToolResultIntoExchange finds the tool use in the exchange and adds the result to it.
+// The resultTimestamp is the time the tool completed (from the tool_result JSONL record).
+func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{}, resultTimestamp string) {
 	// Extract tool_result data from message content
 	if len(messageContent) == 0 {
 		return
@@ -232,11 +234,13 @@ func mergeToolResultIntoExchange(exchange *Exchange, messageContent []interface{
 	for i := range exchange.Messages {
 		msg := &exchange.Messages[i]
 		if msg.Tool != nil && msg.Tool.UseID == toolUseID {
-			// Add the output to this tool
 			msg.Tool.Output = map[string]interface{}{
 				"content":  content,
 				"is_error": isError,
 			}
+			// Update message timestamp to when the tool actually completed,
+			// not when the agent requested it (needed for provenance correlation)
+			msg.Timestamp = resultTimestamp
 			return
 		}
 	}
@@ -351,8 +355,13 @@ func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain boo
 						Input: toolInput,
 					}
 
-					// Extract path hints from tool input
-					pathHints = extractPathHints(toolInput, workspaceRoot)
+					// Extract path hints using the record's cwd, which tracks the
+					// shell's actual working directory (changes after cd commands)
+					recordCwd, _ := record.Data["cwd"].(string)
+					if recordCwd == "" {
+						recordCwd = workspaceRoot
+					}
+					pathHints = extractPathHints(toolInput, recordCwd, workspaceRoot)
 				}
 			}
 		}
@@ -369,6 +378,17 @@ func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain boo
 		}
 	}
 
+	// Extract usage data if present
+	var usageInfo *Usage
+	if usage, ok := message["usage"].(map[string]interface{}); ok {
+		usageInfo = &Usage{
+			InputTokens:              schema.GetIntFromMap(usage, "input_tokens"),
+			OutputTokens:             schema.GetIntFromMap(usage, "output_tokens"),
+			CacheCreationInputTokens: schema.GetIntFromMap(usage, "cache_creation_input_tokens"),
+			CacheReadInputTokens:     schema.GetIntFromMap(usage, "cache_read_input_tokens"),
+		}
+	}
+
 	msg := Message{
 		ID:        uuid,
 		Timestamp: timestamp,
@@ -377,6 +397,7 @@ func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain boo
 		Content:   contentParts,
 		Tool:      toolInfo,
 		PathHints: pathHints,
+		Usage:     usageInfo,
 	}
 
 	// Add sidechain flag to metadata if true
@@ -412,8 +433,10 @@ func classifyToolType(toolName string) string {
 	}
 }
 
-// extractPathHints extracts file paths from tool input
-func extractPathHints(input map[string]interface{}, workspaceRoot string) []string {
+// extractPathHints extracts file paths from tool input.
+// cwd is the shell's working directory at the time of the tool call (from the
+// JSONL record's top-level cwd field), used to resolve relative paths in shell commands.
+func extractPathHints(input map[string]interface{}, cwd, workspaceRoot string) []string {
 	var paths []string
 
 	// Common path field names
@@ -423,8 +446,7 @@ func extractPathHints(input map[string]interface{}, workspaceRoot string) []stri
 	// Extract single path fields
 	for _, field := range pathFields {
 		if value, ok := input[field].(string); ok && value != "" {
-			// Normalize path if possible
-			normalizedPath := normalizePath(value, workspaceRoot)
+			normalizedPath := spi.NormalizePath(value, workspaceRoot)
 			if !contains(paths, normalizedPath) {
 				paths = append(paths, normalizedPath)
 			}
@@ -436,7 +458,7 @@ func extractPathHints(input map[string]interface{}, workspaceRoot string) []stri
 		if arr, ok := input[field].([]interface{}); ok {
 			for _, item := range arr {
 				if path, ok := item.(string); ok && path != "" {
-					normalizedPath := normalizePath(path, workspaceRoot)
+					normalizedPath := spi.NormalizePath(path, workspaceRoot)
 					if !contains(paths, normalizedPath) {
 						paths = append(paths, normalizedPath)
 					}
@@ -445,24 +467,17 @@ func extractPathHints(input map[string]interface{}, workspaceRoot string) []stri
 		}
 	}
 
-	return paths
-}
-
-// normalizePath converts absolute paths to workspace-relative paths when possible
-func normalizePath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
+	// Extract paths from shell commands (redirect targets, file-creating commands)
+	if command, ok := input["command"].(string); ok && command != "" {
+		shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+		for _, sp := range shellPaths {
+			if !contains(paths, sp) {
+				paths = append(paths, sp)
+			}
 		}
 	}
 
-	return path
+	return paths
 }
 
 // contains checks if a string slice contains a value
@@ -532,7 +547,7 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 				if tool.Name == "AskUserQuestion" {
 					answer := parseAskUserQuestionAnswer(cleaned)
 					if answer != "" {
-						markdown.WriteString(fmt.Sprintf("\n**Answer:** %s\n", answer))
+						fmt.Fprintf(&markdown, "\n**Answer:** %s\n", answer)
 					} else if cleaned != "" {
 						// Fallback to code block if parsing fails
 						markdown.WriteString("\n```text\n")

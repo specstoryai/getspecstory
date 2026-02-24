@@ -88,3 +88,14 @@ func trimExt(name string) string {
 	}
 	return name[:len(name)-len(ext)]
 }
+
+// settingsPathFromSession returns the path to the .settings.json file
+// that corresponds to a session JSONL file.
+// Example: /path/to/session.jsonl -> /path/to/session.settings.json
+func settingsPathFromSession(sessionPath string) string {
+	dir := filepath.Dir(sessionPath)
+	base := filepath.Base(sessionPath)
+	ext := filepath.Ext(base)
+	nameWithoutExt := base[:len(base)-len(ext)]
+	return filepath.Join(dir, nameWithoutExt+".settings.json")
+}
