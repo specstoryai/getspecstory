@@ -42,7 +42,7 @@ var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
-var onlyStats bool     // flag to only collect statistics, skip local markdown and cloud sync
+var onlyStats bool     // flag to only update statistics, skip local markdown and cloud sync
 var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
@@ -604,7 +604,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			slog.Error("Failed to ensure project identity", "error", err)
 		}
 
-		cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+		cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
 			return err
@@ -839,7 +839,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		return 0, nil
 	}
 
-	if !silent {
+	if !silent && !onlyStats {
 		fmt.Printf("\nSyncing markdown files for %s", provider.Name())
 	}
 
@@ -992,14 +992,14 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		}()
 
 		// Print progress with [n/m] format
-		if !silent {
+		if !silent && !onlyStats {
 			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
 			_ = os.Stdout.Sync()
 		}
 	}
 
 	// Print newline after progress
-	if !silent && sessionCount > 0 && !onlyCloudSync {
+	if !silent && sessionCount > 0 && !onlyCloudSync && !onlyStats {
 		fmt.Println()
 
 		// Calculate actual total of processed sessions
@@ -1103,7 +1103,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	}
 
 	// Check authentication for cloud sync (once)
-	cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 	// Ensure history directory exists (once)
 	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1426,7 +1426,7 @@ func main() {
 	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
-	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only collect statistics, skip local markdown files and cloud sync")
+	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")

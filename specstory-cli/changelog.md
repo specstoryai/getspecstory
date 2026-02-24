@@ -4,11 +4,11 @@
 
 ### 📢 Announcements
 
-- `specstory sync` now generates session statistics at `./.specstory/cli/statistics.json`. This data is available for custom tooling or analysis — or you can safely ignore it.
+- `specstory sync` now generates session statistics at `./.specstory/statistics.json`. This data is available for custom tooling or analysis, or you can safely ignore it.
 
 ### 🔧 CLI Configuration & Commands
 
-- `specstory sync` now supports an `--only-stats` flag that skips the full local and/or cloud sync and only generates or updates `.specstory/cli/statistics.json`.
+- `specstory sync` now supports an `--only-stats` flag that skips the full local and/or cloud sync and only generates or updates `./.specstory/statistics.json`.
 
 
 ## v1.10.0 2026-02-23

@@ -69,7 +69,7 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 // ProcessingOptions holds flags that control session processing behavior.
 type ProcessingOptions struct {
 	OnlyCloudSync      bool // Skip local markdown writes and only sync to cloud
-	OnlyStats          bool // Only collect statistics, skip local markdown and cloud sync
+	OnlyStats          bool // Only update statistics, skip local markdown and cloud sync
 	ShowOutput         bool // Print progress to stdout
 	IsAutosave         bool // Called from run/watch (true) vs sync command (false)
 	DebugRaw           bool // Enable schema validation (only in debug mode to avoid overhead)
