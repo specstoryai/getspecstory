@@ -901,9 +901,9 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 			// Collect statistics (always enabled)
 			providerID := session.SessionData.Provider.Name
-			sessionStatistics := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 			specstoryDir := sessionpkg.GetSpecStoryDir(config)
-			collector := utils.NewStatisticsCollector(specstoryDir)
+			collector := sessionpkg.NewStatisticsCollector(specstoryDir)
 			if err := collector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
 				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
 			}

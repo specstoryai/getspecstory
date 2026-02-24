@@ -141,9 +141,9 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 
 	// Collect statistics (always enabled, even in only-stats mode)
 	providerID := session.SessionData.Provider.Name
-	sessionStats := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 	specstoryDir := GetSpecStoryDir(config)
-	collector := utils.NewStatisticsCollector(specstoryDir)
+	collector := NewStatisticsCollector(specstoryDir)
 	if err := collector.AddSessionStats(session.SessionID, sessionStats); err != nil {
 		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
 		// Don't fail the operation, just log warning

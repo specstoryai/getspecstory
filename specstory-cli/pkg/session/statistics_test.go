@@ -1,4 +1,4 @@
-package utils
+package session
 
 import (
 	"encoding/json"
@@ -11,11 +11,12 @@ import (
 
 func TestComputeSessionStatistics(t *testing.T) {
 	tests := []struct {
-		name             string
-		sessionData      *schema.SessionData
-		markdownContent  string
-		providerID       string
-		expectedUserMsgs int
+		name              string
+		sessionData       *schema.SessionData
+		markdownContent   string
+		providerID        string
+		expectedUserMsgs  int
+		expectedAgentMsgs int
 	}{
 		{
 			name: "single user message",
@@ -33,9 +34,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 					},
 				},
 			},
-			markdownContent:  "# Test\n\nSome content",
-			providerID:       "claude",
-			expectedUserMsgs: 1,
+			markdownContent:   "# Test\n\nSome content",
+			providerID:        "claude",
+			expectedUserMsgs:  1,
+			expectedAgentMsgs: 1,
 		},
 		{
 			name: "multiple exchanges with multiple user messages",
@@ -63,9 +65,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 					},
 				},
 			},
-			markdownContent:  "# Test\n\nMore content",
-			providerID:       "codex",
-			expectedUserMsgs: 3,
+			markdownContent:   "# Test\n\nMore content",
+			providerID:        "codex",
+			expectedUserMsgs:  3,
+			expectedAgentMsgs: 3,
 		},
 		{
 			name: "no user messages",
@@ -82,9 +85,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 					},
 				},
 			},
-			markdownContent:  "# Test\n\nAgent-only content",
-			providerID:       "cursor",
-			expectedUserMsgs: 0,
+			markdownContent:   "# Test\n\nAgent-only content",
+			providerID:        "cursor",
+			expectedUserMsgs:  0,
+			expectedAgentMsgs: 1,
 		},
 	}
 
@@ -94,6 +98,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 
 			if stats.UserMessageCount != tt.expectedUserMsgs {
 				t.Errorf("UserMessageCount = %d, want %d", stats.UserMessageCount, tt.expectedUserMsgs)
+			}
+
+			if stats.AgentMessageCount != tt.expectedAgentMsgs {
+				t.Errorf("AgentMessageCount = %d, want %d", stats.AgentMessageCount, tt.expectedAgentMsgs)
 			}
 
 			if stats.MarkdownSizeBytes != len(tt.markdownContent) {
@@ -128,6 +136,7 @@ func TestStatisticsCollector(t *testing.T) {
 
 	stats := SessionStatistics{
 		UserMessageCount:  5,
+		AgentMessageCount: 8,
 		StartTimestamp:    "2026-02-09T10:00:00Z",
 		EndTimestamp:      "2026-02-09T10:15:00Z",
 		MarkdownSizeBytes: 1234,
@@ -196,6 +205,7 @@ func TestStatisticsCollector(t *testing.T) {
 	secondSessionID := "test-session-456"
 	secondStats := SessionStatistics{
 		UserMessageCount:  3,
+		AgentMessageCount: 4,
 		StartTimestamp:    "2026-02-09T11:00:00Z",
 		EndTimestamp:      "2026-02-09T11:10:00Z",
 		MarkdownSizeBytes: 567,
@@ -244,6 +254,7 @@ func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 	sessionID := "test-session-789"
 	stats := SessionStatistics{
 		UserMessageCount:  2,
+		AgentMessageCount: 3,
 		StartTimestamp:    "2026-02-09T12:00:00Z",
 		EndTimestamp:      "2026-02-09T12:05:00Z",
 		MarkdownSizeBytes: 100,

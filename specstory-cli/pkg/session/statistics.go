@@ -1,4 +1,4 @@
-package utils
+package session
 
 import (
 	"encoding/json"
@@ -15,6 +15,7 @@ import (
 // SessionStatistics contains computed statistics for a single session
 type SessionStatistics struct {
 	UserMessageCount  int    `json:"user_message_count"`
+	AgentMessageCount int    `json:"agent_message_count"`
 	StartTimestamp    string `json:"start_timestamp"`
 	EndTimestamp      string `json:"end_timestamp"`
 	MarkdownSizeBytes int    `json:"markdown_size_bytes"`
@@ -48,16 +49,20 @@ func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent s
 		LastUpdated:       time.Now().UTC().Format(time.RFC3339),
 	}
 
-	// Count user messages by iterating through exchanges
+	// Count user and agent messages by iterating through exchanges
 	userMsgCount := 0
+	agentMsgCount := 0
 	for _, exchange := range sessionData.Exchanges {
 		for _, msg := range exchange.Messages {
 			if msg.Role == schema.RoleUser {
 				userMsgCount++
+			} else {
+				agentMsgCount++
 			}
 		}
 	}
 	stats.UserMessageCount = userMsgCount
+	stats.AgentMessageCount = agentMsgCount
 
 	// Extract start timestamp - use first exchange start time if available, else session CreatedAt
 	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {

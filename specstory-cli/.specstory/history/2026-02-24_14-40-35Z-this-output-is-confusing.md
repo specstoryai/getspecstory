@@ -3064,3 +3064,1212 @@ Run linter
 _**Agent (claude-opus-4-6 2026-02-24 14:59:28Z)**_
 
 Fixed. That was the wrong call site — line 607 is the single-session path (`sync -u <uuid>`), but `specstory sync` without `-u` goes through the multi-provider path at line 1106. Both are now patched.
+
+---
+
+_**User (2026-02-24 15:24:01Z)**_
+
+OK, in the statistics.json itself, the sessions hash elements look like this:
+
+    "019c7d4b-22b8-7b22-ad07-df6bcffdd205": {
+      "user_message_count": 5,
+      "start_timestamp": "2026-02-20T23:03:47.055Z",
+      "end_timestamp": "2026-02-21T12:04:01.229Z",
+      "markdown_size_bytes": 39949,
+      "provider": "Codex CLI",
+      "last_updated": "2026-02-24T14:59:45Z"
+    },
+
+
+See /Users/sean/Source/SpecStory/compositions/watch-2/.specstory/statistics.json
+
+What's missing from there is an "agent_message_count". This should just be every message in the exchange that isn't role user. So just the else of the if on line 55 of @pkg/utils/statistics.go 
+
+Also let's move @pkg/utils/statistics.go and its test file to the session pkg
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:06Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants two things:
+1. Add an `agent_message_count` field to `SessionStatistics` - counting all non-user messages in exchanges
+2. Move `pkg/utils/statistics.go` and its test file to `pkg/session/`
+
+Let me first find the test file, then look at what imports statistics from utils to understand what needs to change.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:07Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Glob"><details>
+<summary>Tool use: **Glob**</summary>
+ pattern `pkg/utils/statistics*`
+
+```text
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/statistics.go
+/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/statistics_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:08Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ pattern `utils\.SessionStatistics|utils\.StatisticsCollector|utils\.ComputeSessionStatistics|utils\.NewStatisticsCollector|utils\.StatisticsFile`
+
+```text
+main.go:904:			sessionStatistics := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+main.go:906:			collector := utils.NewStatisticsCollector(specstoryDir)
+pkg/session/session.go:144:	sessionStats := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+pkg/session/session.go:146:	collector := utils.NewStatisticsCollector(specstoryDir)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:11Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/utils/statistics_test.go`
+
+```text
+     1→package utils
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"os"
+     6→	"path/filepath"
+     7→	"testing"
+     8→
+     9→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+    10→)
+    11→
+    12→func TestComputeSessionStatistics(t *testing.T) {
+    13→	tests := []struct {
+    14→		name             string
+    15→		sessionData      *schema.SessionData
+    16→		markdownContent  string
+    17→		providerID       string
+    18→		expectedUserMsgs int
+    19→	}{
+    20→		{
+    21→			name: "single user message",
+    22→			sessionData: &schema.SessionData{
+    23→				CreatedAt: "2026-02-09T10:00:00Z",
+    24→				UpdatedAt: "2026-02-09T10:15:00Z",
+    25→				Exchanges: []schema.Exchange{
+    26→					{
+    27→						StartTime: "2026-02-09T10:00:00Z",
+    28→						EndTime:   "2026-02-09T10:15:00Z",
+    29→						Messages: []schema.Message{
+    30→							{Role: schema.RoleUser},
+    31→							{Role: schema.RoleAgent},
+    32→						},
+    33→					},
+    34→				},
+    35→			},
+    36→			markdownContent:  "# Test\n\nSome content",
+    37→			providerID:       "claude",
+    38→			expectedUserMsgs: 1,
+    39→		},
+    40→		{
+    41→			name: "multiple exchanges with multiple user messages",
+    42→			sessionData: &schema.SessionData{
+    43→				CreatedAt: "2026-02-09T10:00:00Z",
+    44→				UpdatedAt: "2026-02-09T10:30:00Z",
+    45→				Exchanges: []schema.Exchange{
+    46→					{
+    47→						StartTime: "2026-02-09T10:00:00Z",
+    48→						EndTime:   "2026-02-09T10:10:00Z",
+    49→						Messages: []schema.Message{
+    50→							{Role: schema.RoleUser},
+    51→							{Role: schema.RoleAgent},
+    52→						},
+    53→					},
+    54→					{
+    55→						StartTime: "2026-02-09T10:15:00Z",
+    56→						EndTime:   "2026-02-09T10:30:00Z",
+    57→						Messages: []schema.Message{
+    58→							{Role: schema.RoleUser},
+    59→							{Role: schema.RoleAgent},
+    60→							{Role: schema.RoleUser},
+    61→							{Role: schema.RoleAgent},
+    62→						},
+    63→					},
+    64→				},
+    65→			},
+    66→			markdownContent:  "# Test\n\nMore content",
+    67→			providerID:       "codex",
+    68→			expectedUserMsgs: 3,
+    69→		},
+    70→		{
+    71→			name: "no user messages",
+    72→			sessionData: &schema.SessionData{
+    73→				CreatedAt: "2026-02-09T10:00:00Z",
+    74→				UpdatedAt: "2026-02-09T10:05:00Z",
+    75→				Exchanges: []schema.Exchange{
+    76→					{
+    77→						StartTime: "2026-02-09T10:00:00Z",
+    78→						EndTime:   "2026-02-09T10:05:00Z",
+    79→						Messages: []schema.Message{
+    80→							{Role: schema.RoleAgent},
+    81→						},
+    82→					},
+    83→				},
+    84→			},
+    85→			markdownContent:  "# Test\n\nAgent-only content",
+    86→			providerID:       "cursor",
+    87→			expectedUserMsgs: 0,
+    88→		},
+    89→	}
+    90→
+    91→	for _, tt := range tests {
+    92→		t.Run(tt.name, func(t *testing.T) {
+    93→			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent, tt.providerID)
+    94→
+    95→			if stats.UserMessageCount != tt.expectedUserMsgs {
+    96→				t.Errorf("UserMessageCount = %d, want %d", stats.UserMessageCount, tt.expectedUserMsgs)
+    97→			}
+    98→
+    99→			if stats.MarkdownSizeBytes != len(tt.markdownContent) {
+   100→				t.Errorf("MarkdownSizeBytes = %d, want %d", stats.MarkdownSizeBytes, len(tt.markdownContent))
+   101→			}
+   102→
+   103→			if stats.Provider != tt.providerID {
+   104→				t.Errorf("Provider = %s, want %s", stats.Provider, tt.providerID)
+   105→			}
+   106→
+   107→			if stats.StartTimestamp == "" {
+   108→				t.Error("StartTimestamp should not be empty")
+   109→			}
+   110→
+   111→			if stats.EndTimestamp == "" {
+   112→				t.Error("EndTimestamp should not be empty")
+   113→			}
+   114→
+   115→			if stats.LastUpdated == "" {
+   116→				t.Error("LastUpdated should not be empty")
+   117→			}
+   118→		})
+   119→	}
+   120→}
+   121→
+   122→func TestStatisticsCollector(t *testing.T) {
+   123→	// Create a temporary directory for testing
+   124→	tempDir := t.TempDir()
+   125→
+   126→	collector := NewStatisticsCollector(tempDir)
+   127→	sessionID := "test-session-123"
+   128→
+   129→	stats := SessionStatistics{
+   130→		UserMessageCount:  5,
+   131→		StartTimestamp:    "2026-02-09T10:00:00Z",
+   132→		EndTimestamp:      "2026-02-09T10:15:00Z",
+   133→		MarkdownSizeBytes: 1234,
+   134→		Provider:          "claude",
+   135→		LastUpdated:       "2026-02-09T10:20:00Z",
+   136→	}
+   137→
+   138→	// Test adding statistics
+   139→	err := collector.AddSessionStats(sessionID, stats)
+   140→	if err != nil {
+   141→		t.Fatalf("Failed to add session stats: %v", err)
+   142→	}
+   143→
+   144→	// Verify the file was created
+   145→	statsPath := filepath.Join(tempDir, "statistics.json")
+   146→	if _, err := os.Stat(statsPath); os.IsNotExist(err) {
+   147→		t.Fatal("statistics.json was not created")
+   148→	}
+   149→
+   150→	// Read and verify the content
+   151→	data, err := os.ReadFile(statsPath)
+   152→	if err != nil {
+   153→		t.Fatalf("Failed to read statistics.json: %v", err)
+   154→	}
+   155→
+   156→	var statsFile StatisticsFile
+   157→	if err := json.Unmarshal(data, &statsFile); err != nil {
+   158→		t.Fatalf("Failed to parse statistics.json: %v", err)
+   159→	}
+   160→
+   161→	if _, exists := statsFile.Sessions[sessionID]; !exists {
+   162→		t.Errorf("Session %s not found in statistics file", sessionID)
+   163→	}
+   164→
+   165→	retrievedStats := statsFile.Sessions[sessionID]
+   166→	if retrievedStats.UserMessageCount != stats.UserMessageCount {
+   167→		t.Errorf("UserMessageCount = %d, want %d", retrievedStats.UserMessageCount, stats.UserMessageCount)
+   168→	}
+   169→
+   170→	// Test updating existing statistics
+   171→	updatedStats := stats
+   172→	updatedStats.UserMessageCount = 7
+   173→	updatedStats.LastUpdated = "2026-02-09T10:30:00Z"
+   174→
+   175→	err = collector.AddSessionStats(sessionID, updatedStats)
+   176→	if err != nil {
+   177→		t.Fatalf("Failed to update session stats: %v", err)
+   178→	}
+   179→
+   180→	// Verify the update
+   181→	data, err = os.ReadFile(statsPath)
+   182→	if err != nil {
+   183→		t.Fatalf("Failed to read statistics.json after update: %v", err)
+   184→	}
+   185→
+   186→	if err := json.Unmarshal(data, &statsFile); err != nil {
+   187→		t.Fatalf("Failed to parse statistics.json after update: %v", err)
+   188→	}
+   189→
+   190→	retrievedStats = statsFile.Sessions[sessionID]
+   191→	if retrievedStats.UserMessageCount != 7 {
+   192→		t.Errorf("After update: UserMessageCount = %d, want 7", retrievedStats.UserMessageCount)
+   193→	}
+   194→
+   195→	// Test adding a second session
+   196→	secondSessionID := "test-session-456"
+   197→	secondStats := SessionStatistics{
+   198→		UserMessageCount:  3,
+   199→		StartTimestamp:    "2026-02-09T11:00:00Z",
+   200→		EndTimestamp:      "2026-02-09T11:10:00Z",
+   201→		MarkdownSizeBytes: 567,
+   202→		Provider:          "codex",
+   203→		LastUpdated:       "2026-02-09T11:15:00Z",
+   204→	}
+   205→
+   206→	err = collector.AddSessionStats(secondSessionID, secondStats)
+   207→	if err != nil {
+   208→		t.Fatalf("Failed to add second session stats: %v", err)
+   209→	}
+   210→
+   211→	// Verify both sessions exist
+   212→	data, err = os.ReadFile(statsPath)
+   213→	if err != nil {
+   214→		t.Fatalf("Failed to read statistics.json after second session: %v", err)
+   215→	}
+   216→
+   217→	if err := json.Unmarshal(data, &statsFile); err != nil {
+   218→		t.Fatalf("Failed to parse statistics.json after second session: %v", err)
+   219→	}
+   220→
+   221→	if len(statsFile.Sessions) != 2 {
+   222→		t.Errorf("Expected 2 sessions, got %d", len(statsFile.Sessions))
+   223→	}
+   224→
+   225→	if _, exists := statsFile.Sessions[secondSessionID]; !exists {
+   226→		t.Errorf("Second session %s not found in statistics file", secondSessionID)
+   227→	}
+   228→}
+   229→
+   230→func TestStatisticsCollector_CorruptJSON(t *testing.T) {
+   231→	// Create a temporary directory for testing
+   232→	tempDir := t.TempDir()
+   233→
+   234→	statsPath := filepath.Join(tempDir, "statistics.json")
+   235→
+   236→	// Write corrupt JSON
+   237→	err := os.WriteFile(statsPath, []byte("{invalid json"), 0644)
+   238→	if err != nil {
+   239→		t.Fatalf("Failed to write corrupt JSON: %v", err)
+   240→	}
+   241→
+   242→	// Try to add statistics - should start fresh
+   243→	collector := NewStatisticsCollector(tempDir)
+   244→	sessionID := "test-session-789"
+   245→	stats := SessionStatistics{
+   246→		UserMessageCount:  2,
+   247→		StartTimestamp:    "2026-02-09T12:00:00Z",
+   248→		EndTimestamp:      "2026-02-09T12:05:00Z",
+   249→		MarkdownSizeBytes: 100,
+   250→		Provider:          "cursor",
+   251→		LastUpdated:       "2026-02-09T12:10:00Z",
+   252→	}
+   253→
+   254→	err = collector.AddSessionStats(sessionID, stats)
+   255→	if err != nil {
+   256→		t.Fatalf("Failed to add session stats after corrupt JSON: %v", err)
+   257→	}
+   258→
+   259→	// Verify the file was recreated with valid JSON
+   260→	data, err := os.ReadFile(statsPath)
+   261→	if err != nil {
+   262→		t.Fatalf("Failed to read statistics.json after recovery: %v", err)
+   263→	}
+   264→
+   265→	var statsFile StatisticsFile
+   266→	if err := json.Unmarshal(data, &statsFile); err != nil {
+   267→		t.Fatalf("Failed to parse statistics.json after recovery: %v", err)
+   268→	}
+   269→
+   270→	if len(statsFile.Sessions) != 1 {
+   271→		t.Errorf("Expected 1 session after recovery, got %d", len(statsFile.Sessions))
+   272→	}
+   273→
+   274→	if _, exists := statsFile.Sessions[sessionID]; !exists {
+   275→		t.Errorf("Session %s not found after recovery", sessionID)
+   276→	}
+   277→}
+   278→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:11Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/session.go`
+
+```text
+   130→	WriteDebugSessionData(session, opts.DebugRaw)
+   131→
+   132→	// Generate markdown from SessionData
+   133→	markdownContent, err := GenerateMarkdownFromAgentSession(session.SessionData, false, opts.UseUTC)
+   134→	if err != nil {
+   135→		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
+   136→		return 0, fmt.Errorf("failed to generate markdown: %w", err)
+   137→	}
+   138→
+   139→	// Calculate markdown size in bytes
+   140→	markdownSize := len(markdownContent)
+   141→
+   142→	// Collect statistics (always enabled, even in only-stats mode)
+   143→	providerID := session.SessionData.Provider.Name
+   144→	sessionStats := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+   145→	specstoryDir := GetSpecStoryDir(config)
+   146→	collector := utils.NewStatisticsCollector(specstoryDir)
+   147→	if err := collector.AddSessionStats(session.SessionID, sessionStats); err != nil {
+   148→		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+   149→		// Don't fail the operation, just log warning
+   150→	}
+   151→
+   152→	// In only-stats mode, skip file writes and cloud sync entirely
+   153→	if opts.OnlyStats {
+   154→		if opts.ShowOutput && !log.IsSilent() {
+   155→			fmt.Printf("Processing session %s... statistics collected\n", session.SessionID)
+   156→			fmt.Println()
+   157→		}
+   158→		return markdownSize, nil
+   159→	}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:12Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   898→				})
+   899→				return
+   900→			}
+   901→
+   902→			// Collect statistics (always enabled)
+   903→			providerID := session.SessionData.Provider.Name
+   904→			sessionStatistics := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+   905→			specstoryDir := sessionpkg.GetSpecStoryDir(config)
+   906→			collector := utils.NewStatisticsCollector(specstoryDir)
+   907→			if err := collector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+   908→				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+   909→			}
+   910→
+   911→			// In only-stats mode, skip file writes and cloud sync
+   912→			if onlyStats {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:19Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I understand the full picture. Two changes needed:
+
+1. Add `AgentMessageCount` field to `SessionStatistics` and count non-user messages
+2. Move `statistics.go` and `statistics_test.go` from `pkg/utils/` to `pkg/session/`
+
+For the move, I need to:
+- Change package declaration from `utils` to `session`
+- Update imports in `main.go` and `pkg/session/session.go` that reference `utils.ComputeSessionStatistics`, `utils.NewStatisticsCollector`, etc.
+- Since `session.go` is already in the `session` package, the references there become just function calls without the package prefix
+
+
+- In `main.go`, the references change from `utils.X` to `sessionpkg.X`
+
+Now I should scan through the codebase to see if there are any other places where the statistics types are being imported or used from the utils package.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:19Z)**_
+
+Let me check what imports are in session.go and main.go to understand the full picture before making changes.
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:20Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/session.go`
+
+```text
+     1→package session
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"path/filepath"
+     9→	"time"
+    10→
+    11→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+    12→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+    13→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+    14→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    15→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
+    16→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+    17→)
+    18→
+    19→// ValidateSessionData runs schema validation on SessionData when in debug mode.
+    20→// Validation is only performed when debugRaw is true to avoid overhead in normal operation.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:21Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+     1→package main
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"os/signal"
+     9→	"path/filepath"
+    10→	"strings"
+    11→	"syscall"
+    12→	"time"
+    13→
+    14→	"github.com/charmbracelet/fang"
+    15→	"github.com/spf13/cobra"
+    16→
+    17→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+    18→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+    19→	cmdpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd" // Aliased to avoid shadowing cobra's `cmd` parameter
+    20→
+    21→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
+    22→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+    23→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+    24→	sessionpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
+    25→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    26→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+    27→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
+    28→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+    29→)
+    30→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:24Z)**_
+
+Let me check if `utils` is used for anything else in main.go and session.go besides statistics.
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:26Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `\butils\.`
+
+```text
+88:		return utils.ValidationError{Message: "cannot use `console` and `silent` together. These are mutually exclusive"}
+91:		return utils.ValidationError{Message: "`debug` requires either `console` or `log` to be specified"}
+94:		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
+97:		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
+100:		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
+103:		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
+106:		return utils.ValidationError{Message: "cannot use --print and `console` together. Console debug output would interleave with markdown on stdout"}
+176:					config, err := utils.SetupOutputConfig(outputDir, debugDir)
+238:				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+320:				return utils.ValidationError{
+378:			config, err := utils.SetupOutputConfig(outputDir, debugDir)
+383:			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+393:			identityManager := utils.NewProjectIdentityManager(cwd)
+544:				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+595:	var config utils.OutputConfig
+597:		config, err = utils.SetupOutputConfig(outputDir, debugDir)
+602:		identityManager := utils.NewProjectIdentityManager(cwd)
+609:		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+786:func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManager) {
+809:func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
+904:			sessionStatistics := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+906:			collector := utils.NewStatisticsCollector(specstoryDir)
+938:					if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+1094:	config, err := utils.SetupOutputConfig(outputDir, debugDir)
+1100:	identityManager := utils.NewProjectIdentityManager(cwd)
+1109:	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+1199:	config, err := utils.SetupOutputConfig(outputDir, debugDir)
+1205:	identityManager := utils.NewProjectIdentityManager(cwd)
+1214:	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+1275:				outputDir = utils.ExpandTilde(args[i+1])
+1292:				debugDir = utils.ExpandTilde(args[i+1])
+1300:			outputDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--output-dir="))
+1304:			debugDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--debug-dir="))
+1345:		outputDir = utils.ExpandTilde(cfg.GetOutputDir())
+1348:		debugDir = utils.ExpandTilde(cfg.GetDebugDir())
+1371:			config, _ := utils.SetupOutputConfig(outputDir, debugDir)
+1493:	utils.CheckForUpdates(version, noVersionCheck, silent)
+1561:					identityManager := utils.NewProjectIdentityManager(cwd)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:26Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/session/session.go` pattern `\butils\.`
+
+```text
+84:func GetSpecStoryDir(config utils.OutputConfig) string {
+95:func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
+144:	sessionStats := utils.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+146:	collector := utils.NewStatisticsCollector(specstoryDir)
+186:			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:35Z)**_
+
+<think><details><summary>Thought Process</summary>
+OK, so both `main.go` and `session.go` use `utils` for many things beyond statistics. So:
+
+1. `main.go` will keep the `utils` import — just change `utils.ComputeSessionStatistics` → `sessionpkg.ComputeSessionStatistics` and `utils.NewStatisticsCollector` → `sessionpkg.NewStatisticsCollector`
+2. `session.go` will keep the `utils` import — just change `utils.ComputeSessionStatistics` → `ComputeSessionStatistics` and `utils.NewStatisticsCollector` → `NewStatisticsCollector` (since they'll be in the same package now)
+
+
+3. Now I need to move the statistics code into the session package. I'll create a new `statistics.go` file in `pkg/session/` by copying the contents from `pkg/utils/statistics.go` and updating the package declaration to `session`, then add the `AgentMessageCount` field to `SessionStatistics` and implement the logic to count agent messages in `ComputeSessionStatistics`. I'll also move the corresponding test file and update its package declaration and test cases to verify the new field, then remove the original statistics files from utils.
+
+4. Finally, I'll update the imports in `main.go` and `session.go` to reference the statistics functions from the session package instead of utils.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:37Z)**_
+
+Good. Both `main.go` and `session.go` use `utils` for many other things, so they'll keep the import. Here's the plan:
+
+1. **Move** `statistics.go` and `statistics_test.go` from `pkg/utils/` to `pkg/session/`, changing the package
+2. **Add** `AgentMessageCount` field and counting logic
+3. **Update** references in `main.go` (`utils.` → `sessionpkg.`) and `session.go` (drop the `utils.` prefix since it's now same package)
+4. **Delete** the old files
+
+_**Agent (claude-opus-4-6 2026-02-24 15:24:54Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```go
+package session
+
+import (
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+)
+
+// SessionStatistics contains computed statistics for a single session
+type SessionStatistics struct {
+	UserMessageCount  int    `json:"user_message_count"`
+	AgentMessageCount int    `json:"agent_message_count"`
+	StartTimestamp    string `json:"start_timestamp"`
+	EndTimestamp      string `json:"end_timestamp"`
+	MarkdownSizeBytes int    `json:"markdown_size_bytes"`
+	Provider          string `json:"provider"`
+	LastUpdated       string `json:"last_updated"`
+}
+
+// StatisticsFile is the root structure for the statistics.json file
+type StatisticsFile struct {
+	Sessions map[string]SessionStatistics `json:"sessions"`
+}
+
+// StatisticsCollector handles thread-safe statistics collection and persistence
+type StatisticsCollector struct {
+	specstoryDir string
+	mu           sync.Mutex
+}
+
+// NewStatisticsCollector creates a new statistics collector for the given .specstory directory
+func NewStatisticsCollector(specstoryDir string) *StatisticsCollector {
+	return &StatisticsCollector{
+		specstoryDir: specstoryDir,
+	}
+}
+
+// ComputeSessionStatistics extracts statistics from SessionData and markdown content
+func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics {
+	stats := SessionStatistics{
+		Provider:          providerID,
+		MarkdownSizeBytes: len(markdownContent),
+		LastUpdated:       time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Count user and agent messages by iterating through exchanges
+	userMsgCount := 0
+	agentMsgCount := 0
+	for _, exchange := range sessionData.Exchanges {
+		for _, msg := range exchange.Messages {
+			if msg.Role == schema.RoleUser {
+				userMsgCount++
+			} else {
+				agentMsgCount++
+			}
+		}
+	}
+	stats.UserMessageCount = userMsgCount
+	stats.AgentMessageCount = agentMsgCount
+
+	// Extract start timestamp - use first exchange start time if available, else session CreatedAt
+	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
+		stats.StartTimestamp = sessionData.Exchanges[0].StartTime
+	} else {
+		stats.StartTimestamp = sessionData.CreatedAt
+	}
+
+	// Extract end timestamp - use last exchange end time if available, else session UpdatedAt, else CreatedAt
+	if len(sessionData.Exchanges) > 0 {
+		lastExchange := sessionData.Exchanges[len(sessionData.Exchanges)-1]
+		if lastExchange.EndTime != "" {
+			stats.EndTimestamp = lastExchange.EndTime
+		} else if sessionData.UpdatedAt != "" {
+			stats.EndTimestamp = sessionData.UpdatedAt
+		} else {
+			stats.EndTimestamp = sessionData.CreatedAt
+		}
+	} else if sessionData.UpdatedAt != "" {
+		stats.EndTimestamp = sessionData.UpdatedAt
+	} else {
+		stats.EndTimestamp = sessionData.CreatedAt
+	}
+
+	return stats
+}
+
+// AddSessionStats atomically adds or updates session statistics in the statistics.json file
+func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionStatistics) error {
+	// Lock for thread-safe file operations
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	statsPath := filepath.Join(c.specstoryDir, "statistics.json")
+
+	// Read existing statistics file
+	statsFile := StatisticsFile{
+		Sessions: make(map[string]SessionStatistics),
+	}
+
+	data, err := os.ReadFile(statsPath)
+	if err == nil {
+		// File exists, try to parse it
+		if err := json.Unmarshal(data, &statsFile); err != nil {
+			// Corrupt JSON - log warning and start fresh
+			slog.Warn("Failed to parse existing statistics.json, starting fresh", "error", err)
+			statsFile.Sessions = make(map[string]SessionStatistics)
+		}
+	} else if !os.IsNotExist(err) {
+		// Error other than "file doesn't exist"
+		return fmt.Errorf("failed to read statistics file: %w", err)
+	}
+
+	// Add or update the session statistics
+	statsFile.Sessions[sessionID] = stats
+
+	// Marshal to JSON with indentation for readability
+	jsonData, err := json.MarshalIndent(statsFile, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal statistics: %w", err)
+	}
+
+	// Write atomically using temp file + rename
+	tempPath := statsPath + ".tmp"
+	if err := os.WriteFile(tempPath, jsonData, 0644); err != nil {
+		return fmt.Errorf("failed to write temp statistics file: %w", err)
+	}
+
+	if err := os.Rename(tempPath, statsPath); err != nil {
+		// Clean up temp file on failure
+		_ = os.Remove(tempPath)
+		return fmt.Errorf("failed to rename temp statistics file: %w", err)
+	}
+
+	slog.Debug("Updated session statistics", "sessionId", sessionID, "path", statsPath)
+	return nil
+}
+
+```
+
+```text
+File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/statistics.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:23Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```go
+package session
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+)
+
+func TestComputeSessionStatistics(t *testing.T) {
+	tests := []struct {
+		name              string
+		sessionData       *schema.SessionData
+		markdownContent   string
+		providerID        string
+		expectedUserMsgs  int
+		expectedAgentMsgs int
+	}{
+		{
+			name: "single user message",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T10:00:00Z",
+				UpdatedAt: "2026-02-09T10:15:00Z",
+				Exchanges: []schema.Exchange{
+					{
+						StartTime: "2026-02-09T10:00:00Z",
+						EndTime:   "2026-02-09T10:15:00Z",
+						Messages: []schema.Message{
+							{Role: schema.RoleUser},
+							{Role: schema.RoleAgent},
+						},
+					},
+				},
+			},
+			markdownContent:   "# Test\n\nSome content",
+			providerID:        "claude",
+			expectedUserMsgs:  1,
+			expectedAgentMsgs: 1,
+		},
+		{
+			name: "multiple exchanges with multiple user messages",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T10:00:00Z",
+				UpdatedAt: "2026-02-09T10:30:00Z",
+				Exchanges: []schema.Exchange{
+					{
+						StartTime: "2026-02-09T10:00:00Z",
+						EndTime:   "2026-02-09T10:10:00Z",
+						Messages: []schema.Message{
+							{Role: schema.RoleUser},
+							{Role: schema.RoleAgent},
+						},
+					},
+					{
+						StartTime: "2026-02-09T10:15:00Z",
+						EndTime:   "2026-02-09T10:30:00Z",
+						Messages: []schema.Message{
+							{Role: schema.RoleUser},
+							{Role: schema.RoleAgent},
+							{Role: schema.RoleUser},
+							{Role: schema.RoleAgent},
+						},
+					},
+				},
+			},
+			markdownContent:   "# Test\n\nMore content",
+			providerID:        "codex",
+			expectedUserMsgs:  3,
+			expectedAgentMsgs: 3,
+		},
+		{
+			name: "no user messages",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T10:00:00Z",
+				UpdatedAt: "2026-02-09T10:05:00Z",
+				Exchanges: []schema.Exchange{
+					{
+						StartTime: "2026-02-09T10:00:00Z",
+						EndTime:   "2026-02-09T10:05:00Z",
+						Messages: []schema.Message{
+							{Role: schema.RoleAgent},
+						},
+					},
+				},
+			},
+			markdownContent:   "# Test\n\nAgent-only content",
+			providerID:        "cursor",
+			expectedUserMsgs:  0,
+			expectedAgentMsgs: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent, tt.providerID)
+
+			if stats.UserMessageCount != tt.expectedUserMsgs {
+				t.Errorf("UserMessageCount = %d, want %d", stats.UserMessageCount, tt.expectedUserMsgs)
+			}
+
+			if stats.AgentMessageCount != tt.expectedAgentMsgs {
+				t.Errorf("AgentMessageCount = %d, want %d", stats.AgentMessageCount, tt.expectedAgentMsgs)
+			}
+
+			if stats.MarkdownSizeBytes != len(tt.markdownContent) {
+				t.Errorf("MarkdownSizeBytes = %d, want %d", stats.MarkdownSizeBytes, len(tt.markdownContent))
+			}
+
+			if stats.Provider != tt.providerID {
+				t.Errorf("Provider = %s, want %s", stats.Provider, tt.providerID)
+			}
+
+			if stats.StartTimestamp == "" {
+				t.Error("StartTimestamp should not be empty")
+			}
+
+			if stats.EndTimestamp == "" {
+				t.Error("EndTimestamp should not be empty")
+			}
+
+			if stats.LastUpdated == "" {
+				t.Error("LastUpdated should not be empty")
+			}
+		})
+	}
+}
+
+func TestStatisticsCollector(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	collector := NewStatisticsCollector(tempDir)
+	sessionID := "test-session-123"
+
+	stats := SessionStatistics{
+		UserMessageCount:  5,
+		AgentMessageCount: 8,
+		StartTimestamp:    "2026-02-09T10:00:00Z",
+		EndTimestamp:      "2026-02-09T10:15:00Z",
+		MarkdownSizeBytes: 1234,
+		Provider:          "claude",
+		LastUpdated:       "2026-02-09T10:20:00Z",
+	}
+
+	// Test adding statistics
+	err := collector.AddSessionStats(sessionID, stats)
+	if err != nil {
+		t.Fatalf("Failed to add session stats: %v", err)
+	}
+
+	// Verify the file was created
+	statsPath := filepath.Join(tempDir, "statistics.json")
+	if _, err := os.Stat(statsPath); os.IsNotExist(err) {
+		t.Fatal("statistics.json was not created")
+	}
+
+	// Read and verify the content
+	data, err := os.ReadFile(statsPath)
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json: %v", err)
+	}
+
+	var statsFile StatisticsFile
+	if err := json.Unmarshal(data, &statsFile); err != nil {
+		t.Fatalf("Failed to parse statistics.json: %v", err)
+	}
+
+	if _, exists := statsFile.Sessions[sessionID]; !exists {
+		t.Errorf("Session %s not found in statistics file", sessionID)
+	}
+
+	retrievedStats := statsFile.Sessions[sessionID]
+	if retrievedStats.UserMessageCount != stats.UserMessageCount {
+		t.Errorf("UserMessageCount = %d, want %d", retrievedStats.UserMessageCount, stats.UserMessageCount)
+	}
+
+	// Test updating existing statistics
+	updatedStats := stats
+	updatedStats.UserMessageCount = 7
+	updatedStats.LastUpdated = "2026-02-09T10:30:00Z"
+
+	err = collector.AddSessionStats(sessionID, updatedStats)
+	if err != nil {
+		t.Fatalf("Failed to update session stats: %v", err)
+	}
+
+	// Verify the update
+	data, err = os.ReadFile(statsPath)
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json after update: %v", err)
+	}
+
+	if err := json.Unmarshal(data, &statsFile); err != nil {
+		t.Fatalf("Failed to parse statistics.json after update: %v", err)
+	}
+
+	retrievedStats = statsFile.Sessions[sessionID]
+	if retrievedStats.UserMessageCount != 7 {
+		t.Errorf("After update: UserMessageCount = %d, want 7", retrievedStats.UserMessageCount)
+	}
+
+	// Test adding a second session
+	secondSessionID := "test-session-456"
+	secondStats := SessionStatistics{
+		UserMessageCount:  3,
+		AgentMessageCount: 4,
+		StartTimestamp:    "2026-02-09T11:00:00Z",
+		EndTimestamp:      "2026-02-09T11:10:00Z",
+		MarkdownSizeBytes: 567,
+		Provider:          "codex",
+		LastUpdated:       "2026-02-09T11:15:00Z",
+	}
+
+	err = collector.AddSessionStats(secondSessionID, secondStats)
+	if err != nil {
+		t.Fatalf("Failed to add second session stats: %v", err)
+	}
+
+	// Verify both sessions exist
+	data, err = os.ReadFile(statsPath)
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json after second session: %v", err)
+	}
+
+	if err := json.Unmarshal(data, &statsFile); err != nil {
+		t.Fatalf("Failed to parse statistics.json after second session: %v", err)
+	}
+
+	if len(statsFile.Sessions) != 2 {
+		t.Errorf("Expected 2 sessions, got %d", len(statsFile.Sessions))
+	}
+
+	if _, exists := statsFile.Sessions[secondSessionID]; !exists {
+		t.Errorf("Second session %s not found in statistics file", secondSessionID)
+	}
+}
+
+func TestStatisticsCollector_CorruptJSON(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir := t.TempDir()
+
+	statsPath := filepath.Join(tempDir, "statistics.json")
+
+	// Write corrupt JSON
+	err := os.WriteFile(statsPath, []byte("{invalid json"), 0644)
+	if err != nil {
+		t.Fatalf("Failed to write corrupt JSON: %v", err)
+	}
+
+	// Try to add statistics - should start fresh
+	collector := NewStatisticsCollector(tempDir)
+	sessionID := "test-session-789"
+	stats := SessionStatistics{
+		UserMessageCount:  2,
+		AgentMessageCount: 3,
+		StartTimestamp:    "2026-02-09T12:00:00Z",
+		EndTimestamp:      "2026-02-09T12:05:00Z",
+		MarkdownSizeBytes: 100,
+		Provider:          "cursor",
+		LastUpdated:       "2026-02-09T12:10:00Z",
+	}
+
+	err = collector.AddSessionStats(sessionID, stats)
+	if err != nil {
+		t.Fatalf("Failed to add session stats after corrupt JSON: %v", err)
+	}
+
+	// Verify the file was recreated with valid JSON
+	data, err := os.ReadFile(statsPath)
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json after recovery: %v", err)
+	}
+
+	var statsFile StatisticsFile
+	if err := json.Unmarshal(data, &statsFile); err != nil {
+		t.Fatalf("Failed to parse statistics.json after recovery: %v", err)
+	}
+
+	if len(statsFile.Sessions) != 1 {
+		t.Errorf("Expected 1 session after recovery, got %d", len(statsFile.Sessions))
+	}
+
+	if _, exists := statsFile.Sessions[sessionID]; !exists {
+		t.Errorf("Session %s not found after recovery", sessionID)
+	}
+}
+
+```
+
+```text
+File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/statistics_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:26Z)**_
+
+Now update the references in `session.go` and `main.go`, and delete the old files.
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:28Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:30Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:33Z)**_
+
+Now check if `session.go` still needs the `utils` import for anything else.
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:35Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/session/session.go` pattern `\butils\.`
+
+```text
+84:func GetSpecStoryDir(config utils.OutputConfig) string {
+95:func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
+186:			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:38Z)**_
+
+Still uses `utils` for `OutputConfig` and `EnsureHistoryDirectoryExists`, so the import stays. Now delete the old files.
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:39Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Delete old statistics files from utils package
+
+`rm /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/statistics.go /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/statistics_test.go`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:46Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter
+
+`golangci-lint run`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:52Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run statistics tests in new location
+
+`go test -v ./pkg/session/ -run TestStatistics -count=1`
+
+```text
+=== RUN   TestStatisticsCollector
+--- PASS: TestStatisticsCollector (0.00s)
+=== RUN   TestStatisticsCollector_CorruptJSON
+2026/02/24 10:25:52 WARN Failed to parse existing statistics.json, starting fresh error="invalid character 'i' looking for beginning of object key string"
+--- PASS: TestStatisticsCollector_CorruptJSON (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	0.297s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:25:56Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run compute statistics tests
+
+`go test -v ./pkg/session/ -run TestComputeSessionStatistics -count=1`
+
+```text
+=== RUN   TestComputeSessionStatistics
+=== RUN   TestComputeSessionStatistics/single_user_message
+=== RUN   TestComputeSessionStatistics/multiple_exchanges_with_multiple_user_messages
+=== RUN   TestComputeSessionStatistics/no_user_messages
+--- PASS: TestComputeSessionStatistics (0.00s)
+    --- PASS: TestComputeSessionStatistics/single_user_message (0.00s)
+    --- PASS: TestComputeSessionStatistics/multiple_exchanges_with_multiple_user_messages (0.00s)
+    --- PASS: TestComputeSessionStatistics/no_user_messages (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	0.286s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:26:00Z)**_
+
+Now let me run the full test suite to make sure nothing else broke.
+
+_**Agent (claude-opus-4-6 2026-02-24 15:26:09Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all tests
+
+`go test ./... -count=1`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli	0.456s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	1.211s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	1.902s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/config	1.555s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/log	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance	2.454s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	6.706s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	1.224s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli	1.055s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	1.695s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli	0.625s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	2.268s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	2.050s
+?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	1.990s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	2.017s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	1.802s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-24 15:26:16Z)**_
+
+All tests pass. Here's a summary of what was done:
+
+**1. Added `agent_message_count`** — New field in `SessionStatistics` that counts every non-user message in exchanges (the else branch of the role check on line 55).
+
+**2. Moved statistics to session package** — `statistics.go` and `statistics_test.go` moved from `pkg/utils/` to `pkg/session/`, with references updated:
+- `session.go`: `utils.ComputeSessionStatistics` → `ComputeSessionStatistics` (same package)
+- `main.go`: `utils.ComputeSessionStatistics` → `sessionpkg.ComputeSessionStatistics`
+- Same pattern for `NewStatisticsCollector`
+
+**3. Tests updated** — Added `expectedAgentMsgs` field and assertions to all test cases.
