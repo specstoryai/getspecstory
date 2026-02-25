@@ -144,6 +144,21 @@ func EnsureHistoryDirectoryExists(config OutputConfig) error {
 	return nil
 }
 
+// ResolveProjectPath returns the effective project path for session discovery.
+// When overridePath is provided, it is resolved to an absolute path and returned.
+// Falls back to cwd when overridePath is empty or cannot be resolved.
+func ResolveProjectPath(overridePath, cwd string) string {
+	if overridePath == "" {
+		return cwd
+	}
+	abs, err := filepath.Abs(overridePath)
+	if err != nil {
+		slog.Warn("ResolveProjectPath: Failed to resolve override path, using cwd", "path", overridePath, "error", err)
+		return cwd
+	}
+	return abs
+}
+
 // GetAuthPath returns the path to the auth.json file
 func GetAuthPath() (string, error) {
 	homeDir, err := os.UserHomeDir()

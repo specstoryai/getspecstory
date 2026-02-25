@@ -28,8 +28,10 @@ type ProjectIdentity struct {
 
 // ProjectIdentityManager handles project identity operations
 type ProjectIdentityManager struct {
-	projectRoot  string
-	specstoryDir string // optional override for the .specstory directory location (from --specstory-dir)
+	projectRoot         string
+	specstoryDir        string // optional override for the .specstory directory location (from --specstory-dir)
+	overrideProjectName string // when non-empty, use instead of auto-detecting project name (from --project-name)
+	overrideGitOrigin   string // when non-empty, use instead of reading from .git/config (from --git-origin)
 }
 
 // NewProjectIdentityManager creates a new project identity manager.
@@ -40,6 +42,20 @@ func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentit
 		projectRoot:  projectRoot,
 		specstoryDir: specstoryDir,
 	}
+}
+
+// WithProjectName sets an explicit project name override, bypassing auto-detection.
+// The override is applied even if a project name already exists in .project.json.
+func (m *ProjectIdentityManager) WithProjectName(name string) *ProjectIdentityManager {
+	m.overrideProjectName = name
+	return m
+}
+
+// WithGitOrigin sets an explicit git remote origin URL override, bypassing .git/config.
+// The override is used to compute the git_id even if one already exists in .project.json.
+func (m *ProjectIdentityManager) WithGitOrigin(origin string) *ProjectIdentityManager {
+	m.overrideGitOrigin = origin
+	return m
 }
 
 // getSpecstoryDir returns the .specstory directory to use for this project.
@@ -99,8 +115,17 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		}
 	}
 
-	// Check if we need to add git_id
-	if identity.GitID == "" {
+	// Determine git_id: prefer explicit override, then auto-detect from .git/config
+	if m.overrideGitOrigin != "" {
+		// Always apply the explicit override (force-update even if already set)
+		gitID := m.createHash(m.normalizeGitURL(m.overrideGitOrigin))
+		if identity.GitID != gitID {
+			identity.GitID = gitID
+			identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
+			isModified = true
+			slog.Debug("Set git_id from --git-origin override", "git_id", gitID)
+		}
+	} else if identity.GitID == "" {
 		gitID, err := m.generateGitID()
 		if err == nil && gitID != "" {
 			identity.GitID = gitID
@@ -112,8 +137,15 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		}
 	}
 
-	// Check if we need to add project_name
-	if identity.ProjectName == "" {
+	// Determine project_name: prefer explicit override, then auto-detect
+	if m.overrideProjectName != "" {
+		// Always apply the explicit override (force-update even if already set)
+		if identity.ProjectName != m.overrideProjectName {
+			identity.ProjectName = m.overrideProjectName
+			isModified = true
+			slog.Debug("Set project_name from --project-name override", "project_name", m.overrideProjectName)
+		}
+	} else if identity.ProjectName == "" {
 		projectName := m.generateProjectName()
 		if projectName != "" {
 			identity.ProjectName = projectName
@@ -407,6 +439,18 @@ func (m *ProjectIdentityManager) generateProjectName() string {
 
 	// Fallback: use the last component of the project directory
 	return filepath.Base(m.projectRoot)
+}
+
+// GetProjectNameForPath reads the project name from .project.json in the given project directory.
+// Uses the default .specstory location ({projectPath}/.specstory/.project.json).
+// Returns empty string if .project.json does not exist or has no project name set.
+// This is used by providers to get the project name override for workspace matching.
+func GetProjectNameForPath(projectPath string) string {
+	identity, err := NewProjectIdentityManager(projectPath, "").ReadProjectIdentity()
+	if err != nil || identity == nil {
+		return ""
+	}
+	return identity.ProjectName
 }
 
 // GetProjectName returns the project name from the project identity

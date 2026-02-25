@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	gosync "sync"
 	"syscall"
@@ -108,7 +109,18 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			if _, err := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).EnsureProjectIdentity(); err != nil {
+			// Read project identity override flags (inherited from root persistent flags)
+			projectPathOverride, _ := cmd.Flags().GetString("project-path")
+			gitOriginOverride, _ := cmd.Flags().GetString("git-origin")
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+				WithGitOrigin(gitOriginOverride)
+			if projectPathOverride != "" {
+				identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+			}
+			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
@@ -293,7 +305,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				provenance.ProcessEvents(ctx, provenanceEngine, sess)
 			}
 
-			return utils.WatchProviders(ctx, cwd, providers, debugRaw, sessionCallback)
+			return utils.WatchProviders(ctx, effectiveProjectPath, providers, debugRaw, sessionCallback)
 		},
 	}
 

@@ -50,6 +50,9 @@ var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
 // Provenance Options
 var provenanceEnabled bool // flag to enable AI provenance tracking
+// Project Identity Override Options
+var projectPathOverride string // flag to override the project path used for session discovery and identity (hidden)
+var gitOriginOverride string   // flag to override git remote origin URL for project identity (hidden)
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
@@ -380,7 +383,14 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir())
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+				WithGitOrigin(gitOriginOverride)
+			if projectPathOverride != "" {
+				identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+			}
 			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
@@ -456,7 +466,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Execute the agent and watch for updates
 			slog.Info("Starting agent execution and monitoring", "provider", provider.Name())
-			err = provider.ExecAgentAndWatch(cwd, customCmd, resumeSessionID, debugRaw, sessionCallback)
+			err = provider.ExecAgentAndWatch(effectiveProjectPath, customCmd, resumeSessionID, debugRaw, sessionCallback)
 
 			if err != nil {
 				slog.Error("Agent execution failed", "provider", provider.Name(), "error", err)
@@ -574,6 +584,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	// Setup file output and cloud sync (not needed for --print mode)
 	var config utils.OutputConfig
@@ -583,7 +594,11 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			return err
 		}
 
-		identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir())
+		identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+			WithGitOrigin(gitOriginOverride)
+		if projectPathOverride != "" {
+			identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+		}
 		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 			slog.Error("Failed to ensure project identity", "error", err)
 		}
@@ -628,7 +643,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
-			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			session, err = specifiedProvider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
 			if err != nil {
 				if !printToStdout {
 					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
@@ -655,7 +670,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					continue
 				}
 
-				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+				session, err = provider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
 				if err != nil {
 					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
 					continue
@@ -783,13 +798,7 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 
 // syncProvider performs the actual sync for a single provider
 // Returns (sessionCount, error) for analytics tracking
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
-		return 0, err
-	}
-
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool, projectPath string) (int, error) {
 	// Create progress callback for parsing phase
 	// The callback updates the "Parsing..." line in place with [n/m] progress
 	var parseProgress spi.ProgressCallback
@@ -802,7 +811,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	}
 
 	// Get all sessions from the provider
-	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw, parseProgress)
+	sessions, err := provider.GetAgentChatSessions(projectPath, debugRaw, parseProgress)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get sessions: %w", err)
 	}
@@ -984,6 +993,9 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	// effectiveProjectPath is what providers use for session discovery.
+	// When --project-path is set, it resolves to that path; otherwise uses cwd.
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	providerIDs := registry.ListIDs()
 	providersWithActivity := []string{}
@@ -996,7 +1008,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			continue
 		}
 
-		if provider.DetectAgent(cwd, false) {
+		if provider.DetectAgent(effectiveProjectPath, false) {
 			providersWithActivity = append(providersWithActivity, id)
 		}
 	}
@@ -1007,7 +1019,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Println() // Add visual separation
 			log.UserWarn("No coding agent activity found for this project directory.\n\n")
 
-			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", effectiveProjectPath)
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
 					log.UserMessage("- %s\n", provider.Name())
@@ -1040,7 +1052,11 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	}
 
 	// Initialize project identity (once for all providers)
-	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir())
+	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+		WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+	}
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1070,7 +1086,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC, effectiveProjectPath)
 		totalSessionCount += sessionCount
 
 		if err != nil {
@@ -1132,9 +1148,12 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	// effectiveProjectPath is what providers use for session discovery.
+	// When --project-path is set, it resolves to that path; otherwise uses cwd.
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	// Check if provider has activity, with helpful output if not
-	if !provider.DetectAgent(cwd, true) {
+	if !provider.DetectAgent(effectiveProjectPath, true) {
 		// Provider already output helpful message
 		return nil
 	}
@@ -1146,7 +1165,11 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Initialize project identity
-	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir())
+	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+		WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+	}
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1167,7 +1190,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC, effectiveProjectPath)
 
 	// Track analytics
 	if syncErr != nil {
@@ -1269,6 +1292,10 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", false, "skip checking for newer versions")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
+	rootCmd.PersistentFlags().StringVar(&projectPathOverride, "project-path", "", "override the project path used for session discovery and identity")
+	_ = rootCmd.PersistentFlags().MarkHidden("project-path") // Hidden flag
+	rootCmd.PersistentFlags().StringVar(&gitOriginOverride, "git-origin", "", "override the git remote origin URL used for project identity")
+	_ = rootCmd.PersistentFlags().MarkHidden("git-origin") // Hidden flag
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
