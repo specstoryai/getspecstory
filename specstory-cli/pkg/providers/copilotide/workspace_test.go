@@ -195,17 +195,17 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			uri:      "vscode-remote://wsl%2Bubuntu/",
 			wantPath: "/",
 		},
+		{
+			name:     "SSH remote host",
+			uri:      "vscode-remote://ssh-remote+myserver/home/user/project",
+			wantPath: "/home/user/project",
+		},
 
 		// Error cases
 		{
 			name:      "no path component",
 			uri:       "vscode-remote://wsl%2Bubuntu",
 			wantError: "malformed vscode-remote URI (no path)",
-		},
-		{
-			name:      "unsupported SSH host",
-			uri:       "vscode-remote://ssh-remote+myserver/home/user/project",
-			wantError: "unsupported vscode-remote host",
 		},
 		{
 			name:      "unsupported dev container host",
