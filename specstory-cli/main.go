@@ -906,9 +906,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 			// Collect statistics (always enabled)
 			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
-			if err := statsCollector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
-				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
-			}
+			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
 
 			// In only-stats mode, skip file writes and cloud sync
 			if onlyStats {
@@ -1226,7 +1224,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Check authentication for cloud sync
-	cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 	// Ensure history directory exists
 	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {

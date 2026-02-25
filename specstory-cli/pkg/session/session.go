@@ -143,10 +143,7 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
 	specstoryDir := GetSpecStoryDir(config)
 	collector := NewStatisticsCollector(specstoryDir)
-	if err := collector.AddSessionStats(session.SessionID, sessionStats); err != nil {
-		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
-		// Don't fail the operation, just log warning
-	}
+	collector.AddSessionStats(session.SessionID, sessionStats)
 
 	// In only-stats mode, skip file writes and cloud sync entirely
 	if opts.OnlyStats {

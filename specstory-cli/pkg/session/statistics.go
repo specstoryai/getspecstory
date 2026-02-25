@@ -96,13 +96,12 @@ func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent s
 
 // AddSessionStats accumulates session statistics in memory. Call Flush to
 // persist all pending stats to disk in a single I/O operation.
-func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionStatistics) error {
+func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionStatistics) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.pending[sessionID] = stats
 	slog.Debug("Buffered session statistics", "sessionId", sessionID)
-	return nil
 }
 
 // Flush writes all pending session statistics to the statistics.json file in a

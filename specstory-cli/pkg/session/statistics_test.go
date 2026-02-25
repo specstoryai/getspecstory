@@ -258,9 +258,7 @@ func TestStatisticsCollector_CreateNewFile(t *testing.T) {
 		LastUpdated:       "2026-02-09T10:20:00Z",
 	}
 
-	if err := collector.AddSessionStats("session-1", stats); err != nil {
-		t.Fatalf("AddSessionStats failed: %v", err)
-	}
+	collector.AddSessionStats("session-1", stats)
 
 	if err := collector.Flush(); err != nil {
 		t.Fatalf("Flush failed: %v", err)
@@ -292,9 +290,7 @@ func TestStatisticsCollector_UpdateExisting(t *testing.T) {
 		Provider:          "claude",
 		LastUpdated:       "2026-02-09T10:20:00Z",
 	}
-	if err := collector.AddSessionStats("session-1", original); err != nil {
-		t.Fatalf("AddSessionStats (original) failed: %v", err)
-	}
+	collector.AddSessionStats("session-1", original)
 	if err := collector.Flush(); err != nil {
 		t.Fatalf("Flush (original) failed: %v", err)
 	}
@@ -303,9 +299,7 @@ func TestStatisticsCollector_UpdateExisting(t *testing.T) {
 	updated := original
 	updated.UserMessageCount = 7
 	updated.LastUpdated = "2026-02-09T10:30:00Z"
-	if err := collector.AddSessionStats("session-1", updated); err != nil {
-		t.Fatalf("AddSessionStats (update) failed: %v", err)
-	}
+	collector.AddSessionStats("session-1", updated)
 	if err := collector.Flush(); err != nil {
 		t.Fatalf("Flush (update) failed: %v", err)
 	}
@@ -337,9 +331,7 @@ func TestStatisticsCollector_MultipleSessions(t *testing.T) {
 	}
 
 	for id, stats := range sessions {
-		if err := collector.AddSessionStats(id, stats); err != nil {
-			t.Fatalf("AddSessionStats(%s) failed: %v", id, err)
-		}
+		collector.AddSessionStats(id, stats)
 	}
 
 	if err := collector.Flush(); err != nil {
@@ -377,9 +369,7 @@ func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 		LastUpdated:       "2026-02-09T12:10:00Z",
 	}
 
-	if err := collector.AddSessionStats("session-corrupt", stats); err != nil {
-		t.Fatalf("AddSessionStats after corrupt file failed: %v", err)
-	}
+	collector.AddSessionStats("session-corrupt", stats)
 
 	if err := collector.Flush(); err != nil {
 		t.Fatalf("Flush after corrupt file failed: %v", err)
