@@ -372,6 +372,8 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 			// Ensure history directory exists for interactive mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
 				return err
@@ -593,6 +595,8 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		if err != nil {
 			return err
 		}
+		// Tell cloud sync where .project.json lives (respects --output-dir)
+		cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 		identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
 			WithGitOrigin(gitOriginOverride)
@@ -1050,6 +1054,8 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir)
+	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity (once for all providers)
 	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
@@ -1163,6 +1169,8 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	if err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir)
+	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity
 	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).

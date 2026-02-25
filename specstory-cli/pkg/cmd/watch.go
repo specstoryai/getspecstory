@@ -97,6 +97,8 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 			// Ensure history directory exists for watch mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
