@@ -309,3 +309,79 @@ func TestFormatToolAsMarkdown_AskUserQuestion(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildAgentMessage_Usage(t *testing.T) {
+	tests := []struct {
+		name          string
+		record        JSONLRecord
+		expectUsage   bool
+		expectedUsage *Usage // only checked when expectUsage is true
+	}{
+		{
+			name: "with usage data",
+			record: JSONLRecord{
+				Data: map[string]interface{}{
+					"type":      "assistant",
+					"uuid":      "test-uuid-123",
+					"timestamp": "2025-01-15T10:00:00Z",
+					"message": map[string]interface{}{
+						"model": "claude-opus-4-5-20251101",
+						"content": []interface{}{
+							map[string]interface{}{"type": "text", "text": "Hello, I can help with that."},
+						},
+						"usage": map[string]interface{}{
+							"input_tokens":                float64(3660),
+							"output_tokens":               float64(150),
+							"cache_creation_input_tokens": float64(5562),
+							"cache_read_input_tokens":     float64(19345),
+						},
+					},
+				},
+			},
+			expectUsage: true,
+			expectedUsage: &Usage{
+				InputTokens:              3660,
+				OutputTokens:             150,
+				CacheCreationInputTokens: 5562,
+				CacheReadInputTokens:     19345,
+			},
+		},
+		{
+			name: "without usage data",
+			record: JSONLRecord{
+				Data: map[string]interface{}{
+					"type":      "assistant",
+					"uuid":      "test-uuid-456",
+					"timestamp": "2025-01-15T10:00:00Z",
+					"message": map[string]interface{}{
+						"model": "claude-opus-4-5-20251101",
+						"content": []interface{}{
+							map[string]interface{}{"type": "text", "text": "No usage data here."},
+						},
+					},
+				},
+			},
+			expectUsage: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg := buildAgentMessage(tt.record, "/workspace", false)
+
+			if !tt.expectUsage {
+				if msg.Usage != nil {
+					t.Errorf("Expected Usage to be nil, got %+v", msg.Usage)
+				}
+				return
+			}
+
+			if msg.Usage == nil {
+				t.Fatal("Expected Usage to be populated, got nil")
+			}
+			if *msg.Usage != *tt.expectedUsage {
+				t.Errorf("Usage = %+v, want %+v", *msg.Usage, *tt.expectedUsage)
+			}
+		})
+	}
+}

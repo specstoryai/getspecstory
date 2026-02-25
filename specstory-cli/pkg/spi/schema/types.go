@@ -64,6 +64,7 @@ type Message struct {
 	Content   []ContentPart          `json:"content,omitempty"`
 	Tool      *ToolInfo              `json:"tool,omitempty"`
 	PathHints []string               `json:"pathHints,omitempty"`
+	Usage     *Usage                 `json:"usage,omitempty"` // Token usage for agent messages
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -71,6 +72,55 @@ type Message struct {
 type ContentPart struct {
 	Type string `json:"type"` // "text" or "thinking"
 	Text string `json:"text"` // Content text (for both text and thinking)
+}
+
+// Usage represents token usage for an agent message.
+// Different providers track different token types:
+//   - Claude Code: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens
+//   - Codex CLI: InputTokens, OutputTokens, CachedInputTokens, ReasoningOutputTokens
+//   - Gemini CLI: InputTokens, OutputTokens, CachedTokens, ThoughtTokens, ToolTokens
+//   - Droid CLI: InputTokens, OutputTokens, CacheCreationInputTokens, CacheReadInputTokens, ThinkingTokens
+//
+// All fields use omitempty so only populated fields appear in JSON.
+type Usage struct {
+	// Common fields (all providers)
+	InputTokens  int `json:"inputTokens,omitempty"`
+	OutputTokens int `json:"outputTokens,omitempty"`
+
+	// Claude Code specific (also used by Droid CLI)
+	CacheCreationInputTokens int `json:"cacheCreationInputTokens,omitempty"`
+	CacheReadInputTokens     int `json:"cacheReadInputTokens,omitempty"`
+
+	// Codex CLI specific
+	CachedInputTokens     int `json:"cachedInputTokens,omitempty"`
+	ReasoningOutputTokens int `json:"reasoningOutputTokens,omitempty"`
+
+	// Gemini CLI specific
+	CachedTokens  int `json:"cachedTokens,omitempty"`  // cached input tokens
+	ThoughtTokens int `json:"thoughtTokens,omitempty"` // reasoning/thinking tokens
+	ToolTokens    int `json:"toolTokens,omitempty"`    // tool-related tokens
+
+	// Droid CLI specific
+	ThinkingTokens int `json:"thinkingTokens,omitempty"` // thinking/reasoning tokens
+}
+
+// GetIntFromMap safely extracts an int from a map[string]interface{}.
+// JSON numbers are unmarshaled as float64, so we handle that case.
+func GetIntFromMap(m map[string]interface{}, key string) int {
+	if m == nil {
+		return 0
+	}
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case float64:
+			return int(v)
+		case int64:
+			return int(v)
+		case int:
+			return v
+		}
+	}
+	return 0
 }
 
 // ToolInfo is tool use information

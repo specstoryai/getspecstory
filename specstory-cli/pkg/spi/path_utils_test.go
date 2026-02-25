@@ -260,6 +260,40 @@ func TestGetCanonicalPath(t *testing.T) {
 	}
 }
 
+// TestSetDebugBaseDir tests the debug base dir override mechanism
+func TestSetDebugBaseDir(t *testing.T) {
+	// Clean up after test to avoid affecting other tests
+	defer SetDebugBaseDir("")
+
+	t.Run("default path without override", func(t *testing.T) {
+		SetDebugBaseDir("")
+		result := GetDebugDir("test-session")
+		expected := filepath.Join(".specstory", "debug", "test-session")
+		if result != expected {
+			t.Errorf("GetDebugDir() = %q, want %q", result, expected)
+		}
+	})
+
+	t.Run("override changes output path", func(t *testing.T) {
+		SetDebugBaseDir("/custom/debug")
+		result := GetDebugDir("test-session")
+		expected := filepath.Join("/custom/debug", "test-session")
+		if result != expected {
+			t.Errorf("GetDebugDir() = %q, want %q", result, expected)
+		}
+	})
+
+	t.Run("empty override restores default", func(t *testing.T) {
+		SetDebugBaseDir("/custom/debug")
+		SetDebugBaseDir("")
+		result := GetDebugDir("test-session")
+		expected := filepath.Join(".specstory", "debug", "test-session")
+		if result != expected {
+			t.Errorf("GetDebugDir() = %q, want %q", result, expected)
+		}
+	})
+}
+
 // TestGenerateReadableName tests the generation of human-readable session names
 func TestGenerateReadableName(t *testing.T) {
 	tests := []struct {
