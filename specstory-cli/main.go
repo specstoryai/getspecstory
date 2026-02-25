@@ -99,6 +99,9 @@ func validateFlags() error {
 	if onlyStats && noCloudSync {
 		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
 	}
+	if onlyStats && printToStdout {
+		return utils.ValidationError{Message: "cannot use --only-stats and --print together. These flags are mutually exclusive"}
+	}
 	if printToStdout && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
 	}

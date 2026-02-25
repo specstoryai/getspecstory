@@ -17,9 +17,11 @@ func TestComputeSessionStatistics(t *testing.T) {
 		providerID        string
 		expectedUserMsgs  int
 		expectedAgentMsgs int
+		expectedStart     string
+		expectedEnd       string
 	}{
 		{
-			name: "single user message",
+			name: "single exchange with both timestamps",
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:15:00Z",
@@ -38,9 +40,11 @@ func TestComputeSessionStatistics(t *testing.T) {
 			providerID:        "claude",
 			expectedUserMsgs:  1,
 			expectedAgentMsgs: 1,
+			expectedStart:     "2026-02-09T10:00:00Z",
+			expectedEnd:       "2026-02-09T10:15:00Z",
 		},
 		{
-			name: "multiple exchanges with multiple user messages",
+			name: "multiple exchanges uses first start and last end",
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:30:00Z",
@@ -69,6 +73,8 @@ func TestComputeSessionStatistics(t *testing.T) {
 			providerID:        "codex",
 			expectedUserMsgs:  3,
 			expectedAgentMsgs: 3,
+			expectedStart:     "2026-02-09T10:00:00Z",
+			expectedEnd:       "2026-02-09T10:30:00Z",
 		},
 		{
 			name: "no user messages",
@@ -89,6 +95,103 @@ func TestComputeSessionStatistics(t *testing.T) {
 			providerID:        "cursor",
 			expectedUserMsgs:  0,
 			expectedAgentMsgs: 1,
+			expectedStart:     "2026-02-09T10:00:00Z",
+			expectedEnd:       "2026-02-09T10:05:00Z",
+		},
+		{
+			name: "empty exchanges falls back to CreatedAt for both timestamps",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T09:00:00Z",
+				UpdatedAt: "",
+				Exchanges: []schema.Exchange{},
+			},
+			markdownContent:   "",
+			providerID:        "claude",
+			expectedUserMsgs:  0,
+			expectedAgentMsgs: 0,
+			expectedStart:     "2026-02-09T09:00:00Z",
+			expectedEnd:       "2026-02-09T09:00:00Z",
+		},
+		{
+			name: "empty exchanges with UpdatedAt uses UpdatedAt for end",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T09:00:00Z",
+				UpdatedAt: "2026-02-09T09:30:00Z",
+				Exchanges: []schema.Exchange{},
+			},
+			markdownContent:   "# Empty",
+			providerID:        "codex",
+			expectedUserMsgs:  0,
+			expectedAgentMsgs: 0,
+			expectedStart:     "2026-02-09T09:00:00Z",
+			expectedEnd:       "2026-02-09T09:30:00Z",
+		},
+		{
+			name: "exchange missing EndTime falls back to UpdatedAt",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T10:00:00Z",
+				UpdatedAt: "2026-02-09T10:20:00Z",
+				Exchanges: []schema.Exchange{
+					{
+						StartTime: "2026-02-09T10:00:00Z",
+						EndTime:   "",
+						Messages: []schema.Message{
+							{Role: schema.RoleUser},
+						},
+					},
+				},
+			},
+			markdownContent:   "# Test",
+			providerID:        "claude",
+			expectedUserMsgs:  1,
+			expectedAgentMsgs: 0,
+			expectedStart:     "2026-02-09T10:00:00Z",
+			expectedEnd:       "2026-02-09T10:20:00Z",
+		},
+		{
+			name: "exchange missing EndTime and empty UpdatedAt falls back to CreatedAt",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T10:00:00Z",
+				UpdatedAt: "",
+				Exchanges: []schema.Exchange{
+					{
+						StartTime: "2026-02-09T10:00:00Z",
+						EndTime:   "",
+						Messages: []schema.Message{
+							{Role: schema.RoleUser},
+						},
+					},
+				},
+			},
+			markdownContent:   "# Test",
+			providerID:        "cursor",
+			expectedUserMsgs:  1,
+			expectedAgentMsgs: 0,
+			expectedStart:     "2026-02-09T10:00:00Z",
+			expectedEnd:       "2026-02-09T10:00:00Z",
+		},
+		{
+			name: "exchange missing StartTime falls back to CreatedAt for start",
+			sessionData: &schema.SessionData{
+				CreatedAt: "2026-02-09T09:00:00Z",
+				UpdatedAt: "2026-02-09T10:00:00Z",
+				Exchanges: []schema.Exchange{
+					{
+						StartTime: "",
+						EndTime:   "2026-02-09T10:00:00Z",
+						Messages: []schema.Message{
+							{Role: schema.RoleUser},
+							{Role: schema.RoleAgent},
+						},
+					},
+				},
+			},
+			markdownContent:   "# Test",
+			providerID:        "claude",
+			expectedUserMsgs:  1,
+			expectedAgentMsgs: 1,
+			expectedStart:     "2026-02-09T09:00:00Z",
+			expectedEnd:       "2026-02-09T10:00:00Z",
 		},
 	}
 
@@ -112,12 +215,12 @@ func TestComputeSessionStatistics(t *testing.T) {
 				t.Errorf("Provider = %s, want %s", stats.Provider, tt.providerID)
 			}
 
-			if stats.StartTimestamp == "" {
-				t.Error("StartTimestamp should not be empty")
+			if stats.StartTimestamp != tt.expectedStart {
+				t.Errorf("StartTimestamp = %q, want %q", stats.StartTimestamp, tt.expectedStart)
 			}
 
-			if stats.EndTimestamp == "" {
-				t.Error("EndTimestamp should not be empty")
+			if stats.EndTimestamp != tt.expectedEnd {
+				t.Errorf("EndTimestamp = %q, want %q", stats.EndTimestamp, tt.expectedEnd)
 			}
 
 			if stats.LastUpdated == "" {
@@ -127,12 +230,23 @@ func TestComputeSessionStatistics(t *testing.T) {
 	}
 }
 
-func TestStatisticsCollector(t *testing.T) {
-	// Create a temporary directory for testing
-	tempDir := t.TempDir()
+// readStatisticsFile is a test helper that reads and parses the statistics.json file.
+func readStatisticsFile(t *testing.T, dir string) StatisticsFile {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, "statistics.json"))
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json: %v", err)
+	}
+	var sf StatisticsFile
+	if err := json.Unmarshal(data, &sf); err != nil {
+		t.Fatalf("Failed to parse statistics.json: %v", err)
+	}
+	return sf
+}
 
+func TestStatisticsCollector_CreateNewFile(t *testing.T) {
+	tempDir := t.TempDir()
 	collector := NewStatisticsCollector(tempDir)
-	sessionID := "test-session-123"
 
 	stats := SessionStatistics{
 		UserMessageCount:  5,
@@ -144,114 +258,101 @@ func TestStatisticsCollector(t *testing.T) {
 		LastUpdated:       "2026-02-09T10:20:00Z",
 	}
 
-	// Test adding statistics
-	err := collector.AddSessionStats(sessionID, stats)
-	if err != nil {
-		t.Fatalf("Failed to add session stats: %v", err)
+	if err := collector.AddSessionStats("session-1", stats); err != nil {
+		t.Fatalf("AddSessionStats failed: %v", err)
 	}
 
-	// Verify the file was created
-	statsPath := filepath.Join(tempDir, "statistics.json")
-	if _, err := os.Stat(statsPath); os.IsNotExist(err) {
-		t.Fatal("statistics.json was not created")
+	sf := readStatisticsFile(t, tempDir)
+	if len(sf.Sessions) != 1 {
+		t.Errorf("Expected 1 session, got %d", len(sf.Sessions))
+	}
+	retrieved := sf.Sessions["session-1"]
+	if retrieved.UserMessageCount != 5 {
+		t.Errorf("UserMessageCount = %d, want 5", retrieved.UserMessageCount)
+	}
+	if retrieved.Provider != "claude" {
+		t.Errorf("Provider = %s, want claude", retrieved.Provider)
+	}
+}
+
+func TestStatisticsCollector_UpdateExisting(t *testing.T) {
+	tempDir := t.TempDir()
+	collector := NewStatisticsCollector(tempDir)
+
+	original := SessionStatistics{
+		UserMessageCount:  5,
+		AgentMessageCount: 8,
+		StartTimestamp:    "2026-02-09T10:00:00Z",
+		EndTimestamp:      "2026-02-09T10:15:00Z",
+		MarkdownSizeBytes: 1234,
+		Provider:          "claude",
+		LastUpdated:       "2026-02-09T10:20:00Z",
+	}
+	if err := collector.AddSessionStats("session-1", original); err != nil {
+		t.Fatalf("AddSessionStats (original) failed: %v", err)
 	}
 
-	// Read and verify the content
-	data, err := os.ReadFile(statsPath)
-	if err != nil {
-		t.Fatalf("Failed to read statistics.json: %v", err)
+	// Update same session with new counts
+	updated := original
+	updated.UserMessageCount = 7
+	updated.LastUpdated = "2026-02-09T10:30:00Z"
+	if err := collector.AddSessionStats("session-1", updated); err != nil {
+		t.Fatalf("AddSessionStats (update) failed: %v", err)
 	}
 
-	var statsFile StatisticsFile
-	if err := json.Unmarshal(data, &statsFile); err != nil {
-		t.Fatalf("Failed to parse statistics.json: %v", err)
+	sf := readStatisticsFile(t, tempDir)
+	if len(sf.Sessions) != 1 {
+		t.Errorf("Expected 1 session after update, got %d", len(sf.Sessions))
+	}
+	if sf.Sessions["session-1"].UserMessageCount != 7 {
+		t.Errorf("UserMessageCount = %d, want 7", sf.Sessions["session-1"].UserMessageCount)
+	}
+}
+
+func TestStatisticsCollector_MultipleSessions(t *testing.T) {
+	tempDir := t.TempDir()
+	collector := NewStatisticsCollector(tempDir)
+
+	sessions := map[string]SessionStatistics{
+		"session-1": {
+			UserMessageCount: 5, AgentMessageCount: 8,
+			StartTimestamp: "2026-02-09T10:00:00Z", EndTimestamp: "2026-02-09T10:15:00Z",
+			MarkdownSizeBytes: 1234, Provider: "claude", LastUpdated: "2026-02-09T10:20:00Z",
+		},
+		"session-2": {
+			UserMessageCount: 3, AgentMessageCount: 4,
+			StartTimestamp: "2026-02-09T11:00:00Z", EndTimestamp: "2026-02-09T11:10:00Z",
+			MarkdownSizeBytes: 567, Provider: "codex", LastUpdated: "2026-02-09T11:15:00Z",
+		},
 	}
 
-	if _, exists := statsFile.Sessions[sessionID]; !exists {
-		t.Errorf("Session %s not found in statistics file", sessionID)
+	for id, stats := range sessions {
+		if err := collector.AddSessionStats(id, stats); err != nil {
+			t.Fatalf("AddSessionStats(%s) failed: %v", id, err)
+		}
 	}
 
-	retrievedStats := statsFile.Sessions[sessionID]
-	if retrievedStats.UserMessageCount != stats.UserMessageCount {
-		t.Errorf("UserMessageCount = %d, want %d", retrievedStats.UserMessageCount, stats.UserMessageCount)
+	sf := readStatisticsFile(t, tempDir)
+	if len(sf.Sessions) != 2 {
+		t.Errorf("Expected 2 sessions, got %d", len(sf.Sessions))
 	}
-
-	// Test updating existing statistics
-	updatedStats := stats
-	updatedStats.UserMessageCount = 7
-	updatedStats.LastUpdated = "2026-02-09T10:30:00Z"
-
-	err = collector.AddSessionStats(sessionID, updatedStats)
-	if err != nil {
-		t.Fatalf("Failed to update session stats: %v", err)
-	}
-
-	// Verify the update
-	data, err = os.ReadFile(statsPath)
-	if err != nil {
-		t.Fatalf("Failed to read statistics.json after update: %v", err)
-	}
-
-	if err := json.Unmarshal(data, &statsFile); err != nil {
-		t.Fatalf("Failed to parse statistics.json after update: %v", err)
-	}
-
-	retrievedStats = statsFile.Sessions[sessionID]
-	if retrievedStats.UserMessageCount != 7 {
-		t.Errorf("After update: UserMessageCount = %d, want 7", retrievedStats.UserMessageCount)
-	}
-
-	// Test adding a second session
-	secondSessionID := "test-session-456"
-	secondStats := SessionStatistics{
-		UserMessageCount:  3,
-		AgentMessageCount: 4,
-		StartTimestamp:    "2026-02-09T11:00:00Z",
-		EndTimestamp:      "2026-02-09T11:10:00Z",
-		MarkdownSizeBytes: 567,
-		Provider:          "codex",
-		LastUpdated:       "2026-02-09T11:15:00Z",
-	}
-
-	err = collector.AddSessionStats(secondSessionID, secondStats)
-	if err != nil {
-		t.Fatalf("Failed to add second session stats: %v", err)
-	}
-
-	// Verify both sessions exist
-	data, err = os.ReadFile(statsPath)
-	if err != nil {
-		t.Fatalf("Failed to read statistics.json after second session: %v", err)
-	}
-
-	if err := json.Unmarshal(data, &statsFile); err != nil {
-		t.Fatalf("Failed to parse statistics.json after second session: %v", err)
-	}
-
-	if len(statsFile.Sessions) != 2 {
-		t.Errorf("Expected 2 sessions, got %d", len(statsFile.Sessions))
-	}
-
-	if _, exists := statsFile.Sessions[secondSessionID]; !exists {
-		t.Errorf("Second session %s not found in statistics file", secondSessionID)
+	for id := range sessions {
+		if _, exists := sf.Sessions[id]; !exists {
+			t.Errorf("Session %s not found in statistics file", id)
+		}
 	}
 }
 
 func TestStatisticsCollector_CorruptJSON(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir := t.TempDir()
-
 	statsPath := filepath.Join(tempDir, "statistics.json")
 
-	// Write corrupt JSON
-	err := os.WriteFile(statsPath, []byte("{invalid json"), 0644)
-	if err != nil {
+	// Seed a corrupt file
+	if err := os.WriteFile(statsPath, []byte("{invalid json"), 0644); err != nil {
 		t.Fatalf("Failed to write corrupt JSON: %v", err)
 	}
 
-	// Try to add statistics - should start fresh
 	collector := NewStatisticsCollector(tempDir)
-	sessionID := "test-session-789"
 	stats := SessionStatistics{
 		UserMessageCount:  2,
 		AgentMessageCount: 3,
@@ -262,27 +363,16 @@ func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 		LastUpdated:       "2026-02-09T12:10:00Z",
 	}
 
-	err = collector.AddSessionStats(sessionID, stats)
-	if err != nil {
-		t.Fatalf("Failed to add session stats after corrupt JSON: %v", err)
+	if err := collector.AddSessionStats("session-corrupt", stats); err != nil {
+		t.Fatalf("AddSessionStats after corrupt file failed: %v", err)
 	}
 
-	// Verify the file was recreated with valid JSON
-	data, err := os.ReadFile(statsPath)
-	if err != nil {
-		t.Fatalf("Failed to read statistics.json after recovery: %v", err)
+	// Should have recovered with only the new session
+	sf := readStatisticsFile(t, tempDir)
+	if len(sf.Sessions) != 1 {
+		t.Errorf("Expected 1 session after recovery, got %d", len(sf.Sessions))
 	}
-
-	var statsFile StatisticsFile
-	if err := json.Unmarshal(data, &statsFile); err != nil {
-		t.Fatalf("Failed to parse statistics.json after recovery: %v", err)
-	}
-
-	if len(statsFile.Sessions) != 1 {
-		t.Errorf("Expected 1 session after recovery, got %d", len(statsFile.Sessions))
-	}
-
-	if _, exists := statsFile.Sessions[sessionID]; !exists {
-		t.Errorf("Session %s not found after recovery", sessionID)
+	if _, exists := sf.Sessions["session-corrupt"]; !exists {
+		t.Error("Session session-corrupt not found after recovery")
 	}
 }
