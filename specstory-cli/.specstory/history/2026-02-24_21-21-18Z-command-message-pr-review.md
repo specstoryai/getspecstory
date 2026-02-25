@@ -3824,3 +3824,500 @@ Run linter
 _**Agent (claude-opus-4-6 2026-02-25 13:55:18Z)**_
 
 Added the `onlyStats && printToStdout` mutual exclusion check. `--print` outputs markdown to stdout, which makes no sense when `--only-stats` skips markdown entirely.
+
+---
+
+_**User (2026-02-25 13:58:14Z)**_
+
+OK, now we're ready to adjust where stats collector gets created. Let's address 11/28 togethor, and clean up 12, 13, 20 and 29 at the same time.
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:21Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants me to address several observations from the code review:
+
+- (11/28): StatisticsCollector is created per session instead of once and reused
+- (12): Variable `providerID` shadows the function parameter in main.go syncProvider
+- (13): `specstoryDir` computed repeatedly inside the loop in syncProvider
+- (20): `GetSpecStoryDir(config)` called again in the stats output message area
+- (29): In session.go ProcessSingleSession, `providerID` variable when `agentName` already holds the same value
+
+Let me read the relevant sections of both files to understand the current state.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:21Z)**_
+
+Let me read the current state of both files where changes are needed.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:22Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   800→	}
+   801→
+   802→	// Preload bulk sizes once - shared across all providers since they use same projectID
+   803→	if syncMgr := cloud.GetSyncManager(); syncMgr != nil {
+   804→		syncMgr.PreloadSessionSizes(projectID)
+   805→	} else {
+   806→		slog.Warn("Cannot preload session sizes: sync manager is nil despite authentication")
+   807→	}
+   808→}
+   809→
+   810→// syncProvider performs the actual sync for a single provider
+   811→// Returns (sessionCount, error) for analytics tracking
+   812→func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
+   813→	cwd, err := os.Getwd()
+   814→	if err != nil {
+   815→		slog.Error("Failed to get current working directory", "error", err)
+   816→		return 0, err
+   817→	}
+   818→
+   819→	// Create progress callback for parsing phase
+   820→	// The callback updates the "Parsing..." line in place with [n/m] progress
+   821→	var parseProgress spi.ProgressCallback
+   822→	if !silent {
+   823→		providerName := provider.Name()
+   824→		parseProgress = func(current, total int) {
+   825→			fmt.Printf("\rParsing %s sessions [%d/%d]", providerName, current, total)
+   826→			_ = os.Stdout.Sync()
+   827→		}
+   828→	}
+   829→
+   830→	// Get all sessions from the provider
+   831→	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw, parseProgress)
+   832→	if err != nil {
+   833→		return 0, fmt.Errorf("failed to get sessions: %w", err)
+   834→	}
+   835→
+   836→	sessionCount := len(sessions)
+   837→
+   838→	if sessionCount == 0 && !silent {
+   839→		// This comes after "Parsing..." message, on the same line
+   840→		fmt.Printf(", no non-empty sessions found for %s\n", provider.Name())
+   841→		fmt.Println()
+   842→		return 0, nil
+   843→	}
+   844→
+   845→	if !silent && !onlyStats {
+   846→		fmt.Printf("\nSyncing markdown files for %s", provider.Name())
+   847→	}
+   848→
+   849→	// Initialize statistics
+   850→	stats := &SyncStats{
+   851→		TotalSessions: sessionCount,
+   852→	}
+   853→
+   854→	historyPath := config.GetHistoryDir()
+   855→	agentName := provider.Name()
+   856→	ctx := context.Background()
+   857→
+   858→	// Process each session
+   859→	for i := range sessions {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:23Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   890→
+   891→			// Generate markdown from SessionData
+   892→			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+   893→			if err != nil {
+   894→				slog.Error("Failed to generate markdown from SessionData",
+   895→					"sessionId", session.SessionID,
+   896→					"error", err)
+   897→				// Track sync error
+   898→				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   899→					"session_id": session.SessionID,
+   900→					"error":      err.Error(),
+   901→				})
+   902→				return
+   903→			}
+   904→
+   905→			// Collect statistics (always enabled)
+   906→			providerID := session.SessionData.Provider.Name
+   907→			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+   908→			specstoryDir := sessionpkg.GetSpecStoryDir(config)
+   909→			collector := sessionpkg.NewStatisticsCollector(specstoryDir)
+   910→			if err := collector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+   911→				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+   912→			}
+   913→
+   914→			// In only-stats mode, skip file writes and cloud sync
+   915→			if onlyStats {
+   916→				stats.SessionsSkipped++
+   917→				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
+   918→				return
+   919→			}
+   920→
+   921→			// Generate filename from timestamp and slug
+   922→			fileFullPath := sessionpkg.BuildSessionFilePath(session, historyPath, useUTC)
+   923→
+   924→			// Check if file already exists with same content
+   925→			identicalContent := false
+   926→			fileExists := false
+   927→			if existingContent, err := os.ReadFile(fileFullPath); err == nil {
+   928→				fileExists = true
+   929→				if string(existingContent) == markdownContent {
+   930→					identicalContent = true
+   931→					slog.Info("Markdown file already exists with same content, skipping write",
+   932→						"sessionId", session.SessionID,
+   933→						"path", fileFullPath)
+   934→				}
+   935→			}
+   936→
+   937→			// Write file if needed (skip if only-cloud-sync is enabled)
+   938→			if !onlyCloudSync {
+   939→				if !identicalContent {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:23Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+  1020→			log.ColorYellow, stats.SessionsUpdated, pluralSession(stats.SessionsUpdated), log.ColorReset)
+  1021→		fmt.Printf("  ✨ %s%d new %s created%s\n",
+  1022→			log.ColorGreen, stats.SessionsCreated, pluralSession(stats.SessionsCreated), log.ColorReset)
+  1023→		fmt.Println()
+  1024→	}
+  1025→
+  1026→	// Show statistics path only in --only-stats mode
+  1027→	if sessionCount > 0 && !silent && onlyStats {
+  1028→		specstoryDir := sessionpkg.GetSpecStoryDir(config)
+  1029→		statsPath := filepath.Join(specstoryDir, "statistics.json")
+  1030→		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
+  1031→	}
+  1032→
+  1033→	return sessionCount, nil
+  1034→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:24Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/session.go`
+
+```text
+    92→// ProcessSingleSession writes markdown and triggers cloud sync for a single session.
+    93→// ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
+    94→// Returns the size of the markdown content in bytes.
+    95→func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
+    96→	if session == nil || session.SessionData == nil {
+    97→		return 0, fmt.Errorf("session or session data is nil")
+    98→	}
+    99→
+   100→	// Track processing start time for metrics
+   101→	processingStart := time.Now()
+   102→
+   103→	// Create a context with a deterministic trace ID from the session ID.
+   104→	// This groups all spans for the same session into a single trace, even
+   105→	// across multiple invocations in autosave mode.
+   106→	ctx = telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+   107→
+   108→	// Start an OTel span for this session processing (no-op when telemetry is disabled)
+   109→	ctx, span := telemetry.Tracer("specstory").Start(ctx, "process_session")
+   110→	defer span.End()
+   111→
+   112→	// Compute session statistics
+   113→	agentName := session.SessionData.Provider.Name
+   114→	stats := telemetry.ComputeSessionStats(agentName, session)
+   115→
+   116→	// Record metrics (no-op when telemetry is disabled)
+   117→	defer func() {
+   118→		telemetry.RecordSessionMetrics(ctx, stats, time.Since(processingStart))
+   119→	}()
+   120→
+   121→	// Set session span attributes
+   122→	telemetry.SetSessionSpanAttributes(span, stats)
+   123→
+   124→	// Create child spans for each exchange
+   125→	if len(session.SessionData.Exchanges) > 0 {
+   126→		telemetry.ProcessExchangeSpans(ctx, stats, session.SessionData.Exchanges, opts.NoTelemetryPrompts)
+   127→	}
+   128→
+   129→	ValidateSessionData(session, opts.DebugRaw)
+   130→	WriteDebugSessionData(session, opts.DebugRaw)
+   131→
+   132→	// Generate markdown from SessionData
+   133→	markdownContent, err := GenerateMarkdownFromAgentSession(session.SessionData, false, opts.UseUTC)
+   134→	if err != nil {
+   135→		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
+   136→		return 0, fmt.Errorf("failed to generate markdown: %w", err)
+   137→	}
+   138→
+   139→	// Calculate markdown size in bytes
+   140→	markdownSize := len(markdownContent)
+   141→
+   142→	// Collect statistics (always enabled, even in only-stats mode)
+   143→	providerID := session.SessionData.Provider.Name
+   144→	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+   145→	specstoryDir := GetSpecStoryDir(config)
+   146→	collector := NewStatisticsCollector(specstoryDir)
+   147→	if err := collector.AddSessionStats(session.SessionID, sessionStats); err != nil {
+   148→		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+   149→		// Don't fail the operation, just log warning
+   150→	}
+   151→
+   152→	// In only-stats mode, skip file writes and cloud sync entirely
+   153→	if opts.OnlyStats {
+   154→		if opts.ShowOutput && !log.IsSilent() {
+   155→			fmt.Printf("Processing session %s... statistics collected\n", session.SessionID)
+   156→			fmt.Println()
+   157→		}
+   158→		return markdownSize, nil
+   159→	}
+   160→
+   161→	// Generate filename from timestamp and slug
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:31Z)**_
+
+Good, I can see all the relevant sections. Here's the plan:
+
+**main.go `syncProvider`:**
+- Hoist `specstoryDir` and `collector` above the loop (fixes 11, 13, 20)
+- Remove the shadowing `providerID` variable inside the loop, use the existing `agentName` (fixes 12)
+
+**session.go `ProcessSingleSession`:**
+- Reuse the existing `agentName` instead of creating a new `providerID` (fixes 29)
+- Still create collector per call since this function is called independently from different contexts (28 — mitigated by the note that callers are typically one-shot)
+
+Let me make the changes.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:33Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:37Z)**_
+
+Now replace the per-iteration collector creation and variable shadowing inside the loop.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:40Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:44Z)**_
+
+<think><details><summary>Thought Process</summary>
+It seems the variable name didn't match. Let me check - maybe there's a different location? Actually wait - the linter says `statsCollector` declared and not used at line 860. But I just used it... Let me re-read the area to see what happened.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:45Z)**_
+
+Let me check - seems like there may be a second collector reference I missed.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:45Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   855→	agentName := provider.Name()
+   856→	ctx := context.Background()
+   857→
+   858→	// Create a single statistics collector for all sessions in this provider
+   859→	specstoryDir := sessionpkg.GetSpecStoryDir(config)
+   860→	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+   861→
+   862→	// Process each session
+   863→	for i := range sessions {
+   864→		session := &sessions[i]
+   865→
+   866→		// Process session in a closure so defers scope to each iteration,
+   867→		// ensuring spans are ended and metrics recorded even on early returns.
+   868→		func() {
+   869→			processingStart := time.Now()
+   870→
+   871→			// Create a context with a deterministic trace ID from the session ID
+   872→			sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+   873→
+   874→			// Start an OTel span for this session processing
+   875→			sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+   876→			defer span.End()
+   877→
+   878→			// Compute session statistics
+   879→			sessionStats := telemetry.ComputeSessionStats(agentName, session)
+   880→			defer func() {
+   881→				telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+   882→			}()
+   883→
+   884→			// Set session span attributes
+   885→			telemetry.SetSessionSpanAttributes(span, sessionStats)
+   886→
+   887→			// Create child spans for each exchange
+   888→			if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+   889→				telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
+   890→			}
+   891→
+   892→			sessionpkg.ValidateSessionData(session, debugRaw)
+   893→			sessionpkg.WriteDebugSessionData(session, debugRaw)
+   894→
+   895→			// Generate markdown from SessionData
+   896→			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+   897→			if err != nil {
+   898→				slog.Error("Failed to generate markdown from SessionData",
+   899→					"sessionId", session.SessionID,
+   900→					"error", err)
+   901→				// Track sync error
+   902→				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   903→					"session_id": session.SessionID,
+   904→					"error":      err.Error(),
+   905→				})
+   906→				return
+   907→			}
+   908→
+   909→			// Collect statistics (always enabled)
+   910→			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+   911→			if err := statsCollector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+   912→				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+   913→			}
+   914→
+   915→			// In only-stats mode, skip file writes and cloud sync
+   916→			if onlyStats {
+   917→				stats.SessionsSkipped++
+   918→				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
+   919→				return
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:49Z)**_
+
+The code looks correct — `statsCollector` is used at line 911 inside the closure. This is a Go closure capturing the outer variable, which the compiler should recognize. Let me check if there's a compilation issue.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check if the code compiles
+
+`go build -o /dev/null 2>&1`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:56Z)**_
+
+Compiles fine — the diagnostic was a false positive from the IDE (closures capture outer variables). Now fix the stats output message to reuse `specstoryDir` instead of recomputing it (20).
+
+_**Agent (claude-opus-4-6 2026-02-25 13:58:59Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:59:02Z)**_
+
+Now fix observation 29 in session.go — reuse `agentName` instead of creating a redundant `providerID`.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:59:04Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:59:10Z)**_
+
+Now build and run tests.
+
+_**Agent (claude-opus-4-6 2026-02-25 13:59:14Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and run statistics tests
+
+`go build -o /dev/null 2>&1 && go test -v ./pkg/session/ -run TestComputeSessionStatistics\|TestStatisticsCollector 2>&1`
+
+```text
+=== RUN   TestComputeSessionStatistics
+=== RUN   TestComputeSessionStatistics/single_exchange_with_both_timestamps
+=== RUN   TestComputeSessionStatistics/multiple_exchanges_uses_first_start_and_last_end
+=== RUN   TestComputeSessionStatistics/no_user_messages
+=== RUN   TestComputeSessionStatistics/empty_exchanges_falls_back_to_CreatedAt_for_both_timestamps
+=== RUN   TestComputeSessionStatistics/empty_exchanges_with_UpdatedAt_uses_UpdatedAt_for_end
+=== RUN   TestComputeSessionStatistics/exchange_missing_EndTime_falls_back_to_UpdatedAt
+=== RUN   TestComputeSessionStatistics/exchange_missing_EndTime_and_empty_UpdatedAt_falls_back_to_CreatedAt
+=== RUN   TestComputeSessionStatistics/exchange_missing_StartTime_falls_back_to_CreatedAt_for_start
+--- PASS: TestComputeSessionStatistics (0.00s)
+    --- PASS: TestComputeSessionStatistics/single_exchange_with_both_timestamps (0.00s)
+    --- PASS: TestComputeSessionStatistics/multiple_exchanges_uses_first_start_and_last_end (0.00s)
+    --- PASS: TestComputeSessionStatistics/no_user_messages (0.00s)
+    --- PASS: TestComputeSessionStatistics/empty_exchanges_falls_back_to_CreatedAt_for_both_timestamps (0.00s)
+    --- PASS: TestComputeSessionStatistics/empty_exchanges_with_UpdatedAt_uses_UpdatedAt_for_end (0.00s)
+    --- PASS: TestComputeSessionStatistics/exchange_missing_EndTime_falls_back_to_UpdatedAt (0.00s)
+    --- PASS: TestComputeSessionStatistics/exchange_missing_EndTime_and_empty_UpdatedAt_falls_back_to_CreatedAt (0.00s)
+    --- PASS: TestComputeSessionStatistics/exchange_missing_StartTime_falls_back_to_CreatedAt_for_start (0.00s)
+=== RUN   TestStatisticsCollector_CreateNewFile
+--- PASS: TestStatisticsCollector_CreateNewFile (0.00s)
+=== RUN   TestStatisticsCollector_UpdateExisting
+--- PASS: TestStatisticsCollector_UpdateExisting (0.00s)
+=== RUN   TestStatisticsCollector_MultipleSessions
+--- PASS: TestStatisticsCollector_MultipleSessions (0.00s)
+=== RUN   TestStatisticsCollector_CorruptJSON
+2026/02/25 08:48:59 WARN Failed to parse existing statistics.json, starting fresh error="invalid character 'i' looking for beginning of object key string"
+--- PASS: TestStatisticsCollector_CorruptJSON (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	(cached)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:59:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter
+
+`golangci-lint run 2>&1`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 13:59:25Z)**_
+
+All tests pass, linter is clean. Here's a summary of the changes:
+
+**main.go `syncProvider`** (fixes 11, 12, 13, 20):
+- Hoisted `specstoryDir` and `statsCollector` above the session loop — one collector instance with one mutex is now shared across all sessions in a provider sync
+- Removed the shadowing `providerID := session.SessionData.Provider.Name` inside the loop, using the already-available `agentName` instead
+- The stats output message now reuses the hoisted `specstoryDir` instead of recomputing it
+
+**session.go `ProcessSingleSession`** (fixes 29):
+- Removed the redundant `providerID` variable, reusing the existing `agentName` which holds the same value (`session.SessionData.Provider.Name`)
+
+Note: `ProcessSingleSession` still creates its own collector per call — this is appropriate since it's called from independent contexts (specific session sync, autosave) where there's no shared loop to hoist into.

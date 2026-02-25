@@ -262,6 +262,10 @@ func TestStatisticsCollector_CreateNewFile(t *testing.T) {
 		t.Fatalf("AddSessionStats failed: %v", err)
 	}
 
+	if err := collector.Flush(); err != nil {
+		t.Fatalf("Flush failed: %v", err)
+	}
+
 	sf := readStatisticsFile(t, tempDir)
 	if len(sf.Sessions) != 1 {
 		t.Errorf("Expected 1 session, got %d", len(sf.Sessions))
@@ -291,6 +295,9 @@ func TestStatisticsCollector_UpdateExisting(t *testing.T) {
 	if err := collector.AddSessionStats("session-1", original); err != nil {
 		t.Fatalf("AddSessionStats (original) failed: %v", err)
 	}
+	if err := collector.Flush(); err != nil {
+		t.Fatalf("Flush (original) failed: %v", err)
+	}
 
 	// Update same session with new counts
 	updated := original
@@ -298,6 +305,9 @@ func TestStatisticsCollector_UpdateExisting(t *testing.T) {
 	updated.LastUpdated = "2026-02-09T10:30:00Z"
 	if err := collector.AddSessionStats("session-1", updated); err != nil {
 		t.Fatalf("AddSessionStats (update) failed: %v", err)
+	}
+	if err := collector.Flush(); err != nil {
+		t.Fatalf("Flush (update) failed: %v", err)
 	}
 
 	sf := readStatisticsFile(t, tempDir)
@@ -330,6 +340,10 @@ func TestStatisticsCollector_MultipleSessions(t *testing.T) {
 		if err := collector.AddSessionStats(id, stats); err != nil {
 			t.Fatalf("AddSessionStats(%s) failed: %v", id, err)
 		}
+	}
+
+	if err := collector.Flush(); err != nil {
+		t.Fatalf("Flush failed: %v", err)
 	}
 
 	sf := readStatisticsFile(t, tempDir)
@@ -365,6 +379,10 @@ func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 
 	if err := collector.AddSessionStats("session-corrupt", stats); err != nil {
 		t.Fatalf("AddSessionStats after corrupt file failed: %v", err)
+	}
+
+	if err := collector.Flush(); err != nil {
+		t.Fatalf("Flush after corrupt file failed: %v", err)
 	}
 
 	// Should have recovered with only the new session

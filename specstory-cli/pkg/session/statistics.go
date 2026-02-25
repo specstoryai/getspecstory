@@ -28,16 +28,20 @@ type StatisticsFile struct {
 	Sessions map[string]SessionStatistics `json:"sessions"`
 }
 
-// StatisticsCollector handles thread-safe statistics collection and persistence
+// StatisticsCollector handles thread-safe statistics collection and persistence.
+// Stats are accumulated in memory via AddSessionStats and written to disk in a
+// single read-modify-write cycle when Flush is called.
 type StatisticsCollector struct {
 	specstoryDir string
 	mu           sync.Mutex
+	pending      map[string]SessionStatistics // in-memory buffer of stats awaiting flush
 }
 
 // NewStatisticsCollector creates a new statistics collector for the given .specstory directory
 func NewStatisticsCollector(specstoryDir string) *StatisticsCollector {
 	return &StatisticsCollector{
 		specstoryDir: specstoryDir,
+		pending:      make(map[string]SessionStatistics),
 	}
 }
 
@@ -90,11 +94,27 @@ func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent s
 	return stats
 }
 
-// AddSessionStats atomically adds or updates session statistics in the statistics.json file
+// AddSessionStats accumulates session statistics in memory. Call Flush to
+// persist all pending stats to disk in a single I/O operation.
 func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionStatistics) error {
-	// Lock for thread-safe file operations
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	c.pending[sessionID] = stats
+	slog.Debug("Buffered session statistics", "sessionId", sessionID)
+	return nil
+}
+
+// Flush writes all pending session statistics to the statistics.json file in a
+// single read-modify-write cycle, then clears the pending buffer.
+func (c *StatisticsCollector) Flush() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Nothing to flush
+	if len(c.pending) == 0 {
+		return nil
+	}
 
 	statsPath := filepath.Join(c.specstoryDir, "statistics.json")
 
@@ -116,8 +136,10 @@ func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionSta
 		return fmt.Errorf("failed to read statistics file: %w", err)
 	}
 
-	// Add or update the session statistics
-	statsFile.Sessions[sessionID] = stats
+	// Merge all pending stats into the file
+	for sessionID, stats := range c.pending {
+		statsFile.Sessions[sessionID] = stats
+	}
 
 	// Marshal to JSON with indentation for readability
 	jsonData, err := json.MarshalIndent(statsFile, "", "  ")
@@ -137,6 +159,9 @@ func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionSta
 		return fmt.Errorf("failed to rename temp statistics file: %w", err)
 	}
 
-	slog.Debug("Updated session statistics", "sessionId", sessionID, "path", statsPath)
+	slog.Debug("Flushed session statistics", "count", len(c.pending), "path", statsPath)
+
+	// Clear pending buffer
+	c.pending = make(map[string]SessionStatistics)
 	return nil
 }

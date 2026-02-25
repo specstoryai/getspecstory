@@ -807,9 +807,11 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 	}
 }
 
-// syncProvider performs the actual sync for a single provider
-// Returns (sessionCount, error) for analytics tracking
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
+// syncProvider performs the actual sync for a single provider.
+// The caller-provided statsCollector accumulates statistics across providers so
+// they can be flushed to disk in a single I/O operation after all providers are done.
+// Returns (sessionCount, error) for analytics tracking.
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool, statsCollector *sessionpkg.StatisticsCollector) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
@@ -903,11 +905,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			}
 
 			// Collect statistics (always enabled)
-			providerID := session.SessionData.Provider.Name
-			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
-			specstoryDir := sessionpkg.GetSpecStoryDir(config)
-			collector := sessionpkg.NewStatisticsCollector(specstoryDir)
-			if err := collector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+			if err := statsCollector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
 				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
 			}
 
@@ -1023,13 +1022,6 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Println()
 	}
 
-	// Show statistics path only in --only-stats mode
-	if sessionCount > 0 && !silent && onlyStats {
-		specstoryDir := sessionpkg.GetSpecStoryDir(config)
-		statsPath := filepath.Join(specstoryDir, "statistics.json")
-		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
-	}
-
 	return sessionCount, nil
 }
 
@@ -1116,6 +1108,11 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Preload session sizes for batch sync optimization (ONCE for all providers)
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
+	// Create a single statistics collector shared across all providers so the
+	// statistics.json file is written only once after all providers are processed.
+	specstoryDir := sessionpkg.GetSpecStoryDir(config)
+	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+
 	// Sync each provider with activity
 	totalSessionCount := 0
 	var lastError error
@@ -1130,7 +1127,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC, statsCollector)
 		totalSessionCount += sessionCount
 
 		if err != nil {
@@ -1144,6 +1141,17 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 && !isLast {
 			fmt.Println("────────────")
 		}
+	}
+
+	// Flush all accumulated statistics to disk in a single write
+	if err := statsCollector.Flush(); err != nil {
+		slog.Warn("Failed to flush statistics", "error", err)
+	}
+
+	// Show statistics path once after all providers are done (only in --only-stats mode)
+	if totalSessionCount > 0 && !silent && onlyStats {
+		statsPath := filepath.Join(specstoryDir, "statistics.json")
+		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
 	}
 
 	// Track overall analytics
@@ -1228,12 +1236,27 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	// Preload session sizes for batch sync optimization
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
+	// Create statistics collector for this provider
+	specstoryDir := sessionpkg.GetSpecStoryDir(config)
+	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+
 	if !silent {
 		fmt.Printf("\nParsing %s sessions", provider.Name())
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC, statsCollector)
+
+	// Flush statistics to disk
+	if err := statsCollector.Flush(); err != nil {
+		slog.Warn("Failed to flush statistics", "error", err)
+	}
+
+	// Show statistics path (only in --only-stats mode)
+	if sessionCount > 0 && !silent && onlyStats {
+		statsPath := filepath.Join(specstoryDir, "statistics.json")
+		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
+	}
 
 	// Track analytics
 	if syncErr != nil {

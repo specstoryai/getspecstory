@@ -140,8 +140,7 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	markdownSize := len(markdownContent)
 
 	// Collect statistics (always enabled, even in only-stats mode)
-	providerID := session.SessionData.Provider.Name
-	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
 	specstoryDir := GetSpecStoryDir(config)
 	collector := NewStatisticsCollector(specstoryDir)
 	if err := collector.AddSessionStats(session.SessionID, sessionStats); err != nil {

@@ -1050,3 +1050,2479 @@ Now there's exactly one divider between each section:
 - **Before cloud sync**: the cloud sync section prints `────────────` (works for both single and multi-provider paths)
 
 Ready to test.
+
+---
+
+_**User (2026-02-25 14:00:37Z)**_
+
+hmmm why do I get the stats output 3 times still?
+
+[02/25/26 8:57  ~/source/SpecStory/compositions/watch-2] ~/source/SpecStory/getspecstory/specstory-cli/specstory sync --only-stats
+
+Parsing Claude Code sessions [1/1]
+📊 Statistics collected: /Users/sean/source/SpecStory/compositions/watch-2/.specstory/statistics.json
+
+Parsing Codex CLI sessions [2/2]
+📊 Statistics collected: /Users/sean/source/SpecStory/compositions/watch-2/.specstory/statistics.json
+
+Parsing Factory Droid CLI sessions [2/2]
+📊 Statistics collected: /Users/sean/source/SpecStory/compositions/watch-2/.specstory/statistics.json
+
+I thought the idea was we were going to just read the stats file once, and write it only once? Is that not happening?
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:39Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user is asking about the `--only-stats` output. They're seeing the statistics path printed 3 times (once per provider), and they're questioning whether the stats file is being written multiple times too.
+
+Let me look at how the statistics collector works in the context of multi-provider sync to understand the flow.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:39Z)**_
+
+Let me trace the stats flow to understand what's happening.
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:40Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./` pattern `StatisticsCollector|NewStatisticsCollector|AddSessionStats|WriteStats"`
+
+```text
+Found 4 files
+pkg/session/session.go
+main.go
+pkg/session/statistics_test.go
+pkg/session/statistics.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:41Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/statistics.go`
+
+```text
+     1→package session
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"path/filepath"
+     9→	"sync"
+    10→	"time"
+    11→
+    12→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+    13→)
+    14→
+    15→// SessionStatistics contains computed statistics for a single session
+    16→type SessionStatistics struct {
+    17→	UserMessageCount  int    `json:"user_message_count"`
+    18→	AgentMessageCount int    `json:"agent_message_count"`
+    19→	StartTimestamp    string `json:"start_timestamp"`
+    20→	EndTimestamp      string `json:"end_timestamp"`
+    21→	MarkdownSizeBytes int    `json:"markdown_size_bytes"`
+    22→	Provider          string `json:"provider"`
+    23→	LastUpdated       string `json:"last_updated"`
+    24→}
+    25→
+    26→// StatisticsFile is the root structure for the statistics.json file
+    27→type StatisticsFile struct {
+    28→	Sessions map[string]SessionStatistics `json:"sessions"`
+    29→}
+    30→
+    31→// StatisticsCollector handles thread-safe statistics collection and persistence
+    32→type StatisticsCollector struct {
+    33→	specstoryDir string
+    34→	mu           sync.Mutex
+    35→}
+    36→
+    37→// NewStatisticsCollector creates a new statistics collector for the given .specstory directory
+    38→func NewStatisticsCollector(specstoryDir string) *StatisticsCollector {
+    39→	return &StatisticsCollector{
+    40→		specstoryDir: specstoryDir,
+    41→	}
+    42→}
+    43→
+    44→// ComputeSessionStatistics extracts statistics from SessionData and markdown content
+    45→func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics {
+    46→	stats := SessionStatistics{
+    47→		Provider:          providerID,
+    48→		MarkdownSizeBytes: len(markdownContent),
+    49→		LastUpdated:       time.Now().UTC().Format(time.RFC3339),
+    50→	}
+    51→
+    52→	// Count user and agent messages by iterating through exchanges
+    53→	userMsgCount := 0
+    54→	agentMsgCount := 0
+    55→	for _, exchange := range sessionData.Exchanges {
+    56→		for _, msg := range exchange.Messages {
+    57→			if msg.Role == schema.RoleUser {
+    58→				userMsgCount++
+    59→			} else {
+    60→				agentMsgCount++
+    61→			}
+    62→		}
+    63→	}
+    64→	stats.UserMessageCount = userMsgCount
+    65→	stats.AgentMessageCount = agentMsgCount
+    66→
+    67→	// Extract start timestamp - use first exchange start time if available, else session CreatedAt
+    68→	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
+    69→		stats.StartTimestamp = sessionData.Exchanges[0].StartTime
+    70→	} else {
+    71→		stats.StartTimestamp = sessionData.CreatedAt
+    72→	}
+    73→
+    74→	// Extract end timestamp - use last exchange end time if available, else session UpdatedAt, else CreatedAt
+    75→	if len(sessionData.Exchanges) > 0 {
+    76→		lastExchange := sessionData.Exchanges[len(sessionData.Exchanges)-1]
+    77→		if lastExchange.EndTime != "" {
+    78→			stats.EndTimestamp = lastExchange.EndTime
+    79→		} else if sessionData.UpdatedAt != "" {
+    80→			stats.EndTimestamp = sessionData.UpdatedAt
+    81→		} else {
+    82→			stats.EndTimestamp = sessionData.CreatedAt
+    83→		}
+    84→	} else if sessionData.UpdatedAt != "" {
+    85→		stats.EndTimestamp = sessionData.UpdatedAt
+    86→	} else {
+    87→		stats.EndTimestamp = sessionData.CreatedAt
+    88→	}
+    89→
+    90→	return stats
+    91→}
+    92→
+    93→// AddSessionStats atomically adds or updates session statistics in the statistics.json file
+    94→func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionStatistics) error {
+    95→	// Lock for thread-safe file operations
+    96→	c.mu.Lock()
+    97→	defer c.mu.Unlock()
+    98→
+    99→	statsPath := filepath.Join(c.specstoryDir, "statistics.json")
+   100→
+   101→	// Read existing statistics file
+   102→	statsFile := StatisticsFile{
+   103→		Sessions: make(map[string]SessionStatistics),
+   104→	}
+   105→
+   106→	data, err := os.ReadFile(statsPath)
+   107→	if err == nil {
+   108→		// File exists, try to parse it
+   109→		if err := json.Unmarshal(data, &statsFile); err != nil {
+   110→			// Corrupt JSON - log warning and start fresh
+   111→			slog.Warn("Failed to parse existing statistics.json, starting fresh", "error", err)
+   112→			statsFile.Sessions = make(map[string]SessionStatistics)
+   113→		}
+   114→	} else if !os.IsNotExist(err) {
+   115→		// Error other than "file doesn't exist"
+   116→		return fmt.Errorf("failed to read statistics file: %w", err)
+   117→	}
+   118→
+   119→	// Add or update the session statistics
+   120→	statsFile.Sessions[sessionID] = stats
+   121→
+   122→	// Marshal to JSON with indentation for readability
+   123→	jsonData, err := json.MarshalIndent(statsFile, "", "  ")
+   124→	if err != nil {
+   125→		return fmt.Errorf("failed to marshal statistics: %w", err)
+   126→	}
+   127→
+   128→	// Write atomically using temp file + rename
+   129→	tempPath := statsPath + ".tmp"
+   130→	if err := os.WriteFile(tempPath, jsonData, 0644); err != nil {
+   131→		return fmt.Errorf("failed to write temp statistics file: %w", err)
+   132→	}
+   133→
+   134→	if err := os.Rename(tempPath, statsPath); err != nil {
+   135→		// Clean up temp file on failure
+   136→		_ = os.Remove(tempPath)
+   137→		return fmt.Errorf("failed to rename temp statistics file: %w", err)
+   138→	}
+   139→
+   140→	slog.Debug("Updated session statistics", "sessionId", sessionID, "path", statsPath)
+   141→	return nil
+   142→}
+   143→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:43Z)**_
+
+Now let me look at how `syncProvider` uses the collector and prints the stats path.
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:43Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   855→	agentName := provider.Name()
+   856→	ctx := context.Background()
+   857→
+   858→	// Create a single statistics collector for all sessions in this provider
+   859→	specstoryDir := sessionpkg.GetSpecStoryDir(config)
+   860→	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+   861→
+   862→	// Process each session
+   863→	for i := range sessions {
+   864→		session := &sessions[i]
+   865→
+   866→		// Process session in a closure so defers scope to each iteration,
+   867→		// ensuring spans are ended and metrics recorded even on early returns.
+   868→		func() {
+   869→			processingStart := time.Now()
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:44Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+  1024→		fmt.Println()
+  1025→	}
+  1026→
+  1027→	// Show statistics path only in --only-stats mode
+  1028→	if sessionCount > 0 && !silent && onlyStats {
+  1029→		statsPath := filepath.Join(specstoryDir, "statistics.json")
+  1030→		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
+  1031→	}
+  1032→
+  1033→	return sessionCount, nil
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:00:49Z)**_
+
+Here's what's happening:
+
+1. **Each call to `syncProvider`** creates its own `StatisticsCollector` (line 860) and prints the stats path (line 1030).
+2. **`AddSessionStats`** (line 94-142 of statistics.go) reads the file, updates one session, and writes it back — on every single session. So with 5 sessions across 3 providers, it's doing 5 separate read-modify-write cycles.
+3. The `📊 Statistics collected:` message prints once per provider because it's inside `syncProvider`.
+
+There are two issues:
+
+- **The output** prints the path 3 times — it should only print once at the end.
+- **The file I/O** is inefficient — each `AddSessionStats` call does a full read-modify-write of the file. Ideally it would accumulate in memory and write once.
+
+The output fix is straightforward: move the `📊` message out of `syncProvider` and into `syncAllProviders` (print once after the loop). For the I/O concern — the collector could be created once in `syncAllProviders` and passed into `syncProvider`, accumulating all sessions before a single write. But that's a bigger refactor.
+
+Want me to:
+
+1. **Just fix the output** — move the stats path message so it prints once after all providers are done
+2. **Fix output + optimize I/O** — also create the collector once and pass it through, with a single write at the end
+
+What do you prefer?
+
+---
+
+_**User (2026-02-25 14:01:22Z)**_
+
+2
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 14:01:23Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="EnterPlanMode"><details>
+<summary>Tool use: **EnterPlanMode**</summary>
+
+```text
+Entered plan mode. You should now focus on exploring the codebase and designing an implementation approach.
+
+In plan mode, you should:
+1. Thoroughly explore the codebase to understand existing patterns
+2. Identify similar features and architectural approaches
+3. Consider multiple approaches and their trade-offs
+4. Use AskUserQuestion if you need to clarify the approach
+5. Design a concrete implementation strategy
+6. When ready, use ExitPlanMode to present your plan for approval
+
+Remember: DO NOT write or edit any files yet. This is a read-only exploration and planning phase.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:01:41Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="Task"><details>
+<summary>Tool use: **Task**</summary>
+Explore stats collector flow
+
+```text
+Perfect! I have all the information you need. Let me provide a comprehensive analysis of the `StatisticsCollector` and `syncProvider` flow.
+
+## 1. **How `syncProvider` is called from both `syncAllProviders` and `syncSingleProvider`**
+
+**In `syncAllProviders()` (line 1133):**
+```go
+sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+totalSessionCount += sessionCount
+```
+
+**In `syncSingleProvider()` (line 1236):**
+```go
+sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+```
+
+**Function Signature of `syncProvider()` (lines 812-844):**
+```go
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error)
+```
+
+**Full parameter list:**
+- `provider spi.Provider` - The provider instance to sync
+- `providerID string` - The provider's ID (e.g., "claude-code")
+- `config utils.OutputConfig` - Output directory configuration
+- `debugRaw bool` - Whether to output raw debug data files
+- `useUTC bool` - Whether to use UTC or local timezone
+- **Returns:** `(int, error)` - Session count and any error
+
+---
+
+## 2. **How `StatisticsCollector` works**
+
+The `StatisticsCollector` **does NOT have a `Flush()` or `Write()` method**. Instead, it **writes immediately and per-session** via `AddSessionStats()`.
+
+**Key behavior:**
+- Each call to `AddSessionStats()` reads the entire `statistics.json` file, updates it, and writes it back atomically
+- This happens **once per session** (line 911 in `main.go`):
+  ```go
+  if err := statsCollector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+      slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+  }
+  ```
+- **There is no final flush call** — the collector writes immediately after each session is processed
+
+---
+
+## 3. **Full API of `StatisticsCollector` in `pkg/session/statistics.go`**
+
+**Constructor:**
+```go
+func NewStatisticsCollector(specstoryDir string) *StatisticsCollector
+```
+- Creates a new collector for a given `.specstory` directory
+
+**Core methods:**
+1. **`AddSessionStats(sessionID string, stats SessionStatistics) error`** (lines 94-142)
+   - Atomically adds or updates session statistics in `statistics.json`
+   - Uses mutex for thread-safe file operations
+   - Reads existing file, updates in-memory, writes back with temp file + atomic rename
+   - Logs on success at debug level
+   - Returns error if read/write fails
+
+2. **`ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics`** (lines 45-91)
+   - NOT a method of StatisticsCollector; it's a standalone function
+   - Extracts statistics from session data and markdown
+   - Computes: user message count, agent message count, start/end timestamps, markdown size
+   - Returns `SessionStatistics` struct
+
+**Data structures:**
+```go
+type SessionStatistics struct {
+    UserMessageCount  int    `json:"user_message_count"`
+    AgentMessageCount int    `json:"agent_message_count"`
+    StartTimestamp    string `json:"start_timestamp"`
+    EndTimestamp      string `json:"end_timestamp"`
+    MarkdownSizeBytes int    `json:"markdown_size_bytes"`
+    Provider          string `json:"provider"`
+    LastUpdated       string `json:"last_updated"`
+}
+
+type StatisticsFile struct {
+    Sessions map[string]SessionStatistics `json:"sessions"`
+}
+
+type StatisticsCollector struct {
+    specstoryDir string
+    mu           sync.Mutex  // Thread-safe lock
+}
+```
+
+---
+
+## 4. **Full Signature and Parameters of `syncProvider()` in `main.go`**
+
+**Signature (line 812):**
+```go
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error)
+```
+
+**Parameters breakdown:**
+
+| Parameter | Type | Purpose |
+|-----------|------|---------|
+| `provider` | `spi.Provider` | The provider interface to sync (e.g., Claude Code provider) |
+| `providerID` | `string` | The provider's unique identifier string |
+| `config` | `utils.OutputConfig` | Output directory paths and configuration |
+| `debugRaw` | `bool` | If true, outputs pretty-printed raw data files for debugging |
+| `useUTC` | `bool` | If true, use UTC for timestamps; if false, use local timezone |
+| *return* `int` | Session count processed | Number of sessions synced |
+| *return* `error` | Error if any | Operation error or nil |
+
+---
+
+## Key Flow Summary
+
+1. **Initialization:** `syncProvider()` creates a single `StatisticsCollector` (line 860) for all sessions in that provider:
+   ```go
+   statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+   ```
+
+2. **Per-session processing:** For each session (lines 863-1003):
+   - Generate markdown content
+   - Call `ComputeSessionStatistics()` to compute metrics
+   - **Immediately** call `statsCollector.AddSessionStats()` to persist stats (line 911)
+   - No batching; each session writes immediately
+
+3. **No finalization:** There's no flush or cleanup method—statistics are written immediately as each session is processed.
+
+4. **Statistics file location:** `.specstory/statistics.json` (computed at line 1029)
+agentId: a022bf8 (for resuming to continue this agent's work if needed)
+<usage>total_tokens: 40744
+tool_uses: 2
+duration_ms: 14867</usage>
+```
+</details></tool-use>
+
+_**Agent - sidechain (2026-02-25 14:01:26Z)**_
+
+I need to understand how `StatisticsCollector` is created, used, and written in the sync flow. Specifically:
+
+1. In `main.go`, how is `syncProvider` called from both `syncAllProviders` and `syncSingleProvider`? What's the function signature of `syncProvider`?
+2. How does `StatisticsCollector` work — does it have a `Flush` or `Write` method, or does it only write per-session via `AddSessionStats`?
+3. In `pkg/session/statistics.go`, what's the full API of `StatisticsCollector`?
+4. What is the signature and full parameter list of `syncProvider` in `main.go`?
+
+Search in:
+- `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go`
+- `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/statistics.go`
+
+Exclude `.specstory` directory from all searches.
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-25 14:01:27Z)**_
+
+I'll help you understand the `StatisticsCollector` and `syncProvider` flow. Let me search through the relevant files.
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-25 14:01:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+     1→package main
+     2→
+     3→import (
+     4→	"context"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"os/signal"
+     9→	"path/filepath"
+    10→	"strings"
+    11→	"syscall"
+    12→	"time"
+    13→
+    14→	"github.com/charmbracelet/fang"
+    15→	"github.com/spf13/cobra"
+    16→
+    17→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+    18→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+    19→	cmdpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd" // Aliased to avoid shadowing cobra's `cmd` parameter
+    20→
+    21→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
+    22→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+    23→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+    24→	sessionpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
+    25→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+    26→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+    27→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
+    28→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+    29→)
+    30→
+    31→// The current version of the CLI
+    32→var version = "dev" // Replaced with actual version in the production build process
+    33→
+    34→// Flags / Modes / Options
+    35→
+    36→// General Options
+    37→var noAnalytics bool    // flag to disable usage analytics
+    38→var noVersionCheck bool // flag to skip checking for newer versions
+    39→var outputDir string    // custom output directory for markdown files
+    40→var debugDir string     // custom output directory for debug files
+    41→var localTimeZone bool  // flag to use local timezone instead of UTC
+    42→// Sync Options
+    43→var noCloudSync bool   // flag to disable cloud sync
+    44→var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+    45→var onlyStats bool     // flag to only update statistics, skip local markdown and cloud sync
+    46→var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
+    47→var cloudURL string    // custom cloud API URL (hidden flag)
+    48→// Authentication Options
+    49→var cloudToken string // cloud refresh token for this session only (used by VSC VSIX, bypasses normal login)
+    50→// Logging and Debugging Options
+    51→var console bool // flag to enable logging to the console
+    52→var logFile bool // flag to enable logging to the log file
+    53→var debug bool   // flag to enable debug level logging
+    54→var silent bool  // flag to enable silent output (no user messages)
+    55→// Provenance Options
+    56→var provenanceEnabled bool // flag to enable AI provenance tracking
+    57→
+    58→// Loaded configuration (populated in main before commands are created)
+    59→var loadedConfig *config.Config
+    60→
+    61→// Telemetry State
+    62→var telemetryEndpoint string    // OTLP gRPC collector endpoint
+    63→var telemetryServiceName string // override the default service name
+    64→var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
+    65→
+    66→// Run Mode State
+    67→var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
+    68→
+    69→// pluralSession returns "session" or "sessions" based on count for proper grammar
+    70→func pluralSession(count int) string {
+    71→	if count == 1 {
+    72→		return "session"
+    73→	}
+    74→	return "sessions"
+    75→}
+    76→
+    77→// SyncStats tracks the results of a sync operation
+    78→type SyncStats struct {
+    79→	TotalSessions   int
+    80→	SessionsSkipped int // Already up to date
+    81→	SessionsUpdated int // Existed but needed update
+    82→	SessionsCreated int // Newly created markdown files
+    83→}
+    84→
+    85→// validateFlags checks for mutually exclusive flag combinations
+    86→func validateFlags() error {
+    87→	if console && silent {
+    88→		return utils.ValidationError{Message: "cannot use `console` and `silent` together. These are mutually exclusive"}
+    89→	}
+    90→	if debug && !console && !logFile {
+    91→		return utils.ValidationError{Message: "`debug` requires either `console` or `log` to be specified"}
+    92→	}
+    93→	if onlyCloudSync && noCloudSync {
+    94→		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
+    95→	}
+    96→	if onlyStats && onlyCloudSync {
+    97→		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
+    98→	}
+    99→	if onlyStats && noCloudSync {
+   100→		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
+   101→	}
+   102→	if onlyStats && printToStdout {
+   103→		return utils.ValidationError{Message: "cannot use --only-stats and --print together. These flags are mutually exclusive"}
+   104→	}
+   105→	if printToStdout && onlyCloudSync {
+   106→		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
+   107→	}
+   108→	if printToStdout && console {
+   109→		return utils.ValidationError{Message: "cannot use --print and `console` together. Console debug output would interleave with markdown on stdout"}
+   110→	}
+   111→	return nil
+   112→}
+   113→
+   114→// createRootCommand dynamically creates the root command with provider information
+   115→func createRootCommand() *cobra.Command {
+   116→	registry := factory.GetRegistry()
+   117→	ids := registry.ListIDs()
+   118→	providerList := registry.GetProviderList()
+   119→
+   120→	// Build dynamic examples based on registered providers
+   121→	examples := `
+   122→# Check terminal coding agents installation
+   123→specstory check
+   124→
+   125→# Run the default agent with auto-saving
+   126→specstory run`
+   127→
+   128→	// Add provider-specific examples if we have providers
+   129→	if len(ids) > 0 {
+   130→		examples += "\n\n# Run a specific agent with auto-saving"
+   131→		for _, id := range ids {
+   132→			if provider, _ := registry.Get(id); provider != nil {
+   133→				examples += fmt.Sprintf("\nspecstory run %s", id)
+   134→			}
+   135→		}
+   136→
+   137→		// Use first provider for custom command example
+   138→		examples += fmt.Sprintf("\n\n# Run with custom command\nspecstory run %s -c \"/custom/path/to/agent\"", ids[0])
+   139→	}
+   140→
+   141→	examples += `
+   142→
+   143→# Generate markdown files for all agent sessions associated with the current directory
+   144→specstory sync
+   145→
+   146→# Generate markdown files for specific agent sessions
+   147→specstory sync -s <session-id>
+   148→specstory sync -s <session-id-1> -s <session-id-2>
+   149→
+   150→# Watch for any agent activity in the current directory and generate markdown files
+   151→specstory watch`
+   152→
+   153→	longDesc := `SpecStory is a wrapper for terminal coding agents that auto-saves markdown files of all your chat interactions.`
+   154→	if providerList != "No providers registered" {
+   155→		longDesc += "\n\nSupported agents: " + providerList + "."
+   156→	}
+   157→
+   158→	return &cobra.Command{
+   159→		Use:               "specstory [command]",
+   160→		Short:             "SpecStory auto-saves terminal coding agent chat interactions",
+   161→		Long:              longDesc,
+   162→		Example:           examples,
+   163→		SilenceUsage:      true,
+   164→		SilenceErrors:     true,
+   165→		DisableAutoGenTag: true,
+   166→		CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+   167→		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+   168→			// Validate flags before any other setup
+   169→			if err := validateFlags(); err != nil {
+   170→				fmt.Println() // Add visual separation before error message for better CLI readability
+   171→				return err
+   172→			}
+   173→
+   174→			// Configure logging based on flags
+   175→			if console || logFile {
+   176→				// Create output config to get proper log path if needed
+   177→				var logPath string
+   178→				if logFile {
+   179→					config, err := utils.SetupOutputConfig(outputDir, debugDir)
+   180→					if err != nil {
+   181→						return err
+   182→					}
+   183→					logPath = config.GetLogPath()
+   184→				}
+   185→
+   186→				// Set up logger
+   187→				if err := log.SetupLogger(console, logFile, debug, logPath); err != nil {
+   188→					return fmt.Errorf("failed to set up logger: %v", err)
+   189→				}
+   190→
+   191→				// Log startup information
+   192→				slog.Info("=== SpecStory Starting ===")
+   193→				slog.Info("Version", "version", version)
+   194→				slog.Info("Command line", "args", strings.Join(os.Args, " "))
+   195→				if cwd, err := os.Getwd(); err == nil {
+   196→					slog.Info("Current working directory", "cwd", cwd)
+   197→				}
+   198→				slog.Info("========================")
+   199→			} else {
+   200→				// No logging - set up discard logger
+   201→				if err := log.SetupLogger(false, false, false, ""); err != nil {
+   202→					return err
+   203→				}
+   204→			}
+   205→
+   206→			// Set silent mode for user messages
+   207→			log.SetSilent(silent)
+   208→
+   209→			// Initialize cloud sync manager
+   210→			cloud.InitSyncManager(!noCloudSync)
+   211→			cloud.SetSilent(silent)
+   212→			cloud.SetClientVersion(version)
+   213→			// Set custom cloud URL if provided (otherwise cloud package uses its default)
+   214→			if cloudURL != "" {
+   215→				cloud.SetAPIBaseURL(cloudURL)
+   216→			}
+   217→
+   218→			// If --cloud-token flag was provided, verify the refresh token works
+   219→			// This bypasses normal authentication and uses the token for this session only
+   220→			if cloudToken != "" {
+   221→				slog.Info("Using session-only refresh token from --cloud-token flag")
+   222→				if err := cloud.SetSessionRefreshToken(cloudToken); err != nil {
+   223→					fmt.Fprintln(os.Stderr) // Visual separation
+   224→					fmt.Fprintln(os.Stderr, "❌ Failed to authenticate with the provided token:")
+   225→					fmt.Fprintf(os.Stderr, "   %v\n", err)
+   226→					fmt.Fprintln(os.Stderr)
+   227→					fmt.Fprintln(os.Stderr, "💡 The token may be invalid, expired, or revoked.")
+   228→					fmt.Fprintln(os.Stderr, "   Please check your token and try again, or use 'specstory login' for interactive authentication.")
+   229→					fmt.Fprintln(os.Stderr)
+   230→					return fmt.Errorf("authentication failed with provided token")
+   231→				}
+   232→				if !silent {
+   233→					fmt.Println()
+   234→					fmt.Println("🔑 Authenticated using provided refresh token (session-only)")
+   235→					fmt.Println()
+   236→				}
+   237→			}
+   238→
+   239→			// Validate that --only-cloud-sync requires authentication
+   240→			if onlyCloudSync && !cloud.IsAuthenticated() {
+   241→				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+   242→			}
+   243→
+   244→			return nil
+   245→		},
+   246→		Run: func(c *cobra.Command, args []string) {
+   247→			// Track help command usage (when no command is specified)
+   248→			analytics.TrackEvent(analytics.EventHelpCommand, analytics.Properties{
+   249→				"help_topic":  "general",
+   250→				"help_reason": "requested",
+   251→			})
+   252→			// If no command is specified, show logo then help
+   253→			cmdpkg.DisplayLogoAndHelp(c)
+   254→		},
+   255→	}
+   256→}
+   257→
+   258→var rootCmd *cobra.Command
+   259→
+   260→// createRunCommand dynamically creates the run command with provider information
+   261→func createRunCommand() *cobra.Command {
+   262→	registry := factory.GetRegistry()
+   263→	ids := registry.ListIDs()
+   264→	providerList := registry.GetProviderList()
+   265→
+   266→	// Build dynamic examples
+   267→	examples := `
+   268→# Run default agent with auto-saving
+   269→specstory run`
+   270→
+   271→	if len(ids) > 0 {
+   272→		examples += "\n\n# Run specific agent"
+   273→		for _, id := range ids {
+   274→			examples += fmt.Sprintf("\nspecstory run %s", id)
+   275→		}
+   276→
+   277→		// Use first provider for custom command example
+   278→		examples += fmt.Sprintf("\n\n# Run with custom command\nspecstory run %s -c \"/custom/path/to/agent\"", ids[0])
+   279→	}
+   280→
+   281→	examples += `
+   282→
+   283→# Resume a specific session
+   284→specstory run --resume 5c5c2876-febd-4c87-b80c-d0655f1cd3fd
+   285→
+   286→# Run with custom output directory
+   287→specstory run --output-dir ~/my-sessions`
+   288→
+   289→	// Determine default agent name
+   290→	defaultAgent := "the default agent"
+   291→	if len(ids) > 0 {
+   292→		if provider, err := registry.Get(ids[0]); err == nil {
+   293→			defaultAgent = provider.Name()
+   294→		}
+   295→	}
+   296→
+   297→	longDesc := fmt.Sprintf(`Launch terminal coding agents in interactive mode with auto-save markdown file generation.
+   298→
+   299→By default, launches %s. Specify a specific agent ID to use a different agent.`, defaultAgent)
+   300→	if providerList != "No providers registered" {
+   301→		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
+   302→	}
+   303→
+   304→	return &cobra.Command{
+   305→		Use:     "run [provider-id]",
+   306→		Aliases: []string{"r"},
+   307→		Short:   "Launch terminal coding agents in interactive mode with auto-save",
+   308→		Long:    longDesc,
+   309→		Example: examples,
+   310→		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+   311→		PreRunE: func(cmd *cobra.Command, args []string) error {
+   312→			// Get custom command if provided via flag
+   313→			customCmd, _ := cmd.Flags().GetString("command")
+   314→
+   315→			// Validate that -c flag requires a provider
+   316→			if customCmd != "" && len(args) == 0 {
+   317→				registry := factory.GetRegistry()
+   318→				ids := registry.ListIDs()
+   319→				example := "specstory run <provider> -c \"/custom/path/to/agent\""
+   320→				if len(ids) > 0 {
+   321→					example = fmt.Sprintf("specstory run %s -c \"/custom/path/to/agent\"", ids[0])
+   322→				}
+   323→				return utils.ValidationError{
+   324→					Message: "The -c/--command flag requires a provider to be specified.\n" +
+   325→						"Example: " + example,
+   326→				}
+   327→			}
+   328→			return nil
+   329→		},
+   330→		RunE: func(cmd *cobra.Command, args []string) error {
+   331→			config.EnsureDefaultProjectConfig()
+   332→			slog.Info("Running in interactive mode")
+   333→
+   334→			// Get custom command if provided via flag
+   335→			customCmd, _ := cmd.Flags().GetString("command")
+   336→
+   337→			// Get the provider
+   338→			registry := factory.GetRegistry()
+   339→			var providerID string
+   340→			if len(args) == 0 {
+   341→				// Default to first registered provider
+   342→				ids := registry.ListIDs()
+   343→				if len(ids) > 0 {
+   344→					providerID = ids[0]
+   345→				} else {
+   346→					return fmt.Errorf("no providers registered")
+   347→				}
+   348→			} else {
+   349→				providerID = args[0]
+   350→			}
+   351→
+   352→			provider, err := registry.Get(providerID)
+   353→			if err != nil {
+   354→				// Provider not found - show helpful error
+   355→				fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
+   356→
+   357→				ids := registry.ListIDs()
+   358→				if len(ids) > 0 {
+   359→					fmt.Println("The registered providers are:")
+   360→					for _, id := range ids {
+   361→						if p, _ := registry.Get(id); p != nil {
+   362→							fmt.Printf("  • %s - %s\n", id, p.Name())
+   363→						}
+   364→					}
+   365→					fmt.Println("\nExample: specstory run " + ids[0])
+   366→				}
+   367→				return err
+   368→			}
+   369→
+   370→			// Fall back to config file provider command if -c flag wasn't provided
+   371→			if customCmd == "" && loadedConfig != nil {
+   372→				customCmd = loadedConfig.GetProviderCmd(providerID)
+   373→			}
+   374→
+   375→			slog.Info("Launching agent", "provider", provider.Name())
+   376→
+   377→			// Set the agent provider for analytics
+   378→			analytics.SetAgentProviders([]string{provider.Name()})
+   379→
+   380→			// Setup output configuration
+   381→			config, err := utils.SetupOutputConfig(outputDir, debugDir)
+   382→			if err != nil {
+   383→				return err
+   384→			}
+   385→			// Ensure history directory exists for interactive mode
+   386→			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+   387→				return err
+   388→			}
+   389→
+   390→			// Initialize project identity
+   391→			cwd, err := os.Getwd()
+   392→			if err != nil {
+   393→				slog.Error("Failed to get current working directory", "error", err)
+   394→				return err
+   395→			}
+   396→			identityManager := utils.NewProjectIdentityManager(cwd)
+   397→			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+   398→				// Log error but don't fail the command
+   399→				slog.Error("Failed to ensure project identity", "error", err)
+   400→			}
+   401→
+   402→			// Create context for graceful cancellation (Ctrl+C handling)
+   403→			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+   404→			defer cancel()
+   405→
+   406→			// Start provenance infrastructure before the agent so all file changes are captured
+   407→			provenanceEngine, provenanceCleanup, err := provenance.StartEngine(provenanceEnabled)
+   408→			if err != nil {
+   409→				return err
+   410→			}
+   411→			defer provenanceCleanup()
+   412→
+   413→			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, cwd)
+   414→			if err != nil {
+   415→				return err
+   416→			}
+   417→			defer fsCleanup()
+   418→
+   419→			// Check authentication for cloud sync
+   420→			cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+   421→			// Track extension activation
+   422→			analytics.TrackEvent(analytics.EventExtensionActivated, nil)
+   423→
+   424→			// Get resume session ID if provided
+   425→			resumeSessionID, _ := cmd.Flags().GetString("resume")
+   426→			if resumeSessionID != "" {
+   427→				resumeSessionID = strings.TrimSpace(resumeSessionID)
+   428→				// Note: Different providers may have different session ID formats
+   429→				// Let the provider validate its own format
+   430→				slog.Info("Resuming session", "sessionId", resumeSessionID)
+   431→			}
+   432→
+   433→			// Get debug-raw flag value (must be before callback to capture in closure)
+   434→			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+   435→			useUTC := !localTimeZone
+   436→
+   437→			// This callback pattern enables real-time processing of agent sessions
+   438→			// without blocking the agent's execution. As the agent writes updates to its
+   439→			// data files, the provider's watcher detects changes and invokes this callback,
+   440→			// allowing immediate markdown generation and cloud sync. Errors are logged but
+   441→			// don't stop execution because transient failures (e.g., network issues) shouldn't
+   442→			// interrupt the user's coding session.
+   443→			sessionCallback := func(session *spi.AgentChatSession) {
+   444→				if session == nil {
+   445→					return
+   446→				}
+   447→
+   448→				// Track the session ID for deep linking on exit
+   449→				lastRunSessionID = session.SessionID
+   450→
+   451→				// Process the session (write markdown and sync to cloud)
+   452→				// Don't show output during interactive run mode
+   453→				// This is autosave mode (true)
+   454→				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+   455→					OnlyCloudSync:      onlyCloudSync,
+   456→					IsAutosave:         true,
+   457→					DebugRaw:           debugRaw,
+   458→					UseUTC:             useUTC,
+   459→					NoTelemetryPrompts: noTelemetryPrompts,
+   460→				})
+   461→				if err != nil {
+   462→					// Log error but continue - don't fail the whole run
+   463→					// In interactive mode, we prioritize keeping the agent running.
+   464→					// Failed markdown writes or cloud syncs can be retried later via
+   465→					// the sync command, so we just log and continue.
+   466→					slog.Error("Failed to process session update",
+   467→						"sessionId", session.SessionID,
+   468→						"error", err)
+   469→				}
+   470→
+   471→				// Push agent events to provenance engine for correlation
+   472→				provenance.ProcessEvents(ctx, provenanceEngine, session)
+   473→			}
+   474→
+   475→			// Execute the agent and watch for updates
+   476→			slog.Info("Starting agent execution and monitoring", "provider", provider.Name())
+   477→			err = provider.ExecAgentAndWatch(cwd, customCmd, resumeSessionID, debugRaw, sessionCallback)
+   478→
+   479→			if err != nil {
+   480→				slog.Error("Agent execution failed", "provider", provider.Name(), "error", err)
+   481→			}
+   482→
+   483→			return err
+   484→		},
+   485→	}
+   486→}
+   487→
+   488→var runCmd *cobra.Command
+   489→
+   490→// createSyncCommand dynamically creates the sync command with provider information
+   491→func createSyncCommand() *cobra.Command {
+   492→	registry := factory.GetRegistry()
+   493→	ids := registry.ListIDs()
+   494→	providerList := registry.GetProviderList()
+   495→
+   496→	// Build dynamic examples
+   497→	examples := `
+   498→# Sync all agents with activity
+   499→specstory sync`
+   500→
+   501→	if len(ids) > 0 {
+   502→		examples += "\n\n# Sync specific agent"
+   503→		for _, id := range ids {
+   504→			examples += fmt.Sprintf("\nspecstory sync %s", id)
+   505→		}
+   506→	}
+   507→
+   508→	examples += `
+   509→
+   510→# Sync a specific session by UUID
+   511→specstory sync -s <session-id>
+   512→
+   513→# Sync multiple sessions
+   514→specstory sync -s <session-id-1> -s <session-id-2> -s <session-id-3>
+   515→
+   516→# Output session markdown to stdout without saving
+   517→specstory sync -s <session-id> --print
+   518→
+   519→# Output multiple sessions to stdout
+   520→specstory sync -s <session-id-1> -s <session-id-2> --print
+   521→
+   522→# Sync all sessions for the current directory, with console output
+   523→specstory sync --console
+   524→
+   525→# Sync all sessions for the current directory, with a log file
+   526→specstory sync --log`
+   527→
+   528→	longDesc := `Create or update markdown files for the agent sessions in the current working directory.
+   529→
+   530→By default, syncs all registered providers that have activity.
+   531→Provide a specific agent ID to sync a specific provider.`
+   532→	if providerList != "No providers registered" {
+   533→		longDesc += "\n\nAvailable provider IDs: " + providerList + "."
+   534→	}
+   535→
+   536→	return &cobra.Command{
+   537→		Use:     "sync [provider-id]",
+   538→		Aliases: []string{"s"},
+   539→		Short:   "Sync markdown files for terminal coding agent sessions",
+   540→		Long:    longDesc,
+   541→		Example: examples,
+   542→		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
+   543→		PreRunE: func(cmd *cobra.Command, args []string) error {
+   544→			// Validate that --print requires -s flag
+   545→			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+   546→			if printToStdout && len(sessionIDs) == 0 {
+   547→				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+   548→			}
+   549→			return nil
+   550→		},
+   551→		RunE: func(cmd *cobra.Command, args []string) error {
+   552→			config.EnsureDefaultProjectConfig()
+   553→
+   554→			// Get session IDs if provided via flag
+   555→			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+   556→
+   557→			// Handle specific session sync if -s flag is provided
+   558→			if len(sessionIDs) > 0 {
+   559→				return syncSpecificSessions(cmd, args, sessionIDs)
+   560→			}
+   561→
+   562→			slog.Info("Running sync command")
+   563→			registry := factory.GetRegistry()
+   564→
+   565→			// Check if user specified a provider
+   566→			if len(args) > 0 {
+   567→				// Sync specific provider
+   568→				return syncSingleProvider(registry, args[0], cmd)
+   569→			} else {
+   570→				// Sync all providers with activity
+   571→				return syncAllProviders(registry, cmd)
+   572→			}
+   573→		},
+   574→	}
+   575→}
+   576→
+   577→// syncSpecificSessions syncs one or more sessions by their IDs
+   578→// When printToStdout is set, outputs markdown to stdout instead of saving to files.
+   579→// args[0] is the optional provider ID
+   580→func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
+   581→	if len(sessionIDs) == 1 {
+   582→		slog.Info("Running single session sync", "sessionId", sessionIDs[0])
+   583→	} else {
+   584→		slog.Info("Running multiple session sync", "sessionCount", len(sessionIDs))
+   585→	}
+   586→
+   587→	// Get debug-raw flag value
+   588→	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+   589→	useUTC := !localTimeZone
+   590→
+   591→	cwd, err := os.Getwd()
+   592→	if err != nil {
+   593→		slog.Error("Failed to get current working directory", "error", err)
+   594→		return err
+   595→	}
+   596→
+   597→	// Setup file output and cloud sync (not needed for --print mode)
+   598→	var config utils.OutputConfig
+   599→	if !printToStdout {
+   600→		config, err = utils.SetupOutputConfig(outputDir, debugDir)
+   601→		if err != nil {
+   602→			return err
+   603→		}
+   604→
+   605→		identityManager := utils.NewProjectIdentityManager(cwd)
+   606→		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+   607→			slog.Error("Failed to ensure project identity", "error", err)
+   608→		}
+   609→
+   610→		cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
+   611→
+   612→		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+   613→			return err
+   614→		}
+   615→	}
+   616→
+   617→	registry := factory.GetRegistry()
+   618→
+   619→	// Track statistics for summary output
+   620→	var successCount, notFoundCount, errorCount int
+   621→	var lastError error
+   622→
+   623→	// Resolve provider once if specified (fail fast if provider not found)
+   624→	var specifiedProvider spi.Provider
+   625→	if len(args) > 0 {
+   626→		providerID := args[0]
+   627→		provider, err := registry.Get(providerID)
+   628→		if err != nil {
+   629→			if !printToStdout {
+   630→				fmt.Printf("❌ Provider '%s' not found\n", providerID)
+   631→			}
+   632→			return fmt.Errorf("provider '%s' not found: %w", providerID, err)
+   633→		}
+   634→		specifiedProvider = provider
+   635→	}
+   636→
+   637→	// Process each session ID
+   638→	var printedSessions int // tracks sessions printed to stdout for separator logic
+   639→	for _, sessionID := range sessionIDs {
+   640→		sessionID = strings.TrimSpace(sessionID)
+   641→		if sessionID == "" {
+   642→			continue // Skip empty session IDs
+   643→		}
+   644→
+   645→		// Find session across providers
+   646→		var session *spi.AgentChatSession
+   647→
+   648→		// Case A: Provider was specified - use it directly
+   649→		if specifiedProvider != nil {
+   650→			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+   651→			if err != nil {
+   652→				if !printToStdout {
+   653→					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
+   654→				}
+   655→				slog.Error("Error getting session from provider", "sessionId", sessionID, "provider", specifiedProvider.Name(), "error", err)
+   656→				errorCount++
+   657→				lastError = err
+   658→				continue
+   659→			}
+   660→			if session == nil {
+   661→				if !printToStdout {
+   662→					fmt.Printf("❌ Session '%s' not found in %s\n", sessionID, specifiedProvider.Name())
+   663→				}
+   664→				slog.Warn("Session not found in provider", "sessionId", sessionID, "provider", specifiedProvider.Name())
+   665→				notFoundCount++
+   666→				continue
+   667→			}
+   668→		} else {
+   669→			// Case B: No provider specified - try all providers
+   670→			providerIDs := registry.ListIDs()
+   671→			for _, id := range providerIDs {
+   672→				provider, err := registry.Get(id)
+   673→				if err != nil {
+   674→					continue
+   675→				}
+   676→
+   677→				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+   678→				if err != nil {
+   679→					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
+   680→					continue
+   681→				}
+   682→				if session != nil {
+   683→					if !silent && !printToStdout {
+   684→						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
+   685→					}
+   686→					break // Found it, don't check other providers
+   687→				}
+   688→			}
+   689→
+   690→			if session == nil {
+   691→				if !printToStdout {
+   692→					fmt.Printf("❌ Session '%s' not found in any provider\n", sessionID)
+   693→				}
+   694→				slog.Warn("Session not found in any provider", "sessionId", sessionID)
+   695→				notFoundCount++
+   696→				continue
+   697→			}
+   698→		}
+   699→
+   700→		// Process the found session
+   701→		if printToStdout {
+   702→			sessionpkg.ValidateSessionData(session, debugRaw)
+   703→			sessionpkg.WriteDebugSessionData(session, debugRaw)
+   704→
+   705→			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+   706→			if err != nil {
+   707→				slog.Error("Failed to generate markdown", "sessionId", session.SessionID, "error", err)
+   708→				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   709→					"session_id": session.SessionID,
+   710→					"error":      err.Error(),
+   711→					"mode":       "print",
+   712→				})
+   713→				errorCount++
+   714→				lastError = err
+   715→				continue
+   716→			}
+   717→
+   718→			// Separate multiple sessions with a horizontal rule
+   719→			if printedSessions > 0 {
+   720→				fmt.Print("\n---\n\n")
+   721→			}
+   722→			fmt.Print(markdownContent)
+   723→			printedSessions++
+   724→			successCount++
+   725→			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+   726→				"session_id": session.SessionID,
+   727→				"mode":       "print",
+   728→			})
+   729→		} else {
+   730→			// Normal sync: write to file and optionally cloud sync
+   731→			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+   732→				OnlyCloudSync:      onlyCloudSync,
+   733→				OnlyStats:          onlyStats,
+   734→				ShowOutput:         true,
+   735→				DebugRaw:           debugRaw,
+   736→				UseUTC:             useUTC,
+   737→				NoTelemetryPrompts: noTelemetryPrompts,
+   738→			}); err != nil {
+   739→				errorCount++
+   740→				lastError = err
+   741→			} else {
+   742→				successCount++
+   743→			}
+   744→		}
+   745→	}
+   746→
+   747→	// Print summary if multiple sessions were processed (not for --print mode)
+   748→	if !printToStdout && len(sessionIDs) > 1 && !silent {
+   749→		fmt.Println()
+   750→		fmt.Println("📊 Session sync summary:")
+   751→		fmt.Printf("  ✅ %d %s successfully synced\n", successCount, pluralSession(successCount))
+   752→		if notFoundCount > 0 {
+   753→			fmt.Printf("  ❌ %d %s not found\n", notFoundCount, pluralSession(notFoundCount))
+   754→		}
+   755→		if errorCount > 0 {
+   756→			fmt.Printf("  ❌ %d %s failed with errors\n", errorCount, pluralSession(errorCount))
+   757→		}
+   758→		fmt.Println()
+   759→	}
+   760→
+   761→	// Return error if any sessions failed
+   762→	if errorCount > 0 || (notFoundCount > 0 && successCount == 0) {
+   763→		if lastError != nil {
+   764→			return lastError
+   765→		}
+   766→		return fmt.Errorf("%d %s not found", notFoundCount, pluralSession(notFoundCount))
+   767→	}
+   768→
+   769→	return nil
+   770→}
+   771→
+   772→// preloadBulkSessionSizesIfNeeded optimizes bulk syncs by fetching all session sizes upfront.
+   773→// This avoids making individual HEAD requests for each session during sync operations.
+   774→//
+   775→// The function only performs the preload if:
+   776→//   - Cloud sync is enabled (noCloudSync flag is false)
+   777→//   - User is authenticated with SpecStory Cloud
+   778→//   - A valid projectID can be determined from the identity manager
+   779→//
+   780→// Parameters:
+   781→//   - identityManager: Provides project identity (git_id or workspace_id) for the current project
+   782→//
+   783→// The preloaded sizes are cached in the SyncManager and shared across all providers since they
+   784→// use the same projectID. If the bulk fetch fails or if projectID cannot be determined, individual
+   785→// sessions will gracefully fall back to HEAD requests during sync.
+   786→//
+   787→// This function is safe to call multiple times but should typically be called once before processing
+   788→// multiple sessions in batch sync operations.
+   789→func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManager) {
+   790→	// Skip if cloud sync is disabled or user is not authenticated
+   791→	if noCloudSync || !cloud.IsAuthenticated() {
+   792→		return
+   793→	}
+   794→
+   795→	// Get projectID from identity manager - required for cloud sync
+   796→	projectID, err := identityManager.GetProjectID()
+   797→	if err != nil {
+   798→		slog.Warn("Cannot preload session sizes: failed to get project ID", "error", err)
+   799→		return
+   800→	}
+   801→
+   802→	// Preload bulk sizes once - shared across all providers since they use same projectID
+   803→	if syncMgr := cloud.GetSyncManager(); syncMgr != nil {
+   804→		syncMgr.PreloadSessionSizes(projectID)
+   805→	} else {
+   806→		slog.Warn("Cannot preload session sizes: sync manager is nil despite authentication")
+   807→	}
+   808→}
+   809→
+   810→// syncProvider performs the actual sync for a single provider
+   811→// Returns (sessionCount, error) for analytics tracking
+   812→func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
+   813→	cwd, err := os.Getwd()
+   814→	if err != nil {
+   815→		slog.Error("Failed to get current working directory", "error", err)
+   816→		return 0, err
+   817→	}
+   818→
+   819→	// Create progress callback for parsing phase
+   820→	// The callback updates the "Parsing..." line in place with [n/m] progress
+   821→	var parseProgress spi.ProgressCallback
+   822→	if !silent {
+   823→		providerName := provider.Name()
+   824→		parseProgress = func(current, total int) {
+   825→			fmt.Printf("\rParsing %s sessions [%d/%d]", providerName, current, total)
+   826→			_ = os.Stdout.Sync()
+   827→		}
+   828→	}
+   829→
+   830→	// Get all sessions from the provider
+   831→	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw, parseProgress)
+   832→	if err != nil {
+   833→		return 0, fmt.Errorf("failed to get sessions: %w", err)
+   834→	}
+   835→
+   836→	sessionCount := len(sessions)
+   837→
+   838→	if sessionCount == 0 && !silent {
+   839→		// This comes after "Parsing..." message, on the same line
+   840→		fmt.Printf(", no non-empty sessions found for %s\n", provider.Name())
+   841→		fmt.Println()
+   842→		return 0, nil
+   843→	}
+   844→
+   845→	if !silent && !onlyStats {
+   846→		fmt.Printf("\nSyncing markdown files for %s", provider.Name())
+   847→	}
+   848→
+   849→	// Initialize statistics
+   850→	stats := &SyncStats{
+   851→		TotalSessions: sessionCount,
+   852→	}
+   853→
+   854→	historyPath := config.GetHistoryDir()
+   855→	agentName := provider.Name()
+   856→	ctx := context.Background()
+   857→
+   858→	// Create a single statistics collector for all sessions in this provider
+   859→	specstoryDir := sessionpkg.GetSpecStoryDir(config)
+   860→	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+   861→
+   862→	// Process each session
+   863→	for i := range sessions {
+   864→		session := &sessions[i]
+   865→
+   866→		// Process session in a closure so defers scope to each iteration,
+   867→		// ensuring spans are ended and metrics recorded even on early returns.
+   868→		func() {
+   869→			processingStart := time.Now()
+   870→
+   871→			// Create a context with a deterministic trace ID from the session ID
+   872→			sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+   873→
+   874→			// Start an OTel span for this session processing
+   875→			sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+   876→			defer span.End()
+   877→
+   878→			// Compute session statistics
+   879→			sessionStats := telemetry.ComputeSessionStats(agentName, session)
+   880→			defer func() {
+   881→				telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+   882→			}()
+   883→
+   884→			// Set session span attributes
+   885→			telemetry.SetSessionSpanAttributes(span, sessionStats)
+   886→
+   887→			// Create child spans for each exchange
+   888→			if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+   889→				telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
+   890→			}
+   891→
+   892→			sessionpkg.ValidateSessionData(session, debugRaw)
+   893→			sessionpkg.WriteDebugSessionData(session, debugRaw)
+   894→
+   895→			// Generate markdown from SessionData
+   896→			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+   897→			if err != nil {
+   898→				slog.Error("Failed to generate markdown from SessionData",
+   899→					"sessionId", session.SessionID,
+   900→					"error", err)
+   901→				// Track sync error
+   902→				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   903→					"session_id": session.SessionID,
+   904→					"error":      err.Error(),
+   905→				})
+   906→				return
+   907→			}
+   908→
+   909→			// Collect statistics (always enabled)
+   910→			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+   911→			if err := statsCollector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+   912→				slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+   913→			}
+   914→
+   915→			// In only-stats mode, skip file writes and cloud sync
+   916→			if onlyStats {
+   917→				stats.SessionsSkipped++
+   918→				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
+   919→				return
+   920→			}
+   921→
+   922→			// Generate filename from timestamp and slug
+   923→			fileFullPath := sessionpkg.BuildSessionFilePath(session, historyPath, useUTC)
+   924→
+   925→			// Check if file already exists with same content
+   926→			identicalContent := false
+   927→			fileExists := false
+   928→			if existingContent, err := os.ReadFile(fileFullPath); err == nil {
+   929→				fileExists = true
+   930→				if string(existingContent) == markdownContent {
+   931→					identicalContent = true
+   932→					slog.Info("Markdown file already exists with same content, skipping write",
+   933→						"sessionId", session.SessionID,
+   934→						"path", fileFullPath)
+   935→				}
+   936→			}
+   937→
+   938→			// Write file if needed (skip if only-cloud-sync is enabled)
+   939→			if !onlyCloudSync {
+   940→				if !identicalContent {
+   941→					// Ensure history directory exists (handles deletion during long-running sync)
+   942→					if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+   943→						slog.Error("Failed to ensure history directory", "error", err)
+   944→						return
+   945→					}
+   946→					err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
+   947→					if err != nil {
+   948→						slog.Error("Error writing markdown file",
+   949→							"sessionId", session.SessionID,
+   950→							"error", err)
+   951→						// Track sync error
+   952→						analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   953→							"session_id":      session.SessionID,
+   954→							"error":           err.Error(),
+   955→							"only_cloud_sync": onlyCloudSync,
+   956→						})
+   957→						return
+   958→					}
+   959→					slog.Info("Successfully wrote file",
+   960→						"sessionId", session.SessionID,
+   961→						"path", fileFullPath)
+   962→
+   963→					// Track successful sync
+   964→					if !fileExists {
+   965→						analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
+   966→							"session_id":      session.SessionID,
+   967→							"only_cloud_sync": onlyCloudSync,
+   968→						})
+   969→					} else {
+   970→						analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+   971→							"session_id":      session.SessionID,
+   972→							"only_cloud_sync": onlyCloudSync,
+   973→						})
+   974→					}
+   975→				}
+   976→
+   977→				// Update statistics for normal mode
+   978→				if identicalContent {
+   979→					stats.SessionsSkipped++
+   980→				} else if fileExists {
+   981→					stats.SessionsUpdated++
+   982→				} else {
+   983→					stats.SessionsCreated++
+   984→				}
+   985→			} else {
+   986→				// In cloud-only mode, count as skipped since no local file operation occurred
+   987→				stats.SessionsSkipped++
+   988→				slog.Info("Skipping local file write (only-cloud-sync mode)",
+   989→					"sessionId", session.SessionID)
+   990→			}
+   991→
+   992→			// Trigger cloud sync with provider-specific data
+   993→			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
+   994→			// In only-cloud-sync mode: always sync
+   995→			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
+   996→		}()
+   997→
+   998→		// Print progress with [n/m] format
+   999→		if !silent && !onlyStats {
+  1000→			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
+  1001→			_ = os.Stdout.Sync()
+  1002→		}
+  1003→	}
+  1004→
+  1005→	// Print newline after progress
+  1006→	if !silent && sessionCount > 0 && !onlyCloudSync && !onlyStats {
+  1007→		fmt.Println()
+  1008→
+  1009→		// Calculate actual total of processed sessions
+  1010→		actualTotal := stats.SessionsSkipped + stats.SessionsUpdated + stats.SessionsCreated
+  1011→
+  1012→		// Print summary message with proper pluralization
+  1013→		fmt.Printf("\n%s✅ %s sync complete!%s 📊 %s%d%s %s processed\n",
+  1014→			log.ColorBoldGreen, provider.Name(), log.ColorReset,
+  1015→			log.ColorBoldCyan, actualTotal, log.ColorReset, pluralSession(actualTotal))
+  1016→		fmt.Println()
+  1017→
+  1018→		fmt.Printf("  ⏭️ %s%d %s up to date (skipped)%s\n",
+  1019→			log.ColorCyan, stats.SessionsSkipped, pluralSession(stats.SessionsSkipped), log.ColorReset)
+  1020→		fmt.Printf("  ♻️ %s%d %s updated%s\n",
+  1021→			log.ColorYellow, stats.SessionsUpdated, pluralSession(stats.SessionsUpdated), log.ColorReset)
+  1022→		fmt.Printf("  ✨ %s%d new %s created%s\n",
+  1023→			log.ColorGreen, stats.SessionsCreated, pluralSession(stats.SessionsCreated), log.ColorReset)
+  1024→		fmt.Println()
+  1025→	}
+  1026→
+  1027→	// Show statistics path only in --only-stats mode
+  1028→	if sessionCount > 0 && !silent && onlyStats {
+  1029→		statsPath := filepath.Join(specstoryDir, "statistics.json")
+  1030→		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
+  1031→	}
+  1032→
+  1033→	return sessionCount, nil
+  1034→}
+  1035→
+  1036→// syncAllProviders syncs all providers that have activity in the current directory
+  1037→func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
+  1038→	// Get debug-raw flag value
+  1039→	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+  1040→	useUTC := !localTimeZone
+  1041→
+  1042→	cwd, err := os.Getwd()
+  1043→	if err != nil {
+  1044→		slog.Error("Failed to get current working directory", "error", err)
+  1045→		return err
+  1046→	}
+  1047→
+  1048→	providerIDs := registry.ListIDs()
+  1049→	providersWithActivity := []string{}
+  1050→
+  1051→	// Check each provider for activity
+  1052→	for _, id := range providerIDs {
+  1053→		provider, err := registry.Get(id)
+  1054→		if err != nil {
+  1055→			slog.Warn("Failed to get provider", "id", id, "error", err)
+  1056→			continue
+  1057→		}
+  1058→
+  1059→		if provider.DetectAgent(cwd, false) {
+  1060→			providersWithActivity = append(providersWithActivity, id)
+  1061→		}
+  1062→	}
+  1063→
+  1064→	// If no providers have activity, show helpful message
+  1065→	if len(providersWithActivity) == 0 {
+  1066→		if !silent {
+  1067→			fmt.Println() // Add visual separation
+  1068→			log.UserWarn("No coding agent activity found for this project directory.\n\n")
+  1069→
+  1070→			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+  1071→			for _, id := range providerIDs {
+  1072→				if provider, err := registry.Get(id); err == nil {
+  1073→					log.UserMessage("- %s\n", provider.Name())
+  1074→				}
+  1075→			}
+  1076→			log.UserMessage("\nBut didn't find any activity.\n\n")
+  1077→
+  1078→			log.UserMessage("To fix this:\n")
+  1079→			log.UserMessage("  1. Run 'specstory run' to start the default agent in this directory\n")
+  1080→			log.UserMessage("  2. Run 'specstory run <agent>' to start a specific agent in this directory\n")
+  1081→			log.UserMessage("  3. Or run the agent directly first, then try syncing again\n")
+  1082→			fmt.Println() // Add trailing newline
+  1083→		}
+  1084→		return nil
+  1085→	}
+  1086→
+  1087→	// Collect provider names for analytics
+  1088→	var providerNames []string
+  1089→	for _, id := range providersWithActivity {
+  1090→		if provider, err := registry.Get(id); err == nil {
+  1091→			providerNames = append(providerNames, provider.Name())
+  1092→		}
+  1093→	}
+  1094→	analytics.SetAgentProviders(providerNames)
+  1095→
+  1096→	// Setup output configuration (once for all providers)
+  1097→	config, err := utils.SetupOutputConfig(outputDir, debugDir)
+  1098→	if err != nil {
+  1099→		return err
+  1100→	}
+  1101→
+  1102→	// Initialize project identity (once for all providers)
+  1103→	identityManager := utils.NewProjectIdentityManager(cwd)
+  1104→	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+  1105→		slog.Error("Failed to ensure project identity", "error", err)
+  1106→	}
+  1107→
+  1108→	// Check authentication for cloud sync (once)
+  1109→	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
+  1110→
+  1111→	// Ensure history directory exists (once)
+  1112→	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+  1113→		return err
+  1114→	}
+  1115→
+  1116→	// Preload session sizes for batch sync optimization (ONCE for all providers)
+  1117→	preloadBulkSessionSizesIfNeeded(identityManager)
+  1118→
+  1119→	// Sync each provider with activity
+  1120→	totalSessionCount := 0
+  1121→	var lastError error
+  1122→
+  1123→	for idx, id := range providersWithActivity {
+  1124→		provider, err := registry.Get(id)
+  1125→		if err != nil {
+  1126→			continue
+  1127→		}
+  1128→
+  1129→		if !silent {
+  1130→			fmt.Printf("\nParsing %s sessions", provider.Name())
+  1131→		}
+  1132→
+  1133→		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+  1134→		totalSessionCount += sessionCount
+  1135→
+  1136→		if err != nil {
+  1137→			lastError = err
+  1138→			slog.Error("Error syncing provider", "provider", id, "error", err)
+  1139→		}
+  1140→
+  1141→		// Print divider between provider sync summaries (not after the last one,
+  1142→		// since the cloud sync output prints its own divider)
+  1143→		isLast := idx == len(providersWithActivity)-1
+  1144→		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 && !isLast {
+  1145→			fmt.Println("────────────")
+  1146→		}
+  1147→	}
+  1148→
+  1149→	// Track overall analytics
+  1150→	if lastError != nil {
+  1151→		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+  1152→			"provider":      "all",
+  1153→			"error":         lastError.Error(),
+  1154→			"session_count": totalSessionCount,
+  1155→		})
+  1156→		// Brief delay to ensure error event is sent before exit
+  1157→		// TODO: This is a workaround for async analytics - should be fixed properly
+  1158→		time.Sleep(500 * time.Millisecond)
+  1159→	} else {
+  1160→		analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+  1161→			"provider":      "all",
+  1162→			"session_count": totalSessionCount,
+  1163→		})
+  1164→	}
+  1165→
+  1166→	return lastError
+  1167→}
+  1168→
+  1169→// syncSingleProvider syncs a specific provider
+  1170→func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobra.Command) error {
+  1171→	// Get debug-raw flag value
+  1172→	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+  1173→	useUTC := !localTimeZone
+  1174→
+  1175→	provider, err := registry.Get(providerID)
+  1176→	if err != nil {
+  1177→		// Provider not found - show helpful error
+  1178→		fmt.Printf("❌ Provider '%s' is not a valid provider implementation\n\n", providerID)
+  1179→
+  1180→		ids := registry.ListIDs()
+  1181→		if len(ids) > 0 {
+  1182→			fmt.Println("The registered providers are:")
+  1183→			for _, id := range ids {
+  1184→				if p, _ := registry.Get(id); p != nil {
+  1185→					fmt.Printf("  • %s - %s\n", id, p.Name())
+  1186→				}
+  1187→			}
+  1188→			fmt.Println("\nExample: specstory sync " + ids[0])
+  1189→		}
+  1190→		return err
+  1191→	}
+  1192→
+  1193→	// Set the agent provider for analytics
+  1194→	analytics.SetAgentProviders([]string{provider.Name()})
+  1195→
+  1196→	cwd, err := os.Getwd()
+  1197→	if err != nil {
+  1198→		slog.Error("Failed to get current working directory", "error", err)
+  1199→		return err
+  1200→	}
+  1201→
+  1202→	// Check if provider has activity, with helpful output if not
+  1203→	if !provider.DetectAgent(cwd, true) {
+  1204→		// Provider already output helpful message
+  1205→		return nil
+  1206→	}
+  1207→
+  1208→	// Setup output configuration
+  1209→	config, err := utils.SetupOutputConfig(outputDir, debugDir)
+  1210→	if err != nil {
+  1211→		return err
+  1212→	}
+  1213→
+  1214→	// Initialize project identity
+  1215→	identityManager := utils.NewProjectIdentityManager(cwd)
+  1216→	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
+  1217→		slog.Error("Failed to ensure project identity", "error", err)
+  1218→	}
+  1219→
+  1220→	// Check authentication for cloud sync
+  1221→	cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+  1222→
+  1223→	// Ensure history directory exists
+  1224→	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
+  1225→		return err
+  1226→	}
+  1227→
+  1228→	// Preload session sizes for batch sync optimization
+  1229→	preloadBulkSessionSizesIfNeeded(identityManager)
+  1230→
+  1231→	if !silent {
+  1232→		fmt.Printf("\nParsing %s sessions", provider.Name())
+  1233→	}
+  1234→
+  1235→	// Perform the sync
+  1236→	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+  1237→
+  1238→	// Track analytics
+  1239→	if syncErr != nil {
+  1240→		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+  1241→			"provider":      providerID,
+  1242→			"error":         syncErr.Error(),
+  1243→			"session_count": sessionCount,
+  1244→		})
+  1245→		// Brief delay to ensure error event is sent before exit
+  1246→		// TODO: This is a workaround for async analytics - should be fixed properly
+  1247→		time.Sleep(500 * time.Millisecond)
+  1248→	} else {
+  1249→		analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+  1250→			"provider":      providerID,
+  1251→			"session_count": sessionCount,
+  1252→		})
+  1253→	}
+  1254→
+  1255→	return syncErr
+  1256→}
+  1257→
+  1258→var syncCmd *cobra.Command
+  1259→
+  1260→// Main entry point for the CLI
+  1261→func main() {
+  1262→	// Parse critical flags early by manually checking os.Args
+  1263→	// This is necessary because cobra's ParseFlags doesn't work correctly before subcommands are added
+  1264→	args := os.Args[1:]
+  1265→	for i := 0; i < len(args); i++ {
+  1266→		arg := args[i]
+  1267→		switch arg {
+  1268→		case "--no-usage-analytics":
+  1269→			noAnalytics = true
+  1270→		case "--console":
+  1271→			console = true
+  1272→		case "--log":
+  1273→			logFile = true
+  1274→		case "--debug":
+  1275→			debug = true
+  1276→		case "--silent":
+  1277→			silent = true
+  1278→		case "--no-version-check":
+  1279→			noVersionCheck = true
+  1280→		case "--no-telemetry-prompts":
+  1281→			noTelemetryPrompts = true
+  1282→		case "--output-dir":
+  1283→			// Handle --output-dir <value> format (space-separated)
+  1284→			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+  1285→				outputDir = utils.ExpandTilde(args[i+1])
+  1286→				i++ // Skip the value in next iteration
+  1287→			}
+  1288→		case "--telemetry-endpoint":
+  1289→			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+  1290→				telemetryEndpoint = args[i+1]
+  1291→				i++ // Skip the value in next iteration
+  1292→			}
+  1293→		case "--telemetry-service-name":
+  1294→			// Handle --telemetry-service-name <value> format (space-separated)
+  1295→			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+  1296→				telemetryServiceName = args[i+1]
+  1297→				i++ // Skip the value in next iteration
+  1298→			}
+  1299→		case "--debug-dir":
+  1300→			// Handle --debug-dir <value> format (space-separated)
+  1301→			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+  1302→				debugDir = utils.ExpandTilde(args[i+1])
+  1303→				i++ // Skip the value in next iteration
+  1304→			}
+  1305→		case "--local-time-zone":
+  1306→			localTimeZone = true
+  1307→		}
+  1308→		// Handle --output-dir=value format
+  1309→		if strings.HasPrefix(arg, "--output-dir=") {
+  1310→			outputDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--output-dir="))
+  1311→		}
+  1312→		// Handle --debug-dir=value format
+  1313→		if strings.HasPrefix(arg, "--debug-dir=") {
+  1314→			debugDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--debug-dir="))
+  1315→		}
+  1316→		// Handle --telemetry-endpoint=value format
+  1317→		if strings.HasPrefix(arg, "--telemetry-endpoint=") {
+  1318→			telemetryEndpoint = strings.TrimPrefix(arg, "--telemetry-endpoint=")
+  1319→		}
+  1320→		// Handle --telemetry-service-name=value format
+  1321→		if strings.HasPrefix(arg, "--telemetry-service-name=") {
+  1322→			telemetryServiceName = strings.TrimPrefix(arg, "--telemetry-service-name=")
+  1323→		}
+  1324→	}
+  1325→
+  1326→	// Load configuration early (before logging setup) so TOML settings can affect logging
+  1327→	// Priority: CLI flags > local project config > user-level config
+  1328→	// Note: OTEL_* env vars take highest priority for telemetry
+  1329→	cfg, cfgErr := config.Load(&config.CLIOverrides{
+  1330→		OutputDir:            outputDir,
+  1331→		LocalTimeZone:        localTimeZone,
+  1332→		NoVersionCheck:       noVersionCheck,
+  1333→		NoCloudSync:          noCloudSync,
+  1334→		OnlyCloudSync:        onlyCloudSync,
+  1335→		DebugDir:             debugDir,
+  1336→		Console:              console,
+  1337→		Log:                  logFile,
+  1338→		Debug:                debug,
+  1339→		Silent:               silent,
+  1340→		NoAnalytics:          noAnalytics,
+  1341→		TelemetryEndpoint:    telemetryEndpoint,
+  1342→		TelemetryServiceName: telemetryServiceName,
+  1343→		NoTelemetryPrompts:   noTelemetryPrompts,
+  1344→	})
+  1345→	if cfgErr != nil {
+  1346→		// Use fallback empty config if load fails - will log error after logging is set up
+  1347→		cfg = &config.Config{}
+  1348→	}
+  1349→	// Store config for use by command functions (e.g., provider commands in run)
+  1350→	loadedConfig = cfg
+  1351→
+  1352→	// Apply config values to flag variables so the rest of the code can use them unchanged.
+  1353→	// This merges TOML config with CLI flags (CLI flags take precedence via config.Load).
+  1354→	if cfg.GetOutputDir() != "" {
+  1355→		outputDir = utils.ExpandTilde(cfg.GetOutputDir())
+  1356→	}
+  1357→	if cfg.GetDebugDir() != "" {
+  1358→		debugDir = utils.ExpandTilde(cfg.GetDebugDir())
+  1359→	}
+  1360→	localTimeZone = cfg.IsLocalTimeZoneEnabled()
+  1361→	noVersionCheck = !cfg.IsVersionCheckEnabled()
+  1362→	noCloudSync = !cfg.IsCloudSyncEnabled()
+  1363→	onlyCloudSync = !cfg.IsLocalSyncEnabled()
+  1364→	noAnalytics = !cfg.IsAnalyticsEnabled()
+  1365→	console = cfg.IsConsoleEnabled()
+  1366→	logFile = cfg.IsLogEnabled()
+  1367→	debug = cfg.IsDebugEnabled()
+  1368→	silent = cfg.IsSilentEnabled()
+  1369→
+  1370→	noTelemetryPrompts = noTelemetryPrompts || cfg.IsTelemetryPromptsDisabled()
+  1371→
+  1372→	// Set SPI debug dir override before any commands run
+  1373→	if debugDir != "" {
+  1374→		spi.SetDebugBaseDir(debugDir)
+  1375→	}
+  1376→
+  1377→	// Set up logging early before creating commands (which access the registry)
+  1378→	if console || logFile {
+  1379→		var logPath string
+  1380→		if logFile {
+  1381→			config, _ := utils.SetupOutputConfig(outputDir, debugDir)
+  1382→			logPath = config.GetLogPath()
+  1383→		}
+  1384→		_ = log.SetupLogger(console, logFile, debug, logPath)
+  1385→	} else {
+  1386→		// Set up discard logger to prevent default slog output
+  1387→		_ = log.SetupLogger(false, false, false, "")
+  1388→	}
+  1389→
+  1390→	// NOW create the commands - after logging is configured
+  1391→	rootCmd = createRootCommand()
+  1392→	runCmd = createRunCommand()
+  1393→	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir)
+  1394→	syncCmd = createSyncCommand()
+  1395→	listCmd := cmdpkg.CreateListCommand()
+  1396→	checkCmd := cmdpkg.CreateCheckCommand()
+  1397→	versionCmd := cmdpkg.CreateVersionCommand(version)
+  1398→	loginCmd := cmdpkg.CreateLoginCommand(&cloudURL)
+  1399→	logoutCmd := cmdpkg.CreateLogoutCommand(&cloudURL)
+  1400→
+  1401→	// Set version for the automatic version flag
+  1402→	rootCmd.Version = version
+  1403→
+  1404→	// Override the default version template to match our version command output
+  1405→	rootCmd.SetVersionTemplate("{{.Version}} (SpecStory)")
+  1406→
+  1407→	// Set our custom help command (for "specstory help")
+  1408→	helpCmd := cmdpkg.CreateHelpCommand(rootCmd)
+  1409→	rootCmd.SetHelpCommand(helpCmd)
+  1410→
+  1411→	// Add the subcommands
+  1412→	rootCmd.AddCommand(runCmd)
+  1413→	rootCmd.AddCommand(watchCmd)
+  1414→	rootCmd.AddCommand(syncCmd)
+  1415→	rootCmd.AddCommand(listCmd)
+  1416→	rootCmd.AddCommand(versionCmd)
+  1417→	rootCmd.AddCommand(checkCmd)
+  1418→	rootCmd.AddCommand(loginCmd)
+  1419→	rootCmd.AddCommand(logoutCmd)
+  1420→
+  1421→	// Global flags available on all commands
+  1422→	// Use current variable values as defaults so config file values are preserved
+  1423→	rootCmd.PersistentFlags().BoolVar(&console, "console", console, "enable error/warn/info output to stdout")
+  1424→	rootCmd.PersistentFlags().BoolVar(&logFile, "log", logFile, "write error/warn/info output to ./.specstory/debug/debug.log")
+  1425→	rootCmd.PersistentFlags().BoolVar(&debug, "debug", debug, "enable debug-level output (requires --console or --log)")
+  1426→	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", noAnalytics, "disable usage analytics")
+  1427→	rootCmd.PersistentFlags().BoolVar(&silent, "silent", silent, "suppress all non-error output")
+  1428→	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
+  1429→	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
+  1430→	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
+  1431→
+  1432→	// Command-specific flags
+  1433→	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
+  1434→	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
+  1435→	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+  1436→	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+  1437→	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+  1438→	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+  1439→	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
+  1440→	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  1441→	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  1442→	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  1443→	_ = syncCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  1444→	syncCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+  1445→	syncCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+  1446→	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+  1447→	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+  1448→
+  1449→	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+  1450→	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
+  1451→	runCmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+  1452→	runCmd.Flags().String("resume", "", "resume a specific session by ID")
+  1453→	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
+  1454→	runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+  1455→	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
+  1456→	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+  1457→	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
+  1458→	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
+  1459→	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+  1460→	_ = runCmd.Flags().MarkHidden("debug-raw") // Hidden flag
+  1461→	runCmd.Flags().BoolVar(&localTimeZone, "local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+  1462→	runCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+  1463→	runCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+  1464→	runCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+  1465→
+  1466→	// Initialize analytics with the full CLI command (unless disabled)
+  1467→	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)
+  1468→	if !noAnalytics {
+  1469→		slog.Debug("Initializing analytics")
+  1470→		fullCommand := strings.Join(os.Args, " ")
+  1471→		if err := analytics.Init(fullCommand, version); err != nil {
+  1472→			// Log error but don't fail - analytics should not break the app
+  1473→			slog.Warn("Failed to initialize analytics", "error", err)
+  1474→		}
+  1475→		defer func() { _ = analytics.Close() }() // Analytics errors shouldn't break the app
+  1476→	} else {
+  1477→		slog.Debug("Analytics disabled by --no-usage-analytics flag")
+  1478→	}
+  1479→
+  1480→	// Log config load error after logging is set up
+  1481→	if cfgErr != nil {
+  1482→		slog.Warn("Failed to load config file, using defaults", "error", cfgErr)
+  1483→	}
+  1484→
+  1485→	// Initialize telemetry (after logging is configured)
+  1486→	if err := telemetry.Init(context.Background(), telemetry.Options{
+  1487→		ServiceName: cfg.GetTelemetryServiceName(),
+  1488→		Endpoint:    cfg.GetTelemetryEndpoint(),
+  1489→		Enabled:     cfg.IsTelemetryEnabled(),
+  1490→	}); err != nil {
+  1491→		slog.Warn("Failed to initialize telemetry", "error", err)
+  1492→	}
+  1493→	// Shutdown flushes pending spans/metrics before closing providers.
+  1494→	defer func() {
+  1495→		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+  1496→		defer cancel()
+  1497→		if err := telemetry.Shutdown(shutdownCtx); err != nil {
+  1498→			slog.Warn("Failed to shutdown telemetry", "error", err)
+  1499→		}
+  1500→	}()
+  1501→
+  1502→	// Check for updates (blocking)
+  1503→	utils.CheckForUpdates(version, noVersionCheck, silent)
+  1504→
+  1505→	// Ensure proper cleanup and logging on exit
+  1506→	defer func() {
+  1507→		if r := recover(); r != nil {
+  1508→			slog.Error("=== SpecStory PANIC ===", "panic", r)
+  1509→			// Still try to wait for cloud sync even on panic
+  1510→			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
+  1511→			log.CloseLogger()
+  1512→			panic(r) // Re-panic after logging
+  1513→		}
+  1514→		// Wait for cloud sync operations to complete before exiting
+  1515→		cloudStats := cloud.Shutdown(cloud.CloudSyncTimeout)
+  1516→
+  1517→		// Track cloud sync analytics if we have stats
+  1518→		if cloudStats != nil {
+  1519→			// Calculate total attempted (all sessions that started sync)
+  1520→			totalCloudSessions := cloudStats.SessionsAttempted
+  1521→
+  1522→			// Track cloud sync completion event
+  1523→			if cloudStats.SessionsUpdated > 0 || cloudStats.SessionsCreated > 0 || cloudStats.SessionsErrored > 0 || cloudStats.SessionsTimedOut > 0 {
+  1524→				analytics.TrackEvent(analytics.EventCloudSyncComplete, analytics.Properties{
+  1525→					"sessions_created":   cloudStats.SessionsCreated,
+  1526→					"sessions_updated":   cloudStats.SessionsUpdated,
+  1527→					"sessions_skipped":   cloudStats.SessionsSkipped,
+  1528→					"sessions_errored":   cloudStats.SessionsErrored,
+  1529→					"sessions_timed_out": cloudStats.SessionsTimedOut,
+  1530→					"total":              totalCloudSessions,
+  1531→				})
+  1532→			}
+  1533→
+  1534→			// Display cloud sync stats if not in silent mode
+  1535→			if !silent && totalCloudSessions > 0 {
+  1536→				fmt.Println("────────────") // Visual divider from provider sync output
+  1537→
+  1538→				// Determine if sync was complete or incomplete based on errors/timeouts
+  1539→				if cloudStats.SessionsErrored > 0 || cloudStats.SessionsTimedOut > 0 {
+  1540→					fmt.Printf("❌ Cloud sync incomplete! 📊 %s%d%s %s processed\n",
+  1541→						log.ColorBoldCyan, totalCloudSessions, log.ColorReset, pluralSession(int(totalCloudSessions)))
+  1542→				} else {
+  1543→					fmt.Printf("☁️  Cloud sync complete! 📊 %s%d%s %s processed\n",
+  1544→						log.ColorBoldCyan, totalCloudSessions, log.ColorReset, pluralSession(int(totalCloudSessions)))
+  1545→				}
+  1546→				fmt.Println()
+  1547→
+  1548→				fmt.Printf("  ⏭️ %s%d %s up to date (skipped)%s\n",
+  1549→					log.ColorCyan, cloudStats.SessionsSkipped, pluralSession(int(cloudStats.SessionsSkipped)), log.ColorReset)
+  1550→				fmt.Printf("  ♻️ %s%d %s updated%s\n",
+  1551→					log.ColorYellow, cloudStats.SessionsUpdated, pluralSession(int(cloudStats.SessionsUpdated)), log.ColorReset)
+  1552→				fmt.Printf("  ✨ %s%d new %s created%s\n",
+  1553→					log.ColorGreen, cloudStats.SessionsCreated, pluralSession(int(cloudStats.SessionsCreated)), log.ColorReset)
+  1554→
+  1555→				// Only show errors if there were any
+  1556→				if cloudStats.SessionsErrored > 0 {
+  1557→					fmt.Printf("  ❌ %s%d %s errored%s\n",
+  1558→						log.ColorRed, cloudStats.SessionsErrored, pluralSession(int(cloudStats.SessionsErrored)), log.ColorReset)
+  1559→				}
+  1560→
+  1561→				// Only show timed out sessions if there were any
+  1562→				if cloudStats.SessionsTimedOut > 0 {
+  1563→					fmt.Printf("  ⏱️  %s%d %s timed out%s\n",
+  1564→						log.ColorRed, cloudStats.SessionsTimedOut, pluralSession(int(cloudStats.SessionsTimedOut)), log.ColorReset)
+  1565→				}
+  1566→				fmt.Println()
+  1567→
+  1568→				// Display link to SpecStory Cloud (deep link to session if from run command)
+  1569→				cwd, cwdErr := os.Getwd()
+  1570→				if cwdErr == nil {
+  1571→					identityManager := utils.NewProjectIdentityManager(cwd)
+  1572→					if projectID, err := identityManager.GetProjectID(); err == nil {
+  1573→						fmt.Printf("💡 Search and chat with your AI conversation history at:\n")
+  1574→						if lastRunSessionID != "" {
+  1575→							// Deep link to the specific session from run command
+  1576→							fmt.Printf("   %shttps://cloud.specstory.com/projects/%s/sessions/%s%s\n\n",
+  1577→								log.ColorBoldCyan, projectID, lastRunSessionID, log.ColorReset)
+  1578→						} else {
+  1579→							// Link to project overview for sync command
+  1580→							fmt.Printf("   %shttps://cloud.specstory.com/projects/%s%s\n\n",
+  1581→								log.ColorBoldCyan, projectID, log.ColorReset)
+  1582→						}
+  1583→					}
+  1584→				}
+  1585→			}
+  1586→		}
+  1587→
+  1588→		if console || logFile {
+  1589→			slog.Info("=== SpecStory Exiting ===", "code", 0, "status", "normal termination")
+  1590→		}
+  1591→		log.CloseLogger()
+  1592→	}()
+  1593→
+  1594→	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
+  1595→		// Check if we're running the check command by looking at the executed command
+  1596→		executedCmd, _, _ := rootCmd.Find(os.Args[1:])
+  1597→		if executedCmd == checkCmd {
+  1598→			if console || logFile {
+  1599→				slog.Error("=== SpecStory Exiting ===", "code", 2, "status", "agent execution failure")
+  1600→				slog.Error("Error", "error", err)
+  1601→			}
+  1602→			// For check command, the error details are handled by checkSingleProvider/checkAllProviders
+  1603→			// So we just exit silently here
+  1604→			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
+  1605→			os.Exit(2)
+  1606→		} else {
+  1607→			if console || logFile {
+  1608→				slog.Error("=== SpecStory Exiting ===", "code", 1, "status", "error")
+  1609→				slog.Error("Error", "error", err)
+  1610→			}
+  1611→			fmt.Fprintln(os.Stderr) // Visual separation makes error output more noticeable
+  1612→
+  1613→			// Only show usage for actual command/flag errors from Cobra
+  1614→			// These are errors like "unknown command", "unknown flag", "invalid argument", etc.
+  1615→			// For all other errors (authentication, network, file system, etc.), we should NOT show usage
+  1616→			errMsg := err.Error()
+  1617→			isCommandError := strings.Contains(errMsg, "unknown command") ||
+  1618→				strings.Contains(errMsg, "unknown flag") ||
+  1619→				strings.Contains(errMsg, "invalid argument") ||
+  1620→				strings.Contains(errMsg, "required flag") ||
+  1621→				strings.Contains(errMsg, "accepts") || // e.g., "accepts 1 arg(s), received 2"
+  1622→				strings.Contains(errMsg, "no such flag") ||
+  1623→				strings.Contains(errMsg, "flag needs an argument")
+  1624→
+  1625→			if isCommandError {
+  1626→				_ = rootCmd.Usage() // Ignore error; we're exiting anyway
+  1627→				fmt.Println()       // Add visual separation after usage for better CLI readability
+  1628→			}
+  1629→			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
+  1630→			os.Exit(1)
+  1631→		}
+  1632→	}
+  1633→}
+  1634→
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-25 14:01:28Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/statistics.go`
+
+```text
+     1→package session
+     2→
+     3→import (
+     4→	"encoding/json"
+     5→	"fmt"
+     6→	"log/slog"
+     7→	"os"
+     8→	"path/filepath"
+     9→	"sync"
+    10→	"time"
+    11→
+    12→	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+    13→)
+    14→
+    15→// SessionStatistics contains computed statistics for a single session
+    16→type SessionStatistics struct {
+    17→	UserMessageCount  int    `json:"user_message_count"`
+    18→	AgentMessageCount int    `json:"agent_message_count"`
+    19→	StartTimestamp    string `json:"start_timestamp"`
+    20→	EndTimestamp      string `json:"end_timestamp"`
+    21→	MarkdownSizeBytes int    `json:"markdown_size_bytes"`
+    22→	Provider          string `json:"provider"`
+    23→	LastUpdated       string `json:"last_updated"`
+    24→}
+    25→
+    26→// StatisticsFile is the root structure for the statistics.json file
+    27→type StatisticsFile struct {
+    28→	Sessions map[string]SessionStatistics `json:"sessions"`
+    29→}
+    30→
+    31→// StatisticsCollector handles thread-safe statistics collection and persistence
+    32→type StatisticsCollector struct {
+    33→	specstoryDir string
+    34→	mu           sync.Mutex
+    35→}
+    36→
+    37→// NewStatisticsCollector creates a new statistics collector for the given .specstory directory
+    38→func NewStatisticsCollector(specstoryDir string) *StatisticsCollector {
+    39→	return &StatisticsCollector{
+    40→		specstoryDir: specstoryDir,
+    41→	}
+    42→}
+    43→
+    44→// ComputeSessionStatistics extracts statistics from SessionData and markdown content
+    45→func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics {
+    46→	stats := SessionStatistics{
+    47→		Provider:          providerID,
+    48→		MarkdownSizeBytes: len(markdownContent),
+    49→		LastUpdated:       time.Now().UTC().Format(time.RFC3339),
+    50→	}
+    51→
+    52→	// Count user and agent messages by iterating through exchanges
+    53→	userMsgCount := 0
+    54→	agentMsgCount := 0
+    55→	for _, exchange := range sessionData.Exchanges {
+    56→		for _, msg := range exchange.Messages {
+    57→			if msg.Role == schema.RoleUser {
+    58→				userMsgCount++
+    59→			} else {
+    60→				agentMsgCount++
+    61→			}
+    62→		}
+    63→	}
+    64→	stats.UserMessageCount = userMsgCount
+    65→	stats.AgentMessageCount = agentMsgCount
+    66→
+    67→	// Extract start timestamp - use first exchange start time if available, else session CreatedAt
+    68→	if len(sessionData.Exchanges) > 0 && sessionData.Exchanges[0].StartTime != "" {
+    69→		stats.StartTimestamp = sessionData.Exchanges[0].StartTime
+    70→	} else {
+    71→		stats.StartTimestamp = sessionData.CreatedAt
+    72→	}
+    73→
+    74→	// Extract end timestamp - use last exchange end time if available, else session UpdatedAt, else CreatedAt
+    75→	if len(sessionData.Exchanges) > 0 {
+    76→		lastExchange := sessionData.Exchanges[len(sessionData.Exchanges)-1]
+    77→		if lastExchange.EndTime != "" {
+    78→			stats.EndTimestamp = lastExchange.EndTime
+    79→		} else if sessionData.UpdatedAt != "" {
+    80→			stats.EndTimestamp = sessionData.UpdatedAt
+    81→		} else {
+    82→			stats.EndTimestamp = sessionData.CreatedAt
+    83→		}
+    84→	} else if sessionData.UpdatedAt != "" {
+    85→		stats.EndTimestamp = sessionData.UpdatedAt
+    86→	} else {
+    87→		stats.EndTimestamp = sessionData.CreatedAt
+    88→	}
+    89→
+    90→	return stats
+    91→}
+    92→
+    93→// AddSessionStats atomically adds or updates session statistics in the statistics.json file
+    94→func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionStatistics) error {
+    95→	// Lock for thread-safe file operations
+    96→	c.mu.Lock()
+    97→	defer c.mu.Unlock()
+    98→
+    99→	statsPath := filepath.Join(c.specstoryDir, "statistics.json")
+   100→
+   101→	// Read existing statistics file
+   102→	statsFile := StatisticsFile{
+   103→		Sessions: make(map[string]SessionStatistics),
+   104→	}
+   105→
+   106→	data, err := os.ReadFile(statsPath)
+   107→	if err == nil {
+   108→		// File exists, try to parse it
+   109→		if err := json.Unmarshal(data, &statsFile); err != nil {
+   110→			// Corrupt JSON - log warning and start fresh
+   111→			slog.Warn("Failed to parse existing statistics.json, starting fresh", "error", err)
+   112→			statsFile.Sessions = make(map[string]SessionStatistics)
+   113→		}
+   114→	} else if !os.IsNotExist(err) {
+   115→		// Error other than "file doesn't exist"
+   116→		return fmt.Errorf("failed to read statistics file: %w", err)
+   117→	}
+   118→
+   119→	// Add or update the session statistics
+   120→	statsFile.Sessions[sessionID] = stats
+   121→
+   122→	// Marshal to JSON with indentation for readability
+   123→	jsonData, err := json.MarshalIndent(statsFile, "", "  ")
+   124→	if err != nil {
+   125→		return fmt.Errorf("failed to marshal statistics: %w", err)
+   126→	}
+   127→
+   128→	// Write atomically using temp file + rename
+   129→	tempPath := statsPath + ".tmp"
+   130→	if err := os.WriteFile(tempPath, jsonData, 0644); err != nil {
+   131→		return fmt.Errorf("failed to write temp statistics file: %w", err)
+   132→	}
+   133→
+   134→	if err := os.Rename(tempPath, statsPath); err != nil {
+   135→		// Clean up temp file on failure
+   136→		_ = os.Remove(tempPath)
+   137→		return fmt.Errorf("failed to rename temp statistics file: %w", err)
+   138→	}
+   139→
+   140→	slog.Debug("Updated session statistics", "sessionId", sessionID, "path", statsPath)
+   141→	return nil
+   142→}
+   143→
+```
+</details></tool-use>
+
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-25 14:01:41Z)**_
+
+Perfect! I have all the information you need. Let me provide a comprehensive analysis of the `StatisticsCollector` and `syncProvider` flow.
+
+## 1. **How `syncProvider` is called from both `syncAllProviders` and `syncSingleProvider`**
+
+**In `syncAllProviders()` (line 1133):**
+```go
+sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+totalSessionCount += sessionCount
+```
+
+**In `syncSingleProvider()` (line 1236):**
+```go
+sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+```
+
+**Function Signature of `syncProvider()` (lines 812-844):**
+```go
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error)
+```
+
+**Full parameter list:**
+- `provider spi.Provider` - The provider instance to sync
+- `providerID string` - The provider's ID (e.g., "claude-code")
+- `config utils.OutputConfig` - Output directory configuration
+- `debugRaw bool` - Whether to output raw debug data files
+- `useUTC bool` - Whether to use UTC or local timezone
+- **Returns:** `(int, error)` - Session count and any error
+
+---
+
+## 2. **How `StatisticsCollector` works**
+
+The `StatisticsCollector` **does NOT have a `Flush()` or `Write()` method**. Instead, it **writes immediately and per-session** via `AddSessionStats()`.
+
+**Key behavior:**
+- Each call to `AddSessionStats()` reads the entire `statistics.json` file, updates it, and writes it back atomically
+- This happens **once per session** (line 911 in `main.go`):
+  ```go
+  if err := statsCollector.AddSessionStats(session.SessionID, sessionStatistics); err != nil {
+      slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+  }
+  ```
+- **There is no final flush call** — the collector writes immediately after each session is processed
+
+---
+
+## 3. **Full API of `StatisticsCollector` in `pkg/session/statistics.go`**
+
+**Constructor:**
+```go
+func NewStatisticsCollector(specstoryDir string) *StatisticsCollector
+```
+- Creates a new collector for a given `.specstory` directory
+
+**Core methods:**
+1. **`AddSessionStats(sessionID string, stats SessionStatistics) error`** (lines 94-142)
+   - Atomically adds or updates session statistics in `statistics.json`
+   - Uses mutex for thread-safe file operations
+   - Reads existing file, updates in-memory, writes back with temp file + atomic rename
+   - Logs on success at debug level
+   - Returns error if read/write fails
+
+2. **`ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics`** (lines 45-91)
+   - NOT a method of StatisticsCollector; it's a standalone function
+   - Extracts statistics from session data and markdown
+   - Computes: user message count, agent message count, start/end timestamps, markdown size
+   - Returns `SessionStatistics` struct
+
+**Data structures:**
+```go
+type SessionStatistics struct {
+    UserMessageCount  int    `json:"user_message_count"`
+    AgentMessageCount int    `json:"agent_message_count"`
+    StartTimestamp    string `json:"start_timestamp"`
+    EndTimestamp      string `json:"end_timestamp"`
+    MarkdownSizeBytes int    `json:"markdown_size_bytes"`
+    Provider          string `json:"provider"`
+    LastUpdated       string `json:"last_updated"`
+}
+
+type StatisticsFile struct {
+    Sessions map[string]SessionStatistics `json:"sessions"`
+}
+
+type StatisticsCollector struct {
+    specstoryDir string
+    mu           sync.Mutex  // Thread-safe lock
+}
+```
+
+---
+
+## 4. **Full Signature and Parameters of `syncProvider()` in `main.go`**
+
+**Signature (line 812):**
+```go
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error)
+```
+
+**Parameters breakdown:**
+
+| Parameter | Type | Purpose |
+|-----------|------|---------|
+| `provider` | `spi.Provider` | The provider interface to sync (e.g., Claude Code provider) |
+| `providerID` | `string` | The provider's unique identifier string |
+| `config` | `utils.OutputConfig` | Output directory paths and configuration |
+| `debugRaw` | `bool` | If true, outputs pretty-printed raw data files for debugging |
+| `useUTC` | `bool` | If true, use UTC for timestamps; if false, use local timezone |
+| *return* `int` | Session count processed | Number of sessions synced |
+| *return* `error` | Error if any | Operation error or nil |
+
+---
+
+## Key Flow Summary
+
+1. **Initialization:** `syncProvider()` creates a single `StatisticsCollector` (line 860) for all sessions in that provider:
+   ```go
+   statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+   ```
+
+2. **Per-session processing:** For each session (lines 863-1003):
+   - Generate markdown content
+   - Call `ComputeSessionStatistics()` to compute metrics
+   - **Immediately** call `statsCollector.AddSessionStats()` to persist stats (line 911)
+   - No batching; each session writes immediately
+
+3. **No finalization:** There's no flush or cleanup method—statistics are written immediately as each session is processed.
+
+4. **Statistics file location:** `.specstory/statistics.json` (computed at line 1029)
+
+_**Agent (claude-opus-4-6 2026-02-25 14:01:43Z)**_
+
+<think><details><summary>Thought Process</summary>
+Now I have a clear picture. Let me design the plan:
+
+1. **Refactor `StatisticsCollector`** to support batch mode: accumulate stats in memory, then write once at the end.
+2. **Create the collector once** in `syncAllProviders` and `syncSingleProvider`, pass it into `syncProvider`.
+3. **Move the stats path message** out of `syncProvider` into the callers, print once.
+4. **Add a `Flush()` method** to `StatisticsCollector` that writes the accumulated stats.
+
+Let me write the plan.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:01:43Z)**_
+
+Now I have a clear picture. Let me write the plan.
+
+_**Agent (claude-opus-4-6 2026-02-25 14:01:48Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Write"><details>
+<summary>Tool use: **Write**</summary>
+
+```md
+# Fix: Single stats write + single output message for `--only-stats`
+
+## Context
+
+When syncing multiple providers, `syncProvider` creates a new `StatisticsCollector` per provider and each `AddSessionStats` call does a full read-modify-write of `statistics.json`. With 5 sessions across 3 providers, that's 5 file I/O cycles. The `📊 Statistics collected:` message also prints once per provider instead of once at the end.
+
+## Changes
+
+### 1. Add batch support to `StatisticsCollector` (`pkg/session/statistics.go`)
+
+- Add an in-memory `pending` map field (`map[string]SessionStatistics`) to `StatisticsCollector`
+- Change `AddSessionStats` to accumulate into the `pending` map instead of writing immediately
+- Add a new `Flush() error` method that reads the existing file once, merges all pending stats, and writes once via atomic temp+rename
+
+### 2. Pass collector into `syncProvider` (`main.go`)
+
+- Add a `statsCollector *sessionpkg.StatisticsCollector` parameter to `syncProvider`
+- Remove the collector creation from inside `syncProvider` (line 860)
+- In `syncAllProviders`: create one collector before the loop, pass it to each `syncProvider` call, call `Flush()` after the loop
+- In `syncSingleProvider`: create one collector, pass it to `syncProvider`, call `Flush()` after
+
+### 3. Move stats output message (`main.go`)
+
+- Remove the `📊 Statistics collected:` print from inside `syncProvider` (lines 1027-1030)
+- Add it once after all providers are done in both `syncAllProviders` and `syncSingleProvider`, after `Flush()`
+
+## Files to modify
+
+- `pkg/session/statistics.go` — add `pending` map, modify `AddSessionStats`, add `Flush()`
+- `main.go` — change `syncProvider` signature, update callers, move stats output
+
+## Verification
+
+- `go build -o specstory`
+- `golangci-lint run`
+- `go test -v ./pkg/session/...`
+- `go test -v ./...`
+- Manual test: `./specstory sync --only-stats` in a multi-provider project — should see single `📊` line
+
+```
+
+```text
+File created successfully at: /Users/sean/.claude/plans/mossy-yawning-muffin.md
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 14:02:37Z)**_
+
+<tool-use data-tool-type="generic" data-tool-name="ExitPlanMode"><details>
+<summary>Tool use: **ExitPlanMode**</summary>
+
+```text
+The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.
+```
+</details></tool-use>
+
+---
+
+_**User (2026-02-25 14:02:37Z)**_
+
+[Request interrupted by user for tool use]
