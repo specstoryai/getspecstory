@@ -1120,7 +1120,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	totalSessionCount := 0
 	var lastError error
 
-	for _, id := range providersWithActivity {
+	for idx, id := range providersWithActivity {
 		provider, err := registry.Get(id)
 		if err != nil {
 			continue
@@ -1138,8 +1138,10 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			slog.Error("Error syncing provider", "provider", id, "error", err)
 		}
 
-		// Print divider between provider sync summaries
-		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 {
+		// Print divider between provider sync summaries (not after the last one,
+		// since the cloud sync output prints its own divider)
+		isLast := idx == len(providersWithActivity)-1
+		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 && !isLast {
 			fmt.Println("────────────")
 		}
 	}
