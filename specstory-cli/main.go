@@ -1020,8 +1020,8 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		fmt.Println()
 	}
 
-	// Show statistics collection message (always collected)
-	if sessionCount > 0 && !silent {
+	// Show statistics path only in --only-stats mode
+	if sessionCount > 0 && !silent && onlyStats {
 		specstoryDir := sessionpkg.GetSpecStoryDir(config)
 		statsPath := filepath.Join(specstoryDir, "statistics.json")
 		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
@@ -1133,6 +1133,11 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 		if err != nil {
 			lastError = err
 			slog.Error("Error syncing provider", "provider", id, "error", err)
+		}
+
+		// Print divider between provider sync summaries
+		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 {
+			fmt.Println("────────────")
 		}
 	}
 
@@ -1523,7 +1528,7 @@ func main() {
 
 			// Display cloud sync stats if not in silent mode
 			if !silent && totalCloudSessions > 0 {
-				fmt.Println() // Visual separation from provider sync output
+				fmt.Println("────────────") // Visual divider from provider sync output
 
 				// Determine if sync was complete or incomplete based on errors/timeouts
 				if cloudStats.SessionsErrored > 0 || cloudStats.SessionsTimedOut > 0 {
