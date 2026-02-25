@@ -546,6 +546,9 @@ Provide a specific agent ID to sync a specific provider.`
 			if printToStdout && len(sessionIDs) == 0 {
 				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
 			}
+			if onlyStats && len(sessionIDs) > 0 {
+				return utils.ValidationError{Message: "cannot use --only-stats with -s/--session. Use --only-stats without -s to collect statistics for all sessions"}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -730,7 +733,6 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			// Normal sync: write to file and optionally cloud sync
 			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
 				OnlyCloudSync:      onlyCloudSync,
-				OnlyStats:          onlyStats,
 				ShowOutput:         true,
 				DebugRaw:           debugRaw,
 				UseUTC:             useUTC,
@@ -905,7 +907,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			}
 
 			// Collect statistics (always enabled)
-			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
 
 			// In only-stats mode, skip file writes and cloud sync

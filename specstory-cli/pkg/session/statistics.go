@@ -145,6 +145,7 @@ func (c *StatisticsCollector) Flush() error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal statistics: %w", err)
 	}
+	jsonData = append(jsonData, '\n')
 
 	// Write atomically using temp file + rename
 	tempPath := statsPath + ".tmp"

@@ -3646,3 +3646,590 @@ _**Agent (claude-opus-4-6 2026-02-25 17:07:13Z)**_
 The doc comment is fine as-is — it accurately describes the behavior without referencing the return type. Done.
 
 **Summary:** Removed the `error` return from `AddSessionStats` since it always returned `nil`. Updated all 3 source callers (in `statistics.go`, `session.go`, `main.go`) and all 5 test call sites to use the simplified signature. All tests pass.
+
+---
+
+_**User (2026-02-25 17:11:41Z)**_
+
+for #1, stats collected during run/watch autosave are meant to be discarded... stats collection is only for the sync command.
+
+better that we NOT collect stats at all for run/watch, rather than collect them and discard them. what would that entail.
+
+As for `-s` it's also OK that that not write stats as it doesn't have all the sessions. Let's just be sure that we make use of -s and --only-stats flagged as not compatibily in the flag check
+
+_**User (2026-02-25 17:11:51Z)**_
+
+[Request interrupted by user]
+
+_**User (2026-02-25 17:12:25Z)**_
+
+Can we... pass in a nil collector for example for these 3 cases (-s, run, watch) and have that NOT collect stats? Rather than collect them and not flush them?
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:12:54Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants to:
+
+1. Not collect stats at all during run/watch autosave or `-s` mode
+2. Pass a nil collector to avoid stats collection
+3. Add a flag validation that `-s` and `--only-stats` are mutually exclusive
+
+Let me look at the code paths:
+
+1. `ProcessSingleSession` in `session.go` - used by `-s` (syncSpecificSessions) and run/watch autosave. Currently creates a collector, adds stats, but never flushes.
+2. `syncProvider` in `main.go` - used by sync command. Gets a collector passed in.
+
+
+The approach is to make `AddSessionStats` and `ComputeSessionStatistics` nil-safe so they skip stats collection when the collector is nil. For `ProcessSingleSession`, I should remove the internal collector creation entirely since `-s` and autosave modes don't need stats, while `syncProvider` already receives a collector from its caller. 's internal to ProcessSingleSession).
+
+Actually, looking at it more carefully - `ProcessSingleSession` creates a new collector, adds one stat, and never flushes. So the stats are just lost. The simplest approach is to just remove the stats code from `ProcessSingleSession` entirely, since it's only used for `-s` and run/watch.
+
+But the user specifically asked about passing nil. Let me think about what's cleanest:
+
+Option A: Remove stats collection from `ProcessSingleSession` entirely
+Option B: Make `AddSessionStats` nil-receiver safe, pass nil collector
+
+Option B is cleaner because it means `syncProvider` could also receive nil if needed. And it's a standard Go pattern (nil receiver methods).
+
+The user wants nil-safety on the collector, so I should make the stats computation conditional on the collector not being nil. That way `ProcessSingleSession` can just pass nil and skip stats collection entirely without needing to add parameters or special logic. Looking at the actual code paths, I see that `syncProvider` already has a collector passed in and calls the stats methods, but `ProcessSingleSession` creates its own collector unnecessarily. The cleaner approach is to remove stats collection entirely from `ProcessSingleSession` since it's called directly in the `-s` path where we don't want stats anyway, and let `syncProvider` handle it when stats are actually needed.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:12:54Z)**_
+
+Good thinking. Let me check all the call sites to understand the full picture.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:12:55Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ pattern `ProcessSingleSession`
+
+```text
+main.go:454:				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+main.go:731:			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+pkg/cmd/watch.go:207:				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, session.ProcessingOptions{
+pkg/session/session.go:92:// ProcessSingleSession writes markdown and triggers cloud sync for a single session.
+pkg/session/session.go:95:func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:12:59Z)**_
+
+Three callers: `run` (main.go:454), `-s` (main.go:731), and `watch` (watch.go:207). None of these need stats. Since `-s` and `--only-stats` will be mutually exclusive, `OnlyStats` can never be true inside `ProcessSingleSession`. So I can remove both the stats collection and the `OnlyStats` early return from `ProcessSingleSession`, then add the flag validation.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:13:00Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/session.go`
+
+```text
+   138→
+   139→	// Calculate markdown size in bytes
+   140→	markdownSize := len(markdownContent)
+   141→
+   142→	// Collect statistics (always enabled, even in only-stats mode)
+   143→	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+   144→	specstoryDir := GetSpecStoryDir(config)
+   145→	collector := NewStatisticsCollector(specstoryDir)
+   146→	collector.AddSessionStats(session.SessionID, sessionStats)
+   147→
+   148→	// In only-stats mode, skip file writes and cloud sync entirely
+   149→	if opts.OnlyStats {
+   150→		if opts.ShowOutput && !log.IsSilent() {
+   151→			fmt.Printf("Processing session %s... statistics collected\n", session.SessionID)
+   152→			fmt.Println()
+   153→		}
+   154→		return markdownSize, nil
+   155→	}
+   156→
+   157→	// Generate filename from timestamp and slug
+   158→	fileFullPath := BuildSessionFilePath(session, config.GetHistoryDir(), opts.UseUTC)
+   159→
+   160→	if opts.ShowOutput && !log.IsSilent() {
+   161→		fmt.Printf("Processing session %s...", session.SessionID)
+   162→	}
+```
+</details></tool-use>
+
+_**Agent (<synthetic> 2026-02-25 17:13:00Z)**_
+
+API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"},"request_id":"req_011CYVAKMbEVb4xahKWk4QEC"}
+
+---
+
+_**User (2026-02-25 17:14:12Z)**_
+
+proceed
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:14:43Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (<synthetic> 2026-02-25 17:14:43Z)**_
+
+API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"},"request_id":"req_011CYVASyGn4vEMHHiV9UY7n"}
+
+---
+
+_**User (2026-02-25 17:14:47Z)**_
+
+proceed
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:14:51Z)**_
+
+
+
+Now remove `OnlyStats` from `ProcessingOptions` since it's no longer used there, and add the `-s` + `--only-stats` flag validation.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:14:59Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/session.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:01Z)**_
+
+Now remove the `OnlyStats` field from the caller in main.go that sets it.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:03Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ pattern `OnlyStats`
+
+```text
+main.go:733:				OnlyStats:          onlyStats,
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:05Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   729→		} else {
+   730→			// Normal sync: write to file and optionally cloud sync
+   731→			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
+   732→				OnlyCloudSync:      onlyCloudSync,
+   733→				OnlyStats:          onlyStats,
+   734→				ShowOutput:         true,
+   735→				DebugRaw:           debugRaw,
+   736→				UseUTC:             useUTC,
+   737→				NoTelemetryPrompts: noTelemetryPrompts,
+   738→			}); err != nil {
+   739→				errorCount++
+   740→				lastError = err
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:11Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:13Z)**_
+
+Now add the `-s` + `--only-stats` flag validation.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:13Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+    96→	if onlyStats && onlyCloudSync {
+    97→		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
+    98→	}
+    99→	if onlyStats && noCloudSync {
+   100→		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
+   101→	}
+   102→	if onlyStats && printToStdout {
+   103→		return utils.ValidationError{Message: "cannot use --only-stats and --print together. These flags are mutually exclusive"}
+   104→	}
+   105→	if printToStdout && onlyCloudSync {
+   106→		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
+   107→	}
+   108→	if printToStdout && console {
+   109→		return utils.ValidationError{Message: "cannot use --print and `console` together. Console debug output would interleave with markdown on stdout"}
+   110→	}
+   111→	return nil
+```
+</details></tool-use>
+
+_**Agent (<synthetic> 2026-02-25 17:15:15Z)**_
+
+API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"},"request_id":"req_011CYVAVFD39ZCrCUynzJhoh"}
+
+---
+
+_**User (2026-02-25 17:15:19Z)**_
+
+proceed
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:22Z)**_
+
+
+
+I need to find where the `-s` flag is checked so I can reference it properly in the validation. The `-s` flag populates `sessionIDs` via a `StringSliceP`.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:24Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `sessionIDs|session.*flag|GetStringSlice.*session`
+
+```text
+221:				slog.Info("Using session-only refresh token from --cloud-token flag")
+545:			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+546:			if printToStdout && len(sessionIDs) == 0 {
+547:				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+554:			// Get session IDs if provided via flag
+555:			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+557:			// Handle specific session sync if -s flag is provided
+558:			if len(sessionIDs) > 0 {
+559:				return syncSpecificSessions(cmd, args, sessionIDs)
+580:func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string) error {
+581:	if len(sessionIDs) == 1 {
+582:		slog.Info("Running single session sync", "sessionId", sessionIDs[0])
+584:		slog.Info("Running multiple session sync", "sessionCount", len(sessionIDs))
+639:	for _, sessionID := range sessionIDs {
+747:	if !printToStdout && len(sessionIDs) > 1 && !silent {
+1454:	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:29Z)**_
+
+The `--only-stats` and `-s` validation can't go in `validateFlags()` since `sessionIDs` is parsed from the command flags at runtime, not from package-level vars. It's already validated inline at line 545-547 for the `--print` case. I'll add the check in the same spot.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:30Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   543→		PreRunE: func(cmd *cobra.Command, args []string) error {
+   544→			// Validate that --print requires -s flag
+   545→			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+   546→			if printToStdout && len(sessionIDs) == 0 {
+   547→				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
+   548→			}
+   549→			return nil
+   550→		},
+   551→		RunE: func(cmd *cobra.Command, args []string) error {
+   552→			config.EnsureDefaultProjectConfig()
+   553→
+   554→			// Get session IDs if provided via flag
+   555→			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
+   556→
+   557→			// Handle specific session sync if -s flag is provided
+   558→			if len(sessionIDs) > 0 {
+   559→				return syncSpecificSessions(cmd, args, sessionIDs)
+   560→			}
+   561→
+   562→			slog.Info("Running sync command")
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:51Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:54Z)**_
+
+Now let me also check if `ProcessSingleSession` still needs the `GetSpecStoryDir` import or the `log` import after the removal.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:56Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/session/session.go` pattern `GetSpecStoryDir|ComputeSessionStatistics|NewStatisticsCollector`
+
+```text
+79:// GetSpecStoryDir determines the .specstory directory path from config.
+83:func GetSpecStoryDir(config utils.OutputConfig) string {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:15:58Z)**_
+
+Good — `GetSpecStoryDir` is still defined there and used by callers in main.go. Let me build to verify everything compiles.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:16:02Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify build compiles
+
+`go build -o /dev/null . 2>&1`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:16:06Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run statistics tests
+
+`go test -v ./pkg/session/ -run TestStatistics -count=1 2>&1`
+
+```text
+=== RUN   TestStatisticsCollector_CreateNewFile
+--- PASS: TestStatisticsCollector_CreateNewFile (0.00s)
+=== RUN   TestStatisticsCollector_UpdateExisting
+--- PASS: TestStatisticsCollector_UpdateExisting (0.00s)
+=== RUN   TestStatisticsCollector_MultipleSessions
+--- PASS: TestStatisticsCollector_MultipleSessions (0.00s)
+=== RUN   TestStatisticsCollector_CorruptJSON
+2026/02/25 12:16:06 WARN Failed to parse existing statistics.json, starting fresh error="invalid character 'i' looking for beginning of object key string"
+--- PASS: TestStatisticsCollector_CorruptJSON (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	0.265s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:16:14Z)**_
+
+Builds clean, all tests pass. Here's what was done:
+
+1. **Removed stats collection from `ProcessSingleSession`** — deleted the `ComputeSessionStatistics` / `NewStatisticsCollector` / `AddSessionStats` block and the `OnlyStats` early return, since this function is only called from `-s`, `run`, and `watch` paths where stats should not be collected.
+
+2. **Removed `OnlyStats` field from `ProcessingOptions`** — no longer needed since `ProcessSingleSession` doesn't handle stats. Removed the corresponding field assignment in `syncSpecificSessions`.
+
+3. **Added flag validation** — `--only-stats` with `-s/--session` now returns an error in `PreRunE`, alongside the existing `--print` + `-s` check.
+
+---
+
+_**User (2026-02-25 17:17:24Z)**_
+
+let's have a trailing newline on statistics.json
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:17:26Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/session/statistics.go`
+
+```text
+   144→	jsonData, err := json.MarshalIndent(statsFile, "", "  ")
+   145→	if err != nil {
+   146→		return fmt.Errorf("failed to marshal statistics: %w", err)
+   147→	}
+   148→
+   149→	// Write atomically using temp file + rename
+   150→	tempPath := statsPath + ".tmp"
+   151→	if err := os.WriteFile(tempPath, jsonData, 0644); err != nil {
+   152→		return fmt.Errorf("failed to write temp statistics file: %w", err)
+   153→	}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:17:56Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/session/statistics.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run statistics tests
+
+`go test -v ./pkg/session/ -run TestStatistics -count=1 2>&1`
+
+```text
+=== RUN   TestStatisticsCollector_CreateNewFile
+--- PASS: TestStatisticsCollector_CreateNewFile (0.00s)
+=== RUN   TestStatisticsCollector_UpdateExisting
+--- PASS: TestStatisticsCollector_UpdateExisting (0.00s)
+=== RUN   TestStatisticsCollector_MultipleSessions
+--- PASS: TestStatisticsCollector_MultipleSessions (0.00s)
+=== RUN   TestStatisticsCollector_CorruptJSON
+2026/02/25 12:18:00 WARN Failed to parse existing statistics.json, starting fresh error="invalid character 'i' looking for beginning of object key string"
+--- PASS: TestStatisticsCollector_CorruptJSON (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	0.300s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:03Z)**_
+
+Done. Added `jsonData = append(jsonData, '\n')` after marshaling so `statistics.json` ends with a trailing newline — standard POSIX convention.
+
+---
+
+_**User (2026-02-25 17:18:12Z)**_
+
+ComputeSessionStatistics is passed agentName := session.SessionData.Provider.Name, but the PR description says the statistics should include the provider id. Using the display name here will produce different/stable values than IDs like "claude"/"codex" used elsewhere. Consider passing session.SessionData.Provider.ID (or the registry provider ID when available) instead of .Name.
+
+Stats should have the ID, not the name
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:15Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ pattern `ComputeSessionStatistics`
+
+```text
+pkg/session/statistics.go:48:// ComputeSessionStatistics extracts statistics from SessionData and markdown content
+pkg/session/statistics.go:49:func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics {
+pkg/session/statistics_test.go:12:func TestComputeSessionStatistics(t *testing.T) {
+pkg/session/statistics_test.go:200:			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent, tt.providerID)
+main.go:910:			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:17Z)**_
+
+The caller in `main.go` passes `agentName` which is `provider.Name()` (the display name). Let me check what's available at that call site.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:18Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+   855→		TotalSessions: sessionCount,
+   856→	}
+   857→
+   858→	historyPath := config.GetHistoryDir()
+   859→	agentName := provider.Name()
+   860→	ctx := context.Background()
+   861→
+   862→	// Process each session
+   863→	for i := range sessions {
+   864→		session := &sessions[i]
+   865→
+   866→		// Process session in a closure so defers scope to each iteration,
+   867→		// ensuring spans are ended and metrics recorded even on early returns.
+   868→		func() {
+   869→			processingStart := time.Now()
+   870→
+   871→			// Create a context with a deterministic trace ID from the session ID
+   872→			sessionCtx := telemetry.ContextWithSessionTrace(ctx, session.SessionID)
+   873→
+   874→			// Start an OTel span for this session processing
+   875→			sessionCtx, span := telemetry.Tracer("specstory").Start(sessionCtx, "process_session")
+   876→			defer span.End()
+   877→
+   878→			// Compute session statistics
+   879→			sessionStats := telemetry.ComputeSessionStats(agentName, session)
+   880→			defer func() {
+   881→				telemetry.RecordSessionMetrics(sessionCtx, sessionStats, time.Since(processingStart))
+   882→			}()
+   883→
+   884→			// Set session span attributes
+   885→			telemetry.SetSessionSpanAttributes(span, sessionStats)
+   886→
+   887→			// Create child spans for each exchange
+   888→			if session.SessionData != nil && len(session.SessionData.Exchanges) > 0 {
+   889→				telemetry.ProcessExchangeSpans(sessionCtx, sessionStats, session.SessionData.Exchanges, noTelemetryPrompts)
+   890→			}
+   891→
+   892→			sessionpkg.ValidateSessionData(session, debugRaw)
+   893→			sessionpkg.WriteDebugSessionData(session, debugRaw)
+   894→
+   895→			// Generate markdown from SessionData
+   896→			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)
+   897→			if err != nil {
+   898→				slog.Error("Failed to generate markdown from SessionData",
+   899→					"sessionId", session.SessionID,
+   900→					"error", err)
+   901→				// Track sync error
+   902→				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+   903→					"session_id": session.SessionID,
+   904→					"error":      err.Error(),
+   905→				})
+   906→				return
+   907→			}
+   908→
+   909→			// Collect statistics (always enabled)
+   910→			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
+   911→			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+   912→
+   913→			// In only-stats mode, skip file writes and cloud sync
+   914→			if onlyStats {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:21Z)**_
+
+The `providerID` string parameter is already available in `syncProvider`'s signature (line 814). Just need to use it instead of `agentName`.
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:28Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (<synthetic> 2026-02-25 17:18:29Z)**_
+
+API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"},"request_id":"req_011CYVAjYQ2iwF2k2yCynwXh"}
+
+---
+
+_**User (2026-02-25 17:18:32Z)**_
+
+proceed
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify build compiles
+
+`go build -o /dev/null . 2>&1`
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-25 17:18:41Z)**_
+
+Builds clean. Now `ComputeSessionStatistics` receives the registry provider ID (e.g. `"claude"`, `"codex"`) instead of the display name (e.g. `"Claude Code"`, `"Codex CLI"`). This also resolves the linter warning about `providerID` being an unused parameter.

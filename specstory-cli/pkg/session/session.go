@@ -69,7 +69,6 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 // ProcessingOptions holds flags that control session processing behavior.
 type ProcessingOptions struct {
 	OnlyCloudSync      bool // Skip local markdown writes and only sync to cloud
-	OnlyStats          bool // Only update statistics, skip local markdown and cloud sync
 	ShowOutput         bool // Print progress to stdout
 	IsAutosave         bool // Called from run/watch (true) vs sync command (false)
 	DebugRaw           bool // Enable schema validation (only in debug mode to avoid overhead)
@@ -138,21 +137,6 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 
 	// Calculate markdown size in bytes
 	markdownSize := len(markdownContent)
-
-	// Collect statistics (always enabled, even in only-stats mode)
-	sessionStats := ComputeSessionStatistics(session.SessionData, markdownContent, agentName)
-	specstoryDir := GetSpecStoryDir(config)
-	collector := NewStatisticsCollector(specstoryDir)
-	collector.AddSessionStats(session.SessionID, sessionStats)
-
-	// In only-stats mode, skip file writes and cloud sync entirely
-	if opts.OnlyStats {
-		if opts.ShowOutput && !log.IsSilent() {
-			fmt.Printf("Processing session %s... statistics collected\n", session.SessionID)
-			fmt.Println()
-		}
-		return markdownSize, nil
-	}
 
 	// Generate filename from timestamp and slug
 	fileFullPath := BuildSessionFilePath(session, config.GetHistoryDir(), opts.UseUTC)
