@@ -1,20 +1,53 @@
 # Specstory CLI Changelog
 
-## v1.8.0 2026-02-22
+## v1.11.0 2026-02-24
+
+### 📢 Announcements
+
+- `specstory sync` now generates session statistics at `./.specstory/statistics.json`. This data is available for custom tooling or analysis, or you can safely ignore it.
+
+### 🔧 CLI Configuration & Commands
+
+- `specstory sync` now supports an `--only-stats` flag that skips the full local and/or cloud sync and only generates or updates `./.specstory/statistics.json`.
+
+
+## v1.10.0 2026-02-23
+
+### 📢 Announcements
+
+-  Added optional [OpenTelemetry](https://opentelemetry.io/) metrics for agent sessions. Enable via the `--telemetry-endpoint`, `--telemetry-service-name`, and `--no-telemetry-prompts` [flags](https://docs.specstory.com/integrations/terminal-coding-agents/usage#flags) on `run`, `sync`, or `watch`, or through the `telemetry` [configuration options](https://docs.specstory.com/integrations/terminal-coding-agents/usage#configuration). See the [OpenTelemetry](https://github.com/specstoryai/getspecstory/blob/dev/specstory-cli/README.md#open-telemetry) section of the README for more information.
+
+
+## v1.9.0 2026-02-23
 
 ### ⚙️ Improvements
 
+- SpecStory CLI now supports configuration files in TOML format at user (`~/.specstory/cli/config.toml`) and project (`./.specstory/cli/config.toml`) levels. See the [usage guide](https://docs.specstory.com/integrations/terminal-coding-agents/usage) for more details.
+
+### 🔧 CLI Configuration & Commands
+
+- Now the `specstory check` command checks your user and project level config files for validity.
+- New `--debug-dir` flag and configuration to set the location of your debug output, separate from the `--output-dir` location.
+
+## v1.8.0 2026-02-22
+
+### 🔧 CLI Configuration & Commands
+
 - Provide activity updates to stdout while `specstory watch` is running.
 - `specstory watch --json` flag for easily parsable output activity updates.
+
+### ✏️ Markdown Enhancements
+
 - Added markdown rendering for the Codex CLI's new `exec_command` shell tool.
 
 ### 🐛 Bug Fixes
 
 - Updated processing of tool call results in Gemini CLI provider to fix broken session rendering with newer versions of Gemini CLI.
 
+
 ## v1.7.0 2026-02-16
 
-### ⚙️ Improvements
+### 🔧 CLI Configuration & Commands
 
 - New `--print` flag for `specstory sync -s {session-ID} --print` command to output the markdown to stdout rather than sync it to a file. The flag works for multiple sessions with `specstory sync -s {id1} -s {id2} --print`.
 - For the `specstory run claude` command, prefer the Claude Code "native install", `~/.local/bin/claude`, over the npm install, `~/.claude/local/claude`, when both are present.
@@ -23,47 +56,60 @@
 
 - Fixed slow `specstory run` startup when logged into SpecStory Cloud but the service is unavailable.
 
+
 ## v1.6.0 2026-02-08
 
-### ⚙️ Improvements
+### 🔧 CLI Configuration & Commands
 
 - New `specstory list` command to list all sessions for all supported providers for the current project directory. Can also be used to list sessions for a specific provider, e.g. `specstory list claude`.
 - `specstory list --json` flag for easily parsable output.
+
 
 ## v1.5.0 2026-01-31
 
 ### ⚙️ Improvements
 
-- `specstory sync` now displays progress feedback while parsing sessions.
 - The Claude Code provider now gracefully handles corrupt JSON objects in JSONL session data, continuing to parse valid entries rather than failing to render the session.
+
+### 🔧 CLI Configuration & Commands
+
+- `specstory sync` now displays progress feedback while parsing sessions.
 - The `-s` flag on `specstory sync` now accepts multiple session IDs: `specstory sync -s {id1} -s {id2}`.
+
+### ✏️ Markdown Enhancements
+
 - `WebFetch` and `WebSearch` tool outputs for the Claude Code provider now include the source URL and search term in their output.
 - Improved markdown formatting for the Claude Code provider when `WebFetch` returns markdown content.
 
+
 ## v1.4.0 2026-01-29
 
-### ⚙️ Improvements
+### 📢 Announcements
 
 - The SpecStory CLI now supports Factory's [Droid CLI](https://factory.ai/product/cli) (i.e. `droid`) for sessions created from Factory Droid version `0.56.3` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/) and [Gemini CLI](https://github.com/google-gemini/gemini-cli).
 
+
 ## v1.3.0 2026-01-25
 
-### ⚙️ Improvements
+### 🔧 CLI Configuration & Commands
 
 - Added a `--local-time-zone` flag to the `sync`, `run`, `watch` commands to use local timezone for file name and content timestamps rather than UTC.
 
+
 ## v1.2.0 2026-01-25
 
-### ⚙️ Improvements
+### 🔧 CLI Configuration & Commands
 
 - Added a `specstory watch` command to watch a project directory for any coding agent activity from any supported provider and auto-save sessions to local markdown and/or the [SpecStory Cloud](https://cloud.specstory.com).
 - Handle the case where `./.specstory/history` dir is deleted while the long running `run` or `watch` commands are still running.
 
+
 ## v1.1.0 2026-01-23
 
-### ⚙️ Improvements
+### 🔧 CLI Configuration & Commands
 
 - Added a `--only-cloud-sync` flag to the `sync` and `run` commands to skip local markdown writes and only sync to the [SpecStory Cloud](https://cloud.specstory.com).
+
 
 ## v1.0.0 2026-01-16
 
@@ -75,6 +121,7 @@
 
 - When logged in to [SpecStory Cloud](https://cloud.specstory.com/), show links to your project or session after `sync` or `run`.
 
+
 ## v0.18.0 2026-01-16
 
 ### 📢 Announcements
@@ -85,9 +132,10 @@
 
 - Include the agent's question in the markdown output from `AskUserQuestion` tool use with the Claude Code provider.
 
+
 ## v0.17.0 2026-01-07
 
-### ⚙️ Improvements
+### ✏️ Markdown Enhancements
 
 - A major internal refactor was done to move markdown generation from the providers to the CLI layer, and to standardize the markdown output across all providers.
 - Updated the markdown version to `v2.1.0` with tool types standardized as ` write`, `read`, `search`, `shell`, `task`, `generic`, `unknown`, and with timestamps on all user and agent messages, where available.
@@ -101,9 +149,10 @@
 
 - Fixed an issue where the CLI would still initialize the analytics client library when the `--no-usage-analytics` flag was used.
 
+
 ## v0.16.0 2025-11-21
 
-### ⚙️ Improvements
+### 📢 Announcements
 
 - The SpecStory CLI now supports Google's [Gemini CLI](https://github.com/google-gemini/gemini-cli) (i.e. `gemini`) for sessions created from Gemini CLI version `0.15.1` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli) and [Codex CLI](https://developers.openai.com/codex/cli/).
 
@@ -111,12 +160,14 @@
 
 - Fixed an issue where the Cursor CLI provider would not find sessions when a symlink was anywhere in the current working directory.
 
+
 ## v0.15.0 2025-11-15
 
-### ⚙️ Improvements
+### ✏️ Markdown Enhancements
 
 - The Codex CLI provider now generates SpecStory markdown v2.0.0 files, which support a significantly enhanced web UI when sessions are viewed in the SpecStory Cloud web app.
 - The Codex CLI provider now supports markdown output for the `apply_patch` tool, which is used to apply a patch to a file.
+
 
 ## v0.14.1 2025-11-14
 
@@ -129,24 +180,32 @@
 
 ### ⚙️ Improvements
 
-- The Claude Code provider now skips putting "Warmup" messages in the markdown output.
-- The Claude Code provider now generates SpecStory markdown v2.0.0 files, which support a significantly enhanced web UI when sessions are viewed in the SpecStory Cloud web app.
-- "Bash" tool use now supports multi-line commands in the markdown output for the Claude Code provider.
-- "Grep" tool use now extracts the pattern and path from the tool use arguments and displays them in the markdown output for the Claude Code provider.
 - Reduced network activity during more efficient bulk SpecStory Cloud syncs.
 - Display count of session syncs that timed out during SpecStory Cloud syncs.
 - Increased the timeout for SpecStory Cloud syncs to 120 seconds to account for initial syncs of large projects with many sessions.
 
+### ✏️ Markdown Enhancements
+
+- The Claude Code provider now skips putting "Warmup" messages in the markdown output.
+- The Claude Code provider now generates SpecStory markdown v2.0.0 files, which support a significantly enhanced web UI when sessions are viewed in the SpecStory Cloud web app.
+- "Bash" tool use now supports multi-line commands in the markdown output for the Claude Code provider.
+- "Grep" tool use now extracts the pattern and path from the tool use arguments and displays them in the markdown output for the Claude Code provider.
+
+
 ## v0.13.0 2025-10-26
 
-### ⚙️ Improvements
+### 🔧 CLI Configuration & Commands
 
 - Introduced a SpecStory Cloud sync debounce in `specstory run` to reduce the number of network syncs to the SpecStory Cloud.
+
+### ✏️ Markdown Enhancements
+
 - Removed the `<user_query>` tags around user messages in the markdown file names and markdown content that's output from newer versions of the Cursor CLI.
 
 ### 🐛 Bug Fixes
 
 - Fixed the SpecStory cloud counters displayed after `specstory run` to match the actual number of sessions created/updated/skipped.
+
 
 ## v0.12.0 2025-10-23
 
@@ -155,9 +214,10 @@
 - Skip the synthetic "warmup" user message that's always present in newer Claude Code sessions to generate more unique slugs for SpecStory history markdown filenames.
 - A pure Go SQLite library now replaces the C-based SQLite library for Cursor CLI provider database operations, improving cross-platform compatibility and performance.
 
+
 ## v0.11.0 2025-10-05
 
-### ⚙️ Improvements
+### 📢 Announcements
 
 - The SpecStory CLI now supports OpenAI's [Codex CLI](https://developers.openai.com/codex/cli/) (i.e. `codex`) for sessions created from Codex CLI version `0.42.0` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code) and [Cursor CLI](https://cursor.com/docs/cli).
 
@@ -171,7 +231,7 @@
 
 ## v0.10.0 2025-09-26
 
-### ⚙️ Improvements
+### 📢 Announcements
 
 - The SpecStory CLI now supports the [Cursor CLI](https://cursor.com/cli) (i.e. `cursor-agent`) for sessions created from Cursor CLI version `2025.09.18-7ae6800` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code).
 
@@ -191,7 +251,7 @@
 
 ## v0.9.0 2025-09-07
 
-### ⚙️ Improvements
+### 📢 Announcements
 
 - Search across all your AI Chat history with the [SpecStory Cloud](https://cloud.specstory.com) web app
 - Automatically synchronize your Claude Code AI chat sessions with SpecStory Cloud, when logged in, using `specstory sync` and `specstory run`
@@ -213,11 +273,11 @@
 ### ⚙️ Improvements
 
 - Skip writing markdown files for sessions that have no user messages, this is especially useful to avoid creating empty markdown files when using interactive mode (`specstory run`)
-- Improved the output of `specstory sync`, to include showing the progress of parsing and processing JSONL files
 
 ### 🔧 CLI Configuration & Commands
 
 - Fancy-schmancy new SpecStory logo that shows for `specstory` and  `specstory help`
+- Improved the output of `specstory sync`, to include showing the progress of parsing and processing JSONL files
 
 ### 🐛 Bug Fixes
 
@@ -230,19 +290,22 @@
 
 ### ⚙️ Improvements
 
-- `specstory check` now tells you where the `claude` command that SpecStory will use is located
-- Uses the Claude Code provided summary of the session as the header of the markdown file, if available
-- Normalized the header formatting of markdown files to match the Cursor/VSC extension's markdown
-- Improved the explanation provided when `specstory sync` is run in a directory that is not an existing Claude Code project directory
 - Creates a `.specstory/.project.json` file to track the project ID and name the project, in preparation for the future cloud sync feature in the CLI
 - Moved to structured logging with `log/slog`
-- Moved the log output (`--log` flag) to `.specstory/debug/debug.log` file
-- Improved the output of `specstory sync` to show the progress of parsing JSONL files and syncing markdown files
+
+### ✏️ Markdown Enhancements
+
+- Uses the Claude Code provided summary of the session as the header of the markdown file, if available
+- Normalized the header formatting of markdown files to match the Cursor/VSC extension's markdown
 
 ### 🔧 CLI Configuration & Commands
 
+- Improved the explanation provided when `specstory sync` is run in a directory that is not an existing Claude Code project directory
+- `specstory check` now tells you where the `claude` command that SpecStory will use is located
 - New `--console` flag for the `run` and `sync` commands to enable error/warn/info debug output to stdout, replaces the `--verbose` flag
 - New `--debug` flag for the `run` and `sync` commands to enable debug level output to `--log` or `--console` output
+- Moved the log output (`--log` flag) to `.specstory/debug/debug.log` file
+- Improved the output of `specstory sync` to show the progress of parsing JSONL files and syncing markdown files
 
 
 ## v0.6.0 2025-07-17

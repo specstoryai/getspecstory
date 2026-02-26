@@ -18,6 +18,7 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
 
 // GenerateAgentSession creates a SessionData from a Claude Code Session
@@ -377,6 +378,17 @@ func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain boo
 		}
 	}
 
+	// Extract usage data if present
+	var usageInfo *Usage
+	if usage, ok := message["usage"].(map[string]interface{}); ok {
+		usageInfo = &Usage{
+			InputTokens:              schema.GetIntFromMap(usage, "input_tokens"),
+			OutputTokens:             schema.GetIntFromMap(usage, "output_tokens"),
+			CacheCreationInputTokens: schema.GetIntFromMap(usage, "cache_creation_input_tokens"),
+			CacheReadInputTokens:     schema.GetIntFromMap(usage, "cache_read_input_tokens"),
+		}
+	}
+
 	msg := Message{
 		ID:        uuid,
 		Timestamp: timestamp,
@@ -385,6 +397,7 @@ func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain boo
 		Content:   contentParts,
 		Tool:      toolInfo,
 		PathHints: pathHints,
+		Usage:     usageInfo,
 	}
 
 	// Add sidechain flag to metadata if true

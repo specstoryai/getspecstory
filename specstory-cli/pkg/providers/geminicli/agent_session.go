@@ -19,7 +19,23 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
+
+// convertTokensToUsage converts Gemini's token structure to the shared Usage type.
+// Returns nil if tokens is nil.
+func convertTokensToUsage(tokens *GeminiTokens) *Usage {
+	if tokens == nil {
+		return nil
+	}
+	return &Usage{
+		InputTokens:   tokens.Input,
+		OutputTokens:  tokens.Output,
+		CachedTokens:  tokens.Cached,
+		ThoughtTokens: tokens.Thoughts,
+		ToolTokens:    tokens.Tool,
+	}
+}
 
 // GenerateAgentSession creates a SessionData from a GeminiSession
 // The session should already be parsed and normalized (messages sorted, warmup trimmed)
@@ -192,8 +208,10 @@ func formatReferencedFilesMarkdown(content string) string {
 
 // buildAgentMessages creates Messages from a Gemini agent message
 // Returns multiple messages: one for thoughts, one per tool call, and one for text content
+// Token usage is attached to the last message only to avoid double-counting in aggregation
 func buildAgentMessages(msg GeminiMessage, workspaceRoot string) []Message {
 	var messages []Message
+	usage := convertTokensToUsage(msg.Tokens)
 
 	// Add thinking content from Thoughts
 	if len(msg.Thoughts) > 0 {
@@ -220,6 +238,11 @@ func buildAgentMessages(msg GeminiMessage, workspaceRoot string) []Message {
 			},
 		}
 		messages = append(messages, textMsg)
+	}
+
+	// Attach usage to the last message only to avoid double-counting in aggregation
+	if len(messages) > 0 && usage != nil {
+		messages[len(messages)-1].Usage = usage
 	}
 
 	return messages

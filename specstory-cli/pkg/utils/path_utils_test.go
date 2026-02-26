@@ -208,7 +208,7 @@ func TestNewOutputPathConfig(t *testing.T) {
 			}
 			defer tt.cleanup(t, tt.dir)
 
-			config, err := NewOutputPathConfig(tt.dir)
+			config, err := NewOutputPathConfig(tt.dir, "")
 
 			if tt.wantErr {
 				if err == nil {
@@ -268,6 +268,31 @@ func TestOutputPathConfigMethods(t *testing.T) {
 		// Log file goes to {BaseDir}/debug/debug.log
 		logPath := config.GetLogPath()
 		expectedLogPath := filepath.Join(expectedDebugDir, DEBUG_LOG_FILE)
+		if logPath != expectedLogPath {
+			t.Errorf("GetLogPath() = %v, want %v", logPath, expectedLogPath)
+		}
+	})
+
+	t.Run("with custom debug base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		debugBaseDir := t.TempDir()
+		config := &OutputPathConfig{BaseDir: baseDir, DebugBaseDir: debugBaseDir}
+
+		// Test GetDebugDir returns the custom debug base dir directly
+		debugDir := config.GetDebugDir()
+		if debugDir != debugBaseDir {
+			t.Errorf("GetDebugDir() = %v, want %v", debugDir, debugBaseDir)
+		}
+
+		// Test GetHistoryDir still uses BaseDir
+		historyDir := config.GetHistoryDir()
+		if historyDir != baseDir {
+			t.Errorf("GetHistoryDir() = %v, want %v", historyDir, baseDir)
+		}
+
+		// Test GetLogPath uses the custom debug base dir
+		logPath := config.GetLogPath()
+		expectedLogPath := filepath.Join(debugBaseDir, DEBUG_LOG_FILE)
 		if logPath != expectedLogPath {
 			t.Errorf("GetLogPath() = %v, want %v", logPath, expectedLogPath)
 		}

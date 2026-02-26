@@ -5,13 +5,15 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
-// Directory constants
+// Directory and file constants
 const SPECSTORY_DIR = ".specstory"
 const HISTORY_DIR = "history"
 const DEBUG_DIR = "debug"
 const DEBUG_LOG_FILE = "debug.log"
+const STATISTICS_FILE = "statistics.json"
 
 // OutputConfig interface defines methods for getting output directories
 type OutputConfig interface {
@@ -22,7 +24,8 @@ type OutputConfig interface {
 
 // OutputPathConfig manages all output directory configuration
 type OutputPathConfig struct {
-	BaseDir string // Validated absolute path for --output-dir; when set, all outputs go here
+	BaseDir      string // Validated absolute path for markdown output
+	DebugBaseDir string // Validated absolute path for debug output
 }
 
 // Ensure OutputPathConfig implements OutputConfig interface
@@ -62,18 +65,56 @@ func resolveDir(dir string) (string, error) {
 	return absPath, nil
 }
 
-// NewOutputPathConfig creates and validates an output configuration
-func NewOutputPathConfig(dir string) (*OutputPathConfig, error) {
-	if dir == "" {
-		return &OutputPathConfig{}, nil // Use defaults
+// ExpandTilde expands a leading ~ to the user's home directory.
+// Go's filepath.Abs does not handle ~ — it treats it as a literal directory name.
+func ExpandTilde(path string) string {
+	if !strings.HasPrefix(path, "~") {
+		return path
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(home, path[1:])
+}
 
+// validateDirectory validates a directory path: expands ~, converts to absolute,
+// checks existence and write permissions, or creates it if missing.
+// Returns the validated absolute path.
+func validateDirectory(dir, label string) (string, error) {
+	// Expand ~ to home directory before converting to absolute
+	dir = ExpandTilde(dir)
 	absPath, err := resolveDir(dir)
 	if err != nil {
-		return nil, err
+		return "", fmt.Errorf("invalid %s: %w", label, err)
 	}
 
-	return &OutputPathConfig{BaseDir: absPath}, nil
+	return absPath, nil
+}
+
+// NewOutputPathConfig creates and validates an output configuration.
+// dir is the markdown output directory; debugDir is the debug output directory.
+// Either or both may be empty to use defaults.
+func NewOutputPathConfig(dir string, debugDir string) (*OutputPathConfig, error) {
+	config := &OutputPathConfig{}
+
+	if dir != "" {
+		absPath, err := validateDirectory(dir, "output directory")
+		if err != nil {
+			return nil, err
+		}
+		config.BaseDir = absPath
+	}
+
+	if debugDir != "" {
+		absPath, err := validateDirectory(debugDir, "debug directory")
+		if err != nil {
+			return nil, err
+		}
+		config.DebugBaseDir = absPath
+	}
+
+	return config, nil
 }
 
 // getBasePath returns the base directory for all non-history outputs (.project.json, statistics.json, debug/).
@@ -99,8 +140,12 @@ func (c *OutputPathConfig) GetHistoryDir() string {
 	return filepath.Join(c.getBasePath(), HISTORY_DIR)
 }
 
-// GetDebugDir returns the debug directory path
+// GetDebugDir returns the debug directory path.
+// If DebugBaseDir is set, it is used directly (no /debug appended).
 func (c *OutputPathConfig) GetDebugDir() string {
+	if c.DebugBaseDir != "" {
+		return c.DebugBaseDir
+	}
 	return filepath.Join(c.getBasePath(), DEBUG_DIR)
 }
 
@@ -113,6 +158,17 @@ func (c *OutputPathConfig) GetSpecstoryDir() string {
 // GetLogPath returns the debug log file path
 func (c *OutputPathConfig) GetLogPath() string {
 	return filepath.Join(c.GetDebugDir(), DEBUG_LOG_FILE)
+}
+
+// GetSpecStoryDir returns the .specstory directory path.
+// With a custom output dir this is the output dir itself; otherwise cwd/.specstory.
+func (c *OutputPathConfig) GetSpecStoryDir() string {
+	return c.getBasePath()
+}
+
+// GetStatisticsPath returns the full path to the statistics.json file
+func (c *OutputPathConfig) GetStatisticsPath() string {
+	return filepath.Join(c.GetSpecStoryDir(), STATISTICS_FILE)
 }
 
 // ValidationError represents errors from flag validation that should not display usage
@@ -142,6 +198,16 @@ func EnsureHistoryDirectoryExists(config OutputConfig) error {
 	}
 
 	return nil
+}
+
+// SetupOutputConfig creates and configures the output configuration.
+// outputDir is the markdown output directory; debugDir is the debug output directory.
+func SetupOutputConfig(outputDir string, debugDir string) (*OutputPathConfig, error) {
+	config, err := NewOutputPathConfig(outputDir, debugDir)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
 }
 
 // ResolveProjectPath returns the effective project path for session discovery.
