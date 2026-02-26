@@ -25,11 +25,11 @@ for target in \
   "linux arm64 arm64" \
   "darwin amd64 x86_64" \
   "darwin arm64 arm64" \
-  "windows amd64 x86_64" \
-  "windows arm64 arm64"
+  "windows amd64 x86_64 .exe" \
+  "windows arm64 arm64 .exe"
 do
-  read -r os goarch filename_arch <<< "$target"
-  out="$DEST_DIR/specstory_${os}_${filename_arch}"
+  read -r os goarch filename_arch file_ext <<< "$target"
+  out="$DEST_DIR/specstory_${os}_${filename_arch}${file_ext}"
   echo "Building $out..."
   CGO_ENABLED=0 GOOS="$os" GOARCH="$goarch" go build -ldflags="$LDFLAGS" -o "$out" ./main.go
 done
