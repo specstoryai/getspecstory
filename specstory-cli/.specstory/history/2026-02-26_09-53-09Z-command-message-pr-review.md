@@ -7133,3 +7133,369 @@ Clean. Here's what changed:
 **`main.go`** — Callers use `config.GetStatisticsPath()` directly. Removed `path/filepath` import (no longer needed).
 
 **`pkg/session/statistics_test.go`** — Added `testStatsPath` helper; tests pass full file path to `NewStatisticsCollector`.
+
+---
+
+_**User (2026-02-26 10:15:49Z)**_
+
+Let's add analytics for 5
+
+---
+
+_**Agent (claude-opus-4-6 2026-02-26 10:15:54Z)**_
+
+<think><details><summary>Thought Process</summary>
+The user wants to address observation #5 from my PR review:
+
+> (5) **No analytics tracking for `--only-stats` mode.** Other modes like `--only-cloud-sync` and `--print` are tracked via analytics events. There's no `analytics.TrackEvent` for stats-only operations. Consider adding a tracking event so you can measure adoption and usage of the new feature.
+
+Let me look at how existing analytics events are defined and tracked to follow the same pattern.
+</details></think>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:15:55Z)**_
+
+Let me check how existing analytics events are defined and used.
+
+_**Agent (claude-opus-4-6 2026-02-26 10:15:57Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./pkg/analytics` pattern `Event\w+\s+=\s+"`
+
+```text
+pkg/analytics/events.go:11:	EventExtensionActivated     = "ext_activated"                // Tracks when `run` command is started
+pkg/analytics/events.go:12:	EventWatchActivated         = "ext_watch_activated"          // Tracks when `watch` command is started
+pkg/analytics/events.go:13:	EventProjectIdentityCreated = "ext_project_identity_created" // Tracks when new project identity is created
+pkg/analytics/events.go:14:	EventCheckInstallSuccess    = "ext_check_install_success"    // Tracks successful agent installation check
+pkg/analytics/events.go:15:	EventCheckInstallFailed     = "ext_check_install_failed"     // Tracks failed agent installation check
+pkg/analytics/events.go:16:	EventVersionCommand         = "ext_version_command"          // Tracks when users check the version
+pkg/analytics/events.go:17:	EventHelpCommand            = "ext_help_command"             // Tracks when users view help
+pkg/analytics/events.go:18:	EventAutosaveNew            = "ext_autosave_new"             // Tracks when a new markdown file is created during `run` or `--sync-markdown`
+pkg/analytics/events.go:19:	EventAutosaveSuccess        = "ext_autosave_success"         // Tracks when a markdown file is updated during `run`
+pkg/analytics/events.go:20:	EventAutosaveError          = "ext_autosave_error"           // Tracks when an error occurs generating or writing markdown during `run`
+pkg/analytics/events.go:21:	EventSyncMarkdownNew        = "ext_sync_markdown_new"        // Tracks when a new markdown file is created during `sync`
+pkg/analytics/events.go:22:	EventSyncMarkdownSuccess    = "ext_sync_markdown_success"    // Tracks when a markdown file is updated during `sync`
+pkg/analytics/events.go:23:	EventSyncMarkdownError      = "ext_sync_markdown_error"      // Tracks when an error occurs generating or writing markdown during `sync`
+pkg/analytics/events.go:24:	EventLoginAttempted         = "ext_login_attempted"          // Tracks when user starts the login flow
+pkg/analytics/events.go:25:	EventLoginCancelled         = "ext_login_cancelled"          // Tracks when user cancels the login flow
+pkg/analytics/events.go:26:	EventLoginSuccess           = "ext_login_success"            // Tracks successful login to SpecStory Cloud
+pkg/analytics/events.go:27:	EventLoginFailed            = "ext_login_failed"             // Tracks failed login attempts
+pkg/analytics/events.go:28:	EventLogout                 = "ext_logout"                   // Tracks user logout from SpecStory Cloud
+pkg/analytics/events.go:29:	EventCloudSyncComplete      = "ext_cloudsync_complete"       // Tracks cloud sync completion with statistics
+pkg/analytics/events.go:30:	EventListSessions           = "ext_list_sessions"            // Tracks when users list sessions with the list command
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:15:58Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ pattern `only.cloud.sync.*TrackEvent|TrackEvent.*only.cloud.sync|EventSync"`
+
+```text
+No matches found
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:16:00Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/analytics/events.go`
+
+```text
+     1→package analytics
+     2→
+     3→import (
+     4→	"os"
+     5→
+     6→	"github.com/posthog/posthog-go"
+     7→)
+     8→
+     9→// Event name constants
+    10→const (
+    11→	EventExtensionActivated     = "ext_activated"                // Tracks when `run` command is started
+    12→	EventWatchActivated         = "ext_watch_activated"          // Tracks when `watch` command is started
+    13→	EventProjectIdentityCreated = "ext_project_identity_created" // Tracks when new project identity is created
+    14→	EventCheckInstallSuccess    = "ext_check_install_success"    // Tracks successful agent installation check
+    15→	EventCheckInstallFailed     = "ext_check_install_failed"     // Tracks failed agent installation check
+    16→	EventVersionCommand         = "ext_version_command"          // Tracks when users check the version
+    17→	EventHelpCommand            = "ext_help_command"             // Tracks when users view help
+    18→	EventAutosaveNew            = "ext_autosave_new"             // Tracks when a new markdown file is created during `run` or `--sync-markdown`
+    19→	EventAutosaveSuccess        = "ext_autosave_success"         // Tracks when a markdown file is updated during `run`
+    20→	EventAutosaveError          = "ext_autosave_error"           // Tracks when an error occurs generating or writing markdown during `run`
+    21→	EventSyncMarkdownNew        = "ext_sync_markdown_new"        // Tracks when a new markdown file is created during `sync`
+    22→	EventSyncMarkdownSuccess    = "ext_sync_markdown_success"    // Tracks when a markdown file is updated during `sync`
+    23→	EventSyncMarkdownError      = "ext_sync_markdown_error"      // Tracks when an error occurs generating or writing markdown during `sync`
+    24→	EventLoginAttempted         = "ext_login_attempted"          // Tracks when user starts the login flow
+    25→	EventLoginCancelled         = "ext_login_cancelled"          // Tracks when user cancels the login flow
+    26→	EventLoginSuccess           = "ext_login_success"            // Tracks successful login to SpecStory Cloud
+    27→	EventLoginFailed            = "ext_login_failed"             // Tracks failed login attempts
+    28→	EventLogout                 = "ext_logout"                   // Tracks user logout from SpecStory Cloud
+    29→	EventCloudSyncComplete      = "ext_cloudsync_complete"       // Tracks cloud sync completion with statistics
+    30→	EventListSessions           = "ext_list_sessions"            // Tracks when users list sessions with the list command
+    31→)
+    32→
+    33→// Properties is a type alias for event properties to avoid exposing PostHog types
+    34→type Properties map[string]interface{}
+    35→
+    36→// TrackEvent sends a generic event to PostHog
+    37→func TrackEvent(eventName string, properties Properties) {
+    38→	if !IsEnabled() {
+    39→		return
+    40→	}
+    41→
+    42→	distinctID := GetDistinctID()
+    43→
+    44→	// Convert to PostHog properties
+    45→	phProperties := make(posthog.Properties)
+    46→	for k, v := range properties {
+    47→		phProperties[k] = v
+    48→	}
+    49→
+    50→	// Always include CLI command, device ID, and project path
+    51→	phProperties["cli_command"] = GetCLICommand()
+    52→	phProperties["$device_id"] = distinctID
+    53→
+    54→	// Capture current working directory as project_path
+    55→	if cwd, err := os.Getwd(); err == nil {
+    56→		phProperties["project_path"] = cwd
+    57→	}
+    58→
+    59→	// Agent provider information
+    60→	phProperties["agent_provider"] = GetAgentProviderName()
+    61→
+    62→	// Editor information
+    63→	phProperties["editor_name"] = "SpecStory CLI"
+    64→	phProperties["editor_type"] = "CLI"
+    65→	phProperties["extension_version"] = GetCLIVersion()
+    66→
+    67→	// OS information (gathered once during initialization)
+    68→	osArch, osName, osPlatform, osVersion := GetOSInfo()
+    69→	phProperties["os_arch"] = osArch
+    70→	phProperties["os_name"] = osName
+    71→	phProperties["os_platform"] = osPlatform
+    72→	phProperties["os_version"] = osVersion
+    73→
+    74→	err := client.Enqueue(posthog.Capture{
+    75→		DistinctId:       distinctID,
+    76→		Event:            eventName,
+    77→		Properties:       phProperties,
+    78→		SendFeatureFlags: posthog.SendFeatureFlags(false),
+    79→	})
+    80→
+    81→	if err != nil {
+    82→		// Silently fail - analytics should not break the app
+    83→		return
+    84→	}
+    85→}
+    86→
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:16:03Z)**_
+
+Now let me see where the existing sync analytics are tracked in `main.go` to understand the right placement.
+
+_**Agent (claude-opus-4-6 2026-02-26 10:16:05Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `analytics\.TrackEvent.*EventSync"`
+
+```text
+No matches found
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:16:08Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `analytics\.TrackEvent.*EventSync"`
+
+```text
+No matches found
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:16:11Z)**_
+
+<tool-use data-tool-type="search" data-tool-name="Grep"><details>
+<summary>Tool use: **Grep**</summary>
+ path `./main.go` pattern `TrackEvent\(analytics\.EventSync`
+
+```text
+710:				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+727:			analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+901:				analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+949:						analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+962:						analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
+967:						analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+1156:		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+1165:		analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+1258:		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+1267:		analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:16:17Z)**_
+
+I can see the pattern. The sync completion analytics are tracked in `syncAllProviders` (lines 1156/1165) and `syncSingleProvider` (lines 1258/1267) with `session_count` as a property. I need to:
+
+1. Add a new event constant `EventSyncStatsComplete`
+2. Track it after the stats flush in both `syncAllProviders` and `syncSingleProvider`
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:17Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/analytics/events.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:19Z)**_
+
+Now add tracking after the stats flush in both entry points. Let me read the current state around the flush calls.
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:20Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+  1143→
+  1144→	// Flush all accumulated statistics to disk in a single write
+  1145→	if err := statsCollector.Flush(); err != nil {
+  1146→		slog.Warn("Failed to flush statistics", "error", err)
+  1147→	}
+  1148→
+  1149→	// Show statistics path once after all providers are done (only in --only-stats mode)
+  1150→	if totalSessionCount > 0 && !silent && onlyStats {
+  1151→		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+  1152→	}
+  1153→
+  1154→	// Track overall analytics
+  1155→	if lastError != nil {
+  1156→		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+  1157→			"provider":      "all",
+  1158→			"error":         lastError.Error(),
+  1159→			"session_count": totalSessionCount,
+  1160→		})
+  1161→		// Brief delay to ensure error event is sent before exit
+  1162→		// TODO: This is a workaround for async analytics - should be fixed properly
+  1163→		time.Sleep(500 * time.Millisecond)
+  1164→	} else {
+  1165→		analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+  1166→			"provider":      "all",
+  1167→			"session_count": totalSessionCount,
+  1168→		})
+  1169→	}
+  1170→
+  1171→	return lastError
+  1172→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:22Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./main.go`
+
+```text
+  1245→
+  1246→	// Flush statistics to disk
+  1247→	if err := statsCollector.Flush(); err != nil {
+  1248→		slog.Warn("Failed to flush statistics", "error", err)
+  1249→	}
+  1250→
+  1251→	// Show statistics path (only in --only-stats mode)
+  1252→	if sessionCount > 0 && !silent && onlyStats {
+  1253→		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+  1254→	}
+  1255→
+  1256→	// Track analytics
+  1257→	if syncErr != nil {
+  1258→		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
+  1259→			"provider":      providerID,
+  1260→			"error":         syncErr.Error(),
+  1261→			"session_count": sessionCount,
+  1262→		})
+  1263→		// Brief delay to ensure error event is sent before exit
+  1264→		// TODO: This is a workaround for async analytics - should be fixed properly
+  1265→		time.Sleep(500 * time.Millisecond)
+  1266→	} else {
+  1267→		analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
+  1268→			"provider":      providerID,
+  1269→			"session_count": sessionCount,
+  1270→		})
+  1271→	}
+  1272→
+  1273→	return syncErr
+  1274→}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:28Z)**_
+
+The right place is after the flush succeeds and before the existing sync analytics. In `--only-stats` mode, the existing `EventSyncMarkdownSuccess`/`Error` events still fire (which makes sense — the sync did happen, just without file writes). The new event specifically tracks stats-only usage.
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:39Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:45Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:52Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run linter
+
+`golangci-lint run`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-6 2026-02-26 10:17:56Z)**_
+
+Clean. Summary of changes:
+
+- **`pkg/analytics/events.go`** — Added `EventSyncStatsComplete = "ext_sync_stats_complete"` constant
+- **`main.go`** — Added `analytics.TrackEvent(analytics.EventSyncStatsComplete, ...)` in both `syncAllProviders` and `syncSingleProvider`, fired when `onlyStats` is true, with `provider` and `session_count` properties matching the existing event patterns
+
+---
+
+_**User (2026-02-26 10:19:09Z)**_
+
+<command-name>/exit</command-name>
+            <command-message>exit</command-message>
+            <command-args></command-args>
+
+_**User (2026-02-26 10:19:09Z)**_
+
+<local-command-stdout>Catch you later!</local-command-stdout>
+
+_**User (2026-02-26 10:19:09Z)**_
+
+<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>

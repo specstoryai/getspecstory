@@ -1151,6 +1151,14 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
 	}
 
+	// Track stats-only usage separately so we can measure adoption
+	if onlyStats {
+		analytics.TrackEvent(analytics.EventSyncStatsComplete, analytics.Properties{
+			"provider":      "all",
+			"session_count": totalSessionCount,
+		})
+	}
+
 	// Track overall analytics
 	if lastError != nil {
 		analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
@@ -1251,6 +1259,14 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	// Show statistics path (only in --only-stats mode)
 	if sessionCount > 0 && !silent && onlyStats {
 		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+	}
+
+	// Track stats-only usage separately so we can measure adoption
+	if onlyStats {
+		analytics.TrackEvent(analytics.EventSyncStatsComplete, analytics.Properties{
+			"provider":      providerID,
+			"session_count": sessionCount,
+		})
 	}
 
 	// Track analytics
