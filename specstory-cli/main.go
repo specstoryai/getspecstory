@@ -41,6 +41,7 @@ var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
+var onlyStats bool     // flag to only update statistics, skip local markdown and cloud sync
 var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
@@ -90,6 +91,15 @@ func validateFlags() error {
 	}
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
+	}
+	if onlyStats && onlyCloudSync {
+		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
+	}
+	if onlyStats && noCloudSync {
+		return utils.ValidationError{Message: "--only-stats already skips cloud sync, no need for --no-cloud-sync"}
+	}
+	if onlyStats && printToStdout {
+		return utils.ValidationError{Message: "cannot use --only-stats and --print together. These flags are mutually exclusive"}
 	}
 	if printToStdout && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --print and `only-cloud-sync` together. These are mutually exclusive"}
@@ -535,6 +545,9 @@ Provide a specific agent ID to sync a specific provider.`
 			if printToStdout && len(sessionIDs) == 0 {
 				return utils.ValidationError{Message: "--print requires the -s/--session flag to specify which sessions to output"}
 			}
+			if onlyStats && len(sessionIDs) > 0 {
+				return utils.ValidationError{Message: "cannot use --only-stats with -s/--session. Use --only-stats without -s to collect statistics for all sessions"}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -596,7 +609,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			slog.Error("Failed to ensure project identity", "error", err)
 		}
 
-		cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+		cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
 			return err
@@ -795,9 +808,11 @@ func preloadBulkSessionSizesIfNeeded(identityManager *utils.ProjectIdentityManag
 	}
 }
 
-// syncProvider performs the actual sync for a single provider
-// Returns (sessionCount, error) for analytics tracking
-func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool) (int, error) {
+// syncProvider performs the actual sync for a single provider.
+// The caller-provided statsCollector accumulates statistics across providers so
+// they can be flushed to disk in a single I/O operation after all providers are done.
+// Returns (sessionCount, error) for analytics tracking.
+func syncProvider(provider spi.Provider, providerID string, config utils.OutputConfig, debugRaw bool, useUTC bool, statsCollector *sessionpkg.StatisticsCollector) (int, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		slog.Error("Failed to get current working directory", "error", err)
@@ -830,7 +845,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		return 0, nil
 	}
 
-	if !silent {
+	if !silent && !onlyStats {
 		fmt.Printf("\nSyncing markdown files for %s", provider.Name())
 	}
 
@@ -887,6 +902,17 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 					"session_id": session.SessionID,
 					"error":      err.Error(),
 				})
+				return
+			}
+
+			// Compute statistics from the SessionData
+			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
+			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+
+			// In only-stats mode, skip file writes and cloud sync
+			if onlyStats {
+				stats.SessionsSkipped++
+				slog.Info("Skipping local file write (only-stats mode)", "sessionId", session.SessionID)
 				return
 			}
 
@@ -967,14 +993,14 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		}()
 
 		// Print progress with [n/m] format
-		if !silent {
+		if !silent && !onlyStats {
 			fmt.Printf("\rSyncing markdown files for %s [%d/%d]", provider.Name(), i+1, sessionCount)
 			_ = os.Stdout.Sync()
 		}
 	}
 
 	// Print newline after progress
-	if !silent && sessionCount > 0 && !onlyCloudSync {
+	if !silent && sessionCount > 0 && !onlyCloudSync && !onlyStats {
 		fmt.Println()
 
 		// Calculate actual total of processed sessions
@@ -1071,7 +1097,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	}
 
 	// Check authentication for cloud sync (once)
-	cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 	// Ensure history directory exists (once)
 	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1081,11 +1107,15 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	// Preload session sizes for batch sync optimization (ONCE for all providers)
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
+	// Create a single statistics collector shared across all providers so the
+	// statistics.json file is written only once after all providers are processed.
+	statsCollector := sessionpkg.NewStatisticsCollector(config.GetStatisticsPath())
+
 	// Sync each provider with activity
 	totalSessionCount := 0
 	var lastError error
 
-	for _, id := range providersWithActivity {
+	for idx, id := range providersWithActivity {
 		provider, err := registry.Get(id)
 		if err != nil {
 			continue
@@ -1095,13 +1125,38 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Printf("\nParsing %s sessions", provider.Name())
 		}
 
-		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC)
+		sessionCount, err := syncProvider(provider, id, config, debugRaw, useUTC, statsCollector)
 		totalSessionCount += sessionCount
 
 		if err != nil {
 			lastError = err
 			slog.Error("Error syncing provider", "provider", id, "error", err)
 		}
+
+		// Print divider between provider sync summaries (not after the last one,
+		// since the cloud sync output prints its own divider)
+		isLast := idx == len(providersWithActivity)-1
+		if !silent && !onlyCloudSync && !onlyStats && sessionCount > 0 && !isLast {
+			fmt.Println("────────────")
+		}
+	}
+
+	// Flush all accumulated statistics to disk in a single write
+	if err := statsCollector.Flush(); err != nil {
+		slog.Warn("Failed to flush statistics", "error", err)
+	}
+
+	// Show statistics path once after all providers are done (only in --only-stats mode)
+	if totalSessionCount > 0 && !silent && onlyStats {
+		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+	}
+
+	// Track stats-only usage separately so we can measure adoption
+	if onlyStats {
+		analytics.TrackEvent(analytics.EventSyncStatsComplete, analytics.Properties{
+			"provider":      "all",
+			"session_count": totalSessionCount,
+		})
 	}
 
 	// Track overall analytics
@@ -1176,7 +1231,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	}
 
 	// Check authentication for cloud sync
-	cmdpkg.CheckAndWarnAuthentication(noCloudSync)
+	cmdpkg.CheckAndWarnAuthentication(noCloudSync || onlyStats)
 
 	// Ensure history directory exists
 	if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -1186,12 +1241,33 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	// Preload session sizes for batch sync optimization
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
+	// Create statistics collector for this provider
+	statsCollector := sessionpkg.NewStatisticsCollector(config.GetStatisticsPath())
+
 	if !silent {
 		fmt.Printf("\nParsing %s sessions", provider.Name())
 	}
 
 	// Perform the sync
-	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC)
+	sessionCount, syncErr := syncProvider(provider, providerID, config, debugRaw, useUTC, statsCollector)
+
+	// Flush statistics to disk
+	if err := statsCollector.Flush(); err != nil {
+		slog.Warn("Failed to flush statistics", "error", err)
+	}
+
+	// Show statistics path (only in --only-stats mode)
+	if sessionCount > 0 && !silent && onlyStats {
+		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
+	}
+
+	// Track stats-only usage separately so we can measure adoption
+	if onlyStats {
+		analytics.TrackEvent(analytics.EventSyncStatsComplete, analytics.Properties{
+			"provider":      providerID,
+			"session_count": sessionCount,
+		})
+	}
 
 	// Track analytics
 	if syncErr != nil {
@@ -1394,6 +1470,7 @@ func main() {
 	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -1490,7 +1567,7 @@ func main() {
 
 			// Display cloud sync stats if not in silent mode
 			if !silent && totalCloudSessions > 0 {
-				fmt.Println() // Visual separation from provider sync output
+				fmt.Println("────────────") // Visual divider from provider sync output
 
 				// Determine if sync was complete or incomplete based on errors/timeouts
 				if cloudStats.SessionsErrored > 0 || cloudStats.SessionsTimedOut > 0 {
