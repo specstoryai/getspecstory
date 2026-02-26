@@ -76,18 +76,6 @@ type ProcessingOptions struct {
 	NoTelemetryPrompts bool // Exclude user prompt text from telemetry spans for privacy
 }
 
-// GetSpecStoryDir determines the .specstory directory path from config.
-// When using the default layout, history lives at .specstory/history so
-// we go up one level to reach .specstory itself. For custom output dirs
-// the history dir IS the base.
-func GetSpecStoryDir(config utils.OutputConfig) string {
-	historyDir := config.GetHistoryDir()
-	if filepath.Base(historyDir) == "history" {
-		return filepath.Dir(historyDir)
-	}
-	return historyDir
-}
-
 // ProcessSingleSession writes markdown and triggers cloud sync for a single session.
 // ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
 // Returns the size of the markdown content in bytes.

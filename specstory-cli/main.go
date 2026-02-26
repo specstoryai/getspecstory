@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -906,7 +905,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 				return
 			}
 
-			// Collect statistics (always enabled)
+			// Compute statistics from the SessionData
 			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
 
@@ -1110,8 +1109,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 
 	// Create a single statistics collector shared across all providers so the
 	// statistics.json file is written only once after all providers are processed.
-	specstoryDir := sessionpkg.GetSpecStoryDir(config)
-	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+	statsCollector := sessionpkg.NewStatisticsCollector(config.GetStatisticsPath())
 
 	// Sync each provider with activity
 	totalSessionCount := 0
@@ -1150,8 +1148,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 
 	// Show statistics path once after all providers are done (only in --only-stats mode)
 	if totalSessionCount > 0 && !silent && onlyStats {
-		statsPath := filepath.Join(specstoryDir, "statistics.json")
-		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
+		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
 	}
 
 	// Track overall analytics
@@ -1237,8 +1234,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
 	// Create statistics collector for this provider
-	specstoryDir := sessionpkg.GetSpecStoryDir(config)
-	statsCollector := sessionpkg.NewStatisticsCollector(specstoryDir)
+	statsCollector := sessionpkg.NewStatisticsCollector(config.GetStatisticsPath())
 
 	if !silent {
 		fmt.Printf("\nParsing %s sessions", provider.Name())
@@ -1254,8 +1250,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 
 	// Show statistics path (only in --only-stats mode)
 	if sessionCount > 0 && !silent && onlyStats {
-		statsPath := filepath.Join(specstoryDir, "statistics.json")
-		fmt.Printf("\n📊 Statistics collected: %s\n", statsPath)
+		fmt.Printf("\n📊 Statistics collected: %s\n", config.GetStatisticsPath())
 	}
 
 	// Track analytics

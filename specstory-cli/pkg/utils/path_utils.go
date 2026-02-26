@@ -8,11 +8,12 @@ import (
 	"strings"
 )
 
-// Directory constants
+// Directory and file constants
 const SPECSTORY_DIR = ".specstory"
 const HISTORY_DIR = "history"
 const DEBUG_DIR = "debug"
 const DEBUG_LOG_FILE = "debug.log"
+const STATISTICS_FILE = "statistics.json"
 
 // OutputConfig interface defines methods for getting output directories
 type OutputConfig interface {
@@ -144,6 +145,17 @@ func (c *OutputPathConfig) GetDebugDir() string {
 // GetLogPath returns the debug log file path
 func (c *OutputPathConfig) GetLogPath() string {
 	return filepath.Join(c.GetDebugDir(), DEBUG_LOG_FILE)
+}
+
+// GetSpecStoryDir returns the .specstory directory path.
+// With a custom output dir this is the output dir itself; otherwise cwd/.specstory.
+func (c *OutputPathConfig) GetSpecStoryDir() string {
+	return c.getBasePath()
+}
+
+// GetStatisticsPath returns the full path to the statistics.json file
+func (c *OutputPathConfig) GetStatisticsPath() string {
+	return filepath.Join(c.GetSpecStoryDir(), STATISTICS_FILE)
 }
 
 // ValidationError represents errors from flag validation that should not display usage

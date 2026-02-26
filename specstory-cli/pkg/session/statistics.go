@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -32,16 +31,16 @@ type StatisticsFile struct {
 // Stats are accumulated in memory via AddSessionStats and written to disk in a
 // single read-modify-write cycle when Flush is called.
 type StatisticsCollector struct {
-	specstoryDir string
-	mu           sync.Mutex
-	pending      map[string]SessionStatistics // in-memory buffer of stats awaiting flush
+	statsPath string
+	mu        sync.Mutex
+	pending   map[string]SessionStatistics // in-memory buffer of stats awaiting flush
 }
 
-// NewStatisticsCollector creates a new statistics collector for the given .specstory directory
-func NewStatisticsCollector(specstoryDir string) *StatisticsCollector {
+// NewStatisticsCollector creates a new statistics collector that writes to the given path
+func NewStatisticsCollector(statsPath string) *StatisticsCollector {
 	return &StatisticsCollector{
-		specstoryDir: specstoryDir,
-		pending:      make(map[string]SessionStatistics),
+		statsPath: statsPath,
+		pending:   make(map[string]SessionStatistics),
 	}
 }
 
@@ -115,7 +114,7 @@ func (c *StatisticsCollector) Flush() error {
 		return nil
 	}
 
-	statsPath := filepath.Join(c.specstoryDir, "statistics.json")
+	statsPath := c.statsPath
 
 	// Read existing statistics file
 	statsFile := StatisticsFile{

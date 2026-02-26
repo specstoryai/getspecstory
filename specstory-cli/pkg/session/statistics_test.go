@@ -230,10 +230,15 @@ func TestComputeSessionStatistics(t *testing.T) {
 	}
 }
 
+// testStatsPath returns the full statistics.json path for a temp directory.
+func testStatsPath(dir string) string {
+	return filepath.Join(dir, "statistics.json")
+}
+
 // readStatisticsFile is a test helper that reads and parses the statistics.json file.
 func readStatisticsFile(t *testing.T, dir string) StatisticsFile {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(dir, "statistics.json"))
+	data, err := os.ReadFile(testStatsPath(dir))
 	if err != nil {
 		t.Fatalf("Failed to read statistics.json: %v", err)
 	}
@@ -246,7 +251,7 @@ func readStatisticsFile(t *testing.T, dir string) StatisticsFile {
 
 func TestStatisticsCollector_CreateNewFile(t *testing.T) {
 	tempDir := t.TempDir()
-	collector := NewStatisticsCollector(tempDir)
+	collector := NewStatisticsCollector(testStatsPath(tempDir))
 
 	stats := SessionStatistics{
 		UserMessageCount:  5,
@@ -279,7 +284,7 @@ func TestStatisticsCollector_CreateNewFile(t *testing.T) {
 
 func TestStatisticsCollector_UpdateExisting(t *testing.T) {
 	tempDir := t.TempDir()
-	collector := NewStatisticsCollector(tempDir)
+	collector := NewStatisticsCollector(testStatsPath(tempDir))
 
 	original := SessionStatistics{
 		UserMessageCount:  5,
@@ -315,7 +320,7 @@ func TestStatisticsCollector_UpdateExisting(t *testing.T) {
 
 func TestStatisticsCollector_MultipleSessions(t *testing.T) {
 	tempDir := t.TempDir()
-	collector := NewStatisticsCollector(tempDir)
+	collector := NewStatisticsCollector(testStatsPath(tempDir))
 
 	sessions := map[string]SessionStatistics{
 		"session-1": {
@@ -351,14 +356,13 @@ func TestStatisticsCollector_MultipleSessions(t *testing.T) {
 
 func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 	tempDir := t.TempDir()
-	statsPath := filepath.Join(tempDir, "statistics.json")
-
 	// Seed a corrupt file
+	statsPath := testStatsPath(tempDir)
 	if err := os.WriteFile(statsPath, []byte("{invalid json"), 0644); err != nil {
 		t.Fatalf("Failed to write corrupt JSON: %v", err)
 	}
 
-	collector := NewStatisticsCollector(tempDir)
+	collector := NewStatisticsCollector(statsPath)
 	stats := SessionStatistics{
 		UserMessageCount:  2,
 		AgentMessageCount: 3,
