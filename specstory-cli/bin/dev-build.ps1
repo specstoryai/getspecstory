@@ -44,7 +44,7 @@ foreach ($t in $targets) {
     $env:CGO_ENABLED = "0"
     $env:GOOS        = $t.Os
     $env:GOARCH      = $t.Arch
-    go build -ldflags=$ldflags -o $out ./main.go
+    go build "-ldflags=$ldflags" -o $out ./main.go
 }
 
 # Restore env vars so they don't leak into the caller's session
