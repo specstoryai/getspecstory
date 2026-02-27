@@ -38,8 +38,8 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 	}
 
 	slog.Debug("Searching for workspace matching project",
-		"projectPath", projectPath,
-		"canonicalPath", canonicalProjectPath)
+		"received", rawProjectPath,
+		"lookingFor", canonicalProjectPath)
 
 	// Get workspace storage directory
 	workspaceStoragePath, err := GetWorkspaceStoragePath()
@@ -69,9 +69,6 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		workspaceJSONPath := filepath.Join(workspacePath, "workspace.json")
 		workspaceJSON, err := readWorkspaceJSON(workspaceJSONPath)
 		if err != nil {
-			slog.Debug("Skipping workspace directory (no valid workspace.json)",
-				"workspaceID", workspaceID,
-				"error", err)
 			continue
 		}
 
@@ -82,8 +79,6 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		}
 
 		if workspaceURI == "" {
-			slog.Debug("Skipping workspace directory (no workspace or folder URI)",
-				"workspaceID", workspaceID)
 			continue
 		}
 
@@ -100,9 +95,6 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		// Get canonical workspace path
 		canonicalWorkspacePath, err := spi.GetCanonicalPath(workspaceFilePath)
 		if err != nil {
-			slog.Debug("Failed to get canonical workspace path",
-				"workspacePath", workspaceFilePath,
-				"error", err)
 			canonicalWorkspacePath = workspaceFilePath
 		}
 
@@ -168,8 +160,8 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	projectBasename := filepath.Base(canonicalProjectPath)
 
 	slog.Debug("Searching for all workspaces matching project",
-		"projectPath", projectPath,
-		"canonicalPath", canonicalProjectPath,
+		"received", rawProjectPath,
+		"lookingFor", canonicalProjectPath,
 		"projectBasename", projectBasename)
 
 	// Get workspace storage directory
@@ -237,13 +229,6 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 						"localPath", canonicalProjectPath,
 						"remotePath", canonicalWorkspacePath,
 						"repoName", projectBasename)
-				} else {
-					slog.Debug("Matched workspace by folder basename",
-						"workspaceID", workspaceID,
-						"workspaceURI", workspaceURI,
-						"projectPath", canonicalProjectPath,
-						"workspacePath", canonicalWorkspacePath,
-						"baseName", projectBasename)
 				}
 			}
 		}
