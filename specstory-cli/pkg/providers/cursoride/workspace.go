@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -20,26 +21,100 @@ type WorkspaceMatch struct {
 	URI    string // Original workspace URI
 }
 
+// isUnixStylePathOnWindows detects if a path is Unix-style while running on Windows.
+// This occurs when VS Code/Cursor passes fsPath for WSL or SSH remote workspaces,
+// which returns paths like "/home/user/project" even when running on Windows.
+func isUnixStylePathOnWindows(path string) bool {
+	return runtime.GOOS == "windows" &&
+		strings.HasPrefix(path, "/") &&
+		filepath.VolumeName(path) == ""
+}
+
+// normalizeWindowsWSLPath converts Windows UNC WSL paths to Unix format.
+// Handles paths like:
+//   - \\wsl.localhost\Ubuntu\home\user\project -> /home/user/project
+//   - \\wsl$\Ubuntu\home\user\project -> /home/user/project
+func normalizeWindowsWSLPath(path string) string {
+	if !strings.Contains(path, "\\") {
+		return path
+	}
+
+	// Convert backslashes to forward slashes
+	normalized := strings.ReplaceAll(path, "\\", "/")
+
+	// Strip Windows UNC WSL prefixes and the distro name
+	lower := strings.ToLower(normalized)
+	for _, prefix := range []string{"//wsl.localhost/", "//wsl$/"} {
+		if strings.HasPrefix(lower, prefix) {
+			remainder := normalized[len(prefix):]
+			// Skip the distro name (e.g., "Ubuntu/home/user" -> "/home/user")
+			if slashIdx := strings.Index(remainder, "/"); slashIdx >= 0 {
+				return remainder[slashIdx:]
+			}
+			return "/"
+		}
+	}
+
+	return normalized
+}
+
+// normalizePathForComparison normalizes a path for workspace matching.
+// Handles three cases:
+// 1. Windows UNC WSL paths: \\wsl.localhost\Ubuntu\... -> /home/user/...
+// 2. Unix-style paths on Windows (WSL/SSH remotes): preserved as-is
+// 3. Normal paths: resolved to canonical form with symlinks and case normalization
+func normalizePathForComparison(path string) (string, error) {
+	originalPath := path
+
+	// Step 1: Normalize Windows UNC WSL paths to Unix format
+	if runtime.GOOS == "windows" && strings.Contains(path, "\\") {
+		path = normalizeWindowsWSLPath(path)
+		if path != originalPath {
+			slog.Debug("Normalized Windows UNC WSL path",
+				"original", originalPath,
+				"normalized", path)
+		}
+	}
+
+	// Step 2: Check if it's a Unix-style path on Windows (WSL/SSH remote)
+	if isUnixStylePathOnWindows(path) {
+		// Don't use filepath.Abs or GetCanonicalPath - they would corrupt the path
+		// on Windows by treating "/home/user/project" as a relative path
+		cleaned := filepath.Clean(path)
+		slog.Debug("Preserved Unix-style path on Windows",
+			"path", cleaned)
+		return cleaned, nil
+	}
+
+	// Step 3: Normal path handling - resolve to canonical form
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
+	}
+
+	canonicalPath, err := spi.GetCanonicalPath(absPath)
+	if err != nil {
+		slog.Warn("Failed to get canonical path, using absolute path",
+			"path", path,
+			"error", err)
+		return absPath, nil
+	}
+
+	return canonicalPath, nil
+}
+
 // FindWorkspaceForProject finds the workspace directory that matches the given project path
 // Returns the workspace match or an error if not found
 func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
-	// Get canonical project path (resolve symlinks, normalize case)
-	absProjectPath, err := filepath.Abs(projectPath)
+	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
+	canonicalProjectPath, err := normalizePathForComparison(projectPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
-	}
-
-	canonicalProjectPath, err := spi.GetCanonicalPath(absProjectPath)
-	if err != nil {
-		slog.Warn("Failed to get canonical path, using absolute path",
-			"projectPath", projectPath,
-			"error", err)
-		canonicalProjectPath = absProjectPath
+		return nil, fmt.Errorf("failed to normalize project path: %w", err)
 	}
 
 	slog.Debug("Searching for workspace matching project",
-		"received", rawProjectPath,
-		"lookingFor", canonicalProjectPath)
+		"projectPath", projectPath,
+		"canonicalPath", canonicalProjectPath)
 
 	// Get workspace storage directory
 	workspaceStoragePath, err := GetWorkspaceStoragePath()
@@ -92,9 +167,13 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 			continue
 		}
 
-		// Get canonical workspace path
-		canonicalWorkspacePath, err := spi.GetCanonicalPath(workspaceFilePath)
+		// Normalize workspace path for comparison (handles Unix paths on Windows, etc.)
+		canonicalWorkspacePath, err := normalizePathForComparison(workspaceFilePath)
 		if err != nil {
+			slog.Debug("Failed to normalize workspace path",
+				"workspaceID", workspaceID,
+				"path", workspaceFilePath,
+				"error", err)
 			canonicalWorkspacePath = workspaceFilePath
 		}
 
@@ -141,18 +220,10 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 // (e.g., file://wsl.localhost/... and vscode-remote://wsl+...).
 // For SSH remotes, matches are based on Git repository identity when available.
 func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
-	// Get canonical project path (resolve symlinks, normalize case)
-	absProjectPath, err := filepath.Abs(projectPath)
+	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
+	canonicalProjectPath, err := normalizePathForComparison(projectPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
-	}
-
-	canonicalProjectPath, err := spi.GetCanonicalPath(absProjectPath)
-	if err != nil {
-		slog.Warn("Failed to get canonical path, using absolute path",
-			"projectPath", projectPath,
-			"error", err)
-		canonicalProjectPath = absProjectPath
+		return nil, fmt.Errorf("failed to normalize project path: %w", err)
 	}
 
 	// Get the project basename for SSH remote matching
@@ -160,8 +231,8 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	projectBasename := filepath.Base(canonicalProjectPath)
 
 	slog.Debug("Searching for all workspaces matching project",
-		"received", rawProjectPath,
-		"lookingFor", canonicalProjectPath,
+		"projectPath", projectPath,
+		"canonicalPath", canonicalProjectPath,
 		"projectBasename", projectBasename)
 
 	// Get workspace storage directory
@@ -206,8 +277,13 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 			continue
 		}
 
-		canonicalWorkspacePath, err := spi.GetCanonicalPath(workspaceFilePath)
+		// Normalize workspace path for comparison (handles Unix paths on Windows, etc.)
+		canonicalWorkspacePath, err := normalizePathForComparison(workspaceFilePath)
 		if err != nil {
+			slog.Debug("Failed to normalize workspace path",
+				"workspaceID", workspaceID,
+				"path", workspaceFilePath,
+				"error", err)
 			canonicalWorkspacePath = workspaceFilePath
 		}
 
