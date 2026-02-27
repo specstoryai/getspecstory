@@ -27,13 +27,34 @@ type WorkspaceJSON struct {
 	Folder    string `json:"folder,omitempty"`    // For single folder workspaces
 }
 
-// isUnixStylePathOnWindows detects if a path is Unix-style while running on Windows.
-// This occurs when VS Code/Cursor passes fsPath for WSL or SSH remote workspaces,
-// which returns paths like "/home/user/project" even when running on Windows.
+// isUnixStylePathOnWindows detects if a path represents a remote (WSL/SSH) filesystem
+// location while running on Windows. VS Code's fsPath returns these paths in two forms:
+//   - "/home/user/project"  — forward-slash form (the raw fsPath value)
+//   - "\home\user\project"  — backslash form (Windows filepath.Clean applied to the above)
+//
+// Both forms have no drive/volume name and must not be passed through filepath.Abs,
+// which would corrupt them by prepending the current drive letter (e.g. C:\).
 func isUnixStylePathOnWindows(path string) bool {
-	return runtime.GOOS == "windows" &&
-		strings.HasPrefix(path, "/") &&
-		filepath.VolumeName(path) == ""
+	if runtime.GOOS != "windows" || filepath.VolumeName(path) != "" {
+		return false
+	}
+	// Forward-slash prefix: /home/user/project
+	if strings.HasPrefix(path, "/") {
+		return true
+	}
+	// Backslash prefix without UNC double-backslash: \home\user\project
+	// (VS Code converts the forward-slash form to this on Windows)
+	if strings.HasPrefix(path, `\`) && !strings.HasPrefix(path, `\\`) {
+		return true
+	}
+	return false
+}
+
+// isWindowsWSLUNCPath reports whether path is a Windows UNC path pointing into WSL,
+// i.e. \\wsl.localhost\<distro>\... or \\wsl$\<distro>\...
+func isWindowsWSLUNCPath(path string) bool {
+	lower := strings.ToLower(path)
+	return strings.HasPrefix(lower, `\\wsl.localhost\`) || strings.HasPrefix(lower, `\\wsl$\`)
 }
 
 // normalizeWindowsWSLPath converts Windows UNC WSL paths to Unix format.
@@ -72,8 +93,9 @@ func normalizeWindowsWSLPath(path string) string {
 func normalizePathForComparison(path string) (string, error) {
 	originalPath := path
 
-	// Step 1: Normalize Windows UNC WSL paths to Unix format
-	if runtime.GOOS == "windows" && strings.Contains(path, "\\") {
+	// Step 1: Normalize Windows UNC WSL paths (\\wsl.localhost\... or \\wsl$\...) to Unix format.
+	// We only trigger this for actual WSL UNC paths, not for ordinary Windows paths like C:\Users\...
+	if runtime.GOOS == "windows" && isWindowsWSLUNCPath(path) {
 		path = normalizeWindowsWSLPath(path)
 		if path != originalPath {
 			slog.Debug("Normalized Windows UNC WSL path",

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -217,6 +218,16 @@ func ResolveProjectPath(overridePath, cwd string) string {
 	if overridePath == "" {
 		return cwd
 	}
+
+	// On Windows, VS Code's fsPath returns Unix-style paths (e.g. /home/user/project)
+	// or backslash paths without a drive letter (e.g. \home\user\project) for WSL and
+	// SSH remote workspaces. filepath.Abs would corrupt these by prepending the current
+	// drive letter (e.g. C:\home\user\project), so we return them as-is.
+	if runtime.GOOS == "windows" && filepath.VolumeName(overridePath) == "" &&
+		(strings.HasPrefix(overridePath, "/") || strings.HasPrefix(overridePath, `\`)) {
+		return filepath.Clean(overridePath)
+	}
+
 	abs, err := filepath.Abs(overridePath)
 	if err != nil {
 		slog.Warn("ResolveProjectPath: Failed to resolve override path, using cwd", "path", overridePath, "error", err)
