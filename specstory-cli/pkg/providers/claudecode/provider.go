@@ -115,13 +115,13 @@ func buildCheckErrorMessage(errorType string, claudeCmd string, isCustom bool, s
 
 	switch errorType {
 	case "not_found":
-		errorMsg.WriteString(fmt.Sprintf("  🔍 Could not find Claude Code at: %s\n", claudeCmd))
+		fmt.Fprintf(&errorMsg, "  🔍 Could not find Claude Code at: %s\n", claudeCmd)
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Here's how to fix this:\n")
 		errorMsg.WriteString("\n")
 		if isCustom {
 			errorMsg.WriteString("     The specified path doesn't exist. Please check:\n")
-			errorMsg.WriteString(fmt.Sprintf("     • Is Claude Code installed at %s?\n", claudeCmd))
+			fmt.Fprintf(&errorMsg, "     • Is Claude Code installed at %s?\n", claudeCmd)
 			errorMsg.WriteString("     • Did you type the path correctly?")
 		} else {
 			errorMsg.WriteString("     1. Make sure Claude Code is installed:\n")
@@ -133,13 +133,13 @@ func buildCheckErrorMessage(errorType string, claudeCmd string, isCustom bool, s
 			errorMsg.WriteString("        • Example: specstory check claude -c \"~/.claude/local/claude\"")
 		}
 	case "permission_denied":
-		errorMsg.WriteString(fmt.Sprintf("  🔒 Permission denied when trying to run: %s\n", claudeCmd))
+		fmt.Fprintf(&errorMsg, "  🔒 Permission denied when trying to run: %s\n", claudeCmd)
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Here's how to fix this:\n")
-		errorMsg.WriteString(fmt.Sprintf("     • Check file permissions: chmod +x %s\n", claudeCmd))
+		fmt.Fprintf(&errorMsg, "     • Check file permissions: chmod +x %s\n", claudeCmd)
 		errorMsg.WriteString("     • Try running with elevated permissions if needed")
 	case "unexpected_output":
-		errorMsg.WriteString(fmt.Sprintf("  ⚠️  Unexpected output from 'claude -v': %s\n", strings.TrimSpace(stderrOutput)))
+		fmt.Fprintf(&errorMsg, "  ⚠️  Unexpected output from 'claude -v': %s\n", strings.TrimSpace(stderrOutput))
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 This might not be Claude Code. Expected output containing '(Claude Code)'.\n")
 		errorMsg.WriteString("     • Make sure you have Claude Code installed, not a different 'claude' command\n")
@@ -147,7 +147,7 @@ func buildCheckErrorMessage(errorType string, claudeCmd string, isCustom bool, s
 	default:
 		errorMsg.WriteString("  ⚠️  Error running 'claude -v'\n")
 		if stderrOutput != "" {
-			errorMsg.WriteString(fmt.Sprintf("  📋 Error details: %s\n", stderrOutput))
+			fmt.Fprintf(&errorMsg, "  📋 Error details: %s\n", stderrOutput)
 		}
 		errorMsg.WriteString("\n")
 		errorMsg.WriteString("  💡 Troubleshooting tips:\n")

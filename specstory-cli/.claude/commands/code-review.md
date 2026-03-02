@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git status:*), Bash(git diff:*)
+allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
 description: Code review the current proposed code change
 ---
 
@@ -20,7 +20,6 @@ Ignore any changes to:
 - ./specstory binary
 - CLAUDE.md
 - AGENT.md
-- changelog.md
 
 Please code review this change.
 
@@ -75,6 +74,7 @@ In addition to the most important improvements, let's also think about if any of
 
 For any new test cases that were added, confirm the tests are:
 
+- Not trivial - They test real logic in our code and aren't just testing Go lang or 3rd party libraries
 - Not tautological - They would catch real bugs
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.

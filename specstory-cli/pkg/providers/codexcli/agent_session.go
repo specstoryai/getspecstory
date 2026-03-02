@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -18,6 +18,7 @@ type (
 	Message      = schema.Message
 	ContentPart  = schema.ContentPart
 	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
 )
 
 // Codex-specific record structures for type safety
@@ -296,6 +297,31 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 				}
 				currentExchange.Messages = append(currentExchange.Messages, reasoningMsg)
 				currentExchange.EndTime = timestamp
+
+			case "token_count":
+				// Token usage event - attach to the most recent agent message
+				if currentExchange == nil || len(currentExchange.Messages) == 0 {
+					continue
+				}
+
+				usage := extractUsageFromTokenCount(payload)
+				if usage == nil {
+					continue
+				}
+
+				// Find the most recent agent message to attach usage to
+				for j := len(currentExchange.Messages) - 1; j >= 0; j-- {
+					if currentExchange.Messages[j].Role == "agent" {
+						currentExchange.Messages[j].Usage = usage
+						slog.Debug("Attached token usage to agent message",
+							"messageID", currentExchange.Messages[j].ID,
+							"inputTokens", usage.InputTokens,
+							"outputTokens", usage.OutputTokens,
+							"cachedInputTokens", usage.CachedInputTokens,
+							"reasoningOutputTokens", usage.ReasoningOutputTokens)
+						break
+					}
+				}
 			}
 
 		case "response_item":
@@ -478,9 +504,15 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 		if inputStr, ok := tool.Input["input"].(string); ok {
 			// Custom tool with text input (e.g., apply_patch)
 			formattedMd.WriteString(formatCustomToolCall(tool.Name, inputStr))
-		} else if tool.Name == "shell_command" {
-			// Shell command: check if single-line or multi-line
-			inputJSON, _ := json.Marshal(tool.Input)
+		} else if tool.Name == "shell_command" || tool.Name == "exec_command" {
+			// Shell command: normalize "cmd" → "command" for exec_command
+			toolInput := tool.Input
+			if _, ok := toolInput["cmd"]; ok {
+				if _, hasCommand := toolInput["command"]; !hasCommand {
+					toolInput["command"] = toolInput["cmd"]
+				}
+			}
+			inputJSON, _ := json.Marshal(toolInput)
 			shellSummary, shellBody := formatShellWithSummary(string(inputJSON))
 			if shellSummary != "" {
 				// Single-line command goes in summary
@@ -520,7 +552,7 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 // classifyToolType maps Codex tool names to standard tool types
 func classifyToolType(toolName string) string {
 	switch toolName {
-	case "shell", "shell_command": // `shell` is legacy
+	case "shell", "shell_command", "exec_command": // `shell` is legacy
 		return "shell"
 	case "update_plan":
 		return "task"
@@ -554,9 +586,28 @@ func extractPathHints(toolName string, input map[string]interface{}, inputText s
 		pathFields := []string{"path", "file", "filename", "file_path"}
 		for _, field := range pathFields {
 			if value, ok := input[field].(string); ok && value != "" {
-				normalizedPath := normalizePath(value, workspaceRoot)
+				normalizedPath := spi.NormalizePath(value, workspaceRoot)
 				if !contains(paths, normalizedPath) {
 					paths = append(paths, normalizedPath)
+				}
+			}
+		}
+
+		// Extract paths from shell commands (redirect targets, file-creating commands)
+		// exec_command uses "cmd", shell_command uses "command"
+		command, _ := input["command"].(string)
+		if command == "" {
+			command, _ = input["cmd"].(string)
+		}
+		if command != "" {
+			cwd, _ := input["workdir"].(string)
+			if cwd == "" {
+				cwd = workspaceRoot
+			}
+			shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+			for _, sp := range shellPaths {
+				if !contains(paths, sp) {
+					paths = append(paths, sp)
 				}
 			}
 		}
@@ -588,7 +639,7 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 			if strings.HasPrefix(line, marker) {
 				path := strings.TrimSpace(strings.TrimPrefix(line, marker))
 				if path != "" {
-					normalizedPath := normalizePath(path, workspaceRoot)
+					normalizedPath := spi.NormalizePath(path, workspaceRoot)
 					if !contains(paths, normalizedPath) {
 						paths = append(paths, normalizedPath)
 					}
@@ -601,7 +652,7 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 		if strings.HasPrefix(line, "*** New Name:") {
 			path := strings.TrimSpace(strings.TrimPrefix(line, "*** New Name:"))
 			if path != "" {
-				normalizedPath := normalizePath(path, workspaceRoot)
+				normalizedPath := spi.NormalizePath(path, workspaceRoot)
 				if !contains(paths, normalizedPath) {
 					paths = append(paths, normalizedPath)
 				}
@@ -612,23 +663,6 @@ func extractPathsFromPatch(patchText string, workspaceRoot string) []string {
 	return paths
 }
 
-// normalizePath converts absolute paths to workspace-relative paths when possible
-func normalizePath(path, workspaceRoot string) string {
-	if workspaceRoot == "" {
-		return path
-	}
-
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
-		}
-	}
-
-	return path
-}
-
 // contains checks if a string slice contains a value
 func contains(slice []string, value string) bool {
 	for _, item := range slice {
@@ -637,4 +671,42 @@ func contains(slice []string, value string) bool {
 		}
 	}
 	return false
+}
+
+// extractUsageFromTokenCount extracts token usage from a token_count event's info.last_token_usage
+// Codex CLI emits token_count events with the structure:
+//
+//	{
+//	  "type": "event_msg",
+//	  "payload": {
+//	    "type": "token_count",
+//	    "info": {
+//	      "last_token_usage": { "input_tokens": N, "cached_input_tokens": N, "output_tokens": N, "reasoning_output_tokens": N, ... },
+//	      "total_token_usage": { ... }
+//	    }
+//	  }
+//	}
+//
+// We use last_token_usage for per-turn usage (total_token_usage is cumulative).
+// Codex CLI uses its own token field names, stored in the Codex-specific fields of Usage.
+func extractUsageFromTokenCount(payload map[string]interface{}) *Usage {
+	info, ok := payload["info"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	// Use last_token_usage for per-turn metrics (not cumulative)
+	lastUsage, ok := info["last_token_usage"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	return &Usage{
+		// Common fields
+		InputTokens:  schema.GetIntFromMap(lastUsage, "input_tokens"),
+		OutputTokens: schema.GetIntFromMap(lastUsage, "output_tokens"),
+		// Codex CLI specific fields
+		CachedInputTokens:     schema.GetIntFromMap(lastUsage, "cached_input_tokens"),
+		ReasoningOutputTokens: schema.GetIntFromMap(lastUsage, "reasoning_output_tokens"),
+	}
 }

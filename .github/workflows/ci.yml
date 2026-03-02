@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.6'
+          go-version: '1.26.0'
           cache-dependency-path: specstory-cli/go.sum
       - uses: golangci/golangci-lint-action@v7
         with:
@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.6'
+          go-version: '1.26.0'
           cache-dependency-path: specstory-cli/go.sum
       - name: Run tests
         run: go test ./...
