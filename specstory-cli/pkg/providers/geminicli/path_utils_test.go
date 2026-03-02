@@ -120,6 +120,132 @@ func TestResolveGeminiProjectDirTmpMissing(t *testing.T) {
 	}
 }
 
+func TestFindProjectDirByProjectRoot(t *testing.T) {
+	tests := []struct {
+		name        string
+		projectPath string
+		setup       func(t *testing.T, tmpDir string)
+		wantMatch   bool   // true if we expect a non-empty result
+		wantSuffix  string // expected directory name suffix in the result
+	}{
+		{
+			name:        "match found via .project_root file",
+			projectPath: "/tmp/my-project",
+			setup: func(t *testing.T, tmpDir string) {
+				dir := filepath.Join(tmpDir, "my-project")
+				if err := os.Mkdir(dir, 0o755); err != nil {
+					t.Fatalf("failed to create dir: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, ".project_root"), []byte("/tmp/my-project\n"), 0o644); err != nil {
+					t.Fatalf("failed to write .project_root: %v", err)
+				}
+			},
+			wantMatch:  true,
+			wantSuffix: "my-project",
+		},
+		{
+			name:        "no match with different project path",
+			projectPath: "/tmp/unrelated-project",
+			setup: func(t *testing.T, tmpDir string) {
+				dir := filepath.Join(tmpDir, "other-project")
+				if err := os.Mkdir(dir, 0o755); err != nil {
+					t.Fatalf("failed to create dir: %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, ".project_root"), []byte("/tmp/other-project\n"), 0o644); err != nil {
+					t.Fatalf("failed to write .project_root: %v", err)
+				}
+			},
+			wantMatch: false,
+		},
+		{
+			name:        "empty tmp directory",
+			projectPath: "/tmp/any-project",
+			setup:       func(t *testing.T, tmpDir string) {},
+			wantMatch:   false,
+		},
+		{
+			name:        "directory without .project_root file skipped",
+			projectPath: "/tmp/any-project",
+			setup: func(t *testing.T, tmpDir string) {
+				dir := filepath.Join(tmpDir, "abcdef1234567890")
+				if err := os.Mkdir(dir, 0o755); err != nil {
+					t.Fatalf("failed to create dir: %v", err)
+				}
+			},
+			wantMatch: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testTmpDir := t.TempDir()
+			tt.setup(t, testTmpDir)
+
+			got, err := findProjectDirByProjectRoot(testTmpDir, tt.projectPath)
+			if err != nil {
+				t.Fatalf("findProjectDirByProjectRoot returned error: %v", err)
+			}
+
+			if tt.wantMatch {
+				wantDir := filepath.Join(testTmpDir, tt.wantSuffix)
+				if got != wantDir {
+					t.Fatalf("got %q, want %q", got, wantDir)
+				}
+			} else {
+				if got != "" {
+					t.Fatalf("expected empty string, got %q", got)
+				}
+			}
+		})
+	}
+}
+
+func TestResolveGeminiProjectDirViaProjectRoot(t *testing.T) {
+	originalGetwd := osGetwd
+	originalUserHome := osUserHomeDir
+	originalStat := osStat
+	t.Cleanup(func() {
+		osGetwd = originalGetwd
+		osUserHomeDir = originalUserHome
+		osStat = originalStat
+	})
+
+	// Use a real temp dir as the project path so canonical path resolution works
+	projectPath := t.TempDir()
+
+	osGetwd = func() (string, error) {
+		return projectPath, nil
+	}
+	fakeHome := t.TempDir()
+	osUserHomeDir = func() (string, error) {
+		return fakeHome, nil
+	}
+
+	tmpDir := filepath.Join(fakeHome, ".gemini", "tmp")
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		t.Fatalf("failed to create tmp dir: %v", err)
+	}
+
+	// Create a project-name-based directory with .project_root
+	nameBasedDir := filepath.Join(tmpDir, "my-project")
+	if err := os.Mkdir(nameBasedDir, 0o755); err != nil {
+		t.Fatalf("failed to create name-based dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(nameBasedDir, ".project_root"), []byte(projectPath+"\n"), 0o644); err != nil {
+		t.Fatalf("failed to write .project_root: %v", err)
+	}
+
+	// ResolveGeminiProjectDir should find the project via .project_root fallback
+	got, err := ResolveGeminiProjectDir("")
+	if err != nil {
+		t.Fatalf("expected fallback to find project dir, got error: %v", err)
+	}
+
+	if got != nameBasedDir {
+		t.Fatalf("got %q, want %q", got, nameBasedDir)
+	}
+}
+
 func TestResolveGeminiProjectDirProjectMissing(t *testing.T) {
 	originalGetwd := osGetwd
 	originalUserHome := osUserHomeDir

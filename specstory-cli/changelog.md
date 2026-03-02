@@ -1,6 +1,6 @@
 # Specstory CLI Changelog
 
-## v1.11.0 2026-02-24
+## v1.11.0 2026-03-02
 
 ### 📢 Announcements
 
@@ -9,6 +9,11 @@
 ### 🔧 CLI Configuration & Commands
 
 - `specstory sync` now supports an `--only-stats` flag that skips the full local and/or cloud sync and only generates or updates `./.specstory/statistics.json`.
+
+### ⚙️ Improvements
+
+- Update project directory handling for the Gemini CLI provider. Gemini CLI `v0.30.0+` changed how it names project directories under `~/.gemini/tmp/`. Previously it used a SHA256 hash of the project's absolute path (e.g., `c18385f0...`). Now it uses the project folder's basename and stores the actual project path in a `.project_root` file inside that directory. [Issue #183](https://github.com/specstoryai/getspecstory/issues/183)
+- Use file system events rather than polling in Gemini CLI provider to avoid noisy logging activity (every 30s) during `specstory watch`.
 
 ### 🐛 Bug Fixes
 
