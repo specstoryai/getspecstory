@@ -10,6 +10,10 @@
 
 - `specstory sync` now supports an `--only-stats` flag that skips the full local and/or cloud sync and only generates or updates `./.specstory/statistics.json`.
 
+### 🐛 Bug Fixes
+
+- Ensure Claude Code provider doesn't use session summary self-message as first user message when creating markdown file slug. [Contribution](https://github.com/specstoryai/getspecstory/pull/178) from @salmonumbrella.
+
 
 ## v1.10.0 2026-02-23
 
