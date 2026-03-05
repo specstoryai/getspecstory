@@ -16,6 +16,19 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// xmlTagsRe matches XML-style tag blocks including their content, such as
+// <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
+// These are injected by IDE tools/system prompts and should be stripped before
+// processing user message text for filename or display purposes.
+var xmlTagsRe = regexp.MustCompile(`(?s)<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?>.*?</[a-zA-Z_][a-zA-Z0-9_-]*>|<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?/>`)
+
+// stripXMLTags removes XML-style tag blocks (and their content) from s and
+// returns the trimmed result. This cleans up injected IDE/system context that
+// precedes the real user message text.
+func stripXMLTags(s string) string {
+	return strings.TrimSpace(xmlTagsRe.ReplaceAllString(s, ""))
+}
+
 // extractWordsFromMessage extracts up to maxWords from the message, handling various edge cases
 func extractWordsFromMessage(message string, maxWords int) []string {
 	if message == "" {
@@ -72,13 +85,18 @@ func generateFilenameFromWords(words []string) string {
 
 // GenerateFilenameFromUserMessage generates a filename based on the first user message content
 func GenerateFilenameFromUserMessage(message string) string {
-	words := extractWordsFromMessage(message, 4)
+	words := extractWordsFromMessage(stripXMLTags(message), 4)
 	return generateFilenameFromWords(words)
 }
 
 // GenerateReadableName creates a human-readable session name from a user message
 // The name is truncated to 100 characters at a word boundary and cleaned of excess whitespace
 func GenerateReadableName(message string) string {
+	if message == "" {
+		return ""
+	}
+
+	message = stripXMLTags(message)
 	if message == "" {
 		return ""
 	}
