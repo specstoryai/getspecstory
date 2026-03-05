@@ -220,6 +220,21 @@ func TestGenerateFilenameFromUserMessage(t *testing.T) {
 			message:  "Fix the bug in foo.bar() method",
 			expected: "fix-the-bug-in",
 		},
+		{
+			name:     "IDE tag prefix before real message",
+			message:  "<ide_opened_file>The user opened the file /Users/foo/bar.go in the IDE.</ide_opened_file>\n\nThe @specstory-cli/ is a go CLI that reads the AI chats",
+			expected: "the-at-specstory-cli",
+		},
+		{
+			name:     "Only IDE tag with no real content",
+			message:  "<ide_opened_file>The user opened the file /Users/foo/bar.go in the IDE.</ide_opened_file>",
+			expected: "",
+		},
+		{
+			name:     "Multiple IDE tags before real message",
+			message:  "<ide_opened_file>foo.go</ide_opened_file>\n<ide_selection>some code</ide_selection>\n\nFix the bug in the login handler",
+			expected: "fix-the-bug-in",
+		},
 	}
 
 	for _, tt := range tests {
