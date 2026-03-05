@@ -152,6 +152,16 @@ func TestGenerateFilenameFromWords(t *testing.T) {
 			words:    []string{"test", "", "", "case"},
 			expected: "test-case",
 		},
+		{
+			name:     "Uppercase words are lowercased",
+			words:    []string{"Hello", "World"},
+			expected: "hello-world",
+		},
+		{
+			name:     "Mixed case words are lowercased",
+			words:    []string{"Create", "A", "CLI", "Battleship"},
+			expected: "create-a-cli-battleship",
+		},
 	}
 
 	for _, tt := range tests {
@@ -219,6 +229,16 @@ func TestGenerateFilenameFromUserMessage(t *testing.T) {
 			name:     "Code related",
 			message:  "Fix the bug in foo.bar() method",
 			expected: "fix-the-bug-in",
+		},
+		{
+			name:     "Uppercase message produces lowercase filename",
+			message:  "Create A New Feature",
+			expected: "create-a-new-feature",
+		},
+		{
+			name:     "All caps message produces lowercase filename",
+			message:  "IMPLEMENT THE LOGIN HANDLER NOW",
+			expected: "implement-the-login-handler",
 		},
 	}
 
