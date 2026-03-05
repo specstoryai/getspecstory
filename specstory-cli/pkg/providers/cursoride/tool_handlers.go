@@ -185,10 +185,7 @@ func formatCatchAll(bubble *BubbleConversation) string {
 	var message strings.Builder
 
 	// Start with summary line (just tool name, no params)
-	fmt.Fprintf(&message, `<details>
-<summary>Tool use: **%s**</summary>
-
-`, bubble.Name)
+	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", bubble.Name)
 
 	// Parse params
 	var params map[string]interface{}

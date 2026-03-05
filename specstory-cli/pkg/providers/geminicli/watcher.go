@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -22,11 +21,6 @@ var (
 	watcherMutex         sync.RWMutex
 	watcherDebugRaw      bool
 	watcherWorkspaceRoot string
-)
-
-const (
-	initialBackoff = 1 * time.Second
-	maxBackoff     = 30 * time.Second
 )
 
 func init() {
@@ -72,30 +66,41 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
 
-	projectDir, err := GetGeminiProjectDir(projectPath)
+	hashDir, err := GetGeminiProjectDir(projectPath)
 	if err != nil {
 		return fmt.Errorf("failed to get gemini project dir: %w", err)
 	}
 
-	tmpDir := filepath.Dir(projectDir)
-	chatsDir := filepath.Join(projectDir, "chats")
+	// Build the full directory chain: ~/.gemini → tmp → resolvedDir → chats
+	// Each step's parent is guaranteed to exist by the previous step.
+	// $HOME (parent of geminiDir) always exists.
+	geminiDir := filepath.Dir(filepath.Dir(hashDir)) // ~/.gemini
+	tmpDir := filepath.Dir(hashDir)                  // ~/.gemini/tmp
 
 	watcherWg.Add(1)
 	go func() {
 		defer watcherWg.Done()
 
-		if err := waitForDirectory(watcherCtx, tmpDir, "Gemini tmp directory"); err != nil {
-			slog.Warn("Stopped Gemini watcher while waiting for tmp directory", "error", err)
+		if err := waitForDirectoryFsnotify(watcherCtx, geminiDir, "Gemini root directory"); err != nil {
+			slog.Debug("Stopped Gemini watcher while waiting for root directory", "error", err)
 			return
 		}
 
-		if err := waitForDirectory(watcherCtx, projectDir, "Gemini project directory"); err != nil {
-			slog.Warn("Stopped Gemini watcher while waiting for project directory", "error", err)
+		if err := waitForDirectoryFsnotify(watcherCtx, tmpDir, "Gemini tmp directory"); err != nil {
+			slog.Debug("Stopped Gemini watcher while waiting for tmp directory", "error", err)
 			return
 		}
 
-		if err := waitForDirectory(watcherCtx, chatsDir, "Gemini chats directory"); err != nil {
-			slog.Warn("Stopped Gemini watcher while waiting for chats directory", "error", err)
+		// Wait for either hash-based or .project_root-based project directory
+		resolvedDir, err := waitForProjectDir(watcherCtx, tmpDir, projectPath, hashDir)
+		if err != nil {
+			slog.Debug("Stopped Gemini watcher while waiting for project directory", "error", err)
+			return
+		}
+
+		chatsDir := filepath.Join(resolvedDir, "chats")
+		if err := waitForDirectoryFsnotify(watcherCtx, chatsDir, "Gemini chats directory"); err != nil {
+			slog.Debug("Stopped Gemini watcher while waiting for chats directory", "error", err)
 			return
 		}
 
@@ -103,16 +108,95 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 			slog.Error("Failed to start chats watcher", "error", err)
 		}
 
-		if err := startArtifactWatcher(filepath.Join(projectDir, "logs.json"), "logs.json"); err != nil {
+		if err := startArtifactWatcher(filepath.Join(resolvedDir, "logs.json"), "logs.json"); err != nil {
 			slog.Warn("Failed to watch logs.json", "error", err)
 		}
 
-		if err := startArtifactWatcher(filepath.Join(projectDir, "shell_history"), "shell_history"); err != nil {
+		if err := startArtifactWatcher(filepath.Join(resolvedDir, "shell_history"), "shell_history"); err != nil {
 			slog.Warn("Failed to watch shell_history", "error", err)
 		}
 	}()
 
 	return nil
+}
+
+// waitForProjectDir waits for a Gemini project directory using three strategies:
+//  1. Basename hint — tmpDir/<project-basename> with matching .project_root
+//  2. Hash-based — the legacy hash directory
+//  3. Full .project_root scan — handles suffixed dirs like my-project-1
+//
+// If none exist yet, it watches tmpDir for new directory creation.
+func waitForProjectDir(ctx context.Context, tmpDir, projectPath, hashDir string) (string, error) {
+	canonicalProjectPath := canonicalizeProjectPath(projectPath)
+	hashName := filepath.Base(hashDir)
+
+	// checkAll runs all three strategies and returns the first match.
+	checkAll := func() string {
+		// 1. Basename hint
+		if dir := findProjectDirByBasename(tmpDir, projectPath, canonicalProjectPath); dir != "" {
+			return dir
+		}
+		// 2. Hash-based
+		if info, err := os.Stat(hashDir); err == nil && info.IsDir() {
+			slog.Debug("Gemini watcher: hash-based project directory ready", "path", hashDir)
+			return hashDir
+		}
+		// 3. Full scan
+		if match, err := findProjectDirByProjectRoot(tmpDir, projectPath); err == nil && match != "" {
+			return match
+		}
+		return ""
+	}
+
+	// Try existing directories first
+	if dir := checkAll(); dir != "" {
+		return dir, nil
+	}
+
+	// Nothing exists yet — watch tmpDir for new directory creation
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return "", fmt.Errorf("failed to create fsnotify watcher for project dir: %w", err)
+	}
+	defer func() { _ = watcher.Close() }()
+
+	if err := watcher.Add(tmpDir); err != nil {
+		return "", fmt.Errorf("failed to watch tmp directory %q: %w", tmpDir, err)
+	}
+
+	slog.Debug("Gemini watcher: watching for project directory creation",
+		"tmpDir", tmpDir, "hashDir", hashName)
+
+	// Re-check after adding watcher to close the race window
+	if dir := checkAll(); dir != "" {
+		return dir, nil
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return "", fmt.Errorf("fsnotify events channel closed for project dir watcher")
+			}
+			if !event.Has(fsnotify.Create) {
+				continue
+			}
+			// Re-run all strategies on any Create event rather than checking
+			// only the newly created entry. This handles the race where a
+			// directory was created moments ago but its .project_root file
+			// wasn't yet written when we last checked.
+			if dir := checkAll(); dir != "" {
+				return dir, nil
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return "", fmt.Errorf("fsnotify errors channel closed for project dir watcher")
+			}
+			return "", fmt.Errorf("fsnotify watcher error for project dir: %w", err)
+		}
+	}
 }
 
 func startChatsWatcher(chatsDir string) error {
@@ -238,30 +322,61 @@ func triggerCallback(agentSession *spi.AgentChatSession) {
 	}
 }
 
-func waitForDirectory(ctx context.Context, dir string, label string) error {
-	backoff := initialBackoff
-	for {
-		info, err := os.Stat(dir)
-		if err == nil && info.IsDir() {
-			slog.Info("Gemini watcher: directory ready", "label", label, "path", dir)
-			return nil
-		}
-		if err != nil && !os.IsNotExist(err) {
-			slog.Warn("Gemini watcher: failed to stat directory", "label", label, "path", dir, "error", err)
-		} else {
-			slog.Info("Gemini watcher: waiting for directory", "label", label, "path", dir, "retryIn", backoff)
-		}
+// waitForDirectoryFsnotify waits for a directory to exist using fsnotify on its parent.
+// The parent directory must already exist; if it doesn't, the function returns an error.
+// label is a human-readable name used in log messages (e.g., "Gemini tmp directory").
+func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) error {
+	// Check if directory already exists
+	info, err := os.Stat(dir)
+	if err == nil && info.IsDir() {
+		slog.Debug("Gemini watcher: directory ready", "label", label, "path", dir)
+		return nil
+	}
 
+	parentDir := filepath.Dir(dir)
+	childName := filepath.Base(dir)
+
+	// Parent must exist — caller guarantees this via the sequential wait chain
+	if _, err := os.Stat(parentDir); err != nil {
+		return fmt.Errorf("parent directory %q does not exist for %s: %w", parentDir, label, err)
+	}
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("failed to create fsnotify watcher for %s: %w", label, err)
+	}
+	defer func() { _ = watcher.Close() }()
+
+	if err := watcher.Add(parentDir); err != nil {
+		return fmt.Errorf("failed to watch parent directory %q for %s: %w", parentDir, label, err)
+	}
+
+	slog.Debug("Gemini watcher: watching for directory creation", "label", label, "parent", parentDir, "child", childName)
+
+	// Re-check after adding watcher to close the race window
+	info, err = os.Stat(dir)
+	if err == nil && info.IsDir() {
+		slog.Debug("Gemini watcher: directory ready", "label", label, "path", dir)
+		return nil
+	}
+
+	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(backoff):
-			if backoff < maxBackoff {
-				backoff *= 2
-				if backoff > maxBackoff {
-					backoff = maxBackoff
-				}
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return fmt.Errorf("fsnotify events channel closed for %s", label)
 			}
+			if event.Has(fsnotify.Create) && filepath.Base(event.Name) == childName {
+				slog.Debug("Gemini watcher: directory ready", "label", label, "path", dir)
+				return nil
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return fmt.Errorf("fsnotify errors channel closed for %s", label)
+			}
+			return fmt.Errorf("fsnotify watcher error for %s: %w", label, err)
 		}
 	}
 }

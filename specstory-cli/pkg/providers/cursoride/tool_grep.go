@@ -121,9 +121,7 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 	if resultsLength != 1 {
 		matchWord = "matches"
 	}
-	fmt.Fprintf(&message, `<summary>Tool use: **%s** • Grep for "%s"%s • %d %s</summary>
-
-`, bubble.Name, params.Pattern, inString, resultsLength, matchWord)
+	fmt.Fprintf(&message, "<summary>Tool use: **%s** • Grep for \"%s\"%s • %d %s</summary>\n\n", bubble.Name, params.Pattern, inString, resultsLength, matchWord)
 
 	// Add output mode
 	outputMode := params.OutputMode

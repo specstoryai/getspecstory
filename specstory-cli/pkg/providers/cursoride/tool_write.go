@@ -53,13 +53,9 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 
 	// Build summary line
 	if params.RelativeWorkspacePath != "" {
-		fmt.Fprintf(&message, `<details><summary>Tool use: **%s** • Edit file: %s</summary>
-
-`, bubble.Name, params.RelativeWorkspacePath)
+		fmt.Fprintf(&message, "<details><summary>Tool use: **%s** • Edit file: %s</summary>\n\n", bubble.Name, params.RelativeWorkspacePath)
 	} else {
-		fmt.Fprintf(&message, `<details><summary>Tool use: **%s**</summary>
-
-`, bubble.Name)
+		fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", bubble.Name)
 	}
 
 	// Add instructions if present
@@ -127,9 +123,7 @@ func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, `<details><summary>Tool use: **%s**</summary>
-
-`, bubble.Name)
+	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", bubble.Name)
 
 	if rawArgs.Explanation != "" {
 		fmt.Fprintf(&message, "Explanation: %s\n\n", rawArgs.Explanation)
@@ -163,9 +157,7 @@ func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, `<details>
-        <summary>Tool use: **%s** • Apply patch for %s</summary>
-      `, bubble.Name, rawArgs.FilePath)
+	fmt.Fprintf(&message, "<details>\n        <summary>Tool use: **%s** • Apply patch for %s</summary>\n      ", bubble.Name, rawArgs.FilePath)
 
 	if rawArgs.Patch != "" {
 		fmt.Fprintf(&message, "\n\n```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
@@ -248,10 +240,7 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, `<details>
-<summary>Tool use: **%s** • %s</summary>
-
-`, bubble.Name, invocationMsg)
+	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s** • %s</summary>\n\n", bubble.Name, invocationMsg)
 
 	// Check if operation failed
 	if bubble.Status == "error" && bubble.Error != "" {
