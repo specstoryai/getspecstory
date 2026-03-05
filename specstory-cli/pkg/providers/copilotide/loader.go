@@ -175,7 +175,10 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 
 	composer := firstLine.V
 
-	// Apply subsequent updates (kind: 1)
+	// Apply subsequent updates.
+	// kind:1 = incremental key-path update (small field changes, e.g. customTitle)
+	// kind:2 = bulk key-path replacement (e.g. full requests array written after initial snapshot)
+	// VS Code Copilot introduced kind:2 to split large payloads from the initial kind:0 snapshot.
 	for i := 1; i < len(lines); i++ {
 		var update struct {
 			Kind int      `json:"kind"`
@@ -188,11 +191,17 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 			continue
 		}
 
-		if update.Kind == 1 && len(update.K) > 0 {
-			// Apply the update by setting the value at the key path
-			if err := applyUpdate(&composer, update.K, update.V); err != nil {
-				slog.Warn("Failed to apply JSONL update", "line", i+1, "keyPath", update.K, "error", err)
+		switch update.Kind {
+		case 1, 2:
+			if len(update.K) > 0 {
+				// Apply the update by setting the value at the key path
+				if err := applyUpdate(&composer, update.K, update.V); err != nil {
+					slog.Warn("Failed to apply JSONL update", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
+				}
 			}
+		default:
+			// Log unknown kinds so we detect future format changes early
+			slog.Warn("Unknown JSONL kind, skipping line", "line", i+1, "kind", update.Kind)
 		}
 	}
 
