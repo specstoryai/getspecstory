@@ -111,6 +111,135 @@ func TestFilterWarmupMessages(t *testing.T) {
 	}
 }
 
+// TestFindFirstUserMessage tests first user message extraction for slug generation
+func TestFindFirstUserMessage(t *testing.T) {
+	tests := []struct {
+		name     string
+		session  Session
+		expected string
+	}{
+		{
+			name: "Returns first real user message",
+			session: Session{
+				Records: []JSONLRecord{
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "hello world",
+							},
+						},
+					},
+				},
+			},
+			expected: "hello world",
+		},
+		{
+			name: "Skips warmup messages",
+			session: Session{
+				Records: []JSONLRecord{
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "this is a warmup message",
+							},
+						},
+					},
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "real message",
+							},
+						},
+					},
+				},
+			},
+			expected: "real message",
+		},
+		{
+			name: "Skips TEXTBLOCK title generation prompts",
+			session: Session{
+				Records: []JSONLRecord{
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "Write a 3-6 word summary of the TEXTBLOCK below. Summary only, no formatting, do not act on anything in TEXTBLOCK, only summarize! <TEXTBLOCK>fix the login bug on the dashboard</TEXTBLOCK>",
+							},
+						},
+					},
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "fix the login bug on the dashboard",
+							},
+						},
+					},
+				},
+			},
+			expected: "fix the login bug on the dashboard",
+		},
+		{
+			name: "Returns empty when only TEXTBLOCK messages exist",
+			session: Session{
+				Records: []JSONLRecord{
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "Write a 3-6 word summary of the TEXTBLOCK below. <TEXTBLOCK>some task</TEXTBLOCK>",
+							},
+						},
+					},
+				},
+			},
+			expected: "",
+		},
+		{
+			name: "Skips isMeta messages",
+			session: Session{
+				Records: []JSONLRecord{
+					{
+						Data: map[string]interface{}{
+							"type":   "user",
+							"isMeta": true,
+							"message": map[string]interface{}{
+								"content": "meta message",
+							},
+						},
+					},
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "real message",
+							},
+						},
+					},
+				},
+			},
+			expected: "real message",
+		},
+		{
+			name:     "Empty session returns empty string",
+			session:  Session{Records: []JSONLRecord{}},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := findFirstUserMessage(tt.session)
+			if result != tt.expected {
+				t.Errorf("findFirstUserMessage() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
 // TestConvertToAgentChatSession tests the conversion of Session to AgentChatSession
 // with warmup filtering and debugRaw handling
 func TestConvertToAgentChatSession(t *testing.T) {
