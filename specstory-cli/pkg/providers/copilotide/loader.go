@@ -192,11 +192,20 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		}
 
 		switch update.Kind {
-		case 1, 2:
+		case 1:
 			if len(update.K) > 0 {
-				// Apply the update by setting the value at the key path
+				// Replace the value at the key path
 				if err := applyUpdate(&composer, update.K, update.V); err != nil {
 					slog.Warn("Failed to apply JSONL update", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
+				}
+			}
+		case 2:
+			if len(update.K) > 0 {
+				// Append items to the array at the key path.
+				// VS Code writes one kind:2 per user turn, each containing only the new
+				// request(s) for that turn — not the full history — so we must accumulate.
+				if err := appendUpdate(&composer, update.K, update.V); err != nil {
+					slog.Warn("Failed to apply JSONL append", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
 				}
 			}
 		default:
@@ -206,6 +215,63 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 	}
 
 	return composer, nil
+}
+
+// appendUpdate appends items to an array at a specific key path in the composer.
+// Used for kind:2 lines where VS Code writes only the newly added items (e.g. a single
+// new request per turn) rather than the full array, so each write must be accumulated.
+// Falls back to replace semantics when the target or incoming value is not an array.
+func appendUpdate(composer *VSCodeComposer, keyPath []string, value any) error {
+	newItems, isArray := value.([]any)
+	if !isArray {
+		// Not an array delta — treat as a plain replace
+		return applyUpdate(composer, keyPath, value)
+	}
+
+	// Convert composer to map so we can read and update the existing slice dynamically
+	composerData, err := json.Marshal(composer)
+	if err != nil {
+		return fmt.Errorf("failed to marshal composer: %w", err)
+	}
+
+	var composerMap map[string]any
+	if err := json.Unmarshal(composerData, &composerMap); err != nil {
+		return fmt.Errorf("failed to unmarshal composer to map: %w", err)
+	}
+
+	// Navigate to the parent of the target key
+	current := composerMap
+	for i := 0; i < len(keyPath)-1; i++ {
+		key := keyPath[i]
+		if _, exists := current[key]; !exists {
+			current[key] = make(map[string]any)
+		}
+		if nextMap, ok := current[key].(map[string]any); ok {
+			current = nextMap
+		} else {
+			return fmt.Errorf("cannot navigate through non-map value at key: %s", key)
+		}
+	}
+
+	// Append the new items to whatever is already there; fall back to replace if needed
+	lastKey := keyPath[len(keyPath)-1]
+	if existing, ok := current[lastKey].([]any); ok {
+		current[lastKey] = append(existing, newItems...)
+	} else {
+		current[lastKey] = newItems
+	}
+
+	// Convert back to VSCodeComposer
+	updatedData, err := json.Marshal(composerMap)
+	if err != nil {
+		return fmt.Errorf("failed to marshal updated map: %w", err)
+	}
+
+	if err := json.Unmarshal(updatedData, composer); err != nil {
+		return fmt.Errorf("failed to unmarshal updated composer: %w", err)
+	}
+
+	return nil
 }
 
 // applyUpdate applies an update to a composer at a specific key path
