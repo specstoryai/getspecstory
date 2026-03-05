@@ -81,7 +81,7 @@ func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	message.WriteString(`** • Grep search for "`)
 	message.WriteString(rawArgs.Query)
 	message.WriteString(`" • **`)
-	message.WriteString(fmt.Sprintf("%d", resultsLength))
+	fmt.Fprintf(&message, "%d", resultsLength)
 	message.WriteString(`** files</summary>
         `)
 
@@ -101,10 +101,10 @@ func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 				}
 
 				// Add row
-				message.WriteString(fmt.Sprintf("| `%s` | L%d | `%s` |\n",
+				fmt.Fprintf(&message, "| `%s` | L%d | `%s` |\n",
 					fileResult.Resource,
 					lineNumber,
-					escapeTableCellValue(matchEntry.Match.PreviewText)))
+					escapeTableCellValue(matchEntry.Match.PreviewText))
 			}
 		}
 	}

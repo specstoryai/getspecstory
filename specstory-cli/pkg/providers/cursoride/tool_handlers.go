@@ -185,10 +185,7 @@ func formatCatchAll(bubble *BubbleConversation) string {
 	var message strings.Builder
 
 	// Start with summary line (just tool name, no params)
-	message.WriteString(fmt.Sprintf(`<details>
-<summary>Tool use: **%s**</summary>
-
-`, bubble.Name))
+	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", bubble.Name)
 
 	// Parse params
 	var params map[string]interface{}
@@ -228,12 +225,12 @@ func formatCatchAll(bubble *BubbleConversation) string {
 
 	// Add user decision
 	if bubble.UserDecision != "" {
-		message.WriteString(fmt.Sprintf("User decision: **%s**\n\n", bubble.UserDecision))
+		fmt.Fprintf(&message, "User decision: **%s**\n\n", bubble.UserDecision)
 	}
 
 	// Add status
 	if bubble.Status != "" {
-		message.WriteString(fmt.Sprintf("Status: **%s**\n\n", bubble.Status))
+		fmt.Fprintf(&message, "Status: **%s**\n\n", bubble.Status)
 	}
 
 	// Add error section
