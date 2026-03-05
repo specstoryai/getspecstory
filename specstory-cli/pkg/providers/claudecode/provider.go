@@ -479,6 +479,20 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	return ctx.Err()
 }
 
+// isSyntheticMessage checks if a message is synthetic/internal and should be skipped
+// when looking for the first real user message.
+// Currently filters warmup messages and Claude Code session title generation prompts.
+func isSyntheticMessage(content string) bool {
+	if strings.Contains(strings.ToLower(content), "warmup") {
+		return true
+	}
+	// Claude Code wraps the real user prompt in <TEXTBLOCK> tags for title generation
+	if strings.Contains(content, "<TEXTBLOCK>") {
+		return true
+	}
+	return false
+}
+
 // findFirstUserMessage finds the first user message in a session for slug generation
 // Returns empty string if no suitable user message is found
 func findFirstUserMessage(session Session) string {
@@ -496,8 +510,7 @@ func findFirstUserMessage(session Session) string {
 		// Extract content from message
 		if message, ok := record.Data["message"].(map[string]interface{}); ok {
 			if content, ok := message["content"].(string); ok && content != "" {
-				// Skip messages containing "warmup" (case-insensitive)
-				if strings.Contains(strings.ToLower(content), "warmup") {
+				if isSyntheticMessage(content) {
 					continue
 				}
 				return content
@@ -643,8 +656,7 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 						if !isMeta {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								if content, ok := message["content"].(string); ok && content != "" {
-									// Skip messages containing "warmup"
-									if !strings.Contains(strings.ToLower(content), "warmup") {
+									if !isSyntheticMessage(content) {
 										firstUserMessage = content
 									}
 								}
