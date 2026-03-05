@@ -63,14 +63,16 @@ func extractWordsFromMessage(message string, maxWords int) []string {
 	return words
 }
 
-// generateFilenameFromWords creates a filename from words, handling edge cases
+// generateFilenameFromWords creates a filename from words, handling edge cases.
+// Enforces lowercase to guarantee filesystem-safe, consistent filenames regardless
+// of how the words were prepared by the caller.
 func generateFilenameFromWords(words []string) string {
 	if len(words) == 0 {
 		return ""
 	}
 
-	// Join words with hyphens
-	filename := strings.Join(words, "-")
+	// Join words with hyphens and enforce lowercase as a safety guarantee
+	filename := strings.ToLower(strings.Join(words, "-"))
 
 	// Ensure no double hyphens
 	for strings.Contains(filename, "--") {
