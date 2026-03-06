@@ -20,6 +20,15 @@ import (
 // <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
 // These are injected by IDE tools/system prompts and should be stripped before
 // processing user message text for filename or display purposes.
+//
+// The regex has two alternations:
+//   - <tag ...>content</tag>  — matched with (?s) so . spans newlines; uses .*? (lazy)
+//     to consume the shortest content between matching open/close tags.
+//   - <tag ... />             — self-closing tags.
+//
+// Known limitation: nested tags with the same name (e.g. <t><t>x</t></t>) will
+// only match up to the first closing tag, leaving a dangling </t>. This is
+// acceptable because IDE-injected tags are not nested this way.
 var xmlTagsRe = regexp.MustCompile(`(?s)<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?>.*?</[a-zA-Z_][a-zA-Z0-9_-]*>|<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?/>`)
 
 // stripXMLTags removes XML-style tag blocks (and their content) from s and

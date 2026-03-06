@@ -514,6 +514,9 @@ func extractContentText(content interface{}) string {
 				}
 			}
 		}
+		slog.Debug("extractContentText: extracted text from content block array",
+			"blockCount", len(v),
+			"textParts", len(parts))
 		return strings.Join(parts, "\n")
 	default:
 		return ""
@@ -687,7 +690,7 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								content := extractContentText(message["content"])
 								if content != "" {
-									// Skip messages containing "warmup"
+									// Skip synthetic messages (warmup, title generation prompts, etc.)
 									if !isSyntheticMessage(content) {
 										firstUserMessage = content
 									}
