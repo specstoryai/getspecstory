@@ -31,11 +31,18 @@ import (
 // acceptable because IDE-injected tags are not nested this way.
 var xmlTagsRe = regexp.MustCompile(`(?s)<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?>.*?</[a-zA-Z_][a-zA-Z0-9_-]*>|<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?/>`)
 
+// whitespaceRe collapses any run of Unicode whitespace into a single space.
+var whitespaceRe = regexp.MustCompile(`\s+`)
+
 // stripXMLTags removes XML-style tag blocks (and their content) from s and
-// returns the trimmed result. This cleans up injected IDE/system context that
-// precedes the real user message text.
+// returns the trimmed result with normalized whitespace. This cleans up injected
+// IDE/system context that precedes the real user message text while preserving
+// word boundaries where tags appeared between tokens.
 func stripXMLTags(s string) string {
-	return strings.TrimSpace(xmlTagsRe.ReplaceAllString(s, ""))
+	cleaned := xmlTagsRe.ReplaceAllString(s, " ")
+	cleaned = strings.TrimSpace(cleaned)
+	cleaned = whitespaceRe.ReplaceAllString(cleaned, " ")
+	return cleaned
 }
 
 // extractWordsFromMessage extracts up to maxWords from the message, handling various edge cases
