@@ -184,10 +184,9 @@ func generateSlug(composer *ComposerData) string {
 	return composer.ComposerID
 }
 
-// slugify converts a string to a slug while preserving casing
-// The casing is preserved for use in titles, and will be lowercased for filenames by the caller
+// slugify converts a string to a lowercase hyphenated slug suitable for filenames.
 func slugify(s string) string {
-	// Replace spaces with hyphens, keep original casing
+	s = strings.ToLower(s)
 	s = strings.ReplaceAll(s, " ", "-")
 	return s
 }
