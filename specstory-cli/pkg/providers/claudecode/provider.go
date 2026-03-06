@@ -493,6 +493,36 @@ func isSyntheticMessage(content string) bool {
 	return false
 }
 
+// extractContentText extracts plain text from a message content field.
+// The content field may be either a plain string or a JSON array of typed content
+// blocks (e.g. [{type:"text",text:"..."},{type:"tool_use",...}]).
+// When it's an array, all "text"-type blocks are joined with newlines.
+// This handles the Claude Code JSONL format where IDE context tags (e.g.
+// <ide_opened_file>) are injected as separate text blocks before the real question.
+func extractContentText(content interface{}) string {
+	switch v := content.(type) {
+	case string:
+		return v
+	case []interface{}:
+		var parts []string
+		for _, block := range v {
+			if m, ok := block.(map[string]interface{}); ok {
+				if t, _ := m["type"].(string); t == "text" {
+					if text, ok := m["text"].(string); ok && text != "" {
+						parts = append(parts, text)
+					}
+				}
+			}
+		}
+		slog.Debug("extractContentText: extracted text from content block array",
+			"blockCount", len(v),
+			"textParts", len(parts))
+		return strings.Join(parts, "\n")
+	default:
+		return ""
+	}
+}
+
 // findFirstUserMessage finds the first user message in a session for slug generation
 // Returns empty string if no suitable user message is found
 func findFirstUserMessage(session Session) string {
@@ -507,9 +537,11 @@ func findFirstUserMessage(session Session) string {
 			continue
 		}
 
-		// Extract content from message
+		// Extract content from message - content may be a string or a list of blocks
 		if message, ok := record.Data["message"].(map[string]interface{}); ok {
-			if content, ok := message["content"].(string); ok && content != "" {
+			content := extractContentText(message["content"])
+			if content != "" {
+				// Skip synthetic messages (warmup, title generation prompts, etc.)
 				if isSyntheticMessage(content) {
 					continue
 				}
@@ -651,11 +683,14 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 					}
 
 					// Extract first user message for slug (if this is a user message)
+					// Content may be a string or a list of typed blocks (see extractContentText)
 					if firstUserMessage == "" && hasType && recordType == "user" {
 						isMeta, _ := record["isMeta"].(bool)
 						if !isMeta {
 							if message, ok := record["message"].(map[string]interface{}); ok {
-								if content, ok := message["content"].(string); ok && content != "" {
+								content := extractContentText(message["content"])
+								if content != "" {
+									// Skip synthetic messages (warmup, title generation prompts, etc.)
 									if !isSyntheticMessage(content) {
 										firstUserMessage = content
 									}
