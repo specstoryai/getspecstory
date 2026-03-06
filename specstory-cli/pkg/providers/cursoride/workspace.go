@@ -497,7 +497,9 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 	if !strings.HasPrefix(hostLower, "wsl+") &&
 		!strings.EqualFold(decodedHost, "wsl") &&
 		!strings.HasPrefix(hostLower, "ssh-remote+") &&
-		!strings.EqualFold(decodedHost, "ssh-remote") {
+		!strings.EqualFold(decodedHost, "ssh-remote") &&
+		!strings.HasPrefix(hostLower, "dev-container+") &&
+		!strings.EqualFold(decodedHost, "dev-container") {
 		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
 	}
 
@@ -508,9 +510,12 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 	}
 
 	// Log the conversion with appropriate context
-	if strings.HasPrefix(hostLower, "ssh-remote") {
+	switch {
+	case strings.HasPrefix(hostLower, "ssh-remote"):
 		slog.Debug("Converted vscode-remote SSH URI to path", "uri", uri, "path", path)
-	} else {
+	case strings.HasPrefix(hostLower, "dev-container"):
+		slog.Debug("Converted vscode-remote dev container URI to path", "uri", uri, "path", path)
+	default:
 		slog.Debug("Converted vscode-remote WSL URI to path", "uri", uri, "path", path)
 	}
 

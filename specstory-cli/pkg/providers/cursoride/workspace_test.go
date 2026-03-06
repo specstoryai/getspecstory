@@ -218,16 +218,23 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			wantPath: "/home/user/project",
 		},
 
+		// Dev container URIs - path returned as-is (container-internal path)
+		{
+			name:     "dev container URI with hex-encoded config",
+			uri:      "vscode-remote://dev-container%2B7b2273657474696e6754797065223a22636f6e7461696e6572222c22636f6e7461696e65724964223a22656335613261653766636632227d/workspace",
+			wantPath: "/workspace",
+		},
+		{
+			name:     "dev container URI case insensitive",
+			uri:      "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
 		// Error cases
 		{
 			name:      "no path component",
 			uri:       "vscode-remote://wsl%2Bubuntu",
 			wantError: "malformed vscode-remote URI (no path)",
-		},
-		{
-			name:      "unsupported dev container host",
-			uri:       "vscode-remote://dev-container+abc123/workspace",
-			wantError: "unsupported vscode-remote host",
 		},
 	}
 
