@@ -426,15 +426,24 @@ func ensureDefaultUserConfig(path string) {
 	slog.Debug("Created default user config file", "path", path)
 }
 
-// EnsureDefaultProjectConfig creates a default project-level config file at
-// .specstory/cli/config.toml if one doesn't already exist. All options are
-// commented out so the file is self-documenting but inert.
+// EnsureDefaultProjectConfig creates a default project-level config file if one
+// doesn't already exist. All options are commented out so the file is
+// self-documenting but inert.
+//
+// When configDir is non-empty the config file is placed at
+// {configDir}/config.toml, which respects --config-dir. Otherwise the
+// default location {cwd}/.specstory/cli/config.toml is used.
 //
 // This should only be called from commands that imply active project work
 // (run, sync, watch) to avoid scattering config files in arbitrary directories.
 // Failures are silently ignored — this is a convenience, not a requirement.
-func EnsureDefaultProjectConfig() {
-	path := getLocalConfigPath()
+func EnsureDefaultProjectConfig(configDir string) {
+	var path string
+	if configDir != "" {
+		path = filepath.Join(configDir, ConfigFileName)
+	} else {
+		path = getLocalConfigPath()
+	}
 	if path == "" {
 		return
 	}

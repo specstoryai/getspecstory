@@ -38,6 +38,7 @@ var noAnalytics bool    // flag to disable usage analytics
 var noVersionCheck bool // flag to skip checking for newer versions
 var outputDir string    // custom output directory for markdown files
 var debugDir string     // custom output directory for debug files
+var configDir string    // custom directory for the project-level config.toml
 var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
@@ -331,7 +332,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in interactive mode")
 
 			// Get custom command if provided via flag
@@ -564,7 +565,7 @@ Provide a specific agent ID to sync a specific provider.`
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			config.EnsureDefaultProjectConfig(configDir)
 
 			// Get session IDs if provided via flag
 			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
@@ -1511,6 +1512,7 @@ func main() {
 	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
 	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	syncCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
@@ -1529,6 +1531,7 @@ func main() {
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
 	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
 	runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	runCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")

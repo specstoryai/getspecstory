@@ -80,7 +80,8 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			configDir, _ := cmd.Flags().GetString("config-dir")
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in watch mode")
 
 			registry := factory.GetRegistry()
@@ -331,6 +332,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
 	watchCmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
 	watchCmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	watchCmd.Flags().String("config-dir", "", "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	watchCmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	watchCmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
