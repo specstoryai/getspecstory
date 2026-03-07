@@ -16,11 +16,25 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// stripMarkdownHeading removes leading markdown heading markers (e.g. "# Title" → "Title").
+// These are structural formatting, not meaningful slug content.
+func stripMarkdownHeading(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if len(trimmed) > 0 && trimmed[0] == '#' {
+		trimmed = strings.TrimLeft(trimmed, "#")
+		trimmed = strings.TrimSpace(trimmed)
+	}
+	return trimmed
+}
+
 // extractWordsFromMessage extracts up to maxWords from the message, handling various edge cases
 func extractWordsFromMessage(message string, maxWords int) []string {
 	if message == "" {
 		return []string{}
 	}
+
+	// Strip leading markdown heading markers before they get converted to "hash"
+	message = stripMarkdownHeading(message)
 
 	// Normalize unicode and remove accents
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
