@@ -55,6 +55,9 @@ dist/
 # SpecStory configuration
 .specstory/cli/config.toml
 
+# SpecStory statistics
+.specstory/statistics.json
+
 # Our binary
 specstory
 specstory-cli
