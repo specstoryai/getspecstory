@@ -520,6 +520,23 @@ func extractContentText(content interface{}) string {
 	}
 }
 
+// cleanSyntheticPrefixes strips known boilerplate prefixes that Claude Code
+// prepends to user messages (e.g. plan mode). The real user content follows
+// the prefix, so we strip rather than skip the message entirely.
+func cleanSyntheticPrefixes(content string) string {
+	prefixes := []string{
+		"Implement the following plan:",
+	}
+	trimmed := strings.TrimSpace(content)
+	lower := strings.ToLower(trimmed)
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(lower, strings.ToLower(prefix)) {
+			return strings.TrimSpace(trimmed[len(prefix):])
+		}
+	}
+	return content
+}
+
 // findFirstUserMessage finds the first user message in a session for slug generation
 // Returns empty string if no suitable user message is found
 func findFirstUserMessage(session Session) string {
@@ -542,7 +559,7 @@ func findFirstUserMessage(session Session) string {
 				if isSyntheticMessage(content) {
 					continue
 				}
-				return content
+				return cleanSyntheticPrefixes(content)
 			}
 		}
 	}
@@ -689,7 +706,7 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 								if content != "" {
 									// Skip messages containing "warmup"
 									if !isSyntheticMessage(content) {
-										firstUserMessage = content
+										firstUserMessage = cleanSyntheticPrefixes(content)
 									}
 								}
 							}

@@ -118,6 +118,21 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			},
 		}
 
+		// Populate message.Tool for tool bubbles so telemetry stats can count them.
+		// The formatted markdown is already in Content; Tool carries structured metadata.
+		if bubble.CapabilityType == 15 {
+			if toolData := resolveToolData(&bubble, capabilitiesMap, composer.Version); toolData != nil && toolData.Name != "" {
+				toolType := schema.ToolTypeUnknown
+				if handler := toolRegistry.GetHandler(toolData.Name); handler != nil {
+					toolType = toSchemaToolType(handler.GetToolType())
+				}
+				message.Tool = &schema.ToolInfo{
+					Name: toolData.Name,
+					Type: toolType,
+				}
+			}
+		}
+
 		// Add mode to metadata for agent messages
 		if bubble.Type == 2 && bubble.UnifiedMode != 0 {
 			message.Metadata = map[string]interface{}{
@@ -232,24 +247,26 @@ func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*Cap
 	return strings.Join(parts, "\n\n---\n\n")
 }
 
-// processToolInvocation processes a tool invocation bubble and returns formatted markdown
-func processToolInvocation(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) string {
-	var toolData *BubbleConversation
-
-	// V3+ format: tool data is in bubble.ToolFormerData
+// resolveToolData finds the BubbleConversation for a tool bubble.
+// V3+ stores it in bubble.ToolFormerData; V1 stores it in the capabilities map.
+// Returns nil if the tool data cannot be found.
+func resolveToolData(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, composerVersion int) *BubbleConversation {
 	if composerVersion >= 3 && bubble.ToolFormerData != nil {
-		toolData = convertToolInvocationData(bubble.ToolFormerData)
-	} else {
-		// V1 format: tool data is in capabilities[15].bubbleDataMap[bubbleId]
-		if capData, ok := capabilitiesMap[bubble.CapabilityType]; ok {
-			if capData.ParsedBubbleMap != nil {
-				if bubbleData, found := capData.ParsedBubbleMap[bubble.BubbleID]; found {
-					toolData = bubbleData
-				}
+		return convertToolInvocationData(bubble.ToolFormerData)
+	}
+	if capData, ok := capabilitiesMap[bubble.CapabilityType]; ok {
+		if capData.ParsedBubbleMap != nil {
+			if bubbleData, found := capData.ParsedBubbleMap[bubble.BubbleID]; found {
+				return bubbleData
 			}
 		}
 	}
+	return nil
+}
 
+// processToolInvocation processes a tool invocation bubble and returns formatted markdown
+func processToolInvocation(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) string {
+	toolData := resolveToolData(bubble, capabilitiesMap, composerVersion)
 	if toolData == nil {
 		slog.Warn("Tool invocation data not found",
 			"bubbleId", bubble.BubbleID,
@@ -259,6 +276,15 @@ func processToolInvocation(bubble *ComposerConversation, capabilitiesMap map[int
 
 	// Format the tool invocation using the registry
 	return FormatToolInvocation(toolData, toolRegistry)
+}
+
+// toSchemaToolType converts a cursoride ToolType to the schema tool type string.
+// The only mapping difference is "mcp" which has no schema equivalent and maps to "generic".
+func toSchemaToolType(t ToolType) string {
+	if t == ToolTypeMCP {
+		return schema.ToolTypeGeneric
+	}
+	return string(t)
 }
 
 // convertToolInvocationData converts ToolInvocationData to BubbleConversation
