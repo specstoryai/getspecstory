@@ -56,8 +56,9 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 	toolRegistry := NewToolRegistry()
 
 	// Convert conversation messages to exchanges
-	// For now, create a simple exchange for each user+assistant pair
+	// Each exchange groups one user turn with the agent response(s) that follow it.
 	var currentMessages []schema.Message
+	var currentExchangeID string // bubble ID of the user message that started the current exchange
 	for i, bubble := range composer.Conversation {
 		// Skip empty bubbles that have no content to display
 		// BUT: Don't skip tool invocations (capabilityType=15) - they generate content from tool data
@@ -97,12 +98,14 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			}
 		}
 
-		// Get model name: bubble-level modelInfo > composer-level modelConfig
+		// Get model name for agent messages only — user messages must not carry a model.
 		modelName := ""
-		if bubble.ModelInfo != nil && bubble.ModelInfo.ModelName != "" {
-			modelName = bubble.ModelInfo.ModelName
-		} else if composerModelName != "" {
-			modelName = composerModelName
+		if bubble.Type == 2 {
+			if bubble.ModelInfo != nil && bubble.ModelInfo.ModelName != "" {
+				modelName = bubble.ModelInfo.ModelName
+			} else if composerModelName != "" {
+				modelName = composerModelName
+			}
 		}
 
 		// Build message with model and mode info
@@ -140,13 +143,21 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			}
 		}
 
-		// If this is a user message and we have pending messages, create an exchange first
+		// If this is a user message and we have pending messages, flush the current exchange
+		// and start a new one keyed by this user bubble.
 		if bubble.Type == 1 && len(currentMessages) > 0 {
 			exchange := schema.Exchange{
-				Messages: currentMessages,
+				ExchangeID: currentExchangeID,
+				Messages:   currentMessages,
 			}
 			sessionData.Exchanges = append(sessionData.Exchanges, exchange)
 			currentMessages = nil
+			currentExchangeID = bubble.BubbleID
+		}
+
+		// Record the exchange ID from the first user bubble of each exchange.
+		if bubble.Type == 1 && currentExchangeID == "" {
+			currentExchangeID = bubble.BubbleID
 		}
 
 		currentMessages = append(currentMessages, message)
@@ -155,7 +166,8 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 	// Create final exchange if there are remaining messages
 	if len(currentMessages) > 0 {
 		exchange := schema.Exchange{
-			Messages: currentMessages,
+			ExchangeID: currentExchangeID,
+			Messages:   currentMessages,
 		}
 		sessionData.Exchanges = append(sessionData.Exchanges, exchange)
 	}

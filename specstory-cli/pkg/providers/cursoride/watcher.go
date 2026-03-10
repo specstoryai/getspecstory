@@ -332,6 +332,21 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 		}
 
 		if shouldProcess {
+			// Guard against a race condition: Cursor may commit the composerData record
+			// (updating LastUpdatedAt and FullConversationHeadersOnly) before the
+			// corresponding bubble records are committed to the database. If the header
+			// list references more bubbles than were actually loaded, the session data is
+			// incomplete. By not advancing knownComposers, the next check cycle will
+			// re-process this session once all bubbles are available.
+			if len(composer.FullConversationHeadersOnly) > 0 &&
+				len(composer.Conversation) < len(composer.FullConversationHeadersOnly) {
+				slog.Warn("Incomplete composer data (bubble records not yet committed), will retry on next check",
+					"composerID", composerID,
+					"expectedBubbles", len(composer.FullConversationHeadersOnly),
+					"loadedBubbles", len(composer.Conversation))
+				continue
+			}
+
 			// Update known timestamp
 			w.mu.Lock()
 			w.knownComposers[composerID] = currentTimestamp
