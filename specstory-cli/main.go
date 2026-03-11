@@ -44,6 +44,7 @@ var localTimeZone bool  // flag to use local timezone instead of UTC
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
 var onlyStats bool     // flag to only update statistics, skip local markdown and cloud sync
+var noStats bool       // flag to skip statistics entirely (no read or write of statistics.json)
 var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
@@ -96,6 +97,9 @@ func validateFlags() error {
 	}
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
+	}
+	if noStats && onlyStats {
+		return utils.ValidationError{Message: "cannot use --no-stats and --only-stats together. These flags are mutually exclusive"}
 	}
 	if onlyStats && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
@@ -927,9 +931,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 				return
 			}
 
-			// Compute statistics from the SessionData
-			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent)
-			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+			// Compute and record statistics unless --no-stats was requested
+			if !noStats {
+				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent)
+				statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+			}
 
 			// In only-stats mode, skip file writes and cloud sync
 			if onlyStats {
@@ -1516,6 +1522,7 @@ func main() {
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
+	syncCmd.Flags().BoolVar(&noStats, "no-stats", noStats, "skip statistics entirely, do not read or write statistics.json")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
