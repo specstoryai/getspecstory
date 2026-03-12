@@ -101,6 +101,24 @@ func TestExtractWordsFromMessage(t *testing.T) {
 			maxWords: 4,
 			expected: []string{"visit", "https", "example", "com"},
 		},
+		{
+			name:     "Markdown heading stripped",
+			message:  "# Plan: Replace Gemini Watcher",
+			maxWords: 4,
+			expected: []string{"plan", "replace", "gemini", "watcher"},
+		},
+		{
+			name:     "Multi-level markdown heading stripped",
+			message:  "## Fix: Config Template Issue",
+			maxWords: 4,
+			expected: []string{"fix", "config", "template", "issue"},
+		},
+		{
+			name:     "Non-heading hash preserved",
+			message:  "Fix bug in #login component",
+			maxWords: 4,
+			expected: []string{"fix", "bug", "in", "hash"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -219,6 +237,11 @@ func TestGenerateFilenameFromUserMessage(t *testing.T) {
 			name:     "Code related",
 			message:  "Fix the bug in foo.bar() method",
 			expected: "fix-the-bug-in",
+		},
+		{
+			name:     "Markdown heading produces clean slug",
+			message:  "# Plan: Replace Gemini Watcher Polling",
+			expected: "plan-replace-gemini-watcher",
 		},
 	}
 
