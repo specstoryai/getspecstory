@@ -30,6 +30,15 @@ type CursorIDEWatcher struct {
 	lastThrottledCall time.Time        // Track last throttled call
 	pendingCheck      bool             // Whether a check is pending after throttle
 	fsWatcher         *fsnotify.Watcher
+	// pendingIncomplete tracks sessions whose last bubble is a user message with no agent
+	// response yet. Cursor writes the user bubble and updates lastUpdatedAt atomically,
+	// so the header count matches the loaded bubble count (the existing bubble-count guard
+	// passes), but the agent has not responded yet. We skip these sessions and retry on
+	// the next check. If a session stays incomplete beyond incompleteTimeout (e.g. the
+	// user abandoned the chat mid-flight and the agent never replied), we process it
+	// anyway so the markdown is not lost permanently.
+	pendingIncomplete map[string]time.Time // composerID -> time first seen as incomplete
+	incompleteTimeout time.Duration        // How long to wait before processing an incomplete session anyway
 }
 
 // NewCursorIDEWatcher creates a new watcher for Cursor IDE databases
@@ -78,6 +87,8 @@ func NewCursorIDEWatcher(
 		lastThrottledCall: time.Now(),
 		pendingCheck:      false,
 		fsWatcher:         fsWatcher,
+		pendingIncomplete: make(map[string]time.Time),
+		incompleteTimeout: 60 * time.Second,
 	}, nil
 }
 
@@ -342,6 +353,53 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 					"expectedBubbles", len(composer.FullConversationHeadersOnly),
 					"loadedBubbles", len(composer.Conversation))
 				continue
+			}
+
+			// Guard against a second race condition: the bubble count may match the header
+			// count (so the guard above passes), but the last committed bubble is a user
+			// message with no agent response yet. This happens because Cursor writes the
+			// user bubble and updates lastUpdatedAt in one step, before the agent has
+			// produced a reply. Processing now would generate markdown that is missing the
+			// agent response entirely.
+			//
+			// We skip the session and let knownComposers stay at the old timestamp so it
+			// is re-evaluated on the next check cycle (when the agent reply arrives).
+			// The pendingIncomplete map records when we first saw the session in this
+			// state. If the agent never replies (e.g. the user abandoned the chat),
+			// we process the session anyway after incompleteTimeout so the markdown is
+			// not lost permanently.
+			if len(composer.Conversation) > 0 {
+				lastBubble := &composer.Conversation[len(composer.Conversation)-1]
+				if lastBubble.Type == 1 {
+					w.mu.Lock()
+					firstSeen, alreadyPending := w.pendingIncomplete[composerID]
+					if !alreadyPending {
+						w.pendingIncomplete[composerID] = time.Now()
+						w.mu.Unlock()
+						slog.Warn("Last bubble is a user message (agent not yet responded), will retry on next check",
+							"composerID", composerID,
+							"lastBubbleID", lastBubble.BubbleID)
+						continue
+					}
+					if time.Since(firstSeen) < w.incompleteTimeout {
+						w.mu.Unlock()
+						slog.Warn("Still waiting for agent response, will retry on next check",
+							"composerID", composerID,
+							"waited", time.Since(firstSeen))
+						continue
+					}
+					// Timed out — the agent likely never replied; process anyway.
+					delete(w.pendingIncomplete, composerID)
+					w.mu.Unlock()
+					slog.Warn("Timed out waiting for agent response, processing incomplete session",
+						"composerID", composerID,
+						"waited", time.Since(firstSeen))
+				} else {
+					// Last bubble is an agent message — clear any stale pending state.
+					w.mu.Lock()
+					delete(w.pendingIncomplete, composerID)
+					w.mu.Unlock()
+				}
 			}
 
 			// Update known timestamp
