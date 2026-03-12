@@ -16,6 +16,19 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// xmlTagsRe matches XML-style tag blocks including their content, such as
+// <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
+// These are injected by IDE tools/system prompts and should be stripped before
+// processing user message text for filename or display purposes.
+var xmlTagsRe = regexp.MustCompile(`(?s)<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?>.*?</[a-zA-Z_][a-zA-Z0-9_-]*>|<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?/>`)
+
+// stripXMLTags removes XML-style tag blocks (and their content) from s and
+// returns the trimmed result. This cleans up injected IDE/system context that
+// precedes the real user message text.
+func stripXMLTags(s string) string {
+	return strings.TrimSpace(xmlTagsRe.ReplaceAllString(s, ""))
+}
+
 // stripMarkdownHeading removes leading markdown heading markers (e.g. "# Title" → "Title").
 // These are structural formatting, not meaningful slug content.
 func stripMarkdownHeading(message string) string {
@@ -64,14 +77,16 @@ func extractWordsFromMessage(message string, maxWords int) []string {
 	return words
 }
 
-// generateFilenameFromWords creates a filename from words, handling edge cases
+// generateFilenameFromWords creates a filename from words, handling edge cases.
+// Enforces lowercase to guarantee filesystem-safe, consistent filenames regardless
+// of how the words were prepared by the caller.
 func generateFilenameFromWords(words []string) string {
 	if len(words) == 0 {
 		return ""
 	}
 
-	// Join words with hyphens
-	filename := strings.Join(words, "-")
+	// Join words with hyphens and enforce lowercase as a safety guarantee
+	filename := strings.ToLower(strings.Join(words, "-"))
 
 	// Ensure no double hyphens
 	for strings.Contains(filename, "--") {
@@ -86,13 +101,18 @@ func generateFilenameFromWords(words []string) string {
 
 // GenerateFilenameFromUserMessage generates a filename based on the first user message content
 func GenerateFilenameFromUserMessage(message string) string {
-	words := extractWordsFromMessage(message, 4)
+	words := extractWordsFromMessage(stripXMLTags(message), 4)
 	return generateFilenameFromWords(words)
 }
 
 // GenerateReadableName creates a human-readable session name from a user message
 // The name is truncated to 100 characters at a word boundary and cleaned of excess whitespace
 func GenerateReadableName(message string) string {
+	if message == "" {
+		return ""
+	}
+
+	message = stripXMLTags(message)
 	if message == "" {
 		return ""
 	}
@@ -165,9 +185,10 @@ func GetCanonicalPath(p string) (string, error) {
 		// Successfully resolved symlinks - update p to the resolved path for case normalization
 		p = realPath
 	} else if err != nil {
-		// Symlink resolution failed (e.g., path doesn't exist yet),
-		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		// Symlink resolution failed (e.g., path doesn't exist yet, or Windows junction points).
+		// This is expected in normal operation — fall back to the original path and continue
+		// with case normalization below.
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 

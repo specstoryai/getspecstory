@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	gosync "sync"
 	"syscall"
@@ -79,7 +80,8 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			configDir, _ := cmd.Flags().GetString("config-dir")
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in watch mode")
 
 			registry := factory.GetRegistry()
@@ -106,6 +108,8 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 			// Ensure history directory exists for watch mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -118,7 +122,18 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+			// Read project identity override flags (inherited from root persistent flags)
+			projectPathOverride, _ := cmd.Flags().GetString("project-path")
+			gitOriginOverride, _ := cmd.Flags().GetString("git-origin")
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+				WithGitOrigin(gitOriginOverride)
+			if projectPathOverride != "" {
+				identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+			}
+			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
@@ -309,7 +324,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				provenance.ProcessEvents(ctx, provenanceEngine, sess)
 			}
 
-			return utils.WatchProviders(ctx, cwd, providers, debugRaw, sessionCallback)
+			return utils.WatchProviders(ctx, effectiveProjectPath, providers, debugRaw, sessionCallback)
 		},
 	}
 
@@ -317,6 +332,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
 	watchCmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
 	watchCmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	watchCmd.Flags().String("config-dir", "", "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	watchCmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	watchCmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
 	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")

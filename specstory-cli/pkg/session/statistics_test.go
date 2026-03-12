@@ -25,6 +25,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:15:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -48,6 +52,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:30:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "codex",
+					Name: "codex",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -81,6 +89,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:05:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "cursor",
+					Name: "Cursor",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -104,6 +116,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 				CreatedAt: "2026-02-09T09:00:00Z",
 				UpdatedAt: "",
 				Exchanges: []schema.Exchange{},
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 			},
 			markdownContent:   "",
 			providerID:        "claude",
@@ -118,6 +134,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 				CreatedAt: "2026-02-09T09:00:00Z",
 				UpdatedAt: "2026-02-09T09:30:00Z",
 				Exchanges: []schema.Exchange{},
+				Provider: schema.ProviderInfo{
+					ID:   "codex",
+					Name: "Codex",
+				},
 			},
 			markdownContent:   "# Empty",
 			providerID:        "codex",
@@ -131,6 +151,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "2026-02-09T10:20:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -153,6 +177,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T10:00:00Z",
 				UpdatedAt: "",
+				Provider: schema.ProviderInfo{
+					ID:   "cursor",
+					Name: "Cursor",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "2026-02-09T10:00:00Z",
@@ -175,6 +203,10 @@ func TestComputeSessionStatistics(t *testing.T) {
 			sessionData: &schema.SessionData{
 				CreatedAt: "2026-02-09T09:00:00Z",
 				UpdatedAt: "2026-02-09T10:00:00Z",
+				Provider: schema.ProviderInfo{
+					ID:   "claude",
+					Name: "Claude",
+				},
 				Exchanges: []schema.Exchange{
 					{
 						StartTime: "",
@@ -197,7 +229,7 @@ func TestComputeSessionStatistics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent, tt.providerID)
+			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent)
 
 			if stats.UserMessageCount != tt.expectedUserMsgs {
 				t.Errorf("UserMessageCount = %d, want %d", stats.UserMessageCount, tt.expectedUserMsgs)

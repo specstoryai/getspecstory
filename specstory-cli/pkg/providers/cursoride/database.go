@@ -10,6 +10,12 @@ import (
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
+// composerBatchSize is the maximum number of composer IDs per SQL query.
+// SQLite limits expression tree depth to ~1000. Each composer ID contributes
+// two expressions (one IN entry + one LIKE condition), so 200 IDs keeps us
+// well under that limit.
+const composerBatchSize = 200
+
 // OpenDatabase opens a SQLite database in read-only mode
 func OpenDatabase(dbPath string) (*sql.DB, error) {
 	// Open in read-only mode
@@ -93,9 +99,88 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 		}
 	}()
 
-	// Build SQL query with placeholders for composer IDs
-	// We need to query for both composerData:* keys and bubbleId:* keys
+	composers := make(map[string]*ComposerData)
+	bubbles := make(map[string]map[string]*ComposerConversation) // composerID -> bubbleID -> bubble
 
+	// Process IDs in chunks to stay within SQLite's expression tree depth limit.
+	// See composerBatchSize for the reasoning behind the chunk size.
+	for start := 0; start < len(composerIDs); start += composerBatchSize {
+		end := start + composerBatchSize
+		if end > len(composerIDs) {
+			end = len(composerIDs)
+		}
+		chunk := composerIDs[start:end]
+
+		slog.Debug("Processing composer chunk",
+			"start", start,
+			"end", end,
+			"total", len(composerIDs))
+
+		chunkComposers, chunkBubbles, err := queryComposerChunk(db, chunk)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query composer chunk [%d:%d]: %w", start, end, err)
+		}
+
+		// Merge chunk results into the overall maps
+		for id, c := range chunkComposers {
+			composers[id] = c
+		}
+		for id, b := range chunkBubbles {
+			bubbles[id] = b
+		}
+	}
+
+	// Assemble conversations: merge bubbles into composers
+	for composerID, composer := range composers {
+		if composerBubbles, exists := bubbles[composerID]; exists {
+			// If composer has fullConversationHeadersOnly, load those bubbles into conversation array
+			if len(composer.FullConversationHeadersOnly) > 0 {
+				composer.Conversation = make([]ComposerConversation, 0, len(composer.FullConversationHeadersOnly))
+				for _, header := range composer.FullConversationHeadersOnly {
+					if bubble, found := composerBubbles[header.BubbleID]; found {
+						composer.Conversation = append(composer.Conversation, *bubble)
+					}
+				}
+			} else if len(composer.Conversation) > 0 {
+				// Composer has a conversation array - merge individual bubble data into it
+				// The composerData record may have basic bubble info, but individual bubble
+				// records have the complete data (including thinking blocks)
+				for i := range composer.Conversation {
+					bubbleID := composer.Conversation[i].BubbleID
+					if fullBubble, found := composerBubbles[bubbleID]; found {
+						// Merge the full bubble data into the conversation array
+						// Keep the original if fields are not set in the full bubble
+						if fullBubble.Thinking != nil {
+							composer.Conversation[i].Thinking = fullBubble.Thinking
+						}
+						if fullBubble.Text != "" {
+							composer.Conversation[i].Text = fullBubble.Text
+						}
+						if fullBubble.TimingInfo != nil {
+							composer.Conversation[i].TimingInfo = fullBubble.TimingInfo
+						}
+						if fullBubble.ModelInfo != nil {
+							composer.Conversation[i].ModelInfo = fullBubble.ModelInfo
+						}
+						if fullBubble.ToolFormerData != nil {
+							composer.Conversation[i].ToolFormerData = fullBubble.ToolFormerData
+						}
+					}
+				}
+			}
+		}
+	}
+
+	slog.Info("Loaded composers from global database",
+		"composerCount", len(composers))
+
+	return composers, nil
+}
+
+// queryComposerChunk executes a single batch query for a slice of composer IDs against
+// an already-open database. It returns the raw composers and bubbles maps before assembly.
+// Callers are responsible for keeping the chunk size within SQLite's expression tree limit.
+func queryComposerChunk(db *sql.DB, composerIDs []string) (map[string]*ComposerData, map[string]map[string]*ComposerConversation, error) {
 	// Part 1: Build IN clause for composerData keys
 	composerDataKeys := make([]string, len(composerIDs))
 	composerDataPlaceholders := make([]string, len(composerIDs))
@@ -128,14 +213,12 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 		params = append(params, "bubbleId:"+id+":%")
 	}
 
-	slog.Debug("Executing batch query",
-		"composerCount", len(composerIDs),
-		"query", query)
+	slog.Debug("Executing batch query chunk",
+		"composerCount", len(composerIDs))
 
-	// Execute the query
 	rows, err := db.Query(query, params...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query composer data: %w", err)
+		return nil, nil, fmt.Errorf("failed to query composer data: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
@@ -143,7 +226,6 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 		}
 	}()
 
-	// Parse results
 	composers := make(map[string]*ComposerData)
 	bubbles := make(map[string]map[string]*ComposerConversation) // composerID -> bubbleID -> bubble
 
@@ -206,52 +288,8 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
+		return nil, nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	// Assemble conversations: merge bubbles into composers
-	for composerID, composer := range composers {
-		if composerBubbles, exists := bubbles[composerID]; exists {
-			// If composer has fullConversationHeadersOnly, load those bubbles into conversation array
-			if len(composer.FullConversationHeadersOnly) > 0 {
-				composer.Conversation = make([]ComposerConversation, 0, len(composer.FullConversationHeadersOnly))
-				for _, header := range composer.FullConversationHeadersOnly {
-					if bubble, found := composerBubbles[header.BubbleID]; found {
-						composer.Conversation = append(composer.Conversation, *bubble)
-					}
-				}
-			} else if len(composer.Conversation) > 0 {
-				// Composer has a conversation array - merge individual bubble data into it
-				// The composerData record may have basic bubble info, but individual bubble
-				// records have the complete data (including thinking blocks)
-				for i := range composer.Conversation {
-					bubbleID := composer.Conversation[i].BubbleID
-					if fullBubble, found := composerBubbles[bubbleID]; found {
-						// Merge the full bubble data into the conversation array
-						// Keep the original if fields are not set in the full bubble
-						if fullBubble.Thinking != nil {
-							composer.Conversation[i].Thinking = fullBubble.Thinking
-						}
-						if fullBubble.Text != "" {
-							composer.Conversation[i].Text = fullBubble.Text
-						}
-						if fullBubble.TimingInfo != nil {
-							composer.Conversation[i].TimingInfo = fullBubble.TimingInfo
-						}
-						if fullBubble.ModelInfo != nil {
-							composer.Conversation[i].ModelInfo = fullBubble.ModelInfo
-						}
-						if fullBubble.ToolFormerData != nil {
-							composer.Conversation[i].ToolFormerData = fullBubble.ToolFormerData
-						}
-					}
-				}
-			}
-		}
-	}
-
-	slog.Info("Loaded composers from global database",
-		"composerCount", len(composers))
-
-	return composers, nil
+	return composers, bubbles, nil
 }

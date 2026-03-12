@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -19,6 +20,7 @@ const STATISTICS_FILE = "statistics.json"
 type OutputConfig interface {
 	GetHistoryDir() string
 	GetDebugDir() string
+	GetSpecstoryDir() string
 }
 
 // OutputPathConfig manages all output directory configuration
@@ -29,6 +31,40 @@ type OutputPathConfig struct {
 
 // Ensure OutputPathConfig implements OutputConfig interface
 var _ OutputConfig = (*OutputPathConfig)(nil)
+
+// resolveDir converts dir to an absolute path, creates it if needed, and verifies it is writable.
+// Returns the resolved absolute path or an error.
+func resolveDir(dir string) (string, error) {
+	absPath, err := filepath.Abs(dir)
+	if err != nil {
+		return "", ValidationError{Message: fmt.Sprintf("invalid directory path: %v", err)}
+	}
+
+	info, err := os.Stat(absPath)
+	if err == nil {
+		if !info.IsDir() {
+			return "", ValidationError{Message: fmt.Sprintf("path exists but is not a directory: %s", absPath)}
+		}
+		// Verify write permission
+		if file, err := os.CreateTemp(absPath, ".specstory_write_test_*"); err != nil {
+			return "", ValidationError{Message: fmt.Sprintf("directory is not writable: %s", absPath)}
+		} else {
+			_ = file.Close()
+			_ = os.Remove(file.Name())
+		}
+		slog.Debug("Using existing directory", "path", absPath)
+	} else if os.IsNotExist(err) {
+		slog.Info("Creating directory", "path", absPath)
+		if err := os.MkdirAll(absPath, 0755); err != nil {
+			return "", ValidationError{Message: fmt.Sprintf("failed to create directory: %v", err)}
+		}
+		slog.Info("Created directory", "path", absPath)
+	} else {
+		return "", ValidationError{Message: fmt.Sprintf("error checking directory: %v", err)}
+	}
+
+	return absPath, nil
+}
 
 // ExpandTilde expands a leading ~ to the user's home directory.
 // Go's filepath.Abs does not handle ~ — it treats it as a literal directory name.
@@ -49,39 +85,9 @@ func ExpandTilde(path string) string {
 func validateDirectory(dir, label string) (string, error) {
 	// Expand ~ to home directory before converting to absolute
 	dir = ExpandTilde(dir)
-
-	// Convert to absolute path if relative
-	absPath, err := filepath.Abs(dir)
+	absPath, err := resolveDir(dir)
 	if err != nil {
-		return "", ValidationError{Message: fmt.Sprintf("invalid %s path: %v", label, err)}
-	}
-
-	// Check if path exists
-	info, err := os.Stat(absPath)
-	if err == nil {
-		// Path exists, check if it's a directory
-		if !info.IsDir() {
-			return "", ValidationError{Message: fmt.Sprintf("%s exists but is not a directory: %s", label, absPath)}
-		}
-		// Check write permissions by attempting to create a temp file
-		if file, err := os.CreateTemp(absPath, ".specstory_write_test_*"); err != nil {
-			return "", ValidationError{Message: fmt.Sprintf("%s is not writable: %s", label, absPath)}
-		} else {
-			// Clean up test file
-			_ = file.Close()
-			_ = os.Remove(file.Name())
-		}
-		slog.Debug("Using existing directory", "label", label, "path", absPath)
-	} else if os.IsNotExist(err) {
-		// Path doesn't exist, try to create it
-		slog.Debug("Creating directory", "label", label, "path", absPath)
-		if err := os.MkdirAll(absPath, 0755); err != nil {
-			return "", ValidationError{Message: fmt.Sprintf("failed to create %s: %v", label, err)}
-		}
-		slog.Debug("Created directory", "label", label, "path", absPath)
-	} else {
-		// Some other error occurred
-		return "", ValidationError{Message: fmt.Sprintf("error checking %s: %v", label, err)}
+		return "", fmt.Errorf("invalid %s: %w", label, err)
 	}
 
 	return absPath, nil
@@ -112,7 +118,8 @@ func NewOutputPathConfig(dir string, debugDir string) (*OutputPathConfig, error)
 	return config, nil
 }
 
-// getBasePath returns the base path for specstory files
+// getBasePath returns the base directory for all non-history outputs (.project.json, statistics.json, debug/).
+// When --output-dir is set it uses that directory; otherwise falls back to {cwd}/.specstory.
 func (c *OutputPathConfig) getBasePath() string {
 	if c.BaseDir != "" {
 		return c.BaseDir
@@ -124,13 +131,14 @@ func (c *OutputPathConfig) getBasePath() string {
 	return filepath.Join(cwd, SPECSTORY_DIR)
 }
 
-// GetHistoryDir returns the history directory path
+// GetHistoryDir returns the directory where markdown files are written.
+// When --output-dir is set, markdown files go directly in that directory (no history/ subfolder).
+// Otherwise they live in {cwd}/.specstory/history/.
 func (c *OutputPathConfig) GetHistoryDir() string {
-	basePath := c.getBasePath()
 	if c.BaseDir != "" {
-		return basePath
+		return c.BaseDir
 	}
-	return filepath.Join(basePath, HISTORY_DIR)
+	return filepath.Join(c.getBasePath(), HISTORY_DIR)
 }
 
 // GetDebugDir returns the debug directory path.
@@ -140,6 +148,12 @@ func (c *OutputPathConfig) GetDebugDir() string {
 		return c.DebugBaseDir
 	}
 	return filepath.Join(c.getBasePath(), DEBUG_DIR)
+}
+
+// GetSpecstoryDir returns the base directory for .project.json, statistics.json, and debug/.
+// When --output-dir is set this returns that directory; otherwise returns {cwd}/.specstory.
+func (c *OutputPathConfig) GetSpecstoryDir() string {
+	return c.getBasePath()
 }
 
 // GetLogPath returns the debug log file path
@@ -195,6 +209,31 @@ func SetupOutputConfig(outputDir string, debugDir string) (*OutputPathConfig, er
 		return nil, err
 	}
 	return config, nil
+}
+
+// ResolveProjectPath returns the effective project path for session discovery.
+// When overridePath is provided, it is resolved to an absolute path and returned.
+// Falls back to cwd when overridePath is empty or cannot be resolved.
+func ResolveProjectPath(overridePath, cwd string) string {
+	if overridePath == "" {
+		return cwd
+	}
+
+	// On Windows, VS Code's fsPath returns Unix-style paths (e.g. /home/user/project)
+	// or backslash paths without a drive letter (e.g. \home\user\project) for WSL and
+	// SSH remote workspaces. filepath.Abs would corrupt these by prepending the current
+	// drive letter (e.g. C:\home\user\project), so we return them as-is.
+	if runtime.GOOS == "windows" && filepath.VolumeName(overridePath) == "" &&
+		(strings.HasPrefix(overridePath, "/") || strings.HasPrefix(overridePath, `\`)) {
+		return filepath.Clean(overridePath)
+	}
+
+	abs, err := filepath.Abs(overridePath)
+	if err != nil {
+		slog.Warn("ResolveProjectPath: Failed to resolve override path, using cwd", "path", overridePath, "error", err)
+		return cwd
+	}
+	return abs
 }
 
 // GetAuthPath returns the path to the auth.json file
