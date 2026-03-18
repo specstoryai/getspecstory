@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v1.12.0 2026-03-18
+
+### ⚙️ Improvements
+
+- Improve markdown file naming accuracy for the Claude Code provider by filtering additional system-injected messages from slug generation.
+
 ## v1.11.0 2026-03-02
 
 ### 📢 Announcements
