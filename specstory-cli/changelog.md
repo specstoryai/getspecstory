@@ -5,6 +5,7 @@
 ### ⚙️ Improvements
 
 - Improve markdown file naming accuracy for the Claude Code provider by filtering additional system-injected messages from slug generation.
+- Ensure all markdown file names are lower case for consistency.
 
 ## v1.11.0 2026-03-02
 
