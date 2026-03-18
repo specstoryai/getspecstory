@@ -16,19 +16,6 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// xmlTagsRe matches XML-style tag blocks including their content, such as
-// <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
-// These are injected by IDE tools/system prompts and should be stripped before
-// processing user message text for filename or display purposes.
-var xmlTagsRe = regexp.MustCompile(`(?s)<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?>.*?</[a-zA-Z_][a-zA-Z0-9_-]*>|<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?/>`)
-
-// stripXMLTags removes XML-style tag blocks (and their content) from s and
-// returns the trimmed result. This cleans up injected IDE/system context that
-// precedes the real user message text.
-func stripXMLTags(s string) string {
-	return strings.TrimSpace(xmlTagsRe.ReplaceAllString(s, ""))
-}
-
 // stripMarkdownHeading removes leading markdown heading markers (e.g. "# Title" → "Title").
 // These are structural formatting, not meaningful slug content.
 func stripMarkdownHeading(message string) string {
@@ -38,6 +25,35 @@ func stripMarkdownHeading(message string) string {
 		trimmed = strings.TrimSpace(trimmed)
 	}
 	return trimmed
+}
+
+// xmlTagsRe matches XML-style tag blocks including their content, such as
+// <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
+// These are injected by IDE tools/system prompts and should be stripped before
+// processing user message text for filename or display purposes.
+//
+// The regex has two alternations:
+//   - <tag ...>content</tag>  — matched with (?s) so . spans newlines; uses .*? (lazy)
+//     to consume the shortest content between matching open/close tags.
+//   - <tag ... />             — self-closing tags.
+//
+// Known limitation: nested tags with the same name (e.g. <t><t>x</t></t>) will
+// only match up to the first closing tag, leaving a dangling </t>. This is
+// acceptable because IDE-injected tags are not nested this way.
+var xmlTagsRe = regexp.MustCompile(`(?s)<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?>.*?</[a-zA-Z_][a-zA-Z0-9_-]*>|<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s[^>]*)?/>`)
+
+// whitespaceRe collapses any run of Unicode whitespace into a single space.
+var whitespaceRe = regexp.MustCompile(`\s+`)
+
+// stripXMLTags removes XML-style tag blocks (and their content) from s and
+// returns the trimmed result with normalized whitespace. This cleans up injected
+// IDE/system context that precedes the real user message text while preserving
+// word boundaries where tags appeared between tokens.
+func stripXMLTags(s string) string {
+	cleaned := xmlTagsRe.ReplaceAllString(s, " ")
+	cleaned = strings.TrimSpace(cleaned)
+	cleaned = whitespaceRe.ReplaceAllString(cleaned, " ")
+	return cleaned
 }
 
 // extractWordsFromMessage extracts up to maxWords from the message, handling various edge cases

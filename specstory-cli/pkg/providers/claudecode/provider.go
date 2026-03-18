@@ -493,6 +493,23 @@ func isSyntheticMessage(content string) bool {
 	return false
 }
 
+// cleanSyntheticPrefixes strips known boilerplate prefixes that Claude Code
+// prepends to user messages (e.g. plan mode). The real user content follows
+// the prefix, so we strip rather than skip the message entirely.
+func cleanSyntheticPrefixes(content string) string {
+	prefixes := []string{
+		"Implement the following plan:",
+	}
+	trimmed := strings.TrimSpace(content)
+	lower := strings.ToLower(trimmed)
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(lower, strings.ToLower(prefix)) {
+			return strings.TrimSpace(trimmed[len(prefix):])
+		}
+	}
+	return content
+}
+
 // extractContentText extracts plain text from a message content field.
 // The content field may be either a plain string or a JSON array of typed content
 // blocks (e.g. [{type:"text",text:"..."},{type:"tool_use",...}]).
@@ -514,27 +531,13 @@ func extractContentText(content interface{}) string {
 				}
 			}
 		}
+		slog.Debug("extractContentText: extracted text from content block array",
+			"blockCount", len(v),
+			"textParts", len(parts))
 		return strings.Join(parts, "\n")
 	default:
 		return ""
 	}
-}
-
-// cleanSyntheticPrefixes strips known boilerplate prefixes that Claude Code
-// prepends to user messages (e.g. plan mode). The real user content follows
-// the prefix, so we strip rather than skip the message entirely.
-func cleanSyntheticPrefixes(content string) string {
-	prefixes := []string{
-		"Implement the following plan:",
-	}
-	trimmed := strings.TrimSpace(content)
-	lower := strings.ToLower(trimmed)
-	for _, prefix := range prefixes {
-		if strings.HasPrefix(lower, strings.ToLower(prefix)) {
-			return strings.TrimSpace(trimmed[len(prefix):])
-		}
-	}
-	return content
 }
 
 // findFirstUserMessage finds the first user message in a session for slug generation
@@ -704,7 +707,7 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								content := extractContentText(message["content"])
 								if content != "" {
-									// Skip messages containing "warmup"
+									// Skip synthetic messages (warmup, title generation prompts, etc.)
 									if !isSyntheticMessage(content) {
 										firstUserMessage = cleanSyntheticPrefixes(content)
 									}

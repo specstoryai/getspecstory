@@ -249,6 +249,21 @@ func TestGenerateFilenameFromUserMessage(t *testing.T) {
 			expected: "fix-the-bug-in",
 		},
 		{
+			name:     "Markdown heading produces clean slug",
+			message:  "# Plan: Replace Gemini Watcher Polling",
+			expected: "plan-replace-gemini-watcher",
+		},
+		{
+			name:     "Uppercase message produces lowercase filename",
+			message:  "Create A New Feature",
+			expected: "create-a-new-feature",
+		},
+		{
+			name:     "All caps message produces lowercase filename",
+			message:  "IMPLEMENT THE LOGIN HANDLER NOW",
+			expected: "implement-the-login-handler",
+		},
+		{
 			name:     "IDE tag prefix before real message",
 			message:  "<ide_opened_file>The user opened the file /Users/foo/bar.go in the IDE.</ide_opened_file>\n\nThe @specstory-cli/ is a go CLI that reads the AI chats",
 			expected: "the-at-specstory-cli",
@@ -262,21 +277,6 @@ func TestGenerateFilenameFromUserMessage(t *testing.T) {
 			name:     "Multiple IDE tags before real message",
 			message:  "<ide_opened_file>foo.go</ide_opened_file>\n<ide_selection>some code</ide_selection>\n\nFix the bug in the login handler",
 			expected: "fix-the-bug-in",
-		},
-		{
-			name:     "Uppercase message produces lowercase filename",
-			message:  "Create A New Feature",
-			expected: "create-a-new-feature",
-		},
-		{
-			name:     "All caps message produces lowercase filename",
-			message:  "IMPLEMENT THE LOGIN HANDLER NOW",
-			expected: "implement-the-login-handler",
-		},
-		{
-			name:     "Markdown heading produces clean slug",
-			message:  "# Plan: Replace Gemini Watcher Polling",
-			expected: "plan-replace-gemini-watcher",
 		},
 	}
 
