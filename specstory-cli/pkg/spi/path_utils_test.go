@@ -341,6 +341,21 @@ func TestGenerateReadableName(t *testing.T) {
 			message:  "Hello\tworld\n\nHow\t\tare   you?",
 			expected: "Hello world How are you?",
 		},
+		{
+			name:     "IDE tag prefix stripped before real message",
+			message:  "<ide_opened_file>The user opened /Users/foo/bar.go</ide_opened_file>\n\nFix the login bug",
+			expected: "Fix the login bug",
+		},
+		{
+			name:     "Only IDE tags returns empty",
+			message:  "<ide_opened_file>bar.go</ide_opened_file>",
+			expected: "",
+		},
+		{
+			name:     "Multiple IDE tags stripped before real message",
+			message:  "<ide_opened_file>foo.go</ide_opened_file>\n<ide_selection>some code</ide_selection>\n\nRefactor the auth module",
+			expected: "Refactor the auth module",
+		},
 	}
 
 	for _, tt := range tests {
