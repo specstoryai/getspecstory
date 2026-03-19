@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // isWSL checks if the current Linux environment is actually WSL
@@ -135,9 +137,10 @@ func GetStateFilePath(workspaceDir, sessionID string) string {
 	return filepath.Join(GetChatEditingSessionsPath(workspaceDir), sessionID, "state.json")
 }
 
-// EnsureDebugDirectory creates the debug directory for a session
+// EnsureDebugDirectory creates the debug directory for a session.
+// It respects the --debug-dir flag override via spi.GetDebugDir.
 func EnsureDebugDirectory(sessionID string) (string, error) {
-	debugDir := filepath.Join(".specstory", "debug", sessionID)
+	debugDir := spi.GetDebugDir(sessionID)
 	if err := os.MkdirAll(debugDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create debug directory: %w", err)
 	}
