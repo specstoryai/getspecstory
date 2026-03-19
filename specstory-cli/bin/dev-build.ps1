@@ -2,7 +2,9 @@
 # Run from anywhere.
 
 param(
-    [string]$OutputRelativePath = "dist"
+    [string]$OutputRelativePath = "dist",
+    # Version to embed in the binary; empty string if not provided
+    [string]$Version = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -19,8 +21,9 @@ Set-Location $CliDir
 New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
 Get-ChildItem -Path $DestDir -Filter "specstory_*" | Remove-Item -Force
 
-$version = $env:VERSION
-if (-not $version) {
+if ($Version) {
+    $version = $Version
+} else {
     $version = git describe --tags --always --dirty 2>$null
     if (-not $version) { $version = "dev" }
 }

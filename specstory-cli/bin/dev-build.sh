@@ -7,6 +7,8 @@ set -e
 # Output path: relative to CWD (where you run the script), default dist
 OUTPUT_RELATIVE_PATH=${1:-dist}
 OUTPUT_RELATIVE_PATH="${OUTPUT_RELATIVE_PATH#/}"  # strip leading slash to avoid // when joining
+# Version to embed in the binary; falls back to git tag or "dev"
+VERSION="${2:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
 START_DIR="$(pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLI_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -16,7 +18,6 @@ cd "$CLI_DIR"
 mkdir -p "$DEST_DIR"
 rm -f "$DEST_DIR"/specstory_*
 
-VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo "dev")}"
 LDFLAGS="-s -w -X main.version=$VERSION -X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=${POSTHOG_API_KEY:-}"
 
 # os goarch filename_arch
