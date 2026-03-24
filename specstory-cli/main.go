@@ -564,14 +564,16 @@ Provide a specific agent ID to sync a specific provider.`
 			slog.Info("Running sync command")
 			registry := factory.GetRegistry()
 
-			// Check if user specified a provider
-			if len(args) > 0 {
-				// Sync specific provider
-				return syncSingleProvider(registry, args[0], cmd)
-			} else {
-				// Sync all providers with activity
-				return syncAllProviders(registry, cmd)
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := cmdpkg.ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
 			}
+
+			if len(resolvedIDs) == 1 {
+				return syncSingleProvider(registry, resolvedIDs[0], cmd)
+			}
+			return syncAllProviders(registry, cmd, resolvedIDs)
 		},
 	}
 }
@@ -1025,7 +1027,9 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 }
 
 // syncAllProviders syncs all providers that have activity in the current directory
-func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
+// syncAllProviders syncs all (or a filtered subset of) providers that have activity.
+// filterIDs, if non-nil, limits which providers are synced; nil means sync all registered providers.
+func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs []string) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useUTC := !localTimeZone
@@ -1037,6 +1041,9 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	}
 
 	providerIDs := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		providerIDs = filterIDs
+	}
 	providersWithActivity := []string{}
 
 	// Check each provider for activity
@@ -1479,6 +1486,7 @@ func main() {
 	syncCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	syncCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
