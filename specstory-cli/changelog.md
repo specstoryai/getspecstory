@@ -1,11 +1,12 @@
 # Specstory CLI Changelog
 
-## v1.12.0 2026-03-18
+## v1.12.0 2026-03-19
 
 ### ⚙️ Improvements
 
 - Improve markdown file naming accuracy for the Claude Code provider by filtering additional system-injected messages from slug generation.
 - Ensure all markdown file names are lower case for consistency.
+- Better efficiency by the Factory Droid CLI provider during `specstory watch` and `specstory watch droid` commands.
 
 ## v1.11.0 2026-03-02
 

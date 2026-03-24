@@ -104,14 +104,21 @@ Provide a specific agent ID to list sessions from only that provider.`
 				"projectPathOverride", projectPathOverride,
 				"effectiveProjectPath", effectiveProjectPath)
 
-			if len(args) > 0 {
-				return listSingleProvider(registry, args[0], effectiveProjectPath)
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
 			}
-			return listAllProviders(registry, effectiveProjectPath)
+
+			if len(resolvedIDs) == 1 {
+				return listSingleProvider(registry, resolvedIDs[0], effectiveProjectPath)
+			}
+			return listAllProviders(registry, resolvedIDs, effectiveProjectPath)
 		},
 	}
 
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Output as JSON (default is human-readable table)")
+	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
 
 	return cmd
 }
@@ -169,9 +176,13 @@ func listSingleProvider(registry *factory.Registry, providerID string, projectPa
 	return nil
 }
 
-// listAllProviders lists sessions from all providers that have activity.
-func listAllProviders(registry *factory.Registry, projectPath string) error {
+// listAllProviders lists sessions from all (or a filtered subset of) providers that have activity.
+// filterIDs, if non-nil, limits which providers are checked; nil means check all registered providers.
+func listAllProviders(registry *factory.Registry, filterIDs []string, projectPath string) error {
 	providerIDs := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		providerIDs = filterIDs
+	}
 	providersWithActivity := []string{}
 
 	for _, id := range providerIDs {
