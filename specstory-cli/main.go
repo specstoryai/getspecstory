@@ -1054,8 +1054,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	return sessionCount, nil
 }
 
-// syncAllProviders syncs all providers that have activity in the current directory
-// syncAllProviders syncs all (or a filtered subset of) providers that have activity.
+// syncAllProviders syncs all (or a filtered subset of) providers that have activity in the current directory
 // filterIDs, if non-nil, limits which providers are synced; nil means sync all registered providers.
 func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs []string) error {
 	// Get debug-raw flag value

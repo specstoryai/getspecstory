@@ -177,7 +177,7 @@ func listSingleProvider(registry *factory.Registry, providerID string, projectPa
 }
 
 // listAllProviders lists sessions from all (or a filtered subset of) providers that have activity.
-// filterIDs, if non-nil, limits which providers are checked; nil means check all registered providers.
+// filterIDs, if non-empty, limits which providers are checked; nil or empty means check all registered providers.
 func listAllProviders(registry *factory.Registry, filterIDs []string, projectPath string) error {
 	providerIDs := registry.ListIDs()
 	if len(filterIDs) > 0 {

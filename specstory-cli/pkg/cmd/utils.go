@@ -30,8 +30,9 @@ func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag
 
 	if hasProvidersFlag {
 		ids := make([]string, 0, len(providersFlag))
+		seen := make(map[string]bool, len(providersFlag))
 		for _, id := range providersFlag {
-			id = strings.TrimSpace(id)
+			id = strings.TrimSpace(strings.ToLower(id))
 			if id == "" {
 				continue
 			}
@@ -40,7 +41,11 @@ func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag
 					Message: fmt.Sprintf("'%s' is not a valid provider ID.\nAvailable providers: %s", id, registry.GetProviderList()),
 				}
 			}
-			ids = append(ids, strings.ToLower(id))
+			// Deduplicate while preserving the order of first occurrence
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
 		}
 		if len(ids) == 0 {
 			return nil, utils.ValidationError{Message: "--providers requires at least one provider ID"}

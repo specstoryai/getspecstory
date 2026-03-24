@@ -162,7 +162,7 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 }
 
 // checkAllProviders checks all (or a filtered subset of) registered providers.
-// filterIDs, if non-nil, limits which providers are checked; nil means check all.
+// filterIDs, if non-empty, limits which providers are checked; nil or empty means check all.
 func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 	ids := registry.ListIDs()
 	if len(filterIDs) > 0 {
