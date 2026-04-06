@@ -5,8 +5,66 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+// nonAlphanumericDash matches any character that is not alphanumeric or a dash,
+// mirroring the naming convention Factory CLI uses for session subdirectories.
+var nonAlphanumericDash = regexp.MustCompile(`[^a-zA-Z0-9-]`)
+
+// projectPathToSessionDirName converts a project path to the factory session directory name.
+// Factory CLI uses the same convention as Claude Code: non-alphanumeric characters (except
+// dashes) are replaced with dashes, and a leading dash is prepended.
+func projectPathToSessionDirName(projectPath string) string {
+	name := nonAlphanumericDash.ReplaceAllString(projectPath, "-")
+	if !strings.HasPrefix(name, "-") {
+		name = "-" + name
+	}
+	return name
+}
+
+// resolveProjectSessionDir returns the factory sessions subdirectory for a specific project path.
+// Returns "" if projectPath is empty (caller should watch all sessions).
+func resolveProjectSessionDir(projectPath string) (string, error) {
+	if strings.TrimSpace(projectPath) == "" {
+		return "", nil
+	}
+
+	// Canonicalize the path to match Factory CLI's real-path behaviour, resolving both
+	// symlinks and case differences (important on macOS's case-insensitive filesystem,
+	// where os.Getwd may return a different case than what the CLI recorded on disk).
+	realPath, err := spi.GetCanonicalPath(projectPath)
+	if err != nil {
+		// Path may not exist yet; proceed with the given path.
+		realPath = projectPath
+	}
+
+	sessionsDir, err := resolveSessionsDir()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(sessionsDir, projectPathToSessionDirName(realPath)), nil
+}
+
+// isTargetProjectDir returns true if path is a session directory that should be watched.
+// When projectPath is set, only the project's derived directory qualifies; otherwise
+// all directories qualify (the no-filter / sync-all case).
+func isTargetProjectDir(path, projectPath string) bool {
+	if projectPath == "" {
+		return true
+	}
+	expected, err := resolveProjectSessionDir(projectPath)
+	if err != nil || expected == "" {
+		// Can't derive expected dir; allow everything to avoid missing sessions.
+		return true
+	}
+	return path == expected
+}
 
 const (
 	factoryRootDir     = ".factory"
