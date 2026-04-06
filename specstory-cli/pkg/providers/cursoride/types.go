@@ -101,9 +101,11 @@ type ToolInvocationData struct {
 }
 
 // WorkspaceComposerRefs represents the workspace-specific composer references
-// Stored in workspace database with key "composer.composerData"
+// Stored in workspace database with key "composer.composerData".
+// Cursor 2 used allComposers; Cursor 3 uses selectedComposerIds (currently-open tabs only).
 type WorkspaceComposerRefs struct {
-	AllComposers []ComposerRef `json:"allComposers"`
+	AllComposers        []ComposerRef `json:"allComposers"`        // Cursor 2 format
+	SelectedComposerIds []string      `json:"selectedComposerIds"` // Cursor 3 format
 }
 
 // ComposerRef is a reference to a composer ID in the workspace
