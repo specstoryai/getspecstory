@@ -38,8 +38,16 @@ func OpenDatabase(dbPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-// LoadWorkspaceComposerIDs loads the composer IDs from a workspace database
-// Returns a list of composer IDs that belong to this workspace
+// LoadWorkspaceComposerIDs loads the composer IDs from a workspace database.
+// Uses two complementary sources to handle both Cursor 2 and Cursor 3:
+//
+//  1. "composer.composerData" in ItemTable — Cursor 2 stores all IDs here (allComposers);
+//     Cursor 3 stores only currently-open tabs (selectedComposerIds).
+//
+//  2. "workbench.panel.composerChatViewPane.*" in ItemTable — each entry's JSON value
+//     contains keys of the form "workbench.panel.aichat.view.{UUID}" where the UUID is
+//     the actual composer ID. This is the complete source in Cursor 3 and also present
+//     in Cursor 2, so it works across both versions.
 func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 	db, err := OpenDatabase(workspaceDbPath)
 	if err != nil {
@@ -51,28 +59,78 @@ func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 		}
 	}()
 
-	// Query for the composer.composerData key in the ItemTable
+	seen := make(map[string]bool)
+	var composerIDs []string
+
+	// Method 1: composer.composerData key (Cursor 2: allComposers, Cursor 3: selectedComposerIds)
 	var valueJSON string
 	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", "composer.composerData").Scan(&valueJSON)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			// No composer data in this workspace
-			slog.Debug("No composer data found in workspace database")
-			return []string{}, nil
+	if err != nil && err != sql.ErrNoRows {
+		slog.Warn("Failed to query workspace composer data", "error", err)
+	} else if err == nil {
+		var composerRefs WorkspaceComposerRefs
+		if jsonErr := json.Unmarshal([]byte(valueJSON), &composerRefs); jsonErr != nil {
+			slog.Warn("Failed to parse workspace composer refs", "error", jsonErr)
+		} else {
+			for _, ref := range composerRefs.AllComposers {
+				if !seen[ref.ComposerID] {
+					seen[ref.ComposerID] = true
+					composerIDs = append(composerIDs, ref.ComposerID)
+				}
+			}
+			for _, id := range composerRefs.SelectedComposerIds {
+				if !seen[id] {
+					seen[id] = true
+					composerIDs = append(composerIDs, id)
+				}
+			}
 		}
-		return nil, fmt.Errorf("failed to query workspace composer data: %w", err)
 	}
 
-	// Parse the JSON value
-	var composerRefs WorkspaceComposerRefs
-	if err := json.Unmarshal([]byte(valueJSON), &composerRefs); err != nil {
-		return nil, fmt.Errorf("failed to parse workspace composer refs: %w", err)
-	}
+	// Method 2: workbench.panel.composerChatViewPane entries
+	// In Cursor 3 these are the authoritative source for all conversation IDs.
+	// Each JSON value is a map whose keys follow the pattern
+	// "workbench.panel.aichat.view.{composerUUID}".
+	// Two key formats exist:
+	//   - "workbench.panel.composerChatViewPane" (no suffix) — the main panel shared by all tabs
+	//   - "workbench.panel.composerChatViewPane.{paneUUID}" — one entry per open tab/pane
+	rows, queryErr := db.Query(
+		"SELECT value FROM ItemTable WHERE (key = 'workbench.panel.composerChatViewPane' OR (key LIKE 'workbench.panel.composerChatViewPane.%' AND key NOT LIKE '%.hidden'))",
+	)
+	if queryErr != nil {
+		slog.Warn("Failed to query workspace panel entries", "error", queryErr)
+	} else {
+		defer func() {
+			if closeErr := rows.Close(); closeErr != nil {
+				slog.Warn("Failed to close panel query rows", "error", closeErr)
+			}
+		}()
 
-	// Extract composer IDs
-	composerIDs := make([]string, 0, len(composerRefs.AllComposers))
-	for _, ref := range composerRefs.AllComposers {
-		composerIDs = append(composerIDs, ref.ComposerID)
+		const viewPrefix = "workbench.panel.aichat.view."
+		for rows.Next() {
+			var panelJSON string
+			if scanErr := rows.Scan(&panelJSON); scanErr != nil {
+				slog.Warn("Failed to scan panel row", "error", scanErr)
+				continue
+			}
+			var panelData map[string]interface{}
+			if jsonErr := json.Unmarshal([]byte(panelJSON), &panelData); jsonErr != nil {
+				slog.Warn("Failed to parse panel JSON", "error", jsonErr)
+				continue
+			}
+			for key := range panelData {
+				if strings.HasPrefix(key, viewPrefix) {
+					composerID := strings.TrimPrefix(key, viewPrefix)
+					if !seen[composerID] {
+						seen[composerID] = true
+						composerIDs = append(composerIDs, composerID)
+					}
+				}
+			}
+		}
+		if rowsErr := rows.Err(); rowsErr != nil {
+			slog.Warn("Error iterating panel rows", "error", rowsErr)
+		}
 	}
 
 	slog.Debug("Loaded composer IDs from workspace",
