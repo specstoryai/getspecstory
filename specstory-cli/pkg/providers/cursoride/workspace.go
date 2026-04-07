@@ -331,6 +331,21 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 			}
 		}
 
+		// Method 3: Code workspace file matching.
+		// When Cursor IDE is opened via a .code-workspace file, the workspace.json stores
+		// the workspace file URI rather than the folder URI. Check whether that workspace
+		// file lists our target folder as one of its folders.
+		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+				isMatch = true
+				slog.Debug("Matched workspace by .code-workspace folder reference",
+					"workspaceID", workspaceID,
+					"workspaceFile", canonicalWorkspacePath,
+					"targetFolder", canonicalProjectPath)
+			}
+		}
+
+
 		if isMatch {
 			dbPath := filepath.Join(workspacePath, "state.vscdb")
 			if _, err := os.Stat(dbPath); err != nil {
@@ -465,6 +480,56 @@ func uriToPath(uri string) (string, error) {
 
 	return path, nil
 }
+
+// codeWorkspaceContainsFolder reads a .code-workspace JSON file and checks whether
+// any of its folder entries resolves to canonicalFolder. This is used to find
+// workspaces that were opened via a .code-workspace file referencing the target folder.
+func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
+	data, err := os.ReadFile(workspaceFilePath)
+	if err != nil {
+		slog.Debug("codeWorkspaceContainsFolder: failed to read workspace file",
+			"path", workspaceFilePath, "error", err)
+		return false
+	}
+
+	var workspace struct {
+		Folders []struct {
+			Path string `json:"path"`
+		} `json:"folders"`
+	}
+	if err := json.Unmarshal(data, &workspace); err != nil {
+		slog.Debug("codeWorkspaceContainsFolder: failed to parse workspace file",
+			"path", workspaceFilePath, "error", err)
+		return false
+	}
+
+	workspaceDir := filepath.Dir(workspaceFilePath)
+	for _, folder := range workspace.Folders {
+		if folder.Path == "" {
+			continue
+		}
+
+		// Resolve relative paths against the workspace file's directory.
+		var resolved string
+		if filepath.IsAbs(folder.Path) {
+			resolved = folder.Path
+		} else {
+			resolved = filepath.Join(workspaceDir, folder.Path)
+		}
+
+		canonical, err := normalizePathForComparison(resolved)
+		if err != nil {
+			canonical = filepath.Clean(resolved)
+		}
+
+		if canonical == canonicalFolder {
+			return true
+		}
+	}
+
+	return false
+}
+
 
 // parseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI.
 // Handles two types of remote URIs:

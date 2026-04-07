@@ -1,6 +1,8 @@
 package cursoride
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -264,6 +266,89 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 		})
 	}
 }
+
+func TestCodeWorkspaceContainsFolder(t *testing.T) {
+	// Create a temporary directory structure.
+	tmpDir, err := os.MkdirTemp("", "workspace-contains-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	// Create the target project folder.
+	projectDir := filepath.Join(tmpDir, "my-project")
+	if err := os.Mkdir(projectDir, 0755); err != nil {
+		t.Fatalf("Failed to create project dir: %v", err)
+	}
+	// Resolve symlinks so the canonical path matches what normalizePathForComparison returns
+	// (e.g. /var → /private/var on macOS).
+	canonicalProjectDir, err := filepath.EvalSymlinks(projectDir)
+	if err != nil {
+		canonicalProjectDir = projectDir
+	}
+
+	// Create a workspace file in a sibling directory (common real-world pattern).
+	workspacesDir := filepath.Join(tmpDir, "workspaces")
+	if err := os.Mkdir(workspacesDir, 0755); err != nil {
+		t.Fatalf("Failed to create workspaces dir: %v", err)
+	}
+	workspaceFile := filepath.Join(workspacesDir, "my-project.code-workspace")
+
+	writeWorkspaceFile := func(content string) {
+		if err := os.WriteFile(workspaceFile, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write workspace file: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name             string
+		workspaceContent string
+		targetFolder     string
+		expected         bool
+	}{
+		{
+			name:             "relative path that resolves to target folder",
+			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
+			targetFolder:     canonicalProjectDir,
+			expected:         true,
+		},
+		{
+			name:             "absolute path matching target folder",
+			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
+			targetFolder:     canonicalProjectDir,
+			expected:         true,
+		},
+		{
+			name:             "no folders entry matching target",
+			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
+			targetFolder:     canonicalProjectDir,
+			expected:         false,
+		},
+		{
+			name:             "empty folders array",
+			workspaceContent: `{"folders": []}`,
+			targetFolder:     canonicalProjectDir,
+			expected:         false,
+		},
+		{
+			name:             "malformed JSON",
+			workspaceContent: `not json`,
+			targetFolder:     canonicalProjectDir,
+			expected:         false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			writeWorkspaceFile(tt.workspaceContent)
+			result := codeWorkspaceContainsFolder(workspaceFile, tt.targetFolder)
+			if result != tt.expected {
+				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 
 // contains checks if s contains substr (simple helper to avoid importing strings in tests)
 func contains(s, substr string) bool {
