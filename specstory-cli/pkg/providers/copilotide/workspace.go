@@ -140,6 +140,14 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		return nil, fmt.Errorf("failed to normalize project path: %w", err)
 	}
 
+	// If the project path is itself a .code-workspace file, pre-collect its folders.
+	// This lets us also match workspace entries opened directly from those folders
+	// (Method 4 below), so both usage patterns are discoverable via the workspace file path.
+	var workspaceFileFolders []string
+	if strings.HasSuffix(canonicalProjectPath, ".code-workspace") {
+		workspaceFileFolders = collectCodeWorkspaceFolders(canonicalProjectPath)
+	}
+
 	slog.Debug("Searching for workspace matching project",
 		"projectPath", projectPath,
 		"canonicalPath", canonicalProjectPath)
@@ -210,8 +218,39 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 			canonicalWorkspacePath = workspaceFilePath
 		}
 
-		// Compare paths
-		if canonicalProjectPath == canonicalWorkspacePath {
+		// Direct path match (folder opened directly).
+		isMatch := canonicalProjectPath == canonicalWorkspacePath
+
+		// Method 3: Code workspace file matching.
+		// When VS Code is opened via a .code-workspace file, workspace.json stores
+		// the workspace file URI rather than the folder URI. Check whether that
+		// workspace file lists our target folder as one of its folders.
+		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+				isMatch = true
+				slog.Debug("Matched workspace by .code-workspace folder reference",
+					"workspaceID", workspaceID,
+					"workspaceFile", canonicalWorkspacePath,
+					"targetFolder", canonicalProjectPath)
+			}
+		}
+
+		// Method 4: project path is a .code-workspace file — also match workspace entries
+		// opened directly from a folder listed in that workspace file.
+		if !isMatch {
+			for _, folderPath := range workspaceFileFolders {
+				if canonicalWorkspacePath == folderPath {
+					isMatch = true
+					slog.Debug("Matched workspace entry by folder listed in .code-workspace",
+						"workspaceID", workspaceID,
+						"folder", folderPath,
+						"workspaceFile", canonicalProjectPath)
+					break
+				}
+			}
+		}
+
+		if isMatch {
 			// Check if chatSessions directory exists
 			chatSessionsPath := GetChatSessionsPath(workspaceDir)
 			if _, err := os.Stat(chatSessionsPath); err != nil {
@@ -264,6 +303,14 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	// Get the project basename for SSH remote matching
 	// SSH remotes have paths on different machines, so we match by repository name
 	projectBasename := filepath.Base(canonicalProjectPath)
+
+	// If the project path is itself a .code-workspace file, pre-collect its folders.
+	// This lets us also match workspace entries opened directly from those folders
+	// (Method 4 below), so both usage patterns are discoverable via the workspace file path.
+	var workspaceFileFolders []string
+	if strings.HasSuffix(canonicalProjectPath, ".code-workspace") {
+		workspaceFileFolders = collectCodeWorkspaceFolders(canonicalProjectPath)
+	}
 
 	slog.Debug("Searching for all workspaces matching project",
 		"projectPath", projectPath,
@@ -351,6 +398,35 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 			}
 		}
 
+		// Method 3: Code workspace file matching.
+		// When VS Code is opened via a .code-workspace file, workspace.json stores
+		// the workspace file URI rather than the folder URI. Check whether that
+		// workspace file lists our target folder as one of its folders.
+		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+				isMatch = true
+				slog.Debug("Matched workspace by .code-workspace folder reference",
+					"workspaceID", workspaceID,
+					"workspaceFile", canonicalWorkspacePath,
+					"targetFolder", canonicalProjectPath)
+			}
+		}
+
+		// Method 4: project path is a .code-workspace file — also match workspace entries
+		// opened directly from a folder listed in that workspace file.
+		if !isMatch {
+			for _, folderPath := range workspaceFileFolders {
+				if canonicalWorkspacePath == folderPath {
+					isMatch = true
+					slog.Debug("Matched workspace entry by folder listed in .code-workspace",
+						"workspaceID", workspaceID,
+						"folder", folderPath,
+						"workspaceFile", canonicalProjectPath)
+					break
+				}
+			}
+		}
+
 		if isMatch {
 			// Check if chatSessions directory exists
 			chatSessionsPath := GetChatSessionsPath(workspaceDir)
@@ -410,6 +486,64 @@ func selectNewestWorkspace(matches []WorkspaceMatch) (*WorkspaceMatch, error) {
 
 	slog.Debug("Selected newest workspace", "workspaceID", newest.ID, "modTime", newestTime)
 	return newest, nil
+}
+
+// collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
+// canonical paths of all listed folders. Relative paths are resolved against the
+// workspace file's directory.
+func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
+	data, err := os.ReadFile(workspaceFilePath)
+	if err != nil {
+		slog.Debug("collectCodeWorkspaceFolders: failed to read workspace file",
+			"path", workspaceFilePath, "error", err)
+		return nil
+	}
+
+	var workspace struct {
+		Folders []struct {
+			Path string `json:"path"`
+		} `json:"folders"`
+	}
+	if err := json.Unmarshal(data, &workspace); err != nil {
+		slog.Debug("collectCodeWorkspaceFolders: failed to parse workspace file",
+			"path", workspaceFilePath, "error", err)
+		return nil
+	}
+
+	workspaceDir := filepath.Dir(workspaceFilePath)
+	var folders []string
+	for _, folder := range workspace.Folders {
+		if folder.Path == "" {
+			continue
+		}
+
+		// Resolve relative paths against the workspace file's directory.
+		var resolved string
+		if filepath.IsAbs(folder.Path) {
+			resolved = folder.Path
+		} else {
+			resolved = filepath.Join(workspaceDir, folder.Path)
+		}
+
+		canonical, err := normalizePathForComparison(resolved)
+		if err != nil {
+			canonical = filepath.Clean(resolved)
+		}
+		folders = append(folders, canonical)
+	}
+
+	return folders
+}
+
+// codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
+// .code-workspace file at workspaceFilePath.
+func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
+	for _, f := range collectCodeWorkspaceFolders(workspaceFilePath) {
+		if f == canonicalFolder {
+			return true
+		}
+	}
+	return false
 }
 
 // readWorkspaceJSON reads and parses a workspace.json file
