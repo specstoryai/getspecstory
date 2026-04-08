@@ -300,55 +300,98 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 		}
 	}
 
+	// nonExistentFile is a path that does not exist locally, simulating a remote-SSH workspace file.
+	nonExistentFile := filepath.Join(tmpDir, "remote-host", "my-project", "my-project.code-workspace")
+	// parentOfNonExistent is the directory that contains the non-existent file.
+	parentOfNonExistent := filepath.Dir(nonExistentFile)
+
 	tests := []struct {
 		name             string
-		workspaceContent string
+		workspaceContent string // empty means use nonExistentFile (skip writeWorkspaceFile)
+		workspaceFile    string
 		targetFolder     string
+		isRemote         bool
 		expected         bool
 	}{
 		{
 			name:             "relative path that resolves to target folder",
 			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         true,
 		},
 		{
 			name:             "absolute path matching target folder",
 			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         true,
 		},
 		{
 			name:             "no folders entry matching target",
 			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         false,
 		},
 		{
 			name:             "empty folders array",
 			workspaceContent: `{"folders": []}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         false,
 		},
 		{
 			name:             "malformed JSON",
 			workspaceContent: `not json`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         false,
+		},
+		// Remote-SSH fallback: file doesn't exist locally but isRemote=true and the target
+		// folder matches the workspace file's parent directory.
+		{
+			name:          "remote SSH workspace file unreadable, parent dir matches project path",
+			workspaceFile: nonExistentFile,
+			targetFolder:  parentOfNonExistent,
+			isRemote:      true,
+			expected:      true,
+		},
+		// Remote-SSH fallback: file doesn't exist but the target folder is NOT the parent dir.
+		{
+			name:          "remote SSH workspace file unreadable, parent dir does not match",
+			workspaceFile: nonExistentFile,
+			targetFolder:  canonicalProjectDir,
+			isRemote:      true,
+			expected:      false,
+		},
+		// Non-remote: deleted local file should not trigger the parent-dir fallback.
+		{
+			name:          "local workspace file missing, isRemote false, no fallback",
+			workspaceFile: nonExistentFile,
+			targetFolder:  parentOfNonExistent,
+			isRemote:      false,
+			expected:      false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			writeWorkspaceFile(tt.workspaceContent)
-			result := codeWorkspaceContainsFolder(workspaceFile, tt.targetFolder)
+			if tt.workspaceContent != "" {
+				writeWorkspaceFile(tt.workspaceContent)
+			}
+			result := codeWorkspaceContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
 			if result != tt.expected {
 				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
 }
-
 
 // contains checks if s contains substr (simple helper to avoid importing strings in tests)
 func contains(s, substr string) bool {

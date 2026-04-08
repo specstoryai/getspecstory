@@ -226,7 +226,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		// the workspace file URI rather than the folder URI. Check whether that
 		// workspace file lists our target folder as one of its folders.
 		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, isSSHRemoteURI(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by .code-workspace folder reference",
 					"workspaceID", workspaceID,
@@ -403,7 +403,7 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// the workspace file URI rather than the folder URI. Check whether that
 		// workspace file lists our target folder as one of its folders.
 		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, isSSHRemoteURI(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by .code-workspace folder reference",
 					"workspaceID", workspaceID,
@@ -537,8 +537,18 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 
 // codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
 // .code-workspace file at workspaceFilePath.
-func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
-	for _, f := range collectCodeWorkspaceFolders(workspaceFilePath) {
+// isRemote should be true when workspaceFilePath was decoded from a vscode-remote://ssh-remote+...
+// URI. In that case, if the file cannot be read (it lives on the remote host), we fall back to
+// treating the workspace file's parent directory as the project root. This is safe for single-root
+// SSH workspaces, and it is gated on isRemote to avoid false positives from deleted local files.
+func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
+	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	if len(folders) == 0 && isRemote {
+		// The file lives on the remote host and cannot be read locally.
+		// Fall back to treating its parent directory as the project root.
+		return filepath.Dir(workspaceFilePath) == canonicalFolder
+	}
+	for _, f := range folders {
 		if f == canonicalFolder {
 			return true
 		}
