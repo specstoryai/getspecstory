@@ -33,7 +33,7 @@ func ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VS
 		SchemaVersion: "1.0",
 		Provider: schema.ProviderInfo{
 			ID:      "copilotide",
-			Name:    "copilotide",
+			Name:    "VS Code Copilot IDE",
 			Version: "1.0",
 		},
 		SessionID:     composer.SessionID,
