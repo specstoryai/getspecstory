@@ -256,7 +256,15 @@ func renderGenericTool(tool *ToolInfo) string {
 		sort.Strings(keys)
 
 		for _, key := range keys {
-			fmt.Fprintf(&markdown, "- %s: `%v`\n", key, tool.Input[key])
+			value := tool.Input[key]
+			valueStr := fmt.Sprintf("%v", value)
+
+			// Check if value is multiline - if so, use code block
+			if strings.Contains(valueStr, "\n") {
+				fmt.Fprintf(&markdown, "- %s:\n\n```\n%v\n```\n\n", key, valueStr)
+			} else {
+				fmt.Fprintf(&markdown, "- %s: `%v`\n", key, valueStr)
+			}
 		}
 		markdown.WriteString("\n")
 	}
