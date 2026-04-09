@@ -34,7 +34,7 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 		SchemaVersion: "1.0",
 		Provider: schema.ProviderInfo{
 			ID:      "cursoride",
-			Name:    "cursoride",
+			Name:    "Cursor IDE",
 			Version: "unknown",
 		},
 		SessionID: sessionID,
