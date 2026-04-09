@@ -946,6 +946,97 @@ When `--debug-raw` flag is passed:
 4. **OS-Specific Paths:**
    - macOS: `~/Library/Application Support/Code/User/workspaceStorage/`
    - Linux: `~/.config/Code/User/workspaceStorage/`
+   - WSL: `/mnt/c/Users/<username>/AppData/Roaming/Code/User/workspaceStorage/`
+
+### WSL (Windows Subsystem for Linux) Support
+
+When VS Code runs on Windows but operates on WSL projects, the CLI (running inside WSL) must handle several unique challenges:
+
+**Storage location:** VS Code stores all data on the Windows filesystem, even for WSL projects. The CLI detects WSL via `/proc/version` (looking for "microsoft" or "wsl") and searches the Windows side at `/mnt/c/Users/*/AppData/Roaming/Code/User/workspaceStorage/`.
+
+**WSL-specific workspace URI formats:** VS Code uses two non-standard URI formats for WSL projects, neither of which is a plain `file:///path`:
+
+1. **`file://wsl.localhost/{DistroName}/path`** — The host is `wsl.localhost` and the first path component is the WSL distro name (e.g., `Ubuntu`). The `uriToPath()` function must detect the `wsl.localhost` host and strip the distro name prefix to recover the actual WSL filesystem path.
+
+2. **`vscode-remote://wsl%2B{distro}/path`** — The scheme is `vscode-remote` and the host encodes the distro as `wsl+ubuntu` (percent-encoded as `wsl%2Bubuntu`). Go's `url.Parse()` rejects `%2B` in the host component, so the `parseVSCodeRemoteURI()` function parses these URIs manually (string splitting) to extract the path.
+
+**Multiple workspace entries per project:** Because VS Code can store the same WSL project under different URI formats, a single project may have two or more matching workspace directories — each potentially containing different chat sessions. The `FindAllWorkspacesForProject()` function returns all matches, and session files are aggregated from all matching workspaces with deduplication by session ID. This ensures no conversations are missed regardless of which URI format was active when they were created.
+
+### SSH Remote Support
+
+When VS Code connects to remote servers via SSH (using the Remote-SSH extension), chat sessions are stored locally on the client machine but reference remote filesystem paths. The implementation approach is identical to Cursor IDE's SSH support since both use VS Code's remote infrastructure.
+
+**Storage location:** All chat session data remains on the local client machine in the standard VS Code storage locations (`workspaceStorage/*/chatSessions/`), even though the code being edited is on a remote server via SSH.
+
+**SSH remote workspace URI format:** VS Code uses a `vscode-remote://ssh-remote+{config}/path` URI format where:
+- Scheme: `vscode-remote`
+- Host: `ssh-remote+{hex-encoded-json-config}` (e.g., `ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d` where the hex decodes to `{"hostName":"mac-mini"}`)
+- Path: The remote filesystem path (e.g., `/Users/bago/code/myproject`)
+
+**Path matching challenge:** The remote path in the workspace URI (e.g., `/Users/bago/code/myproject` on a remote server) won't directly match the local path where the CLI runs (e.g., `C:\Users\Admin\code\myproject` on Windows). Direct path comparison fails because:
+- Different operating systems (Windows client vs Unix remote)
+- Different user directories
+- Only the repository name is guaranteed to match
+
+**Repository name matching solution:** The `parseVSCodeRemoteURI()` function extracts the remote path from SSH URIs, and `FindAllWorkspacesForProject()` implements a fallback matching strategy:
+1. **Primary:** Direct path matching (for local and WSL workspaces)
+2. **Fallback for SSH:** Repository basename matching when:
+   - The workspace URI is detected as SSH remote (`vscode-remote://ssh-remote+...`)
+   - Direct path comparison fails
+   - The repository basename (directory name) matches between local and remote paths
+
+This approach works because users typically clone the same repository with the same name on both machines (e.g., both have a directory named `myproject`). While this is a heuristic that could theoretically match different repositories with the same name, in practice it reliably identifies the same project across local and remote environments.
+
+**Example SSH workspace matching:**
+```
+Local path:  C:\Users\Admin\code\myproject (Windows)
+Remote URI:  vscode-remote://ssh-remote%2B.../home/user/code/myproject (Linux)
+Match by:    Both end with basename "myproject" ✓
+```
+
+**Implementation note:** Since Copilot IDE uses the same workspace infrastructure as Cursor IDE, the SSH support implementation can directly reuse the URI parsing logic from the Cursor IDE provider (`parseVSCodeRemoteURI()` function). This ensures consistent behavior across both providers.
+
+### Workspace Matching Strategy and Trade-offs
+
+**Current implementation:** The CLI matches workspaces by **repository basename** (folder name) rather than by exact workspace URI. This design decision has important implications:
+
+**Why basename matching:**
+When a user runs the CLI from a local directory (e.g., `C:\Users\Admin\code\myrepo`), we want to find conversations from all environments where they've worked on the same repository:
+- Local workspace: `file:///c:/Users/Admin/code/myrepo`
+- WSL workspace: `vscode-remote://wsl+ubuntu/home/user/code/myrepo`
+- SSH workspace: `vscode-remote://ssh-remote+server/home/ubuntu/code/myrepo`
+
+All three workspaces represent the same repository (`myrepo`) in different environments. Basename matching allows the CLI to find conversations across all these environments with a single command.
+
+**The trade-off:**
+This approach returns conversations from **all matching workspaces**, not just the current environment. For example, running `specstory sync` from the local Windows path will include conversations from local, WSL, and SSH remote workspaces if they all exist.
+
+**For VS Code extension use (precise matching needed):**
+When the CLI is invoked from a VS Code extension, the extension typically wants conversations from only its specific workspace (not all environments). This requires a different approach:
+
+**WSL scenario (minor challenge):**
+- The CLI can detect it's running in WSL (check `/proc/version`)
+- Filter workspaces to only match WSL-type URIs (`vscode-remote://wsl+...`)
+- Implementation: Add environment detection and URI type filtering
+- **Solution complexity:** Low - code change only
+
+**SSH scenario (requires parameter):**
+- The extension knows its workspace URI via `vscode.workspace.workspaceFolders[0].uri.toString()`
+- The extension needs to pass this URI to the CLI as a parameter
+- The CLI filters to only the workspace matching that specific URI
+- Implementation: Add `--workspace-uri` flag to accept and filter by exact URI
+- **Solution complexity:** Medium - requires new parameter and exact URI matching logic
+
+**Future enhancement:**
+```bash
+# Extension passes exact workspace URI for precise matching
+specstory sync --workspace-uri="vscode-remote://ssh-remote%2Bserver/home/ubuntu/code/myrepo"
+
+# CLI returns only conversations from that specific workspace
+# Not from local or WSL workspaces of the same repository
+```
+
+This enhancement would provide precise workspace filtering while maintaining backward compatibility with the current basename matching behavior (when `--workspace-uri` is not specified).
 
 ### Response Polymorphism
 VS Code uses polymorphic response arrays with "kind" discriminator:

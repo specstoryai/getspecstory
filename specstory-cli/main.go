@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -37,11 +38,13 @@ var noAnalytics bool    // flag to disable usage analytics
 var noVersionCheck bool // flag to skip checking for newer versions
 var outputDir string    // custom output directory for markdown files
 var debugDir string     // custom output directory for debug files
+var configDir string    // custom directory for the project-level config.toml
 var localTimeZone bool  // flag to use local timezone instead of UTC
 // Sync Options
 var noCloudSync bool   // flag to disable cloud sync
 var onlyCloudSync bool // flag to skip local markdown writes and only sync to cloud
 var onlyStats bool     // flag to only update statistics, skip local markdown and cloud sync
+var noStats bool       // flag to skip statistics entirely (no read or write of statistics.json)
 var printToStdout bool // flag to output markdown to stdout instead of saving (only with -s flag)
 var cloudURL string    // custom cloud API URL (hidden flag)
 // Authentication Options
@@ -53,6 +56,9 @@ var debug bool   // flag to enable debug level logging
 var silent bool  // flag to enable silent output (no user messages)
 // Provenance Options
 var provenanceEnabled bool // flag to enable AI provenance tracking
+// Project Identity Override Options
+var projectPathOverride string // flag to override the project path used for session discovery and identity (hidden)
+var gitOriginOverride string   // flag to override git remote origin URL for project identity (hidden)
 
 // Loaded configuration (populated in main before commands are created)
 var loadedConfig *config.Config
@@ -91,6 +97,9 @@ func validateFlags() error {
 	}
 	if onlyCloudSync && noCloudSync {
 		return utils.ValidationError{Message: "cannot use `only-cloud-sync` and `no-cloud-sync` together. These are mutually exclusive"}
+	}
+	if noStats && onlyStats {
+		return utils.ValidationError{Message: "cannot use --no-stats and --only-stats together. These flags are mutually exclusive"}
 	}
 	if onlyStats && onlyCloudSync {
 		return utils.ValidationError{Message: "cannot use --only-stats and --only-cloud-sync together. These flags are mutually exclusive"}
@@ -327,7 +336,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in interactive mode")
 
 			// Get custom command if provided via flag
@@ -381,6 +390,8 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 			// Ensure history directory exists for interactive mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
 				return err
@@ -392,7 +403,14 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			identityManager := utils.NewProjectIdentityManager(cwd)
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+				WithGitOrigin(gitOriginOverride)
+			if projectPathOverride != "" {
+				identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+			}
 			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
@@ -473,7 +491,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Execute the agent and watch for updates
 			slog.Info("Starting agent execution and monitoring", "provider", provider.Name())
-			err = provider.ExecAgentAndWatch(cwd, customCmd, resumeSessionID, debugRaw, sessionCallback)
+			err = provider.ExecAgentAndWatch(effectiveProjectPath, customCmd, resumeSessionID, debugRaw, sessionCallback)
 
 			if err != nil {
 				slog.Error("Agent execution failed", "provider", provider.Name(), "error", err)
@@ -551,7 +569,7 @@ Provide a specific agent ID to sync a specific provider.`
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			config.EnsureDefaultProjectConfig(configDir)
 
 			// Get session IDs if provided via flag
 			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
@@ -564,14 +582,16 @@ Provide a specific agent ID to sync a specific provider.`
 			slog.Info("Running sync command")
 			registry := factory.GetRegistry()
 
-			// Check if user specified a provider
-			if len(args) > 0 {
-				// Sync specific provider
-				return syncSingleProvider(registry, args[0], cmd)
-			} else {
-				// Sync all providers with activity
-				return syncAllProviders(registry, cmd)
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := cmdpkg.ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
 			}
+
+			if len(resolvedIDs) == 1 {
+				return syncSingleProvider(registry, resolvedIDs[0], cmd)
+			}
+			return syncAllProviders(registry, cmd, resolvedIDs)
 		},
 	}
 }
@@ -595,6 +615,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	// Setup file output and cloud sync (not needed for --print mode)
 	var config utils.OutputConfig
@@ -603,8 +624,14 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		if err != nil {
 			return err
 		}
+		// Tell cloud sync where .project.json lives (respects --output-dir)
+		cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
-		identityManager := utils.NewProjectIdentityManager(cwd)
+		identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+			WithGitOrigin(gitOriginOverride)
+		if projectPathOverride != "" {
+			identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+		}
 		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 			slog.Error("Failed to ensure project identity", "error", err)
 		}
@@ -649,7 +676,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
-			session, err = specifiedProvider.GetAgentChatSession(cwd, sessionID, debugRaw)
+			session, err = specifiedProvider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
 			if err != nil {
 				if !printToStdout {
 					fmt.Printf("❌ Error getting session '%s' from %s: %v\n", sessionID, specifiedProvider.Name(), err)
@@ -676,7 +703,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					continue
 				}
 
-				session, err = provider.GetAgentChatSession(cwd, sessionID, debugRaw)
+				session, err = provider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
 				if err != nil {
 					slog.Debug("Error checking provider for session", "provider", id, "sessionId", sessionID, "error", err)
 					continue
@@ -818,6 +845,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		slog.Error("Failed to get current working directory", "error", err)
 		return 0, err
 	}
+	projectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	// Create progress callback for parsing phase
 	// The callback updates the "Parsing..." line in place with [n/m] progress
@@ -831,7 +859,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	}
 
 	// Get all sessions from the provider
-	sessions, err := provider.GetAgentChatSessions(cwd, debugRaw, parseProgress)
+	sessions, err := provider.GetAgentChatSessions(projectPath, debugRaw, parseProgress)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get sessions: %w", err)
 	}
@@ -905,9 +933,11 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 				return
 			}
 
-			// Compute statistics from the SessionData
-			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
-			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+			// Compute and record statistics unless --no-stats was requested
+			if !noStats {
+				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent)
+				statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
+			}
 
 			// In only-stats mode, skip file writes and cloud sync
 			if onlyStats {
@@ -1024,8 +1054,9 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 	return sessionCount, nil
 }
 
-// syncAllProviders syncs all providers that have activity in the current directory
-func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
+// syncAllProviders syncs all (or a filtered subset of) providers that have activity in the current directory
+// filterIDs, if non-nil, limits which providers are synced; nil means sync all registered providers.
+func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs []string) error {
 	// Get debug-raw flag value
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 	useUTC := !localTimeZone
@@ -1035,8 +1066,14 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	// effectiveProjectPath is what providers use for session discovery.
+	// When --project-path is set, it resolves to that path; otherwise uses cwd.
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	providerIDs := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		providerIDs = filterIDs
+	}
 	providersWithActivity := []string{}
 
 	// Check each provider for activity
@@ -1047,7 +1084,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			continue
 		}
 
-		if provider.DetectAgent(cwd, false) {
+		if provider.DetectAgent(effectiveProjectPath, false) {
 			providersWithActivity = append(providersWithActivity, id)
 		}
 	}
@@ -1058,7 +1095,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 			fmt.Println() // Add visual separation
 			log.UserWarn("No coding agent activity found for this project directory.\n\n")
 
-			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", effectiveProjectPath)
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
 					log.UserMessage("- %s\n", provider.Name())
@@ -1089,9 +1126,15 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir)
+	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity (once for all providers)
-	identityManager := utils.NewProjectIdentityManager(cwd)
+	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+		WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+	}
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1211,9 +1254,12 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 		slog.Error("Failed to get current working directory", "error", err)
 		return err
 	}
+	// effectiveProjectPath is what providers use for session discovery.
+	// When --project-path is set, it resolves to that path; otherwise uses cwd.
+	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
 
 	// Check if provider has activity, with helpful output if not
-	if !provider.DetectAgent(cwd, true) {
+	if !provider.DetectAgent(effectiveProjectPath, true) {
 		// Provider already output helpful message
 		return nil
 	}
@@ -1223,9 +1269,15 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	if err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir)
+	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity
-	identityManager := utils.NewProjectIdentityManager(cwd)
+	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
+		WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
+	}
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1462,15 +1514,21 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
+	rootCmd.PersistentFlags().StringVar(&projectPathOverride, "project-path", "", "override the project path used for session discovery and identity")
+	_ = rootCmd.PersistentFlags().MarkHidden("project-path") // Hidden flag
+	rootCmd.PersistentFlags().StringVar(&gitOriginOverride, "git-origin", "", "override the git remote origin URL used for project identity")
+	_ = rootCmd.PersistentFlags().MarkHidden("git-origin") // Hidden flag
 
 	// Command-specific flags
 	syncCmd.Flags().StringSliceP("session", "s", []string{}, "optional session IDs to sync (can be specified multiple times, provider-specific format)")
 	syncCmd.Flags().BoolVar(&printToStdout, "print", printToStdout, "output session markdown to stdout instead of saving (requires -s flag)")
 	syncCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
 	syncCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	syncCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	syncCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	syncCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	syncCmd.Flags().BoolVar(&onlyStats, "only-stats", onlyStats, "only update statistics, skip local markdown files and cloud sync")
+	syncCmd.Flags().BoolVar(&noStats, "no-stats", noStats, "skip statistics entirely, do not read or write statistics.json")
 	syncCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = syncCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	syncCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
@@ -1479,6 +1537,7 @@ func main() {
 	syncCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	syncCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
@@ -1486,6 +1545,7 @@ func main() {
 	runCmd.Flags().String("resume", "", "resume a specific session by ID")
 	runCmd.Flags().StringVar(&outputDir, "output-dir", outputDir, "custom output directory for markdown files (default: ./.specstory/history)")
 	runCmd.Flags().StringVar(&debugDir, "debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	runCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
@@ -1602,7 +1662,8 @@ func main() {
 				// Display link to SpecStory Cloud (deep link to session if from run command)
 				cwd, cwdErr := os.Getwd()
 				if cwdErr == nil {
-					identityManager := utils.NewProjectIdentityManager(cwd)
+					dirConfig, _ := utils.NewOutputPathConfig(outputDir, "")
+					identityManager := utils.NewProjectIdentityManager(cwd, dirConfig.GetSpecstoryDir())
 					if projectID, err := identityManager.GetProjectID(); err == nil {
 						fmt.Printf("💡 Search and chat with your AI conversation history at:\n")
 						if lastRunSessionID != "" {

@@ -201,9 +201,10 @@ func GetCanonicalPath(p string) (string, error) {
 		// Successfully resolved symlinks - update p to the resolved path for case normalization
 		p = realPath
 	} else if err != nil {
-		// Symlink resolution failed (e.g., path doesn't exist yet),
-		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		// Symlink resolution failed (e.g., path doesn't exist yet, or Windows junction points).
+		// This is expected in normal operation — fall back to the original path and continue
+		// with case normalization below.
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 

@@ -1,8 +1,6 @@
-package cursoride
+package copilotide
 
 import (
-	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 )
@@ -75,11 +73,6 @@ func TestUriToPath(t *testing.T) {
 			name:     "vscode-remote URI with plus in host",
 			uri:      "vscode-remote://wsl+ubuntu/home/user/project",
 			wantPath: "/home/user/project",
-		},
-		{
-			name:     "vscode-remote SSH URI with hex-encoded config",
-			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
-			wantPath: "/Users/bago/code/getspecstory",
 		},
 
 		// Unsupported schemes
@@ -202,33 +195,9 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			uri:      "vscode-remote://wsl%2Bubuntu/",
 			wantPath: "/",
 		},
-
-		// Valid SSH remote URIs
 		{
-			name:     "ssh-remote with simple config",
+			name:     "SSH remote host",
 			uri:      "vscode-remote://ssh-remote+myserver/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "ssh-remote with hex-encoded config",
-			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
-			wantPath: "/Users/bago/code/getspecstory",
-		},
-		{
-			name:     "ssh-remote case insensitive",
-			uri:      "vscode-remote://SSH-REMOTE+myserver/home/user/project",
-			wantPath: "/home/user/project",
-		},
-
-		// Dev container URIs - path returned as-is (container-internal path)
-		{
-			name:     "dev container URI with hex-encoded config",
-			uri:      "vscode-remote://dev-container%2B7b2273657474696e6754797065223a22636f6e7461696e6572222c22636f6e7461696e65724964223a22656335613261653766636632227d/workspace",
-			wantPath: "/workspace",
-		},
-		{
-			name:     "dev container URI case insensitive",
-			uri:      "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
 			wantPath: "/home/user/project",
 		},
 
@@ -237,6 +206,11 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			name:      "no path component",
 			uri:       "vscode-remote://wsl%2Bubuntu",
 			wantError: "malformed vscode-remote URI (no path)",
+		},
+		{
+			name:      "unsupported dev container host",
+			uri:       "vscode-remote://dev-container+abc123/workspace",
+			wantError: "unsupported vscode-remote host",
 		},
 	}
 
@@ -262,132 +236,6 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 
 			if got != tt.wantPath {
 				t.Errorf("parseVSCodeRemoteURI(%q) = %q, want %q", tt.uri, got, tt.wantPath)
-			}
-		})
-	}
-}
-
-func TestCodeWorkspaceContainsFolder(t *testing.T) {
-	// Create a temporary directory structure.
-	tmpDir, err := os.MkdirTemp("", "workspace-contains-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	// Create the target project folder.
-	projectDir := filepath.Join(tmpDir, "my-project")
-	if err := os.Mkdir(projectDir, 0755); err != nil {
-		t.Fatalf("Failed to create project dir: %v", err)
-	}
-	// Resolve symlinks so the canonical path matches what normalizePathForComparison returns
-	// (e.g. /var → /private/var on macOS).
-	canonicalProjectDir, err := filepath.EvalSymlinks(projectDir)
-	if err != nil {
-		canonicalProjectDir = projectDir
-	}
-
-	// Create a workspace file in a sibling directory (common real-world pattern).
-	workspacesDir := filepath.Join(tmpDir, "workspaces")
-	if err := os.Mkdir(workspacesDir, 0755); err != nil {
-		t.Fatalf("Failed to create workspaces dir: %v", err)
-	}
-	workspaceFile := filepath.Join(workspacesDir, "my-project.code-workspace")
-
-	writeWorkspaceFile := func(content string) {
-		if err := os.WriteFile(workspaceFile, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to write workspace file: %v", err)
-		}
-	}
-
-	// nonExistentFile is a path that does not exist locally, simulating a remote-SSH workspace file.
-	nonExistentFile := filepath.Join(tmpDir, "remote-host", "my-project", "my-project.code-workspace")
-	// parentOfNonExistent is the directory that contains the non-existent file.
-	parentOfNonExistent := filepath.Dir(nonExistentFile)
-
-	tests := []struct {
-		name             string
-		workspaceContent string // empty means use nonExistentFile (skip writeWorkspaceFile)
-		workspaceFile    string
-		targetFolder     string
-		isRemote         bool
-		expected         bool
-	}{
-		{
-			name:             "relative path that resolves to target folder",
-			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
-			workspaceFile:    workspaceFile,
-			targetFolder:     canonicalProjectDir,
-			isRemote:         false,
-			expected:         true,
-		},
-		{
-			name:             "absolute path matching target folder",
-			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
-			workspaceFile:    workspaceFile,
-			targetFolder:     canonicalProjectDir,
-			isRemote:         false,
-			expected:         true,
-		},
-		{
-			name:             "no folders entry matching target",
-			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
-			workspaceFile:    workspaceFile,
-			targetFolder:     canonicalProjectDir,
-			isRemote:         false,
-			expected:         false,
-		},
-		{
-			name:             "empty folders array",
-			workspaceContent: `{"folders": []}`,
-			workspaceFile:    workspaceFile,
-			targetFolder:     canonicalProjectDir,
-			isRemote:         false,
-			expected:         false,
-		},
-		{
-			name:             "malformed JSON",
-			workspaceContent: `not json`,
-			workspaceFile:    workspaceFile,
-			targetFolder:     canonicalProjectDir,
-			isRemote:         false,
-			expected:         false,
-		},
-		// Remote-SSH fallback: file doesn't exist locally but isRemote=true and the target
-		// folder matches the workspace file's parent directory.
-		{
-			name:          "remote SSH workspace file unreadable, parent dir matches project path",
-			workspaceFile: nonExistentFile,
-			targetFolder:  parentOfNonExistent,
-			isRemote:      true,
-			expected:      true,
-		},
-		// Remote-SSH fallback: file doesn't exist but the target folder is NOT the parent dir.
-		{
-			name:          "remote SSH workspace file unreadable, parent dir does not match",
-			workspaceFile: nonExistentFile,
-			targetFolder:  canonicalProjectDir,
-			isRemote:      true,
-			expected:      false,
-		},
-		// Non-remote: deleted local file should not trigger the parent-dir fallback.
-		{
-			name:          "local workspace file missing, isRemote false, no fallback",
-			workspaceFile: nonExistentFile,
-			targetFolder:  parentOfNonExistent,
-			isRemote:      false,
-			expected:      false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.workspaceContent != "" {
-				writeWorkspaceFile(tt.workspaceContent)
-			}
-			result := codeWorkspaceContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
-			if result != tt.expected {
-				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
 			}
 		})
 	}

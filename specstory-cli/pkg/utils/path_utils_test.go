@@ -240,24 +240,32 @@ func TestNewOutputPathConfig(t *testing.T) {
 }
 
 func TestOutputPathConfigMethods(t *testing.T) {
-	t.Run("with custom base directory", func(t *testing.T) {
+	// When --output-dir is set, all outputs go there: history directly in BaseDir,
+	// .project.json / statistics.json at BaseDir, debug/ inside BaseDir.
+	t.Run("with output-dir set (BaseDir)", func(t *testing.T) {
 		baseDir := t.TempDir()
 		config := &OutputPathConfig{BaseDir: baseDir}
 
-		// Test GetHistoryDir
+		// History goes directly to BaseDir (no /history suffix)
 		historyDir := config.GetHistoryDir()
 		if historyDir != baseDir {
 			t.Errorf("GetHistoryDir() = %v, want %v", historyDir, baseDir)
 		}
 
-		// Test GetDebugDir
+		// Specstory dir is also BaseDir (.project.json and statistics.json land here)
+		specstoryDir := config.GetSpecstoryDir()
+		if specstoryDir != baseDir {
+			t.Errorf("GetSpecstoryDir() = %v, want %v", specstoryDir, baseDir)
+		}
+
+		// Debug goes to {BaseDir}/debug/
 		debugDir := config.GetDebugDir()
 		expectedDebugDir := filepath.Join(baseDir, DEBUG_DIR)
 		if debugDir != expectedDebugDir {
 			t.Errorf("GetDebugDir() = %v, want %v", debugDir, expectedDebugDir)
 		}
 
-		// Test GetLogPath
+		// Log file goes to {BaseDir}/debug/debug.log
 		logPath := config.GetLogPath()
 		expectedLogPath := filepath.Join(expectedDebugDir, DEBUG_LOG_FILE)
 		if logPath != expectedLogPath {

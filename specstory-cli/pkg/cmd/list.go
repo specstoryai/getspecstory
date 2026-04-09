@@ -17,6 +17,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
 // Column widths for table output (excluding NAME which is dynamic).
@@ -86,20 +87,44 @@ Provide a specific agent ID to list sessions from only that provider.`
 		RunE: func(cmd *cobra.Command, args []string) error {
 			slog.Info("Running list command")
 
-			if len(args) > 0 {
-				return listSingleProvider(registry, args[0])
+			cwd, err := os.Getwd()
+			if err != nil {
+				slog.Error("Failed to get current working directory", "error", err)
+				return err
 			}
-			return listAllProviders(registry)
+
+			// --project-path is a persistent root flag; use it when provided so that
+			// the caller (e.g. the VS Code extension) can tell us which project to list
+			// sessions for regardless of what directory the process was started in.
+			projectPathOverride, _ := cmd.Flags().GetString("project-path")
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+
+			slog.Debug("Resolved project path for list command",
+				"cwd", cwd,
+				"projectPathOverride", projectPathOverride,
+				"effectiveProjectPath", effectiveProjectPath)
+
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+
+			if len(resolvedIDs) == 1 {
+				return listSingleProvider(registry, resolvedIDs[0], effectiveProjectPath)
+			}
+			return listAllProviders(registry, resolvedIDs, effectiveProjectPath)
 		},
 	}
 
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Output as JSON (default is human-readable table)")
+	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
 
 	return cmd
 }
 
 // listSingleProvider lists sessions from a specific provider.
-func listSingleProvider(registry *factory.Registry, providerID string) error {
+func listSingleProvider(registry *factory.Registry, providerID string, projectPath string) error {
 	provider, err := registry.Get(providerID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Provider '%s' is not a valid provider implementation\n\n", providerID)
@@ -119,17 +144,11 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 
 	analytics.SetAgentProviders([]string{provider.Name()})
 
-	cwd, err := os.Getwd()
-	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
-		return err
-	}
-
-	if !provider.DetectAgent(cwd, true) {
+	if !provider.DetectAgent(projectPath, true) {
 		return nil
 	}
 
-	sessions, err := provider.ListAgentChatSessions(cwd)
+	sessions, err := provider.ListAgentChatSessions(projectPath)
 	if err != nil {
 		return fmt.Errorf("failed to list sessions for %s: %w", provider.Name(), err)
 	}
@@ -157,15 +176,13 @@ func listSingleProvider(registry *factory.Registry, providerID string) error {
 	return nil
 }
 
-// listAllProviders lists sessions from all providers that have activity.
-func listAllProviders(registry *factory.Registry) error {
-	cwd, err := os.Getwd()
-	if err != nil {
-		slog.Error("Failed to get current working directory", "error", err)
-		return err
-	}
-
+// listAllProviders lists sessions from all (or a filtered subset of) providers that have activity.
+// filterIDs, if non-empty, limits which providers are checked; nil or empty means check all registered providers.
+func listAllProviders(registry *factory.Registry, filterIDs []string, projectPath string) error {
 	providerIDs := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		providerIDs = filterIDs
+	}
 	providersWithActivity := []string{}
 
 	for _, id := range providerIDs {
@@ -175,7 +192,7 @@ func listAllProviders(registry *factory.Registry) error {
 			continue
 		}
 
-		if provider.DetectAgent(cwd, false) {
+		if provider.DetectAgent(projectPath, false) {
 			providersWithActivity = append(providersWithActivity, id)
 		}
 	}
@@ -185,7 +202,7 @@ func listAllProviders(registry *factory.Registry) error {
 			fmt.Fprintln(os.Stderr)
 			log.UserWarn("No coding agent activity found for this project directory.\n\n")
 
-			log.UserMessage("We checked for activity in '%s' from the following agents:\n", cwd)
+			log.UserMessage("We checked for activity in '%s' from the following agents:\n", projectPath)
 			for _, id := range providerIDs {
 				if provider, err := registry.Get(id); err == nil {
 					log.UserMessage("- %s\n", provider.Name())
@@ -217,7 +234,7 @@ func listAllProviders(registry *factory.Registry) error {
 			continue
 		}
 
-		sessions, err := provider.ListAgentChatSessions(cwd)
+		sessions, err := provider.ListAgentChatSessions(projectPath)
 		if err != nil {
 			lastError = err
 			slog.Error("Error listing sessions for provider", "provider", id, "error", err)

@@ -128,18 +128,10 @@ func normalizePathForComparison(path string) (string, error) {
 // FindWorkspaceForProject finds the workspace directory that matches the given project path
 // Returns the workspace match or an error if not found
 func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
-	// Get canonical project path (resolve symlinks, normalize case)
-	absProjectPath, err := filepath.Abs(projectPath)
+	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
+	canonicalProjectPath, err := normalizePathForComparison(projectPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
-	}
-
-	canonicalProjectPath, err := spi.GetCanonicalPath(absProjectPath)
-	if err != nil {
-		slog.Warn("Failed to get canonical path, using absolute path",
-			"projectPath", projectPath,
-			"error", err)
-		canonicalProjectPath = absProjectPath
+		return nil, fmt.Errorf("failed to normalize project path: %w", err)
 	}
 
 	slog.Debug("Searching for workspace matching project",
@@ -174,9 +166,6 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		workspaceJSONPath := filepath.Join(workspacePath, "workspace.json")
 		workspaceJSON, err := readWorkspaceJSON(workspaceJSONPath)
 		if err != nil {
-			slog.Debug("Skipping workspace directory (no valid workspace.json)",
-				"workspaceID", workspaceID,
-				"error", err)
 			continue
 		}
 
@@ -187,8 +176,6 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		}
 
 		if workspaceURI == "" {
-			slog.Debug("Skipping workspace directory (no workspace or folder URI)",
-				"workspaceID", workspaceID)
 			continue
 		}
 
@@ -202,11 +189,12 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 			continue
 		}
 
-		// Get canonical workspace path
-		canonicalWorkspacePath, err := spi.GetCanonicalPath(workspaceFilePath)
+		// Normalize workspace path for comparison (handles Unix paths on Windows, etc.)
+		canonicalWorkspacePath, err := normalizePathForComparison(workspaceFilePath)
 		if err != nil {
-			slog.Debug("Failed to get canonical workspace path",
-				"workspacePath", workspaceFilePath,
+			slog.Debug("Failed to normalize workspace path",
+				"workspaceID", workspaceID,
+				"path", workspaceFilePath,
 				"error", err)
 			canonicalWorkspacePath = workspaceFilePath
 		}
@@ -240,9 +228,8 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		return nil, fmt.Errorf("no workspace found for project path: %s", projectPath)
 	}
 
-	// If multiple matches, return the first one
 	if len(matches) > 1 {
-		slog.Warn("Multiple workspaces match project path, using first",
+		slog.Info("Multiple workspaces match project path",
 			"projectPath", projectPath,
 			"matchCount", len(matches))
 	}
@@ -357,7 +344,7 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// the workspace file URI rather than the folder URI. Check whether that workspace
 		// file lists our target folder as one of its folders.
 		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, isSSHRemoteURI(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by .code-workspace folder reference",
 					"workspaceID", workspaceID,
@@ -565,8 +552,18 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 
 // codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
 // .code-workspace file at workspaceFilePath.
-func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
-	for _, f := range collectCodeWorkspaceFolders(workspaceFilePath) {
+// isRemote should be true when workspaceFilePath was decoded from a vscode-remote://ssh-remote+...
+// URI. In that case, if the file cannot be read (it lives on the remote host), we fall back to
+// treating the workspace file's parent directory as the project root. This is safe for single-root
+// SSH workspaces, and it is gated on isRemote to avoid false positives from deleted local files.
+func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
+	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	if len(folders) == 0 && isRemote {
+		// The file lives on the remote host and cannot be read locally.
+		// Fall back to treating its parent directory as the project root.
+		return filepath.Dir(workspaceFilePath) == canonicalFolder
+	}
+	for _, f := range folders {
 		if f == canonicalFolder {
 			return true
 		}
