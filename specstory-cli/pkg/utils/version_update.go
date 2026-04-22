@@ -81,6 +81,7 @@ func CheckForUpdates(currentVersion string, noVersionCheck bool, silent bool) {
 			fmt.Println("│ Visit https://docs.specstory.com/quickstart for updates     │")
 			fmt.Println("╰─────────────────────────────────────────────────────────────╯")
 			fmt.Println()
+			ShowStoaBanner(silent)
 		}
 	}
 }

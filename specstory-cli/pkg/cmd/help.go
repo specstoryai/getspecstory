@@ -12,15 +12,17 @@ import (
 
 // DisplayLogoAndHelp prints the SpecStory logo followed by the command's help text.
 // Exported because it's used by both the help command and the root command's Run handler.
-func DisplayLogoAndHelp(cmd *cobra.Command) {
+func DisplayLogoAndHelp(cmd *cobra.Command, silent bool) {
 	fmt.Println() // Add visual separation before the logo
 	fmt.Println(utils.GetRandomLogo())
+	utils.ShowStoaBanner(silent)
 	_ = cmd.Help()
 }
 
 // CreateHelpCommand creates a custom help command that displays the SpecStory logo.
 // rootCmd is needed to look up subcommands when the user types "specstory help <command>".
-func CreateHelpCommand(rootCmd *cobra.Command) *cobra.Command {
+// silent controls whether the Stoa banner is suppressed.
+func CreateHelpCommand(rootCmd *cobra.Command, silent *bool) *cobra.Command {
 	return &cobra.Command{
 		Use:     "help [command]",
 		Aliases: []string{"h"},
@@ -37,15 +39,15 @@ func CreateHelpCommand(rootCmd *cobra.Command) *cobra.Command {
 					// Unknown command - track as error-triggered help
 					helpReason = "unknown_command"
 					fmt.Printf("Unknown command: %s\n", args[0])
-					DisplayLogoAndHelp(rootCmd)
+					DisplayLogoAndHelp(rootCmd, *silent)
 				} else {
 					// Valid command - track the specific topic
 					helpTopic = args[0]
-					DisplayLogoAndHelp(targetCmd)
+					DisplayLogoAndHelp(targetCmd, *silent)
 				}
 			} else {
 				// No command specified - general help requested
-				DisplayLogoAndHelp(rootCmd)
+				DisplayLogoAndHelp(rootCmd, *silent)
 			}
 
 			// Track analytics after determining the context
