@@ -294,11 +294,16 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	return &workspace, nil
 }
 
-// uriToPath converts a file:// URI to a local file path
+// uriToPath converts a workspace URI to a local file path.
+// Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
+// vscode-remote://wsl+distro/ URIs used by VS Code in WSL,
+// and vscode-remote://ssh-remote+config/path URIs for SSH remotes.
 func uriToPath(uri string) (string, error) {
-	// Handle file:// URIs
-	if !strings.HasPrefix(uri, "file://") {
-		return "", fmt.Errorf("URI must start with file://: %s", uri)
+	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
+	// rejects percent-encoded characters like %2B in the host component
+	// (e.g., vscode-remote://wsl%2Bubuntu/home/user/project)
+	if strings.HasPrefix(uri, "vscode-remote://") {
+		return parseVSCodeRemoteURI(uri)
 	}
 
 	// Parse the URI
@@ -307,11 +312,98 @@ func uriToPath(uri string) (string, error) {
 		return "", fmt.Errorf("failed to parse URI: %w", err)
 	}
 
-	// Get the path from the URI
-	path := parsedURI.Path
+	// Reject non-file schemes
+	if parsedURI.Scheme != "file" && parsedURI.Scheme != "" {
+		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsedURI.Scheme, uri)
+	}
 
-	// On Windows, URL paths have an extra leading slash (e.g., /C:/Users)
-	// but we don't support Windows, so we can just use the path as-is
+	// Get the path from the URI and decode it
+	// This converts %3A to : and other URL-encoded characters
+	path, err := url.PathUnescape(parsedURI.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode URI path: %w", err)
+	}
+
+	// Handle WSL file:// URIs (e.g., file://wsl.localhost/Ubuntu/home/user/project)
+	// Host is "wsl.localhost" and path starts with /{DistroName}/...
+	// Strip the distro name to get the actual WSL filesystem path
+	if strings.EqualFold(parsedURI.Host, "wsl.localhost") || strings.HasPrefix(strings.ToLower(parsedURI.Host), "wsl$") {
+		// path = /Ubuntu/home/user/project → strip /Ubuntu → /home/user/project
+		if len(path) > 1 {
+			if idx := strings.Index(path[1:], "/"); idx >= 0 {
+				path = path[idx+1:]
+				slog.Debug("Converted WSL file URI to path", "uri", uri, "path", path)
+				return path, nil
+			}
+		}
+		return "", fmt.Errorf("malformed WSL URI path: %s", uri)
+	}
+
+	// On Windows, URL paths have an extra leading slash (e.g., file:///c:/Users becomes /c:/Users)
+	// We need to remove the leading slash and normalize the path
+	if filepath.Separator == '\\' {
+		// Remove leading slash on Windows
+		if len(path) > 0 && path[0] == '/' {
+			path = path[1:]
+		}
+		// Normalize path separators to backslashes
+		path = filepath.FromSlash(path)
+	}
+
+	return path, nil
+}
+
+// parseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI.
+// Handles two types of remote URIs:
+// 1. WSL: vscode-remote://wsl%2B{distro}/{path} - path is the WSL filesystem path
+// 2. SSH: vscode-remote://ssh-remote%2B{config-hex}/{path} - path is the remote filesystem path
+// Go's url.Parse rejects %2B in the host component, so we parse manually.
+func parseVSCodeRemoteURI(uri string) (string, error) {
+	// Strip scheme prefix: "vscode-remote://"
+	remainder := strings.TrimPrefix(uri, "vscode-remote://")
+
+	// Split host from path at the first unencoded slash after the host
+	slashIdx := strings.Index(remainder, "/")
+	if slashIdx < 0 {
+		return "", fmt.Errorf("malformed vscode-remote URI (no path): %s", uri)
+	}
+
+	host := remainder[:slashIdx]
+	pathPart := remainder[slashIdx:]
+
+	// Decode the host to determine remote type
+	decodedHost, err := url.PathUnescape(host)
+	if err != nil {
+		decodedHost = host
+	}
+
+	hostLower := strings.ToLower(decodedHost)
+
+	// Check if it's a supported remote type
+	if !strings.HasPrefix(hostLower, "wsl+") &&
+		!strings.EqualFold(decodedHost, "wsl") &&
+		!strings.HasPrefix(hostLower, "ssh-remote+") &&
+		!strings.EqualFold(decodedHost, "ssh-remote") &&
+		!strings.HasPrefix(hostLower, "dev-container+") &&
+		!strings.EqualFold(decodedHost, "dev-container") {
+		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
+	}
+
+	// Decode the path portion
+	path, err := url.PathUnescape(pathPart)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode vscode-remote URI path: %w", err)
+	}
+
+	// Log the conversion with appropriate context
+	switch {
+	case strings.HasPrefix(hostLower, "ssh-remote"):
+		slog.Debug("Converted vscode-remote SSH URI to path", "uri", uri, "path", path)
+	case strings.HasPrefix(hostLower, "dev-container"):
+		slog.Debug("Converted vscode-remote dev container URI to path", "uri", uri, "path", path)
+	default:
+		slog.Debug("Converted vscode-remote WSL URI to path", "uri", uri, "path", path)
+	}
 
 	return path, nil
 }
