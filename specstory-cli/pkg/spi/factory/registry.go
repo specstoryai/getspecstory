@@ -14,6 +14,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseek"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -76,6 +77,10 @@ func (r *Registry) registerAll() {
 	droidProvider := droidcli.NewProvider()
 	r.providers["droid"] = droidProvider
 	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
+
+	deepseekProvider := deepseek.NewProvider()
+	r.providers["deepseek"] = deepseekProvider
+	slog.Debug("Registered provider", "id", "deepseek", "name", deepseekProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())
