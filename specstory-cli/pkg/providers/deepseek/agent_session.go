@@ -181,7 +181,7 @@ func generateAgentSession(session *dsSession, workspaceRoot string) (*SessionDat
 	data := &SessionData{
 		SchemaVersion: "1.0",
 		Provider: ProviderInfo{
-			ID:      "deepseek",
+			ID:      "deepseek-tui",
 			Name:    "DeepSeek TUI",
 			Version: session.Metadata.Model,
 		},
