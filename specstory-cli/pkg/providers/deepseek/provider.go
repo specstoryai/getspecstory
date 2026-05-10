@@ -61,7 +61,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = "unknown"
 	}
-	trackCheckSuccess("deepseek", isCustom, cmdName, resolved, version)
+	trackCheckSuccess("deepseek", isCustom, cmdName, resolved, version, versionFlag)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -263,13 +263,14 @@ func buildCheckErrorMessage(errorType string, command string, isCustom bool, std
 	return builder.String()
 }
 
-func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string) {
+func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string, versionFlag string) {
 	props := analytics.Properties{
 		"provider":       provider,
 		"custom_command": custom,
 		"command_path":   commandPath,
 		"resolved_path":  resolvedPath,
 		"version":        version,
+		"version_flag":   versionFlag,
 	}
 	analytics.TrackEvent(analytics.EventCheckInstallSuccess, props)
 }
