@@ -1,14 +1,27 @@
 package deepseek
 
 import (
+	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
-
-	"log/slog"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+// expandTilde expands a leading ~ to the user's home directory so users can
+// configure custom commands like "~/bin/deepseek".
+func expandTilde(path string) string {
+	if !strings.HasPrefix(path, "~/") {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(home, path[2:])
+}
 
 // parseCommand splits a custom command string into executable name and args.
 // Returns default command if customCommand is empty.

@@ -1,6 +1,7 @@
 package deepseek
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -122,41 +123,54 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 }
 
 // extractWorkspaceFast reads just the workspace field from a session file
-// without parsing the full JSON.
+// without parsing the full JSON. The metadata block is at the top of the file,
+// so we stream and bail on the first match — important on the watcher hot
+// path where this is called per fs event.
 func extractWorkspaceFast(filePath string) string {
-	data, err := os.ReadFile(filePath)
+	f, err := os.Open(filePath)
 	if err != nil {
 		return ""
 	}
+	defer func() { _ = f.Close() }()
 
-	// Find "workspace": "..." in the metadata block.
-	// The metadata block typically comes before messages.
-	idx := strings.Index(string(data), `"workspace"`)
+	scanner := bufio.NewScanner(f)
+	// DeepSeek session files can contain individual lines well over the default
+	// 64KB scanner limit (long tool_result blobs); raise to 1MB which still
+	// bounds memory but covers everything seen in practice.
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if ws := matchWorkspace(line); ws != "" {
+			return ws
+		}
+		// Once we cross into the messages array the metadata is behind us.
+		if strings.Contains(line, `"messages"`) {
+			return ""
+		}
+	}
+	return ""
+}
+
+// matchWorkspace pulls the value out of a `"workspace": "<value>"` JSON line.
+func matchWorkspace(line string) string {
+	idx := strings.Index(line, `"workspace"`)
 	if idx < 0 {
 		return ""
 	}
-
-	// Find the value after "workspace":
-	rest := string(data)[idx+len(`"workspace"`):]
+	rest := line[idx+len(`"workspace"`):]
 	colon := strings.Index(rest, ":")
 	if colon < 0 {
 		return ""
 	}
-	rest = rest[colon+1:]
-
-	// Skip whitespace and opening quote.
-	rest = strings.TrimSpace(rest)
+	rest = strings.TrimSpace(rest[colon+1:])
 	if len(rest) == 0 || rest[0] != '"' {
 		return ""
 	}
 	rest = rest[1:]
-
-	// Find closing quote.
 	end := strings.Index(rest, `"`)
 	if end < 0 {
 		return ""
 	}
-
 	return rest[:end]
 }
 
