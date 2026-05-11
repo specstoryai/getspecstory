@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -16,7 +15,10 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-const defaultCommand = "deepseek"
+const (
+	defaultCommand = "deepseek"
+	versionFlag    = "--version"
+)
 
 // Provider implements the spi.Provider interface for DeepSeek TUI.
 type Provider struct{}
@@ -39,19 +41,19 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
 		msg := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
-		trackCheckFailure("deepseek", isCustom, cmdName, "", "", "", "not_found", err.Error())
+		trackCheckFailure("deepseek", isCustom, cmdName, "", versionFlag, "", "not_found", err.Error())
 		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
 	}
 
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(resolved, "--version")
+	cmd := exec.Command(resolved, versionFlag)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		errorType := classifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
-		trackCheckFailure("deepseek", isCustom, cmdName, resolved, "", stderrOutput, errorType, err.Error())
+		trackCheckFailure("deepseek", isCustom, cmdName, resolved, versionFlag, stderrOutput, errorType, err.Error())
 		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
 	}
 
@@ -59,7 +61,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = "unknown"
 	}
-	trackCheckSuccess("deepseek", isCustom, cmdName, resolved, version)
+	trackCheckSuccess("deepseek", isCustom, cmdName, resolved, version, versionFlag)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -261,13 +263,14 @@ func buildCheckErrorMessage(errorType string, command string, isCustom bool, std
 	return builder.String()
 }
 
-func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string) {
+func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string, versionFlag string) {
 	props := analytics.Properties{
 		"provider":       provider,
 		"custom_command": custom,
 		"command_path":   commandPath,
 		"resolved_path":  resolvedPath,
 		"version":        version,
+		"version_flag":   versionFlag,
 	}
 	analytics.TrackEvent(analytics.EventCheckInstallSuccess, props)
 }
@@ -278,6 +281,7 @@ func trackCheckFailure(provider string, custom bool, commandPath string, resolve
 		"custom_command": custom,
 		"command_path":   commandPath,
 		"resolved_path":  resolvedPath,
+		"version_flag":   versionFlag,
 		"error_type":     errorType,
 		"error_message":  message,
 	}
@@ -290,15 +294,4 @@ func trackCheckFailure(provider string, custom bool, commandPath string, resolve
 func printDetectionHelp() {
 	log.UserMessage("No DeepSeek TUI sessions found under ~/.deepseek/sessions yet.\n")
 	log.UserMessage("Run DeepSeek TUI inside this project to create a session, then rerun `specstory sync deepseek`.\n")
-}
-
-// expandTilde expands a leading ~ to the user's home directory.
-func expandTilde(path string) string {
-	if strings.HasPrefix(path, "~/") {
-		homeDir, err := os.UserHomeDir()
-		if err == nil {
-			return filepath.Join(homeDir, path[2:])
-		}
-	}
-	return path
 }

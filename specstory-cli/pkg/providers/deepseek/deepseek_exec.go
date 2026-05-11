@@ -1,14 +1,27 @@
 package deepseek
 
 import (
+	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
-
-	"log/slog"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+// expandTilde expands a leading ~ to the user's home directory so users can
+// configure custom commands like "~/bin/deepseek".
+func expandTilde(path string) string {
+	if !strings.HasPrefix(path, "~/") {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return path
+	}
+	return filepath.Join(home, path[2:])
+}
 
 // parseCommand splits a custom command string into executable name and args.
 // Returns default command if customCommand is empty.
@@ -47,13 +60,21 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 
 	for i, arg := range args {
 		if arg == "--resume" || arg == "-r" {
-			// Already has --resume; keep existing value.
-			if i+1 < len(args) {
+			if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
 				return args
 			}
+			repaired := append([]string{}, args[:i+1]...)
+			repaired = append(repaired, resumeSessionID)
+			repaired = append(repaired, args[i+1:]...)
+			return repaired
 		}
 		if strings.HasPrefix(arg, "--resume=") {
-			return args
+			if strings.TrimSpace(strings.TrimPrefix(arg, "--resume=")) != "" {
+				return args
+			}
+			repaired := append([]string{}, args...)
+			repaired[i] = "--resume=" + resumeSessionID
+			return repaired
 		}
 	}
 

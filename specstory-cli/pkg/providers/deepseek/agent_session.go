@@ -3,11 +3,10 @@ package deepseek
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
-	"time"
-
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -26,11 +25,11 @@ type (
 
 // dsSession represents the on-disk format of a DeepSeek TUI session file.
 type dsSession struct {
-	SchemaVersion int          `json:"schema_version"`
-	Metadata      dsMetadata   `json:"metadata"`
-	Messages      []dsMessage  `json:"messages"`
-	SystemPrompt  string       `json:"system_prompt"`
-	RawData       string       // not serialised — set after parse
+	SchemaVersion int         `json:"schema_version"`
+	Metadata      dsMetadata  `json:"metadata"`
+	Messages      []dsMessage `json:"messages"`
+	SystemPrompt  string      `json:"system_prompt"`
+	RawData       string      `json:"-"` // populated after parse for debugRaw output
 }
 
 type dsMetadata struct {
@@ -46,25 +45,22 @@ type dsMetadata struct {
 }
 
 type dsMessage struct {
-	Role    string        `json:"role"`
+	Role    string          `json:"role"`
 	Content []dsContentPart `json:"content"`
 }
 
 type dsContentPart struct {
-	Type       string                 `json:"type"`        // "text", "thinking", "tool_use", "tool_result"
-	Text       string                 `json:"text"`        // used when Type == "text"
-	Thinking   string                 `json:"thinking"`    // used when Type == "thinking"
+	Type     string `json:"type"`     // "text", "thinking", "tool_use", "tool_result"
+	Text     string `json:"text"`     // used when Type == "text"
+	Thinking string `json:"thinking"` // used when Type == "thinking"
 	// tool_use fields are flat in the JSON (not nested)
-	Name       string                 `json:"name"`
-	ID         string                 `json:"id"`
-	Input      map[string]interface{} `json:"input"`
+	Name  string                 `json:"name"`
+	ID    string                 `json:"id"`
+	Input map[string]interface{} `json:"input"`
 	// tool_result fields
-	ContentArr []dsContentPart `json:"content_arr"` // ignored — content is a raw string in actual JSON
-	ToolResultContent string  `json:"content"` // tool_result content — can be a JSON string
-	ToolUseID    string       `json:"tool_use_id"`
+	ToolResultContent string `json:"content"`     // tool_result content (raw string)
+	ToolUseID         string `json:"tool_use_id"` // matches the tool_use.id this result is for
 }
-
-
 
 // parseSessionFile reads and parses a DeepSeek TUI session JSON file.
 func parseSessionFile(path string) (*dsSession, error) {
@@ -167,7 +163,7 @@ func generateAgentSession(session *dsSession, workspaceRoot string) (*SessionDat
 		workspace = ws
 	}
 
-	exchanges := buildExchanges(session)
+	exchanges := buildExchanges(session, workspace)
 	if len(exchanges) == 0 {
 		return nil, fmt.Errorf("session contains no conversational exchanges")
 	}
@@ -178,18 +174,14 @@ func generateAgentSession(session *dsSession, workspaceRoot string) (*SessionDat
 		updated = created
 	}
 
-	// Attach session-level token usage to the last message of the last exchange.
-	if session.Metadata.TotalTokens > 0 {
-		if lastEx := &exchanges[len(exchanges)-1]; len(lastEx.Messages) > 0 {
-			usage := &Usage{InputTokens: session.Metadata.TotalTokens}
-			lastEx.Messages[len(lastEx.Messages)-1].Usage = usage
-		}
-	}
+	// DeepSeek TUI reports only a session-level total_tokens with no breakdown
+	// between input/output/cached, so we intentionally don't synthesize a Usage
+	// value — attributing the sum to InputTokens would mislead downstream stats.
 
 	data := &SessionData{
 		SchemaVersion: "1.0",
 		Provider: ProviderInfo{
-			ID:      "deepseek",
+			ID:      "deepseek-tui",
 			Name:    "DeepSeek TUI",
 			Version: session.Metadata.Model,
 		},
@@ -208,59 +200,60 @@ func generateAgentSession(session *dsSession, workspaceRoot string) (*SessionDat
 // Each user message with real text content starts a new exchange.
 // User messages that only contain tool_result content are treated as
 // part of the current assistant turn (tool response), not as new exchanges.
-func buildExchanges(session *dsSession) []Exchange {
+func buildExchanges(session *dsSession, workspaceRoot string) []Exchange {
 	var exchanges []Exchange
 	var current *Exchange
+
+	// DeepSeek TUI does not stamp per-message timestamps. Use session-level
+	// CreatedAt for user turns (best signal of when the conversation began)
+	// and UpdatedAt for assistant turns so re-parsing the same file produces
+	// stable, deterministic output. time.Now() would change every parse.
+	userTs := strings.TrimSpace(session.Metadata.CreatedAt)
+	assistantTs := strings.TrimSpace(session.Metadata.UpdatedAt)
+	if assistantTs == "" {
+		assistantTs = userTs
+	}
 
 	for _, msg := range session.Messages {
 		if msg.Role == "user" {
 			if isToolResultOnly(&msg) {
-				// This is a tool result injected as user-role — skip it
-				// but if there's a current exchange, attach tool result
-				// info to the last assistant message.
-				if current != nil && len(current.Messages) > 0 {
-					lastIdx := len(current.Messages) - 1
-					lastMsg := &current.Messages[lastIdx]
-					attachToolResults(&msg, lastMsg)
+				// Tool results live in user-role messages; route each tool_result
+				// to the assistant Tool message it belongs to via tool_use_id.
+				if current != nil {
+					attachToolResults(&msg, current)
 				}
 				continue
 			}
 
-			// Start a new exchange for user messages with real text content.
 			if current != nil && len(current.Messages) > 0 {
 				exchanges = append(exchanges, *current)
 			}
 			current = &Exchange{}
-			ts := session.Metadata.CreatedAt
 
-			spiMsg := convertUserMessage(msg, ts)
-			if spiMsg.Content != nil && len(spiMsg.Content) > 0 {
+			spiMsg := convertUserMessage(msg, userTs)
+			if len(spiMsg.Content) > 0 {
 				current.Messages = append(current.Messages, spiMsg)
 				if current.StartTime == "" {
-					current.StartTime = ts
+					current.StartTime = userTs
 				}
-				current.EndTime = ts
+				current.EndTime = userTs
 			}
 			continue
 		}
 
-		// Assistant message
 		if current == nil {
 			current = &Exchange{}
 		}
 
-		ts := time.Now().UTC().Format(time.RFC3339)
-		spiMsgs := convertAssistantMessage(msg, session.Metadata.Model, ts)
+		spiMsgs := convertAssistantMessage(msg, session.Metadata.Model, assistantTs, workspaceRoot)
 		current.Messages = append(current.Messages, spiMsgs...)
-		current.EndTime = ts
+		current.EndTime = assistantTs
 	}
 
-	// Flush the last exchange.
 	if current != nil && len(current.Messages) > 0 {
 		exchanges = append(exchanges, *current)
 	}
 
-	// Assign exchange IDs.
 	for i := range exchanges {
 		exchanges[i].ExchangeID = fmt.Sprintf("%s:%d", session.Metadata.ID, i)
 		if exchanges[i].StartTime == "" {
@@ -293,45 +286,54 @@ func isToolResultOnly(msg *dsMessage) bool {
 	return hasToolResult
 }
 
-// attachToolResults attaches tool result content to the last assistant Message's
-// tool Output, if present. DeepSeek TUI stores tool_result content as a raw JSON
-// string.
-func attachToolResults(msg *dsMessage, lastMsg *Message) {
-	if lastMsg.Tool == nil {
+// attachToolResults routes each tool_result content part in a user-role message
+// to the assistant Tool message it belongs to, matched by tool_use_id.
+//
+// DeepSeek TUI emits tool results in the user message that follows the
+// assistant's tool calls. When the assistant fires N parallel tool calls, the
+// next user message holds N tool_result parts — each with its own tool_use_id.
+// Earlier code attached every result to whichever was the *last* tool message
+// and string-concatenated multiple results together; that produced wrong
+// markdown for any session with parallel calls. We fix this by indexing
+// assistant tool messages by UseID and attaching each result to its match.
+//
+// After attaching, we re-render FormattedMarkdown so the rendered tool block
+// includes the result body.
+func attachToolResults(msg *dsMessage, current *Exchange) {
+	if current == nil {
 		return
 	}
+	// Build an index of assistant Tool messages in this exchange by UseID.
+	byUseID := make(map[string]*Message, len(current.Messages))
+	for i := range current.Messages {
+		m := &current.Messages[i]
+		if m.Tool != nil && m.Tool.UseID != "" {
+			byUseID[m.Tool.UseID] = m
+		}
+	}
+
 	for _, cp := range msg.Content {
 		if cp.Type != "tool_result" {
 			continue
 		}
-		// Tool result content is a JSON string in DeepSeek TUI.
+		target, ok := byUseID[cp.ToolUseID]
+		if !ok || target == nil || target.Tool == nil {
+			// Result with no matching assistant call — drop rather than misattribute.
+			slog.Debug("deepseek: tool_result has no matching tool_use",
+				"toolUseId", cp.ToolUseID)
+			continue
+		}
 		content := strings.TrimSpace(cp.ToolResultContent)
 		if content == "" {
 			continue
 		}
-		if lastMsg.Tool.Output == nil {
-			lastMsg.Tool.Output = make(map[string]interface{})
-		}
-		if existing, ok := lastMsg.Tool.Output["content"].(string); ok {
-			lastMsg.Tool.Output["content"] = existing + content
-		} else {
-			lastMsg.Tool.Output["content"] = content
+		target.Tool.Output = map[string]interface{}{"content": content}
+		// Re-render the formatted markdown now that the result is in place.
+		formatted := formatToolCall(target.Tool)
+		if formatted != "" {
+			target.Tool.FormattedMarkdown = &formatted
 		}
 	}
-}
-
-// hasUserMessageContent returns true if the message has at least one text
-// content part that isn't a system block (<turn_meta>).
-func hasUserMessageContent(msg *dsMessage) bool {
-	for _, cp := range msg.Content {
-		if cp.Type == "text" {
-			t := strings.TrimSpace(cp.Text)
-			if t != "" && !strings.HasPrefix(t, "<turn_meta>") {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // convertUserMessage converts a DeepSeek user message to the schema Message format.
@@ -365,12 +367,11 @@ func userContentParts(msg dsMessage) []ContentPart {
 // convertAssistantMessage converts a DeepSeek assistant message to the schema Message format.
 // Each tool_use content part produces a separate Message (one tool = one message),
 // while text and thinking parts are combined into a single message.
-func convertAssistantMessage(msg dsMessage, model string, timestamp string) []Message {
+func convertAssistantMessage(msg dsMessage, model string, timestamp string, workspaceRoot string) []Message {
 	var msgs []Message
 	var textParts []ContentPart
 	var toolParts []dsContentPart
 
-	// Separate text/thinking from tool_use parts.
 	for _, cp := range msg.Content {
 		switch cp.Type {
 		case "tool_use":
@@ -394,7 +395,6 @@ func convertAssistantMessage(msg dsMessage, model string, timestamp string) []Me
 		}
 	}
 
-	// Emit a single message for text/thinking parts.
 	if len(textParts) > 0 {
 		msgs = append(msgs, Message{
 			Timestamp: timestamp,
@@ -404,33 +404,36 @@ func convertAssistantMessage(msg dsMessage, model string, timestamp string) []Me
 		})
 	}
 
-	// Each tool_use becomes its own message with ToolInfo.
 	for _, cp := range toolParts {
-		toolMsg := convertToolUseMessage(cp, model, timestamp)
-		msgs = append(msgs, toolMsg)
+		msgs = append(msgs, convertToolUseMessage(cp, model, timestamp, workspaceRoot))
 	}
 
 	return msgs
 }
 
-// convertToolUseMessage creates a Message for a tool_use content part.
-func convertToolUseMessage(cp dsContentPart, model string, timestamp string) Message {
+// convertToolUseMessage creates a Message for a tool_use content part. The
+// FormattedMarkdown is set from the tool's input only here; attachToolResults
+// re-renders it once the matching tool_result is attached.
+func convertToolUseMessage(cp dsContentPart, model string, timestamp string, workspaceRoot string) Message {
 	name := cp.Name
 	if name == "" {
 		name = "unknown"
 	}
 	tool := &ToolInfo{
-		Name:   name,
-		Type:   classifyToolType(name),
-		UseID:  cp.ID,
-		Input:  cp.Input,
+		Name:  name,
+		Type:  classifyToolType(name),
+		UseID: cp.ID,
+		Input: cp.Input,
 	}
-
+	if formatted := formatToolCall(tool); formatted != "" {
+		tool.FormattedMarkdown = &formatted
+	}
 	return Message{
 		Timestamp: timestamp,
 		Role:      "agent",
 		Model:     model,
 		Tool:      tool,
+		PathHints: extractPathHints(cp.Input, workspaceRoot),
 	}
 }
 
@@ -438,7 +441,6 @@ func convertToolUseMessage(cp dsContentPart, model string, timestamp string) Mes
 func classifyToolType(name string) string {
 	writeTools := map[string]bool{
 		"write_file": true, "edit_file": true, "apply_patch": true,
-		"checklist_write": true, "task_create": true, "note": true,
 	}
 	readTools := map[string]bool{
 		"read_file": true, "list_dir": true, "retrieve_tool_result": true,
@@ -524,8 +526,7 @@ func writeDebugRaw(session *dsSession) {
 		return
 	}
 
-	// Write the raw session JSON.
-	rawPath := dir + "/raw-session.json"
+	rawPath := filepath.Join(dir, "raw-session.json")
 	if err := os.WriteFile(rawPath, []byte(session.RawData), 0o644); err != nil {
 		slog.Debug("deepseek: failed to write debug raw file", "path", rawPath, "error", err)
 		return
