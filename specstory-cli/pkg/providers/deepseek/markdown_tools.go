@@ -86,7 +86,7 @@ func formatToolOutput(tool *ToolInfo) string {
 // downstream features (cloud sync, search) can index sessions by touched
 // files. Mirrors droidcli's extractPathHints — same shell-command extraction
 // via spi.ExtractShellPathHints.
-func extractPathHints(input map[string]interface{}, workspaceRoot string) []string {
+func extractPathHints(input map[string]any, workspaceRoot string) []string {
 	if input == nil {
 		return nil
 	}
@@ -105,7 +105,7 @@ func extractPathHints(input map[string]interface{}, workspaceRoot string) []stri
 		switch v := val.(type) {
 		case string:
 			addPathHint(&hints, v, workspaceRoot)
-		case []interface{}:
+		case []any:
 			for _, entry := range v {
 				if s, ok := entry.(string); ok {
 					addPathHint(&hints, s, workspaceRoot)
@@ -275,11 +275,11 @@ func renderApplyPatch(args map[string]any) string {
 }
 
 func renderTodoWrite(args map[string]any) string {
-	itemsRaw, ok := args["todos"].([]interface{})
+	itemsRaw, ok := args["todos"].([]any)
 	if !ok || len(itemsRaw) == 0 {
 		// Fall back to plan/items keys used by update_plan / checklist_write.
 		for _, key := range []string{"items", "plan", "steps"} {
-			if v, ok := args[key].([]interface{}); ok && len(v) > 0 {
+			if v, ok := args[key].([]any); ok && len(v) > 0 {
 				itemsRaw = v
 				break
 			}
@@ -291,7 +291,7 @@ func renderTodoWrite(args map[string]any) string {
 	var b strings.Builder
 	b.WriteString("Todo List:\n")
 	for _, raw := range itemsRaw {
-		item, _ := raw.(map[string]interface{})
+		item, _ := raw.(map[string]any)
 		status := strings.TrimSpace(stringValue(item, "status"))
 		desc := strings.TrimSpace(stringValue(item, "description", "content", "text"))
 		if desc == "" {

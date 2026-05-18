@@ -195,7 +195,7 @@ type ProvidersConfig struct {
 	ClaudeCmd   string `toml:"claude_cmd"`
 	CodexCmd    string `toml:"codex_cmd"`
 	CursorCmd   string `toml:"cursor_cmd"`
-	DeepseekCmd string `toml:"deepseek_cmd"`
+	DeepSeekCmd string `toml:"deepseek_cmd"`
 	DroidCmd    string `toml:"droid_cmd"`
 	GeminiCmd   string `toml:"gemini_cmd"`
 }
@@ -737,7 +737,7 @@ func (c *Config) GetProviderCmd(providerID string) string {
 	case "cursor":
 		return c.Providers.CursorCmd
 	case "deepseek":
-		return c.Providers.DeepseekCmd
+		return c.Providers.DeepSeekCmd
 	case "droid":
 		return c.Providers.DroidCmd
 	case "gemini":

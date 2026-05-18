@@ -37,13 +37,17 @@ func (p *Provider) Name() string {
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseCommand(customCommand)
 	isCustom := strings.TrimSpace(customCommand) != ""
+	slog.Info("Check: verifying DeepSeek TUI installation",
+		"command", cmdName, "customCommand", isCustom)
 
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
+		slog.Info("Check: binary not found on PATH", "command", cmdName, "error", err)
 		msg := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
 		trackCheckFailure("deepseek", isCustom, cmdName, "", versionFlag, "", "not_found", err.Error())
 		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
 	}
+	slog.Info("Check: binary resolved", "command", cmdName, "resolved", resolved)
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(resolved, versionFlag)
@@ -52,6 +56,8 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if err := cmd.Run(); err != nil {
 		errorType := classifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
+		slog.Info("Check: version probe failed",
+			"resolved", resolved, "errorType", errorType, "stderr", stderrOutput, "error", err)
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
 		trackCheckFailure("deepseek", isCustom, cmdName, resolved, versionFlag, stderrOutput, errorType, err.Error())
 		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
@@ -61,6 +67,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = "unknown"
 	}
+	slog.Info("Check: succeeded", "resolved", resolved, "version", version)
 	trackCheckSuccess("deepseek", isCustom, cmdName, resolved, version, versionFlag)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
@@ -117,7 +124,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	result := make([]spi.AgentChatSession, 0, len(matchingFiles))
 
 	for i, file := range matchingFiles {
-		session, err := parseSessionFile(file.Path)
+		session, err := parseSessionFile(file.Path, true)
 		if err != nil {
 			slog.Debug("deepseek: skipping session", "path", file.Path, "error", err)
 			if progress != nil {
@@ -145,7 +152,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	if strings.TrimSpace(projectPath) != "" && !sessionMentionsProject(path, projectPath) {
 		return nil, nil
 	}
-	session, err := parseSessionFile(path)
+	session, err := parseSessionFile(path, true)
 	if err != nil {
 		return nil, err
 	}
@@ -155,38 +162,54 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 // ExecAgentAndWatch executes DeepSeek TUI for the given project and watches
 // for session updates.
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	slog.Info("ExecAgentAndWatch: starting DeepSeek TUI execution and monitoring",
+		"projectPath", projectPath,
+		"customCommand", customCommand,
+		"resumeSessionID", resumeSessionID,
+		"debugRaw", debugRaw,
+		"hasCallback", sessionCallback != nil)
+
 	if sessionCallback == nil {
+		slog.Info("ExecAgentAndWatch: no callback provided, running without watcher")
 		return ExecuteDeepSeek(customCommand, resumeSessionID)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	slog.Info("ExecAgentAndWatch: launching session watcher in background")
 	watchErr := make(chan error, 1)
 	go func() {
 		watchErr <- watchSessions(ctx, projectPath, debugRaw, sessionCallback)
 	}()
 
+	slog.Info("ExecAgentAndWatch: executing DeepSeek TUI", "command", customCommand)
 	err := ExecuteDeepSeek(customCommand, resumeSessionID)
+	slog.Info("ExecAgentAndWatch: DeepSeek TUI exited, stopping watcher", "execError", err)
 	cancel()
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
-		slog.Warn("deepseek: watcher stopped with error", "error", werr)
+		slog.Warn("ExecAgentAndWatch: watcher stopped with error", "error", werr)
 	}
 
 	if err != nil {
 		return fmt.Errorf("deepseek execution failed: %w", err)
 	}
+	slog.Info("ExecAgentAndWatch: complete")
 	return nil
 }
 
 // WatchAgent monitors DeepSeek TUI sessions for the given project and invokes
 // sessionCallback for each new or updated session until ctx is canceled.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	slog.Info("WatchAgent: starting DeepSeek TUI activity monitoring",
+		"projectPath", projectPath, "debugRaw", debugRaw)
 	if sessionCallback == nil {
 		return fmt.Errorf("session callback is required")
 	}
-	return watchSessions(ctx, projectPath, debugRaw, sessionCallback)
+	err := watchSessions(ctx, projectPath, debugRaw, sessionCallback)
+	slog.Info("WatchAgent: watcher exited", "error", err)
+	return err
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing.

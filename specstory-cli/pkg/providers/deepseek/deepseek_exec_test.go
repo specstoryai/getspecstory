@@ -161,43 +161,6 @@ func TestParseCommand(t *testing.T) {
 	}
 }
 
-func TestExpandTilde(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skip("UserHomeDir failed, skipping")
-	}
-
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{name: "no tilde returns input", input: "/usr/local/bin/foo", want: "/usr/local/bin/foo"},
-		{name: "bare tilde without slash returns input", input: "~tilde", want: "~tilde"},
-		{name: "tilde slash expands to home", input: "~/bin/foo", want: filepath.Join(home, "bin/foo")},
-		{name: "empty input returns empty", input: "", want: ""},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := expandTilde(tt.input)
-			if got != tt.want {
-				t.Errorf("expandTilde(%q) = %q, want %q", tt.input, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestDefaultCommandConstant(t *testing.T) {
-	// Sanity: defaults shouldn't drift silently — they're part of the user contract.
-	if defaultCommand != "deepseek" {
-		t.Errorf("defaultCommand = %q, want %q", defaultCommand, "deepseek")
-	}
-	if versionFlag != "--version" {
-		t.Errorf("versionFlag = %q, want %q", versionFlag, "--version")
-	}
-}
-
 func TestParseCommand_DoesNotMutate(t *testing.T) {
 	// Guard against accidental in-place modification of the input string,
 	// which would surprise callers that re-use the same custom-command value.

@@ -29,7 +29,7 @@ type dsSession struct {
 	Metadata      dsMetadata  `json:"metadata"`
 	Messages      []dsMessage `json:"messages"`
 	SystemPrompt  string      `json:"system_prompt"`
-	RawData       string      `json:"-"` // populated after parse for debugRaw output
+	RawData       string      `json:"-"` // populated only when parseSessionFile is called with wantRawData=true
 }
 
 type dsMetadata struct {
@@ -54,16 +54,20 @@ type dsContentPart struct {
 	Text     string `json:"text"`     // used when Type == "text"
 	Thinking string `json:"thinking"` // used when Type == "thinking"
 	// tool_use fields are flat in the JSON (not nested)
-	Name  string                 `json:"name"`
-	ID    string                 `json:"id"`
-	Input map[string]interface{} `json:"input"`
+	Name  string         `json:"name"`
+	ID    string         `json:"id"`
+	Input map[string]any `json:"input"`
 	// tool_result fields
 	ToolResultContent string `json:"content"`     // tool_result content (raw string)
 	ToolUseID         string `json:"tool_use_id"` // matches the tool_use.id this result is for
 }
 
-// parseSessionFile reads and parses a DeepSeek TUI session JSON file.
-func parseSessionFile(path string) (*dsSession, error) {
+// parseSessionFile reads and parses a DeepSeek TUI session JSON file. When
+// wantRawData is true the file's full byte body is retained on the returned
+// session for downstream cloud sync and debug-raw output; callers that only
+// need the parsed structure (e.g. metadata extraction) pass false to avoid
+// keeping a copy of the entire JSON in memory.
+func parseSessionFile(path string, wantRawData bool) (*dsSession, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("deepseek: cannot read session file %s: %w", path, err)
@@ -74,51 +78,52 @@ func parseSessionFile(path string) (*dsSession, error) {
 		return nil, fmt.Errorf("deepseek: cannot parse session file %s: %w", path, err)
 	}
 
-	session.RawData = string(data)
+	if wantRawData {
+		session.RawData = string(data)
+	}
 	return &session, nil
 }
 
-// extractSessionMetadata reads only the metadata fields from a session file
-// without parsing the full messages array.
+// extractSessionMetadata parses a session file and returns a SessionMetadata
+// summary derived from the first user message. Returns (nil, nil) when the
+// session has no usable user content — callers treat that as "skip this file".
 func extractSessionMetadata(path string) (*spi.SessionMetadata, error) {
-	// Parse full file since we need to find the first user message for name/slug.
-	session, err := parseSessionFile(path)
+	var result *spi.SessionMetadata
+
+	session, err := parseSessionFile(path, false)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(session.Messages) == 0 {
-		return nil, nil
-	}
-
-	// Find first user message for slug and name
-	var firstUserMsg string
-	for _, msg := range session.Messages {
-		if msg.Role == "user" {
-			firstUserMsg = msgContentText(msg)
-			if firstUserMsg != "" {
-				break
-			}
+	firstUserMsg := firstUserMessageText(session)
+	if firstUserMsg != "" {
+		slug := spi.GenerateFilenameFromUserMessage(firstUserMsg)
+		if slug == "" {
+			slug = "deepseek-session"
+		}
+		result = &spi.SessionMetadata{
+			SessionID: session.Metadata.ID,
+			CreatedAt: session.Metadata.CreatedAt,
+			Slug:      slug,
+			Name:      spi.GenerateReadableName(firstUserMsg),
 		}
 	}
 
-	if firstUserMsg == "" {
-		return nil, nil
+	return result, nil
+}
+
+// firstUserMessageText returns the text of the first user message that carries
+// visible content, or "" if no such message exists.
+func firstUserMessageText(session *dsSession) string {
+	for _, msg := range session.Messages {
+		if msg.Role != "user" {
+			continue
+		}
+		if text := msgContentText(msg); text != "" {
+			return text
+		}
 	}
-
-	slug := spi.GenerateFilenameFromUserMessage(firstUserMsg)
-	if slug == "" {
-		slug = "deepseek-session"
-	}
-
-	name := spi.GenerateReadableName(firstUserMsg)
-
-	return &spi.SessionMetadata{
-		SessionID: session.Metadata.ID,
-		CreatedAt: session.Metadata.CreatedAt,
-		Slug:      slug,
-		Name:      name,
-	}, nil
+	return ""
 }
 
 // convertToAgentSession converts a parsed dsSession to the unified AgentChatSession format.
@@ -327,7 +332,7 @@ func attachToolResults(msg *dsMessage, current *Exchange) {
 		if content == "" {
 			continue
 		}
-		target.Tool.Output = map[string]interface{}{"content": content}
+		target.Tool.Output = map[string]any{"content": content}
 		// Re-render the formatted markdown now that the result is in place.
 		formatted := formatToolCall(target.Tool)
 		if formatted != "" {

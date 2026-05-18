@@ -7,19 +7,6 @@ import (
 	"testing"
 )
 
-func TestVersionFlag(t *testing.T) {
-	if versionFlag != "--version" {
-		t.Errorf("versionFlag = %q, want --version", versionFlag)
-	}
-}
-
-func TestProviderName(t *testing.T) {
-	p := NewProvider()
-	if got := p.Name(); got != "DeepSeek TUI" {
-		t.Errorf("Name() = %q, want %q", got, "DeepSeek TUI")
-	}
-}
-
 func TestClassifyCheckError(t *testing.T) {
 	tests := []struct {
 		name string

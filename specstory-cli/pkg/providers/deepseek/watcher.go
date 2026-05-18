@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
@@ -143,7 +142,7 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
 		return
 	}
 
-	session, err := parseSessionFile(filePath)
+	session, err := parseSessionFile(filePath, true)
 	if err != nil {
 		slog.Debug("deepseek: skipping session", "path", filePath, "error", err)
 		return
@@ -172,7 +171,7 @@ func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback f
 		if projectPath != "" && !sessionMentionsProject(file.Path, projectPath) {
 			continue
 		}
-		session, err := parseSessionFile(file.Path)
+		session, err := parseSessionFile(file.Path, true)
 		if err != nil {
 			slog.Debug("deepseek: skipping session", "path", file.Path, "error", err)
 			continue
