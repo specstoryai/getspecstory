@@ -275,8 +275,10 @@ func renderApplyPatch(args map[string]any) string {
 }
 
 func renderTodoWrite(args map[string]any) string {
-	itemsRaw, ok := args["todos"].([]any)
-	if !ok || len(itemsRaw) == 0 {
+	// A failed type assertion yields nil, and len(nil) == 0, so we don't need
+	// to check the comma-ok bool separately.
+	itemsRaw, _ := args["todos"].([]any)
+	if len(itemsRaw) == 0 {
 		// Fall back to plan/items keys used by update_plan / checklist_write.
 		for _, key := range []string{"items", "plan", "steps"} {
 			if v, ok := args[key].([]any); ok && len(v) > 0 {
@@ -292,6 +294,9 @@ func renderTodoWrite(args map[string]any) string {
 	b.WriteString("Todo List:\n")
 	for _, raw := range itemsRaw {
 		item, _ := raw.(map[string]any)
+		if item == nil {
+			continue
+		}
 		status := strings.TrimSpace(stringValue(item, "status"))
 		desc := strings.TrimSpace(stringValue(item, "description", "content", "text"))
 		if desc == "" {

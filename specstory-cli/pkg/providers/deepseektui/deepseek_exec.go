@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -63,16 +64,15 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 			if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
 				return args
 			}
-			repaired := append([]string{}, args[:i+1]...)
-			repaired = append(repaired, resumeSessionID)
-			repaired = append(repaired, args[i+1:]...)
-			return repaired
+			// slices.Concat always allocates a new backing array, so the caller's
+			// slice is never mutated.
+			return slices.Concat(args[:i+1], []string{resumeSessionID}, args[i+1:])
 		}
 		if strings.HasPrefix(arg, "--resume=") {
 			if strings.TrimSpace(strings.TrimPrefix(arg, "--resume=")) != "" {
 				return args
 			}
-			repaired := append([]string{}, args...)
+			repaired := slices.Clone(args)
 			repaired[i] = "--resume=" + resumeSessionID
 			return repaired
 		}
