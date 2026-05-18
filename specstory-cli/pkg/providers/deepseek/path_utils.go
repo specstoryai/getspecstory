@@ -76,29 +76,30 @@ func listSessionFiles() ([]sessionFile, error) {
 	return files, nil
 }
 
-// findSessionFileByID finds a session file by its ID (UUID).
-// The ID should match a filename like <uuid>.json.
+// findSessionFileByID finds a session file by its ID. DeepSeek session files
+// are named <uuid>.json, so we resolve the path directly with one os.Stat
+// rather than listing the directory and scanning. Callers may pass either the
+// bare UUID or the full "<uuid>.json" filename. Returns ("", nil) when no
+// matching file exists — that's "not found", not an error.
 func findSessionFileByID(sessionID string) (string, error) {
-	files, err := listSessionFiles()
+	dir, err := resolveSessionsDir()
 	if err != nil {
 		return "", err
 	}
 
-	for _, file := range files {
-		candidate := trimExt(file.FileName)
-		if candidate == sessionID || file.FileName == sessionID {
-			return file.Path, nil
-		}
+	filename := sessionID
+	if filepath.Ext(filename) == "" {
+		filename += ".json"
 	}
-	return "", nil
-}
+	path := filepath.Join(dir, filename)
 
-func trimExt(name string) string {
-	ext := filepath.Ext(name)
-	if ext == "" {
-		return name
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
 	}
-	return name[:len(name)-len(ext)]
+	return path, nil
 }
 
 // sessionMentionsProject checks whether a session file's workspace metadata
