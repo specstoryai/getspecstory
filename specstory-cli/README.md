@@ -23,13 +23,14 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 The following coding agents are supported in the SpecStory CLI:
 
-| Agent                                                     | Provider                                | Data Format | Source Location        |
-|-----------------------------------------------------------|-----------------------------------------|-------------|------------------------|
-| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/) | JSONL       | `~/.claude/projects/`  |
-| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)     | JSONL       | `~/.codex/sessions/`   |
-| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)   | SQLite      | `~/.cursor/chats/`     |
-| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)     | JSONL       | `~/.factory/sessions/` |
-| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)   | JSON        | `~/.gemini/tmp/`       |
+| Agent                                                     | Provider                                  | Data Format | Source Location         |
+|-----------------------------------------------------------|-------------------------------------------|-------------|-------------------------|
+| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)   | JSONL       | `~/.claude/projects/`   |
+| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)       | JSONL       | `~/.codex/sessions/`    |
+| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)     | SQLite      | `~/.cursor/chats/`      |
+| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`  |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)     | JSON        | `~/.gemini/tmp/`        |
+| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/` |
 
 ### Agent Provider SPI (Service Provider Interface)
 
@@ -166,6 +167,9 @@ The configuration is determined with the following priority (highest priority to
 # Cursor CLI command
 # cursor_cmd = "cursor-agent"
 
+# DeepSeek TUI command
+# deepseek_cmd = "deepseek"
+
 # Droid CLI command
 # droid_cmd = "droid"
 
@@ -194,6 +198,7 @@ The configuration is determined with the following priority (highest priority to
 | `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
 | `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
 | `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
+| `[providers]`     | `deepseek_cmd`    | `"deepseek"`         | DeepSeek TUI command                       |
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 

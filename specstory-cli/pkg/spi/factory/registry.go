@@ -15,6 +15,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -86,6 +87,10 @@ func (r *Registry) registerAll() {
 	copilotideProvider := copilotide.NewProvider()
 	r.providers["copilotide"] = copilotideProvider
 	slog.Debug("Registered provider", "id", "copilotide", "name", copilotideProvider.Name())
+
+	deepseekProvider := deepseektui.NewProvider()
+	r.providers["deepseek"] = deepseekProvider
+	slog.Debug("Registered provider", "id", "deepseek", "name", deepseekProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())

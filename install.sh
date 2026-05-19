@@ -32,7 +32,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 # Download and install
-FILENAME="getspecstory_${OS}_${ARCH}.tar.gz"
+FILENAME="SpecStoryCLI_${OS}_${ARCH}.tar.gz"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$VERSION/$FILENAME"
 TMP_DIR=$(mktemp -d)
 
