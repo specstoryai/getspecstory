@@ -11,6 +11,18 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
+// userDataDirOverride holds an override path supplied via `--user-data-dir copilotide:<path>`.
+// When non-empty, it points to VS Code's user-data-dir (the parent of the "User" subdirectory).
+// The override is set once by the CLI command before watchers/lookups run, so no locking is needed.
+var userDataDirOverride string
+
+// SetUserDataDirOverride sets the copilotide user-data-dir override.
+// Pass an empty string to clear. Intended to be called once at command startup
+// from the `--user-data-dir copilotide:<path>` flag.
+func SetUserDataDirOverride(p string) {
+	userDataDirOverride = p
+}
+
 // isWSL checks if the current Linux environment is actually WSL
 func isWSL() bool {
 	// Check /proc/version for WSL indicators
@@ -64,6 +76,20 @@ func getWindowsWorkspaceStoragePathInWSL() string {
 // GetWorkspaceStoragePath returns the VS Code workspace storage directory path
 // Returns empty string if the directory doesn't exist
 func GetWorkspaceStoragePath() string {
+	// An explicit --user-data-dir copilotide:<path> override takes precedence over
+	// OS-default discovery. If the derived workspaceStorage doesn't exist, warn and
+	// fall through so a stale override doesn't silently kill the provider.
+	if userDataDirOverride != "" {
+		candidate := filepath.Join(userDataDirOverride, "User", "workspaceStorage")
+		if _, err := os.Stat(candidate); err == nil {
+			slog.Debug("Using --user-data-dir override for VS Code workspace storage", "path", candidate)
+			return candidate
+		} else {
+			slog.Warn("--user-data-dir override for VS Code workspaceStorage missing; falling back to OS default",
+				"override", userDataDirOverride, "candidate", candidate, "error", err)
+		}
+	}
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ""
@@ -104,7 +130,14 @@ func GetWorkspaceStoragePath() string {
 
 	// Check if directory exists
 	if _, err := os.Stat(storagePath); os.IsNotExist(err) {
-		slog.Debug("Workspace storage directory does not exist", "path", storagePath)
+		// Escalate to a warning only when the user supplied an override that also missed —
+		// otherwise this is just "VS Code isn't installed" and should stay quiet.
+		if userDataDirOverride != "" {
+			slog.Warn("VS Code workspace storage missing at both override and OS-default paths; provider will be idle until restart",
+				"override", userDataDirOverride, "osDefault", storagePath)
+		} else {
+			slog.Debug("Workspace storage directory does not exist", "path", storagePath)
+		}
 		return ""
 	}
 

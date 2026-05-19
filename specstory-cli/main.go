@@ -571,6 +571,11 @@ Provide a specific agent ID to sync a specific provider.`
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.EnsureDefaultProjectConfig(configDir)
 
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			// Done here at the top so both the regular and -s/--session paths pick it up.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			cmdpkg.ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			// Get session IDs if provided via flag
 			sessionIDs, _ := cmd.Flags().GetStringSlice("session")
 
@@ -1538,6 +1543,7 @@ func main() {
 	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
 	syncCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	syncCmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag

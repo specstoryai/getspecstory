@@ -103,6 +103,11 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				spi.SetDebugBaseDir(flagDebugDir)
 			}
 
+			// Apply per-provider user-data-dir overrides before any provider initializes
+			// its watchers (they read the override at first lookup).
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir, flagDebugDir)
 			if err != nil {
@@ -352,6 +357,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	watchCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
 	watchCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	watchCmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
 
 	return watchCmd
 }

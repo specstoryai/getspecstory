@@ -4,8 +4,112 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
+
+// resetUserDataDirOverride restores the package-level override after a test mutates it.
+// Tests must defer this — leaking state into sibling tests would silently change their behavior.
+func resetUserDataDirOverride(t *testing.T) {
+	t.Helper()
+	prev := userDataDirOverride
+	t.Cleanup(func() { userDataDirOverride = prev })
+}
+
+// TestUserDataDirOverride_WorkspaceStorage verifies that an override pointing to a
+// valid directory wins over OS-default discovery, and that a missing override path
+// falls through (warn-and-fall-back, not hard error).
+func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Build a fake user-data-dir: <tmp>/User/workspaceStorage
+	tmp := t.TempDir()
+	wantPath := filepath.Join(tmp, "User", "workspaceStorage")
+	if err := os.MkdirAll(wantPath, 0755); err != nil {
+		t.Fatalf("Failed to create fake workspaceStorage: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetWorkspaceStoragePath()
+	if err != nil {
+		t.Fatalf("GetWorkspaceStoragePath() with valid override returned error: %v", err)
+	}
+	if got != wantPath {
+		t.Errorf("GetWorkspaceStoragePath() = %q, want %q", got, wantPath)
+	}
+}
+
+// TestUserDataDirOverride_GlobalDatabase verifies override resolution for state.vscdb.
+func TestUserDataDirOverride_GlobalDatabase(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	tmp := t.TempDir()
+	globalDir := filepath.Join(tmp, "User", "globalStorage")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatalf("Failed to create fake globalStorage: %v", err)
+	}
+	wantPath := filepath.Join(globalDir, "state.vscdb")
+	if err := os.WriteFile(wantPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to write fake state.vscdb: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetGlobalDatabasePath()
+	if err != nil {
+		t.Fatalf("GetGlobalDatabasePath() with valid override returned error: %v", err)
+	}
+	if got != wantPath {
+		t.Errorf("GetGlobalDatabasePath() = %q, want %q", got, wantPath)
+	}
+}
+
+// TestUserDataDirOverride_MissingPathFallsThrough verifies that when the override is
+// set but the derived path does not exist, the resolver falls through to OS-default
+// discovery instead of failing fast. On systems without a real Cursor install, this
+// surfaces as the normal "not found" error from the OS-default path — proving we did
+// fall through and didn't get stuck on the bad override.
+func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Override points at a directory that exists but has no User/workspaceStorage inside.
+	SetUserDataDirOverride(t.TempDir())
+
+	_, err := GetWorkspaceStoragePath()
+	if err == nil {
+		// If a real Cursor install happens to exist on this machine, the OS-default
+		// branch succeeded — also a valid fall-through outcome. Either way, the override
+		// must not have been used (we'd have failed before reaching here otherwise).
+		return
+	}
+	// The error must come from the OS-default path, not from the override candidate
+	// (the override candidate is under t.TempDir()). The error message includes the
+	// path being checked; assert it doesn't mention our tmp dir.
+	if strings.Contains(err.Error(), t.TempDir()) {
+		t.Errorf("expected fall-through to OS default after bad override, but error mentions override path: %v", err)
+	}
+}
+
+// TestUserDataDirOverride_NoOverridePreservesExistingBehavior verifies that when the
+// override is empty, the resolver behaves exactly as it did before this feature —
+// no surprises for the common case.
+func TestUserDataDirOverride_NoOverridePreservesExistingBehavior(t *testing.T) {
+	resetUserDataDirOverride(t)
+	SetUserDataDirOverride("") // explicit clear
+
+	// On a CI box without Cursor installed, this will error; on a dev box with Cursor
+	// installed, it will succeed. Both outcomes are valid — we only assert the call
+	// completes without panicking and produces an unsurprising error shape if it fails.
+	got, err := GetWorkspaceStoragePath()
+	if err != nil {
+		if !strings.Contains(err.Error(), "workspace storage") {
+			t.Errorf("unexpected error from default discovery: %v", err)
+		}
+		return
+	}
+	if got == "" {
+		t.Errorf("GetWorkspaceStoragePath() returned empty path with no error")
+	}
+}
 
 func TestUriToPath(t *testing.T) {
 	tests := []struct {
