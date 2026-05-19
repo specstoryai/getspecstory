@@ -112,6 +112,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # Gemini CLI command
 # gemini_cmd = "gemini"
+
+# DeepSeek TUI command
+# deepseek_cmd = "deepseek"
 `
 
 // Config represents the complete CLI configuration
@@ -189,11 +192,12 @@ type TelemetryConfig struct {
 // These are used by `specstory run` as the equivalent of the -c flag,
 // scoped to a specific provider.
 type ProvidersConfig struct {
-	ClaudeCmd string `toml:"claude_cmd"`
-	CodexCmd  string `toml:"codex_cmd"`
-	CursorCmd string `toml:"cursor_cmd"`
-	DroidCmd  string `toml:"droid_cmd"`
-	GeminiCmd string `toml:"gemini_cmd"`
+	ClaudeCmd   string `toml:"claude_cmd"`
+	CodexCmd    string `toml:"codex_cmd"`
+	CursorCmd   string `toml:"cursor_cmd"`
+	DeepSeekCmd string `toml:"deepseek_cmd"`
+	DroidCmd    string `toml:"droid_cmd"`
+	GeminiCmd   string `toml:"gemini_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -732,6 +736,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.CodexCmd
 	case "cursor":
 		return c.Providers.CursorCmd
+	case "deepseek":
+		return c.Providers.DeepSeekCmd
 	case "droid":
 		return c.Providers.DroidCmd
 	case "gemini":
