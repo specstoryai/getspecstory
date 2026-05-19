@@ -1,11 +1,61 @@
 package cmd
 
 import (
+	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
+
+// ResolveProviderIDs resolves the effective list of provider IDs from a positional
+// arg and/or --providers flag. Returns nil to indicate "use all providers" when
+// neither is specified. Returns an error if both are specified simultaneously or
+// if a provider ID in --providers is invalid.
+func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag []string) ([]string, error) {
+	hasPositionalArg := len(args) > 0
+	hasProvidersFlag := len(providersFlag) > 0
+
+	if hasPositionalArg && hasProvidersFlag {
+		return nil, utils.ValidationError{Message: "cannot use both a positional provider argument and --providers flag; use one or the other"}
+	}
+
+	if hasPositionalArg {
+		// Return without validating — callers handle validation with tailored error messages
+		return []string{args[0]}, nil
+	}
+
+	if hasProvidersFlag {
+		ids := make([]string, 0, len(providersFlag))
+		seen := make(map[string]bool, len(providersFlag))
+		for _, id := range providersFlag {
+			id = strings.TrimSpace(strings.ToLower(id))
+			if id == "" {
+				continue
+			}
+			if _, err := registry.Get(id); err != nil {
+				return nil, utils.ValidationError{
+					Message: fmt.Sprintf("'%s' is not a valid provider ID.\nAvailable providers: %s", id, registry.GetProviderList()),
+				}
+			}
+			// Deduplicate while preserving the order of first occurrence
+			if !seen[id] {
+				seen[id] = true
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) == 0 {
+			return nil, utils.ValidationError{Message: "--providers requires at least one provider ID"}
+		}
+		return ids, nil
+	}
+
+	// Neither specified: caller should use all providers
+	return nil, nil
+}
 
 // CheckAndWarnAuthentication warns the user if cloud sync is enabled but authentication
 // is missing or has failed. Uses log.IsSilent() to respect silent mode.

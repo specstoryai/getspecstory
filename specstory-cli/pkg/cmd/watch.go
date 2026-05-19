@@ -138,12 +138,18 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			}
 			defer provenanceCleanup()
 
-			providerIDs := registry.ListIDs()
-			if len(providerIDs) == 0 {
+			if len(registry.ListIDs()) == 0 {
 				return fmt.Errorf("no providers registered")
 			}
-			if len(args) > 0 {
-				providerIDs = []string{args[0]}
+
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+			providerIDs := registry.ListIDs()
+			if len(resolvedIDs) > 0 {
+				providerIDs = resolvedIDs
 			}
 
 			// Collect provider names for analytics
@@ -329,6 +335,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	watchCmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	watchCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	watchCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
 
 	return watchCmd
 }
