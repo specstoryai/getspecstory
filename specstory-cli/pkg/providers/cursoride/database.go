@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
@@ -16,7 +17,9 @@ import (
 // well under that limit.
 const composerBatchSize = 200
 
-// OpenDatabase opens a SQLite database in read-only mode
+// OpenDatabase opens a SQLite database in read-only mode with controlled
+// connection pooling. Callers that need WAL mode guaranteed should call
+// EnsureWALMode once before using this function (e.g. at watcher startup).
 func OpenDatabase(dbPath string) (*sql.DB, error) {
 	// Open in read-only mode
 	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
@@ -24,18 +27,60 @@ func OpenDatabase(dbPath string) (*sql.DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Limit the connection pool to prevent file descriptor accumulation.
+	// SQLite serialises access anyway, so one connection is sufficient.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(30 * time.Second)
+
 	slog.Debug("Successfully opened database", "path", dbPath)
 
-	// Enable WAL mode for non-blocking reads (using cursorcli's simpler approach)
-	// This prevents readers from blocking Cursor IDE's writers
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		// Log warning but continue - not fatal if WAL fails
-		slog.Warn("Failed to enable WAL mode", "error", err)
-	} else {
-		slog.Debug("Enabled WAL mode for non-blocking reads")
+	return db, nil
+}
+
+// EnsureWALMode ensures the database is running in WAL journal mode.
+// WAL mode is required so that the -wal file exists for fsnotify to watch.
+// This must be called with a read-write connection because PRAGMA journal_mode
+// cannot change the mode on a read-only connection. It is intended to be called
+// once at watcher startup, not on every query.
+func EnsureWALMode(dbPath string) error {
+	// Open read-write to be able to change journal mode
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open database for WAL check: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close database after WAL check", "error", closeErr)
+		}
+	}()
+
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	// Check current journal mode
+	var currentMode string
+	if err := db.QueryRow("PRAGMA journal_mode").Scan(&currentMode); err != nil {
+		return fmt.Errorf("failed to query journal mode: %w", err)
 	}
 
-	return db, nil
+	if strings.EqualFold(currentMode, "wal") {
+		slog.Debug("Database already in WAL mode", "path", dbPath)
+		return nil
+	}
+
+	// Switch to WAL mode
+	var newMode string
+	if err := db.QueryRow("PRAGMA journal_mode=WAL").Scan(&newMode); err != nil {
+		return fmt.Errorf("failed to set WAL mode: %w", err)
+	}
+
+	if !strings.EqualFold(newMode, "wal") {
+		return fmt.Errorf("failed to enable WAL mode: got %q instead", newMode)
+	}
+
+	slog.Info("Enabled WAL mode on database", "path", dbPath)
+	return nil
 }
 
 // LoadWorkspaceComposerIDs loads the composer IDs from a workspace database.
