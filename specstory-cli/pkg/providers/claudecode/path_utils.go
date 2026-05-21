@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 )
 
 // GetClaudeCodeProjectsDir returns the path to the Claude Code projects directory
@@ -68,14 +67,10 @@ func GetClaudeCodeProjectDir(projectPath string) (string, error) {
 
 	// Convert path to project directory format using regex
 	// Replace anything that's not alphanumeric or dash with a dash (matching Claude Code's behavior)
-	// Example: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
+	// On Unix: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
+	// On Windows: "C:\Users\Admin\code\app" becomes "C--Users-Admin-code-app"
 	reg := regexp.MustCompile(`[^a-zA-Z0-9-]`)
 	projectDirName := reg.ReplaceAllString(realPath, "-")
-
-	// Add leading dash if not already there
-	if !strings.HasPrefix(projectDirName, "-") {
-		projectDirName = "-" + projectDirName
-	}
 
 	// Log the transformation for debugging path issues
 	slog.Debug("GetClaudeCodeProjectDir: Transformed working directory to project name",

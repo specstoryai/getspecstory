@@ -201,19 +201,32 @@ func GetCanonicalPath(p string) (string, error) {
 		// Successfully resolved symlinks - update p to the resolved path for case normalization
 		p = realPath
 	} else if err != nil {
-		// Symlink resolution failed (e.g., path doesn't exist yet),
-		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		// Symlink resolution failed (e.g., path doesn't exist yet, or Windows junction points).
+		// This is expected in normal operation — fall back to the original path and continue
+		// with case normalization below.
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 
-	// Split into components
-	parts := strings.Split(p, string(os.PathSeparator))
+	// Separate the volume (drive letter "D:" or UNC share "\\server\share" on Windows,
+	// empty on Unix) from the rest of the path. Without this, splitting "D:\foo\bar" on
+	// the OS separator yields ["D:", "foo", "bar"] — and the original code skipped the
+	// first element under the assumption it was empty (true only for Unix paths like
+	// "/foo/bar"). The drive letter would be silently dropped, leaving a path that
+	// resolved against the current drive instead of the requested one. UNC paths were
+	// even worse: "\\server\share\foo" would lose one of the leading backslashes and
+	// stop being a UNC reference at all.
+	volume := filepath.VolumeName(p)
+	remainder := p[len(volume):]
 
-	// Start with root
-	result := string(os.PathSeparator)
+	// Split the remainder. The leading separator produces an empty first element which
+	// we skip, so on every platform the loop processes only real path components.
+	parts := strings.Split(remainder, string(os.PathSeparator))
 
-	// Skip empty first element (before leading /) that results from splitting "/foo/bar"
+	// Walk from the volume root. On Unix that's "/"; on Windows it's "D:\" or
+	// "\\server\share\".
+	result := volume + string(os.PathSeparator)
+
 	firstPartIndex := 1
 
 	// Build path component by component

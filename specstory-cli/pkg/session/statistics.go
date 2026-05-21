@@ -45,9 +45,9 @@ func NewStatisticsCollector(statsPath string) *StatisticsCollector {
 }
 
 // ComputeSessionStatistics extracts statistics from SessionData and markdown content
-func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics {
+func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string) SessionStatistics {
 	stats := SessionStatistics{
-		Provider:          providerID,
+		Provider:          sessionData.Provider.ID,
 		MarkdownSizeBytes: len(markdownContent),
 		LastUpdated:       time.Now().UTC().Format(time.RFC3339),
 	}
