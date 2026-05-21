@@ -39,6 +39,10 @@ type CursorIDEWatcher struct {
 	// anyway so the markdown is not lost permanently.
 	pendingIncomplete map[string]time.Time // composerID -> time first seen as incomplete
 	incompleteTimeout time.Duration        // How long to wait before processing an incomplete session anyway
+	// checking prevents concurrent checkForChanges executions. If a check takes
+	// longer than the throttle window, a new trigger could launch a second
+	// goroutine that opens its own DB connections, multiplying file descriptors.
+	checking sync.Mutex
 }
 
 // NewCursorIDEWatcher creates a new watcher for Cursor IDE databases
@@ -101,6 +105,18 @@ func (w *CursorIDEWatcher) Start() error {
 		"globalDbPath", w.globalDbPath,
 		"checkInterval", w.checkInterval,
 		"throttleDuration", w.throttleDuration)
+
+	// Ensure WAL mode is enabled on all databases before watching.
+	// WAL mode is required so that the -wal file exists for fsnotify to detect changes.
+	// This is a one-time read-write operation at startup; all subsequent reads are read-only.
+	if err := EnsureWALMode(w.workspace.DBPath); err != nil {
+		slog.Warn("Failed to ensure WAL mode on workspace database",
+			"workspaceID", w.workspace.ID,
+			"error", err)
+	}
+	if err := EnsureWALMode(w.globalDbPath); err != nil {
+		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
+	}
 
 	// Set up file watching on workspace database
 	if err := w.watchDatabaseFiles(w.workspace.DBPath); err != nil {
@@ -273,8 +289,17 @@ func (w *CursorIDEWatcher) executePendingCheck() {
 	}
 }
 
-// checkForChanges queries the databases and processes any new or updated sessions
+// checkForChanges queries the databases and processes any new or updated sessions.
+// The checking mutex prevents concurrent executions that would multiply DB connections.
 func (w *CursorIDEWatcher) checkForChanges(trigger string) {
+	// Prevent overlapping checks — if one is already running, skip this trigger.
+	// TryLock avoids blocking the goroutine (and piling up) when a check is slow.
+	if !w.checking.TryLock() {
+		slog.Debug("Skipping check, previous check still running", "trigger", trigger)
+		return
+	}
+	defer w.checking.Unlock()
+
 	slog.Debug("Checking for changes", "trigger", trigger)
 
 	w.mu.Lock()
