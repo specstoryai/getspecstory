@@ -91,8 +91,9 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	}
 
 	history, _ := loadHistoryIndex()
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
 	for _, file := range files {
-		session, err := parseTranscript(file.ConversationID, file.Path, history, false)
+		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, false)
 		if err != nil {
 			continue
 		}
@@ -115,11 +116,12 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		return nil, err
 	}
 	history, _ := loadHistoryIndex()
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
 
 	total := len(files)
 	result := make([]spi.AgentChatSession, 0, total)
 	for i, file := range files {
-		session, err := parseTranscript(file.ConversationID, file.Path, history, true)
+		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, true)
 		if err != nil {
 			slog.Debug("antigravity: skipping session", "conversationId", file.ConversationID, "error", err)
 			if progress != nil {
@@ -150,7 +152,8 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		return nil, err
 	}
 	history, _ := loadHistoryIndex()
-	session, err := parseTranscript(sessionID, path, history, true)
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	session, err := parseTranscript(sessionID, path, history, projectWorkspaces, true)
 	if err != nil {
 		return nil, err
 	}
@@ -171,10 +174,11 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		return nil, err
 	}
 	history, _ := loadHistoryIndex()
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
 
 	var result []spi.SessionMetadata
 	for _, file := range files {
-		session, err := parseTranscript(file.ConversationID, file.Path, history, false)
+		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, false)
 		if err != nil {
 			slog.Debug("antigravity: failed to parse session", "conversationId", file.ConversationID, "error", err)
 			continue

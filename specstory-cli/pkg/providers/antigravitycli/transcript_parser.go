@@ -146,7 +146,7 @@ func loadHistoryIndex() (map[string]historyEntry, error) {
 // agSession. When wantRawData is true the full file bytes are retained on
 // RawData for cloud sync / debug-raw output; callers that only need the parsed
 // structure pass false to avoid keeping a copy of the whole file in memory.
-func parseTranscript(conversationID, transcriptPath string, history map[string]historyEntry, wantRawData bool) (*agSession, error) {
+func parseTranscript(conversationID, transcriptPath string, history map[string]historyEntry, projectWorkspaces map[string]string, wantRawData bool) (*agSession, error) {
 	data, err := os.ReadFile(transcriptPath)
 	if err != nil {
 		return nil, fmt.Errorf("antigravity: cannot read transcript %s: %w", transcriptPath, err)
@@ -191,7 +191,7 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 		session.CreatedAt = strings.TrimSpace(steps[0].CreatedAt)
 		session.UpdatedAt = strings.TrimSpace(steps[len(steps)-1].CreatedAt)
 	}
-	session.Workspace = resolveSessionWorkspace(conversationID, steps, history)
+	session.Workspace = resolveSessionWorkspace(conversationID, steps, history, projectWorkspaces)
 	session.Model = deriveModel(steps)
 	if wantRawData {
 		session.RawData = string(data)

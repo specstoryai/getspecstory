@@ -298,7 +298,7 @@ interactive TUI:
   sessions, history.jsonl stayed at its original 2 (interactive) lines while 3
   new `brain/` dirs appeared. So history.jsonl maps only interactive sessions.
 
-### 5.2 The reliable, universal mapping (works for print AND interactive)
+### 5.2 Project configuration and CLI logs
 `~/.gemini/config/projects/<projectId>.json`:
 ```json
 {
@@ -316,23 +316,32 @@ interactive TUI:
 - The path is the **git repository root** (an `--add-dir` of a subdir of `/tmp`
   mapped to project `/tmp`). It is absolute and appears NOT symlink-resolved.
 
-**However**, there is **no on-disk file that directly links a `conversationId`
-(brain dir) to a `projectId` or workspace path.** The linkage exists only at
-runtime (env var `ANTIGRAVITY_PROJECT_ID` / `ANTIGRAVITY_TRAJECTORY_ID`) and
-inside the encrypted `conversations/*.pb`. So a parser cannot get the workspace
-purely from the conversationId.
+`~/.gemini/antigravity-cli/log/cli-*.log` can provide the missing practical
+join while logs are retained:
+```text
+project: using project "/path/to/project" (id=00000000-0000-4000-8000-000000000002)
+Conversation using project ID: 00000000-0000-4000-8000-000000000002
+Created conversation 00000000-0000-4000-8000-000000000001
+```
+
+The transcript/brain directory still has **no canonical metadata field** that
+links `conversationId` to `projectId` or workspace path; the direct linkage is
+runtime state (env var `ANTIGRAVITY_PROJECT_ID` / `ANTIGRAVITY_TRAJECTORY_ID`)
+and/or inside encrypted `conversations/*.pb`. The CLI logs are therefore a
+best-effort retained operational source, not transcript metadata.
 
 ### 5.3 Recommended workspace-inference strategy for the parser
 In priority order:
 1. **history.jsonl `workspace`** keyed by matching `conversationId` — authoritative
    when present (interactive sessions only).
-2. **Tool-arg paths in the transcript** — derive the workspace from the most
+2. **CLI-log/config join** — map `conversationId -> projectId` from retained
+   `antigravity-cli/log/cli-*.log`, then `projectId -> workspace` from
+   `config/projects/*.json`.
+3. **Tool-arg paths in the transcript** — derive the workspace from the most
    common ancestor of `Cwd` (run_command), `AbsolutePath` (view_file),
    `TargetFile` (write/edit), `SearchPath` (grep_search), `DirectoryPath`
    (list_dir). For print-mode `--add-dir` sessions these are absolute and
    consistently point at the workspace.
-3. Fall back to `config/projects/*.json` paths if a single project plausibly
-   contains all the transcript's paths.
 4. If none resolve (e.g. the no-`--add-dir` session that wandered the whole
    filesystem), mark workspace **unknown** — do not guess. Note: `agy -p` with no
    `--add-dir` defaults the workspace to `~/.gemini/antigravity-cli/scratch`
@@ -458,11 +467,12 @@ them as a "session failed" signal.
 
 ## 11. Open questions / risks
 
-1. **conversationId → workspace has no direct on-disk link** for print-mode
-   sessions. history.jsonl covers interactive only; the projectId link is
-   runtime-only (env var) / inside the encrypted `.pb`. Workspace must be inferred
-   from transcript tool-arg paths (§5.3). RISK: a session that never touches files
-   (text-only) has NO recoverable workspace.
+1. **conversationId → workspace has no canonical transcript metadata link** for
+   print-mode sessions. history.jsonl covers interactive only. Retained CLI logs
+   can join `conversationId -> projectId -> workspace`, but if logs rotate or are
+   absent, workspace must be inferred from transcript tool-arg paths (§5.3).
+   RISK: a text-only session with no history/log entry has no recoverable
+   workspace.
 2. **history.jsonl scope uncertainty.** Confirmed `-p` is excluded; unconfirmed
    whether `--prompt-interactive` (`-i`) writes to it. Assume only fully
    interactive TUI sessions are logged there.

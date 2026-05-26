@@ -3,6 +3,7 @@ package antigravitycli
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -346,14 +347,18 @@ func deriveModel(steps []transcriptStep) string {
 }
 
 // resolveSessionWorkspace determines the workspace a conversation belongs to.
-// history.jsonl is authoritative when it has an entry (interactive sessions);
-// otherwise the workspace is inferred as the common ancestor of the absolute
-// paths the tools touched. Returns "" when nothing is resolvable.
-func resolveSessionWorkspace(conversationID string, steps []transcriptStep, history map[string]historyEntry) string {
+// history.jsonl is authoritative when it has an entry (interactive sessions).
+// Otherwise, retained CLI logs can join conversationId -> projectId -> workspace.
+// Finally, the workspace is inferred as the common ancestor of absolute paths
+// touched by tools. Returns "" when nothing is resolvable.
+func resolveSessionWorkspace(conversationID string, steps []transcriptStep, history map[string]historyEntry, projectWorkspaces map[string]string) string {
 	if entry, ok := history[conversationID]; ok {
 		if ws := strings.TrimSpace(entry.Workspace); ws != "" {
 			return ws
 		}
+	}
+	if ws := strings.TrimSpace(projectWorkspaces[conversationID]); ws != "" {
+		return ws
 	}
 	return commonPathPrefix(collectWorkspacePaths(steps))
 }
@@ -482,10 +487,21 @@ func commonPathPrefix(paths []string) string {
 	return strings.Join(common, string(filepath.Separator))
 }
 
-// stripFileURI removes a leading file:// scheme so URIs like
-// file:///tmp/main.go become /tmp/main.go.
+// stripFileURI removes a leading file:// scheme and decodes escaped path bytes
+// so URIs like file:///tmp/my%20file.go become /tmp/my file.go.
 func stripFileURI(value string) string {
-	return strings.TrimPrefix(value, "file://")
+	trimmed := strings.TrimSpace(value)
+	if !strings.HasPrefix(trimmed, "file:") {
+		return trimmed
+	}
+	parsed, err := url.Parse(trimmed)
+	if err == nil && parsed.Scheme == "file" {
+		if decoded, err := url.PathUnescape(parsed.Path); err == nil {
+			return decoded
+		}
+		return parsed.Path
+	}
+	return strings.TrimPrefix(trimmed, "file://")
 }
 
 // msEpochToRFC3339 converts a millisecond epoch timestamp to an RFC3339 UTC

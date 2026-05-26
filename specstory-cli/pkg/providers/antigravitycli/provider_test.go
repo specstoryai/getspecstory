@@ -84,6 +84,34 @@ func TestDetectAgent_ProjectMatch(t *testing.T) {
 	}
 }
 
+func TestDetectAgent_ProjectMatchFromLogMapping(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := t.TempDir()
+
+	writeProjectConfig(t, home, testProjectID, `{
+		"id":"`+testProjectID+`",
+		"name":"`+proj+`",
+		"projectResources":{"resources":[]}
+	}`)
+	writeAntigravityLog(t, home, "cli-test.log",
+		`I server.go:726] Conversation using project ID: `+testProjectID,
+		`I server.go:747] Created conversation `+testConversationID,
+	)
+	writeConversation(t, home, testConversationID,
+		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nsay hello\n</USER_REQUEST>"}`,
+		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"Hello!"}`,
+	)
+
+	p := NewProvider()
+	if !p.DetectAgent(proj, false) {
+		t.Errorf("expected true when log/config workspace mapping matches project")
+	}
+	if p.DetectAgent(t.TempDir(), false) {
+		t.Errorf("expected false for an unrelated project")
+	}
+}
+
 func TestGetAgentChatSession_RoundTrip(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

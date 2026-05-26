@@ -266,12 +266,17 @@ func TestResolveSessionWorkspace(t *testing.T) {
 
 	// History is authoritative when present.
 	history := map[string]historyEntry{"conv-1": {Workspace: "/from/history"}}
-	if got := resolveSessionWorkspace("conv-1", steps, history); got != "/from/history" {
+	if got := resolveSessionWorkspace("conv-1", steps, history, map[string]string{"conv-1": "/from/project"}); got != "/from/history" {
 		t.Errorf("expected history workspace, got %q", got)
 	}
 
+	// CLI log/config project mapping is preferred over tool-path inference.
+	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}, map[string]string{"conv-1": "/from/project"}); got != "/from/project" {
+		t.Errorf("expected project mapping workspace, got %q", got)
+	}
+
 	// Otherwise inferred from tool paths' common ancestor.
-	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}); got != "/proj" {
+	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}, nil); got != "/proj" {
 		t.Errorf("expected inferred workspace /proj, got %q", got)
 	}
 }
@@ -281,7 +286,7 @@ func TestResolveSessionWorkspace_SingleFileUsesParent(t *testing.T) {
 		{Type: typePlannerResponse, ToolCalls: []transcriptToolCall{{Name: "view_file", Args: map[string]any{"AbsolutePath": "file:///proj/sub/main.go"}}}},
 	}
 
-	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}); got != "/proj/sub" {
+	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}, nil); got != "/proj/sub" {
 		t.Errorf("expected inferred workspace /proj/sub, got %q", got)
 	}
 }

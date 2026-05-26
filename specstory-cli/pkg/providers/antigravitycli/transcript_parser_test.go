@@ -49,7 +49,7 @@ func TestParseTranscript(t *testing.T) {
 	)
 
 	history := map[string]historyEntry{"conv-1": {Workspace: "/proj"}}
-	session, err := parseTranscript("conv-1", path, history, true)
+	session, err := parseTranscript("conv-1", path, history, nil, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestParseTranscript(t *testing.T) {
 	}
 
 	// wantRawData=false must not retain bytes.
-	session2, err := parseTranscript("conv-1", path, history, false)
+	session2, err := parseTranscript("conv-1", path, history, nil, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestLoadTaskOutputs(t *testing.T) {
 		t.Fatalf("write ignored task log: %v", err)
 	}
 
-	session, err := parseTranscript("conv-1", path, nil, false)
+	session, err := parseTranscript("conv-1", path, nil, nil, false)
 	if err != nil {
 		t.Fatalf("parseTranscript: %v", err)
 	}

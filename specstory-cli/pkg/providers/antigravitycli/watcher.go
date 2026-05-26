@@ -205,7 +205,8 @@ func processTranscriptFile(transcriptPath string, projectPath string, debugRaw b
 	}
 
 	history, _ := loadHistoryIndex()
-	session, err := parseTranscript(conversationID, transcriptPath, history, true)
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	session, err := parseTranscript(conversationID, transcriptPath, history, projectWorkspaces, true)
 	if err != nil {
 		slog.Debug("antigravity: skipping session", "path", transcriptPath, "error", err)
 		return
@@ -230,12 +231,13 @@ func scanAndProcessConversations(projectPath string, debugRaw bool, sessionCallb
 		return err
 	}
 	history, _ := loadHistoryIndex()
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
 
 	for _, file := range files {
 		if last, ok := state.lastProcessed[file.Path]; ok && last >= file.ModTime {
 			continue
 		}
-		session, err := parseTranscript(file.ConversationID, file.Path, history, true)
+		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, true)
 		if err != nil {
 			slog.Debug("antigravity: skipping session", "path", file.Path, "error", err)
 			continue
