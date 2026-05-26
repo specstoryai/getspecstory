@@ -193,6 +193,8 @@ func processTranscriptFile(transcriptPath string, projectPath string, debugRaw b
 	} else if err != nil {
 		slog.Debug("antigravity: unable to resolve preferred transcript", "conversationId", conversationID, "error", err)
 		return
+	} else {
+		return
 	}
 
 	info, err := os.Stat(transcriptPath)

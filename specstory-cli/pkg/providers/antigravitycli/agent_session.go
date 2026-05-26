@@ -34,7 +34,7 @@ const (
 // <ADDITIONAL_METADATA> / <USER_SETTINGS_CHANGE> blocks that must not be shown.
 var (
 	userRequestRe   = regexp.MustCompile(`(?s)<USER_REQUEST>(.*?)</USER_REQUEST>`)
-	metadataBlockRe = regexp.MustCompile(`(?s)<(ADDITIONAL_METADATA|USER_SETTINGS_CHANGE|SYSTEM_MESSAGE)>.*?</(ADDITIONAL_METADATA|USER_SETTINGS_CHANGE|SYSTEM_MESSAGE)>`)
+	metadataBlockRe = regexp.MustCompile(`(?s)<ADDITIONAL_METADATA>.*?</ADDITIONAL_METADATA>|<USER_SETTINGS_CHANGE>.*?</USER_SETTINGS_CHANGE>|<SYSTEM_MESSAGE>.*?</SYSTEM_MESSAGE>`)
 	// modelRe pulls the model name out of the first turn's <USER_SETTINGS_CHANGE>
 	// block, e.g. "...changed setting `Model Selection` from None to Gemini 3.5
 	// Flash (High). ..." → "Gemini 3.5 Flash (High)". The terminator is a period

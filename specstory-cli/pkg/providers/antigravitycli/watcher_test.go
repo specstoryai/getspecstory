@@ -1,6 +1,7 @@
 package antigravitycli
 
 import (
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -82,6 +83,41 @@ func TestProcessTranscriptFile_PrefersPrimaryForFallbackEvents(t *testing.T) {
 	defer mu.Unlock()
 	if agentText != "from primary" {
 		t.Errorf("fallback event parsed %q, want primary transcript content", agentText)
+	}
+}
+
+func TestProcessTranscriptFile_IgnoresTranscriptOutsideBrain(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	dir := filepath.Join(t.TempDir(), "rogue-conv", systemGeneratedDir, logsDirName)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir rogue transcript dir: %v", err)
+	}
+	path := filepath.Join(dir, transcriptFileName)
+	if err := os.WriteFile(path, []byte(
+		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`+"\n"+
+			`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"hello"}`+"\n",
+	), 0o644); err != nil {
+		t.Fatalf("write rogue transcript: %v", err)
+	}
+
+	var mu sync.Mutex
+	var calls int
+	cb := func(*spi.AgentChatSession) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+	}
+
+	state := &watchState{lastProcessed: make(map[string]int64)}
+	processTranscriptFile(path, "", false, cb, state)
+	time.Sleep(25 * time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("callback fired %d times for transcript outside Antigravity brain", calls)
 	}
 }
 

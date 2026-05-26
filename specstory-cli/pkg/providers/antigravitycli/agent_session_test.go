@@ -29,6 +29,11 @@ func TestCleanUserPrompt(t *testing.T) {
 			want: "just text",
 		},
 		{
+			name: "mismatched metadata tags are not stripped",
+			raw:  "keep\n<ADDITIONAL_METADATA>\ndo not delete\n</USER_SETTINGS_CHANGE>\n<SYSTEM_MESSAGE>\ndrop\n</SYSTEM_MESSAGE>",
+			want: "keep\n<ADDITIONAL_METADATA>\ndo not delete\n</USER_SETTINGS_CHANGE>",
+		},
+		{
 			name: "empty",
 			raw:  "",
 			want: "",
