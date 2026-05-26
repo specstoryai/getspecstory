@@ -1140,11 +1140,13 @@ nonexistent_option = "oops"
 func TestGetProviderCmd(t *testing.T) {
 	cfg := &Config{
 		Providers: ProvidersConfig{
-			ClaudeCmd: "claude --dangerously-skip-permissions",
-			CodexCmd:  "/usr/local/bin/codex",
-			CursorCmd: "cursor-agent --fast",
-			DroidCmd:  "droid --verbose",
-			GeminiCmd: "gemini --model pro",
+			ClaudeCmd:      "claude --dangerously-skip-permissions",
+			CodexCmd:       "/usr/local/bin/codex",
+			CursorCmd:      "cursor-agent --fast",
+			DeepSeekCmd:    "deepseek --model r1",
+			DroidCmd:       "droid --verbose",
+			GeminiCmd:      "gemini --model pro",
+			AntigravityCmd: "agy --sandbox",
 		},
 	}
 
@@ -1155,10 +1157,13 @@ func TestGetProviderCmd(t *testing.T) {
 		{"claude", "claude --dangerously-skip-permissions"},
 		{"codex", "/usr/local/bin/codex"},
 		{"cursor", "cursor-agent --fast"},
+		{"deepseek", "deepseek --model r1"},
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
+		{"antigravity", "agy --sandbox"},
 		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
 		{"CODEX", "/usr/local/bin/codex"},                   // case-insensitive
+		{"ANTIGRAVITY", "agy --sandbox"},                    // case-insensitive
 		{"unknown", ""},                                     // unknown provider
 		{"", ""},                                            // empty provider
 	}
@@ -1272,7 +1277,7 @@ claude_cmd = "claude --project-level"
 			t.Fatalf("Load() returned error: %v", err)
 		}
 
-		for _, id := range []string{"claude", "codex", "cursor", "droid", "gemini"} {
+		for _, id := range []string{"claude", "codex", "cursor", "deepseek", "droid", "gemini", "antigravity"} {
 			if got := cfg.GetProviderCmd(id); got != "" {
 				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)
 			}

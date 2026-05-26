@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v1.14.0 <!-- release date TBD -->
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports the [Antigravity CLI](https://antigravity.google/) (i.e. `antigravity-cli`, the `agy` binary) for sessions created from Antigravity CLI version `1.0.2` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), [Gemini CLI](https://github.com/google-gemini/gemini-cli), Factory's [Droid CLI](https://factory.ai/product/cli) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+
 ## v1.13.0 2026-05-18
 
 ### 📢 Announcements
