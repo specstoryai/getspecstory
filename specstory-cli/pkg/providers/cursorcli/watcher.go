@@ -192,22 +192,21 @@ func (w *CursorWatcher) checkForChanges() {
 		dbPath := filepath.Join(w.hashDir, sessionID, "store.db")
 
 		// Check if database exists
-		fileInfo, err := os.Stat(dbPath)
-		if err != nil {
+		if _, err := os.Stat(dbPath); err != nil {
 			continue // Skip sessions without store.db
 		}
 
 		// For NEW sessions, process them once and then watch for changes
 		if !isKnown {
 			// Check if we've already seen this new session
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
+			if w.hasSessionChanged(sessionID, dbPath) {
 				slog.Info("Detected NEW Cursor session", "sessionId", sessionID)
 				w.processSessionChanges(sessionID, dbPath)
 			}
 		} else if isResumed {
 			// For resumed session, check for changes
 			slog.Debug("Polling resumed session for changes", "sessionId", sessionID)
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
+			if w.hasSessionChanged(sessionID, dbPath) {
 				slog.Info("Detected changes in resumed Cursor session", "sessionId", sessionID)
 				w.processSessionChanges(sessionID, dbPath)
 			} else {
@@ -218,7 +217,7 @@ func (w *CursorWatcher) checkForChanges() {
 }
 
 // hasSessionChanged checks if a session database has new records
-func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo, dbPath string) bool {
+func (w *CursorWatcher) hasSessionChanged(sessionID string, dbPath string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
