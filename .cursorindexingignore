@@ -1,3 +1,5 @@
 
 # Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
 .specstory/**
+# Don't index SpecStory auto-save files, but allow explicit context inclusion via @ references
+docs/ai/**
