@@ -105,17 +105,18 @@ All sessions automatically save to `.specstory/history/` in your current project
 
 ### The Problem We Solve
 - **Repeated Yourself Again**: You re-explain the same workflows, conventions, and fixes to your agent every session
-- **Invisible Expertise**: The judgment you apply - how you review, diagnose, and direct a model - never gets written down
 - **Skills From Guesswork**: Hand-written agent skills describe how you think you work, not how you demonstrably do
 
 ### The Solution
-Lore mines your `.specstory/history` into evidence and lets you choose what becomes a skill:
+Lore mines your `.specstory/history` into evidence - what you actually ran, what worked, and the judgment you apply without noticing - and forges the skills you approve into every agent on your machine.
 
-- 🧠 **Mines Every Agent's History**: One persistent corpus across Claude Code, Codex, Cursor, Gemini, and more
-- 🎯 **Evidence with Outcomes**: Candidates are backed by what you actually ran - and your own replies label what worked
-- 🏺 **Latent Expertise**: Thematic mining surfaces practices you didn't know you had ("huh, I *do* do that")
-- ⚒️ **You Approve Every Forge**: Skills are proposed with full evidence dossiers; nothing is written without your sign-off
-- 📦 **Install Once, Use Everywhere**: Forged skills land in `~/.agents/skills` and symlink into every harness
+Install:
+
+```sh
+npx skills add specstoryai/getspecstory --skill lore
+```
+
+Then invoke it - `/lore` in Claude Code, `$lore` in Codex, or just ask ("mine my lore") in Amp, Gemini CLI, and others:
 
 ```
 /lore
