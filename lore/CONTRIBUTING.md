@@ -10,7 +10,7 @@ git clone git@github.com:specstoryai/getspecstory.git ~/getspecstory
 mkdir -p ~/.agents/skills && ln -sfn ~/getspecstory/lore ~/.agents/skills/lore
 
 # fan out into the harnesses you use (symlink, never copy)
-for h in ~/.claude/skills ~/.codex/skills ~/.config/opencode/skills; do
+for h in ~/.claude/skills ~/.codex/skills; do
   [ -d "$h" ] && ln -sfn ~/.agents/skills/lore "$h/lore"
 done
 

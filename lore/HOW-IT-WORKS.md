@@ -220,7 +220,7 @@ actually works* - especially the failures:
         dossier cache (lore.db) - once per cluster, ever
 ```
 
-Parallelism is per-harness: Claude Code runs the bundled Workflow script; Codex/Amp spawn their own
+Parallelism is per-harness: Claude Code runs the bundled Workflow script; Codex spawns its own
 subagents; sequential is the last resort. Either way the output is identical.
 
 ## Stages 4–6 - Curate, forge, install
@@ -244,8 +244,8 @@ subagents; sequential is the last resort. Either way the output is identical.
                   │ approve            │ reject + feedback
                   ▼                    └─► revised manifest, re-rendered
    write ONCE:   ~/.agents/skills/<name>/SKILL.md
-   symlink into: ~/.claude/skills · ~/.codex/skills · ~/.config/opencode/skills
-                 (Amp reads ~/.agents/skills natively)
+   symlink into: ~/.claude/skills · ~/.codex/skills
+                 (Codex and Gemini CLI read ~/.agents/skills natively)
 ```
 
 A forged skill carries Steps, **Verification**, and **Failure modes** - the last one mined from the

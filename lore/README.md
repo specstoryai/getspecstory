@@ -23,8 +23,8 @@ and forges the ones you choose into skills installed across every agent you use.
 npx skills add specstoryai/getspecstory --skill lore
 ```
 
-That detects every agent on your machine (Claude Code, Codex, Cursor, Amp, Gemini CLI, and more)
-and installs lore into each. Requires Node ≥ 22.5.
+That detects every supported agent on your machine (Claude Code, Codex, Cursor, Gemini CLI, and
+more) and installs lore into each. Requires Node ≥ 22.5.
 
 Installs are copies, so they don't change until you update them:
 
@@ -34,7 +34,7 @@ npx skills update lore    # or `npx skills update` to refresh every installed sk
 
 ## Get started
 
-In any agent that reads [Agent Skills](https://agentskills.io) (Claude Code, Codex, Amp, OpenCode, …):
+In any agent that reads [Agent Skills](https://agentskills.io) (Claude Code, Codex, Cursor, Gemini CLI, …):
 
 ```
 /lore
@@ -130,9 +130,7 @@ After [installing](#install), invoke it per harness:
 |---|---|
 | Claude Code | `/lore` |
 | Codex | `$lore` (the `/` prefix is reserved for built-ins; also listed under `/skills`) |
-| Amp | reads `~/.agents/skills` natively - just ask, e.g. "mine my lore" |
 | Gemini CLI | reads `~/.agents/skills` natively - just ask; the model activates the skill (with your consent) |
-| OpenCode | skills load automatically - just ask, e.g. "what could I forge into skills?" |
 
 Prefer Claude Code's plugin manager? `/plugin marketplace add specstoryai/getspecstory`, then
 `/plugin install lore@specstory` - updates arrive via `/plugin update lore`.
@@ -147,11 +145,11 @@ to it, so updating is just `git -C ~/getspecstory pull`:
 # 1. clone the monorepo anywhere you keep code
 git clone git@github.com:specstoryai/getspecstory.git ~/getspecstory
 
-# 2. canonical skill location (Amp, Codex, and Gemini CLI read ~/.agents/skills natively)
+# 2. canonical skill location (Codex and Gemini CLI read ~/.agents/skills natively)
 mkdir -p ~/.agents/skills && ln -sfn ~/getspecstory/lore ~/.agents/skills/lore
 
 # 3. fan out into every harness skills dir you have (symlink, never copy)
-for h in ~/.claude/skills ~/.codex/skills ~/.config/opencode/skills; do
+for h in ~/.claude/skills ~/.codex/skills; do
   [ -d "$h" ] && ln -sfn ~/.agents/skills/lore "$h/lore"
 done
 ```

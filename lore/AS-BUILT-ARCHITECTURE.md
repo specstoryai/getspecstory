@@ -92,10 +92,9 @@ use shapes to point theme miners at exactly the beats the command channel ignore
 Install topology - **live-clone freshness**: the repo is the single source of truth; a `git pull` updates every harness instantly because nothing is copied:
 
 ```
-<local clone>    ←  ~/.agents/skills/lore (symlink; Amp reads this dir natively)
+<clone>/lore     ←  ~/.agents/skills/lore (symlink; Codex and Gemini CLI read this dir natively)
                       ←  ~/.claude/skills/lore          (Claude Code)
                       ←  ~/.codex/skills/lore           (Codex CLI)
-                      ←  ~/.config/opencode/skills/lore (OpenCode)
 ```
 
 Forged skills follow the same pattern: written once to `~/.agents/skills/<name>/`, then symlinked into every detected harness skills dir (SKILL.md Step 4).
@@ -235,7 +234,7 @@ Sampling 1–2 beats per candidate produces shallow dossiers; Phase C reads **ev
 
 **Dossier cache** - `dossiers` table keyed by `(cluster_key, fingerprint)`. Deep-mining is once-per-cluster-ever; `/lore` reruns reuse cached dossiers when the fingerprint still matches (verified live: a corpus rebuild that grew the clusters correctly invalidated both cached dossiers).
 
-**Orchestration** (`deep-mine.workflow.js` + SKILL.md Step 2c) - per cluster, one **miner** agent (runs the `beats` export via Bash, reads every span, returns a `DOSSIER_SCHEMA` object: trigger, preconditions, canonical steps, variations, verification moves, failure modes with recoveries and refs, varying parameters, confidence) and one **adversarial verifier** (re-reads the spans and tries to refute: one procedure or several conflated? do the failure modes' refs really say that?). Parallelism is **capability-based per harness**: Claude Code runs the bundled Workflow script; Codex/Amp spawn their own parallel subagents with the same briefs; sequential execution is the last resort only.
+**Orchestration** (`deep-mine.workflow.js` + SKILL.md Step 2c) - per cluster, one **miner** agent (runs the `beats` export via Bash, reads every span, returns a `DOSSIER_SCHEMA` object: trigger, preconditions, canonical steps, variations, verification moves, failure modes with recoveries and refs, varying parameters, confidence) and one **adversarial verifier** (re-reads the spans and tries to refute: one procedure or several conflated? do the failure modes' refs really say that?). Parallelism is **capability-based per harness**: Claude Code runs the bundled Workflow script; Codex spawns its own parallel subagents with the same briefs; sequential execution is the last resort only.
 
 Live validation (2026-06-09): 2 real clusters, 4 agents, ~380s - both dossiers high-confidence with legitimate verifier corrections (e.g. "the heredoc commit style is claude-code-only; don't claim it as universal").
 

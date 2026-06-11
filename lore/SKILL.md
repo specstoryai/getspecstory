@@ -365,7 +365,7 @@ If the cached fingerprint matches the current `beats` fingerprint, reuse it and 
 **Parallelize with YOUR harness's subagent mechanism** (only mine uncached clusters):
 
 - **Claude Code**: run the bundled workflow - `Workflow({scriptPath: "<skill-dir>/scripts/deep-mine.workflow.js", args: {skillDir, db, clusters: [{key, kind: "corr", fingerprint}]}})`. It runs one miner + one adversarial verifier per cluster and returns verified dossiers.
-- **Codex / Amp / other harnesses with parallel subagents**: spawn one subagent per cluster with the same brief - run the `beats` export, read every span, return the dossier (steps, variations, verification, failureModes-with-refs, parameters, confidence); then a verifier subagent per dossier that re-reads the spans and tries to refute it.
+- **Codex / other harnesses with parallel subagents**: spawn one subagent per cluster with the same brief - run the `beats` export, read every span, return the dossier (steps, variations, verification, failureModes-with-refs, parameters, confidence); then a verifier subagent per dossier that re-reads the spans and tries to refute it.
 - **No subagents available**: mine the clusters yourself sequentially, one at a time, same brief.
 
 Cache every verified dossier with `dossier put`. These deep dossiers replace the sampled ones in Step 3.
@@ -446,11 +446,11 @@ For each selected candidate, write ONE canonical skill package, then fan out sym
 agent harness on the machine can use it:
 
 ```zsh
-# canonical home (the cross-harness neutral location; Amp, Codex, and Gemini CLI read it natively)
+# canonical home (the cross-harness neutral location; Codex and Gemini CLI read it natively)
 ~/.agents/skills/<name>/SKILL.md
 
 # fan out into every harness skills dir that exists (symlink, never copy - avoids frozen-copy drift)
-for h in ~/.claude/skills ~/.codex/skills ~/.config/opencode/skills; do
+for h in ~/.claude/skills ~/.codex/skills; do
   [ -d "$h" ] && ln -sfn ~/.agents/skills/<name> "$h/<name>"
 done
 ```
