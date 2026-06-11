@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { tokenize, COMMON } from './patterns.mjs'
+import { tokenize, COMMON, redactSecrets } from './patterns.mjs'
 
 // Resolve a cluster selector to beat rows. sel: one of {corr:"isig × gram", gram, sig, meta, theme}.
 export function selectBeats(db, sel) {
@@ -72,7 +72,7 @@ export function exportRows(db, rows, opts = {}, label = '') {
       session: r.session_id, project: r.project_name, agent: r.agent, date: r.date,
       ref: `${r.path}:${r.start_line}`, outcome: r.outcome, toolMix: r.tool_mix,
       truncated: end < (nxt ? nxt.start_line - 1 : lines.length),
-      text: lines.slice(r.start_line - 1, end).join('\n'),
+      text: redactSecrets(lines.slice(r.start_line - 1, end).join('\n')),
     })
   }
   return { cluster: label, exported: beats.length, fingerprint: beatsFingerprint(rows), beats }
@@ -344,7 +344,7 @@ export function renderDossiers(db, key = null) {
   }
   L.push(`=== dossiers above: ${rows.length} ===`)
   L.push('<!-- END PASS-THROUGH DOSSIERS -->')
-  return L.join('\n')
+  return redactSecrets(L.join('\n'))
 }
 
 // Render saved themes as human-readable cards (pass-through, like renderDossiers): the latent
@@ -360,7 +360,7 @@ export function renderThemes(db, key = null) {
   for (const r of rows) L.push(...themeCardLines(db, r), '')
   L.push(`=== themes above: ${rows.length} ===`)
   L.push('<!-- END PASS-THROUGH THEMES -->')
-  return L.join('\n')
+  return redactSecrets(L.join('\n'))
 }
 
 // ---------- the forge plan: the ENTIRE curation document, engine-assembled ----------
@@ -412,7 +412,7 @@ export function renderForgePlan(db, manifest) {
   L.push('3. Register each with `forged add`; record a `forged decline` for every skip')
   L.push('')
   L.push(`=== dossiers above: ${proposed.length} ===`)
-  return L.join('\n')
+  return redactSecrets(L.join('\n'))
 }
 
 // ---------- plan persistence: a canceled forge must be recallable ----------

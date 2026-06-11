@@ -169,3 +169,51 @@ export function classifyOutcome(nextIntentFirstLine) {
   if (SUCCESS_RE.test(nextIntentFirstLine)) return 'success'
   return 'neutral'
 }
+
+// ============================================================================
+// SECTION 7 - SECRET REDACTION (the emit boundary)
+// ============================================================================
+// Transcripts can contain real credentials (a pasted curl -H "Authorization: Bearer ...",
+// an exported API key). The corpus stores what the transcript stores - it is the user's own
+// local file - but NOTHING the engine EMITS for an LLM to read (beat spans, dossier/theme/plan
+// renders, report evidence) may carry a secret value. Redaction is deterministic and happens
+// here, before display, so the agent never has to handle a live credential; the agent-side
+// scrub at forge time (SKILL.md Step 5) remains as defense in depth.
+//
+// Patterns are PROVIDER-SHAPED prefixes plus an assignment heuristic. Deliberately NOT matched:
+// bare 40/64-char hex (git SHAs are evidence, not secrets).
+//
+//   AKIAIOSFODNN7EXAMPLE                          AWS access key id
+//   ghp_16C7e42F292c6912E7710c838347Ae178B4a      GitHub token (ghp_/gho_/ghu_/ghs_/ghr_)
+//   github_pat_11ABC..._...                       GitHub fine-grained PAT
+//   xoxb-1234567890-abcdefghij                    Slack token
+//   sk-proj-abc123..., sk-ant-api03-...           OpenAI/Anthropic-style keys
+//   AIzaSyA-1234567890abcdefghijklmnopqrstu       Google API key
+//   eyJhbGciOi....eyJzdWIiOi....SflKxwRJSM        JWT (three base64url segments)
+//   Authorization: Bearer <anything long>          bearer credentials
+//   API_KEY=hunter2hunter2 / "token": "abc12345"  assignment with a secret-named key
+//   -----BEGIN ... PRIVATE KEY----- ... -----END  key blocks
+export const SECRET_PATTERNS = [
+  { name: 'aws-key', re: /\bAKIA[0-9A-Z]{16}\b/g },
+  { name: 'github-token', re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g },
+  { name: 'slack-token', re: /\bxox[baprs]-[A-Za-z0-9-]{10,}\b/g },
+  { name: 'api-key', re: /\bsk-[A-Za-z0-9_-]{20,}\b/g },
+  { name: 'google-key', re: /\bAIza[0-9A-Za-z_-]{35}\b/g },
+  { name: 'jwt', re: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{5,}\b/g },
+  { name: 'private-key', re: /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g },
+  { name: 'bearer', re: /\b([Bb]earer\s+)[A-Za-z0-9._~+/=-]{16,}/g, keep: 1 },
+  // key = value where the key NAME says secret; the value is masked, the structure kept.
+  // Values containing ( or ) are code expressions ("token = tokenize(x)"), not credentials.
+  { name: 'assignment', re: /\b((?:api[_-]?key|apikey|secret|token|passwd|password|credentials?|access[_-]?key|auth[_-]?token)["']?\s*[:=]\s*["']?)([^\s"'()]{8,})(?![\w(])/gi, keep: 1 },
+]
+
+// Mask secret VALUES in text bound for an LLM or chat; structure and surrounding evidence stay
+// verbatim. Returns the redacted string.
+export function redactSecrets(s) {
+  if (!s) return s
+  let out = s
+  for (const p of SECRET_PATTERNS) {
+    out = out.replace(p.re, (...m) => (p.keep ? m[p.keep] : '') + `[REDACTED:${p.name}]`)
+  }
+  return out
+}

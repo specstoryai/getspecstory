@@ -97,7 +97,8 @@ without naming: how you review, how you diagnose, how you direct a model.
 
 - **Deterministic engine, judging agent.** A zero-dependency parser + SQLite engine does the
   counting; your agent does the naming and judging. The engine can't hallucinate, and the agent
-  never reads 400k-line transcripts - only engine-exported evidence.
+  never reads 400k-line transcripts - only engine-exported evidence, with credential values
+  mechanically redacted before the model ever sees them.
 - **Outcomes from your own replies.** "No, wait - " marks a failure; "perfect, commit it" marks
   success. Skills are ranked by what actually worked, not what merely happened.
 - **Latent expertise, not just runbooks.** Thematic lenses mine your judgment work - review craft,

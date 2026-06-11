@@ -2,7 +2,7 @@
 // All ranking is SQL + arithmetic over the corpus; no parsing happens here.
 
 import { homedir } from 'node:os'
-import { COMMON, META } from './patterns.mjs'
+import { COMMON, META, redactSecrets } from './patterns.mjs'
 
 export function wantedKinds(kinds) {
   if (!kinds || !kinds.length) return new Set(['cmd', 'task', 'meta', 'corr'])
@@ -147,7 +147,7 @@ export function report(db, args, write = (s) => process.stdout.write(s)) {
     metas: metas.slice(0, args.top), corroborated: corr.slice(0, args.top) }
   for (const list of [out.runbooks, out.intents, out.metas, out.corroborated]) for (const c of list) c.evidence = evidence(c)
 
-  if (args.emit === 'json') { write(JSON.stringify(out, null, 2) + '\n'); return out }
+  if (args.emit === 'json') { write(redactSecrets(JSON.stringify(out, null, 2)) + '\n'); return out }
 
   const L = []
   L.push(`📜  lore · ${scope.c} sessions · ${scope.p} project(s) · ${scope.d0}→${scope.d1}`)
@@ -186,7 +186,7 @@ export function report(db, args, write = (s) => process.stdout.write(s)) {
     (args.kinds ? ` · kind=${[...WK].join('+')}` : '') + (args.filter ? ` · filter="${args.filter}"` : ''))
   L.push('')
   L.push(...passThroughFooter(db, args, dayFilter, out))
-  write(L.join('\n') + '\n')
+  write(redactSecrets(L.join('\n')) + '\n')
   return out
 }
 

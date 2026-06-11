@@ -1,6 +1,6 @@
 {
   "name": "@specstory/lore",
-  "version": "3.8.2",
+  "version": "3.9.0",
   "private": true,
   "type": "module",
   "description": "SpecStory Lore - mine your coding histories into a corpus; forge your workflows into skills.",

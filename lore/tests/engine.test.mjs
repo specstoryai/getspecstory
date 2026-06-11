@@ -577,6 +577,55 @@ test('skills inventory: forged vs other, symlink dedup, broken links, registry o
   }
 })
 
+// ---------- secret redaction: nothing the engine emits carries a live credential ----------
+// (skills.sh Snyk audit W007: evidence rendering must not force the LLM to handle secrets)
+
+test('redactSecrets: masks credential values, keeps structure and git SHAs', async () => {
+  const { redactSecrets } = await import('../scripts/lib/patterns.mjs')
+  const cases = [
+    ['export GITHUB_TOKEN=ghp_16C7e42F292c6912E7710c838347Ae178B4a', /GITHUB_TOKEN=\[REDACTED:/],
+    ['aws_key = AKIAIOSFODNN7EXAMPLE', /\[REDACTED:aws-key\]/],
+    ['curl -H "Authorization: Bearer abcdef1234567890XYZ"', /Bearer \[REDACTED:bearer\]/],
+    ['ANTHROPIC_API_KEY=sk-ant-api03-aaaaaaaaaaaaaaaaaaaa', /\[REDACTED:/],
+    ['password: hunter2hunter2', /password: \[REDACTED:assignment\]/],
+    ['xoxb-1234567890-abcdefghij', /\[REDACTED:slack-token\]/],
+  ]
+  for (const [input, want] of cases) assert.match(redactSecrets(input), want, input)
+  // should-pass: evidence that must survive verbatim
+  for (const keep of [
+    'git checkout 4e38e7b2c1d0aa93f1e2b3c4d5e6f7a8b9c0d1e2',   // 40-hex commit SHA
+    'const token = tokenize(intent)',                           // code, not a credential
+    'go test ./... && golangci-lint run',
+  ]) assert.equal(redactSecrets(keep), keep, keep)
+})
+
+test('redaction holds at the emit boundaries: beat spans and the forge plan', () => {
+  const work = join(tmpdir(), `lore-redact-${process.pid}`)
+  const dbPath = join(work, 'corpus.db')
+  rmSync(work, { recursive: true, force: true })
+  cpSync(FIX, join(work, 'fix'), { recursive: true })
+  try {
+    const run = (...args) => execFileSync('node', ['scripts/mine-skills.mjs', ...args, '--db', dbPath], { cwd: ROOT, encoding: 'utf8' })
+    // plant a fake credential into a transcript copy, where a real paste would land
+    const f = join(work, 'fix/projA/.specstory/history/2026-05-01_10-00-00Z-can-we-run-a.md')
+    writeFileSync(f, readFileSync(f, 'utf8').replace('go build ./...', 'GITHUB_TOKEN=ghp_16C7e42F292c6912E7710c838347Ae178B4a go build ./...'))
+    run('index', '--projects', join(work, 'fix'))
+    // beat span export: the span text is redacted, the command structure survives
+    const out = run('beats', '--sig', 'build:run', '--max', '25')
+    assert.ok(!out.includes('ghp_16C7e42F292c6912E7710c838347Ae178B4a'), 'no live token in exported spans')
+    assert.match(out, /GITHUB_TOKEN=\[REDACTED:github-token\] go build/)
+    // forge plan: a dossier whose cached JSON carries a secret still renders redacted
+    execFileSync('node', ['scripts/mine-skills.mjs', 'dossier', 'put', '--key', 'build:run × go build ▸ go test', '--fingerprint', 'f', '--file', '-', '--db', dbPath],
+      { cwd: ROOT, input: JSON.stringify({ name: 'verify-build', confidence: 'high', steps: ['run with AKIAIOSFODNN7EXAMPLE in the env'] }), encoding: 'utf8' })
+    const plan = execFileSync('node', ['scripts/mine-skills.mjs', 'plan', 'render', '--file', '-', '--db', dbPath],
+      { cwd: ROOT, input: JSON.stringify({ project: 'projA', proposed: [{ cluster: 'build:run × go build ▸ go test', name: 'verify-build' }] }), encoding: 'utf8' })
+    assert.ok(!plan.includes('AKIAIOSFODNN7EXAMPLE'), 'no live key in the plan')
+    assert.match(plan, /\[REDACTED:aws-key\]/)
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
+})
+
 // ---------- reset: wipe all persistence ----------
 
 test('reset: deletes the corpus file and reports what was wiped', () => {

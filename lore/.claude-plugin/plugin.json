@@ -1,7 +1,7 @@
 {
   "name": "lore",
   "displayName": "SpecStory Lore",
-  "version": "3.8.2",
+  "version": "3.9.0",
   "description": "Mine your SpecStory coding histories (Claude Code, Codex, Cursor, Gemini, and more) into a persistent corpus, surface your reproducible workflows with corroborated evidence and outcome labels, and forge the ones you choose into skills installed across every agent harness.",
   "author": {
     "name": "SpecStory",
