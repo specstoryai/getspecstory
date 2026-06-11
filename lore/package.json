@@ -1,0 +1,14 @@
+{
+  "name": "@specstory/lore",
+  "version": "3.8.2",
+  "private": true,
+  "type": "module",
+  "description": "SpecStory Lore - mine your coding histories into a corpus; forge your workflows into skills.",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  },
+  "license": "Apache-2.0"
+}

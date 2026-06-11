@@ -19,7 +19,7 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
 <p align="left">
   <strong>Contribute to OSS ──▶</strong>&nbsp;
   <a href="https://github.com/specstoryai/getspecstory/tree/main/specstory-cli"><img src="https://img.shields.io/badge/CLI-Open%20Source-brightgreen?style=flat-square" alt="CLI Open Source" style="vertical-align: middle;"></a>
-  <a href="https://github.com/specstoryai/agent-skills"><img src="https://img.shields.io/badge/Skills-Open%20Source-brightgreen?style=flat-square" alt="Skills Open Source" style="vertical-align: middle;"></a>
+  <a href="./lore"><img src="https://img.shields.io/badge/Lore-Forge%20Skills-brightgreen?style=flat-square" alt="Lore: forge skills from your sessions" style="vertical-align: middle;"></a>
 </p>
 
 <p align="left">
@@ -31,7 +31,7 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
   <a href="https://www.youtube.com/@specstory"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube" style="vertical-align: middle;"></a>
 </p>
 
-> 🔧 **[Agent Skills](https://github.com/specstoryai/agent-skills)** - Install skills to generate session summaries, fetch project stats, organize history, and more
+> 📜 **[Lore](./lore)** - Mine your saved sessions into evidence-backed agent skills, forged from how you actually work. Your sessions are your lore.
 
 ## How It Works
 ```
@@ -51,7 +51,7 @@ DeepSeek TUI       ┘
 ## Workflow
 
 1. **Capture** - Extensions save every AI interaction locally to `.specstory/history/`
-2. **Process** - Use [Agent Skills](https://github.com/specstoryai/agent-skills) to generate summaries, stats, and insights from your history
+2. **Process** - Run [`/lore`](./lore) to mine your history into reusable, evidence-backed agent skills
 3. **Sync (Optional)** - Only if logged in, sessions sync to cloud
 4. **Search** - Find conversations locally or across all projects in cloud
 5. **Share** - Export and share specific solutions with your team
@@ -132,7 +132,7 @@ SpecStory Cloud creates your personal AI coding knowledge base:
 ## Documentation & Support
 
 - 📚 **[Full Documentation](https://docs.specstory.com/overview)** - Complete guides and [Cloud API reference](https://docs.specstory.com/api-reference/introduction)
-- 🔧 **[Agent Skills](https://github.com/specstoryai/agent-skills)** - Generate summaries, stats, and insights from your `.specstory/history`
+- 📜 **[Lore](./lore)** - Forge your `.specstory/history` into installable agent skills, with evidence and outcomes
 - 🐛 **[Report Issues](https://github.com/specstoryai/getspecstory/issues)** - We actively monitor and respond
 - 📖 **[Contribute to Docs](https://github.com/specstoryai/docs/)** - PRs welcome!
 

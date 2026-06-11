@@ -1,0 +1,21 @@
+{
+  "name": "lore",
+  "displayName": "SpecStory Lore",
+  "version": "3.8.2",
+  "description": "Mine your SpecStory coding histories (Claude Code, Codex, Cursor, Gemini, and more) into a persistent corpus, surface your reproducible workflows with corroborated evidence and outcome labels, and forge the ones you choose into skills installed across every agent harness.",
+  "author": {
+    "name": "SpecStory",
+    "url": "https://github.com/specstoryai"
+  },
+  "homepage": "https://github.com/specstoryai/getspecstory/tree/main/lore",
+  "repository": "https://github.com/specstoryai/getspecstory",
+  "license": "Apache-2.0",
+  "keywords": [
+    "skills",
+    "specstory",
+    "mining",
+    "agent-skills",
+    "workflows",
+    "lore"
+  ]
+}
