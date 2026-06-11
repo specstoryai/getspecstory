@@ -15,6 +15,12 @@ finds the workflows you actually repeat, proves them with evidence and outcomes,
 and forges the ones you choose into skills installed across every agent you use.
 </p>
 
+
+
+https://github.com/user-attachments/assets/082b51e7-2283-4204-a093-45b8b1ce3ce1
+
+
+
 ---
 
 ## Install
