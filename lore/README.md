@@ -139,6 +139,7 @@ After [installing](#install), invoke it per harness:
 |---|---|
 | Claude Code | `/lore` |
 | Codex | `$lore` (the `/` prefix is reserved for built-ins; also listed under `/skills`) |
+| Cursor | skills load automatically - just ask, e.g. "mine my lore" |
 | Gemini CLI | reads `~/.agents/skills` natively - just ask; the model activates the skill (with your consent) |
 
 ## Developing
