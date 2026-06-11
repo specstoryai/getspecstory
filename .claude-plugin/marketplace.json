@@ -9,7 +9,7 @@
       "version": "3.8.2",
       "description": "Mine your SpecStory coding histories into a persistent corpus and forge your repeated workflows into installable agent skills.",
       "author": { "name": "SpecStory", "url": "https://github.com/specstoryai" },
-      "homepage": "https://github.com/specstoryai/getspecstory/tree/main/lore",
+      "homepage": "https://github.com/specstoryai/getspecstory/tree/dev/lore",
       "license": "Apache-2.0",
       "category": "productivity"
     }
