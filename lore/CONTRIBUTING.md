@@ -17,8 +17,16 @@ done
 npm test    # Node >= 22.5; no install step - there are no dependencies
 ```
 
-Because the install is a symlink, every edit is live in your harness immediately. Use a scratch
-corpus while developing so you never pollute your real one:
+Because the install is a symlink, every edit is live in your harness immediately.
+
+> [!WARNING]
+> If you have ever run `npx skills add` for lore on this machine, it left a frozen COPY at
+> `~/.agents/skills/lore` - a real directory, not a symlink. `ln -sfn` against it silently
+> creates a nested link inside instead of replacing it, and your dev install gets shadowed by
+> the stale copy. Check with `readlink ~/.agents/skills/lore`; if it prints nothing,
+> `rm -rf ~/.agents/skills/lore` first, then symlink.
+
+Use a scratch corpus while developing so you never pollute your real one:
 
 ```zsh
 node scripts/mine-skills.mjs index --scan <some-project> --db /tmp/dev-lore.db
