@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/specstoryai/getspecstory/actions/workflows/lore-validate.yml"><img src="https://github.com/specstoryai/getspecstory/actions/workflows/lore-validate.yml/badge.svg" alt="Lore Validate"></a>
-  <a href="https://github.com/specstoryai/getspecstory/releases?q=lore-v&expanded=true"><img src="https://img.shields.io/badge/releases-lore--v*-blue" alt="Lore releases"></a>
+  <a href="https://github.com/specstoryai/getspecstory/releases?q=lore&expanded=true"><img src="https://img.shields.io/github/v/tag/specstoryai/getspecstory?filter=lore%2Fv*&label=release" alt="Latest lore release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/dependencies-0-brightgreen" alt="Zero dependencies">
 </p>
