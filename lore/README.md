@@ -32,6 +32,15 @@ Installs are copies, so they don't change until you update them:
 npx skills update lore    # or `npx skills update` to refresh every installed skill
 ```
 
+Alternatively, in Claude Code, install it as a plugin:
+
+```
+/plugin marketplace add specstoryai/getspecstory
+/plugin install lore@specstory
+```
+
+Plugin installs update via `/plugin update lore`.
+
 ## Get started
 
 In any agent that reads [Agent Skills](https://agentskills.io) (Claude Code, Codex, Cursor, Gemini CLI, …):
@@ -131,9 +140,6 @@ After [installing](#install), invoke it per harness:
 | Claude Code | `/lore` |
 | Codex | `$lore` (the `/` prefix is reserved for built-ins; also listed under `/skills`) |
 | Gemini CLI | reads `~/.agents/skills` natively - just ask; the model activates the skill (with your consent) |
-
-Prefer Claude Code's plugin manager? `/plugin marketplace add specstoryai/getspecstory`, then
-`/plugin install lore@specstory` - updates arrive via `/plugin update lore`.
 
 ## Developing
 
