@@ -19,42 +19,18 @@ and forges the ones you choose into skills installed across every agent you use.
 
 ## Install
 
-Lore lives in the [getspecstory](https://github.com/specstoryai/getspecstory) monorepo, next to
-the SpecStory CLI. One-liners for any harness (Node ≥ 22.5 either way):
-
 ```zsh
-# any harness, via skills.sh (detects every agent on your machine and installs to each)
 npx skills add specstoryai/getspecstory --skill lore
-
-# Gemini CLI (native Agent Skills support)
-gemini skills install https://github.com/specstoryai/getspecstory.git --path lore
 ```
 
-```
-# Claude Code, as a plugin (in-app)
-/plugin marketplace add specstoryai/getspecstory
-/plugin install lore@specstory
-```
+That detects every agent on your machine (Claude Code, Codex, Cursor, Amp, Gemini CLI, and more)
+and installs lore into each. Requires Node ≥ 22.5.
 
-For development, install from a clone - every install point is a symlink back to it, so updating
-is just `git -C ~/getspecstory pull`:
+Installs are copies, so they don't change until you update them:
 
 ```zsh
-# 1. clone the monorepo anywhere you keep code
-git clone git@github.com:specstoryai/getspecstory.git ~/getspecstory
-
-# 2. canonical skill location (Amp, Codex, and Gemini CLI read ~/.agents/skills natively)
-mkdir -p ~/.agents/skills && ln -sfn ~/getspecstory/lore ~/.agents/skills/lore
-
-# 3. fan out into every harness skills dir you have (symlink, never copy)
-for h in ~/.claude/skills ~/.codex/skills ~/.config/opencode/skills; do
-  [ -d "$h" ] && ln -sfn ~/.agents/skills/lore "$h/lore"
-done
+npx skills update lore    # or `npx skills update` to refresh every installed skill
 ```
-
-Releases: tags (`lore/vX.Y.Z`) run the test suite and publish a `lore.skill` artifact (the
-upload-ready zip for claude.ai) via GitHub Actions - see [CHANGELOG.md](CHANGELOG.md) for what
-shipped.
 
 ## Get started
 
@@ -157,6 +133,32 @@ After [installing](#install), invoke it per harness:
 | Amp | reads `~/.agents/skills` natively - just ask, e.g. "mine my lore" |
 | Gemini CLI | reads `~/.agents/skills` natively - just ask; the model activates the skill (with your consent) |
 | OpenCode | skills load automatically - just ask, e.g. "what could I forge into skills?" |
+
+Prefer Claude Code's plugin manager? `/plugin marketplace add specstoryai/getspecstory`, then
+`/plugin install lore@specstory` - updates arrive via `/plugin update lore`.
+
+## Developing
+
+Lore lives in the [getspecstory](https://github.com/specstoryai/getspecstory) monorepo, next to
+the SpecStory CLI. For development, install from a clone - every install point is a symlink back
+to it, so updating is just `git -C ~/getspecstory pull`:
+
+```zsh
+# 1. clone the monorepo anywhere you keep code
+git clone git@github.com:specstoryai/getspecstory.git ~/getspecstory
+
+# 2. canonical skill location (Amp, Codex, and Gemini CLI read ~/.agents/skills natively)
+mkdir -p ~/.agents/skills && ln -sfn ~/getspecstory/lore ~/.agents/skills/lore
+
+# 3. fan out into every harness skills dir you have (symlink, never copy)
+for h in ~/.claude/skills ~/.codex/skills ~/.config/opencode/skills; do
+  [ -d "$h" ] && ln -sfn ~/.agents/skills/lore "$h/lore"
+done
+```
+
+Releases: tags (`lore/vX.Y.Z`) run the test suite and publish a `lore.skill` artifact (the
+upload-ready zip for claude.ai) via GitHub Actions - see [CHANGELOG.md](CHANGELOG.md) for what
+shipped and [CONTRIBUTING.md](CONTRIBUTING.md) for the rules.
 
 ## Documentation
 
