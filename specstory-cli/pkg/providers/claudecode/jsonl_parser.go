@@ -2,6 +2,8 @@ package claudecode
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -446,8 +448,21 @@ func (p *JSONLParser) eliminateDuplicates(records []JSONLRecord) []JSONLRecord {
 	for _, record := range records {
 		uuid, ok := record.Data["uuid"].(string)
 		if !ok || uuid == "" {
-			// Skip records without uuid
-			continue
+			// "queue-operation" enqueue records hold text the user typed while the
+			// agent was busy (type-ahead). They carry no uuid/parentUuid, so they
+			// would be dropped here and never reach the DAG or the rendered chat.
+			// Rescue them with a synthetic uuid: with no parentUuid they become
+			// single-node roots that mergeDagsWithSameSessionId folds back into
+			// their session (by sessionId) and flattenDAG orders by timestamp.
+			// Whether each one actually renders is decided later in
+			// buildExchangesFromRecords (delivered ones are skipped there).
+			if isQueuedInputRecord(record) {
+				uuid = syntheticQueuedUUID(record)
+				record.Data["uuid"] = uuid
+			} else {
+				// Skip records without uuid
+				continue
+			}
 		}
 
 		// If we haven't seen this uuid before, add it
@@ -486,6 +501,30 @@ func (p *JSONLParser) eliminateDuplicates(records []JSONLRecord) []JSONLRecord {
 	})
 
 	return uniqueRecords
+}
+
+// isQueuedInputRecord reports whether a record is a queue-operation "enqueue"
+// carrying non-empty text — i.e. something the user typed while the agent was busy.
+func isQueuedInputRecord(record JSONLRecord) bool {
+	if recordType, _ := record.Data["type"].(string); recordType != "queue-operation" {
+		return false
+	}
+	if operation, _ := record.Data["operation"].(string); operation != "enqueue" {
+		return false
+	}
+	content, _ := record.Data["content"].(string)
+	return strings.TrimSpace(content) != ""
+}
+
+// syntheticQueuedUUID derives a deterministic uuid for a queued-input record so it
+// survives deduplication. Deterministic (sessionId+timestamp+content) keeps repeated
+// syncs idempotent rather than minting a new id each run.
+func syntheticQueuedUUID(record JSONLRecord) string {
+	sessionID, _ := record.Data["sessionId"].(string)
+	timestamp, _ := record.Data["timestamp"].(string)
+	content, _ := record.Data["content"].(string)
+	sum := sha256.Sum256([]byte(sessionID + "|" + timestamp + "|" + content))
+	return "queued-" + hex.EncodeToString(sum[:8])
 }
 
 // mergeDagsWithSameSessionId merges DAGs that have the same session ID

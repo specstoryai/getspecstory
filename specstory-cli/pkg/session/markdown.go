@@ -139,13 +139,19 @@ func renderRoleHeader(msg Message, useUTC bool) string {
 		sidechainMarker = " - sidechain"
 	}
 
+	// Queued input the user typed while the agent was busy but never actually sent.
+	queuedMarker := ""
+	if queued, ok := msg.Metadata["queued"].(bool); ok && queued {
+		queuedMarker = " - queued, not sent"
+	}
+
 	if msg.Role == "user" {
 		// User message - include timestamp if available
 		if msg.Timestamp != "" {
 			formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
-			return fmt.Sprintf("_**User%s (%s)**_\n\n", sidechainMarker, formattedTimestamp)
+			return fmt.Sprintf("_**User%s%s (%s)**_\n\n", sidechainMarker, queuedMarker, formattedTimestamp)
 		}
-		return fmt.Sprintf("_**User%s**_\n\n", sidechainMarker)
+		return fmt.Sprintf("_**User%s%s**_\n\n", sidechainMarker, queuedMarker)
 	}
 
 	// Agent message - include model and timestamp if available
