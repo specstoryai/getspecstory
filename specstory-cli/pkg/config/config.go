@@ -93,6 +93,14 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
+[redaction]
+# Redact secrets and API keys from saved markdown history. (default: true)
+# Built-in patterns cover GitHub, Groq, OpenAI, Anthropic, Google, and AWS keys.
+# enabled = false
+
+# Additional Go regular expressions to redact. Matches are replaced with [REDACTED:custom].
+# extra_patterns = ["my-token-[A-Za-z0-9]{32}"]
+
 [providers]
 # Agent execution commands by provider (used by specstory run)
 # Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
@@ -125,7 +133,18 @@ type Config struct {
 	Logging      LoggingConfig      `toml:"logging"`
 	Analytics    AnalyticsConfig    `toml:"analytics"`
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
+	Redaction    RedactionConfig    `toml:"redaction"`
 	Providers    ProvidersConfig    `toml:"providers"`
+}
+
+// RedactionConfig holds secret redaction settings for markdown output.
+type RedactionConfig struct {
+	// Enabled controls whether secrets are redacted from saved markdown files.
+	// Defaults to true when not explicitly set.
+	Enabled *bool `toml:"enabled"`
+	// ExtraPatterns is a list of additional Go regular expressions to redact.
+	// Matches are replaced with [REDACTED:custom].
+	ExtraPatterns []string `toml:"extra_patterns"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -723,6 +742,20 @@ func (c *Config) IsLocalTimeZoneEnabled() bool {
 		return *c.LocalSync.LocalTimeZone
 	}
 	return false
+}
+
+// IsRedactionEnabled returns whether secret redaction is enabled.
+// Defaults to true if not explicitly set.
+func (c *Config) IsRedactionEnabled() bool {
+	if c.Redaction.Enabled != nil {
+		return *c.Redaction.Enabled
+	}
+	return true // default: redaction on
+}
+
+// GetRedactionExtraPatterns returns the list of additional redaction patterns.
+func (c *Config) GetRedactionExtraPatterns() []string {
+	return c.Redaction.ExtraPatterns
 }
 
 // GetProviderCmd returns the custom execution command for a provider, or empty
