@@ -10,6 +10,7 @@ import (
 const (
 	EventExtensionActivated     = "ext_activated"                // Tracks when `run` command is started
 	EventWatchActivated         = "ext_watch_activated"          // Tracks when `watch` command is started
+	EventResumeActivated        = "ext_resume_activated"         // Tracks when `resume` command is started
 	EventProjectIdentityCreated = "ext_project_identity_created" // Tracks when new project identity is created
 	EventCheckInstallSuccess    = "ext_check_install_success"    // Tracks successful agent installation check
 	EventCheckInstallFailed     = "ext_check_install_failed"     // Tracks failed agent installation check

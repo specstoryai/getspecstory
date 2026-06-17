@@ -1425,6 +1425,7 @@ func main() {
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
 	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir)
+	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, localTimeZone, debugDir)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()
 	checkCmd := cmdpkg.CreateCheckCommand()
@@ -1445,6 +1446,7 @@ func main() {
 	// Add the subcommands
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(watchCmd)
+	rootCmd.AddCommand(resumeCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
