@@ -60,6 +60,14 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	prevRole := ""
 	for _, exchange := range sessionData.Exchanges {
 		for _, msg := range exchange.Messages {
+			// A single agent turn is split across several JSONL records (thinking,
+			// text, tool_use). Records with no text, no rendered thinking, and no
+			// tool — e.g. signature-only thinking blocks — would otherwise emit a
+			// bare role header with an empty body. Skip them, and only advance
+			// prevRole for messages we actually render so separators stay correct.
+			if !hasRenderableContent(msg) {
+				continue
+			}
 			markdown.WriteString(renderMessage(msg, prevRole, includeMessageIDs, useUTC))
 			prevRole = msg.Role
 		}
@@ -95,6 +103,21 @@ func formatTimestamp(timestamp string, useUTC bool) string {
 
 	// Use local timezone with offset: "2025-11-13 21:12:14-0700"
 	return t.Local().Format("2006-01-02 15:04:05-0700")
+}
+
+// hasRenderableContent reports whether a message would produce visible output —
+// a non-empty text/thinking part or a tool use. Messages with none are skipped so
+// they don't emit an empty role header.
+func hasRenderableContent(msg Message) bool {
+	if msg.Tool != nil {
+		return true
+	}
+	for _, part := range msg.Content {
+		if strings.TrimSpace(part.Text) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // renderMessage renders a single message with role header, content, and optional tool use
