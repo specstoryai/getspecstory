@@ -68,12 +68,14 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 
 // ProcessingOptions holds flags that control session processing behavior.
 type ProcessingOptions struct {
-	OnlyCloudSync      bool // Skip local markdown writes and only sync to cloud
-	ShowOutput         bool // Print progress to stdout
-	IsAutosave         bool // Called from run/watch (true) vs sync command (false)
-	DebugRaw           bool // Enable schema validation (only in debug mode to avoid overhead)
-	UseUTC             bool // Timestamp format: true=UTC, false=local
-	NoTelemetryPrompts bool // Exclude user prompt text from telemetry spans for privacy
+	OnlyCloudSync          bool     // Skip local markdown writes and only sync to cloud
+	ShowOutput             bool     // Print progress to stdout
+	IsAutosave             bool     // Called from run/watch (true) vs sync command (false)
+	DebugRaw               bool     // Enable schema validation (only in debug mode to avoid overhead)
+	UseUTC                 bool     // Timestamp format: true=UTC, false=local
+	NoTelemetryPrompts     bool     // Exclude user prompt text from telemetry spans for privacy
+	RedactSecrets          bool     // Redact API keys and tokens from markdown output
+	RedactionExtraPatterns []string // Additional Go regex patterns to redact beyond built-ins
 }
 
 // ProcessSingleSession writes markdown and triggers cloud sync for a single session.
@@ -121,6 +123,11 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	if err != nil {
 		slog.Error("Failed to generate markdown from SessionData", "sessionId", session.SessionID, "error", err)
 		return 0, fmt.Errorf("failed to generate markdown: %w", err)
+	}
+
+	// Redact secrets before writing to disk or syncing to cloud
+	if opts.RedactSecrets {
+		markdownContent = RedactContent(markdownContent, opts.RedactionExtraPatterns)
 	}
 
 	// Calculate markdown size in bytes

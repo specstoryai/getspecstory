@@ -61,6 +61,8 @@ var loadedConfig *config.Config
 var telemetryEndpoint string    // OTLP gRPC collector endpoint
 var telemetryServiceName string // override the default service name
 var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
+var noRedactSecrets bool        // flag to disable secret redaction in markdown output
+var redactionExtraPatterns []string // additional regex patterns to redact
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
@@ -451,11 +453,13 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
 				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
-					OnlyCloudSync:      onlyCloudSync,
-					IsAutosave:         true,
-					DebugRaw:           debugRaw,
-					UseUTC:             useUTC,
-					NoTelemetryPrompts: noTelemetryPrompts,
+					OnlyCloudSync:          onlyCloudSync,
+					IsAutosave:             true,
+					DebugRaw:               debugRaw,
+					UseUTC:                 useUTC,
+					NoTelemetryPrompts:     noTelemetryPrompts,
+					RedactSecrets:          !noRedactSecrets,
+					RedactionExtraPatterns: redactionExtraPatterns,
 				})
 				if err != nil {
 					// Log error but continue - don't fail the whole run
@@ -731,11 +735,13 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		} else {
 			// Normal sync: write to file and optionally cloud sync
 			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
-				OnlyCloudSync:      onlyCloudSync,
-				ShowOutput:         true,
-				DebugRaw:           debugRaw,
-				UseUTC:             useUTC,
-				NoTelemetryPrompts: noTelemetryPrompts,
+				OnlyCloudSync:          onlyCloudSync,
+				ShowOutput:             true,
+				DebugRaw:               debugRaw,
+				UseUTC:                 useUTC,
+				NoTelemetryPrompts:     noTelemetryPrompts,
+				RedactSecrets:          !noRedactSecrets,
+				RedactionExtraPatterns: redactionExtraPatterns,
 			}); err != nil {
 				errorCount++
 				lastError = err
@@ -1402,6 +1408,8 @@ func main() {
 	silent = cfg.IsSilentEnabled()
 
 	noTelemetryPrompts = noTelemetryPrompts || cfg.IsTelemetryPromptsDisabled()
+	noRedactSecrets = noRedactSecrets || !cfg.IsRedactionEnabled()
+	redactionExtraPatterns = cfg.GetRedactionExtraPatterns()
 
 	// Set SPI debug dir override before any commands run
 	if debugDir != "" {
@@ -1424,7 +1432,7 @@ func main() {
 	// NOW create the commands - after logging is configured
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
-	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir)
+	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir, !noRedactSecrets, redactionExtraPatterns)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()
 	checkCmd := cmdpkg.CreateCheckCommand()
@@ -1479,6 +1487,7 @@ func main() {
 	syncCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	syncCmd.Flags().BoolVar(&noRedactSecrets, "no-redact-secrets", noRedactSecrets, "disable redaction of API keys and tokens from saved markdown history")
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag
@@ -1496,6 +1505,7 @@ func main() {
 	runCmd.Flags().StringVar(&telemetryEndpoint, "telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	runCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	runCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	runCmd.Flags().BoolVar(&noRedactSecrets, "no-redact-secrets", noRedactSecrets, "disable redaction of API keys and tokens from saved markdown history")
 
 	// Initialize analytics with the full CLI command (unless disabled)
 	slog.Debug("Analytics initialization check", "noAnalytics", noAnalytics, "flag_should_disable", noAnalytics)

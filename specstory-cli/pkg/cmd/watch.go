@@ -39,7 +39,7 @@ func truncateSessionID(id string) string {
 // CreateWatchCommand dynamically creates the watch command with provider information.
 // cloudURL binds to the parent's --cloud-url flag so PersistentPreRunE can apply it.
 // localTimeZone and debugDir are passed from the global config/flag values.
-func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
+func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string, redactSecrets bool, redactionExtraPatterns []string) *cobra.Command {
 	registry := factory.GetRegistry()
 	ids := registry.ListIDs()
 	providerList := registry.GetProviderList()
@@ -95,6 +95,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
 			provenanceEnabled, _ := cmd.Flags().GetBool("provenance")
 			noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
+			noRedactSecretsFlag, _ := cmd.Flags().GetBool("no-redact-secrets")
 
 			// Apply debug dir override from flag if provided
 			if flagDebugDir != "" {
@@ -205,11 +206,13 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				// Don't show output during watch mode
 				// This is autosave mode (true)
 				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, session.ProcessingOptions{
-					OnlyCloudSync:      onlyCloudSync,
-					IsAutosave:         true,
-					DebugRaw:           debugRaw,
-					UseUTC:             useUTC,
-					NoTelemetryPrompts: noTelemetryPrompts,
+					OnlyCloudSync:          onlyCloudSync,
+					IsAutosave:             true,
+					DebugRaw:               debugRaw,
+					UseUTC:                 useUTC,
+					NoTelemetryPrompts:     noTelemetryPrompts,
+					RedactSecrets:          !noRedactSecretsFlag,
+					RedactionExtraPatterns: redactionExtraPatterns,
 				})
 				if err != nil {
 					// Log error but continue - don't fail the whole watch
@@ -329,6 +332,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	watchCmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	watchCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	watchCmd.Flags().Bool("no-redact-secrets", !redactSecrets, "disable redaction of API keys and tokens from saved markdown history")
 
 	return watchCmd
 }
