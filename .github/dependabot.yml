@@ -1,0 +1,12 @@
+version: 2
+updates:
+  # GitHub Actions pins (whole repo)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  # Go module deps for the CLI
+  - package-ecosystem: gomod
+    directory: /specstory-cli
+    schedule:
+      interval: monthly

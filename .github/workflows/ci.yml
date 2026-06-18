@@ -1,19 +1,27 @@
 name: CI
 
+# Scoped to the Go CLI: lore/ has its own workflow (lore-validate.yml).
+# paths and paths-ignore cannot be combined on one event, so exclusions are ! patterns.
 on:
   push:
     branches: [dev, main]
-    paths-ignore:
-      - '**/*.md'
-      - '.specstory/**'
-      - '.claude/**'
-      - '.cursor/**'
+    paths:
+      - 'specstory-cli/**'
+      - '.goreleaser.yml'
+      - 'scripts/**'
+      - 'install.sh'
+      - '.github/workflows/ci.yml'
+      - '!**/*.md'
+      - '!**/.specstory/**'
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - '.specstory/**'
-      - '.claude/**'
-      - '.cursor/**'
+    paths:
+      - 'specstory-cli/**'
+      - '.goreleaser.yml'
+      - 'scripts/**'
+      - 'install.sh'
+      - '.github/workflows/ci.yml'
+      - '!**/*.md'
+      - '!**/.specstory/**'
 
 jobs:
   lint:

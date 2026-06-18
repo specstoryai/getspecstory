@@ -1,0 +1,75 @@
+name: Lore Release
+
+on:
+  push:
+    tags:
+      - "lore/v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Run test suite
+        working-directory: lore
+        run: npm test
+
+      - name: Check tag matches the four version spots
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#lore/v}"
+          PLUGIN=$(node -p "require('./lore/.claude-plugin/plugin.json').version")
+          MARKET=$(node -p "require('./.claude-plugin/marketplace.json').plugins[0].version")
+          PKG=$(node -p "require('./lore/package.json').version")
+          SKILL=$(grep -m1 '^  version:' lore/SKILL.md | sed 's/.*"\(.*\)".*/\1/')
+          echo "tag=$VERSION plugin.json=$PLUGIN marketplace.json=$MARKET package.json=$PKG skill.md=$SKILL"
+          for v in "$PLUGIN" "$MARKET" "$PKG" "$SKILL"; do
+            test "$VERSION" = "$v" || { echo "::error::tag $VERSION does not match all version spots"; exit 1; }
+          done
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # dist/lore.skill: a zip with one top-level lore/ dir (SKILL.md + scripts runtime).
+      # fixtures/, tests/, .claude-plugin/ are stripped via lore/.gitattributes export-ignore,
+      # which applies because HEAD:lore makes lore/ the archive root.
+      - name: Build .skill artifact
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix=lore/ --output=dist/lore.skill HEAD:lore
+          unzip -l dist/lore.skill | tail -3
+
+      # Release notes come from lore/CHANGELOG.md ("## X.Y.Z - date" sections); GitHub's
+      # generate_release_notes would diff against an unrelated CLI tag in this monorepo.
+      - name: Extract changelog section
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          CHANGELOG=$(awk -v version="$VERSION" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' lore/CHANGELOG.md)
+          {
+            echo "changelog<<CHANGELOG_EOF"
+            echo "$CHANGELOG"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # make_latest MUST stay false: the root install.sh resolves the CLI tarball from
+      # GitHub releases/latest; a lore release taking "latest" would break the curl installer.
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: lore-v${{ steps.version.outputs.version }}
+          body: ${{ steps.notes.outputs.changelog }}
+          files: dist/lore.skill
+          make_latest: 'false'
+          draft: false
+          prerelease: false
