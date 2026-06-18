@@ -1,0 +1,33 @@
+name: "[lore] Feature request"
+description: A new capability, provider, lens, or registry surface
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What can't you do today?
+      description: The workflow or question Lore can't answer yet, in your own words
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What you'd type (e.g. "/lore ...") and what should happen
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Which layer does this touch?
+      options:
+        - Engine (deterministic - parsing, corpus, scoring, rendering)
+        - Agent contract (SKILL.md - pipeline, curation, forging)
+        - Workflows (deep-mine / theme-sweep fan-out)
+        - Distribution (install, registries, releases)
+        - Not sure
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        Note: the engine stays zero-dependency and deterministic; anything requiring judgment
+        belongs in the agent contract. New provider formats need real (sanitized) byte examples.

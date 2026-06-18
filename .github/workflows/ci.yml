@@ -1,19 +1,27 @@
 name: CI
 
+# Scoped to the Go CLI: lore/ has its own workflow (lore-validate.yml).
+# paths and paths-ignore cannot be combined on one event, so exclusions are ! patterns.
 on:
   push:
     branches: [dev, main]
-    paths-ignore:
-      - '**/*.md'
-      - '.specstory/**'
-      - '.claude/**'
-      - '.cursor/**'
+    paths:
+      - 'specstory-cli/**'
+      - '.goreleaser.yml'
+      - 'scripts/**'
+      - 'install.sh'
+      - '.github/workflows/ci.yml'
+      - '!**/*.md'
+      - '!**/.specstory/**'
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - '.specstory/**'
-      - '.claude/**'
-      - '.cursor/**'
+    paths:
+      - 'specstory-cli/**'
+      - '.goreleaser.yml'
+      - 'scripts/**'
+      - 'install.sh'
+      - '.github/workflows/ci.yml'
+      - '!**/*.md'
+      - '!**/.specstory/**'
 
 jobs:
   lint:
@@ -24,11 +32,11 @@ jobs:
         working-directory: specstory-cli
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26.0'
           cache-dependency-path: specstory-cli/go.sum
-      - uses: golangci/golangci-lint-action@v7
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: latest
           working-directory: specstory-cli
@@ -41,7 +49,7 @@ jobs:
         working-directory: specstory-cli
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: '1.26.0'
           cache-dependency-path: specstory-cli/go.sum

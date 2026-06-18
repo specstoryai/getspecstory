@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## v1.13.0 2026-05-18
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) (i.e. `deepseek-tui`) for sessions created from DeepSeek TUI version `0.8.39` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), [Gemini CLI](https://github.com/google-gemini/gemini-cli) and Factory's [Droid CLI](https://factory.ai/product/cli). Thank you to [KiBlazer](https://github.com/KiBlazer) for the [contribution](https://github.com/specstoryai/getspecstory/pull/218).
+
 ## v1.12.0 2026-03-19
 
 ### ⚙️ Improvements

@@ -19,7 +19,7 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
 <p align="left">
   <strong>Contribute to OSS ──▶</strong>&nbsp;
   <a href="https://github.com/specstoryai/getspecstory/tree/main/specstory-cli"><img src="https://img.shields.io/badge/CLI-Open%20Source-brightgreen?style=flat-square" alt="CLI Open Source" style="vertical-align: middle;"></a>
-  <a href="https://github.com/specstoryai/agent-skills"><img src="https://img.shields.io/badge/Skills-Open%20Source-brightgreen?style=flat-square" alt="Skills Open Source" style="vertical-align: middle;"></a>
+  <a href="./lore"><img src="https://img.shields.io/badge/Lore-Forge%20Skills-brightgreen?style=flat-square" alt="Lore: forge skills from your sessions" style="vertical-align: middle;"></a>
 </p>
 
 <p align="left">
@@ -31,7 +31,7 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
   <a href="https://www.youtube.com/@specstory"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube" style="vertical-align: middle;"></a>
 </p>
 
-> 🔧 **[Agent Skills](https://github.com/specstoryai/agent-skills)** - Install skills to generate session summaries, fetch project stats, organize history, and more
+> 📜 **[Lore](./lore)** - Mine your saved sessions into evidence-backed agent skills, forged from how you actually work. Your sessions are your lore.
 
 ## How It Works
 ```
@@ -41,16 +41,17 @@ AI Coding Tools              Local First                  Cloud Platform
 Cursor IDE         ┐
 Copilot IDE        │
 Claude Code CLI    │
-Cursor CLI         ├──────►  .specstory/history/  ──────►  cloud.specstory.com
-Codex CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
-Droid CLI          │
-Gemini CLI         ┘
+Cursor CLI         │
+Codex CLI          ├──────►  .specstory/history/  ──────►  cloud.specstory.com
+Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
+Gemini CLI         │
+DeepSeek TUI       ┘
 ```
 
 ## Workflow
 
 1. **Capture** - Extensions save every AI interaction locally to `.specstory/history/`
-2. **Process** - Use [Agent Skills](https://github.com/specstoryai/agent-skills) to generate summaries, stats, and insights from your history
+2. **Process** - Run [`/lore`](./lore) to mine your history into reusable, evidence-backed agent skills
 3. **Sync (Optional)** - Only if logged in, sessions sync to cloud
 4. **Search** - Find conversations locally or across all projects in cloud
 5. **Share** - Export and share specific solutions with your team
@@ -61,15 +62,17 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### Installation
 
-| Product                                                          | Type | Source                                                                                              | Supported Agent                                                               | Min Version  | Installation                                                  | Changelog                                                                                  |
-|------------------------------------------------------------------|------|-----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|--------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| **[Cursor Extension](https://www.cursor.com/)**                  | IDE  | Closed                                                                                              | [Cursor AI](https://www.cursor.com/)                                          | v0.43.6+     | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE  | Closed                                                                                              | [GitHub Copilot](https://github.com/features/copilot)                         | v1.300.0+    | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/claudecode) | [Claude Code](https://claude.ai/claude-code)                                  | v1.0.27+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/codexcli)   | [Codex CLI](https://www.openai.com/codex)                                     | v0.42.0+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcli)  | [Cursor CLI](https://cursor.com/cli)                                          | v2025.09.18+ | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/droidcli)   | [Droid CLI](https://factory.ai/product/cli)                                   | v0.56.3+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)  | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | 0.15.1+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| Product                                                          | Type | Source                                                                                               | Supported Agent                                                               | Min Version  | Installation                                                  | Changelog                                                                                  |
+|------------------------------------------------------------------|------|------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|--------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|
+| **[Cursor Extension](https://www.cursor.com/)**                  | IDE  | Closed                                                                                               | [Cursor AI](https://www.cursor.com/)                                          | v0.43.6+     | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
+| **[VSC Copilot Extension](https://github.com/features/copilot)** | IDE  | Closed                                                                                               | [GitHub Copilot](https://github.com/features/copilot)                         | v1.300.0+    | Search "SpecStory" in Extensions (Cmd/Ctrl+Shift+X) → Install | [📋 View](https://marketplace.visualstudio.com/items/SpecStory.specstory-vscode/changelog) |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/claudecode)  | [Claude Code](https://claude.ai/claude-code)                                  | v1.0.27+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/codexcli)    | [Codex CLI](https://www.openai.com/codex)                                     | v0.42.0+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/cursorcli)   | [Cursor CLI](https://cursor.com/cli)                                          | v2025.09.18+ | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/droidcli)    | [Droid CLI](https://factory.ai/product/cli)                                   | v0.56.3+     | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)   | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | 0.15.1+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/deepseektui) | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)                        | 0.8.39+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[Lore](./lore)** 📜                                            | Skill | [Open](./lore)                                                                                       | Any [Agent Skills](https://agentskills.io) | Node 22.5+   | `npx skills add specstoryai/getspecstory --skill lore`        | [📋 View](./lore/CHANGELOG.md)                                                             |
 
 > [!NOTE]
 > For Cursor users: Install from within Cursor, not from the Visual Studio Marketplace website. [Learn why](https://github.com/specstoryai/getspecstory/issues/8)
@@ -88,6 +91,7 @@ specstory run cursor    # Launch Cursor CLI
 specstory run codex     # Launch Codex CLI
 specstory run droid     # Launch Droid CLI
 specstory run gemini    # Launch Gemini CLI
+specstory run deepseek  # Launch DeepSeek TUI
 specstory run           # Launch default agent
 ```
 
@@ -95,6 +99,31 @@ All sessions automatically save to `.specstory/history/` in your current project
 
 > [!TIP]
 > The SpecStory CLI acts as a wrapper that enhances any of these terminal agents with automatic session saving. You only need the respective agent installed (e.g., Claude Code) for SpecStory to work with it.
+
+## Lore 📜
+
+[**Lore**](./lore) turns the sessions SpecStory saves into agent skills forged from how you actually work. Your sessions are your lore.
+
+### The Problem We Solve
+- **Repeated Yourself Again**: You re-explain the same workflows, conventions, and fixes to your agent every session
+- **Skills From Guesswork**: Hand-written agent skills describe how you think you work, not how you demonstrably do
+
+### The Solution
+Lore mines your `.specstory/history` into evidence - what you actually ran, what worked, and the judgment you apply without noticing - and forges the skills you approve into every agent on your machine.
+
+Install:
+
+```sh
+npx skills add specstoryai/getspecstory --skill lore
+```
+
+Then invoke it - `/lore` in Claude Code, `$lore` in Codex, or just ask ("mine my lore") in Gemini CLI and others:
+
+```
+/lore
+```
+
+[Get Started with Lore →](./lore)
 
 ## SpecStory Cloud ☁️
 
@@ -117,11 +146,11 @@ SpecStory Cloud creates your personal AI coding knowledge base:
 
 ### How to Sync to Cloud
 
-| Method | One-Time Setup | Live Sessions | Past Sessions |
-|--------|----------------|---------------|---------------|
-| **SpecStory CLI** | `specstory login` | Auto-pushed when using `specstory run` while logged in | Use `specstory sync` to push existing local sessions |
-| **Cursor Extension** | Command Palette → "SpecStory: Open Cloud Sync Configuration" | Configure auto-sync in settings | Use sync command from Command Palette |
-| **VSCode Extension** | Command Palette → "SpecStory: Open Cloud Sync Configuration" | Configure auto-sync in settings | Use sync command from Command Palette |
+| Method               | One-Time Setup                                               | Live Sessions                                          | Past Sessions                                        |
+|----------------------|--------------------------------------------------------------|--------------------------------------------------------|------------------------------------------------------|
+| **SpecStory CLI**    | `specstory login`                                            | Auto-pushed when using `specstory run` while logged in | Use `specstory sync` to push existing local sessions |
+| **Cursor Extension** | Command Palette → "SpecStory: Open Cloud Sync Configuration" | Configure auto-sync in settings                        | Use sync command from Command Palette                |
+| **VSCode Extension** | Command Palette → "SpecStory: Open Cloud Sync Configuration" | Configure auto-sync in settings                        | Use sync command from Command Palette                |
 
 > [!IMPORTANT]
 > **Local-First & Private by Default**: All sessions are saved locally to `.specstory/history/`. Nothing is ever sent to the cloud unless you explicitly login with. Even after logging in, you can control what gets synced.
@@ -129,7 +158,7 @@ SpecStory Cloud creates your personal AI coding knowledge base:
 ## Documentation & Support
 
 - 📚 **[Full Documentation](https://docs.specstory.com/overview)** - Complete guides and [Cloud API reference](https://docs.specstory.com/api-reference/introduction)
-- 🔧 **[Agent Skills](https://github.com/specstoryai/agent-skills)** - Generate summaries, stats, and insights from your `.specstory/history`
+- 📜 **[Lore](./lore)** - Forge your `.specstory/history` into installable agent skills, with evidence and outcomes
 - 🐛 **[Report Issues](https://github.com/specstoryai/getspecstory/issues)** - We actively monitor and respond
 - 📖 **[Contribute to Docs](https://github.com/specstoryai/docs/)** - PRs welcome!
 
