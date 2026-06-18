@@ -256,7 +256,17 @@ func TestCodexSessionsRoot(t *testing.T) {
 		t.Errorf("codexSessionsRoot() = %q, want %q", got, want)
 	}
 }
+func TestCodexSessionsRootUsesCODEXHOME(t *testing.T) {
+	t.Setenv("CODEX_HOME", "/tmp/custom-codex")
 
+	got := codexSessionsRoot("/ignored")
+
+	want := filepath.Join("/tmp/custom-codex", "sessions")
+
+	if got != want {
+		t.Errorf("codexSessionsRoot() = %q, want %q", got, want)
+	}
+}
 func TestParseCodexCommand(t *testing.T) {
 	tests := []struct {
 		name          string

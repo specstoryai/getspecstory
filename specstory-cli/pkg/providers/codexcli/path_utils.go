@@ -9,6 +9,9 @@ import (
 
 // codexSessionsRoot returns the root directory where Codex stores session files.
 func codexSessionsRoot(homeDir string) string {
+	if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
+		return filepath.Join(codexHome, "sessions")
+	}
 	return filepath.Join(homeDir, ".codex", "sessions")
 }
 
