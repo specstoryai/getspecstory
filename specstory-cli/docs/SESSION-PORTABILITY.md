@@ -164,9 +164,9 @@ Each provider converts `[]Turn` into its native, resumable file:
 
 - **DeepSeek TUI** (`pkg/providers/deepseektui/reconstruct.go`): a single JSON document (`{schema_version, system_prompt, metadata, messages}`) with `user`/`assistant` `content:[{type:"text",text}]` messages, written to `~/.deepseek/sessions/<new-uuid>.json`. Not project-scoped by directory — the project is recorded in `metadata.workspace`. Fresh UUIDv4.
 
-- **Cursor CLI**: stub `ReconstructSession` returning `ErrReconstructionUnsupported` — its store is a SQLite `store.db` (blob-encoded, DAG-ordered), a larger lift handled separately.
+- **Cursor CLI** (`pkg/providers/cursorcli/reconstruct.go`): a SQLite `store.db` content-addressed Merkle-DAG. Each turn becomes a plain-JSON message blob (`user`/`assistant`), `id = sha256(data)`; tiny protobuf index nodes thread them — a `root` node (field 1 = ordered message refs, field 2 = a title/empty/preview metadata subtree); `meta['0']` holds the head pointer (`latestRootBlobId`). Written to `~/.cursor/chats/<md5(cwd)>/<session-id>/store.db`. No system message (validated against `cursor-agent --resume`). Fresh UUIDv4.
 
-Implemented serializers reuse existing path-derivation code (`GetClaudeCodeProjectDir`, `codexSessionsRoot`, `ResolveGeminiProjectDir`, `resolveProjectSessionDir`, `resolveSessionsDir`).
+Implemented serializers reuse existing path-derivation code (`GetClaudeCodeProjectDir`, `codexSessionsRoot`, `ResolveGeminiProjectDir`, `resolveProjectSessionDir`, `resolveSessionsDir`, `GetProjectHashDir`).
 
 ### Dependency Flow
 
@@ -248,7 +248,7 @@ These phases deliver **Stage 1** — the reconstruction core, the two native ser
 
 - **Phase 5 — End-to-end validation and edge hardening. _(Done for Claude → Codex.)_** Cross-agent resume confirmed through the command in a fresh project: Codex resumed cleanly **without** a synthesized `environment_context` (it injects its own), the migration note appeared as the leading turn, no synthetic local-command noise leaked, and a follow-up ("what did we just do?") proved the reconstructed transcript fed the model's context. Two fixes landed along the way: synthetic local-command turns are filtered at flatten time, and the synthesized `environment_context` was removed. Edge cases handled with tests: blank/whitespace turns and tool-only sessions flatten correctly; large tool outputs are already truncated upstream; UUID-based filenames avoid collisions; JSON encoding preserves unicode. Remaining: a Codex → Claude confirmation pass.
 
-- **Phase 6 — Other providers. _(Gemini, Droid, DeepSeek done; Cursor remains.)_** Gemini CLI, Factory Droid, and DeepSeek TUI now have working serializers + `NativeSessionPath` (all round-trip tested), so each can be a cross-agent resume target. Only Cursor remains (SQLite `store.db` — a larger lift warranting its own pass). Real-agent resume confirmed for Gemini (round-trip); Droid and DeepSeek await a real-agent confirmation pass like Codex/Gemini got.
+- **Phase 6 — Other providers. _(All six providers done.)_** Gemini CLI, Factory Droid, DeepSeek TUI, and Cursor CLI now have working serializers + `NativeSessionPath` (all structurally tested), so every provider can be a cross-agent resume target. Cursor's SQLite `store.db` format was reverse-engineered (sha256 content-addressed Merkle-DAG; JSON message blobs + protobuf index nodes) and a hand-built spike confirmed `cursor-agent --resume` loads a reconstructed session with full prior context. Real-agent resume confirmed for Codex, Gemini, and Cursor; Droid and DeepSeek await a confirmation pass.
 
 - **Phase 7 — Docs and analytics.** README/help for `resume`; resume analytics events; provenance recorded.
 
@@ -268,7 +268,7 @@ These follow Stage 1 in the sequencing and are not part of the initial build:
 
 ## Deferred
 
-- A working native serializer for Cursor CLI. It carries the `ReconstructSession` responsibility from the start but returns `ErrReconstructionUnsupported` until implemented. Claude Code, Codex CLI, Gemini CLI, Factory Droid, and DeepSeek TUI have working serializers; Cursor is the notable lift (its store is a SQLite `store.db` with blob-encoded, DAG-ordered messages rather than a flat file).
+- Nothing in Stage 1 — all six providers (Claude Code, Codex CLI, Gemini CLI, Factory Droid, DeepSeek TUI, Cursor CLI) have working serializers. Remaining work is the later stages (cross-project, cross-machine, cross-user) and real-agent confirmation passes for Droid and DeepSeek.
 
 ## Related Documents
 
