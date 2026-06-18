@@ -5,7 +5,7 @@ module github.com/specstoryai/getspecstory/specstory-cli
 //   - .golangci.yml (run.go)
 //   - ../.github/workflows/ci.yml (setup-go)
 //   - ../.github/workflows/release.yml (setup-go)
-go 1.26.0
+go 1.26.4
 
 // To check for outdated direct dependencies:
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
