@@ -1,0 +1,25 @@
+{
+  "name": "specstory",
+  "owner": {
+    "name": "SpecStory",
+    "url": "https://github.com/specstoryai"
+  },
+  "metadata": {
+    "description": "SpecStory's agent skills: turn your AI coding sessions into durable, installable expertise."
+  },
+  "plugins": [
+    {
+      "name": "lore",
+      "source": "./lore",
+      "version": "3.9.0",
+      "description": "Mine your SpecStory coding histories into a persistent corpus and forge your repeated workflows into installable agent skills.",
+      "author": {
+        "name": "SpecStory",
+        "url": "https://github.com/specstoryai"
+      },
+      "homepage": "https://github.com/specstoryai/getspecstory/tree/dev/lore",
+      "license": "Apache-2.0",
+      "category": "productivity"
+    }
+  ]
+}

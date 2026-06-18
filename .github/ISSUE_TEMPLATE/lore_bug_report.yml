@@ -1,0 +1,46 @@
+name: "[lore] Bug report"
+description: Something parsed wrong, crashed, or rendered incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Privacy first:** your SpecStory transcripts contain your real prompts and code.
+        NEVER paste a real transcript here. Describe the provider and format shape, redact
+        heavily, or (best) contribute a sanitized fixture that reproduces the issue.
+  - type: input
+    id: command
+    attributes:
+      label: Command or step
+      description: The engine command (`mine-skills.mjs ...`) or SKILL.md step where it went wrong
+      placeholder: node scripts/mine-skills.mjs index --scan .
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What you expected and what happened instead (paste error output if any)
+    validations:
+      required: true
+  - type: input
+    id: provider
+    attributes:
+      label: Transcript provider and era (for parsing bugs)
+      placeholder: e.g. Codex CLI, legacy 2025 "Tool use:" format
+  - type: textarea
+    id: shape
+    attributes:
+      label: Format shape (REDACTED)
+      description: |
+        For parsing bugs: the structural lines that reproduce it, with all private content
+        replaced (e.g. keep `- command:` markers and tool envelopes, replace commands/paths
+        with placeholders). A sanitized fixture PR is even better - see CONTRIBUTING.md.
+      render: markdown
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: lore vX.Y.Z (SKILL.md frontmatter) · node --version · harness + version
+    validations:
+      required: true
