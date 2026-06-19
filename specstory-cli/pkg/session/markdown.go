@@ -56,6 +56,11 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 		sessionData.SessionID,
 		commentTimestamp)
 
+	// Agent-generated session title, alongside the session id. Blank if unavailable.
+	if strings.TrimSpace(sessionData.Title) != "" {
+		fmt.Fprintf(&markdown, "**Title:** %s\n\n", sessionData.Title)
+	}
+
 	// Render each exchange, tracking role across exchanges for proper separators
 	prevRole := ""
 	for _, exchange := range sessionData.Exchanges {
@@ -133,6 +138,14 @@ func renderMessage(msg Message, prevRole string, includeMessageIDs bool, useUTC 
 
 // renderRoleHeader creates the role header for a message
 func renderRoleHeader(msg Message, useUTC bool) string {
+	// Idle "/recap" (away_summary): label distinctly from a normal agent turn.
+	if recap, ok := msg.Metadata["recap"].(bool); ok && recap {
+		if msg.Timestamp != "" {
+			return fmt.Sprintf("_**Recap (%s)**_\n\n", formatTimestamp(msg.Timestamp, useUTC))
+		}
+		return "_**Recap**_\n\n"
+	}
+
 	// Check if this is a sidechain message (subagent conversation)
 	sidechainMarker := ""
 	if isSidechain, ok := msg.Metadata["isSidechain"].(bool); ok && isSidechain {
