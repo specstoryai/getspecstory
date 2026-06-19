@@ -340,18 +340,51 @@ func (s *Store) SessionBody(agent, sessionID string) (string, error) {
 	return body, err
 }
 
-// Search runs a full-text query over the conversation body + name and returns the
-// matching sessions, best match first. Used by the `specstory resume` picker.
-func (s *Store) Search(query string) ([]Session, error) {
-	rows, err := s.db.Query(`SELECT `+prefixed("s", sessionColumns)+`
-		FROM sessions_fts f
-		JOIN sessions s ON s.agent = f.agent AND s.session_id = f.session_id
-		WHERE sessions_fts MATCH ? ORDER BY rank`, query)
+// SearchHit is a matching session plus a snippet of the matched body text. Matched terms
+// in Snippet are wrapped in the control characters \x02 (start) and \x03 (end) — STX/ETX,
+// which never occur in conversation text — so the caller can split on them to highlight.
+type SearchHit struct {
+	Session
+	Snippet string
+}
+
+// SearchWithSnippets runs a full-text query and returns matching sessions, best match
+// first, each with a body snippet around the match. projectID scopes the search to one
+// project; "" searches across all projects. Powers the picker's full-text search UX.
+func (s *Store) SearchWithSnippets(query, projectID string) ([]SearchHit, error) {
+	q := `SELECT ` + prefixed("s", sessionColumns) + `,
+		snippet(sessions_fts, 3, char(2), char(3), '…', 12)
+		FROM sessions_fts
+		JOIN sessions s ON s.agent = sessions_fts.agent AND s.session_id = sessions_fts.session_id
+		WHERE sessions_fts MATCH ?`
+	args := []any{query}
+	if projectID != "" {
+		q += ` AND s.project_id = ?`
+		args = append(args, projectID)
+	}
+	// Bound the work for broad queries (a short prefix can match the whole corpus); the
+	// picker never needs more than the top results.
+	q += ` ORDER BY rank LIMIT 500`
+
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	return scanSessions(rows)
+
+	var out []SearchHit
+	for rows.Next() {
+		var h SearchHit
+		if err := rows.Scan(
+			&h.ProjectID, &h.ProjectName, &h.Agent, &h.SessionID, &h.CreatedAt, &h.UpdatedAt,
+			&h.UserTurns, &h.TotalTurns, &h.Slug, &h.Name, &h.NativePath, &h.OriginCwd,
+			&h.Size, &h.Mtime, &h.IndexVersion, &h.IndexedAt, &h.Snippet,
+		); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
 }
 
 // prefixed qualifies each comma-separated column in cols with the given table alias,

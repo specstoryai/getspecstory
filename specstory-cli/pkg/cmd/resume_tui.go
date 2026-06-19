@@ -60,11 +60,12 @@ type resumeTUI struct {
 	homeProjectName string
 	homeSessions    []sessionindex.Session
 
-	all       []sessionindex.Session // sessions for the active project (projectID), newest first
-	filtered  []sessionindex.Session // after agent filter + search
-	cursor    int                    // index into filtered
-	top       int                    // first visible row (scroll)
-	inBrowser bool                   // the active session list was reached via the browser
+	all              []sessionindex.Session // sessions for the active project (projectID), newest first
+	filtered         []sessionindex.Session // after agent filter + search
+	filteredSnippets []string               // match snippet per filtered row (search active), else nil
+	cursor           int                    // index into filtered
+	top              int                    // first visible row (scroll)
+	inBrowser        bool                   // the active session list was reached via the browser
 
 	agentCycle  []string // "" (all) followed by each present agent id
 	agentFilter string   // "" = all
@@ -87,12 +88,14 @@ type resumeTUI struct {
 	globalInput     textinput.Model
 	globalQuery     string
 	globalResults   []sessionindex.Session
+	globalSnippets  []string
 	globalCursor    int
 	globalTop       int
 
 	searching   bool
 	search      textinput.Model
 	searchQuery string
+	searchSeq   int // bumped per search keystroke; debounced FTS results must match it
 
 	previewing  bool
 	previewBody string
@@ -109,13 +112,10 @@ func newResumeTUI(store *sessionindex.Store, projectID, projectName string, sess
 	agents map[string]agentMeta, installed []agentChoice, presetTo, lastAgent, viewMode string) resumeTUI {
 
 	ti := textinput.New()
-	ti.Placeholder = "search sessions…"
 	ti.Prompt = "/ "
 	pi := textinput.New()
-	pi.Placeholder = "filter projects…"
 	pi.Prompt = "p "
 	gi := textinput.New()
-	gi.Placeholder = "search all sessions…"
 	gi.Prompt = "/ "
 
 	m := resumeTUI{
@@ -151,6 +151,18 @@ func (m resumeTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+	case searchDebounceMsg:
+		// Fire the actual query only if no newer keystroke has arrived (debounce).
+		if msg.seq == m.searchSeq {
+			return m, m.runSearch(msg.seq, msg.kind)
+		}
+		return m, nil
+	case searchResultMsg:
+		// Apply only the latest query's results (discard stale async results).
+		if msg.seq == m.searchSeq {
+			m.applySearchResults(msg.kind, msg.hits)
+		}
 		return m, nil
 	case tea.KeyPressMsg:
 		switch {
@@ -232,13 +244,16 @@ func (m resumeTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateSearch handles the full-text search input.
+// updateSearch handles the full-text search input. The typed character is applied to the
+// input immediately (instant feedback); the FTS query runs async + debounced so a slow
+// query never blocks typing. See searchDebounceMsg / searchResultMsg.
 func (m resumeTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.searching = false
 		m.search.Blur()
 		m.searchQuery = ""
+		m.searchSeq++ // invalidate any in-flight search
 		m.applyFilter()
 		return m, nil
 	case "enter":
@@ -249,8 +264,12 @@ func (m resumeTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.search, cmd = m.search.Update(msg)
 	m.searchQuery = m.search.Value()
-	m.applyFilter()
-	return m, cmd
+	m.searchSeq++
+	if strings.TrimSpace(m.searchQuery) == "" {
+		m.applyFilter() // clearing is cheap (no FTS) — apply synchronously
+		return m, cmd
+	}
+	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeList))
 }
 
 // updatePreview handles keys while the preview overlay is open.
@@ -378,26 +397,36 @@ func (m *resumeTUI) toggleViewMode() {
 	m.clampScroll()
 }
 
-// applyFilter rebuilds the visible list from the agent filter and search query.
+// applyFilter rebuilds the visible list from the agent filter and search query. When a
+// search is active, each row carries a match snippet (filteredSnippets); otherwise the
+// list is the project's sessions filtered by agent and snippets are cleared.
 func (m *resumeTUI) applyFilter() {
-	base := m.all
+	m.filtered = m.filtered[:0]
+	m.filteredSnippets = nil
+
 	if q := ftsQuery(m.searchQuery); q != "" {
-		if hits, err := m.store.Search(q); err == nil {
-			base = nil
-			for _, s := range hits {
-				if s.ProjectID == m.projectID {
-					base = append(base, s)
+		var snips []string
+		var out []sessionindex.Session
+		if hits, err := m.store.SearchWithSnippets(q, m.projectID); err == nil {
+			for _, h := range hits {
+				if m.agentFilter == "" || h.Agent == m.agentFilter {
+					out = append(out, h.Session)
+					snips = append(snips, h.Snippet)
 				}
 			}
 		}
-	}
-	out := make([]sessionindex.Session, 0, len(base))
-	for _, s := range base {
-		if m.agentFilter == "" || s.Agent == m.agentFilter {
-			out = append(out, s)
+		m.filtered = out
+		m.filteredSnippets = snips
+	} else {
+		out := make([]sessionindex.Session, 0, len(m.all))
+		for _, s := range m.all {
+			if m.agentFilter == "" || s.Agent == m.agentFilter {
+				out = append(out, s)
+			}
 		}
+		m.filtered = out
 	}
-	m.filtered = out
+
 	if m.cursor > len(m.filtered)-1 {
 		m.cursor = len(m.filtered) - 1
 	}
@@ -530,7 +559,7 @@ func (m resumeTUI) renderRows() string {
 	end := min(m.top+h, len(m.filtered))
 	var b strings.Builder
 	for i := m.top; i < end; i++ {
-		b.WriteString(m.sessionRow(m.filtered[i], i == m.cursor))
+		b.WriteString(m.sessionRow(m.filtered[i], i == m.cursor, m.snippetAt(i)))
 		if i < end-1 {
 			b.WriteString("\n")
 		}
@@ -538,24 +567,87 @@ func (m resumeTUI) renderRows() string {
 	return b.String()
 }
 
-func (m resumeTUI) sessionRow(s sessionindex.Session, selected bool) string {
+// snippetAt returns the search snippet for filtered row i, or "" (no active search).
+func (m resumeTUI) snippetAt(i int) string {
+	if i >= 0 && i < len(m.filteredSnippets) {
+		return m.filteredSnippets[i]
+	}
+	return ""
+}
+
+// sessionRow renders one list row. When snippet is non-empty (search active) the row
+// shows the highlighted match context instead of the session title.
+func (m resumeTUI) sessionRow(s sessionindex.Session, selected bool, snippet string) string {
 	cursor := "  "
 	if selected {
 		cursor = styCursor.Render("▸ ")
 	}
 	agent := m.agentTag(s.Agent)
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
-	name := sessionTitle(s)
 
 	if m.viewMode == "sparse" {
 		turns := styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
-		head := cursor + agent + "  " + renderName(name, selected, m.lineWidth()-24) + "   " + turns
+		label := renderName(sessionTitle(s), selected, m.lineWidth()-24)
+		if snippet != "" {
+			label = renderSnippet(snippet, m.lineWidth()-26)
+		}
+		head := cursor + agent + "  " + label + "   " + turns
 		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
 	}
 	turns := styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
-	return cursor + agent + " " + styDim.Render(when) + "  " +
-		renderName(name, selected, m.lineWidth()-22) + "  " + turns
+	label := renderName(sessionTitle(s), selected, m.lineWidth()-22)
+	if snippet != "" {
+		label = renderSnippet(snippet, m.lineWidth()-24)
+	}
+	return cursor + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
+}
+
+// renderSnippet renders a FTS snippet (matched terms wrapped in the control-char marks)
+// with the matches highlighted, collapsing whitespace and clipping to maxWidth columns.
+func renderSnippet(snip string, maxWidth int) string {
+	if maxWidth < 8 {
+		maxWidth = 8
+	}
+	snip = strings.NewReplacer("\n", " ", "\t", " ", "\r", " ").Replace(snip)
+	hl := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("232")).Background(lipgloss.Color("221"))
+
+	var b strings.Builder
+	var seg strings.Builder
+	matched := false
+	visible := 0
+	flush := func() {
+		if seg.Len() == 0 {
+			return
+		}
+		if matched {
+			b.WriteString(hl.Render(seg.String()))
+		} else {
+			b.WriteString(seg.String())
+		}
+		seg.Reset()
+	}
+	for _, r := range snip {
+		switch r {
+		case '\x02':
+			flush()
+			matched = true
+			continue
+		case '\x03':
+			flush()
+			matched = false
+			continue
+		}
+		if visible >= maxWidth {
+			flush()
+			b.WriteString("…")
+			return b.String()
+		}
+		seg.WriteRune(r)
+		visible++
+	}
+	flush()
+	return b.String()
 }
 
 func renderName(name string, selected bool, width int) string {
@@ -1154,6 +1246,7 @@ func dayDiff(t time.Time) int {
 func (m resumeTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
+		m.searchSeq++
 		m.exitGlobal()
 		return m, nil
 	case "enter":
@@ -1164,8 +1257,13 @@ func (m resumeTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 	var cmd tea.Cmd
 	m.globalInput, cmd = m.globalInput.Update(msg)
 	m.globalQuery = m.globalInput.Value()
-	m.recomputeGlobal()
-	return m, cmd
+	m.searchSeq++
+	if strings.TrimSpace(m.globalQuery) == "" {
+		m.globalResults = nil
+		m.globalSnippets = nil
+		return m, cmd
+	}
+	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeProjects))
 }
 
 func (m resumeTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -1210,24 +1308,8 @@ func (m *resumeTUI) exitGlobal() {
 	m.globalInput.SetValue("")
 	m.globalQuery = ""
 	m.globalResults = nil
+	m.globalSnippets = nil
 	m.globalCursor, m.globalTop = 0, 0
-}
-
-func (m *resumeTUI) recomputeGlobal() {
-	if q := ftsQuery(m.globalQuery); q == "" {
-		m.globalResults = nil
-	} else if hits, err := m.store.Search(q); err == nil {
-		m.globalResults = hits
-	} else {
-		m.globalResults = nil
-	}
-	if m.globalCursor > len(m.globalResults)-1 {
-		m.globalCursor = len(m.globalResults) - 1
-	}
-	if m.globalCursor < 0 {
-		m.globalCursor = 0
-	}
-	m.globalTop = 0
 }
 
 func (m *resumeTUI) moveGlobalCursor(delta int) {
@@ -1290,7 +1372,11 @@ func (m resumeTUI) renderGlobalResults() string {
 		h := m.globalHeight()
 		end := min(m.globalTop+h, len(m.globalResults))
 		for i := m.globalTop; i < end; i++ {
-			b.WriteString(m.globalRow(m.globalResults[i], i == m.globalCursor))
+			snip := ""
+			if i < len(m.globalSnippets) {
+				snip = m.globalSnippets[i]
+			}
+			b.WriteString(m.globalRow(m.globalResults[i], i == m.globalCursor, snip))
 			if i < end-1 {
 				b.WriteString("\n")
 			}
@@ -1307,8 +1393,9 @@ func (m resumeTUI) renderGlobalResults() string {
 	return b.String()
 }
 
-// globalRow renders a cross-project search hit: agent · time · project · title.
-func (m resumeTUI) globalRow(s sessionindex.Session, selected bool) string {
+// globalRow renders a cross-project search hit: agent · time · project · highlighted
+// match snippet (global search always has a query, so a snippet is expected).
+func (m resumeTUI) globalRow(s sessionindex.Session, selected bool, snippet string) string {
 	cursor := "  "
 	if selected {
 		cursor = styCursor.Render("▸ ")
@@ -1316,8 +1403,11 @@ func (m resumeTUI) globalRow(s sessionindex.Session, selected bool) string {
 	agent := m.agentTag(s.Agent)
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
-	name := renderName(sessionTitle(s), selected, m.lineWidth()-46)
-	return cursor + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + name
+	label := renderName(sessionTitle(s), selected, m.lineWidth()-46)
+	if snippet != "" {
+		label = renderSnippet(snippet, m.lineWidth()-48)
+	}
+	return cursor + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
 }
 
 func sessionProject(s sessionindex.Session) string {
@@ -1328,4 +1418,86 @@ func sessionProject(s sessionindex.Session) string {
 		return "(unknown)"
 	}
 	return s.ProjectID
+}
+
+// ---- async, debounced full-text search ----
+
+// searchDebounceMsg fires after a brief typing pause; the query runs only if its seq is
+// still current. searchResultMsg carries the async FTS results back to the model. Both
+// keep typing instant: the input updates synchronously while the query runs off-thread.
+type searchDebounceMsg struct {
+	seq  int
+	kind tuiMode // modeList (project-scoped) or modeProjects (global)
+}
+
+type searchResultMsg struct {
+	seq  int
+	kind tuiMode
+	hits []sessionindex.SearchHit
+}
+
+const searchDebounceDelay = 50 * time.Millisecond
+
+// searchDebounce schedules a debounce tick. On fire, the model checks the seq and decides
+// whether to actually run the query (so only the last keystroke in a burst queries).
+func searchDebounce(seq int, kind tuiMode) tea.Cmd {
+	return tea.Tick(searchDebounceDelay, func(time.Time) tea.Msg {
+		return searchDebounceMsg{seq: seq, kind: kind}
+	})
+}
+
+// runSearch returns a command that performs the FTS query off the UI thread.
+func (m resumeTUI) runSearch(seq int, kind tuiMode) tea.Cmd {
+	store := m.store
+	query, projectID := m.searchQuery, m.projectID
+	if kind == modeProjects {
+		query, projectID = m.globalQuery, ""
+	}
+	fq := ftsQuery(query)
+	return func() tea.Msg {
+		if fq == "" {
+			return searchResultMsg{seq: seq, kind: kind}
+		}
+		hits, _ := store.SearchWithSnippets(fq, projectID)
+		return searchResultMsg{seq: seq, kind: kind, hits: hits}
+	}
+}
+
+// applySearchResults installs async FTS results into the matching list (scoped or global).
+func (m *resumeTUI) applySearchResults(kind tuiMode, hits []sessionindex.SearchHit) {
+	if kind == modeProjects {
+		m.globalResults = nil
+		m.globalSnippets = nil
+		for _, h := range hits {
+			m.globalResults = append(m.globalResults, h.Session)
+			m.globalSnippets = append(m.globalSnippets, h.Snippet)
+		}
+		if m.globalCursor > len(m.globalResults)-1 {
+			m.globalCursor = len(m.globalResults) - 1
+		}
+		if m.globalCursor < 0 {
+			m.globalCursor = 0
+		}
+		m.globalTop = 0
+		return
+	}
+
+	var out []sessionindex.Session
+	var snips []string
+	for _, h := range hits {
+		if m.agentFilter == "" || h.Agent == m.agentFilter {
+			out = append(out, h.Session)
+			snips = append(snips, h.Snippet)
+		}
+	}
+	m.filtered = out
+	m.filteredSnippets = snips
+	if m.cursor > len(m.filtered)-1 {
+		m.cursor = len(m.filtered) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	m.top = 0
+	m.clampScroll()
 }
