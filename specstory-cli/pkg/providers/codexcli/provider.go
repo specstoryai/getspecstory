@@ -959,3 +959,60 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 		Name:      name,
 	}, nil
 }
+
+// ListAllAgentChatSessions enumerates every Codex CLI session across all projects by
+// walking ~/.codex/sessions for *.jsonl rollouts. Codex sessions are not project-keyed
+// by directory; the originating cwd lives in the session_meta record. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	homeDir, err := osUserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to determine home directory: %w", err)
+	}
+	sessionsRoot := codexSessionsRoot(homeDir)
+	if _, err := os.Stat(sessionsRoot); err != nil {
+		// No sessions directory yet → nothing to enumerate (not an error).
+		return []spi.GlobalSessionRef{}, nil
+	}
+
+	var refs []spi.GlobalSessionRef
+	walkErr := filepath.WalkDir(sessionsRoot, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil // skip unreadable entries rather than abort the sweep
+		}
+		if d.IsDir() || filepath.Ext(path) != ".jsonl" {
+			return nil
+		}
+		meta, err := loadCodexSessionMeta(path)
+		if err != nil {
+			slog.Debug("reindex: failed to load codex session meta", "path", path, "error", err)
+			return nil
+		}
+		info := codexSessionInfo{
+			SessionID:   strings.TrimSpace(meta.Payload.ID),
+			SessionPath: path,
+			Meta:        meta,
+		}
+		metadata, err := extractCodexSessionMetadata(&info)
+		if err != nil {
+			slog.Warn("reindex: failed to extract codex session metadata", "path", path, "error", err)
+			return nil
+		}
+		if metadata == nil {
+			return nil // empty session (no user messages)
+		}
+		refs = append(refs, spi.GlobalSessionRef{
+			SessionID:  metadata.SessionID,
+			CreatedAt:  metadata.CreatedAt,
+			Slug:       metadata.Slug,
+			Name:       metadata.Name,
+			NativePath: path,
+			OriginCwd:  meta.Payload.CWD,
+		})
+		return nil
+	})
+	if walkErr != nil {
+		return nil, fmt.Errorf("failed to walk codex sessions: %w", walkErr)
+	}
+	return refs, nil
+}

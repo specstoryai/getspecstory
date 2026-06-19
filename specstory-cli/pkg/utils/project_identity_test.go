@@ -1064,3 +1064,115 @@ func TestProjectIdentityManager_EnsureProjectIdentity_NoSpecstoryDir(t *testing.
 		t.Error("Expected .project.json file to be created")
 	}
 }
+
+// TestComputeProjectID is the executable spec for walk-up identity resolution:
+// the monorepo-subdir + two-clone scenario, plus worktree and remote-less cases.
+func TestComputeProjectID(t *testing.T) {
+	// newRepo creates a temp dir with a .git/config carrying the given origin url
+	// (empty url = a git repo with no remote).
+	newRepo := func(t *testing.T, url string) string {
+		t.Helper()
+		root := t.TempDir()
+		gitDir := filepath.Join(root, ".git")
+		if err := os.MkdirAll(gitDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cfg := "[core]\n\tbare = false\n"
+		if url != "" {
+			cfg += "[remote \"origin\"]\n\turl = " + url + "\n"
+		}
+		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+	mkSub := func(t *testing.T, root, rel string) string {
+		t.Helper()
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	compute := func(t *testing.T, dir string) string {
+		t.Helper()
+		id, _, err := ComputeProjectID(dir)
+		if err != nil {
+			t.Fatalf("ComputeProjectID(%q): %v", dir, err)
+		}
+		return id
+	}
+
+	t.Run("monorepo subdirs collapse to one git_id", func(t *testing.T) {
+		root := newRepo(t, "git@github.com:acme/widgets.git")
+		a := mkSub(t, root, "a")
+		b := mkSub(t, root, "pkg/b")
+
+		rootID := compute(t, root)
+		_, rootName, _ := ComputeProjectID(root)
+		if aID := compute(t, a); aID != rootID {
+			t.Errorf("subdir a did not collapse: root=%s a=%s", rootID, aID)
+		}
+		if bID := compute(t, b); bID != rootID {
+			t.Errorf("nested subdir b did not collapse: root=%s b=%s", rootID, bID)
+		}
+		if rootName != "widgets" {
+			t.Errorf("project name = %q, want widgets", rootName)
+		}
+	})
+
+	t.Run("two clones share git_id across different paths and url forms", func(t *testing.T) {
+		ssh := newRepo(t, "git@github.com:acme/widgets.git")
+		https := newRepo(t, "https://github.com/acme/widgets.git")
+		if compute(t, ssh) != compute(t, https) {
+			t.Errorf("clones diverged: ssh=%s https=%s", compute(t, ssh), compute(t, https))
+		}
+	})
+
+	t.Run("worktree (.git file) resolves to the main repo git_id", func(t *testing.T) {
+		main := newRepo(t, "git@github.com:acme/widgets.git")
+		wtGitDir := filepath.Join(main, ".git", "worktrees", "wt")
+		if err := os.MkdirAll(wtGitDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// commondir points back to the shared .git (relative to the private gitdir).
+		if err := os.WriteFile(filepath.Join(wtGitDir, "commondir"), []byte("../..\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		wt := t.TempDir()
+		if err := os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: "+wtGitDir+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if compute(t, wt) != compute(t, main) {
+			t.Errorf("worktree did not resolve to main repo: main=%s wt=%s", compute(t, main), compute(t, wt))
+		}
+	})
+
+	t.Run("remote-less repo: subdirs collapse, distinct repos differ", func(t *testing.T) {
+		root := newRepo(t, "")
+		a := mkSub(t, root, "a")
+		if compute(t, a) != compute(t, root) {
+			t.Errorf("remote-less subdir did not collapse: root=%s a=%s", compute(t, root), compute(t, a))
+		}
+		if compute(t, newRepo(t, "")) == compute(t, root) {
+			t.Error("distinct remote-less repos collided")
+		}
+	})
+
+	t.Run("no-git dir yields a stable, non-empty id", func(t *testing.T) {
+		d := t.TempDir()
+		id := compute(t, d)
+		if id == "" {
+			t.Error("empty id for no-git dir")
+		}
+		if id2 := compute(t, d); id != id2 {
+			t.Errorf("unstable id: %s vs %s", id, id2)
+		}
+	})
+
+	t.Run("empty cwd errors", func(t *testing.T) {
+		if _, _, err := ComputeProjectID(""); err == nil {
+			t.Error("expected error for empty cwd")
+		}
+	})
+}

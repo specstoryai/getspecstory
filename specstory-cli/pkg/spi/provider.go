@@ -114,4 +114,12 @@ type Provider interface {
 	// requiring the directory to exist — the caller creates it and writes the file.
 	// Providers without a native serializer return ErrReconstructionUnsupported.
 	NativeSessionPath(projectPath string, filename string) (string, error)
+
+	// ListAllAgentChatSessions enumerates every session in this provider's native
+	// store, regardless of project — the inverse of the project-scoped
+	// ListAgentChatSessions. Each returned ref carries the originating cwd (read from
+	// inside the session) so the caller can resolve project identity; the project is
+	// discovered, not supplied. Lightweight: metadata only, no full SessionData parse.
+	// Used by `specstory reindex` to (re)build the restore index. See docs/SESSIONS-DB.md.
+	ListAllAgentChatSessions() ([]GlobalSessionRef, error)
 }

@@ -652,3 +652,61 @@ func extractCursorSessionMetadata(sessionPath string, sessionID string) (*spi.Se
 		Name:      name,
 	}, nil
 }
+
+// ListAllAgentChatSessions enumerates every session in this provider's native store,
+// regardless of project. See docs/SESSIONS-DB.md.
+//
+// Cursor stores sessions at ~/.cursor/chats/<projectHash>/<sessionID>/store.db, where
+// projectHash = md5(canonical project path). Cursor records NO workspace path inside
+// the store (the meta blob has only agent/model fields), and md5 is one-way — so
+// OriginCwd cannot be filled from the store alone and is left empty here. The hash is
+// embedded in NativePath, so `specstory reindex` recovers the cwd by reverse-matching
+// that hash against the project paths the other providers surface.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	chatsDir, err := GetCursorChatsDir()
+	if err != nil {
+		return nil, err
+	}
+	hashEntries, err := os.ReadDir(chatsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []spi.GlobalSessionRef{}, nil
+		}
+		return nil, fmt.Errorf("failed to read cursor chats directory: %w", err)
+	}
+
+	var refs []spi.GlobalSessionRef
+	for _, hashEntry := range hashEntries {
+		if !hashEntry.IsDir() {
+			continue
+		}
+		hashDir := filepath.Join(chatsDir, hashEntry.Name())
+		sessionIDs, err := GetCursorSessionDirs(hashDir)
+		if err != nil {
+			continue
+		}
+		for _, sessionID := range sessionIDs {
+			if !HasStoreDB(hashDir, sessionID) {
+				continue
+			}
+			sessionPath := filepath.Join(hashDir, sessionID)
+			metadata, err := extractCursorSessionMetadata(sessionPath, sessionID)
+			if err != nil {
+				slog.Warn("reindex: failed to extract cursor session metadata", "sessionID", sessionID, "error", err)
+				continue
+			}
+			if metadata == nil {
+				continue // empty session
+			}
+			refs = append(refs, spi.GlobalSessionRef{
+				SessionID:  metadata.SessionID,
+				CreatedAt:  metadata.CreatedAt,
+				Slug:       metadata.Slug,
+				Name:       metadata.Name,
+				NativePath: filepath.Join(sessionPath, "store.db"),
+				OriginCwd:  "", // not stored by Cursor; recovered at reindex via the hash in NativePath
+			})
+		}
+	}
+	return refs, nil
+}

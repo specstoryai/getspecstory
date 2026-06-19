@@ -1,0 +1,159 @@
+package sessionindex
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+func newSession(agent, id, projectID, name, body string) Session {
+	return Session{
+		ProjectID:   projectID,
+		ProjectName: "widgets",
+		Agent:       agent,
+		SessionID:   id,
+		CreatedAt:   "2026-06-18T10:00:00Z",
+		UpdatedAt:   "2026-06-18T11:00:00Z",
+		UserTurns:   3,
+		TotalTurns:  9,
+		Slug:        "do-the-thing",
+		Name:        name,
+		NativePath:  "/store/" + id + ".jsonl",
+		OriginCwd:   "/repo",
+		Size:        1234,
+		Mtime:       1700000000000,
+		IndexedAt:   "2026-06-18T12:00:00Z",
+		Body:        body,
+	}
+}
+
+func openTemp(t *testing.T) *Store {
+	t.Helper()
+	s, err := Open(filepath.Join(t.TempDir(), "sessions.db"))
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	return s
+}
+
+func TestUpsertAndListByProject(t *testing.T) {
+	s := openTemp(t)
+
+	if err := s.Upsert(newSession("claude", "c1", "proj-a", "Auth refactor", "rewrote the login flow")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Upsert(newSession("codex", "x1", "proj-a", "Billing migration", "moved billing to stripe")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Upsert(newSession("claude", "c2", "proj-b", "Other project", "unrelated work")); err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := s.Count(); err != nil || n != 3 {
+		t.Fatalf("Count = %d, %v; want 3", n, err)
+	}
+
+	got, err := s.ListByProject("proj-a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("ListByProject(proj-a) = %d rows; want 2", len(got))
+	}
+	for _, sess := range got {
+		if sess.ProjectID != "proj-a" {
+			t.Errorf("got project_id %q; want proj-a", sess.ProjectID)
+		}
+		if sess.UserTurns != 3 || sess.TotalTurns != 9 {
+			t.Errorf("turn counts not round-tripped: user=%d total=%d", sess.UserTurns, sess.TotalTurns)
+		}
+	}
+}
+
+func TestSearchFTS(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth refactor", "rewrote the login flow with oauth"))
+	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "Billing migration", "moved billing to stripe webhooks"))
+
+	// Body match
+	hits, err := s.Search("oauth")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].SessionID != "c1" {
+		t.Fatalf("Search(oauth) = %+v; want only c1", hits)
+	}
+
+	// Name match
+	hits, err = s.Search("billing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].SessionID != "x1" {
+		t.Fatalf("Search(billing) = %+v; want only x1", hits)
+	}
+}
+
+func TestUpsertIsIdempotent(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "First name", "first body text"))
+	// Re-index the same (agent, session_id) with changed content.
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Renamed", "second body text"))
+
+	if n, _ := s.Count(); n != 1 {
+		t.Fatalf("Count = %d after re-upsert; want 1 (replaced, not duplicated)", n)
+	}
+	// Old FTS content must be gone; new content searchable.
+	if hits, _ := s.Search("first"); len(hits) != 0 {
+		t.Errorf("stale FTS row survived re-upsert: %+v", hits)
+	}
+	if hits, _ := s.Search("second"); len(hits) != 1 {
+		t.Errorf("new FTS content not searchable after re-upsert")
+	}
+}
+
+func mustUpsert(t *testing.T, s *Store, sess Session) {
+	t.Helper()
+	if err := s.Upsert(sess); err != nil {
+		t.Fatalf("Upsert(%s): %v", sess.SessionID, err)
+	}
+}
+
+func TestFingerprintsRoundTrip(t *testing.T) {
+	s := openTemp(t)
+	a := newSession("claude", "c1", "proj-a", "Auth", "body")
+	a.Size, a.Mtime, a.IndexVersion = 111, 222, 3
+	mustUpsert(t, s, a)
+	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "Bill", "body"))
+
+	fps, err := s.Fingerprints()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fps) != 2 {
+		t.Fatalf("got %d fingerprints; want 2", len(fps))
+	}
+	got, ok := fps[FingerprintKey("claude", "c1")]
+	if !ok {
+		t.Fatal("missing fingerprint for claude/c1")
+	}
+	if got.Size != 111 || got.Mtime != 222 || got.Version != 3 {
+		t.Errorf("fingerprint = %+v; want {111 222 3}", got)
+	}
+}
+
+func TestProjectAndUnattributedCounts(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "a", "b"))
+	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "a", "b")) // same project
+	mustUpsert(t, s, newSession("claude", "c2", "proj-b", "a", "b"))
+	mustUpsert(t, s, newSession("cursor", "z1", "unknown", "a", "b"))
+	mustUpsert(t, s, newSession("cursor", "z2", "unknown", "a", "b"))
+
+	if n, err := s.ProjectCount("unknown"); err != nil || n != 2 {
+		t.Errorf("ProjectCount = %d, %v; want 2 (proj-a, proj-b)", n, err)
+	}
+	if n, err := s.UnattributedCount("unknown"); err != nil || n != 2 {
+		t.Errorf("UnattributedCount = %d, %v; want 2", n, err)
+	}
+}

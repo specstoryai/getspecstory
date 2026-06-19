@@ -61,6 +61,11 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		return false, fmt.Errorf("failed to read existing project identity: %w", err)
 	}
 
+	// Resolve identity by walking up to the git root (NOT the launch directory), so a
+	// session run from a monorepo subdirectory attributes to the repo, not a fragment.
+	// resolvedName always falls back to the root's base name, so it is never empty.
+	resolvedGitID, resolvedWorkspaceID, resolvedName, _ := resolveIdentity(m.projectRoot)
+
 	// Determine what needs to be done
 	var identity ProjectIdentity
 	isModified := false
@@ -70,7 +75,7 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		// Case 1: No .project.json yet
 		slog.Debug("No existing project identity found, creating new identity")
 		identity = ProjectIdentity{
-			WorkspaceID:   m.generateWorkspaceID(),
+			WorkspaceID:   resolvedWorkspaceID,
 			WorkspaceIDAt: time.Now().UTC().Format(time.RFC3339),
 		}
 		isModified = true
@@ -82,36 +87,25 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		// Check if workspace_id is missing (shouldn't happen, but be defensive)
 		if identity.WorkspaceID == "" {
 			slog.Warn("Project identity file exists but has no workspace_id")
-			identity.WorkspaceID = m.generateWorkspaceID()
+			identity.WorkspaceID = resolvedWorkspaceID
 			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
 			isModified = true
 		}
 	}
 
 	// Check if we need to add git_id
-	if identity.GitID == "" {
-		gitID, err := m.generateGitID()
-		if err == nil && gitID != "" {
-			identity.GitID = gitID
-			identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
-			isModified = true
-			slog.Debug("Added git_id to project identity", "git_id", gitID)
-		} else if err != nil {
-			slog.Debug("Could not generate git_id", "error", err)
-		}
+	if identity.GitID == "" && resolvedGitID != "" {
+		identity.GitID = resolvedGitID
+		identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
+		isModified = true
+		slog.Debug("Added git_id to project identity", "git_id", resolvedGitID)
 	}
 
 	// Check if we need to add project_name
 	if identity.ProjectName == "" {
-		projectName := m.generateProjectName()
-		if projectName != "" {
-			identity.ProjectName = projectName
-			isModified = true
-			slog.Debug("Added project_name to project identity", "project_name", projectName)
-		} else {
-			slog.Warn("Could not generate project_name, using workspace_id instead")
-			identity.ProjectName = identity.WorkspaceID
-		}
+		identity.ProjectName = resolvedName
+		isModified = true
+		slog.Debug("Added project_name to project identity", "project_name", resolvedName)
 	}
 
 	// Write the project identity file if modified
@@ -199,23 +193,10 @@ func (m *ProjectIdentityManager) generateGitID() (string, error) {
 		return "", fmt.Errorf("no git config found: %w", err)
 	}
 
-	// Read git config file
-	gitConfig, err := os.ReadFile(gitConfigPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read git config: %w", err)
-	}
-
-	// Find origin remote URL using regex
-	// Match [remote "origin"] section and capture the url value
-	originURLRegex := regexp.MustCompile(`\[remote "origin"\][^\[]*url\s*=\s*([^\n\r]+)`)
-	matches := originURLRegex.FindSubmatch(gitConfig)
-	if len(matches) < 2 {
-		return "", fmt.Errorf("no origin URL found in git config")
-	}
-
-	originURL := strings.TrimSpace(string(matches[1]))
+	// Read the origin remote URL from the config (shared with the walk-up resolver).
+	originURL := readOriginURL(gitConfigPath)
 	if originURL == "" {
-		return "", fmt.Errorf("no URL found for origin remote")
+		return "", fmt.Errorf("no origin URL found in git config")
 	}
 
 	// Normalize git URLs to ensure HTTPS and SSH URLs for the same repo generate the same ID
@@ -377,20 +358,9 @@ func (m *ProjectIdentityManager) parseGitRemoteURL(remoteURL string) string {
 func (m *ProjectIdentityManager) generateProjectName() string {
 	// First, try to get from git remote
 	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
-
-	if _, err := os.Stat(gitConfigPath); err == nil {
-		// Git config exists, try to parse it
-		gitConfig, err := os.ReadFile(gitConfigPath)
-		if err == nil {
-			// Find origin remote URL using regex
-			originURLRegex := regexp.MustCompile(`\[remote "origin"\][^\[]*url\s*=\s*([^\n\r]+)`)
-			matches := originURLRegex.FindSubmatch(gitConfig)
-			if len(matches) >= 2 {
-				originURL := strings.TrimSpace(string(matches[1]))
-				if repoName := m.parseGitRemoteURL(originURL); repoName != "" {
-					return repoName
-				}
-			}
+	if originURL := readOriginURL(gitConfigPath); originURL != "" {
+		if repoName := m.parseGitRemoteURL(originURL); repoName != "" {
+			return repoName
 		}
 	}
 
@@ -408,4 +378,143 @@ func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 		return "", fmt.Errorf("no project name found")
 	}
 	return identity.ProjectName, nil
+}
+
+// ---------------------------------------------------------------------------
+// Walk-up identity resolution (shared by ComputeProjectID and the writer).
+//
+// The stored .specstory/.project.json fragments a monorepo: it is written per
+// launch directory, and generateGitID looks for .git at exactly that directory and
+// never walks up — so a session launched from a subdirectory gets no git_id and a
+// path-based workspace_id all its own. The resolver below instead walks UP to the
+// git root and computes identity from there, so every directory inside one repo
+// resolves to a single project. See docs/SESSIONS-DB.md.
+// ---------------------------------------------------------------------------
+
+// originRemoteURLRegex captures the origin remote's url value from a git config file.
+var originRemoteURLRegex = regexp.MustCompile(`\[remote "origin"\][^\[]*url\s*=\s*([^\n\r]+)`)
+
+// readOriginURL returns the origin remote URL from a git config file, or "" if the
+// file is unreadable or has no origin remote.
+func readOriginURL(gitConfigPath string) string {
+	gitConfig, err := os.ReadFile(gitConfigPath)
+	if err != nil {
+		return ""
+	}
+	matches := originRemoteURLRegex.FindSubmatch(gitConfig)
+	if len(matches) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(string(matches[1]))
+}
+
+// findGitRoot walks up from dir to the nearest ancestor containing a .git entry and
+// returns it. The .git entry may be a directory (normal clone) or a FILE (git
+// worktree / submodule); both satisfy the search. Returns false if no .git is found
+// before the filesystem root. The walk-up is what lets a session launched from a
+// monorepo subdirectory resolve to the repo's identity.
+func findGitRoot(dir string) (string, bool) {
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	dir = filepath.Clean(dir)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+			return dir, true
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return "", false // reached the filesystem root without finding .git
+		}
+		dir = parent
+	}
+}
+
+// resolveGitConfigPath returns the path to the git config file that holds a root's
+// remotes, handling both a normal `.git` directory and a `.git` FILE (worktrees /
+// submodules, whose private gitdir points at a commondir that holds the shared
+// config). Returns "" when it cannot be resolved.
+func resolveGitConfigPath(gitRoot string) string {
+	gitPath := filepath.Join(gitRoot, ".git")
+	info, err := os.Stat(gitPath)
+	if err != nil {
+		return ""
+	}
+	if info.IsDir() {
+		return filepath.Join(gitPath, "config")
+	}
+
+	// `.git` is a file of the form "gitdir: <path>" pointing at the worktree's private
+	// git dir; the shared config lives in the common dir, not that private dir.
+	data, err := os.ReadFile(gitPath)
+	if err != nil {
+		return ""
+	}
+	content := strings.TrimSpace(string(data))
+	if !strings.HasPrefix(content, "gitdir:") {
+		return ""
+	}
+	gitDir := strings.TrimSpace(strings.TrimPrefix(content, "gitdir:"))
+	if gitDir == "" {
+		return ""
+	}
+	if !filepath.IsAbs(gitDir) {
+		gitDir = filepath.Join(gitRoot, gitDir)
+	}
+	commonDir := gitDir
+	if cd, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+		c := strings.TrimSpace(string(cd))
+		if !filepath.IsAbs(c) {
+			c = filepath.Join(gitDir, c)
+		}
+		commonDir = filepath.Clean(c)
+	}
+	return filepath.Join(commonDir, "config")
+}
+
+// resolveIdentity computes a project's identity from a starting directory by walking
+// up to the git root. It reads only git metadata — never any .specstory/.project.json
+// — so it cannot be fooled by the per-directory identity files that fragment a
+// monorepo. Returns the git_id (empty when there is no resolvable origin remote), the
+// workspace_id (hash of the resolved root), the project name, and the resolved root.
+func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
+	root = startDir
+	if gr, ok := findGitRoot(startDir); ok {
+		root = gr
+	}
+
+	// A zero-state manager rooted at the resolved root reuses the existing hashing /
+	// normalization / repo-name helpers (they do not depend on manager state).
+	rooted := &ProjectIdentityManager{projectRoot: root}
+	workspaceID = rooted.generateWorkspaceID()
+	if cfg := resolveGitConfigPath(root); cfg != "" {
+		if originURL := readOriginURL(cfg); originURL != "" {
+			gitID = rooted.createHash(rooted.normalizeGitURL(originURL))
+			name = rooted.parseGitRemoteURL(originURL)
+		}
+	}
+	if name == "" {
+		name = filepath.Base(root)
+	}
+	return gitID, workspaceID, name, root
+}
+
+// ComputeProjectID resolves the restore-index project identity for a session's
+// working directory. It walks up to the git root and computes identity fresh,
+// ignoring any stored .specstory/.project.json (which fragments a monorepo) and
+// never writing one. Returns the project id (git_id when a remote is resolvable,
+// else the path-based workspace_id) and the project name.
+func ComputeProjectID(cwd string) (id, name string, err error) {
+	if strings.TrimSpace(cwd) == "" {
+		return "", "", fmt.Errorf("cannot resolve project id: empty working directory")
+	}
+	gitID, workspaceID, name, _ := resolveIdentity(cwd)
+	id = gitID
+	if id == "" {
+		id = workspaceID
+	}
+	if id == "" {
+		return "", "", fmt.Errorf("cannot resolve project id for %q", cwd)
+	}
+	return id, name, nil
 }
