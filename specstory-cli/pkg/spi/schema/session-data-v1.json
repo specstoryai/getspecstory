@@ -21,6 +21,7 @@
     "createdAt": { "type": "string", "format": "date-time" },
     "updatedAt": { "type": "string", "format": "date-time" },
     "slug": { "type": "string" },
+    "title": { "type": "string" },
     "workspaceRoot": { "type": "string" },
     "exchanges": {
       "type": "array",
