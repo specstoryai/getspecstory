@@ -123,6 +123,12 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		return 0, fmt.Errorf("failed to generate markdown: %w", err)
 	}
 
+	// Collect statistics (always enabled)
+	if err := CollectSessionStatistics(session, markdownContent, config); err != nil {
+		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+		// Don't fail the operation, just log warning
+	}
+
 	// Calculate markdown size in bytes
 	markdownSize := len(markdownContent)
 
@@ -237,4 +243,13 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	}
 
 	return markdownSize, nil
+}
+
+// collectSessionStatistics computes and saves session statistics
+func CollectSessionStatistics(session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
+	stats := ComputeSessionStatistics(session.SessionData, markdownContent)
+
+	collector := NewStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
+	collector.AddSessionStats(session.SessionID, stats)
+	return collector.Flush()
 }

@@ -336,9 +336,15 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 	if sessionRoot := extractSessionWorkspaceRoot(filePath); sessionRoot != "" {
 		canonicalRoot := canonicalizePath(sessionRoot)
 		if canonicalProject != "" && canonicalRoot != "" {
-			return canonicalRoot == canonicalProject
+			if canonicalRoot == canonicalProject {
+				return true
+			}
+		} else if strings.TrimSpace(sessionRoot) == projectPath {
+			return true
 		}
-		return strings.TrimSpace(sessionRoot) == projectPath
+
+		// We found a session root but it didn't match — don't fall through to text search
+		return false
 	}
 
 	return sessionMentionsProjectText(filePath, projectPath)

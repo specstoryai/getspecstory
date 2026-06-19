@@ -161,6 +161,7 @@ var (
 	deviceID          string         // Cached device ID
 	clientVersion     string = "dev" // Will be set from main
 	apiBaseURL        string         // Base URL for API calls
+	specstoryDir      string         // Path to .specstory dir; set via SetSpecstoryDir after config is resolved
 )
 
 // incrementCategory atomically increments the counter for a given category
@@ -615,6 +616,13 @@ func GetAPIBaseURL() string {
 		return "https://cloud.specstory.com" // Default API base URL
 	}
 	return apiBaseURL
+}
+
+// SetSpecstoryDir sets the directory where .project.json lives.
+// Must be called after the output config is resolved so cloud sync can
+// find the project config when --output-dir points to a non-default location.
+func SetSpecstoryDir(dir string) {
+	specstoryDir = dir
 }
 
 // GetUserAgent returns the User-Agent string for API requests
@@ -1179,13 +1187,19 @@ func Shutdown(timeout time.Duration) *CloudSyncStats {
 	}
 }
 
-// readProjectConfig reads the .specstory/.project.json file
+// readProjectConfig reads the .project.json file from the resolved specstory dir.
+// Uses the path set via SetSpecstoryDir (which reflects --output-dir), falling back
+// to the default ".specstory" relative to cwd so the function is safe without a prior call.
 func readProjectConfig() (*ProjectData, error) {
 	var projectData ProjectData
 	var err error
 
-	// Read the project config file
-	configPath := filepath.Join(utils.SPECSTORY_DIR, utils.PROJECT_JSON_FILE)
+	// Use the resolved specstory dir when available; fall back to the default relative path
+	baseDir := specstoryDir
+	if baseDir == "" {
+		baseDir = utils.SPECSTORY_DIR
+	}
+	configPath := filepath.Join(baseDir, utils.PROJECT_JSON_FILE)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read project config: %w", err)
