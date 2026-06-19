@@ -459,7 +459,10 @@ Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-
 
 - **OPEN — Warm-keeping triggers.** Which of `sync`/`run`/`watch`/`resume` upsert, and the
   reindex-on-stale trigger. What counts as "stale" (reuse Lore's `size + mtime` fingerprint
-  per native file?).
+  per native file?). **`specstory resume` is explicitly one of these occasions** — the picker
+  should refresh staleness on launch (alongside `run`/`sync`/`watch`); for now it only
+  *creates* the index when missing (see [RESUME-TUI.md](RESUME-TUI.md)), with full
+  staleness-refresh deferred to this thread.
 - **OPEN — Eviction / prune.** When a native session is deleted, when does its row leave
   `sessions.db`? (Lore prunes on rescan when the file is gone.)
 - **OPEN — Remote-less projects.** How (if at all) cross-project / cross-machine works for

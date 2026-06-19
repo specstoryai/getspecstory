@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	_ "modernc.org/sqlite" // SQLite driver (pure Go), same as pkg/provenance
@@ -272,6 +273,71 @@ func (s *Store) ListByProject(projectID string) ([]Session, error) {
 	}
 	defer func() { _ = rows.Close() }()
 	return scanSessions(rows)
+}
+
+// ProjectSummary is a rolled-up view of one project for the all-projects picker.
+type ProjectSummary struct {
+	ProjectID    string
+	ProjectName  string
+	Sessions     int            // total sessions in the project
+	LastActivity string         // most recent updated_at across the project
+	AgentCounts  map[string]int // sessions per agent (claude, codex, …)
+}
+
+// ListProjects returns one rolled-up summary per project, most recently active first.
+// Used by the all-projects view (date-bucketed). The unknown-project bucket is included;
+// the caller decides how to present it.
+func (s *Store) ListProjects() ([]ProjectSummary, error) {
+	rows, err := s.db.Query(`SELECT project_id, project_name, agent, COUNT(*), MAX(updated_at)
+		FROM sessions GROUP BY project_id, agent`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	byID := map[string]*ProjectSummary{}
+	for rows.Next() {
+		var pid, pname, agent, last string
+		var n int
+		if err := rows.Scan(&pid, &pname, &agent, &n, &last); err != nil {
+			return nil, err
+		}
+		ps, ok := byID[pid]
+		if !ok {
+			ps = &ProjectSummary{ProjectID: pid, ProjectName: pname, AgentCounts: map[string]int{}}
+			byID[pid] = ps
+		}
+		ps.Sessions += n
+		ps.AgentCounts[agent] += n
+		if ps.ProjectName == "" {
+			ps.ProjectName = pname
+		}
+		if last > ps.LastActivity {
+			ps.LastActivity = last
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]ProjectSummary, 0, len(byID))
+	for _, ps := range byID {
+		out = append(out, *ps)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].LastActivity > out[j].LastActivity })
+	return out, nil
+}
+
+// SessionBody returns the full-text conversation body for a session (for the preview
+// pane), or "" if the session has no indexed body (e.g. Cursor, metadata-only).
+func (s *Store) SessionBody(agent, sessionID string) (string, error) {
+	var body string
+	err := s.db.QueryRow(`SELECT body FROM sessions_fts WHERE agent = ? AND session_id = ?`,
+		agent, sessionID).Scan(&body)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return body, err
 }
 
 // Search runs a full-text query over the conversation body + name and returns the

@@ -93,6 +93,14 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
+[resume]
+# Default view mode for the 'specstory resume' picker: "dense" (more sessions) or
+# "sparse" (more detail per session). The picker also remembers your last choice here.
+# view_mode = "sparse"
+#
+# (managed automatically) the agent you last resumed into — used as the default target.
+# last_agent = "claude"
+
 [providers]
 # Agent execution commands by provider (used by specstory run)
 # Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
@@ -126,6 +134,16 @@ type Config struct {
 	Analytics    AnalyticsConfig    `toml:"analytics"`
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
 	Providers    ProvidersConfig    `toml:"providers"`
+	Resume       ResumeConfig       `toml:"resume"`
+}
+
+// ResumeConfig holds preferences for the `specstory resume` picker. view_mode is a
+// user setting; last_agent is written automatically as you resume.
+type ResumeConfig struct {
+	// ViewMode is the picker layout: "dense" (more sessions) or "sparse" (more detail).
+	ViewMode string `toml:"view_mode"`
+	// LastAgent is the provider id of the agent you last resumed into (default target).
+	LastAgent string `toml:"last_agent"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -723,6 +741,104 @@ func (c *Config) IsLocalTimeZoneEnabled() bool {
 		return *c.LocalSync.LocalTimeZone
 	}
 	return false
+}
+
+// GetResumeViewMode returns the resume picker view mode, defaulting to "dense".
+func (c *Config) GetResumeViewMode() string {
+	if c.Resume.ViewMode == "sparse" {
+		return "sparse"
+	}
+	return "dense"
+}
+
+// GetResumeLastAgent returns the provider id of the last-resumed agent, or "".
+func (c *Config) GetResumeLastAgent() string {
+	return c.Resume.LastAgent
+}
+
+// SaveResumePrefs persists the resume view mode and last-resumed agent to the
+// user-level config (~/.specstory/cli/config.toml). It upserts ONLY the [resume]
+// section, preserving the rest of the file (comments and other sections), so the
+// self-documenting template stays intact. Pass an empty value to leave that key out.
+func SaveResumePrefs(viewMode, lastAgent string) error {
+	path := getUserConfigPath()
+	if path == "" {
+		return fmt.Errorf("could not determine user config path")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("reading config: %w", err)
+		}
+		data = []byte(processTemplate(defaultConfigTemplate, "user"))
+	}
+
+	updated := upsertResumeSection(string(data), viewMode, lastAgent)
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+	return nil
+}
+
+// upsertResumeSection replaces the [resume] section of a TOML document with active
+// view_mode/last_agent keys, preserving every other line. If no [resume] section
+// exists it is appended. Only the [resume] block is rewritten — other sections and
+// their comments are untouched.
+func upsertResumeSection(content, viewMode, lastAgent string) string {
+	var block strings.Builder
+	block.WriteString("[resume]\n")
+	if viewMode != "" {
+		fmt.Fprintf(&block, "view_mode = %q\n", viewMode)
+	}
+	if lastAgent != "" {
+		fmt.Fprintf(&block, "last_agent = %q\n", lastAgent)
+	}
+
+	lines := strings.Split(content, "\n")
+	start := -1
+	for i, ln := range lines {
+		if strings.TrimSpace(ln) == "[resume]" {
+			start = i
+			break
+		}
+	}
+
+	// No existing [resume] section — append it after a blank-line separator.
+	if start == -1 {
+		out := strings.TrimRight(content, "\n")
+		if out != "" {
+			out += "\n\n"
+		}
+		return out + block.String()
+	}
+
+	// Replace from [resume] up to (but not including) the next top-level section.
+	end := len(lines)
+	for j := start + 1; j < len(lines); j++ {
+		t := strings.TrimSpace(lines[j])
+		if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
+			end = j
+			break
+		}
+	}
+
+	var b strings.Builder
+	for i := 0; i < start; i++ {
+		b.WriteString(lines[i])
+		b.WriteString("\n")
+	}
+	b.WriteString(block.String())
+	for i := end; i < len(lines); i++ {
+		b.WriteString(lines[i])
+		if i < len(lines)-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
 }
 
 // GetProviderCmd returns the custom execution command for a provider, or empty

@@ -157,3 +157,47 @@ func TestProjectAndUnattributedCounts(t *testing.T) {
 		t.Errorf("UnattributedCount = %d, %v; want 2", n, err)
 	}
 }
+
+func TestListProjectsRollup(t *testing.T) {
+	s := openTemp(t)
+	a := newSession("claude", "c1", "proj-a", "n", "b")
+	a.UpdatedAt = "2026-06-18T10:00:00Z"
+	mustUpsert(t, s, a)
+	b := newSession("codex", "x1", "proj-a", "n", "b")
+	b.UpdatedAt = "2026-06-18T12:00:00Z"
+	mustUpsert(t, s, b)
+	c := newSession("claude", "c2", "proj-b", "n", "b")
+	c.UpdatedAt = "2026-06-17T09:00:00Z"
+	mustUpsert(t, s, c)
+
+	projs, err := s.ListProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projs) != 2 {
+		t.Fatalf("got %d projects; want 2", len(projs))
+	}
+	// proj-a is most recently active (codex at 12:00) → first.
+	if projs[0].ProjectID != "proj-a" {
+		t.Errorf("expected proj-a first (most recent), got %s", projs[0].ProjectID)
+	}
+	if projs[0].Sessions != 2 || projs[0].AgentCounts["claude"] != 1 || projs[0].AgentCounts["codex"] != 1 {
+		t.Errorf("proj-a rollup wrong: sessions=%d agents=%v", projs[0].Sessions, projs[0].AgentCounts)
+	}
+	if projs[0].LastActivity != "2026-06-18T12:00:00Z" {
+		t.Errorf("proj-a last activity = %q; want the codex timestamp", projs[0].LastActivity)
+	}
+}
+
+func TestSessionBody(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "name", "the full conversation text"))
+	body, err := s.SessionBody("claude", "c1")
+	if err != nil || body != "the full conversation text" {
+		t.Errorf("SessionBody = %q, %v; want the body", body, err)
+	}
+	// Missing session → empty, no error.
+	if body, err := s.SessionBody("claude", "nope"); err != nil || body != "" {
+		t.Errorf("SessionBody(missing) = %q, %v; want empty", body, err)
+	}
+}

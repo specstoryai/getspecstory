@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -10,11 +9,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -27,9 +23,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
-
-// resumePageSize is the number of sessions shown per page in the picker.
-const resumePageSize = 10
 
 // Best-effort UI writers. The destination is the user's terminal, so write
 // errors are not actionable and are intentionally ignored.
@@ -52,27 +45,35 @@ type agentChoice struct {
 	provider spi.Provider
 }
 
-// CreateResumeCommand builds the `specstory resume` command (Stage 1: cross-agent).
-// It mirrors the run/watch setup, then drives an interactive selection: pick a
-// source agent + session, pick a target agent, then reconstruct (cross-agent) or
-// native-resume (same agent) and launch with auto-save.
+// CreateResumeCommand builds the `specstory resume` command. It opens the interactive
+// picker (a Bubble Tea TUI over the sessions.db index — see docs/RESUME-TUI.md): browse
+// the current project's sessions across all agents, pick one, choose a target agent, then
+// reconstruct (cross-agent) or native-resume (same agent) and launch with auto-save.
 func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
 	longDesc := `Resume a past coding-agent session — in the same agent, or a different one.
 
-'resume' lists the sessions found in the current project across all agents, lets you
-pick one, and lets you choose which installed agent to continue it in. Resuming into a
-different agent reconstructs the conversation into that agent's native format first.`
+'resume' opens an interactive picker of the sessions in the current project across all
+agents. Pick one, choose which installed agent to continue it in, and go. Resuming into a
+different agent reconstructs the conversation into that agent's native format first.
+
+Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
 
 	resumeCmd := &cobra.Command{
-		Use:   "resume",
+		Use:   "resume [agent]",
 		Short: "Resume a past session, optionally in a different agent",
 		Long:  longDesc,
-		Args:  cobra.NoArgs,
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config.EnsureDefaultProjectConfig()
 			slog.Info("Running in resume mode")
 
 			registry := factory.GetRegistry()
+
+			// Optional positional arg pre-selects the target agent (e.g. `resume codex`).
+			presetTarget := ""
+			if len(args) == 1 {
+				presetTarget = strings.ToLower(strings.TrimSpace(args[0]))
+			}
 
 			// Read flags (subset mirroring run/watch).
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
@@ -95,13 +96,24 @@ different agent reconstructs the conversation into that agent's native format fi
 				return err
 			}
 
-			// Interactive selection of source agent, session, and target agent.
-			plan, err := selectResumePlan(registry, cwd, os.Stdin, os.Stdout)
+			// Open (building if needed) the session index and run the interactive picker.
+			store, err := openOrBuildResumeIndex()
+			if err != nil {
+				return err
+			}
+			defer func() { _ = store.Close() }()
+
+			projectID, projectName, idErr := utils.ComputeProjectID(cwd)
+			if idErr != nil || projectID == "" {
+				projectID, projectName = unknownProjectID, filepath.Base(cwd)
+			}
+
+			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget)
 			if err != nil {
 				return err
 			}
 			if plan == nil {
-				// User quit or nothing to resume; selectResumePlan already explained why.
+				// User quit or nothing to resume; the picker already explained why.
 				return nil
 			}
 
@@ -243,242 +255,10 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	return rec.SessionID, nil
 }
 
-// selectResumePlan runs the interactive selection. Returns nil (no error) when
-// there is nothing to resume or the user quits.
-func selectResumePlan(registry *factory.Registry, projectPath string, in io.Reader, out io.Writer) (*resumePlan, error) {
-	reader := bufio.NewReader(in)
-
-	// 1. Source agents: those with at least one session in this project.
-	var sources []agentChoice
-	sessionsByID := map[string][]spi.SessionMetadata{}
-	for _, id := range registry.ListIDs() {
-		provider, err := registry.Get(id)
-		if err != nil {
-			continue
-		}
-		metas, err := provider.ListAgentChatSessions(projectPath)
-		if err != nil {
-			slog.Debug("resume: listing sessions failed", "provider", id, "error", err)
-			continue
-		}
-		if len(metas) == 0 {
-			continue
-		}
-		sortSessionsDesc(metas)
-		sources = append(sources, agentChoice{id: id, provider: provider})
-		sessionsByID[id] = metas
-	}
-	if len(sources) == 0 {
-		fprintln(out, "\nNo resumable sessions found for any agent in this project.")
-		return nil, nil
-	}
-
-	fprintln(out, "\nResume from which agent?")
-	fprintln(out)
-	for i, s := range sources {
-		metas := sessionsByID[s.id]
-		fprintf(out, "  %d. %s — %d session%s (%s)\n", i+1, s.provider.Name(), len(metas), plural(len(metas)), dateRange(metas))
-	}
-	fromIdx, err := promptIndex(reader, out, "\nEnter number (or q to quit): ", len(sources))
-	if err != nil || fromIdx < 0 {
-		return nil, err
-	}
-	from := sources[fromIdx]
-
-	// 2. Session within the chosen agent (paginated, reverse-chronological).
-	session := pickSession(reader, out, sessionsByID[from.id])
-	if session == nil {
-		return nil, nil
-	}
-
-	// 3. Target agent: installed agents (including the source).
-	var targets []agentChoice
-	for _, id := range registry.ListIDs() {
-		provider, err := registry.Get(id)
-		if err != nil {
-			continue
-		}
-		if provider.Check("").Success {
-			targets = append(targets, agentChoice{id: id, provider: provider})
-		}
-	}
-	if len(targets) == 0 {
-		fprintln(out, "\nNo installed agents found to resume into.")
-		return nil, nil
-	}
-
-	fprintln(out, "\nResume into which agent?")
-	fprintln(out)
-	for i, t := range targets {
-		label := t.provider.Name()
-		if t.id == from.id {
-			label += " (same agent — native resume)"
-		}
-		fprintf(out, "  %d. %s\n", i+1, label)
-	}
-	toIdx, err := promptIndex(reader, out, "\nEnter number (or q to quit): ", len(targets))
-	if err != nil || toIdx < 0 {
-		return nil, err
-	}
-	to := targets[toIdx]
-
-	return &resumePlan{
-		from:      from.provider,
-		fromID:    from.id,
-		sessionID: session.SessionID,
-		to:        to.provider,
-		toID:      to.id,
-	}, nil
-}
-
-// pickSession shows a paginated, reverse-chronological list and returns the
-// chosen session, or nil if the user quits.
-func pickSession(reader *bufio.Reader, out io.Writer, sessions []spi.SessionMetadata) *spi.SessionMetadata {
-	total := len(sessions)
-	pages := (total + resumePageSize - 1) / resumePageSize
-	page := 0
-
-	for {
-		start := page * resumePageSize
-		end := min(start+resumePageSize, total)
-
-		fprintf(out, "\nSessions (page %d of %d):\n\n", page+1, pages)
-		for i := start; i < end; i++ {
-			s := sessions[i]
-			fprintf(out, "  %d. %s  %s\n", i+1, sessionDate(s.CreatedAt), sessionLabel(s))
-		}
-
-		hint := "Enter a number to pick"
-		if page < pages-1 {
-			hint += ", n=next"
-		}
-		if page > 0 {
-			hint += ", p=prev"
-		}
-		hint += ", q=quit: "
-		fprint(out, "\n"+hint)
-
-		line, err := reader.ReadString('\n')
-		choice := strings.ToLower(strings.TrimSpace(line))
-		switch choice {
-		case "n":
-			if page < pages-1 {
-				page++
-			}
-			continue
-		case "p":
-			if page > 0 {
-				page--
-			}
-			continue
-		case "q", "":
-			return nil
-		}
-		// io.EOF with no input also lands here; treat a parse failure as a re-prompt.
-		n, perr := strconv.Atoi(choice)
-		if perr != nil || n < 1 || n > total {
-			fprintln(out, "Invalid choice.")
-			if err != nil {
-				// No more input (e.g., piped/closed stdin); avoid looping forever.
-				return nil
-			}
-			continue
-		}
-		return &sessions[n-1]
-	}
-}
-
-// promptIndex prompts for a 1-based selection and returns a 0-based index, or -1
-// if the user quits.
-func promptIndex(reader *bufio.Reader, out io.Writer, prompt string, n int) (int, error) {
-	for {
-		fprint(out, prompt)
-		line, err := reader.ReadString('\n')
-		choice := strings.ToLower(strings.TrimSpace(line))
-		if choice == "q" || choice == "" {
-			return -1, nil
-		}
-		idx, perr := strconv.Atoi(choice)
-		if perr == nil && idx >= 1 && idx <= n {
-			return idx - 1, nil
-		}
-		fprintln(out, "Invalid choice.")
-		if err != nil {
-			// No more input; stop rather than loop forever.
-			return -1, nil
-		}
-	}
-}
-
-// sortSessionsDesc orders sessions newest-first by CreatedAt (ISO 8601 sorts
-// lexicographically), falling back to SessionID for stability.
-func sortSessionsDesc(sessions []spi.SessionMetadata) {
-	sort.SliceStable(sessions, func(i, j int) bool {
-		if sessions[i].CreatedAt != sessions[j].CreatedAt {
-			return sessions[i].CreatedAt > sessions[j].CreatedAt
-		}
-		return sessions[i].SessionID > sessions[j].SessionID
-	})
-}
-
-// dateRange returns a human-readable span of session creation dates.
-func dateRange(sessions []spi.SessionMetadata) string {
-	var earliest, latest time.Time
-	for _, s := range sessions {
-		t, err := time.Parse(time.RFC3339, s.CreatedAt)
-		if err != nil {
-			continue
-		}
-		if earliest.IsZero() || t.Before(earliest) {
-			earliest = t
-		}
-		if t.After(latest) {
-			latest = t
-		}
-	}
-	if earliest.IsZero() {
-		return "dates unknown"
-	}
-	if earliest.Format("2006-01-02") == latest.Format("2006-01-02") {
-		return earliest.Format("Jan 2, 2006")
-	}
-	return earliest.Format("Jan 2, 2006") + " – " + latest.Format("Jan 2, 2006")
-}
-
-// sessionDate formats a session's creation timestamp for the picker.
-func sessionDate(createdAt string) string {
-	t, err := time.Parse(time.RFC3339, createdAt)
-	if err != nil {
-		return createdAt
-	}
-	return t.Local().Format("2006-01-02 15:04")
-}
-
-// sessionLabel returns a human-friendly label for a session, preferring its name,
-// then slug, then a shortened ID.
-func sessionLabel(s spi.SessionMetadata) string {
-	switch {
-	case strings.TrimSpace(s.Name) != "":
-		return s.Name
-	case strings.TrimSpace(s.Slug) != "":
-		return s.Slug
-	default:
-		return shortID(s.SessionID)
-	}
-}
-
 // shortID abbreviates a session ID for display.
 func shortID(id string) string {
 	if len(id) <= 13 {
 		return id
 	}
 	return id[:5] + "..." + id[len(id)-5:]
-}
-
-// plural returns "s" unless n == 1.
-func plural(n int) string {
-	if n == 1 {
-		return ""
-	}
-	return "s"
 }
