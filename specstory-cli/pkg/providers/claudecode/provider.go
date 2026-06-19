@@ -480,15 +480,30 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 }
 
 // isSyntheticMessage checks if a message is synthetic/internal and should be skipped
-// when looking for the first real user message.
-// Currently filters warmup messages and Claude Code session title generation prompts.
+// when looking for the first real user message (e.g. for the session title/slug).
+// Filters warmup prompts, title-generation prompts, and slash-command noise (the
+// command invocation, its local stdout/stderr, and the local-command caveat) — these
+// are conversation scaffolding, not the user's actual prompt. Without this, a session
+// that opens with a slash command gets an empty title and falls back to its UUID.
 func isSyntheticMessage(content string) bool {
 	if strings.Contains(strings.ToLower(content), "warmup") {
 		return true
 	}
-	// Claude Code wraps the real user prompt in <TEXTBLOCK> tags for title generation
+	// Claude Code wraps the real user prompt in <TEXTBLOCK> tags for title generation.
 	if strings.Contains(content, "<TEXTBLOCK>") {
 		return true
+	}
+	trimmed := strings.TrimSpace(content)
+	for _, marker := range []string{
+		"<command-name>", "<command-message>", "<command-args>",
+		"<local-command-stdout>", "<local-command-stderr>", "<local-command-caveat>",
+		// Claude Code inserts this (and the "…for tool use" variant) when the user
+		// interrupts — it is not a typed prompt.
+		"[Request interrupted by user",
+	} {
+		if strings.HasPrefix(trimmed, marker) {
+			return true
+		}
 	}
 	return false
 }
@@ -630,6 +645,7 @@ type claudeSessionScan struct {
 	sessionID        string
 	timestamp        string
 	firstUserMessage string
+	commandFallback  string // slash command title when there is no free-text prompt
 	cwd              string
 	foundRealMessage bool
 }
@@ -710,8 +726,13 @@ func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								content := extractContentText(message["content"])
 								if content != "" {
-									// Skip synthetic messages (warmup, title generation prompts, etc.)
-									if !isSyntheticMessage(content) {
+									if isSyntheticMessage(content) {
+										// A slash-command session may have no free-text prompt;
+										// remember the command name as a fallback title.
+										if scan.commandFallback == "" {
+											scan.commandFallback = extractCommandName(content)
+										}
+									} else {
 										scan.firstUserMessage = content
 									}
 								}
@@ -728,7 +749,38 @@ func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
 		}
 	}
 
+	// Fall back to the slash command when there was no real user prompt (so a
+	// command-only session shows e.g. "/code-review" instead of its UUID).
+	if scan.firstUserMessage == "" {
+		scan.firstUserMessage = scan.commandFallback
+	}
 	return scan, nil
+}
+
+// extractCommandName pulls the slash command from a Claude Code command record, e.g.
+// "<command-name>/code-review</command-name>…" -> "/code-review". Falls back to the
+// bare command-message name (prefixed with "/"). Returns "" when none is present.
+func extractCommandName(content string) string {
+	if c := between(content, "<command-name>", "</command-name>"); c != "" {
+		return c
+	}
+	if c := between(content, "<command-message>", "</command-message>"); c != "" {
+		return "/" + c
+	}
+	return ""
+}
+
+// between returns the text between the first open/close markers, trimmed, or "".
+func between(s, openTag, closeTag string) string {
+	_, after, ok := strings.Cut(s, openTag)
+	if !ok {
+		return ""
+	}
+	inner, _, ok := strings.Cut(after, closeTag)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(inner)
 }
 
 // extractSessionMetadata reads minimal data from a session file to extract metadata

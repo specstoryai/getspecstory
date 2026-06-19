@@ -34,7 +34,9 @@ const (
 	// reindexVersion is the logic version stamped on every indexed row. Bump it whenever
 	// the parse/flatten/derivation logic changes so the next reindex re-parses everything
 	// even when files are unchanged. It is part of the freshness fingerprint.
-	reindexVersion = 1
+	//   2: skip slash-command noise when choosing a Claude session title (fixes UUID titles)
+	//   3: also skip "[Request interrupted by user…]" markers
+	reindexVersion = 3
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch
