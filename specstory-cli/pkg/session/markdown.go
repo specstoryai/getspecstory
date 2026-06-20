@@ -131,7 +131,25 @@ func renderMessage(msg Message, prevRole string, includeMessageIDs bool, useUTC 
 	return markdown.String()
 }
 
-// renderRoleHeader creates the role header for a message
+// userTurnColor is an optional CSS color for the user-turn heading. Empty (the
+// default) means plain Markdown. It's set once at startup via SetUserTurnColor
+// from the loaded config and only read during rendering.
+var userTurnColor string
+
+// SetUserTurnColor configures an optional CSS color for user-turn headings.
+// Pass "" (default) for plain Markdown — clean in every reader. Pass a CSS color
+// (e.g. "#2563eb") to tint the heading via an inline <span> for readers that
+// render inline HTML (e.g. VS Code preview); readers that don't (GitHub, Quick
+// Look) may show the raw tag, which is why this is opt-in. Call once at startup.
+func SetUserTurnColor(color string) { userTurnColor = color }
+
+// renderRoleHeader creates the role header for a message.
+//
+// User turns render as a level-3 heading with a 👤 marker so they stand out as
+// the natural segmentation between conversation rounds and populate the document
+// outline for quick navigation. Agent turns stay quiet (italic-bold) with a 🤖
+// marker so the user turns remain the visual anchors. Color is opt-in (off by
+// default) via SetUserTurnColor.
 func renderRoleHeader(msg Message, useUTC bool) string {
 	// Check if this is a sidechain message (subagent conversation)
 	sidechainMarker := ""
@@ -140,28 +158,28 @@ func renderRoleHeader(msg Message, useUTC bool) string {
 	}
 
 	if msg.Role == "user" {
-		// User message - include timestamp if available
+		label := "👤 User" + sidechainMarker
 		if msg.Timestamp != "" {
-			formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
-			return fmt.Sprintf("_**User%s (%s)**_\n\n", sidechainMarker, formattedTimestamp)
+			label += fmt.Sprintf(" (%s)", formatTimestamp(msg.Timestamp, useUTC))
 		}
-		return fmt.Sprintf("_**User%s**_\n\n", sidechainMarker)
+		if userTurnColor != "" {
+			return fmt.Sprintf("### <span style=\"color:%s\">%s</span>\n\n", userTurnColor, label)
+		}
+		return "### " + label + "\n\n"
 	}
 
 	// Agent message - include model and timestamp if available
 	if msg.Model != "" && msg.Timestamp != "" {
-		formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
-		return fmt.Sprintf("_**Agent%s (%s %s)**_\n\n", sidechainMarker, msg.Model, formattedTimestamp)
+		return fmt.Sprintf("_**🤖 Agent%s (%s %s)**_\n\n", sidechainMarker, msg.Model, formatTimestamp(msg.Timestamp, useUTC))
 	}
 	if msg.Model != "" {
-		return fmt.Sprintf("_**Agent%s (%s)**_\n\n", sidechainMarker, msg.Model)
+		return fmt.Sprintf("_**🤖 Agent%s (%s)**_\n\n", sidechainMarker, msg.Model)
 	}
 	if msg.Timestamp != "" {
-		formattedTimestamp := formatTimestamp(msg.Timestamp, useUTC)
-		return fmt.Sprintf("_**Agent%s (%s)**_\n\n", sidechainMarker, formattedTimestamp)
+		return fmt.Sprintf("_**🤖 Agent%s (%s)**_\n\n", sidechainMarker, formatTimestamp(msg.Timestamp, useUTC))
 	}
 
-	return fmt.Sprintf("_**Agent%s**_\n\n", sidechainMarker)
+	return fmt.Sprintf("_**🤖 Agent%s**_\n\n", sidechainMarker)
 }
 
 // renderContentParts renders all content parts in a message
