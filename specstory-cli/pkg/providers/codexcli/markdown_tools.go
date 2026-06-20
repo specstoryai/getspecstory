@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/mdfmt"
 )
 
 // Todo status constants (used by formatUpdatePlan)
@@ -85,7 +87,7 @@ func formatShellWithSummary(argumentsJSON string) (string, string) {
 	// Multi-line commands go in body with bash code fence
 	// Single-line commands go in summary with inline backticks
 	if strings.Contains(command, "\n") {
-		return "", fmt.Sprintf("```bash\n%s\n```", command)
+		return "", mdfmt.CodeFence("bash", command)
 	}
 	return fmt.Sprintf("`%s`", command), ""
 }
@@ -124,9 +126,8 @@ func capitalizeFirst(s string) string {
 func writePatchSection(result *strings.Builder, operation, filename string, patchContent *strings.Builder) {
 	if patchContent.Len() > 0 {
 		fmt.Fprintf(result, "**%s: `%s`**\n\n", capitalizeFirst(operation), filename)
-		result.WriteString("```diff\n")
-		result.WriteString(patchContent.String())
-		result.WriteString("```\n\n")
+		result.WriteString(mdfmt.CodeFence("diff", strings.TrimRight(patchContent.String(), "\n")))
+		result.WriteString("\n\n")
 	}
 }
 
@@ -237,9 +238,9 @@ func formatCustomToolCall(toolName string, input string) string {
 		if input != "" {
 			// Show first 200 characters if input is long
 			if len(input) > 200 {
-				return fmt.Sprintf("\n\nInput (truncated): ```\n%s\n...\n```\n", input[:200])
+				return "\n\nInput (truncated): " + mdfmt.CodeFence("", input[:200]+"\n...") + "\n"
 			} else {
-				return fmt.Sprintf("\n\nInput: ```\n%s\n```\n", input)
+				return "\n\nInput: " + mdfmt.CodeFence("", input) + "\n"
 			}
 		}
 		return ""

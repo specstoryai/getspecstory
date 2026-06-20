@@ -146,12 +146,12 @@ func TestFormatWriteTool(t *testing.T) {
 			expected: "```javascript\nfunction hello() {\n  console.log('Hello');\n}\n```",
 		},
 		{
-			name: "Content with triple backticks (needs escaping)",
+			name: "Content with triple backticks (widens fence)",
 			args: map[string]interface{}{
 				"path":     "README.md",
 				"contents": "# Example\n\n```js\ncode here\n```\n\nMore text",
 			},
-			expected: "```markdown\n# Example\n\n\\```js\ncode here\n\\```\n\nMore text\n```",
+			expected: "````markdown\n# Example\n\n```js\ncode here\n```\n\nMore text\n````",
 		},
 		{
 			name: "File path only, no contents",
@@ -799,9 +799,9 @@ func TestFormatToolResult(t *testing.T) {
 			expected: "```\nCreated file: test.js\nWrote 50 lines\nOperation successful\n```",
 		},
 		{
-			name:     "Result with triple backticks (needs escaping)",
+			name:     "Result with triple backticks (widens fence)",
 			result:   "Error in code:\n```\nerror here\n```",
-			expected: "```\nError in code:\n\\```\nerror here\n\\```\n```",
+			expected: "````\nError in code:\n```\nerror here\n```\n````",
 		},
 		{
 			name:     "Empty result",

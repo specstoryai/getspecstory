@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/mdfmt"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -527,14 +528,16 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 	if tool.Output != nil {
 		// Check for error first
 		if isError, ok := tool.Output["is_error"].(bool); ok && isError {
-			// Blank line before code fence helps parsers inside <details> tags
-			markdown.WriteString("\n```text\n")
+			cleaned := ""
 			if content, ok := tool.Output["content"].(string); ok {
-				cleaned := stripSystemReminders(content)
+				cleaned = stripSystemReminders(content)
 				cleaned = stripANSIEscapeSequences(cleaned)
-				markdown.WriteString(cleaned)
 			}
-			markdown.WriteString("\n```\n")
+			// Blank line before code fence helps parsers inside <details> tags.
+			// CodeFence sizes the fence so embedded ``` in output can't break out.
+			markdown.WriteString("\n")
+			markdown.WriteString(mdfmt.CodeFence("text", cleaned))
+			markdown.WriteString("\n")
 		} else {
 			// Regular result
 			if content, ok := tool.Output["content"].(string); ok {
@@ -550,16 +553,17 @@ func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
 						fmt.Fprintf(&markdown, "\n**Answer:** %s\n", answer)
 					} else if cleaned != "" {
 						// Fallback to code block if parsing fails
-						markdown.WriteString("\n```text\n")
-						markdown.WriteString(cleaned)
-						markdown.WriteString("\n```\n")
+						markdown.WriteString("\n")
+						markdown.WriteString(mdfmt.CodeFence("text", cleaned))
+						markdown.WriteString("\n")
 					}
 				} else if strings.TrimSpace(cleaned) != TodoWriteSuccessMessage && cleaned != "" {
 					// Skip TodoWrite success messages
-					// Blank line before code fence helps parsers inside <details> tags
-					markdown.WriteString("\n```text\n")
-					markdown.WriteString(cleaned)
-					markdown.WriteString("\n```\n")
+					// Blank line before code fence helps parsers inside <details> tags.
+					// CodeFence sizes the fence so embedded ``` in output can't break out.
+					markdown.WriteString("\n")
+					markdown.WriteString(mdfmt.CodeFence("text", cleaned))
+					markdown.WriteString("\n")
 				}
 			}
 		}

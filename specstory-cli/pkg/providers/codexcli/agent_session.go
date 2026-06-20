@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/mdfmt"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -541,7 +542,7 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 				if len(cleaned) > 5000 {
 					cleaned = cleaned[:5000] + "\n... (truncated)"
 				}
-				formattedMd.WriteString("```\n" + cleaned + "\n```")
+				formattedMd.WriteString(mdfmt.CodeFence("", cleaned))
 			}
 		}
 	}

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/mdfmt"
 )
 
 func formatToolCall(tool *fdToolCall) string {
@@ -86,7 +88,7 @@ func formatToolOutput(tool *fdToolCall) string {
 		label = "Output (error)"
 	}
 	if strings.Contains(content, "\n") {
-		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
+		return fmt.Sprintf("%s:\n%s", label, mdfmt.CodeFence("text", content))
 	}
 	return fmt.Sprintf("%s: %s", label, content)
 }
@@ -109,26 +111,24 @@ func formatEditDiffOutput(content string) string {
 		return ""
 	}
 
-	var builder strings.Builder
-	builder.WriteString("```diff\n")
+	var body strings.Builder
 	for _, line := range result.DiffLines {
 		switch line.Type {
 		case "added":
-			builder.WriteString("+")
-			builder.WriteString(line.Content)
-			builder.WriteString("\n")
+			body.WriteString("+")
+			body.WriteString(line.Content)
+			body.WriteString("\n")
 		case "removed":
-			builder.WriteString("-")
-			builder.WriteString(line.Content)
-			builder.WriteString("\n")
+			body.WriteString("-")
+			body.WriteString(line.Content)
+			body.WriteString("\n")
 		case "unchanged":
-			builder.WriteString(" ")
-			builder.WriteString(line.Content)
-			builder.WriteString("\n")
+			body.WriteString(" ")
+			body.WriteString(line.Content)
+			body.WriteString("\n")
 		}
 	}
-	builder.WriteString("```")
-	return builder.String()
+	return mdfmt.CodeFence("diff", strings.TrimRight(body.String(), "\n"))
 }
 
 func decodeInput(raw json.RawMessage) map[string]any {
@@ -358,24 +358,22 @@ func renderSingleEdit(args map[string]any) string {
 }
 
 func formatDiffBlock(oldText string, newText string) string {
-	var builder strings.Builder
-	builder.WriteString("```diff\n")
+	var body strings.Builder
 	if oldText != "" {
 		for _, line := range strings.Split(oldText, "\n") {
-			builder.WriteString("-")
-			builder.WriteString(line)
-			builder.WriteString("\n")
+			body.WriteString("-")
+			body.WriteString(line)
+			body.WriteString("\n")
 		}
 	}
 	if newText != "" {
 		for _, line := range strings.Split(newText, "\n") {
-			builder.WriteString("+")
-			builder.WriteString(line)
-			builder.WriteString("\n")
+			body.WriteString("+")
+			body.WriteString(line)
+			body.WriteString("\n")
 		}
 	}
-	builder.WriteString("```")
-	return builder.String()
+	return mdfmt.CodeFence("diff", strings.TrimRight(body.String(), "\n"))
 }
 
 func renderApplyPatch(args map[string]any) string {
@@ -383,7 +381,7 @@ func renderApplyPatch(args map[string]any) string {
 	if patch == "" {
 		return renderGenericJSON(args)
 	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+	return mdfmt.CodeFence("diff", strings.TrimSpace(patch))
 }
 
 func renderTodoWrite(args map[string]any) string {
@@ -700,12 +698,7 @@ func formatQuotedList(values []string) string {
 }
 
 func formatContentBlock(content string, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
-	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+	return mdfmt.CodeFence(languageFromPath(path), content)
 }
 
 func languageFromPath(path string) string {
