@@ -3,3 +3,6 @@
 .idea/
 
 dist/
+# deadreckon run + DoD artifacts + specstory local history (root-anchored)
+/.deadreckon/
+/.specstory/
