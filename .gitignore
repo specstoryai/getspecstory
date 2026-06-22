@@ -3,3 +3,7 @@
 .idea/
 
 dist/
+# deadreckon run + DoD artifacts (local to this repo)
+/.deadreckon/
+# specstory local history capture for THIS repo (NOT the lore fixtures under lore/)
+/.specstory/
