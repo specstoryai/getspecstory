@@ -7,3 +7,6 @@ dist/
 /.deadreckon/
 # specstory local history capture for THIS repo (NOT the lore fixtures under lore/)
 /.specstory/
+
+# deadreckon consolidated-plan artifact (local)
+/deadreckon-plan-consolidated.json
