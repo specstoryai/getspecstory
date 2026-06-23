@@ -1,10 +1,15 @@
 package cmd
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 func TestShortID(t *testing.T) {
@@ -88,5 +93,110 @@ func TestWaitForSessionFileVisible(t *testing.T) {
 	// A file that never appears must time out with a diagnostic error rather than block forever.
 	if err := waitForSessionFileVisible(filepath.Join(dir, "never.jsonl"), 100*time.Millisecond); err == nil {
 		t.Error("expected timeout error for a file that never becomes visible")
+	}
+}
+
+// fakeProvider is a minimal spi.Provider for exercising prepareResumeTarget. It records
+// the projectPath it is asked to load the source session from, and reconstructs into a
+// caller-provided directory so the write/visibility tail succeeds.
+type fakeProvider struct {
+	name        string
+	gotLoadPath string // projectPath captured from GetAgentChatSession
+	nativeDir   string // where NativeSessionPath places the reconstructed file
+}
+
+func (f *fakeProvider) Name() string                  { return f.name }
+func (f *fakeProvider) Check(string) spi.CheckResult  { return spi.CheckResult{Success: true} }
+func (f *fakeProvider) DetectAgent(string, bool) bool { return false }
+
+func (f *fakeProvider) GetAgentChatSession(projectPath, sessionID string, _ bool) (*spi.AgentChatSession, error) {
+	f.gotLoadPath = projectPath
+	return &spi.AgentChatSession{SessionID: sessionID, SessionData: &schema.SessionData{}}, nil
+}
+
+func (f *fakeProvider) ReconstructSession(*schema.SessionData, spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
+	return &spi.ReconstructedSession{
+		SessionID: "new-session-id",
+		Filename:  "reconstructed.jsonl",
+		Content:   []byte(`{"type":"user"}` + "\n"),
+	}, nil
+}
+
+func (f *fakeProvider) NativeSessionPath(_ string, filename string) (string, error) {
+	return filepath.Join(f.nativeDir, filename), nil
+}
+
+// Unused-by-these-tests interface methods.
+func (f *fakeProvider) GetAgentChatSessions(string, bool, spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	return nil, nil
+}
+func (f *fakeProvider) ListAgentChatSessions(string) ([]spi.SessionMetadata, error) { return nil, nil }
+func (f *fakeProvider) ExecAgentAndWatch(string, string, string, bool, func(*spi.AgentChatSession)) error {
+	return nil
+}
+func (f *fakeProvider) WatchAgent(context.Context, string, bool, func(*spi.AgentChatSession)) error {
+	return nil
+}
+func (f *fakeProvider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) { return nil, nil }
+
+// TestPrepareResumeTargetLoadsSourceFromOriginCwd guards the cross-project resume fix:
+// the source session must be loaded from the directory it was launched in (fromCwd),
+// not the user's current cwd, while the reconstructed file is still written under the
+// current cwd. Regression test for "source session ... has no data to reconstruct" when
+// resuming a session picked from another project via the all-projects browser.
+func TestPrepareResumeTargetLoadsSourceFromOriginCwd(t *testing.T) {
+	nativeDir := t.TempDir()
+	from := &fakeProvider{name: "Codex CLI"}
+	to := &fakeProvider{name: "Claude Code", nativeDir: nativeDir}
+
+	const originCwd = "/Users/jake/dev/tmp/blog-site"
+	const currentCwd = "/Users/jake/dev/specstory-website"
+
+	plan := &resumePlan{
+		from:      from,
+		fromID:    "codex",
+		sessionID: "019c4cdd-917a-74e3-9b2e-fdb45e9eddc5",
+		fromCwd:   originCwd,
+		to:        to,
+		toID:      "claude",
+	}
+
+	newID, err := prepareResumeTarget(plan, currentCwd, io.Discard)
+	if err != nil {
+		t.Fatalf("prepareResumeTarget returned error: %v", err)
+	}
+	if newID != "new-session-id" {
+		t.Errorf("resume target id = %q, want %q", newID, "new-session-id")
+	}
+	if from.gotLoadPath != originCwd {
+		t.Errorf("source loaded from %q, want origin cwd %q (current cwd %q must not be used)",
+			from.gotLoadPath, originCwd, currentCwd)
+	}
+}
+
+// TestPrepareResumeTargetFallsBackToCurrentCwd verifies that when the index row carries
+// no origin cwd (older rows), the source load falls back to the current cwd rather than
+// loading from an empty path.
+func TestPrepareResumeTargetFallsBackToCurrentCwd(t *testing.T) {
+	nativeDir := t.TempDir()
+	from := &fakeProvider{name: "Codex CLI"}
+	to := &fakeProvider{name: "Claude Code", nativeDir: nativeDir}
+
+	const currentCwd = "/Users/jake/dev/blog-site"
+
+	plan := &resumePlan{
+		from:      from,
+		fromID:    "codex",
+		sessionID: "sid",
+		fromCwd:   "", // older index row: no origin cwd recorded
+		to:        to,
+		toID:      "claude",
+	}
+
+	if _, err := prepareResumeTarget(plan, currentCwd, io.Discard); err != nil {
+		t.Fatalf("prepareResumeTarget returned error: %v", err)
+	}
+	if from.gotLoadPath != currentCwd {
+		t.Errorf("source loaded from %q, want fallback to current cwd %q", from.gotLoadPath, currentCwd)
 	}
 }

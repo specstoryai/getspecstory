@@ -37,8 +37,15 @@ type resumePlan struct {
 	from      spi.Provider
 	fromID    string
 	sessionID string
-	to        spi.Provider
-	toID      string
+	// fromCwd is the directory the source session was originally launched from
+	// (the index's origin_cwd). It can differ from the user's current cwd when a
+	// session is picked from another project via the all-projects browser. The
+	// source data load must use this, because some providers (e.g. Codex) locate a
+	// session by matching its recorded cwd — looking under the current cwd would
+	// find nothing. Empty for older index rows; callers fall back to the current cwd.
+	fromCwd string
+	to      spi.Provider
+	toID    string
 }
 
 // agentChoice pairs a registry ID with its provider.
@@ -246,7 +253,15 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 
 	// Cross-agent: load source SessionData, reconstruct, write into target store.
-	fromSession, err := plan.from.GetAgentChatSession(cwd, plan.sessionID, false)
+	// The source must be read from the directory it was originally launched in, not the
+	// user's current cwd — a session picked from another project (all-projects browser)
+	// lives elsewhere, and providers like Codex locate it by its recorded cwd. The
+	// reconstructed session is still written and launched under the current cwd below.
+	fromCwd := plan.fromCwd
+	if fromCwd == "" {
+		fromCwd = cwd
+	}
+	fromSession, err := plan.from.GetAgentChatSession(fromCwd, plan.sessionID, false)
 	if err != nil {
 		return "", fmt.Errorf("failed to load source session: %w", err)
 	}
