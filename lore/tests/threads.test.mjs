@@ -10,7 +10,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { rmSync } from 'node:fs'
+import { rmSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
@@ -105,4 +105,63 @@ test('threads: --json shape carries project, status, reverted, and files', () =>
     assert.equal(typeof t.reverted, 'boolean')
     assert.ok(Array.isArray(t.files))
   }
+})
+
+// --- Clustering-quality guarantees (built from synthetic stress corpora in a temp dir).
+// These lock in the real-corpus fixes: within-session collapse (no fragmentation), no
+// bridging on ubiquitous keys / plain words (no over-merge), a bounded session cap, and
+// strict per-project scoping. `projects` maps a name to sessions; a session is { date,
+// turns:[{ intent, files }] }.
+let SYN = 0
+function synThreads(projects) {
+  const root = mkdtempSync(join(tmpdir(), 'wt-syn-'))
+  const dirs = []
+  for (const [proj, sessions] of Object.entries(projects)) {
+    const hist = join(root, proj, '.specstory', 'history')
+    mkdirSync(hist, { recursive: true })
+    dirs.push(hist)
+    for (const s of sessions) {
+      SYN++
+      const uuid = `aaaaaaaa-0000-4000-8000-${String(SYN).padStart(12, '0')}`
+      let body = `## ${s.date} 09:00:00Z\n\n<!-- Claude Code Session ${uuid} (${s.date}_09-00-00Z) -->\n`
+      for (const t of s.turns) {
+        const edits = t.files.map((f) => `Tool use: **Edit** \`${f}\``).join('\n\n')
+        body += `\n_**User**_\n\n${t.intent}\n\n---\n\n_**Agent (claude-opus-4-20250514)**_\n\n${edits}\n`
+      }
+      writeFileSync(join(hist, `${s.date}_09-${String(SYN).padStart(2, '0')}-00Z-s.md`), body)
+    }
+  }
+  const db = openDb(join(tmpdir(), `wt-syn-db-${process.pid}-${SYN}.db`))
+  for (const t of ['sessions', 'beats', 'commands', 'grams', 'meta_hits']) db.exec(`DELETE FROM ${t}`)
+  indexCorpus(db, { dirs, maxBytes: 200_000_000, days: 0, force: true })
+  const threads = computeThreads(db, { now: NOW, days: 7 })
+  db.close()
+  return threads
+}
+
+test('threads: a long single session collapses into ONE thread (no per-prompt fragmentation)', () => {
+  const turns = Array.from({ length: 10 }, (_, i) => ({ intent: `edit slide ${i}`, files: [`slides/slide-${i}.md`] }))
+  const threads = synThreads({ deck: [{ date: '2026-06-20', turns }] })
+  assert.equal(threads.length, 1, 'one session of many prompts must be exactly one thread')
+  assert.equal(threads[0].beats, 10)
+})
+
+test('threads: unrelated lines do not merge on a ubiquitous file or a plain word, and stay under the session cap', () => {
+  // 12 unrelated single-session lines; each also touches package.json and says "update".
+  const sessions = Array.from({ length: 12 }, (_, i) => ({
+    date: '2026-06-1' + (i % 9),
+    turns: [{ intent: `update the Feature_${i} module`, files: [`src/Feature_${i}.ts`, 'package.json'] }],
+  }))
+  const threads = synThreads({ app: sessions })
+  assert.ok(threads.length >= 10, `expected ~12 separate threads, got ${threads.length} (over-merged on package.json / "update")`)
+  assert.ok(threads.every((t) => t.sessions <= 5), 'no thread may exceed the session cap')
+})
+
+test('threads: never merges across projects, even on an identical symbol and file', () => {
+  const line = [{ date: '2026-06-20', turns: [{ intent: 'build the Shared_Widget', files: ['src/Shared_Widget.ts'] }] },
+                { date: '2026-06-21', turns: [{ intent: 'finish the Shared_Widget', files: ['src/Shared_Widget.ts'] }] }]
+  const threads = synThreads({ alpha: line, beta: line })
+  const widget = threads.filter((t) => JSON.stringify(t).includes('Shared_Widget'))
+  assert.equal(new Set(widget.map((t) => t.project)).size, 2, 'the two projects must stay as separate threads')
+  for (const t of threads) assert.ok(t.project === 'alpha' || t.project === 'beta')
 })
