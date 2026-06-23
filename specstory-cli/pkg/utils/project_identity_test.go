@@ -1170,9 +1170,84 @@ func TestComputeProjectID(t *testing.T) {
 		}
 	})
 
+	t.Run("persisted workspace_id is preferred over the computed hash", func(t *testing.T) {
+		// A no-git dir falls back to the path-based workspace_id; an id already persisted in
+		// .project.json must win so reindex/resume/cloud all agree on one value even when the
+		// file predates path canonicalization.
+		d := t.TempDir()
+		specDir := filepath.Join(d, SPECSTORY_DIR)
+		if err := os.MkdirAll(specDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		const sentinel = "dead-beef-cafe-0001"
+		body := `{"workspace_id":"` + sentinel + `","workspace_id_at":"2020-01-01T00:00:00Z"}`
+		if err := os.WriteFile(filepath.Join(specDir, PROJECT_JSON_FILE), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if id := compute(t, d); id != sentinel {
+			t.Errorf("expected persisted workspace_id %q, got %q", sentinel, id)
+		}
+	})
+
+	t.Run("git_id wins over a persisted workspace_id", func(t *testing.T) {
+		root := newRepo(t, "git@github.com:acme/widgets.git")
+		specDir := filepath.Join(root, SPECSTORY_DIR)
+		if err := os.MkdirAll(specDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(specDir, PROJECT_JSON_FILE),
+			[]byte(`{"workspace_id":"should-not-be-used"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if id := compute(t, root); id == "should-not-be-used" {
+			t.Error("git_id should win over a persisted workspace_id")
+		}
+	})
+
 	t.Run("empty cwd errors", func(t *testing.T) {
 		if _, _, err := ComputeProjectID(""); err == nil {
 			t.Error("expected error for empty cwd")
 		}
 	})
+}
+
+// TestCanonicalizeWorkspacePath verifies the case-fold rule: paths are lowercased on
+// case-insensitive filesystems (macOS/Windows) and left byte-exact otherwise.
+func TestCanonicalizeWorkspacePath(t *testing.T) {
+	orig := caseInsensitiveFilesystem
+	defer func() { caseInsensitiveFilesystem = orig }()
+
+	const mixed = "/Users/Sean/Source/Proj"
+
+	caseInsensitiveFilesystem = true
+	if got := canonicalizeWorkspacePath(mixed); got != "/users/sean/source/proj" {
+		t.Errorf("case-insensitive: got %q, want lowercased", got)
+	}
+
+	caseInsensitiveFilesystem = false
+	if got := canonicalizeWorkspacePath(mixed); got != mixed {
+		t.Errorf("case-sensitive: got %q, want byte-exact %q", got, mixed)
+	}
+}
+
+// TestWorkspaceIDCaseFolding is the regression test for the reported bug: on a
+// case-insensitive filesystem, the same physical directory named with different casing
+// (e.g. os.Getwd echoing a lowercase $PWD vs a recorded capital-cased cwd) must hash to
+// one workspace_id. On a case-sensitive filesystem the two are genuinely distinct.
+func TestWorkspaceIDCaseFolding(t *testing.T) {
+	orig := caseInsensitiveFilesystem
+	defer func() { caseInsensitiveFilesystem = orig }()
+
+	upper := &ProjectIdentityManager{projectRoot: "/Users/Sean/Source/Proj"}
+	lower := &ProjectIdentityManager{projectRoot: "/users/sean/source/proj"}
+
+	caseInsensitiveFilesystem = true
+	if upper.generateWorkspaceID() != lower.generateWorkspaceID() {
+		t.Error("case-insensitive FS: differently-cased paths produced different workspace ids")
+	}
+
+	caseInsensitiveFilesystem = false
+	if upper.generateWorkspaceID() == lower.generateWorkspaceID() {
+		t.Error("case-sensitive FS: differently-cased paths should yield distinct workspace ids")
+	}
 }

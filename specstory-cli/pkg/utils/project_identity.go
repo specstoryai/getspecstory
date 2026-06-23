@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -180,8 +181,30 @@ func (m *ProjectIdentityManager) generateWorkspaceID() string {
 	}
 
 	// The TypeScript version hashes the workspace URI, but in our case
-	// we'll hash the absolute path for compatibility
-	return m.createHash(absPath)
+	// we'll hash the absolute path for compatibility. The path is canonicalized first so
+	// the same physical directory yields one id regardless of the casing a caller passes
+	// (os.Getwd may echo a lowercase $PWD; a session's recorded cwd may differ in case).
+	return m.createHash(canonicalizeWorkspacePath(absPath))
+}
+
+// caseInsensitiveFilesystem reports whether the host OS treats paths case-insensitively.
+// macOS (APFS/HFS+) and Windows (NTFS) are case-insensitive/case-preserving; Linux is
+// case-sensitive. It is a var so tests can exercise both behaviors. Windows is included
+// even though the app is built only for macOS/Linux today: the in-flight Windows support
+// lives on a branch that does not carry this file, so folding case here keeps that branch
+// from silently reintroducing case-divergent workspace ids when it merges.
+var caseInsensitiveFilesystem = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
+
+// canonicalizeWorkspacePath normalizes a path before it is hashed into a workspace_id. On
+// a case-insensitive filesystem the same directory can be named with different casing,
+// which would otherwise hash to different ids for one physical directory; case-folding
+// makes the id stable. On case-sensitive filesystems the path is left byte-exact, since
+// there two differently-cased paths are genuinely different directories.
+func canonicalizeWorkspacePath(path string) string {
+	if caseInsensitiveFilesystem {
+		return strings.ToLower(path)
+	}
+	return path
 }
 
 // generateGitID generates a git ID by finding and hashing the git origin URL
@@ -509,12 +532,35 @@ func ComputeProjectID(cwd string) (id, name string, err error) {
 		return "", "", fmt.Errorf("cannot resolve project id: empty working directory")
 	}
 	gitID, workspaceID, name, _ := resolveIdentity(cwd)
-	id = gitID
-	if id == "" {
-		id = workspaceID
+
+	// Prefer a resolvable git_id: it hashes the normalized remote URL, not a path, so it is
+	// immune to the case divergence handled below and never fragments a monorepo.
+	if gitID != "" {
+		return gitID, name, nil
 	}
-	if id == "" {
+
+	// No git remote → use the path-based workspace_id. Prefer an id already persisted in the
+	// launch dir's .project.json so every consumer (reindex, resume, cloud sync) agrees on a
+	// single value, even for projects whose file predates path canonicalization. Only when no
+	// file exists (e.g. a portable session whose recorded cwd is not present locally) do we
+	// fall back to the freshly computed — and now canonical — hash.
+	if stored := persistedWorkspaceID(cwd); stored != "" {
+		return stored, name, nil
+	}
+	if workspaceID == "" {
 		return "", "", fmt.Errorf("cannot resolve project id for %q", cwd)
 	}
-	return id, name, nil
+	return workspaceID, name, nil
+}
+
+// persistedWorkspaceID returns the workspace_id recorded in dir's .specstory/.project.json,
+// or "" when there is no readable file or it carries no workspace_id. The file is read from
+// the launch directory (where the writer puts it), not the resolved git root.
+func persistedWorkspaceID(dir string) string {
+	m := &ProjectIdentityManager{projectRoot: dir}
+	identity, err := m.ReadProjectIdentity()
+	if err != nil || identity == nil {
+		return ""
+	}
+	return identity.WorkspaceID
 }

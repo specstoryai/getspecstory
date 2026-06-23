@@ -36,7 +36,9 @@ const (
 	// even when files are unchanged. It is part of the freshness fingerprint.
 	//   2: skip slash-command noise when choosing a Claude session title (fixes UUID titles)
 	//   3: also skip "[Request interrupted by user…]" markers
-	reindexVersion = 3
+	//   4: canonicalize (case-fold) the workspace_id path hash + prefer a persisted
+	//      .project.json workspace_id, so a project's id no longer varies with path casing
+	reindexVersion = 4
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch

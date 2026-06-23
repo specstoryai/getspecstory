@@ -7,6 +7,7 @@
 package sessionindex
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -15,6 +16,15 @@ import (
 	"strings"
 
 	_ "modernc.org/sqlite" // SQLite driver (pure Go), same as pkg/provenance
+)
+
+// Connection-pool sizing. Writes (reindex) must serialize on a single connection to
+// avoid SQLITE_BUSY/deadlocks. The interactive browse path (resume/search) only reads,
+// so it opens several connections — WAL permits many concurrent readers, which keeps a
+// single slow full-text query (a broad prefix can take seconds) from starving the UI.
+const (
+	writerConns = 1
+	readerConns = 4
 )
 
 // Session is one row of the restore index (the `sessions` table), plus Body, which is
@@ -65,9 +75,21 @@ func DefaultPath() (string, error) {
 	return filepath.Join(home, ".specstory", "sessions.db"), nil
 }
 
-// Open opens (or creates) sessions.db at the given path, applying WAL + performance
-// pragmas (matching pkg/provenance) and ensuring the schema exists.
+// Open opens (or creates) sessions.db for writing — a single serialized connection,
+// applying WAL + performance pragmas (matching pkg/provenance) and ensuring the schema
+// exists. Use OpenReader for the read-only interactive browse path.
 func Open(path string) (*Store, error) {
+	return openWith(path, writerConns)
+}
+
+// OpenReader opens sessions.db for the interactive browse path (resume/search), which
+// only reads. It allows several concurrent connections so one slow full-text query can't
+// starve the UI (WAL permits many simultaneous readers). Never write through this handle.
+func OpenReader(path string) (*Store, error) {
+	return openWith(path, readerConns)
+}
+
+func openWith(path string, maxConns int) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("creating database directory: %w", err)
 	}
@@ -78,9 +100,8 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("opening sessions.db: %w", err)
 	}
 
-	// Serialize writes to avoid deadlocks (same pattern as pkg/provenance).
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
+	db.SetMaxOpenConns(maxConns)
+	db.SetMaxIdleConns(maxConns)
 
 	for _, p := range []string{
 		"PRAGMA synchronous=NORMAL",
@@ -348,10 +369,17 @@ type SearchHit struct {
 	Snippet string
 }
 
-// SearchWithSnippets runs a full-text query and returns matching sessions, best match
+// SearchWithSnippets runs a full-text query and returns matching sessions, most recent
 // first, each with a body snippet around the match. projectID scopes the search to one
 // project; "" searches across all projects. Powers the picker's full-text search UX.
 func (s *Store) SearchWithSnippets(query, projectID string) ([]SearchHit, error) {
+	return s.SearchWithSnippetsContext(context.Background(), query, projectID)
+}
+
+// SearchWithSnippetsContext is SearchWithSnippets bound to a context. The interactive
+// search cancels the context when a newer keystroke arrives, which aborts a slow
+// in-flight query (a broad prefix can rank the whole corpus) and frees its connection.
+func (s *Store) SearchWithSnippetsContext(ctx context.Context, query, projectID string) ([]SearchHit, error) {
 	q := `SELECT ` + prefixed("s", sessionColumns) + `,
 		snippet(sessions_fts, 3, char(2), char(3), '…', 12)
 		FROM sessions_fts
@@ -362,11 +390,14 @@ func (s *Store) SearchWithSnippets(query, projectID string) ([]SearchHit, error)
 		q += ` AND s.project_id = ?`
 		args = append(args, projectID)
 	}
-	// Bound the work for broad queries (a short prefix can match the whole corpus); the
-	// picker never needs more than the top results.
-	q += ` ORDER BY rank LIMIT 500`
+	// Order by recency, not FTS5's BM25 rank. For full-conversation transcripts BM25 is
+	// noisy (length-normalization dominates) and a single-term query gets no IDF signal,
+	// so relevance order looks arbitrary; newest-first is what's useful when browsing your
+	// own history. It also makes LIMIT keep the 500 most RECENT matches (vs the 500 densest)
+	// and skips BM25 scoring entirely. updated_at is ISO 8601, so TEXT sort = chronological.
+	q += ` ORDER BY s.updated_at DESC LIMIT 500`
 
-	rows, err := s.db.Query(q, args...)
+	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, err
 	}

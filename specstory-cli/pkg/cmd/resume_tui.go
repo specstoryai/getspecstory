@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"image/color"
 	"log/slog"
@@ -96,6 +97,9 @@ type resumeTUI struct {
 	search      textinput.Model
 	searchQuery string
 	searchSeq   int // bumped per search keystroke; debounced FTS results must match it
+	// searchCancel aborts the in-flight FTS query when a newer keystroke supersedes it,
+	// freeing the database connection (a broad prefix query can rank the whole corpus).
+	searchCancel context.CancelFunc
 
 	previewing  bool
 	previewBody string
@@ -155,7 +159,12 @@ func (m resumeTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchDebounceMsg:
 		// Fire the actual query only if no newer keystroke has arrived (debounce).
 		if msg.seq == m.searchSeq {
-			return m, m.runSearch(msg.seq, msg.kind)
+			if m.searchCancel != nil {
+				m.searchCancel() // abort any prior in-flight query, freeing its connection
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			m.searchCancel = cancel
+			return m, m.runSearch(msg.seq, msg.kind, ctx)
 		}
 		return m, nil
 	case searchResultMsg:
@@ -265,8 +274,9 @@ func (m resumeTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.search, cmd = m.search.Update(msg)
 	m.searchQuery = m.search.Value()
 	m.searchSeq++
-	if strings.TrimSpace(m.searchQuery) == "" {
-		m.applyFilter() // clearing is cheap (no FTS) — apply synchronously
+	if !queryReady(m.searchQuery) {
+		// Too short to search: show the full (agent-filtered) list synchronously.
+		m.applyFilter()
 		return m, cmd
 	}
 	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeList))
@@ -404,10 +414,10 @@ func (m *resumeTUI) applyFilter() {
 	m.filtered = m.filtered[:0]
 	m.filteredSnippets = nil
 
-	if q := ftsQuery(m.searchQuery); q != "" {
+	if queryReady(m.searchQuery) {
 		var snips []string
 		var out []sessionindex.Session
-		if hits, err := m.store.SearchWithSnippets(q, m.projectID); err == nil {
+		if hits, err := m.store.SearchWithSnippets(ftsQuery(m.searchQuery), m.projectID); err == nil {
 			for _, h := range hits {
 				if m.agentFilter == "" || h.Agent == m.agentFilter {
 					out = append(out, h.Session)
@@ -464,6 +474,27 @@ func (m resumeTUI) loadPreview(s *sessionindex.Session) string {
 }
 
 // ftsQuery turns free-form input into a safe FTS5 prefix query (alnum tokens only).
+// minQueryLen is the shortest query we run a full-text search for. A single-character
+// prefix (e.g. "t*") matches almost the entire corpus, and ranking + snippet generation
+// over that set is pathologically slow (~80s on a ~800-session index), so we never fire
+// it. Shared by resume and search so both behave the same.
+const minQueryLen = 2
+
+// queryReady reports whether input has enough searchable characters (letters/digits, the
+// same runes ftsQuery keeps) to run an FTS query. Below minQueryLen we don't search.
+func queryReady(input string) bool {
+	n := 0
+	for _, r := range input {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			n++
+			if n >= minQueryLen {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func ftsQuery(input string) string {
 	var toks []string
 	for _, f := range strings.Fields(input) {
@@ -596,9 +627,15 @@ func (m resumeTUI) sessionRow(s sessionindex.Session, selected bool, snippet str
 		return head + "\n" + sub
 	}
 	turns := styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
-	label := renderName(sessionTitle(s), selected, m.lineWidth()-22)
+	// A year-stamped date ("Dec 31 '25") is wider than the 4-col slot; shrink the label by the
+	// overflow so the right-hand turns column can't get pushed off the line and wrap.
+	extra := len(when) - 4
+	if extra < 0 {
+		extra = 0
+	}
+	label := renderName(sessionTitle(s), selected, m.lineWidth()-22-extra)
 	if snippet != "" {
-		label = renderSnippet(snippet, m.lineWidth()-24)
+		label = renderSnippet(snippet, m.lineWidth()-24-extra)
 	}
 	return cursor + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
 }
@@ -785,7 +822,12 @@ func relativeTime(iso string) string {
 	case d < 7*24*time.Hour:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	default:
-		return t.Local().Format("Jan 2")
+		lt := t.Local()
+		if lt.Year() == time.Now().Year() {
+			return lt.Format("Jan 2")
+		}
+		// Disambiguate prior years so "Dec 31" can't be mistaken for this year: "Dec 31 '25".
+		return lt.Format("Jan 2 '06")
 	}
 }
 
@@ -853,7 +895,7 @@ func openOrBuildResumeIndex() (*sessionindex.Store, error) {
 		return nil, err
 	}
 	if _, statErr := os.Stat(dbPath); statErr == nil {
-		s, err := sessionindex.Open(dbPath)
+		s, err := sessionindex.OpenReader(dbPath)
 		if err != nil {
 			return nil, err
 		}
@@ -865,7 +907,7 @@ func openOrBuildResumeIndex() (*sessionindex.Store, error) {
 	if err := runReindex(false); err != nil {
 		return nil, err
 	}
-	return sessionindex.Open(dbPath)
+	return sessionindex.OpenReader(dbPath)
 }
 
 // selectResumeViaTUI runs the picker for the current project and returns the chosen
@@ -1258,7 +1300,8 @@ func (m resumeTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 	m.globalInput, cmd = m.globalInput.Update(msg)
 	m.globalQuery = m.globalInput.Value()
 	m.searchSeq++
-	if strings.TrimSpace(m.globalQuery) == "" {
+	if !queryReady(m.globalQuery) {
+		// Too short to search the whole corpus: no results until the 2nd character.
 		m.globalResults = nil
 		m.globalSnippets = nil
 		return m, cmd
@@ -1447,7 +1490,7 @@ func searchDebounce(seq int, kind tuiMode) tea.Cmd {
 }
 
 // runSearch returns a command that performs the FTS query off the UI thread.
-func (m resumeTUI) runSearch(seq int, kind tuiMode) tea.Cmd {
+func (m resumeTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cmd {
 	store := m.store
 	query, projectID := m.searchQuery, m.projectID
 	if kind == modeProjects {
@@ -1455,10 +1498,10 @@ func (m resumeTUI) runSearch(seq int, kind tuiMode) tea.Cmd {
 	}
 	fq := ftsQuery(query)
 	return func() tea.Msg {
-		if fq == "" {
+		if !queryReady(query) {
 			return searchResultMsg{seq: seq, kind: kind}
 		}
-		hits, _ := store.SearchWithSnippets(fq, projectID)
+		hits, _ := store.SearchWithSnippetsContext(ctx, fq, projectID)
 		return searchResultMsg{seq: seq, kind: kind, hits: hits}
 	}
 }

@@ -117,76 +117,16 @@ Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
 				return nil
 			}
 
-			// Setup output configuration and project identity (needed for auto-save + cloud).
-			outConfig, err := utils.SetupOutputConfig(outputDir, flagDebugDir)
-			if err != nil {
-				return err
-			}
-			if err := utils.EnsureHistoryDirectoryExists(outConfig); err != nil {
-				return err
-			}
-			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
-				slog.Error("Failed to ensure project identity", "error", err)
-			}
-
-			CheckAndWarnAuthentication(noCloudSync)
-			if onlyCloudSync && !cloud.IsAuthenticated() {
-				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
-			}
-
-			analytics.SetAgentProviders([]string{plan.to.Name()})
-			analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
-				"from_provider": plan.fromID,
-				"to_provider":   plan.toID,
-				"cross_agent":   plan.fromID != plan.toID,
+			return launchResume(plan, cwd, resumeLaunchOpts{
+				outputDir:          outputDir,
+				flagDebugDir:       flagDebugDir,
+				debugRaw:           debugRaw,
+				useUTC:             useUTC,
+				noCloudSync:        noCloudSync,
+				onlyCloudSync:      onlyCloudSync,
+				provenanceEnabled:  provenanceEnabled,
+				noTelemetryPrompts: noTelemetryPrompts,
 			})
-
-			// Resolve the native session ID to resume.
-			resumeSessionID, err := prepareResumeTarget(plan, cwd, os.Stdout)
-			if err != nil {
-				return err
-			}
-
-			// Context for graceful cancellation (Ctrl+C).
-			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-			defer cancel()
-
-			// Provenance infrastructure (mirrors run/watch).
-			provenanceEngine, provenanceCleanup, err := provenance.StartEngine(provenanceEnabled)
-			if err != nil {
-				return err
-			}
-			defer provenanceCleanup()
-			fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, cwd)
-			if err != nil {
-				return err
-			}
-			defer fsCleanup()
-
-			// Auto-save callback: identical behavior to run/watch.
-			sessionCallback := func(sess *spi.AgentChatSession) {
-				if sess == nil {
-					return
-				}
-				_, perr := session.ProcessSingleSession(context.Background(), sess, outConfig, session.ProcessingOptions{
-					OnlyCloudSync:      onlyCloudSync,
-					IsAutosave:         true,
-					DebugRaw:           debugRaw,
-					UseUTC:             useUTC,
-					NoTelemetryPrompts: noTelemetryPrompts,
-				})
-				if perr != nil {
-					slog.Error("Failed to process session update", "sessionId", sess.SessionID, "error", perr)
-				}
-				provenance.ProcessEvents(ctx, provenanceEngine, sess)
-			}
-
-			slog.Info("Launching resume", "provider", plan.to.Name(), "resumeSessionID", resumeSessionID)
-			if err := plan.to.ExecAgentAndWatch(cwd, "", resumeSessionID, debugRaw, sessionCallback); err != nil {
-				slog.Error("Agent resume failed", "provider", plan.to.Name(), "error", err)
-				return err
-			}
-			return nil
 		},
 	}
 
@@ -204,6 +144,93 @@ Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
 	resumeCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
 
 	return resumeCmd
+}
+
+// resumeLaunchOpts carries the resume launch configuration shared by `resume` and
+// `search` (whose `r` action resumes a found session through the same path).
+type resumeLaunchOpts struct {
+	outputDir          string
+	flagDebugDir       string
+	debugRaw           bool
+	useUTC             bool
+	noCloudSync        bool
+	onlyCloudSync      bool
+	provenanceEnabled  bool
+	noTelemetryPrompts bool
+}
+
+// launchResume reconstructs (cross-agent) or natively resumes the planned session and
+// runs the agent with auto-save + provenance — the shared tail of `resume` and `search`.
+func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
+	// Setup output configuration and project identity (needed for auto-save + cloud).
+	outConfig, err := utils.SetupOutputConfig(o.outputDir, o.flagDebugDir)
+	if err != nil {
+		return err
+	}
+	if err := utils.EnsureHistoryDirectoryExists(outConfig); err != nil {
+		return err
+	}
+	if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+		slog.Error("Failed to ensure project identity", "error", err)
+	}
+
+	CheckAndWarnAuthentication(o.noCloudSync)
+	if o.onlyCloudSync && !cloud.IsAuthenticated() {
+		return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+	}
+
+	analytics.SetAgentProviders([]string{plan.to.Name()})
+	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
+		"from_provider": plan.fromID,
+		"to_provider":   plan.toID,
+		"cross_agent":   plan.fromID != plan.toID,
+	})
+
+	resumeSessionID, err := prepareResumeTarget(plan, cwd, os.Stdout)
+	if err != nil {
+		return err
+	}
+
+	// Context for graceful cancellation (Ctrl+C).
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// Provenance infrastructure (mirrors run/watch).
+	provenanceEngine, provenanceCleanup, err := provenance.StartEngine(o.provenanceEnabled)
+	if err != nil {
+		return err
+	}
+	defer provenanceCleanup()
+	fsCleanup, err := provenance.StartFSWatcher(ctx, provenanceEngine, cwd)
+	if err != nil {
+		return err
+	}
+	defer fsCleanup()
+
+	// Auto-save callback: identical behavior to run/watch.
+	sessionCallback := func(sess *spi.AgentChatSession) {
+		if sess == nil {
+			return
+		}
+		_, perr := session.ProcessSingleSession(context.Background(), sess, outConfig, session.ProcessingOptions{
+			OnlyCloudSync:      o.onlyCloudSync,
+			IsAutosave:         true,
+			DebugRaw:           o.debugRaw,
+			UseUTC:             o.useUTC,
+			NoTelemetryPrompts: o.noTelemetryPrompts,
+		})
+		if perr != nil {
+			slog.Error("Failed to process session update", "sessionId", sess.SessionID, "error", perr)
+		}
+		provenance.ProcessEvents(ctx, provenanceEngine, sess)
+	}
+
+	slog.Info("Launching resume", "provider", plan.to.Name(), "resumeSessionID", resumeSessionID)
+	if err := plan.to.ExecAgentAndWatch(cwd, "", resumeSessionID, o.debugRaw, sessionCallback); err != nil {
+		slog.Error("Agent resume failed", "provider", plan.to.Name(), "error", err)
+		return err
+	}
+	return nil
 }
 
 // prepareResumeTarget produces the native session ID to hand to ExecAgentAndWatch.
