@@ -24,7 +24,7 @@ Consistency is the whole point — learnings and patterns must transfer both way
 
 **Shared (reuse, don't reinvent):**
 
-- The `sessions.db` index and its queries (`SearchWithSnippets`, `ListByProject`,
+- The `sessions.db` index and its queries (`Search`, lazy `Snippets`, `ListByProject`,
   `ListProjects`, `SessionBody`).
 - The Bubble Tea v2 model patterns, lipgloss styles, agent color tags, relative-time
   formatting, snippet highlighting (`renderSnippet`), and the **async + debounced FTS** path
@@ -90,12 +90,13 @@ initial query. No args → empty input, ready to type. Reuses `openOrBuildResume
   `tab` narrows to the current project (when it has sessions) — a deliberate divergence from
   resume, which defaults to the current project. Search is a find-across-history tool.
 - **Query performance (ratified, built).** Full-text search only fires at **2+ characters**
-  (a 1-char prefix like `t*` matches nearly the whole corpus and ranks for ~80s); the index's
-  browse path opens a **multi-connection reader pool** so a slow query can't freeze the UI; and
-  each keystroke **cancels** the prior in-flight query (via `context`), freeing its connection.
-  The results pane shows **`Searching…`** while a query is in flight rather than a premature
-  "No matches". All three live in the shared FTS layer (`pkg/sessionindex`, `queryReady`), so
-  resume gets them too.
+  (a 1-char prefix like `t*` matches nearly the whole corpus); the main query returns session
+  rows newest-first **without** `snippet()`, then fetches highlighted snippets lazily for only
+  the visible rows. The browse path opens a **multi-connection reader pool** so a slow query
+  can't freeze the UI, and each keystroke **cancels** the prior in-flight query (via `context`),
+  freeing its connection. The results pane shows **`Searching…`** while a query is in flight
+  rather than a premature "No matches". This lives in the shared FTS layer (`pkg/sessionindex`,
+  `queryReady`), so resume gets it too.
 - **`r` reuses resume's full target-agent flow (ratified).** Cross-agent power + one consistent
   resume path, rather than a separate same-agent shortcut.
 - **Always-on search input (ratified).** The input is focused at the top from the start; type to

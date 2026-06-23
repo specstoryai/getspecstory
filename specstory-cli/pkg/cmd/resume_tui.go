@@ -63,7 +63,7 @@ type resumeTUI struct {
 
 	all              []sessionindex.Session // sessions for the active project (projectID), newest first
 	filtered         []sessionindex.Session // after agent filter + search
-	filteredSnippets []string               // match snippet per filtered row (search active), else nil
+	filteredSnippets map[string]string      // match snippets for visible filtered rows, keyed by agent/session
 	cursor           int                    // index into filtered
 	top              int                    // first visible row (scroll)
 	inBrowser        bool                   // the active session list was reached via the browser
@@ -89,7 +89,7 @@ type resumeTUI struct {
 	globalInput     textinput.Model
 	globalQuery     string
 	globalResults   []sessionindex.Session
-	globalSnippets  []string
+	globalSnippets  map[string]string
 	globalCursor    int
 	globalTop       int
 
@@ -97,6 +97,7 @@ type resumeTUI struct {
 	search      textinput.Model
 	searchQuery string
 	searchSeq   int // bumped per search keystroke; debounced FTS results must match it
+	snippetSeq  int // bumped per lazy snippet request; stale snippet results are discarded
 	// searchCancel aborts the in-flight FTS query when a newer keystroke supersedes it,
 	// freeing the database connection (a broad prefix query can rank the whole corpus).
 	searchCancel context.CancelFunc
@@ -170,7 +171,27 @@ func (m resumeTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case searchResultMsg:
 		// Apply only the latest query's results (discard stale async results).
 		if msg.seq == m.searchSeq {
-			m.applySearchResults(msg.kind, msg.hits)
+			m.applySearchResults(msg.kind, msg.sessions)
+			return m, m.requestVisibleSnippets(msg.kind)
+		}
+		return m, nil
+	case resumeSnippetResultMsg:
+		if msg.seq == m.snippetSeq {
+			if msg.kind == modeProjects {
+				if m.globalSnippets == nil {
+					m.globalSnippets = map[string]string{}
+				}
+				for key, snip := range msg.snippets {
+					m.globalSnippets[key] = snip
+				}
+			} else {
+				if m.filteredSnippets == nil {
+					m.filteredSnippets = map[string]string{}
+				}
+				for key, snip := range msg.snippets {
+					m.filteredSnippets[key] = snip
+				}
+			}
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -219,17 +240,23 @@ func (m resumeTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "up", "k":
 		m.moveCursor(-1)
+		return m, m.requestVisibleSnippets(modeList)
 	case "down", "j":
 		m.moveCursor(1)
+		return m, m.requestVisibleSnippets(modeList)
 	case "pgup":
 		m.moveCursor(-m.listHeight())
+		return m, m.requestVisibleSnippets(modeList)
 	case "pgdown":
 		m.moveCursor(m.listHeight())
+		return m, m.requestVisibleSnippets(modeList)
 	case "home", "g":
 		m.cursor, m.top = 0, 0
+		return m, m.requestVisibleSnippets(modeList)
 	case "end", "G":
 		m.cursor = len(m.filtered) - 1
 		m.clampScroll()
+		return m, m.requestVisibleSnippets(modeList)
 	case "enter":
 		if sel := m.selected(); sel != nil {
 			m.chosen = sel
@@ -246,9 +273,10 @@ func (m resumeTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.search.SetValue(m.searchQuery)
 		return m, m.search.Focus()
 	case "a":
-		m.cycleAgent()
+		return m, m.cycleAgent()
 	case "v":
 		m.toggleViewMode()
+		return m, m.requestVisibleSnippets(modeList)
 	}
 	return m, nil
 }
@@ -263,6 +291,7 @@ func (m resumeTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.search.Blur()
 		m.searchQuery = ""
 		m.searchSeq++ // invalidate any in-flight search
+		m.snippetSeq++
 		m.applyFilter()
 		return m, nil
 	case "enter":
@@ -276,6 +305,7 @@ func (m resumeTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.searchSeq++
 	if !queryReady(m.searchQuery) {
 		// Too short to search: show the full (agent-filtered) list synchronously.
+		m.snippetSeq++
 		m.applyFilter()
 		return m, cmd
 	}
@@ -386,7 +416,7 @@ func (m *resumeTUI) rebuildAgentCycle() {
 	m.agentCycle = append([]string{""}, ids...)
 }
 
-func (m *resumeTUI) cycleAgent() {
+func (m *resumeTUI) cycleAgent() tea.Cmd {
 	cur := 0
 	for i, id := range m.agentCycle {
 		if id == m.agentFilter {
@@ -396,6 +426,7 @@ func (m *resumeTUI) cycleAgent() {
 	}
 	m.agentFilter = m.agentCycle[(cur+1)%len(m.agentCycle)]
 	m.applyFilter()
+	return m.requestVisibleSnippets(modeList)
 }
 
 func (m *resumeTUI) toggleViewMode() {
@@ -408,25 +439,23 @@ func (m *resumeTUI) toggleViewMode() {
 }
 
 // applyFilter rebuilds the visible list from the agent filter and search query. When a
-// search is active, each row carries a match snippet (filteredSnippets); otherwise the
-// list is the project's sessions filtered by agent and snippets are cleared.
+// search is active, snippets are fetched lazily for the visible rows; otherwise the list
+// is the project's sessions filtered by agent and snippets are cleared.
 func (m *resumeTUI) applyFilter() {
 	m.filtered = m.filtered[:0]
 	m.filteredSnippets = nil
 
 	if queryReady(m.searchQuery) {
-		var snips []string
 		var out []sessionindex.Session
-		if hits, err := m.store.SearchWithSnippets(ftsQuery(m.searchQuery), m.projectID); err == nil {
-			for _, h := range hits {
-				if m.agentFilter == "" || h.Agent == m.agentFilter {
-					out = append(out, h.Session)
-					snips = append(snips, h.Snippet)
+		if sessions, err := m.store.Search(ftsQuery(m.searchQuery), m.projectID); err == nil {
+			for _, s := range sessions {
+				if m.agentFilter == "" || s.Agent == m.agentFilter {
+					out = append(out, s)
 				}
 			}
 		}
 		m.filtered = out
-		m.filteredSnippets = snips
+		m.filteredSnippets = map[string]string{}
 	} else {
 		out := make([]sessionindex.Session, 0, len(m.all))
 		for _, s := range m.all {
@@ -600,8 +629,9 @@ func (m resumeTUI) renderRows() string {
 
 // snippetAt returns the search snippet for filtered row i, or "" (no active search).
 func (m resumeTUI) snippetAt(i int) string {
-	if i >= 0 && i < len(m.filteredSnippets) {
-		return m.filteredSnippets[i]
+	if i >= 0 && i < len(m.filtered) {
+		s := m.filtered[i]
+		return m.filteredSnippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]
 	}
 	return ""
 }
@@ -1304,6 +1334,7 @@ func (m resumeTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 		// Too short to search the whole corpus: no results until the 2nd character.
 		m.globalResults = nil
 		m.globalSnippets = nil
+		m.snippetSeq++
 		return m, cmd
 	}
 	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeProjects))
@@ -1322,17 +1353,23 @@ func (m resumeTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 		return m, m.globalInput.Focus()
 	case "up", "k":
 		m.moveGlobalCursor(-1)
+		return m, m.requestVisibleSnippets(modeProjects)
 	case "down", "j":
 		m.moveGlobalCursor(1)
+		return m, m.requestVisibleSnippets(modeProjects)
 	case "pgup":
 		m.moveGlobalCursor(-m.globalHeight())
+		return m, m.requestVisibleSnippets(modeProjects)
 	case "pgdown":
 		m.moveGlobalCursor(m.globalHeight())
+		return m, m.requestVisibleSnippets(modeProjects)
 	case "home", "g":
 		m.globalCursor, m.globalTop = 0, 0
+		return m, m.requestVisibleSnippets(modeProjects)
 	case "end", "G":
 		m.globalCursor = len(m.globalResults) - 1
 		m.clampGlobalScroll()
+		return m, m.requestVisibleSnippets(modeProjects)
 	case "enter":
 		// A global hit jumps straight to the target-agent step (fast path).
 		if m.globalCursor >= 0 && m.globalCursor < len(m.globalResults) {
@@ -1352,6 +1389,7 @@ func (m *resumeTUI) exitGlobal() {
 	m.globalQuery = ""
 	m.globalResults = nil
 	m.globalSnippets = nil
+	m.snippetSeq++
 	m.globalCursor, m.globalTop = 0, 0
 }
 
@@ -1415,11 +1453,9 @@ func (m resumeTUI) renderGlobalResults() string {
 		h := m.globalHeight()
 		end := min(m.globalTop+h, len(m.globalResults))
 		for i := m.globalTop; i < end; i++ {
-			snip := ""
-			if i < len(m.globalSnippets) {
-				snip = m.globalSnippets[i]
-			}
-			b.WriteString(m.globalRow(m.globalResults[i], i == m.globalCursor, snip))
+			s := m.globalResults[i]
+			snip := m.globalSnippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]
+			b.WriteString(m.globalRow(s, i == m.globalCursor, snip))
 			if i < end-1 {
 				b.WriteString("\n")
 			}
@@ -1474,9 +1510,15 @@ type searchDebounceMsg struct {
 }
 
 type searchResultMsg struct {
-	seq  int
-	kind tuiMode
-	hits []sessionindex.SearchHit
+	seq      int
+	kind     tuiMode
+	sessions []sessionindex.Session
+}
+
+type resumeSnippetResultMsg struct {
+	seq      int
+	kind     tuiMode
+	snippets map[string]string
 }
 
 const searchDebounceDelay = 50 * time.Millisecond
@@ -1501,20 +1543,17 @@ func (m resumeTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cmd
 		if !queryReady(query) {
 			return searchResultMsg{seq: seq, kind: kind}
 		}
-		hits, _ := store.SearchWithSnippetsContext(ctx, fq, projectID)
-		return searchResultMsg{seq: seq, kind: kind, hits: hits}
+		sessions, _ := store.SearchContext(ctx, fq, projectID)
+		return searchResultMsg{seq: seq, kind: kind, sessions: sessions}
 	}
 }
 
 // applySearchResults installs async FTS results into the matching list (scoped or global).
-func (m *resumeTUI) applySearchResults(kind tuiMode, hits []sessionindex.SearchHit) {
+func (m *resumeTUI) applySearchResults(kind tuiMode, sessions []sessionindex.Session) {
 	if kind == modeProjects {
 		m.globalResults = nil
-		m.globalSnippets = nil
-		for _, h := range hits {
-			m.globalResults = append(m.globalResults, h.Session)
-			m.globalSnippets = append(m.globalSnippets, h.Snippet)
-		}
+		m.globalSnippets = map[string]string{}
+		m.globalResults = append(m.globalResults, sessions...)
 		if m.globalCursor > len(m.globalResults)-1 {
 			m.globalCursor = len(m.globalResults) - 1
 		}
@@ -1526,15 +1565,13 @@ func (m *resumeTUI) applySearchResults(kind tuiMode, hits []sessionindex.SearchH
 	}
 
 	var out []sessionindex.Session
-	var snips []string
-	for _, h := range hits {
-		if m.agentFilter == "" || h.Agent == m.agentFilter {
-			out = append(out, h.Session)
-			snips = append(snips, h.Snippet)
+	for _, s := range sessions {
+		if m.agentFilter == "" || s.Agent == m.agentFilter {
+			out = append(out, s)
 		}
 	}
 	m.filtered = out
-	m.filteredSnippets = snips
+	m.filteredSnippets = map[string]string{}
 	if m.cursor > len(m.filtered)-1 {
 		m.cursor = len(m.filtered) - 1
 	}
@@ -1543,4 +1580,41 @@ func (m *resumeTUI) applySearchResults(kind tuiMode, hits []sessionindex.SearchH
 	}
 	m.top = 0
 	m.clampScroll()
+}
+
+func (m *resumeTUI) requestVisibleSnippets(kind tuiMode) tea.Cmd {
+	var query string
+	var rows []sessionindex.Session
+	if kind == modeProjects {
+		if !queryReady(m.globalQuery) || len(m.globalResults) == 0 {
+			return nil
+		}
+		h := m.globalHeight()
+		end := min(m.globalTop+h, len(m.globalResults))
+		if m.globalTop >= end {
+			return nil
+		}
+		query = m.globalQuery
+		rows = append([]sessionindex.Session(nil), m.globalResults[m.globalTop:end]...)
+	} else {
+		if !queryReady(m.searchQuery) || len(m.filtered) == 0 {
+			return nil
+		}
+		h := m.listHeight()
+		end := min(m.top+h, len(m.filtered))
+		if m.top >= end {
+			return nil
+		}
+		query = m.searchQuery
+		rows = append([]sessionindex.Session(nil), m.filtered[m.top:end]...)
+	}
+
+	store := m.store
+	fq := ftsQuery(query)
+	m.snippetSeq++
+	seq := m.snippetSeq
+	return func() tea.Msg {
+		snips, _ := store.SnippetsContext(context.Background(), fq, rows)
+		return resumeSnippetResultMsg{seq: seq, kind: kind, snippets: snips}
+	}
 }

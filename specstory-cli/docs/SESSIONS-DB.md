@@ -266,8 +266,8 @@ interactive picker's *rewiring* to read `sessions.db`, and all warm-keeping, are
    (`database/sql` + `modernc.org/sqlite`, WAL DSN + perf pragmas). Two tables (full column
    specs in [Schema](#schema)). FTS body = the reconstruction-flatten of `SessionData` (plain
    user/agent turns, synthetic noise already stripped — provider-neutral, reuses existing
-   code). API: `Open`, `Upsert`, and `Search` / `ListByProject` stubs the picker will consume
-   next.
+   code). API: `Open`, `Upsert`, `Search`, lazy `Snippets`, `ListByProject`, and project
+   rollups.
 
 5. **`specstory reindex` command** — a new top-level command (its own `pkg/cmd/reindex.go`,
    registered in `main.go` alongside `resume`). Enumerated refs are first **deduped by

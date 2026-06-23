@@ -36,9 +36,11 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
   Project-name filtering is a *separate* key, **`p`** (browser only) — never a single box that
   mode-switches between the two.
 - **Search results show the match, not the title.** Each result row renders the FTS
-  `snippet()` (matched terms highlighted) in place of the session title, so you see *why* it
-  matched. The query runs **async + debounced** (`searchDebounceMsg`/`searchResultMsg`, ~50ms)
-  off the UI thread and `LIMIT`-bounded, so typing stays instant even on broad queries.
+  `snippet()` (matched terms highlighted) in place of the session title once the visible-row
+  snippet fetch lands, so you see *why* it matched without making the main search pay for every
+  match. The query runs **async + debounced** (`searchDebounceMsg`/`searchResultMsg`, ~50ms)
+  off the UI thread, `LIMIT`-bounded, newest-first, and snippet-free; snippets are fetched
+  lazily for the visible window.
 
 ## Data foundation (built)
 

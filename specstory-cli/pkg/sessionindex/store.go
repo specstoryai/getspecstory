@@ -361,27 +361,18 @@ func (s *Store) SessionBody(agent, sessionID string) (string, error) {
 	return body, err
 }
 
-// SearchHit is a matching session plus a snippet of the matched body text. Matched terms
-// in Snippet are wrapped in the control characters \x02 (start) and \x03 (end) — STX/ETX,
-// which never occur in conversation text — so the caller can split on them to highlight.
-type SearchHit struct {
-	Session
-	Snippet string
+// Search runs a full-text query and returns matching sessions, most recent first.
+// projectID scopes the search to one project; "" searches across all projects.
+func (s *Store) Search(query, projectID string) ([]Session, error) {
+	return s.SearchContext(context.Background(), query, projectID)
 }
 
-// SearchWithSnippets runs a full-text query and returns matching sessions, most recent
-// first, each with a body snippet around the match. projectID scopes the search to one
-// project; "" searches across all projects. Powers the picker's full-text search UX.
-func (s *Store) SearchWithSnippets(query, projectID string) ([]SearchHit, error) {
-	return s.SearchWithSnippetsContext(context.Background(), query, projectID)
-}
-
-// SearchWithSnippetsContext is SearchWithSnippets bound to a context. The interactive
-// search cancels the context when a newer keystroke arrives, which aborts a slow
-// in-flight query (a broad prefix can rank the whole corpus) and frees its connection.
-func (s *Store) SearchWithSnippetsContext(ctx context.Context, query, projectID string) ([]SearchHit, error) {
-	q := `SELECT ` + prefixed("s", sessionColumns) + `,
-		snippet(sessions_fts, 3, char(2), char(3), '…', 12)
+// SearchContext is Search bound to a context. The interactive search cancels the context
+// when a newer keystroke arrives, which aborts a slow in-flight query and frees its
+// connection. Snippets are deliberately fetched separately for only the visible rows:
+// FTS5 snippet generation over hundreds of full transcripts dominates broad searches.
+func (s *Store) SearchContext(ctx context.Context, query, projectID string) ([]Session, error) {
+	q := `SELECT ` + prefixed("s", sessionColumns) + `
 		FROM sessions_fts
 		JOIN sessions s ON s.agent = sessions_fts.agent AND s.session_id = sessions_fts.session_id
 		WHERE sessions_fts MATCH ?`
@@ -403,17 +394,56 @@ func (s *Store) SearchWithSnippetsContext(ctx context.Context, query, projectID 
 	}
 	defer func() { _ = rows.Close() }()
 
-	var out []SearchHit
+	return scanSessions(rows)
+}
+
+// Snippets returns highlighted match snippets for the provided sessions. The result is
+// keyed by FingerprintKey(agent, session_id). Matched terms are wrapped in \x02 and \x03
+// (STX/ETX) so callers can highlight without colliding with conversation text.
+func (s *Store) Snippets(query string, sessions []Session) (map[string]string, error) {
+	return s.SnippetsContext(context.Background(), query, sessions)
+}
+
+// SnippetsContext is Snippets bound to a context. Callers should pass only the currently
+// visible rows; snippet() is intentionally lazy because it is the expensive part of FTS
+// search on long transcripts.
+func (s *Store) SnippetsContext(ctx context.Context, query string, sessions []Session) (map[string]string, error) {
+	out := map[string]string{}
+	if query == "" || len(sessions) == 0 {
+		return out, nil
+	}
+
+	clauses := make([]string, 0, len(sessions))
+	args := []any{query}
+	seen := map[string]bool{}
+	for _, sess := range sessions {
+		key := FingerprintKey(sess.Agent, sess.SessionID)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		clauses = append(clauses, `(agent = ? AND session_id = ?)`)
+		args = append(args, sess.Agent, sess.SessionID)
+	}
+	if len(clauses) == 0 {
+		return out, nil
+	}
+
+	q := `SELECT agent, session_id, snippet(sessions_fts, 3, char(2), char(3), '…', 12)
+		FROM sessions_fts
+		WHERE sessions_fts MATCH ? AND (` + strings.Join(clauses, ` OR `) + `)`
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
 	for rows.Next() {
-		var h SearchHit
-		if err := rows.Scan(
-			&h.ProjectID, &h.ProjectName, &h.Agent, &h.SessionID, &h.CreatedAt, &h.UpdatedAt,
-			&h.UserTurns, &h.TotalTurns, &h.Slug, &h.Name, &h.NativePath, &h.OriginCwd,
-			&h.Size, &h.Mtime, &h.IndexVersion, &h.IndexedAt, &h.Snippet,
-		); err != nil {
+		var agent, sessionID, snippet string
+		if err := rows.Scan(&agent, &sessionID, &snippet); err != nil {
 			return nil, err
 		}
-		out = append(out, h)
+		out[FingerprintKey(agent, sessionID)] = snippet
 	}
 	return out, rows.Err()
 }

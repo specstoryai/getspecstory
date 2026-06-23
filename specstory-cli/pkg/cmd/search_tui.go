@@ -30,8 +30,12 @@ const (
 // pattern as the resume picker, kept independent to avoid coupling.
 type searchFTSDebounceMsg struct{ seq int }
 type searchFTSResultMsg struct {
-	seq  int
-	hits []sessionindex.SearchHit
+	seq      int
+	sessions []sessionindex.Session
+}
+type searchSnippetResultMsg struct {
+	seq      int
+	snippets map[string]string
 }
 
 // searchTUI is the `specstory search` model: an always-on query input over the session
@@ -57,10 +61,12 @@ type searchTUI struct {
 	// freeing the database connection (a broad prefix query can rank the whole corpus).
 	searchCancel context.CancelFunc
 
-	results  []sessionindex.Session
-	snippets []string
-	cursor   int
-	top      int
+	results     []sessionindex.Session
+	snippets    map[string]string
+	resultQuery string
+	snippetSeq  int
+	cursor      int
+	top         int
 
 	agentFilter string
 	agentCycle  []string
@@ -145,8 +151,19 @@ func (m searchTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case searchFTSResultMsg:
 		if msg.seq == m.seq {
-			m.applyResults(msg.hits)
+			m.applyResults(msg.sessions)
 			m.loading = false // newest query answered; stale results leave loading set
+			return m, m.requestVisibleSnippets()
+		}
+		return m, nil
+	case searchSnippetResultMsg:
+		if msg.seq == m.snippetSeq {
+			if m.snippets == nil {
+				m.snippets = map[string]string{}
+			}
+			for key, snip := range msg.snippets {
+				m.snippets[key] = snip
+			}
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -175,22 +192,23 @@ func (m searchTUI) updateResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.query = ""
 			m.input.SetValue("")
 			m.seq++
-			m.results, m.snippets, m.cursor, m.top = nil, nil, 0, 0
+			m.snippetSeq++
+			m.results, m.snippets, m.resultQuery, m.cursor, m.top = nil, nil, "", 0, 0
 			m.loading = false
 		}
 		return m, nil
 	case "up", "ctrl+p":
 		m.moveCursor(-1)
-		return m, nil
+		return m, m.requestVisibleSnippets()
 	case "down", "ctrl+n":
 		m.moveCursor(1)
-		return m, nil
+		return m, m.requestVisibleSnippets()
 	case "pgup":
 		m.moveCursor(-m.resultsHeight())
-		return m, nil
+		return m, m.requestVisibleSnippets()
 	case "pgdown":
 		m.moveCursor(m.resultsHeight())
-		return m, nil
+		return m, m.requestVisibleSnippets()
 	case "enter", "right":
 		if sel := m.selected(); sel != nil {
 			return m.openReader(sel)
@@ -205,11 +223,9 @@ func (m searchTUI) updateResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "tab":
-		m.toggleScope()
-		return m, nil
+		return m, m.toggleScope()
 	case "ctrl+a":
-		m.cycleAgent()
-		return m, nil
+		return m, m.cycleAgent()
 	}
 
 	// Anything else edits the query → instant input, debounced async search.
@@ -219,7 +235,8 @@ func (m searchTUI) updateResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.seq++
 	if !queryReady(m.query) {
 		// Empty or too short to search: clear results, don't fire a query.
-		m.results, m.snippets, m.cursor, m.top = nil, nil, 0, 0
+		m.snippetSeq++
+		m.results, m.snippets, m.resultQuery, m.cursor, m.top = nil, nil, "", 0, 0
 		m.loading = false
 		return m, cmd
 	}
@@ -308,9 +325,9 @@ func (m searchTUI) selected() *sessionindex.Session {
 	return &m.results[m.cursor]
 }
 
-func (m *searchTUI) toggleScope() {
+func (m *searchTUI) toggleScope() tea.Cmd {
 	if !m.homeHasSessions {
-		return // nothing to scope to
+		return nil // nothing to scope to
 	}
 	if m.scopeProjectID == "" {
 		m.scopeProjectID = m.homeProjectID
@@ -318,10 +335,10 @@ func (m *searchTUI) toggleScope() {
 		m.scopeProjectID = ""
 	}
 	m.seq++
-	m.rerunSearch()
+	return m.rerunSearch()
 }
 
-func (m *searchTUI) cycleAgent() {
+func (m *searchTUI) cycleAgent() tea.Cmd {
 	cur := 0
 	for i, id := range m.agentCycle {
 		if id == m.agentFilter {
@@ -330,22 +347,24 @@ func (m *searchTUI) cycleAgent() {
 		}
 	}
 	m.agentFilter = m.agentCycle[(cur+1)%len(m.agentCycle)]
-	m.rerunSearch()
+	return m.rerunSearch()
 }
 
 // rerunSearch re-queries synchronously for the current scope (used by scope/agent toggles,
 // which are one-off actions where a brief query is fine). applyResults applies the agent
 // filter, so changing it re-filters via a fresh query.
-func (m *searchTUI) rerunSearch() {
+func (m *searchTUI) rerunSearch() tea.Cmd {
 	m.cursor, m.top = 0, 0
 	m.loading = false // synchronous re-query: results are ready by the next render
 	if !queryReady(m.query) {
-		m.results, m.snippets = nil, nil
-		return
+		m.snippetSeq++
+		m.results, m.snippets, m.resultQuery = nil, nil, ""
+		return nil
 	}
-	if hits, err := m.store.SearchWithSnippets(ftsQuery(m.query), m.scopeProjectID); err == nil {
-		m.applyResults(hits)
+	if sessions, err := m.store.Search(ftsQuery(m.query), m.scopeProjectID); err == nil {
+		m.applyResults(sessions)
 	}
+	return m.requestVisibleSnippets()
 }
 
 func (m searchTUI) defaultTargetIndex() int {
@@ -403,18 +422,18 @@ func (m searchTUI) runSearch(seq int, ctx context.Context) tea.Cmd {
 		if !queryReady(query) {
 			return searchFTSResultMsg{seq: seq}
 		}
-		hits, _ := store.SearchWithSnippetsContext(ctx, fq, scope)
-		return searchFTSResultMsg{seq: seq, hits: hits}
+		sessions, _ := store.SearchContext(ctx, fq, scope)
+		return searchFTSResultMsg{seq: seq, sessions: sessions}
 	}
 }
 
-func (m *searchTUI) applyResults(hits []sessionindex.SearchHit) {
+func (m *searchTUI) applyResults(sessions []sessionindex.Session) {
 	m.results = nil
-	m.snippets = nil
-	for _, h := range hits {
-		if m.agentFilter == "" || h.Agent == m.agentFilter {
-			m.results = append(m.results, h.Session)
-			m.snippets = append(m.snippets, h.Snippet)
+	m.snippets = map[string]string{}
+	m.resultQuery = m.query
+	for _, s := range sessions {
+		if m.agentFilter == "" || s.Agent == m.agentFilter {
+			m.results = append(m.results, s)
 		}
 	}
 	if m.cursor > len(m.results)-1 {
@@ -424,6 +443,26 @@ func (m *searchTUI) applyResults(hits []sessionindex.SearchHit) {
 		m.cursor = 0
 	}
 	m.top = 0
+}
+
+func (m *searchTUI) requestVisibleSnippets() tea.Cmd {
+	if !queryReady(m.resultQuery) || len(m.results) == 0 {
+		return nil
+	}
+	h := m.resultsHeight()
+	end := min(m.top+h, len(m.results))
+	if m.top >= end {
+		return nil
+	}
+	visible := append([]sessionindex.Session(nil), m.results[m.top:end]...)
+	query := ftsQuery(m.resultQuery)
+	store := m.store
+	m.snippetSeq++
+	seq := m.snippetSeq
+	return func() tea.Msg {
+		snips, _ := store.SnippetsContext(context.Background(), query, visible)
+		return searchSnippetResultMsg{seq: seq, snippets: snips}
+	}
 }
 
 func searchFTSDebounce(seq int) tea.Cmd {
@@ -557,8 +596,8 @@ func (m searchTUI) resultRow(s sessionindex.Session, i int, selected bool) strin
 	when := fmt.Sprintf("%-10s", relativeTime(s.UpdatedAt))
 
 	label := renderName(sessionTitle(s), selected, m.lineW()-48)
-	if i < len(m.snippets) && m.snippets[i] != "" {
-		label = renderSnippet(m.snippets[i], m.lineW()-48)
+	if snip := m.snippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]; snip != "" {
+		label = renderSnippet(snip, m.lineW()-48)
 	}
 
 	// Show the project column only when searching across all projects.

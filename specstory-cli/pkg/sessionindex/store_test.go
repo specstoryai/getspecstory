@@ -77,7 +77,7 @@ func TestSearchFTS(t *testing.T) {
 	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "Billing migration", "moved billing to stripe webhooks"))
 
 	// Body match
-	hits, err := s.SearchWithSnippets("oauth", "")
+	hits, err := s.Search("oauth", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestSearchFTS(t *testing.T) {
 	}
 
 	// Name match
-	hits, err = s.SearchWithSnippets("billing", "")
+	hits, err = s.Search("billing", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,10 +105,10 @@ func TestUpsertIsIdempotent(t *testing.T) {
 		t.Fatalf("Count = %d after re-upsert; want 1 (replaced, not duplicated)", n)
 	}
 	// Old FTS content must be gone; new content searchable.
-	if hits, _ := s.SearchWithSnippets("first", ""); len(hits) != 0 {
+	if hits, _ := s.Search("first", ""); len(hits) != 0 {
 		t.Errorf("stale FTS row survived re-upsert: %+v", hits)
 	}
-	if hits, _ := s.SearchWithSnippets("second", ""); len(hits) != 1 {
+	if hits, _ := s.Search("second", ""); len(hits) != 1 {
 		t.Errorf("new FTS content not searchable after re-upsert")
 	}
 }
@@ -203,29 +203,34 @@ func TestSessionBody(t *testing.T) {
 	}
 }
 
-func TestSearchWithSnippets(t *testing.T) {
+func TestSearchAndSnippets(t *testing.T) {
 	s := openTemp(t)
 	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth", "we rewrote the login flow with oauth tokens today"))
 	mustUpsert(t, s, newSession("codex", "x1", "proj-b", "Bill", "billing moved to stripe"))
 
-	// Scoped to proj-a finds c1 with a snippet marking the match.
-	hits, err := s.SearchWithSnippets("oauth*", "proj-a")
+	// Scoped to proj-a finds c1; snippets are fetched lazily for the visible rows.
+	hits, err := s.Search("oauth*", "proj-a")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(hits) != 1 || hits[0].SessionID != "c1" {
 		t.Fatalf("scoped search = %+v; want only c1", hits)
 	}
-	if !strings.Contains(hits[0].Snippet, "\x02oauth\x03") {
-		t.Errorf("snippet missing marked match: %q", hits[0].Snippet)
+	snips, err := s.Snippets("oauth*", hits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snip := snips[FingerprintKey("claude", "c1")]
+	if !strings.Contains(snip, "\x02oauth\x03") {
+		t.Errorf("snippet missing marked match: %q", snip)
 	}
 
 	// Scoping excludes other projects.
-	if hits, _ := s.SearchWithSnippets("oauth*", "proj-b"); len(hits) != 0 {
+	if hits, _ := s.Search("oauth*", "proj-b"); len(hits) != 0 {
 		t.Errorf("proj-b should not match oauth: %+v", hits)
 	}
 	// Empty projectID searches everything.
-	if hits, _ := s.SearchWithSnippets("stripe*", ""); len(hits) != 1 || hits[0].SessionID != "x1" {
+	if hits, _ := s.Search("stripe*", ""); len(hits) != 1 || hits[0].SessionID != "x1" {
 		t.Errorf("global search for stripe = %+v; want x1", hits)
 	}
 }
