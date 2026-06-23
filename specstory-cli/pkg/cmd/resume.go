@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -270,11 +272,15 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve target session path: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", fmt.Errorf("failed to create target session directory: %w", err)
+	if err := writeReconstructedSession(path, rec.Content); err != nil {
+		return "", err
 	}
-	if err := os.WriteFile(path, rec.Content, 0o644); err != nil {
-		return "", fmt.Errorf("failed to write reconstructed session: %w", err)
+	// The agent runs in a separate process and resolves the session by reading this file the
+	// instant it starts. On a filesystem without strong close-to-open coherence the freshly
+	// written file can lag, so confirm it is actually readable before handing the agent a
+	// --resume it would otherwise reject as "session not found".
+	if err := waitForSessionFileVisible(path, sessionFileVisibleTimeout); err != nil {
+		return "", fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
 	}
 
 	slog.Info("resume: wrote reconstructed session", "path", path, "newID", rec.SessionID)
@@ -288,4 +294,104 @@ func shortID(id string) string {
 		return id
 	}
 	return id[:5] + "..." + id[len(id)-5:]
+}
+
+// sessionFileVisibleTimeout bounds how long resume waits for a just-written reconstructed
+// session file to become readable to other processes before launching the agent. It is
+// generous enough to absorb the propagation lag of a weak-coherence filesystem (network or
+// roaming home, cloud-synced folder, VM/container shared mount) yet short enough not to hang
+// an interactive command — on a local disk the very first check passes, so it never waits.
+const sessionFileVisibleTimeout = 10 * time.Second
+
+// writeReconstructedSession durably and atomically writes a reconstructed session file. A
+// plain os.WriteFile leaves the data in the page cache and the new directory entry possibly
+// non-durable; on a filesystem without strong close-to-open coherence the separately-spawned
+// agent process can then fail to see a (large) file and report the session as missing. To
+// avoid that, the content is written to a temp file in the SAME directory (so the rename is
+// atomic rather than cross-device), fsync'd, renamed into place, and the parent directory is
+// fsync'd so the entry itself is durable.
+func writeReconstructedSession(path string, content []byte) (err error) {
+	dir := filepath.Dir(path)
+	if mkErr := os.MkdirAll(dir, 0o755); mkErr != nil {
+		return fmt.Errorf("failed to create target session directory: %w", mkErr)
+	}
+
+	tmp, err := os.CreateTemp(dir, ".resume-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create temp session file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	// Best-effort cleanup of the temp file on any early return; a no-op once it is renamed away.
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	// Preserve the world-readable mode the previous os.WriteFile(…, 0o644) produced
+	// (CreateTemp makes the file 0o600).
+	if chErr := tmp.Chmod(0o644); chErr != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to set session file mode: %w", chErr)
+	}
+	if _, wErr := tmp.Write(content); wErr != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to write temp session file: %w", wErr)
+	}
+	// Flush the bytes to the backing store before the rename so a reader cannot observe a
+	// renamed-but-empty file.
+	if syncErr := tmp.Sync(); syncErr != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("failed to flush temp session file: %w", syncErr)
+	}
+	if closeErr := tmp.Close(); closeErr != nil {
+		return fmt.Errorf("failed to close temp session file: %w", closeErr)
+	}
+
+	if rnErr := os.Rename(tmpPath, path); rnErr != nil {
+		return fmt.Errorf("failed to move session file into place: %w", rnErr)
+	}
+
+	// Fsync the directory so the new entry is durable and propagates. Best-effort: not all
+	// platforms permit fsync on a directory handle, and it is a negligible cost on local disks.
+	if d, openErr := os.Open(dir); openErr == nil {
+		_ = d.Sync()
+		_ = d.Close()
+	}
+	return nil
+}
+
+// waitForSessionFileVisible polls until path is readable — present AND with at least its
+// first line available, since on a weak-coherence filesystem a stat can succeed before the
+// content propagates — or the timeout elapses, in which case it returns a diagnostic error
+// so the caller can fail clearly rather than launch a --resume the agent would reject.
+func waitForSessionFileVisible(path string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		readable, checkErr := sessionFileReadable(path)
+		if readable {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("session file %q did not become readable within %s "+
+				"(the target filesystem may lack close-to-open coherence): %w", path, timeout, checkErr)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+// sessionFileReadable reports whether path exists and at least its first line can be read.
+// A reconstructed session always has at least one record, so an empty read means the content
+// has not propagated yet even though the directory entry exists.
+func sessionFileReadable(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = f.Close() }()
+
+	line, err := bufio.NewReader(f).ReadString('\n')
+	if len(line) > 0 {
+		return true, nil
+	}
+	if err == io.EOF || err == nil {
+		return false, fmt.Errorf("session file is empty")
+	}
+	return false, err
 }
