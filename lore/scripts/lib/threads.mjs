@@ -11,7 +11,15 @@
 // thread - reinforced by a shared distinctive intent keyword (identifier-shaped tokens like
 // WIDGET_ALPHA / CodeMirror, and recurring nouns). A line of work spread across many sessions
 // merges into ONE thread. Generic, ubiquitous tokens are deliberately NOT used as links so
-// unrelated work never collapses together.
+// unrelated work never collapses together. Two anti-merge guards keep distinct lines of work
+// apart on a real multi-project corpus:
+//   1. UBIQUITOUS files (present in a large share of sessions, e.g. .claude/settings.json,
+//      CLAUDE.md, package.json, .env.local) are too common to mean two beats are related: they
+//      stay as evidence but are NOT used as links.
+//   2. File links are SCOPED BY PROJECT - the same relative path (.claude/settings.json) in two
+//      different repos is two different link tokens, so unrelated projects never bridge.
+// Synthetic / slash-command-output turns (<local-command-stdout>, <command-name>, ...) carry no
+// real line of work, so they never seed or name a thread.
 //
 // LIFECYCLE (exactly one per thread, evaluated in this precedence order, all relative to today):
 //   1. closed - most recent labeled outcome is `success`, quiet for >= 3 days, last activity <= 30d
@@ -53,6 +61,23 @@ function stemOf(path) {
 const GENERIC_STEM = new Set(['index', 'main', 'app', 'mod', 'init', 'types', 'type', 'utils', 'util',
   'config', 'test', 'tests', 'readme', 'package', 'lib', 'src'])
 
+// A touched file is too COMMON to be a clustering link once it shows up in more than this share of
+// sessions (a real corpus has .claude/settings.json, CLAUDE.md, package.json everywhere). The
+// absolute floor keeps tiny corpora - where two of five sessions is still 40% - from being pruned.
+const UBIQUITY_FRACTION = 0.25
+const UBIQUITY_MIN_SESSIONS = 5
+
+// Synthetic / slash-command-output turns: their intent is harness chrome, not a line of work, so
+// they must never seed or name a thread.
+const SYNTHETIC_RE = /<local-command-stdout|<\/local-command-stdout|<command-name|<command-message|<command-args/i
+function isSynthetic(intent) { return SYNTHETIC_RE.test(String(intent || '')) }
+
+// A name candidate must be a real, recognizable identifier/noun: at least 3 chars and never a bare
+// stopword or imperative verb ("for", "set"). Aim for "checkout-flow", never "set".
+function nameOk(tok) {
+  return typeof tok === 'string' && tok.length >= 3 && !STOP.has(tok) && !VERBS.has(tok)
+}
+
 // Identifier-shaped words in an intent: ALL_CAPS / snake-with-caps (WIDGET_ALPHA) or CamelCase
 // (CodeMirrorBundle). These are the distinctive names a line of work is known by.
 function identifierTokens(intent) {
@@ -83,6 +108,10 @@ function distinctiveGram(gram) {
   })
 }
 
+function projectKey(b) {
+  return String(b.project_id || b.project_name || b.session_id || '')
+}
+
 // --- union-find over seed beats ---
 class DSU {
   constructor() { this.p = new Map() }
@@ -102,7 +131,7 @@ export function buildThreads(db, opts = {}) {
 
   const beatRows = db.prepare(`
     SELECT e.id, e.session_id, e.ord, e.start_line, e.intent_raw, e.files, e.outcome,
-           s.date, s.path, s.project_name
+           s.date, s.path, s.project_name, s.project_id
     FROM beats e JOIN sessions s ON s.id = e.session_id
     ORDER BY s.date, e.session_id, e.ord`).all()
   if (!beatRows.length) return { threads: [], scope: { beats: 0 } }
@@ -122,7 +151,9 @@ export function buildThreads(db, opts = {}) {
 
   // Per-beat signal extraction. A beat becomes a thread SEED when it carries a touched file, an
   // executed command, or a distinctive identifier in its intent - reaction-only turns ("perfect,
-  // that works") carry none and are skipped so they never spawn empty threads.
+  // that works") carry none and are skipped so they never spawn empty threads. Synthetic turns
+  // (slash-command output and other harness chrome) are never seeds: their intent is not a line
+  // of work and would otherwise seed a junk thread named after a stray verb.
   const beats = []
   for (const r of beatRows) {
     const cmds = cmdsByBeat.get(r.id) || []
@@ -132,23 +163,52 @@ export function buildThreads(db, opts = {}) {
     for (const c of cmds) for (const p of pathsIn(c)) files.add(p)
     const idents = new Set(identifierTokens(r.intent_raw))
     const content = new Set(contentTokens(r.intent_raw))
+    const synthetic = isSynthetic(r.intent_raw)
     const hasFile = files.size > 0
     const hasCmd = cmds.length > 0
-    const seed = hasFile || hasCmd || idents.size > 0
+    const seed = !synthetic && (hasFile || hasCmd || idents.size > 0)
     beats.push({ ...r, cmds, grams, files, idents, content, seed })
   }
 
   const seeds = beats.filter(b => b.seed)
 
+  // Ubiquity: how many distinct sessions touch each bare file path. A path present in too large a
+  // share of sessions (with an absolute floor for tiny corpora) is too common to link work - it is
+  // kept as evidence but excluded from clustering links below.
+  const sessionsByFile = new Map()
+  const allSessions = new Set()
+  for (const b of beats) {
+    allSessions.add(b.session_id)
+    for (const f of b.files) {
+      const key = f.toLowerCase()
+      if (!sessionsByFile.has(key)) sessionsByFile.set(key, new Set())
+      sessionsByFile.get(key).add(b.session_id)
+    }
+  }
+  const totalSessions = allSessions.size
+  const ubiquitous = new Set()
+  for (const [key, sess] of sessionsByFile) {
+    if (sess.size >= UBIQUITY_MIN_SESSIONS && sess.size > UBIQUITY_FRACTION * totalSessions) ubiquitous.add(key)
+  }
+
   // Link tokens per seed: shared touched-files are the primary signal (full path, plus the
   // non-generic file stem so an intent that NAMES the file links to the beat that edits it),
-  // reinforced by distinctive identifier keywords. Generic, ubiquitous words are deliberately
-  // excluded as links so unrelated lines of work never collapse into one thread.
+  // reinforced by distinctive identifier keywords. Project-local work signals are SCOPED BY
+  // PROJECT so the same relative path or basename in two repos never bridges them. Ubiquitous
+  // paths (present in most sessions) are kept as evidence but are NOT links. Generic, ubiquitous
+  // words are likewise excluded so unrelated lines of work never collapse into one thread.
   const linkTokens = (b) => {
     const t = new Set()
-    for (const f of b.files) { t.add('f:' + f.toLowerCase()); const st = stemOf(f); if (st.length >= 4 && !GENERIC_STEM.has(st)) t.add('k:' + st) }
-    for (const id of b.idents) t.add('k:' + id)
-    for (const gram of b.grams) t.add('g:' + gram.toLowerCase())
+    const proj = projectKey(b)
+    for (const f of b.files) {
+      const low = f.toLowerCase()
+      if (ubiquitous.has(low)) continue
+      t.add('f:' + proj + ':' + low)
+      const st = stemOf(f)
+      if (st.length >= 4 && !GENERIC_STEM.has(st)) t.add('k:' + proj + ':' + st)
+    }
+    for (const id of b.idents) t.add('k:' + proj + ':' + id)
+    for (const gram of b.grams) t.add('g:' + proj + ':' + gram.toLowerCase())
     return t
   }
 
@@ -233,15 +293,17 @@ function rationaleFor(status, { firstActivity, lastActivity, lastLabeledDate }) 
 }
 
 // Human-readable kebab label: prefer a distinctive identifier, then a file stem, then a content
-// word; deterministic (frequency then alphabetical). Not gated, purely for the digest.
+// noun; deterministic (frequency then alphabetical). Candidates must be REAL identifiers/nouns -
+// never a bare stopword or imperative verb, and at least 3 chars - so a thread is named
+// "checkout-flow" or "auth-token", never "for" or "set". Not gated, purely for the digest.
 function threadName(members, files) {
   const count = new Map()
-  const bump = (k) => count.set(k, (count.get(k) || 0) + 1)
+  const bump = (k) => { if (nameOk(k)) count.set(k, (count.get(k) || 0) + 1) }
   for (const m of members) for (const id of m.idents) bump(id)
-  if (!count.size) for (const f of files) { const st = stemOf(f); if (st.length >= 3 && !GENERIC_STEM.has(st)) bump(st) }
+  if (!count.size) for (const f of files) { const st = stemOf(f); if (!GENERIC_STEM.has(st)) bump(st) }
   if (!count.size) for (const m of members) for (const w of m.content) bump(w)
   const best = [...count.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0]
-  const raw = best ? best[0] : (files.size ? stemOf([...files].sort()[0]) : 'work-thread')
+  const raw = best ? best[0] : 'work-thread'
   return raw.replace(/[_\s]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '') || 'work-thread'
 }
 

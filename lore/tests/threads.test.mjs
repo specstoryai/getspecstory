@@ -75,6 +75,113 @@ test('threads: shared distinctive command grams reinforce clustering across sess
   } finally { cleanup(dbPath) }
 })
 
+// ---------- anti-merge: ubiquitous files, cross-project paths, synthetic turns ----------
+
+function emptyDb(slug) {
+  const dbPath = join(tmpdir(), `lore-threads-${slug}-${process.pid}.db`)
+  for (const suf of ['', '-wal', '-shm']) rmSync(dbPath + suf, { force: true })
+  return dbPath
+}
+function addSession(db, id, project, date) {
+  db.prepare('INSERT INTO sessions(id,project_id,project_name,path,date,agent,size,beats) VALUES(?,?,?,?,?,?,?,?)')
+    .run(id, project, project, 'history/' + id, date, 'claude-code', 1, 1)
+}
+function addBeat(db, sessionId, ord, intent, files, outcome = 'neutral') {
+  db.prepare('INSERT INTO beats(session_id,ord,start_line,intent_raw,intent_sig,n_tools,tool_mix,files,n_cmds,exit_fails,outcome) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(sessionId, ord, 10 + ord, intent, null, 1, 'edit:1', files.join(','), 0, 0, outcome)
+}
+
+test('threads: a ubiquitous file (package.json) does NOT merge two unrelated threads', () => {
+  const dbPath = emptyDb('ubiq')
+  try {
+    const db = openDb(dbPath)
+    // Six sessions in one project, ALL touching package.json. A naive engine links every one of
+    // them through that shared file into a single mega-bucket; the refined engine treats a file in
+    // most sessions as too common to link, so the three feature lines stay distinct.
+    const date = '2026-03-28'
+    const feats = [['CartView', 'src/Cart.ts'], ['SearchIndex', 'src/Search.ts'], ['ProfilePanel', 'src/Profile.ts']]
+    let n = 0
+    for (const [ident, file] of feats) {
+      for (const pass of ['implement', 'finish']) {
+        n++
+        const sid = `shop/s${n}.md`
+        addSession(db, sid, 'shop', date)
+        addBeat(db, sid, 0, `${pass} the ${ident} view`, [file, 'package.json'])
+      }
+    }
+    const { threads } = buildThreads(db, { nowMs: NOW })
+    const cart = touching(threads, 'src/Cart.ts')
+    const search = touching(threads, 'src/Search.ts')
+    assert.equal(cart.length, 1, 'cart work is exactly one thread')
+    assert.equal(cart[0].sessions, 2, 'its two sessions merged via the real shared file, not package.json')
+    assert.equal(search.length, 1, 'search work is exactly one thread')
+    assert.notEqual(cart[0].id, search[0].id, 'package.json must not bridge cart and search')
+    assert.ok(!JSON.stringify(cart[0]).includes('Search.ts'), 'cart thread did not absorb the search work')
+    assert.ok(cart[0].files.includes('package.json'), 'the ubiquitous file is still shown as evidence')
+    // No mega-bucket: each of the three feature lines is its own thread.
+    assert.ok(threads.length >= 3, `expected at least three distinct threads, got ${threads.length}`)
+  } finally { cleanup(dbPath) }
+})
+
+test('threads: the SAME relative path in two projects stays SEPARATE', () => {
+  const dbPath = emptyDb('xproj')
+  try {
+    const db = openDb(dbPath)
+    // src/config.ts exists in both repos. A naive engine bridges the two projects through the
+    // identical relative path; project-scoped links keep them apart.
+    addSession(db, 'alpha/s1.md', 'alpha', '2026-03-29')
+    addBeat(db, 'alpha/s1.md', 0, 'wire up the AlphaWidget dashboard', ['src/config.ts', 'src/Alpha.ts'])
+    addSession(db, 'beta/s1.md', 'beta', '2026-03-29')
+    addBeat(db, 'beta/s1.md', 0, 'wire up the BetaWidget dashboard', ['src/config.ts', 'src/Beta.ts'])
+
+    const { threads } = buildThreads(db, { nowMs: NOW })
+    const alpha = touching(threads, 'src/Alpha.ts')
+    const beta = touching(threads, 'src/Beta.ts')
+    assert.equal(alpha.length, 1)
+    assert.equal(beta.length, 1)
+    assert.notEqual(alpha[0].id, beta[0].id, 'the shared relative path must not bridge the two projects')
+    assert.ok(!JSON.stringify(alpha[0]).includes('Beta.ts'), 'alpha thread did not absorb the beta work')
+    assert.equal(touching(threads, 'src/config.ts').length, 2, 'both threads list config.ts but stay separate')
+  } finally { cleanup(dbPath) }
+})
+
+test('threads: same non-generic file stem in two projects stays SEPARATE', () => {
+  const dbPath = emptyDb('xproj-stem')
+  try {
+    const db = openDb(dbPath)
+    // This catches the stem-link variant of the cross-project merge bug: even if the full file
+    // path token is scoped, a global stem token for checkout-flow would still bridge repos.
+    addSession(db, 'store/s1.md', 'store', '2026-03-29')
+    addBeat(db, 'store/s1.md', 0, 'wire up the StoreCheckout panel', ['src/checkout-flow.ts'])
+    addSession(db, 'admin/s1.md', 'admin', '2026-03-29')
+    addBeat(db, 'admin/s1.md', 0, 'wire up the AdminCheckout panel', ['src/checkout-flow.ts'])
+
+    const { threads } = buildThreads(db, { nowMs: NOW })
+    const checkout = touching(threads, 'src/checkout-flow.ts')
+    assert.equal(checkout.length, 2, 'same relative path and stem appear as evidence in two separate threads')
+    assert.notEqual(checkout[0].id, checkout[1].id, 'the shared stem must not bridge the two projects')
+    assert.ok(checkout.every(t => t.projects.length === 1), 'each thread belongs to one project')
+  } finally { cleanup(dbPath) }
+})
+
+test('threads: a <local-command-stdout> turn forms NO thread and never names one', () => {
+  const dbPath = emptyDb('synthetic')
+  try {
+    const db = openDb(dbPath)
+    addSession(db, 'noise/s1.md', 'noise', '2026-03-30')
+    // A slash-command output turn that also ran a command - a naive engine seeds a junk thread
+    // named after the stray verb "set".
+    const res = db.prepare('INSERT INTO beats(session_id,ord,start_line,intent_raw,intent_sig,n_tools,tool_mix,files,n_cmds,exit_fails,outcome) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run('noise/s1.md', 0, 10, '<local-command-stdout>Set model to opus</local-command-stdout>', null, 1, 'shell:1', '', 1, 0, 'neutral')
+    db.prepare('INSERT INTO commands(beat_id,ord,head,raw,line) VALUES(?,?,?,?,?)').run(res.lastInsertRowid, 0, 'echo', 'echo noop', 20)
+
+    const { threads } = buildThreads(db, { nowMs: NOW })
+    assert.equal(threads.length, 0, 'the synthetic turn seeds no thread')
+    assert.ok(!threads.some(t => /local-command-stdout/i.test(JSON.stringify(t))), 'no thread carries the synthetic marker')
+    assert.ok(!threads.some(t => t.name === 'set'), 'no thread is named after the stray verb')
+  } finally { cleanup(dbPath) }
+})
+
 // ---------- lifecycle labels: closed / open / new ----------
 
 test('threads: a success-then-quiet line of work is CLOSED', () => {
