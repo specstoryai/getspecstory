@@ -26,7 +26,8 @@ import { indexCorpus, pruneCorpus } from './lib/indexer.mjs'
 import { report, status, skillsInventory, renderSkillsInventory } from './lib/report.mjs'
 import { exportBeats, exportRows, sampleBeats, rowsByKeys, getDossier, putDossier, renderDossiers, putTheme, listThemes, getTheme, renderThemes, renderForgePlan, expandTheme, growTheme, savePlan, lastPlan, listPlans } from './lib/beats.mjs'
 import { addForged, declineCandidate, listForged, checkForged } from './lib/forged.mjs'
-import { readFileSync, rmSync } from 'node:fs'
+import { computeThreads, renderDigest, threadsJson } from './lib/threads.mjs'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 function parseArgs(argv) {
@@ -72,6 +73,8 @@ function parseArgs(argv) {
     else if (t === '--min-score') a.minScore = +argv[++i]
     else if (t === '--roots') a.roots = argv[++i]
     else if (t === '--summary') a.summary = argv[++i]
+    else if (t === '--json') a.json = true
+    else if (t === '--out') a.out = argv[++i]
   }
   if (!a.cmd) a.cmd = (a.dirs.length || a.projects || a.scan) ? 'legacy' : 'report'
   return a
@@ -88,6 +91,25 @@ if (ARGS.cmd === 'index') {
   process.stdout.write(`indexed ${r.indexed} sessions (${r.skippedKnown} unchanged, ${r.skippedBig} too large) across ${r.projects.length} project(s) → ${ARGS.db}\n`)
 } else if (ARGS.cmd === 'report') {
   report(db, ARGS)
+} else if (ARGS.cmd === 'threads') {
+  // threads [--db <path>] [--days N] [--json] [--out <file>]
+  // threads may also take discovery flags (--projects/--scan/--dir) as a convenience: index first,
+  // then render from the same corpus. Indexing is intentionally unbounded here because a 7-day
+  // workthread report still needs older context for "recently closed" and "open" classification.
+  if (ARGS.dirs.length || ARGS.projects || ARGS.scan) {
+    const r = indexCorpus(db, { ...ARGS, days: 0 })
+    if (r.error) { process.stderr.write(`lore threads: ${r.error}\n`); process.exit(2) }
+  }
+  // The weekly work-thread rollup: groups indexed beats by project, clusters them into threads of
+  // work, and labels each new / open / closed (with a reverted marker). Deterministic; no LLM.
+  const threads = computeThreads(db, { days: ARGS.days })
+  if (ARGS.json || ARGS.emit === 'json') {
+    process.stdout.write(JSON.stringify(threadsJson(threads), null, 2) + '\n')
+  } else {
+    const digest = renderDigest(threads, { days: ARGS.days })
+    process.stdout.write(digest.endsWith('\n') ? digest : digest + '\n')
+    if (ARGS.out) writeFileSync(ARGS.out, digest.endsWith('\n') ? digest : digest + '\n')
+  }
 } else if (ARGS.cmd === 'prune') {
   const r = pruneCorpus(db)
   process.stdout.write(`pruned ${r.removed} sessions whose transcripts no longer exist (${r.remaining} remain)\n`)
@@ -266,6 +288,6 @@ if (ARGS.cmd === 'index') {
   process.stderr.write(`[index] ${r.indexed} new, ${r.skippedKnown} unchanged\n`)
   report(db, ARGS)
 } else {
-  process.stderr.write('usage: mine-skills.mjs index|report|beats|theme|dossier|plan|skills|forged|prune|reset [flags]\n  index   --dir <hist> | --projects <parent> | --scan <root> [--days N] [--force]\n  report  [--min-sessions N] [--top N] [--kind cmd,task,meta,corr] [--filter S] [--emit json]\n  beats --corr|--gram|--sig|--meta|--theme | --keys K | sampling: --project P --shape S --intent-re R [--max N]\n  theme   put|list|get|render [--file J] [--key ID]\n  dossier get|put|render --key K [--fingerprint F] [--file J]\n  plan    render --file <manifest.json|->  (the full curation plan, engine-assembled)\n  forged  add|decline|list|check [--name N --path P --cluster K]\n  reset   [--and-skills]\n  status  the what-has-lore-done view (corpus, mined, forged, recent activity)\n  runs    add --summary S | list\n')
+  process.stderr.write('usage: mine-skills.mjs index|report|threads|beats|theme|dossier|plan|skills|forged|prune|reset [flags]\n  index   --dir <hist> | --projects <parent> | --scan <root> [--days N] [--force]\n  report  [--min-sessions N] [--top N] [--kind cmd,task,meta,corr] [--filter S] [--emit json]\n  threads [--days N] [--json] [--out <file>]   weekly work-thread rollup (new/open/closed)\n  beats --corr|--gram|--sig|--meta|--theme | --keys K | sampling: --project P --shape S --intent-re R [--max N]\n  theme   put|list|get|render [--file J] [--key ID]\n  dossier get|put|render --key K [--fingerprint F] [--file J]\n  plan    render --file <manifest.json|->  (the full curation plan, engine-assembled)\n  forged  add|decline|list|check [--name N --path P --cluster K]\n  reset   [--and-skills]\n  status  the what-has-lore-done view (corpus, mined, forged, recent activity)\n  runs    add --summary S | list\n')
   process.exit(2)
 }
