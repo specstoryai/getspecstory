@@ -1006,6 +1006,7 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 		from:      fromProv,
 		fromID:    fromID,
 		sessionID: rm.result.session.SessionID,
+		fromCwd:   rm.result.session.OriginCwd,
 		to:        toProv,
 		toID:      rm.result.targetID,
 	}, nil
