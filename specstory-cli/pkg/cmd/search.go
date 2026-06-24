@@ -14,18 +14,18 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
-// CreateSearchCommand builds `specstory search [query…]` — the read-first sibling of
-// resume. It opens an always-on search over the session index; `↵` reads a session
-// (glamour-rendered), and `r` resumes it through the same launch path as `resume`.
-// See docs/SESSION-SEARCH.md.
+// CreateSearchCommand builds `specstory search [query…]`. It is the same interactive UI as
+// `specstory resume` (see sessionTUI), entered straight into the all-projects full-text
+// search with the input focused: type to search, `space` previews a match (glamour-rendered),
+// and `r` resumes it through the same launch path as `resume`. See docs/SESSION-SEARCH.md.
 func CreateSearchCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "search [query…]",
 		Short: "Search and read your past coding-agent sessions",
 		Long: `Full-text search across every session SpecStory has indexed, then read the match.
 
-'search' opens an interactive search of your session history. Type to search, press enter to
-read a session (rendered for the terminal), and press 'r' to resume it in an agent. Anything
+'search' opens an interactive search of your session history. Type to search, press space to
+preview a session (rendered for the terminal), and press 'r' to resume it in an agent. Anything
 after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -53,7 +53,6 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				homeID, homeName = unknownProjectID, filepath.Base(cwd)
 			}
 			homeSessions, _ := store.ListByProject(homeID)
-			homeHasSessions := len(homeSessions) > 0
 
 			agents := map[string]agentMeta{}
 			var installed []agentChoice
@@ -74,14 +73,22 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				lastAgent = cfg.GetResumeLastAgent()
 			}
 
-			model := newSearchTUI(store, registry, agents, installed, homeID, homeName, homeHasSessions, "", lastAgent, initialQuery)
+			// `search` is the same TUI as `resume`, entered straight into the all-projects
+			// FTS with the input focused. See newSessionTUI / sessionTUIOpts.
+			model := newSessionTUI(store, registry, homeID, homeName, homeSessions, agents, installed, sessionTUIOpts{
+				title:         "SpecStory Search",
+				lastAgent:     lastAgent,
+				viewMode:      viewMode,
+				initialQuery:  initialQuery,
+				startInSearch: true,
+			})
 			final, err := tea.NewProgram(model).Run()
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
-			rm := final.(searchTUI)
+			rm := final.(sessionTUI)
 			if rm.result.cancelled || rm.result.session == nil {
-				return nil // read-only session: nothing to launch
+				return nil // cancelled: nothing to launch
 			}
 
 			// The user asked to resume a found session — launch via the shared path.
@@ -99,8 +106,11 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				from:      fromProv,
 				fromID:    rm.result.session.Agent,
 				sessionID: rm.result.session.SessionID,
-				to:        toProv,
-				toID:      rm.result.targetID,
+				// A search hit can be from another project; resume must load the source from
+				// its original cwd, not the current directory.
+				fromCwd: rm.result.session.OriginCwd,
+				to:      toProv,
+				toID:    rm.result.targetID,
 			}
 			return launchResume(plan, cwd, resumeLaunchOpts{useUTC: true})
 		},

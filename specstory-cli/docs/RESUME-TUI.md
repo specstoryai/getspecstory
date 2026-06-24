@@ -6,6 +6,12 @@ via the existing reconstruct + `ExecAgentAndWatch` plumbing (see
 [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md)). This doc covers the UX and the build plan;
 it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
 
+> **Shared model.** `resume` and [`search`](SESSION-SEARCH.md) are the **same** Bubble Tea
+> model (`sessionTUI` in `pkg/cmd/session_tui.go`), differing only in entry point: `resume`
+> opens on the current project's session list; `search` opens straight into the all-projects
+> FTS with the input focused. Keys, preview, agent filter, dense/sparse, and the target-agent
+> step are identical by construction.
+
 ## Decisions (ratified)
 
 - **TUI stack:** Bubble Tea v2 + Bubbles v2 + Lipgloss v2 (the `charm.land/*/v2` modules —
@@ -21,18 +27,22 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
 - **Dense / sparse view modes.** Dense = more sessions, less per-session detail; sparse = more
   detail, fewer sessions. Toggle is easy/obvious; the choice is **remembered** in
   `~/.specstory/cli/config.toml` `[resume] view_mode` (via `config.SaveResumePrefs`).
-- **Preview pane** shows the session: first user message · truncated middle · final message,
-  sized to fit. Sourced from the stored FTS body (`Store.SessionBody`); Cursor/metadata-only
-  sessions fall back to name/slug.
+- **Preview (`space`)** opens a scrollable, **glamour-rendered** reader of the session — the
+  real specstory markdown (`session.GenerateMarkdownFromAgentSession` → `glamour`), falling
+  back to the stored FTS body (`Store.SessionBody`) for sessions that can't be re-parsed (no
+  resolvable cwd, e.g. Cursor). Identical to what `search` shows. `r` resumes from the preview.
 - **All-projects view rolls up by relative date** (Today · Yesterday · Previous 7 days ·
   Previous 30 days · Older) by each project's latest activity, showing per-agent session counts
   (`Store.ListProjects`); the user expands a project to see its sessions.
+- **`r` resumes; `enter` is deliberately inert in the lists.** Resuming launches an agent, so
+  it must be an explicit keystroke (`r`) — a stray `↵` can't accidentally start a session. The
+  one place `↵` *does* commit is the final target-agent step (an explicit confirmation screen).
 - **Target agent (last step).** `specstory resume` lets the user pick the target agent as the
   final step; `specstory resume <agent>` pre-selects it. The **last-resumed agent** is the
-  enter-default, remembered in `[resume] last_agent`.
+  default selection there, remembered in `[resume] last_agent`.
 - **`/` is always session full-text search; only its scope changes.** In a session list `/`
   is FTS scoped to that project; in the all-projects browser `/` is FTS across *all* projects
-  (a flat results list, project shown per row, `↵` jumps straight to the target-agent step).
+  (a flat results list, project shown per row, `r` resumes a hit).
   Project-name filtering is a *separate* key, **`p`** (browser only) — never a single box that
   mode-switches between the two.
 - **Search results show the match, not the title.** Each result row renders the FTS
@@ -55,19 +65,19 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
 
 ### Stage A — current-project picker **(built)**
 
-`pkg/cmd/resume_tui.go` — a Bubble Tea v2 model wired into `resume.go`:
+`pkg/cmd/session_tui.go` — a Bubble Tea v2 model wired into `resume.go`:
 
 - Mixed-agent session list for the current project (`ComputeProjectID(cwd)` →
   `ListByProject`), newest first, colored agent tags.
 - Agent filter (`a` cycles all → each present agent); dense/sparse toggle (`v`, persisted
-  via `SaveResumePrefs`); preview overlay (`space`, first/middle/last from `SessionBody`);
-  full-text search (`/` → FTS, scoped to the project).
+  via `SaveResumePrefs`); glamour preview (`space`); full-text search (`/` → FTS, scoped to
+  the project).
 - Missing/empty `sessions.db` → `reindex` (normal progress UI) then continue.
-- Select a session (`↵`) → target-agent step (pre-selected by `resume <agent>`; else the
+- Resume a session (`r`) → target-agent step (pre-selected by `resume <agent>`; else the
   last-resumed agent; else the session's own agent) → hands off to the existing
   `prepareResumeTarget` + `ExecAgentAndWatch`.
-- Keys: `↑↓`/`jk` move · `↵` resume · `space` preview · `/` search · `a` agent · `v`
-  dense/sparse · `q`/`esc` quit.
+- Keys: `↑↓`/`jk` move · `r` resume · `space` preview · `/` search · `a` agent · `v`
+  dense/sparse · `tab` all-projects · `q`/`esc` quit. (`↵` is inert in the list.)
 
 **Deferred to Stage B / follow-up:** empty current project currently shows a message rather
 than jumping to all-projects (that view *is* Stage B); the `tab` scope toggle; and persisting
@@ -85,11 +95,12 @@ is validated by running it in a real terminal (it can't be exercised headless).
   from the browser returns to the current project.
 - **Empty current project → browser:** the picker opens directly in `modeProjects`.
 - **Search:** `/` in the browser runs **session FTS across all projects** → a flat results
-  list (agent · time · project · title), `↵` jumps straight to the target-agent step, `esc`
-  back to the rollup. `p` filters the **project list by name**. (`/` in a drilled-in session
-  list stays project-scoped FTS — same key, scope follows the view.)
-- Header reflects scope: `[This project]` vs `[All projects ▸ <name>]`. The whole-index
-  empty case (nothing indexed at all) prints a hint instead of opening an empty browser.
+  list (agent · time · project · highlighted snippet); `r` resumes a hit, `space` previews it,
+  `a`/`v` filter and toggle density, `esc` back to the rollup. `p` filters the **project list
+  by name**. (`/` in a drilled-in session list stays project-scoped FTS — same key, scope
+  follows the view. This same screen, entered directly, *is* `specstory search`.)
+- Header reflects scope: `project: <name>` vs `all projects`. The whole-index empty case
+  (nothing indexed at all) prints a hint instead of opening an empty browser.
 
 ## Out of scope (here)
 

@@ -12,6 +12,50 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
+func TestFTSQuery(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"empty", "", ""},
+		{"single word is a prefix", "thank", "thank*"},
+		{"bare words are independent prefixes", "thank you", "thank* you*"},
+		{"punctuation is stripped from bare words", "max-cpu!", "maxcpu*"},
+		{"closed phrase is exact adjacency", `"thank you"`, `"thank you"`},
+		{"closed single-word phrase has no prefix", `"thank"`, `"thank"`},
+		{"open phrase keeps last word a prefix", `"thank yo`, "thank + yo*"},
+		{"open single-word phrase is a prefix", `"thank`, "thank*"},
+		{"phrase plus trailing bare word", `"thank you" now`, `"thank you" now*`},
+		{"bare word before a closed phrase", `please "thank you"`, `please* "thank you"`},
+		{"whitespace inside a phrase is collapsed", `"thank    you"`, `"thank you"`},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := ftsQuery(c.in); got != c.want {
+				t.Errorf("ftsQuery(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+func TestQueryReady(t *testing.T) {
+	cases := []struct {
+		in   string
+		want bool
+	}{
+		{"", false},
+		{"a", false},   // one alnum char is below minQueryLen
+		{`"a"`, false}, // quotes don't count toward the threshold
+		{"ab", true},   // two alnum chars
+		{"a!", false},  // punctuation doesn't count
+		{"a b", true},  // two alnum chars across words
+		{`"hi"`, true}, // alnum inside quotes counts
+		{"日本", true},   // letters in other scripts count
+	}
+	for _, c := range cases {
+		if got := queryReady(c.in); got != c.want {
+			t.Errorf("queryReady(%q) = %v, want %v", c.in, got, c.want)
+		}
+	}
+}
+
 func TestShortID(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"short", "short"},
