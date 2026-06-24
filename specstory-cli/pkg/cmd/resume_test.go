@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -137,6 +138,50 @@ func TestWaitForSessionFileVisible(t *testing.T) {
 	// A file that never appears must time out with a diagnostic error rather than block forever.
 	if err := waitForSessionFileVisible(filepath.Join(dir, "never.jsonl"), 100*time.Millisecond); err == nil {
 		t.Error("expected timeout error for a file that never becomes visible")
+	}
+}
+
+// TestBeginResumeWithPresetSkipsTargetStep verifies the `resume <agent>` contract: when a
+// target agent was pre-selected, choosing a session resumes immediately into that agent
+// rather than prompting for a target.
+func TestBeginResumeWithPresetSkipsTargetStep(t *testing.T) {
+	sess := &sessionindex.Session{SessionID: "s1", Agent: "codex"}
+	m := sessionTUI{presetTo: "claude"}
+
+	next, cmd := m.beginResume(sess)
+	rm := next.(sessionTUI)
+
+	if cmd == nil {
+		t.Error("expected an immediate quit command when a target is preset")
+	}
+	if rm.mode == modeTarget {
+		t.Error("a preset target must skip the target-selection step")
+	}
+	if rm.result.session != sess {
+		t.Errorf("result session = %v, want the chosen session", rm.result.session)
+	}
+	if rm.result.targetID != "claude" {
+		t.Errorf("result target = %q, want %q", rm.result.targetID, "claude")
+	}
+}
+
+// TestBeginResumeWithoutPresetEntersTargetStep verifies the default flow: with no preset,
+// choosing a session advances to the target-selection step (no immediate resume).
+func TestBeginResumeWithoutPresetEntersTargetStep(t *testing.T) {
+	sess := &sessionindex.Session{SessionID: "s1", Agent: "codex"}
+	m := sessionTUI{}
+
+	next, cmd := m.beginResume(sess)
+	rm := next.(sessionTUI)
+
+	if cmd != nil {
+		t.Error("expected no immediate quit without a preset target")
+	}
+	if rm.mode != modeTarget {
+		t.Errorf("mode = %v, want modeTarget", rm.mode)
+	}
+	if rm.chosen != sess {
+		t.Error("chosen session must be recorded before target selection")
 	}
 }
 

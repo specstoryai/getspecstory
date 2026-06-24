@@ -93,11 +93,75 @@ func runReindex(force bool) error {
 
 	registry := factory.GetRegistry()
 
-	// ---- Phase 1: enumerate every provider concurrently ----
+	// ---- Phase 1: enumerate every provider concurrently, then dedup ----
 	fprintln(os.Stderr, "\n🔍  Scanning agents…")
-	ids := registry.ListIDs()
-	perProvider := make([][]spi.GlobalSessionRef, len(ids))
-	provs := make([]spi.Provider, len(ids))
+	ids, provs, perProvider := enumerateAll(registry)
+
+	// Existing fingerprints, so unchanged sessions can be skipped (the incremental path).
+	fingerprints := map[string]sessionindex.Fingerprint{}
+	if !force {
+		if fps, err := store.Fingerprints(); err != nil {
+			slog.Warn("reindex: could not load fingerprints, re-indexing all", "error", err)
+		} else {
+			fingerprints = fps
+		}
+	}
+
+	best, order, foundPerAgent := dedupRefs(ids, provs, perProvider)
+	found := len(order)
+	cache := &projectIDCache{m: map[string]projectIDName{}}
+	work, totals, unchanged := selectWork(order, best, fingerprints, "", cache)
+
+	if found == 0 {
+		fprintln(os.Stderr, "No agent sessions found to index.")
+		return nil
+	}
+	fprintf(os.Stderr, "✓   Found %d sessions  ·  %s\n", found, summarizeCounts(ids, foundPerAgent))
+	if len(work) == 0 {
+		fprintf(os.Stderr, "✓   All %d sessions already up to date.  (%.1fs)\n", found, time.Since(start).Seconds())
+		return nil
+	}
+	if unchanged > 0 {
+		fprintf(os.Stderr, "    %d unchanged · indexing %d…\n\n", unchanged, len(work))
+	} else {
+		fprintln(os.Stderr, "")
+	}
+
+	// ---- Phase 2+3: parse (worker pool) → write (single goroutine), with live progress ----
+	prog := newReindexProgress(ids, totals)
+	prog.begin()
+	indexedAt := start.UTC().Format(time.RFC3339)
+	writeErr := processWork(ctx, store, work, cache, indexedAt, min(runtime.NumCPU(), 12), prog)
+	prog.end()
+
+	if writeErr != nil {
+		return fmt.Errorf("writing restore index: %w", writeErr)
+	}
+
+	// ---- Summary (counts reflect the WHOLE index, not just this run's work) ----
+	elapsed := time.Since(start)
+	projects, _ := store.ProjectCount(unknownProjectID)
+	unattributed, _ := store.UnattributedCount(unknownProjectID)
+	printReindexSummary(ids, foundPerAgent, dbPath, elapsed, prog.totalDone(), unchanged, projects, unattributed)
+	analytics.TrackEvent(analytics.EventReindexCompleted, analytics.Properties{
+		"sessions":     len(work),
+		"unchanged":    unchanged,
+		"projects":     projects,
+		"unattributed": unattributed,
+		"duration_ms":  elapsed.Milliseconds(),
+	})
+	return nil
+}
+
+// ---- reindex engine (shared by the foreground command and the background warm) ----
+
+// enumerateAll concurrently lists every installed provider's sessions. The returned slices
+// are index-aligned: provs[i]/perProvider[i] correspond to ids[i] (a nil provs[i] marks a
+// provider that failed to load).
+func enumerateAll(registry *factory.Registry) (ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSessionRef) {
+	ids = registry.ListIDs()
+	perProvider = make([][]spi.GlobalSessionRef, len(ids))
+	provs = make([]spi.Provider, len(ids))
 	var ewg sync.WaitGroup
 	for i, id := range ids {
 		prov, err := registry.Get(id)
@@ -116,25 +180,19 @@ func runReindex(force bool) error {
 		}(i, id, prov)
 	}
 	ewg.Wait()
+	return ids, provs, perProvider
+}
 
-	// Existing fingerprints, so unchanged sessions can be skipped (the incremental path).
-	fingerprints := map[string]sessionindex.Fingerprint{}
-	if !force {
-		if fps, err := store.Fingerprints(); err != nil {
-			slog.Warn("reindex: could not load fingerprints, re-indexing all", "error", err)
-		} else {
-			fingerprints = fps
-		}
-	}
-
-	// Dedup enumerated refs by (agent, session_id), keeping the freshest file. A resumed
-	// session can span MULTIPLE native files sharing one id; they all map to one
-	// (agent, session_id) row, so without dedup the duplicates ping-pong — each run, one
-	// file's stat never matches the fingerprint the other file just stored, re-indexing
-	// both forever. Skipping the freshest by mtime makes the fingerprint stable. Sessions
-	// with no native id are dropped (unresumable, and would collide on the PK).
-	best := map[string]reindexItem{}
-	var order []string // first-seen order, for deterministic processing
+// dedupRefs collapses enumerated refs by (agent, session_id), keeping the freshest file. A
+// resumed session can span MULTIPLE native files sharing one id; they all map to one
+// (agent, session_id) row, so without dedup the duplicates ping-pong — each run, one file's
+// stat never matches the fingerprint the other file just stored, re-indexing both forever.
+// Keeping the freshest by mtime makes the fingerprint stable. Sessions with no native id are
+// dropped (unresumable, and would collide on the PK). order is first-seen order (deterministic
+// processing); foundPerAgent is the distinct-session count per agent (for the "Found" line).
+func dedupRefs(ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSessionRef) (best map[string]reindexItem, order []string, foundPerAgent map[string]int) {
+	best = map[string]reindexItem{}
+	foundPerAgent = map[string]int{}
 	for i, id := range ids {
 		if provs[i] == nil {
 			continue
@@ -157,17 +215,25 @@ func runReindex(force bool) error {
 			order = append(order, key)
 		}
 	}
+	for _, key := range order {
+		foundPerAgent[best[key].agent]++
+	}
+	return best, order, foundPerAgent
+}
 
-	// Apply the incremental fingerprint skip to the deduped set.
-	var work []reindexItem
-	totals := map[string]int{}        // to-do (changed) per agent — drives the progress bars
-	foundPerAgent := map[string]int{} // distinct sessions per agent — for the "Found" line
-	found := 0
-	unchanged := 0
+// selectWork applies the incremental fingerprint skip (and an optional project filter) to the
+// deduped set. projectFilter "" means all projects; otherwise only sessions whose originating
+// cwd resolves to that project id are kept (used by the background warm's current-project
+// pass). totals is the per-agent to-do count (drives the foreground progress bars).
+func selectWork(order []string, best map[string]reindexItem, fingerprints map[string]sessionindex.Fingerprint, projectFilter string, cache *projectIDCache) (work []reindexItem, totals map[string]int, unchanged int) {
+	totals = map[string]int{}
 	for _, key := range order {
 		item := best[key]
-		found++
-		foundPerAgent[item.agent]++
+		if projectFilter != "" {
+			if pid, _ := cache.resolve(item.ref.OriginCwd); pid != projectFilter {
+				continue
+			}
+		}
 		if fp, ok := fingerprints[key]; ok &&
 			fp.Size == item.size && fp.Mtime == item.mtime && fp.Version == reindexVersion {
 			unchanged++
@@ -176,28 +242,32 @@ func runReindex(force bool) error {
 		work = append(work, item)
 		totals[item.agent]++
 	}
+	return work, totals, unchanged
+}
 
-	if found == 0 {
-		fprintln(os.Stderr, "No agent sessions found to index.")
-		return nil
-	}
-	fprintf(os.Stderr, "✓   Found %d sessions  ·  %s\n", found, summarizeCounts(ids, foundPerAgent))
+// reindexReporter receives per-session progress from processWork. The foreground command
+// passes *reindexProgress (live bars); the background warm passes nopReporter (silent).
+type reindexReporter interface {
+	observe(projectID string)
+	inc(agent string)
+}
+
+// nopReporter is the silent reporter used by the background warm.
+type nopReporter struct{}
+
+func (nopReporter) observe(string) {}
+func (nopReporter) inc(string)     {}
+
+// processWork parses each work item (worker pool) and writes the results to the store via a
+// single writer goroutine, reporting progress through rep. It stops feeding work when ctx is
+// cancelled; the writer flushes what it already received. Returns the writer's error, if any.
+func processWork(ctx context.Context, store *sessionindex.Store, work []reindexItem, cache *projectIDCache, indexedAt string, workers int, rep reindexReporter) error {
 	if len(work) == 0 {
-		fprintf(os.Stderr, "✓   All %d sessions already up to date.  (%.1fs)\n", found, time.Since(start).Seconds())
 		return nil
 	}
-	if unchanged > 0 {
-		fprintf(os.Stderr, "    %d unchanged · indexing %d…\n\n", unchanged, len(work))
-	} else {
-		fprintln(os.Stderr, "")
+	if workers < 1 {
+		workers = 1
 	}
-
-	// ---- Phase 2+3: parse (worker pool) → write (single goroutine) ----
-	prog := newReindexProgress(ids, totals)
-	prog.begin()
-
-	indexedAt := start.UTC().Format(time.RFC3339)
-	cache := &projectIDCache{m: map[string]projectIDName{}}
 
 	sessionsCh := make(chan sessionindex.Session, 256)
 	var writeErr error
@@ -208,7 +278,6 @@ func runReindex(force bool) error {
 	}()
 
 	workCh := make(chan reindexItem)
-	workers := min(runtime.NumCPU(), 12)
 	var wwg sync.WaitGroup
 	for w := 0; w < workers; w++ {
 		wwg.Add(1)
@@ -216,9 +285,9 @@ func runReindex(force bool) error {
 			defer wwg.Done()
 			for item := range workCh {
 				sess := buildSession(item, cache, indexedAt)
-				prog.observe(sess.ProjectID)
+				rep.observe(sess.ProjectID)
 				sessionsCh <- sess
-				prog.inc(item.agent)
+				rep.inc(item.agent)
 			}
 		}()
 	}
@@ -235,25 +304,55 @@ closing:
 	wwg.Wait()
 	close(sessionsCh)
 	<-writerDone
-	prog.end()
+	return writeErr
+}
 
-	if writeErr != nil {
-		return fmt.Errorf("writing restore index: %w", writeErr)
+// warmIndexInBackground keeps ~/.specstory/sessions.db warm as a side effect of resume/search.
+// It runs two SILENT incremental passes over its own writer handle: the current project first
+// (so its rows refresh quickly, and the open TUI re-queries via onProjectWarmed), then the full
+// corpus. It enumerates once and reuses the result for both passes. It stops promptly when ctx
+// is cancelled (the TUI exited); an abandoned write batch is safe under WAL. Errors are logged
+// at debug and never surfaced — warmth is best-effort.
+func warmIndexInBackground(ctx context.Context, dbPath, currentProjectID string, onProjectWarmed func()) {
+	store, err := sessionindex.Open(dbPath)
+	if err != nil {
+		slog.Debug("warm: could not open index", "error", err)
+		return
+	}
+	defer func() { _ = store.Close() }()
+
+	registry := factory.GetRegistry()
+	ids, provs, perProvider := enumerateAll(registry)
+	if ctx.Err() != nil {
+		return
+	}
+	best, order, _ := dedupRefs(ids, provs, perProvider)
+	cache := &projectIDCache{m: map[string]projectIDName{}}
+	indexedAt := time.Now().UTC().Format(time.RFC3339)
+
+	// Gentle: fewer workers than a foreground reindex, since the user is interacting.
+	workers := min(runtime.NumCPU(), 4)
+
+	// Pass 1 — the current project, so its rows are fresh almost immediately.
+	fps, _ := store.Fingerprints()
+	work, _, _ := selectWork(order, best, fps, currentProjectID, cache)
+	if err := processWork(ctx, store, work, cache, indexedAt, workers, nopReporter{}); err != nil {
+		slog.Debug("warm: current-project pass failed", "error", err)
+	}
+	if ctx.Err() != nil {
+		return
+	}
+	if onProjectWarmed != nil {
+		onProjectWarmed() // let the open TUI re-query the (now fresh) current project
 	}
 
-	// ---- Summary (counts reflect the WHOLE index, not just this run's work) ----
-	elapsed := time.Since(start)
-	projects, _ := store.ProjectCount(unknownProjectID)
-	unattributed, _ := store.UnattributedCount(unknownProjectID)
-	printReindexSummary(ids, foundPerAgent, dbPath, elapsed, prog.totalDone(), unchanged, projects, unattributed)
-	analytics.TrackEvent(analytics.EventReindexCompleted, analytics.Properties{
-		"sessions":     len(work),
-		"unchanged":    unchanged,
-		"projects":     projects,
-		"unattributed": unattributed,
-		"duration_ms":  elapsed.Milliseconds(),
-	})
-	return nil
+	// Pass 2 — everything else. Reload fingerprints so pass-1's writes now register as
+	// unchanged and are skipped, leaving only the rest of the corpus to parse.
+	fps, _ = store.Fingerprints()
+	work, _, _ = selectWork(order, best, fps, "", cache)
+	if err := processWork(ctx, store, work, cache, indexedAt, workers, nopReporter{}); err != nil {
+		slog.Debug("warm: full pass failed", "error", err)
+	}
 }
 
 // buildSession turns one enumeration ref into a fully-built index row. Every session

@@ -230,10 +230,17 @@ So the *first* run is a full parse, but re-runs only touch new/changed sessions 
 metadata-only enumeration still runs every time (it's how sessions are discovered), but the
 expensive full parse is gated by the fingerprint.
 
-The two-level split stays relevant *later*, for keeping the index warm without an explicit
-`reindex`: steady-state hooks populate content for free (they already hold the `SessionData`).
-That warm-keeping is **out of scope** for the first cut — the only population path is `reindex`
-(now incremental).
+The two-level split also keeps the index warm *without* an explicit `reindex`. **`resume` and
+`search` warm it as a side effect:** while the picker is open, a background goroutine
+(`warmIndexInBackground`) runs the same incremental engine over its own writer handle in two
+silent passes — the **current project first** (so its rows refresh almost immediately, and the
+open TUI re-queries via `indexWarmedMsg`), then the **full corpus**. It reuses the exact
+`enumerateAll` → `dedupRefs` → `selectWork` → `processWork` engine the foreground `reindex`
+uses (only the progress reporter differs: live bars vs. a silent `nopReporter`). It is
+cancelled the instant the TUI exits and never blocks process exit — an abandoned write batch is
+safe under WAL. It is skipped entirely when the index was just built fresh in the foreground
+(see `openOrBuildResumeIndex` → `builtFresh`). Further steady-state hooks (`run`/`sync`/`watch`
+populating content for free, since they already hold the `SessionData`) remain future work.
 
 ## Build Plan — First Cut
 
@@ -434,8 +441,9 @@ inserted/replaced alongside their `sessions` row during
 
 - **The picker rewiring.** `specstory resume`'s interactive flow still uses the project-scoped
   `ListAgentChatSessions` until a later chunk points it at `sessions.db`.
-- **Any warm-keeping.** No steady-state upserts from `sync`/`run`/`watch`/`resume` yet — the
-  only population path is the explicit `reindex` (which is incremental, so re-runs are cheap).
+- **Steady-state upserts from `sync`/`run`/`watch`.** These don't yet populate the index for
+  free from the `SessionData` they already hold. (`resume`/`search` DO keep it warm now, via the
+  background `warmIndexInBackground` two-pass described above — that part has shipped.)
 - **Storing serialized `SessionData`.** The first cut stores metadata + full-text body, not a
   `SessionData` blob. A blob becomes relevant for cloud Stages 3–4 (where the cloud is the
   source). Deferred.
@@ -457,12 +465,11 @@ Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-
 
 ## Open questions (later chunks)
 
-- **OPEN — Warm-keeping triggers.** Which of `sync`/`run`/`watch`/`resume` upsert, and the
-  reindex-on-stale trigger. What counts as "stale" (reuse Lore's `size + mtime` fingerprint
-  per native file?). **`specstory resume` is explicitly one of these occasions** — the picker
-  should refresh staleness on launch (alongside `run`/`sync`/`watch`); for now it only
-  *creates* the index when missing (see [RESUME-TUI.md](RESUME-TUI.md)), with full
-  staleness-refresh deferred to this thread.
+- **PARTLY DONE — Warm-keeping triggers.** `resume`/`search` now warm the index in the
+  background on launch (current project first, then full corpus; see "keeping the index warm"
+  above and [RESUME-TUI.md](RESUME-TUI.md)). Still **OPEN:** whether `sync`/`run`/`watch` upsert
+  inline from the `SessionData` they already hold, and whether to throttle repeated warms (today
+  every `resume`/`search` invocation re-enumerates, which is cheap but unbounded in frequency).
 - **OPEN — Eviction / prune.** When a native session is deleted, when does its row leave
   `sessions.db`? (Lore prunes on rescan when the file is gone.)
 - **OPEN — Remote-less projects.** How (if at all) cross-project / cross-machine works for

@@ -65,7 +65,9 @@ func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) 
 agents. Pick one, choose which installed agent to continue it in, and go. Resuming into a
 different agent reconstructs the conversation into that agent's native format first.
 
-Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
+Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
+then skips the target-selection step and resumes straight into that agent. The agent must be
+a known, installed provider, or the command errors.`
 
 	resumeCmd := &cobra.Command{
 		Use:   "resume [agent]",
@@ -79,9 +81,18 @@ Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
 			registry := factory.GetRegistry()
 
 			// Optional positional arg pre-selects the target agent (e.g. `resume codex`).
+			// An unknown agent name should fail the run rather than be silently ignored, so
+			// validate it against the registry up front. When set and valid, the picker skips
+			// the target-selection step entirely (see selectResumeViaTUI / beginResume); whether
+			// the named agent is actually installed is checked there, where the installed set
+			// is known.
 			presetTarget := ""
 			if len(args) == 1 {
 				presetTarget = strings.ToLower(strings.TrimSpace(args[0]))
+				if _, err := registry.Get(presetTarget); err != nil {
+					return utils.ValidationError{Message: fmt.Sprintf(
+						"unknown agent %q. Valid agents: %s", presetTarget, registry.GetProviderList())}
+				}
 			}
 
 			// Read flags (subset mirroring run/watch).
@@ -106,7 +117,9 @@ Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
 			}
 
 			// Open (building if needed) the session index and run the interactive picker.
-			store, err := openOrBuildResumeIndex()
+			// builtFresh = the index was just rebuilt in the foreground, so the picker skips
+			// the background index warm (it would be redundant).
+			store, builtFresh, err := openOrBuildResumeIndex()
 			if err != nil {
 				return err
 			}
@@ -117,7 +130,7 @@ Pass an agent to pre-select the resume target, e.g. 'specstory resume codex'.`
 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
 			}
 
-			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget)
+			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)
 			if err != nil {
 				return err
 			}

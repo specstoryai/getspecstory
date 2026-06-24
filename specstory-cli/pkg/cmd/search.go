@@ -37,7 +37,7 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				return err
 			}
 
-			store, err := openOrBuildResumeIndex()
+			store, builtFresh, err := openOrBuildResumeIndex()
 			if err != nil {
 				return err
 			}
@@ -82,7 +82,10 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				initialQuery:  initialQuery,
 				startInSearch: true,
 			})
-			final, err := tea.NewProgram(model).Run()
+			p := tea.NewProgram(model)
+			cancelWarm := startIndexWarm(p, homeID, builtFresh)
+			final, err := p.Run()
+			cancelWarm() // stop warming the moment search exits (never block on it)
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
