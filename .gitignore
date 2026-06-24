@@ -9,3 +9,7 @@ dist/
 
 # stray deadreckon run artifact written at repo root
 deadreckon-plan-consolidated.json
+
+# local .specstory artifacts not tracked on dev (history itself stays tracked)
+.specstory/statistics.json
+.specstory/cli/
