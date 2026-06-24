@@ -27,7 +27,7 @@ function build() {
   const db = openDb(join(tmpdir(), `wt-threads-test-${process.pid}-${Math.floor(NOW)}.db`))
   for (const t of ['sessions', 'beats', 'commands', 'grams', 'meta_hits']) db.exec(`DELETE FROM ${t}`)
   const r = indexCorpus(db, {
-    dirs: [join(FIX, '.workthreads', 'threads-foo', '.specstory', 'history'), join(FIX, '.workthreads', 'threads-bar', '.specstory', 'history')],
+    dirs: [join(FIX, 'threads-foo', '.specstory', 'history'), join(FIX, 'threads-bar', '.specstory', 'history')],
     maxBytes: 200_000_000, days: 0, force: true,
   })
   assert.equal(r.error, undefined, 'indexing fixtures should not error')

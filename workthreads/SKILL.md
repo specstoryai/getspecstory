@@ -13,10 +13,10 @@ metadata:
 
 A lead needs a weekly answer across the team's repos: what work happened this week, what got
 finished, and what is still open and needs a next step. **Workthreads** produces that **rollup**
-from SpecStory histories. It is the sibling lens to `/lore` over the **same corpus**: lore mines
-procedures into skills; workthreads reports **lines of work and their lifecycle**.
+from SpecStory histories - the `.specstory/history` transcripts your coding agents already write.
+It reports **lines of work and their lifecycle** (new / open / recently closed).
 
-A deterministic engine (`scripts/mine-skills.mjs threads`) does the retrieval, clustering, and
+A deterministic engine (`scripts/workthreads.mjs threads`) does the retrieval, clustering, and
 classification; **you do the synthesis** - you turn its evidence into the lead's weekly report.
 Do not try to read raw transcripts yourself; they can be hundreds of thousands of lines. Run the
 engine and write the rollup from its output.
@@ -38,16 +38,16 @@ This skill is **harness-portable** (agentskills.io format). Where it names a spe
 
 ## Default flow: the weekly rollup
 
-1. **Index the corpus** (same corpus as lore). Point at the team's repos and build/update the DB:
+1. **Index the corpus** into workthreads' own DB. Point at the team's repos and build/update it:
    ```bash
-   node "${CLAUDE_SKILL_DIR}/scripts/mine-skills.mjs" index --projects <parent-of-repos> --db <db>
+   node "${CLAUDE_SKILL_DIR}/scripts/workthreads.mjs" index --projects <parent-of-repos> --db <db>
    # or a single tree:  --scan <root>     or a single history dir:  --dir <dir>
    ```
 
 2. **Run `threads` cross-project for the last 7 days** and capture the evidence:
    ```bash
-   node "${CLAUDE_SKILL_DIR}/scripts/mine-skills.mjs" threads --db <db> --days 7            # human digest
-   node "${CLAUDE_SKILL_DIR}/scripts/mine-skills.mjs" threads --db <db> --days 7 --json     # machine-readable
+   node "${CLAUDE_SKILL_DIR}/scripts/workthreads.mjs" threads --db <db> --days 7            # human digest
+   node "${CLAUDE_SKILL_DIR}/scripts/workthreads.mjs" threads --db <db> --days 7 --json     # machine-readable
    ```
    The digest prints, per project, three sections in order - **New**, **Open**, **Recently
    closed** - each thread with its evidence refs (`path:line`), last-activity date, status, and a

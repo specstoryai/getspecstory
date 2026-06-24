@@ -2,10 +2,10 @@
 
 _A weekly work-thread rollup from your SpecStory coding histories._
 
-Workthreads reads the SpecStory transcripts your coding agents already write and
-answers, at a glance: **what happened this week, what got finished, and what is
-still open and needs a next step.** It groups the window's sessions into **threads
-of work per project** and labels each one:
+Workthreads reads the `.specstory/history` transcripts your coding agents already
+write and answers, at a glance: **what happened this week, what got finished, and
+what is still open and needs a next step.** It groups the window's sessions into
+**threads of work per project** and labels each one:
 
 - **new** - first activity within the last 7 days
 - **open** - unresolved, still active (the "open loops")
@@ -15,14 +15,14 @@ of work per project** and labels each one:
 A lead can use it for a weekly standup; an individual can use it to re-orient after
 time away ("what was I in the middle of?").
 
-## Relationship to Lore
+## A standalone skill
 
-Workthreads is the **sibling lens to [`/lore`](../lore)** over the **same corpus**.
-Where Lore mines your history for reproducible *procedures* and forges them into
-skills, Workthreads reports your *lines of work and their lifecycle*. It **reuses
-Lore's deterministic engine** (`lore/scripts/mine-skills.mjs threads`) rather than
-duplicating it - the engine does the retrieval, clustering, and classification; the
-calling agent writes the human rollup from that evidence.
+Workthreads is **fully self-contained** - its own engine, tests, fixtures, and
+installer, with **no runtime dependency on any other skill**. It pairs naturally
+with [SpecStory Lore](https://github.com/specstoryai/getspecstory/tree/main/lore)
+(which mines the same kind of history into reusable *skills*), and the two share
+some design ideas - but you can install **just Lore, just Workthreads, or both**,
+each independently. Installing one never requires the other.
 
 ## How it clusters (deterministic, no LLM in the engine)
 
@@ -48,9 +48,10 @@ cd workthreads
 ./install.sh
 ```
 
-This bundles Lore's engine and the skill into `~/.agents/skills/workthreads` and
+That bundles the engine and the skill into `~/.agents/skills/workthreads` and
 symlinks it into `~/.claude/skills/workthreads`, so `/workthreads` is available from
-**any** Claude Code session in **any** project. Re-run it any time to update.
+**any** Claude Code session in **any** project. It is self-contained - it does not
+read from any other skill's directory. Re-run `./install.sh` any time to update.
 
 Requirements: Node >= 22.5 (for `node:sqlite`), and the SpecStory CLI capturing
 histories into `.specstory/history/`.
@@ -85,6 +86,15 @@ workthreads digest - 31 thread(s) across 3 active project(s) (window: last 7 day
     - resend contact-topic sync still failing  [open]  · last 2026-06-20 · 2 sessions, 7 beats
   Recently closed
     - extract survey emails for non-solo respondents  [closed]  · last 2026-06-18 · 1 session, 6 beats
+```
+
+## Develop
+
+The engine is plain Node (ESM, zero dependencies, `node:sqlite`). Run the tests:
+
+```zsh
+cd workthreads
+npm test
 ```
 
 ## License
