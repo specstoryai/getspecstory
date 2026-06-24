@@ -63,7 +63,23 @@ func BuildSessionFilePath(session *spi.AgentChatSession, historyDir string, useU
 	if session.Slug != "" {
 		filename = fmt.Sprintf("%s-%s", timestampStr, session.Slug)
 	}
+	// Append a short session-id suffix so every session gets a unique filename.
+	// Without it, sessions sharing a start-second + first message — e.g. a /branch
+	// fork, which inherits the parent's opening verbatim — collide on the same name
+	// and overwrite each other's .md.
+	if sid := shortSessionID(session.SessionID); sid != "" {
+		filename = fmt.Sprintf("%s-%s", filename, sid)
+	}
 	return filepath.Join(historyDir, filename+".md")
+}
+
+// shortSessionID returns the leading 8 chars of a session id — enough to
+// disambiguate sessions that would otherwise share a filename.
+func shortSessionID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
 }
 
 // ProcessingOptions holds flags that control session processing behavior.
