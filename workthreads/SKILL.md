@@ -40,14 +40,14 @@ This skill is **harness-portable** (agentskills.io format). Where it names a spe
 
 1. **Index the corpus** (same corpus as lore). Point at the team's repos and build/update the DB:
    ```bash
-   node scripts/mine-skills.mjs index --projects <parent-of-repos> --db <db>
+   node "${CLAUDE_SKILL_DIR}/scripts/mine-skills.mjs" index --projects <parent-of-repos> --db <db>
    # or a single tree:  --scan <root>     or a single history dir:  --dir <dir>
    ```
 
 2. **Run `threads` cross-project for the last 7 days** and capture the evidence:
    ```bash
-   node scripts/mine-skills.mjs threads --db <db> --days 7            # human digest
-   node scripts/mine-skills.mjs threads --db <db> --days 7 --json     # machine-readable
+   node "${CLAUDE_SKILL_DIR}/scripts/mine-skills.mjs" threads --db <db> --days 7            # human digest
+   node "${CLAUDE_SKILL_DIR}/scripts/mine-skills.mjs" threads --db <db> --days 7 --json     # machine-readable
    ```
    The digest prints, per project, three sections in order - **New**, **Open**, **Recently
    closed** - each thread with its evidence refs (`path:line`), last-activity date, status, and a

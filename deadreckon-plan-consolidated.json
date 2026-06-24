@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "title": "threads subcommand + /workthreads skill (mirror lore)",
+  "narrative": {
+    "summary": "Plan c2928492 added a `threads` subcommand to the lore engine plus a thin sibling `/workthreads` skill that reads the same SpecStory beats corpus and clusters related beats into work threads labeled new / open / closed. The plan ran in review mode with two tasks executed in order: task-0 (Coder, cli:claude-code) built the engine, fixtures, tests, and skill; task-1 (Reviewer, cli:codex) reviewed the result, wrote .deadreckon/REVIEW.md, and applied targeted fixes. Both tasks completed.",
+    "task_graph": [
+      {
+        "title": "task-0 -> task-1 dependency",
+        "text": "Two ordered tasks: task-0 (Coder, cli:claude-code) implements the feature with no dependencies; task-1 (Reviewer, cli:codex) depends on task-0 and reviews/fixes the completed implementation. task_order is [task-0, task-1].",
+        "citations": ["worker:task-0", "worker:task-1"]
+      },
+      {
+        "title": "Review-mode orchestration",
+        "text": "The plan ran in mode=review: a coding lane followed by a fresh review/fix lane instructed to write .deadreckon/REVIEW.md first, then apply only fixes tied to findings and acceptance.",
+        "citations": ["doc:task-0:narrative", "doc:task-1:narrative"]
+      }
+    ],
+    "phases": [
+      {
+        "title": "Implementation (task-0)",
+        "text": "Coder lane (cli:claude-code, run c228b1f8, ~1133s wall) created lore/scripts/lib/threads.mjs, wired a threads subcommand into lore/scripts/mine-skills.mjs, added thread fixtures, tests, and the workthreads SKILL.md across two turns reported as complete and verified.",
+        "citations": ["doc:task-0:narrative", "doc:task-0:as-built"]
+      },
+      {
+        "title": "Review and fix (task-1)",
+        "text": "Reviewer lane (cli:codex, run 1a6c8727, ~207s wall) wrote .deadreckon/REVIEW.md, then applied fixes tied to findings, notably adding command-gram reinforcement that the first implementation had omitted.",
+        "citations": ["doc:task-1:narrative", "doc:task-1:decisions", "summary:task-1"]
+      }
+    ],
+    "repairs": [
+      {
+        "title": "Command-gram reinforcement added in review",
+        "text": "Review found the first implementation did not use the existing grams table for clustering reinforcement. The review-lane fix links shared command grams only when the gram contains at least one non-common, non-noise command head, satisfying the specified reinforcement signal while limiting accidental merges from generic test/git habits.",
+        "citations": ["doc:task-1:decisions"]
+      }
+    ],
+    "acceptance": [
+      {
+        "title": "dr-gate enforced acceptance",
+        "text": "Both lanes were gated by dr-gate against .deadreckon/acceptance.yaml. Acceptance artifacts present include no_em_dash.sh, threads_check.sh, and threads_classify.mjs under .deadreckon/acceptance.",
+        "citations": ["worker:task-0", "summary:task-0", "summary:task-1"]
+      },
+      {
+        "title": "Full test suite must stay green",
+        "text": "The goal required `node --test tests/*.test.mjs` (existing engine tests plus the new threads.test.mjs) to pass; the threads tests assert multi-session merge into one thread, success-then-quiet => closed, recent-unresolved => open, and first-seen-in-window => new. Both runs reported all checks resolved, but no captured raw test-run output is present in the provided evidence.",
+        "citations": ["doc:task-0:decisions", "doc:task-0:narrative", "doc:task-1:narrative"]
+      }
+    ],
+    "open_threads": [
+      {
+        "title": "Fixture placement vs .specstory/history",
+        "text": "Open question carried in both decision docs: if committed fixtures must sit at a .specstory/history path under lore/fixtures, the two hardcoded count assertions in tests/engine.test.mjs would need updating. Left untouched to honor 'existing suite stays green'; confirmation requested on whether stricter fixture placement is desired.",
+        "citations": ["doc:task-0:decisions", "doc:task-1:decisions"]
+      }
+    ]
+  },
+  "as_built": {
+    "system_overview": "A new work-thread lens for the lore engine: lore/scripts/lib/threads.mjs clusters the existing beats corpus (SQLite via node:sqlite, sessions/beats/commands/grams tables) into work threads using union-find over shared signal tokens, assigns lifecycle status (closed/new/open) relative to an injectable clock, and emits a deterministic human digest (New / Open / Recently closed) plus optional --out file and --json output. A threads branch in lore/scripts/mine-skills.mjs wires it into the CLI, and lore/workthreads/SKILL.md exposes the /workthreads skill. No schema change, no PARSER_VERSION bump, no LLM/network call in the engine path.",
+    "components": [
+      {
+        "title": "Engine library (threads.mjs)",
+        "text": "lore/scripts/lib/threads.mjs (+288) implements buildThreads: seeds beats carrying a touched file, executed command, or distinctive intent identifier; unions seeds sharing a link token (full file path, non-generic file-stem, identifier-shaped keyword, or distinctive command gram); assigns lifecycle with closed -> new -> open precedence using opts.nowMs (default Date.now()).",
+        "citations": ["doc:task-0:as-built", "doc:task-0:decisions", "doc:task-1:decisions"]
+      },
+      {
+        "title": "CLI wiring (mine-skills.mjs)",
+        "text": "lore/scripts/mine-skills.mjs (+250/-241) gains --out and --json arg parsing and a threads subcommand branch; no other engine behavior changed.",
+        "citations": ["doc:task-0:decisions", "doc:task-0:as-built"]
+      },
+      {
+        "title": "Tests",
+        "text": "lore/tests/threads.test.mjs (+140) runs under node --test, pinning a fixed clock anchor (2026-04-01) so committed fixtures classify identically, and asserts the four required lifecycle/merge behaviors. Identified as the load-bearing verification surface for the run.",
+        "citations": ["doc:task-0:as-built", "doc:task-0:decisions"]
+      },
+      {
+        "title": "Skill surface (workthreads SKILL.md)",
+        "text": "lore/workthreads/SKILL.md (+143) is an agentskills.io-format skill named workthreads with description and allowed-tools, driving a lore-style guided start (Scope / Window / Goal) and calling the threads subcommand.",
+        "citations": ["doc:task-0:as-built", "doc:task-0:narrative"]
+      },
+      {
+        "title": "Thread fixtures",
+        "text": "Five fixtures under lore/fixtures/threads/history/*.md encode threads with known lifecycle states (command-palette begin/finish, auth-token scaffold/fix, search-index start), indexed directly via --dir in the tests.",
+        "citations": ["doc:task-0:as-built", "doc:task-0:decisions"]
+      }
+    ],
+    "changed_files": [
+      {
+        "path": "lore/scripts/lib/threads.mjs",
+        "text": "New engine library clustering beats into work threads and labeling lifecycle (+288 / -0).",
+        "citations": ["doc:task-0:narrative", "doc:task-0:as-built"]
+      },
+      {
+        "path": "lore/scripts/mine-skills.mjs",
+        "text": "Added --out/--json flags and a threads subcommand branch (+250 / -241).",
+        "citations": ["doc:task-0:narrative", "doc:task-0:decisions"]
+      },
+      {
+        "path": "lore/tests/threads.test.mjs",
+        "text": "New node --test suite for the threads lens, anchored to a fixed clock (+140 / -0).",
+        "citations": ["doc:task-0:narrative", "doc:task-0:as-built"]
+      },
+      {
+        "path": "lore/workthreads/SKILL.md",
+        "text": "New /workthreads skill in agentskills.io format mirroring lore/SKILL.md (+143 / -0).",
+        "citations": ["doc:task-0:narrative", "doc:task-0:as-built"]
+      },
+      {
+        "path": "lore/fixtures/threads/history/2026-03-12_09-00-00Z-begin-command-palette.md",
+        "text": "Fixture transcript: begin command-palette thread (+30 / -0).",
+        "citations": ["doc:task-0:narrative"]
+      },
+      {
+        "path": "lore/fixtures/threads/history/2026-03-18_09-00-00Z-scaffold-auth-token.md",
+        "text": "Fixture transcript: scaffold auth-token thread (+20 / -0).",
+        "citations": ["doc:task-0:narrative"]
+      },
+      {
+        "path": "lore/fixtures/threads/history/2026-03-20_09-00-00Z-finish-command-palette.md",
+        "text": "Fixture transcript: finish command-palette thread, completing a multi-session line of work (+42 / -0).",
+        "citations": ["doc:task-0:narrative"]
+      },
+      {
+        "path": "lore/fixtures/threads/history/2026-03-28_09-00-00Z-start-search-index.md",
+        "text": "Fixture transcript: start search-index thread (+20 / -0).",
+        "citations": ["doc:task-0:narrative"]
+      },
+      {
+        "path": "lore/fixtures/threads/history/2026-03-29_09-00-00Z-fix-auth-token.md",
+        "text": "Fixture transcript: fix auth-token thread (+42 / -0).",
+        "citations": ["doc:task-0:narrative"]
+      },
+      {
+        "path": "implementation-notes.html",
+        "text": "Run handoff notes regenerated with design-decisions and deviations sections (+72 / -4); appears in both runs' changed-file lists.",
+        "citations": ["doc:task-0:narrative", "doc:task-1:as-built"]
+      }
+    ],
+    "runtime_notes": [
+      {
+        "title": "Determinism",
+        "text": "The digest body embeds only corpus dates (never the wall clock) and sorts threads by a stable key (status precedence, then last/first activity desc, then id), so two runs on the same corpus are byte-identical.",
+        "citations": ["doc:task-0:decisions"]
+      },
+      {
+        "title": "No engine schema or version change",
+        "text": "The engine path uses only existing corpus columns; no schema change, no PARSER_VERSION bump, and no LLM or network call. Capability constraints denied network and global install.",
+        "citations": ["doc:task-0:decisions", "worker:task-0"]
+      },
+      {
+        "title": "Providers and spend",
+        "text": "task-0 ran on cli:claude-code (~1133s wall, subscription); task-1 ran on cli:codex (~207s wall, subscription). Both used sandbox=auto.",
+        "citations": ["doc:task-0:as-built", "doc:task-1:as-built"]
+      }
+    ]
+  },
+  "decisions": {
+    "decisions": [
+      {
+        "title": "Clustering via union-find over shared signal tokens",
+        "text": "Beats are seeded only when they carry a touched file, an executed command, or a distinctive intent identifier (reaction-only turns are skipped so they never spawn empty threads). Seeds union when sharing a link token: full file path, non-generic file-stem, identifier-shaped intent keyword (ALL_CAPS / snake-with-caps / CamelCase), or (after review) a distinctive command gram.",
+        "citations": ["doc:task-0:decisions", "doc:task-1:decisions"]
+      },
+      {
+        "title": "File-stem linking bridges intent to edit",
+        "text": "The stem of src/ui/Palette.tsx is 'palette', so a session whose intent only names the palette links to the session that edits the file; this lets the gate's WIDGET_ALPHA thread merge even when the first session's touch path was never stored.",
+        "citations": ["doc:task-0:decisions"]
+      },
+      {
+        "title": "Lifecycle relative to an injectable clock",
+        "text": "buildThreads accepts opts.nowMs (default Date.now()); the CLI uses the real clock while unit tests pin a fixed anchor (2026-04-01) so committed fixtures classify identically forever. Precedence is closed -> new -> open as specified.",
+        "citations": ["doc:task-0:decisions"]
+      }
+    ],
+    "tradeoffs": [
+      {
+        "title": "Conservative merging favors precision",
+        "text": "Linking only on files, identifier-shaped keywords, and distinctive command grams risks under-merging two sessions described in only generic prose with no shared file. The alternative (generic-noun linking) over-merges far more visibly, so the precision-favoring choice won.",
+        "citations": ["doc:task-0:decisions", "doc:task-1:decisions"]
+      },
+      {
+        "title": "Singleton noise tolerated",
+        "text": "Beats with a lone distinctive identifier but no file can form singleton threads; they are bounded by the lifecycle windows (most are omitted) and cheap to skim, so no extra suppression heuristic was added.",
+        "citations": ["doc:task-0:decisions"]
+      }
+    ],
+    "deferrals": [
+      {
+        "title": "Stricter fixture placement deferred",
+        "text": "Committed thread fixtures live at lore/fixtures/threads/history/*.md with NO .specstory segment, because any .specstory/history under fixtures would be auto-discovered and break engine.test.mjs's hardcoded corpus counts (12 sessions/7 projects for --projects; 13 sessions/8 projects for --scan). They are indexed via --dir instead; moving them to a .specstory/history path is deferred pending confirmation.",
+        "citations": ["doc:task-0:decisions", "doc:task-1:decisions"]
+      },
+      {
+        "title": "Generic content-word linking dropped",
+        "text": "An earlier version also linked threads on recurring common nouns; it over-merged the heterogeneous repo fixtures into one thread, so merging was reduced to files plus distinctive identifiers (plus reviewed command grams).",
+        "citations": ["doc:task-0:decisions", "doc:task-1:decisions"]
+      },
+      {
+        "title": "Git repository initialized to run git-dependent checks",
+        "text": "The working directory arrived without a .git directory, so two acceptance checks that shell out to git (protected-file diff and no_em_dash.sh) exited 128/129. The lane ran git init and committed the tree as a baseline; protected files (lore/SKILL.md, lore/fixtures/golden/forge-plan.md) were never modified and diff clean.",
+        "citations": ["doc:task-0:decisions", "doc:task-1:decisions"]
+      }
+    ]
+  },
+  "children": [
+    {
+      "task_id": "task-0",
+      "summary": "Coder lane (cli:claude-code, run c228b1f8): implemented lore/scripts/lib/threads.mjs, wired the threads subcommand with --out/--json into lore/scripts/mine-skills.mjs, added five thread fixtures, lore/tests/threads.test.mjs, and lore/workthreads/SKILL.md. Clustering via union-find on files/file-stems/identifier keywords; deterministic digest; no schema or PARSER_VERSION change. Reported complete and verified.",
+      "citations": ["task:task-0"]
+    },
+    {
+      "task_id": "task-1",
+      "summary": "Reviewer lane (cli:codex, run 1a6c8727, depends on task-0): wrote .deadreckon/REVIEW.md, then applied targeted fixes, notably adding conservative command-gram reinforcement that the first implementation had omitted. Reported all checks resolved.",
+      "citations": ["task:task-1"]
+    }
+  ]
+}
