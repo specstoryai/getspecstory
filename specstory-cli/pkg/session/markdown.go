@@ -2,10 +2,12 @@ package session
 
 import (
 	"fmt"
+	"html"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/mdfmt"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -206,8 +208,10 @@ func renderToolInfo(tool *ToolInfo) string {
 
 	// Generate summary tag
 	if tool.Summary != nil && *tool.Summary != "" {
-		// Provider provided custom summary content
-		fmt.Fprintf(&markdown, "<summary>%s</summary>\n", *tool.Summary)
+		// Provider provided custom summary content. It sits inside an HTML
+		// <summary> tag, so a literal </summary> or angle bracket in the
+		// summary text would break the disclosure widget — escape it.
+		fmt.Fprintf(&markdown, "<summary>%s</summary>\n", html.EscapeString(*tool.Summary))
 	} else {
 		// Generate default summary
 		fmt.Fprintf(&markdown, "<summary>Tool use: **%s**</summary>\n", tool.Name)
@@ -270,9 +274,9 @@ func renderGenericTool(tool *ToolInfo) string {
 		}
 
 		if content, ok := tool.Output["content"].(string); ok {
-			markdown.WriteString("```\n")
-			markdown.WriteString(content)
-			markdown.WriteString("\n```\n")
+			// Fence is sized so embedded ``` in output can't break out.
+			markdown.WriteString(mdfmt.CodeFence("", content))
+			markdown.WriteString("\n")
 		}
 	}
 

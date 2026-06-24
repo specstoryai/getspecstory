@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/mdfmt"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -77,7 +78,7 @@ func formatToolOutput(tool *ToolInfo) string {
 		return ""
 	}
 	if strings.Contains(content, "\n") {
-		return fmt.Sprintf("Output:\n```text\n%s\n```", content)
+		return fmt.Sprintf("Output:\n%s", mdfmt.CodeFence("text", content))
 	}
 	return fmt.Sprintf("Output: %s", content)
 }
@@ -271,7 +272,7 @@ func renderApplyPatch(args map[string]any) string {
 	if patch == "" {
 		return renderGenericJSON(args)
 	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+	return mdfmt.CodeFence("diff", strings.TrimSpace(patch))
 }
 
 func renderTodoWrite(args map[string]any) string {
@@ -325,7 +326,6 @@ func formatExecuteInput(args map[string]any) string {
 
 func formatDiffBlock(oldText, newText string) string {
 	var b strings.Builder
-	b.WriteString("```diff\n")
 	for _, line := range strings.Split(oldText, "\n") {
 		if oldText == "" {
 			break
@@ -342,17 +342,11 @@ func formatDiffBlock(oldText, newText string) string {
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
-	b.WriteString("```")
-	return b.String()
+	return mdfmt.CodeFence("diff", strings.TrimRight(b.String(), "\n"))
 }
 
 func formatContentBlock(content, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
-	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+	return mdfmt.CodeFence(languageFromPath(path), content)
 }
 
 func languageFromPath(path string) string {
