@@ -3,12 +3,8 @@
 .idea/
 
 dist/
-# deadreckon run + DoD artifacts (root-anchored). NOTE: .specstory is tracked here,
-# same as dev - do not blanket-ignore it.
+# deadreckon
 /.deadreckon/
-
-# stray deadreckon run artifact written at repo root
-deadreckon-plan-consolidated.json
 
 # local .specstory artifacts not tracked on dev (history itself stays tracked)
 .specstory/statistics.json
