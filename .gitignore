@@ -6,3 +6,6 @@ dist/
 # deadreckon run + DoD artifacts + specstory local history (root-anchored)
 /.deadreckon/
 /.specstory/
+
+# stray deadreckon run artifact written at repo root
+deadreckon-plan-consolidated.json
