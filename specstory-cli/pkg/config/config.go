@@ -115,6 +115,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # DeepSeek TUI command
 # deepseek_cmd = "deepseek"
+
+# Antigravity CLI command
+# antigravity_cmd = "agy"
 `
 
 // Config represents the complete CLI configuration
@@ -192,12 +195,13 @@ type TelemetryConfig struct {
 // These are used by `specstory run` as the equivalent of the -c flag,
 // scoped to a specific provider.
 type ProvidersConfig struct {
-	ClaudeCmd   string `toml:"claude_cmd"`
-	CodexCmd    string `toml:"codex_cmd"`
-	CursorCmd   string `toml:"cursor_cmd"`
-	DeepSeekCmd string `toml:"deepseek_cmd"`
-	DroidCmd    string `toml:"droid_cmd"`
-	GeminiCmd   string `toml:"gemini_cmd"`
+	ClaudeCmd      string `toml:"claude_cmd"`
+	CodexCmd       string `toml:"codex_cmd"`
+	CursorCmd      string `toml:"cursor_cmd"`
+	DeepSeekCmd    string `toml:"deepseek_cmd"`
+	DroidCmd       string `toml:"droid_cmd"`
+	GeminiCmd      string `toml:"gemini_cmd"`
+	AntigravityCmd string `toml:"antigravity_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -727,7 +731,8 @@ func (c *Config) IsLocalTimeZoneEnabled() bool {
 
 // GetProviderCmd returns the custom execution command for a provider, or empty
 // string if none is configured. The providerID should match a registered
-// provider ID (e.g., "claude", "codex", "cursor", "droid", "gemini").
+// provider ID (e.g., "claude", "codex", "cursor", "deepseek", "droid",
+// "gemini", "antigravity").
 func (c *Config) GetProviderCmd(providerID string) string {
 	switch strings.ToLower(providerID) {
 	case "claude":
@@ -742,6 +747,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.DroidCmd
 	case "gemini":
 		return c.Providers.GeminiCmd
+	case "antigravity":
+		return c.Providers.AntigravityCmd
 	default:
 		return ""
 	}
