@@ -15,15 +15,6 @@ what is still open and needs a next step.** It groups the window's sessions into
 A lead can use it for a weekly standup; an individual can use it to re-orient after
 time away ("what was I in the middle of?").
 
-## A standalone skill
-
-Workthreads is **fully self-contained** - its own engine, tests, fixtures, and
-installer, with **no runtime dependency on any other skill**. It pairs naturally
-with [SpecStory Lore](https://github.com/specstoryai/getspecstory/tree/main/lore)
-(which mines the same kind of history into reusable *skills*), and the two share
-some design ideas - but you can install **just Lore, just Workthreads, or both**,
-each independently. Installing one never requires the other.
-
 ## How it clusters (deterministic, no LLM in the engine)
 
 The engine is robust against both failure modes of naive clustering:
