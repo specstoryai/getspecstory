@@ -203,7 +203,6 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		if _, err := os.Stat(chatsDir); err != nil {
 			slog.Debug("DetectAgent: Cursor chats directory doesn't exist", "path", chatsDir)
 		} else {
-			// Get the project hash directory
 			hashDir, err := GetProjectHashDir(projectPath)
 			if err != nil {
 				slog.Debug("DetectAgent: Failed to get project hash directory", "error", err)
@@ -252,7 +251,6 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
-	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project hash directory: %w", err)
@@ -274,24 +272,17 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	}
 	totalSessions := len(validSessionIDs)
 
-	// Collect sessions with progress reporting
+	// Collect sessions with progress reporting.  Use the already-resolved hashDir to
+	// avoid a redundant hash computation for every individual session.
 	var sessions []spi.AgentChatSession
 	for i, sessionID := range validSessionIDs {
-		// Get the session data
-		session, err := p.GetAgentChatSession(projectPath, sessionID, debugRaw)
+		session, err := p.readAgentChatSession(hashDir, projectPath, sessionID, debugRaw)
 		if err != nil {
 			slog.Debug("Failed to get session", "sessionID", sessionID, "error", err)
-			// Still report progress even for failed sessions
-			if progress != nil {
-				progress(i+1, totalSessions)
-			}
-			continue // Skip sessions we can't read
-		}
-		if session != nil {
+		} else if session != nil {
 			sessions = append(sessions, *session)
 		}
 
-		// Report progress after each session
 		if progress != nil {
 			progress(i+1, totalSessions)
 		}
@@ -302,18 +293,23 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 
 // GetAgentChatSession retrieves a single chat session by ID for the given project path
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
-	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project hash directory: %w", err)
 	}
+	return p.readAgentChatSession(hashDir, projectPath, sessionID, debugRaw)
+}
 
+// readAgentChatSession reads a single session from a known hash directory.  It is the
+// shared implementation used by both GetAgentChatSession and GetAgentChatSessions so
+// that the potentially-expensive workspace scan in FindProjectHashDir is only done once
+// per bulk operation rather than once per session.
+func (p *Provider) readAgentChatSession(hashDir, projectPath, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	// Check if the session exists and has store.db
 	if !HasStoreDB(hashDir, sessionID) {
 		return nil, nil // Session not found or no store.db
 	}
 
-	// Build the session path
 	sessionPath := filepath.Join(hashDir, sessionID)
 
 	slog.Debug("Reading Cursor CLI session",
@@ -339,11 +335,9 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	}
 	rawData := string(rawDataJSON)
 
-	// Write provider-specific debug output if requested
 	if debugRaw {
 		if err := writeDebugOutput(sessionID, rawData, orphanRecords); err != nil {
 			slog.Debug("Failed to write debug output", "sessionID", sessionID, "error", err)
-			// Don't fail the operation if debug output fails
 		}
 	}
 
@@ -579,7 +573,6 @@ func writeDebugOutput(sessionID string, rawData string, orphanRecords []BlobReco
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
-	// Get the project hash directory
 	hashDir, err := GetProjectHashDir(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get project hash directory: %w", err)
