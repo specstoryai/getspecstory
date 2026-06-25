@@ -229,6 +229,11 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	}
 	defer fsCleanup()
 
+	// Keep sessions.db current in real time alongside the markdown writes (nil/no-op if the
+	// index can't be opened — never block the resumed agent on it).
+	liveIndex := NewLiveIndexer(cwd)
+	defer liveIndex.Close()
+
 	// Auto-save callback: identical behavior to run/watch.
 	sessionCallback := func(sess *spi.AgentChatSession) {
 		if sess == nil {
@@ -244,6 +249,8 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 		if perr != nil {
 			slog.Error("Failed to process session update", "sessionId", sess.SessionID, "error", perr)
 		}
+		// Mirror the markdown write into the restore index (agent we resumed INTO).
+		liveIndex.Record(plan.toID, sess)
 		provenance.ProcessEvents(ctx, provenanceEngine, sess)
 	}
 

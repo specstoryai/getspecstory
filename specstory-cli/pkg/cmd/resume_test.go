@@ -289,3 +289,91 @@ func TestPrepareResumeTargetFallsBackToCurrentCwd(t *testing.T) {
 		t.Errorf("source loaded from %q, want fallback to current cwd %q", from.gotLoadPath, currentCwd)
 	}
 }
+
+// TestLiveIndexerRecord exercises real-time indexing (watch/run/resume): a live session is
+// upserted into the index, its FTS body is searchable, repeat records with no new activity are
+// skipped, and new activity updates the same row in place.
+func TestLiveIndexerRecord(t *testing.T) {
+	store, err := sessionindex.Open(filepath.Join(t.TempDir(), "sessions.db"))
+	if err != nil {
+		t.Fatalf("open index: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	li := &LiveIndexer{
+		store:       store,
+		cwd:         "/work/proj",
+		projectID:   "proj-1",
+		projectName: "proj",
+		indexedAt:   "2026-06-25T00:00:00Z",
+		lastSeen:    map[string]string{},
+	}
+
+	msg := func(role, ts, text string) schema.Message {
+		return schema.Message{
+			Role:      role,
+			Timestamp: ts,
+			Content:   []schema.ContentPart{{Type: schema.ContentTypeText, Text: text}},
+		}
+	}
+	sess := func(msgs ...schema.Message) *spi.AgentChatSession {
+		return &spi.AgentChatSession{
+			SessionID: "sess-1",
+			CreatedAt: "2026-06-25T00:00:00Z",
+			Slug:      "hello-world",
+			SessionData: &schema.SessionData{
+				Provider:  schema.ProviderInfo{Name: "Claude Code"},
+				Exchanges: []schema.Exchange{{Messages: msgs}},
+			},
+		}
+	}
+	user1 := msg(schema.RoleUser, "2026-06-25T00:01:00Z", "index this please")
+	agent1 := msg(schema.RoleAgent, "2026-06-25T00:02:00Z", "done indexing")
+
+	// First record: one user + one agent message → one fully-derived row.
+	li.Record("claude", sess(user1, agent1))
+	rows, err := store.ListByProject("proj-1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row, got %d", len(rows))
+	}
+	r := rows[0]
+	if r.Agent != "claude" || r.SessionID != "sess-1" || r.OriginCwd != "/work/proj" {
+		t.Errorf("identity wrong: agent=%q session=%q cwd=%q", r.Agent, r.SessionID, r.OriginCwd)
+	}
+	if r.UserTurns != 1 || r.TotalTurns != 2 {
+		t.Errorf("turns = %d/%d, want 1/2", r.UserTurns, r.TotalTurns)
+	}
+	if r.UpdatedAt != "2026-06-25T00:02:00Z" {
+		t.Errorf("updatedAt = %q, want last message timestamp", r.UpdatedAt)
+	}
+
+	// The conversation body is full-text searchable immediately.
+	if hits, _ := store.Search(ftsQuery("indexing"), "proj-1"); len(hits) != 1 {
+		t.Errorf("search for body word returned %d hits, want 1", len(hits))
+	}
+
+	// Dedup guard: re-recording with no new activity is a no-op.
+	li.Record("claude", sess(user1, agent1))
+	if rows, _ := store.ListByProject("proj-1"); len(rows) != 1 {
+		t.Errorf("dedup: want 1 row, got %d", len(rows))
+	}
+
+	// New activity (a later message) updates the same row in place.
+	li.Record("claude", sess(user1, agent1, msg(schema.RoleUser, "2026-06-25T00:03:00Z", "more")))
+	rows, _ = store.ListByProject("proj-1")
+	if len(rows) != 1 {
+		t.Fatalf("want 1 row after update, got %d", len(rows))
+	}
+	if rows[0].UserTurns != 2 || rows[0].TotalTurns != 3 || rows[0].UpdatedAt != "2026-06-25T00:03:00Z" {
+		t.Errorf("after update: turns=%d/%d updatedAt=%q, want 2/3 and advanced timestamp",
+			rows[0].UserTurns, rows[0].TotalTurns, rows[0].UpdatedAt)
+	}
+
+	// A nil indexer (index failed to open) is safe to use.
+	var nilLI *LiveIndexer
+	nilLI.Record("claude", sess(user1))
+	nilLI.Close()
+}

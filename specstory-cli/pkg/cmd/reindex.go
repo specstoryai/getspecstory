@@ -355,6 +355,113 @@ func warmIndexInBackground(ctx context.Context, dbPath, currentProjectID string,
 	}
 }
 
+// ---- real-time indexing (watch / run / resume launch) ----
+
+// LiveIndexer keeps ~/.specstory/sessions.db current in real time, alongside the markdown
+// files that watch/run/resume already write as a session changes. It holds one writer handle
+// for the command's lifetime and upserts a single row per detected update, reusing the same
+// content derivation as reindex. The project is resolved once (a watch/run has a fixed cwd).
+//
+// Everything is best-effort: real-time indexing must never disrupt the agent or the markdown
+// write, so construction failures yield a nil *LiveIndexer (whose methods are no-ops) and
+// per-update errors are logged at debug. A live row carries no native-file fingerprint
+// (Size/Mtime/NativePath are unknown without enumerating), so the next reindex re-verifies and
+// rewrites it with a stable fingerprint — the live row is correct and queryable in the interim.
+type LiveIndexer struct {
+	store       *sessionindex.Store
+	cwd         string
+	projectID   string
+	projectName string
+	indexedAt   string
+
+	mu       sync.Mutex
+	lastSeen map[string]string // session id -> last indexed UpdatedAt, to skip no-op upserts
+}
+
+// NewLiveIndexer opens the index for writing and resolves the project for cwd. It returns nil
+// (not an error) when the index can't be opened, so the caller keeps running with real-time
+// indexing simply disabled. The caller owns Close.
+func NewLiveIndexer(cwd string) *LiveIndexer {
+	dbPath, err := sessionindex.DefaultPath()
+	if err != nil {
+		slog.Debug("live index: no db path; real-time indexing disabled", "error", err)
+		return nil
+	}
+	store, err := sessionindex.Open(dbPath)
+	if err != nil {
+		slog.Debug("live index: cannot open index; real-time indexing disabled", "error", err)
+		return nil
+	}
+	projectID, projectName, err := utils.ComputeProjectID(cwd)
+	if err != nil || projectID == "" {
+		projectID, projectName = unknownProjectID, ""
+	}
+	return &LiveIndexer{
+		store:       store,
+		cwd:         cwd,
+		projectID:   projectID,
+		projectName: projectName,
+		indexedAt:   time.Now().UTC().Format(time.RFC3339),
+		lastSeen:    map[string]string{},
+	}
+}
+
+// Record upserts the live session into the index. agentID is the provider's registry id (e.g.
+// "claude"). It skips the write when the session's last activity hasn't advanced since the
+// previous record (the watcher can fire repeatedly without new content). Safe on a nil
+// receiver, and serialized so concurrent provider watchers don't contend on the single writer.
+func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
+	if li == nil || sess == nil || sess.SessionData == nil {
+		return
+	}
+	data := sess.SessionData
+
+	updatedAt := sess.CreatedAt
+	if ts := lastTimestamp(data); ts != "" {
+		updatedAt = ts
+	}
+
+	li.mu.Lock()
+	defer li.mu.Unlock()
+
+	// Nothing advanced since the last write → skip the (FTS-heavy) upsert.
+	if updatedAt != "" && li.lastSeen[sess.SessionID] == updatedAt {
+		return
+	}
+
+	userTurns, totalTurns := countTurns(data)
+	row := sessionindex.Session{
+		ProjectID:    li.projectID,
+		ProjectName:  li.projectName,
+		Agent:        agentID,
+		SessionID:    sess.SessionID,
+		CreatedAt:    sess.CreatedAt,
+		UpdatedAt:    updatedAt,
+		UserTurns:    userTurns,
+		TotalTurns:   totalTurns,
+		Slug:         sess.Slug,
+		OriginCwd:    li.cwd,
+		IndexVersion: reindexVersion,
+		IndexedAt:    li.indexedAt,
+		Body:         flattenBody(data),
+	}
+	if err := li.store.Upsert(row); err != nil {
+		slog.Debug("live index: upsert failed", "sessionId", sess.SessionID, "error", err)
+		return
+	}
+	li.lastSeen[sess.SessionID] = updatedAt
+}
+
+// Close releases the writer handle. Safe on a nil receiver.
+func (li *LiveIndexer) Close() {
+	if li == nil {
+		return
+	}
+	if err := li.store.Close(); err != nil {
+		slog.Debug("live index: close failed", "error", err)
+	}
+}
+
 // buildSession turns one enumeration ref into a fully-built index row. Every session
 // yields a row from its metadata; the body + turn counts + last-activity time are
 // ENRICHED via a full parse only when the originating cwd lets us re-locate the

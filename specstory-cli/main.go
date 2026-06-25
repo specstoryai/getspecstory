@@ -433,6 +433,11 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 			useUTC := !localTimeZone
 
+			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
+			// if the index can't be opened — never block the running agent on it).
+			liveIndex := cmdpkg.NewLiveIndexer(cwd)
+			defer liveIndex.Close()
+
 			// This callback pattern enables real-time processing of agent sessions
 			// without blocking the agent's execution. As the agent writes updates to its
 			// data files, the provider's watcher detects changes and invokes this callback,
@@ -466,6 +471,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 						"sessionId", session.SessionID,
 						"error", err)
 				}
+
+				// Mirror the markdown write into the restore index in real time.
+				liveIndex.Record(providerID, session)
 
 				// Push agent events to provenance engine for correlation
 				provenance.ProcessEvents(ctx, provenanceEngine, session)
