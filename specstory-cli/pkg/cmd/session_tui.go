@@ -532,7 +532,7 @@ func (m sessionTUI) rowsPerSession() int {
 
 // listHeight is how many sessions fit in the list region (height minus chrome).
 func (m sessionTUI) listHeight() int {
-	const chrome = 6 // header(2) + glance(1) + footer(2) + margins
+	const chrome = 5 // header(1) + two rules(2) + footer(1) + margin
 	avail := m.height - chrome
 	if avail < 1 {
 		avail = 1
@@ -811,8 +811,6 @@ func (m sessionTUI) renderListScreen() string {
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", m.lineWidth()))
 	b.WriteString("\n")
-	b.WriteString(m.renderGlance())
-	b.WriteString("\n")
 	b.WriteString(m.renderFooter())
 	return b.String()
 }
@@ -839,9 +837,10 @@ func (m sessionTUI) renderHeader() string {
 	if m.agentFilter != "" {
 		agent = m.agentName(m.agentFilter)
 	}
-	left := m.headerLeft(m.projectScope())
-	right := styDim.Render("agent: ") + stySel.Render(agent)
-	return headerRow(left, right, m.lineWidth())
+	// Agent filter sits left, right after the project, rather than tucked in the far corner.
+	left := m.headerLeft(m.projectScope()) +
+		styDim.Render("  ·  agent: ") + stySel.Render(agent)
+	return headerRow(left, "", m.lineWidth())
 }
 
 func (m sessionTUI) renderRows() string {
@@ -959,14 +958,6 @@ func renderName(name string, selected bool, width int) string {
 		return stySel.Render(t)
 	}
 	return t
-}
-
-func (m sessionTUI) renderGlance() string {
-	sel := m.selected()
-	if sel == nil {
-		return ""
-	}
-	return styDim.Render("⟶  ") + styFaint.Render(truncate(sessionTitle(*sel), m.lineWidth()-4))
 }
 
 func (m sessionTUI) renderFooter() string {
@@ -1724,13 +1715,13 @@ func (m sessionTUI) renderGlobalResults() string {
 	var b strings.Builder
 
 	left := m.headerLeft("all projects")
+	if m.agentFilter != "" {
+		left += styDim.Render("  ·  agent: ") + stySel.Render(m.agentName(m.agentFilter))
+	}
 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
 		left += styDim.Render(" · ") + stySel.Render(q)
 	}
 	right := styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
-	if m.agentFilter != "" {
-		right += styDim.Render("   agent: ") + stySel.Render(m.agentName(m.agentFilter))
-	}
 	b.WriteString(headerRow(left, right, m.lineWidth()) + "\n")
 	b.WriteString(strings.Repeat("─", m.lineWidth()) + "\n")
 

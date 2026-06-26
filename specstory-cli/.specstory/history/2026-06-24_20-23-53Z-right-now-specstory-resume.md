@@ -3455,3 +3455,405 @@ Find Search query usage
 378:		WHERE sessions_fts MATCH ?`
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:36:18Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:36:37Z)**_
+
+I have a complete picture. Here's the diagnosis.
+
+## What's happening
+
+It's a **tokenization mismatch between how the body is indexed and how your query is built**. The two sides disagree on what `poem.txt` is.
+
+**Index side** — `sessions_fts` (`pkg/sessionindex/store.go:162`) is created with no `tokenize=` clause, so it uses FTS5's default **`unicode61`** tokenizer. That tokenizer treats every non-alphanumeric character — including `.` — as a *separator*. So when a session body contains `poem.txt`, it's indexed as **two adjacent tokens**: `poem` and `txt`. There is no token `poemtxt` anywhere in the index.
+
+**Query side** — `ftsQuery` → `alnumWords` (`pkg/cmd/session_tui.go:733`) tokenizes differently. It splits only on **whitespace**, then within each field it *deletes* non-alphanumerics and concatenates what's left:
+
+```
+"poem.txt"  --Fields-->  ["poem.txt"]  --strip '.'-->  "poemtxt"
+```
+
+So your query becomes `poemtxt*` (or, quoted, the phrase `"poemtxt"`). That asks the index for a token starting with `poemtxt` — which doesn't exist — so you get zero hits.
+
+Meanwhile:
+- `poem` → `poem*` → matches the `poem` token ✅
+- `txt` → `txt*` → matches the `txt` token ✅
+- `poem.txt` → `poemtxt*` → matches nothing ❌
+
+Quoting doesn't help because the quoted path runs through the same `alnumWords`, so `"poem.txt"` also collapses to the single bogus token `poemtxt`.
+
+The existing test actually **encodes this bug** as if it were intended: `pkg/cmd/resume_test.go:21` asserts `"max-cpu!" → "maxcpu*"`. That query is equally broken — the body indexes `max-cpu` as `max` + `cpu`, so `maxcpu*` can never match it.
+
+## The root cause in one sentence
+
+`alnumWords` removes intra-word punctuation and fuses the pieces into one token, but `unicode61` splits on that same punctuation into multiple tokens — so any query term containing punctuation produces a token the index will never contain.
+
+## How we might fix it
+
+The principle: **the query tokenizer must split on the same boundaries unicode61 does** (any non-alphanumeric), not just whitespace. Then `poem.txt` yields two tokens, matching the index. Two reasonable shapes for the result:
+
+1. **Loose (AND, any order)** — `poem.txt` → `poem* txt*`. Simplest; consistent with how multi-word bare input already behaves. Slightly looser than the user might expect (the two tokens need only appear *somewhere* in the session, not together).
+
+2. **Adjacency phrase (my recommendation)** — since `poem` and `txt` were contiguous in the input (only punctuation between them), treat them as a phrase: `"poem txt"` (or `poem + txt*` while still typing, for live prefix). Because unicode61 indexes them at adjacent positions, an FTS5 phrase query matches `poem.txt` occurrences *precisely* — and won't spuriously match a session that mentions "poem" in one place and "txt" in another. This best reflects what the user typed.
+
+Implementation would be a change to `alnumWords` (split each field on non-alphanumeric runs instead of stripping them) plus a small decision in `ftsQuery` about whether sub-tokens from one input word become loose tokens or an adjacency phrase. The `TestFTSQuery`/`TestQueryReady` cases (notably the `max-cpu!` one) would need updating to reflect the corrected behavior.
+
+A couple of things to decide before implementing:
+- **Bare multi-punctuation words** like `a.b.c` → phrase `"a b c"` vs loose `a* b* c*`.
+- Whether the **prefix `*`** still belongs on the last sub-token in committed (closed) searches — for an exact filename match you may *not* want `poem txt` to prefix-match `txt` into `txture`, etc.
+
+One more note: no reindex is needed for the fix — the index already stores the right tokens (`poem`, `txt`). This is purely a query-construction bug, so fixing `ftsQuery`/`alnumWords` is sufficient.
+
+---
+
+_**User (2026-06-25 22:40:29Z)**_
+
+ Adjacency phrase 
+
+prefix * doesn't belong on last token in commited phrases, only in open ones
+
+---
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:39Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:41Z)**_
+
+The decisions are clear:
+- **Adjacency phrase** for punctuation-split words (`poem.txt` → tokens `poem`, `txt` matched adjacently).
+- **Prefix `*`** only on open (still-typing) phrases, never on committed (closed-quote) ones.
+
+Let me check what references the functions I'll change before rewriting.
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:41Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find references to the tokenization functions
+
+`grep -rn "alnumWords\|ftsQuery\|fieldTokens\|allTokens" pkg/ --include="*.go" | grep -v _test`
+
+```text
+pkg/cmd/session_tui.go:613:		if sessions, err := m.store.Search(ftsQuery(m.searchQuery), m.projectID); err == nil {
+pkg/cmd/session_tui.go:672:// ftsQuery turns free-form input into a safe FTS5 prefix query (alnum tokens only).
+pkg/cmd/session_tui.go:680:// same runes ftsQuery keeps) to run an FTS query. Below minQueryLen we don't search.
+pkg/cmd/session_tui.go:694:// ftsQuery turns free-form input into an FTS5 query string. Three shapes:
+pkg/cmd/session_tui.go:705:func ftsQuery(input string) string {
+pkg/cmd/session_tui.go:712:		words := alnumWords(seg)
+pkg/cmd/session_tui.go:730:// alnumWords splits s on whitespace and reduces each field to its letters and digits,
+pkg/cmd/session_tui.go:732:// mirrored here so queryReady and ftsQuery agree on what counts as a searchable token.
+pkg/cmd/session_tui.go:733:func alnumWords(s string) []string {
+pkg/cmd/session_tui.go:1816:	fq := ftsQuery(query)
+pkg/cmd/session_tui.go:1893:	fq := ftsQuery(query)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:44Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:45Z)**_
+
+`ftsQuery` is also used at 1816 and 1893 — let me check those to be sure my change is compatible:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:46Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/session_tui.go`
+
+```text
+1808	
+1809	// runSearch returns a command that performs the FTS query off the UI thread.
+1810	func (m sessionTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cmd {
+1811		store := m.store
+1812		query, projectID := m.searchQuery, m.projectID
+1813		if kind == modeProjects {
+1814			query, projectID = m.globalQuery, ""
+1815		}
+1816		fq := ftsQuery(query)
+1817		return func() tea.Msg {
+1818			if !queryReady(query) {
+1819				return searchResultMsg{seq: seq, kind: kind}
+1820			}
+1821			sessions, _ := store.SearchContext(ctx, fq, projectID)
+1822			return searchResultMsg{seq: seq, kind: kind, sessions: sessions}
+1823		}
+1824	}
+1825	
+1826	// applySearchResults installs async FTS results into the matching list (scoped or global).
+1827	func (m *sessionTUI) applySearchResults(kind tuiMode, sessions []sessionindex.Session) {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:51Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:42:51Z)**_
+
+Both call sites just feed the result into MATCH — fully compatible. Now let me rewrite the tokenizer and query builder. First the doc comment + `ftsQuery`:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:14Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:18Z)**_
+
+Now update the `TestFTSQuery` cases: fix the punctuation case and add filename cases:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:25Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and run FTS query tests
+
+`go build -o specstory . && go test ./pkg/cmd/... -run 'TestFTSQuery|TestQueryReady' -v 2>&1 | tail -30`
+
+```text
+=== RUN   TestFTSQuery/punctuation_in_a_bare_word_splits_into_an_adjacency_phrase
+=== RUN   TestFTSQuery/a_bare_filename_is_an_adjacency_phrase_with_prefix_last
+=== RUN   TestFTSQuery/a_quoted_filename_is_a_committed_phrase,_no_prefix
+=== RUN   TestFTSQuery/an_open-quoted_filename_keeps_the_last_token_a_prefix
+=== RUN   TestFTSQuery/closed_phrase_is_exact_adjacency
+=== RUN   TestFTSQuery/closed_single-word_phrase_has_no_prefix
+=== RUN   TestFTSQuery/open_phrase_keeps_last_word_a_prefix
+=== RUN   TestFTSQuery/open_single-word_phrase_is_a_prefix
+=== RUN   TestFTSQuery/phrase_plus_trailing_bare_word
+=== RUN   TestFTSQuery/bare_word_before_a_closed_phrase
+=== RUN   TestFTSQuery/whitespace_inside_a_phrase_is_collapsed
+--- PASS: TestFTSQuery (0.00s)
+    --- PASS: TestFTSQuery/empty (0.00s)
+    --- PASS: TestFTSQuery/single_word_is_a_prefix (0.00s)
+    --- PASS: TestFTSQuery/bare_words_are_independent_prefixes (0.00s)
+    --- PASS: TestFTSQuery/punctuation_in_a_bare_word_splits_into_an_adjacency_phrase (0.00s)
+    --- PASS: TestFTSQuery/a_bare_filename_is_an_adjacency_phrase_with_prefix_last (0.00s)
+    --- PASS: TestFTSQuery/a_quoted_filename_is_a_committed_phrase,_no_prefix (0.00s)
+    --- PASS: TestFTSQuery/an_open-quoted_filename_keeps_the_last_token_a_prefix (0.00s)
+    --- PASS: TestFTSQuery/closed_phrase_is_exact_adjacency (0.00s)
+    --- PASS: TestFTSQuery/closed_single-word_phrase_has_no_prefix (0.00s)
+    --- PASS: TestFTSQuery/open_phrase_keeps_last_word_a_prefix (0.00s)
+    --- PASS: TestFTSQuery/open_single-word_phrase_is_a_prefix (0.00s)
+    --- PASS: TestFTSQuery/phrase_plus_trailing_bare_word (0.00s)
+    --- PASS: TestFTSQuery/bare_word_before_a_closed_phrase (0.00s)
+    --- PASS: TestFTSQuery/whitespace_inside_a_phrase_is_collapsed (0.00s)
+=== RUN   TestQueryReady
+--- PASS: TestQueryReady (0.00s)
+PASS
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.027s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:38Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:38Z)**_
+
+The tests compiled and passed, so `LiveIndexer` does resolve — let me confirm that diagnostic isn't a real breakage from my change:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:43Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify LiveIndexer is defined and vet the package
+
+`grep -rn "LiveIndexer" pkg/ --include="*.go" | grep -v _test | head; echo "--- vet ---"; go vet ./pkg/cmd/ 2>&1 | tail -5`
+
+```text
+pkg/cmd/resume.go:234:	liveIndex := NewLiveIndexer(cwd)
+pkg/cmd/watch.go:193:			liveIndex := NewLiveIndexer(cwd)
+pkg/cmd/reindex.go:360:// LiveIndexer keeps ~/.specstory/sessions.db current in real time, alongside the markdown
+pkg/cmd/reindex.go:366:// write, so construction failures yield a nil *LiveIndexer (whose methods are no-ops) and
+pkg/cmd/reindex.go:370:type LiveIndexer struct {
+pkg/cmd/reindex.go:381:// NewLiveIndexer opens the index for writing and resolves the project for cwd. It returns nil
+pkg/cmd/reindex.go:384:func NewLiveIndexer(cwd string) *LiveIndexer {
+pkg/cmd/reindex.go:399:	return &LiveIndexer{
+pkg/cmd/reindex.go:413:func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
+pkg/cmd/reindex.go:456:func (li *LiveIndexer) Close() {
+--- vet ---
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:47Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:48Z)**_
+
+`LiveIndexer` is defined in `reindex.go` and `go vet` is clean — those diagnostics were transient (the linter analyzing the file mid-edit). Now the full lint + test sweep:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:51Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Lint and test cmd + sessionindex
+
+`gofmt -w . && golangci-lint run ./pkg/cmd/... 2>&1 | tail -5; echo "=== TESTS ==="; go test ./pkg/cmd/... ./pkg/sessionindex/... 2>&1 | tail -10`
+
+```text
+0 issues.
+=== TESTS ===
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.172s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	(cached)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:43:59Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:00Z)**_
+
+Lint clean, all tests pass. Let me prove the fix end-to-end against real FTS5 semantics — confirming the new query matches a body containing `poem.txt` while the old one didn't:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:21Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Empirically verify FTS5 matching for old vs new query
+
+```bash
+cd "$(mktemp -d)" && cat > t.go <<'EOF'
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	_ "github.com/mattn/go-sqlite3"
+)
+
+func main() {
+	db, _ := sql.Open("sqlite3", ":memory:")
+	db.Exec(`CREATE VIRTUAL TABLE fts USING fts5(body)`)
+	db.Exec(`INSERT INTO fts(body) VALUES ('please read the file at poem.txt and summarize')`)
+
+	for _, q := range []string{"poemtxt*", "poem + txt*", `"poem txt"`, "poem*", "txt*"} {
+		var n int
+		err := db.QueryRow(`SELECT count(*) FROM fts WHERE fts MATCH ?`, q).Scan(&n)
+		fmt.Printf("  %-16q -> matches=%d  err=%v\n", q, n, err)
+	}
+}
+EOF
+go mod init t >/dev/null 2>&1
+go mod edit -require=github.com/mattn/go-sqlite3@v1.14.22
+GOFLAGS=-mod=mod go run t.go 2>&1 | tail -20
+```
+
+```text
+go: downloading github.com/mattn/go-sqlite3 v1.14.22
+  "poemtxt*"       -> matches=0  err=no such table: fts
+  "poem + txt*"    -> matches=0  err=no such table: fts
+  "\"poem txt\""   -> matches=0  err=no such table: fts
+  "poem*"          -> matches=0  err=no such table: fts
+  "txt*"           -> matches=0  err=no such table: fts
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:26Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:26Z)**_
+
+FTS5 needs a build tag. Let me check how the project enables it and retry:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find sqlite driver and fts5 build tag
+
+`grep -rn "fts5\|sqlite3\|build " pkg/sessionindex/*.go | grep -i "tag\|import\|fts5" | head; echo "--- go.mod driver ---"; grep -i sqlite go.mod`
+
+```text
+pkg/sessionindex/store.go:162:	CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
+--- go.mod driver ---
+	modernc.org/sqlite v1.46.1 // Pure Go SQLite database driver
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:31Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:31Z)**_
+
+The project uses `modernc.org/sqlite` (pure Go, FTS5 built in). Let me redo with that driver:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify FTS5 matching with modernc driver
+
+```bash
+D="$(mktemp -d)" && cat > "$D/t.go" <<'EOF'
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	_ "modernc.org/sqlite"
+)
+
+func main() {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil { panic(err) }
+	if _, err := db.Exec(`CREATE VIRTUAL TABLE fts USING fts5(body)`); err != nil { panic(err) }
+	db.Exec(`INSERT INTO fts(body) VALUES ('please read the file at poem.txt and summarize')`)
+
+	for _, q := range []string{"poemtxt*", "poem + txt*", `"poem txt"`, "poem*", "txt*"} {
+		var n int
+		err := db.QueryRow(`SELECT count(*) FROM fts WHERE fts MATCH ?`, q).Scan(&n)
+		fmt.Printf("  %-16q -> matches=%d  err=%v\n", q, n, err)
+	}
+}
+EOF
+cp go.mod go.sum "$D/" && cd "$D" && go mod edit -module=ftscheck && GOFLAGS=-mod=mod go run t.go 2>&1 | tail -20
+```
+
+```text
+  "poemtxt*"       -> matches=0  err=<nil>
+  "poem + txt*"    -> matches=1  err=<nil>
+  "\"poem txt\""   -> matches=1  err=<nil>
+  "poem*"          -> matches=1  err=<nil>
+  "txt*"           -> matches=1  err=<nil>
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:44Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:44:55Z)**_
+
+Proven end-to-end against the exact FTS5 engine the project uses (`modernc.org/sqlite`):
+
+| Query | Source input | Matches `…poem.txt…` |
+|---|---|---|
+| `poemtxt*` | **old** behavior | **0** ❌ (the bug) |
+| `poem + txt*` | new — bare `poem.txt` | **1** ✅ |
+| `"poem txt"` | new — quoted `"poem.txt"` | **1** ✅ |
+| `poem*` / `txt*` | partial searches | 1 each ✅ (already worked) |
+
+## What I changed
+
+**The fix is entirely query-side** (`pkg/cmd/session_tui.go`) — no reindex needed, since the index already stored the right tokens (`poem`, `txt`).
+
+1. **Replaced `alnumWords` with `fieldTokens`** — instead of *stripping* punctuation and fusing a word into one token (`poem.txt` → `poemtxt`), it now *splits* on every non-alphanumeric run, exactly like the index's `unicode61` tokenizer (`poem.txt` → `poem`, `txt`). Added `segmentTokens` to flatten a whole quoted segment the same way.
+
+2. **`ftsQuery` builds adjacency phrases** for any word that tokenizes into more than one token, honoring your prefix rule:
+   - Bare `poem.txt` → `poem + txt*` (adjacent, prefix the last token for live type-ahead)
+   - Open quote `"poem.txt` → `poem + txt*` (still typing → prefix)
+   - Closed quote `"poem.txt"` → `"poem txt"` (committed phrase → **no** prefix)
+
+Single-token words and the existing loose/phrase shapes are unchanged, so `thank you → thank* you*`, `"thank you" → "thank you"`, etc. all still hold.
+
+## Tests
+
+Updated `TestFTSQuery`: the old `"max-cpu!" → "maxcpu*"` case (which encoded the bug) is now `"max-cpu!" → "max + cpu*"`, plus three new filename cases covering bare / closed-quote / open-quote. Full `pkg/cmd` and `pkg/sessionindex` suites pass; `golangci-lint` clean.
+
+One side effect worth noting: searches like `max-cpu` now require `max` and `cpu` to be **adjacent** (a phrase), where before they matched a nonexistent fused token (i.e. matched nothing). That's strictly more correct, but it is a behavior change for any punctuation-joined query — they're now precise adjacency matches rather than loose AND. If you'd ever want punctuation-joined terms to be loose-AND instead of adjacent, that'd be a one-line change in the outside-quotes branch, but adjacency is what you asked for and it's the faithful interpretation of a typed filename.
