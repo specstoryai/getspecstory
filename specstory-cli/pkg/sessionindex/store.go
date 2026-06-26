@@ -210,31 +210,61 @@ func FingerprintKey(agent, sessionID string) string {
 	return agent + "\x00" + sessionID
 }
 
-// upsertTx writes one session's row and full-text row within an open transaction.
-// FTS5 standalone tables are not auto-synced, so the FTS row is replaced by hand.
-func upsertTx(tx *sql.Tx, sess Session) error {
-	if _, err := tx.Exec(`INSERT OR REPLACE INTO sessions (`+sessionColumns+`)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+// sessionUpsertStmts are the per-row statements UpsertBatch prepares once and reuses across
+// every row in a transaction, so the SQL is parsed once per batch instead of once per row.
+type sessionUpsertStmts struct {
+	insSession *sql.Stmt
+	delFTS     *sql.Stmt
+	insFTS     *sql.Stmt
+}
+
+// upsertOne writes one session's row and full-text row using the batch's prepared statements.
+// FTS5 standalone tables are not auto-synced, so the FTS row is replaced by hand — except for
+// brand-new sessions (sess.IsNew), where the delete is skipped: it can't use an index
+// (session_id/agent are UNINDEXED) so it scans the whole FTS, and a new session has no row to
+// delete anyway. At 25k+ sessions that skip is what keeps a from-scratch build out of O(N²).
+func upsertOne(st sessionUpsertStmts, sess Session) error {
+	if _, err := st.insSession.Exec(
 		sess.ProjectID, sess.ProjectName, sess.Agent, sess.SessionID, sess.CreatedAt, sess.UpdatedAt,
 		sess.UserTurns, sess.TotalTurns, sess.Slug, sess.Name, sess.NativePath, sess.OriginCwd,
 		sess.Size, sess.Mtime, sess.IndexVersion, sess.IndexedAt); err != nil {
 		return fmt.Errorf("upsert session row: %w", err)
 	}
-	// Replace the old FTS row. Skipped for brand-new sessions (sess.IsNew): the delete can't
-	// use an index (session_id/agent are UNINDEXED) so it scans the whole FTS — at 25k+
-	// sessions a from-scratch build turns that into O(N²). A new session has no row to
-	// delete, so the scan would be pure waste.
 	if !sess.IsNew {
-		if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`,
-			sess.Agent, sess.SessionID); err != nil {
+		if _, err := st.delFTS.Exec(sess.Agent, sess.SessionID); err != nil {
 			return fmt.Errorf("clear fts row: %w", err)
 		}
 	}
-	if _, err := tx.Exec(`INSERT INTO sessions_fts (session_id, agent, name, body) VALUES (?,?,?,?)`,
-		sess.SessionID, sess.Agent, sess.Name, sess.Body); err != nil {
+	if _, err := st.insFTS.Exec(sess.SessionID, sess.Agent, sess.Name, sess.Body); err != nil {
 		return fmt.Errorf("insert fts row: %w", err)
 	}
 	return nil
+}
+
+// prepareUpsert prepares the three per-row statements on tx and returns them with a closer.
+func prepareUpsert(tx *sql.Tx) (sessionUpsertStmts, func(), error) {
+	insSession, err := tx.Prepare(`INSERT OR REPLACE INTO sessions (` + sessionColumns + `)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	if err != nil {
+		return sessionUpsertStmts{}, func() {}, fmt.Errorf("prepare session upsert: %w", err)
+	}
+	delFTS, err := tx.Prepare(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`)
+	if err != nil {
+		_ = insSession.Close()
+		return sessionUpsertStmts{}, func() {}, fmt.Errorf("prepare fts delete: %w", err)
+	}
+	insFTS, err := tx.Prepare(`INSERT INTO sessions_fts (session_id, agent, name, body) VALUES (?,?,?,?)`)
+	if err != nil {
+		_ = insSession.Close()
+		_ = delFTS.Close()
+		return sessionUpsertStmts{}, func() {}, fmt.Errorf("prepare fts insert: %w", err)
+	}
+	closer := func() {
+		_ = insSession.Close()
+		_ = delFTS.Close()
+		_ = insFTS.Close()
+	}
+	return sessionUpsertStmts{insSession: insSession, delFTS: delFTS, insFTS: insFTS}, closer, nil
 }
 
 // Upsert inserts or replaces a single session row and its full-text row, atomically. A
@@ -260,8 +290,14 @@ func (s *Store) UpsertBatch(sessions []Session) error {
 		}
 	}()
 
+	st, closeStmts, err := prepareUpsert(tx)
+	if err != nil {
+		return err
+	}
+	defer closeStmts()
+
 	for _, sess := range sessions {
-		if err := upsertTx(tx, sess); err != nil {
+		if err := upsertOne(st, sess); err != nil {
 			return err
 		}
 	}

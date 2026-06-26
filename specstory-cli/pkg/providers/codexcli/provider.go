@@ -11,7 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
@@ -341,12 +343,35 @@ func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string
 	if err != nil {
 		return nil, fmt.Errorf("failed to load codex session meta: %w", err)
 	}
-	info := codexSessionInfo{
-		SessionID:   strings.TrimSpace(meta.Payload.ID),
-		SessionPath: nativePath,
-		Meta:        meta,
+	// debugRaw is only set when a caller wants provider-specific raw dumps + RawData; reindex
+	// (the only caller) never does. Honor it via the full path so that behavior is unchanged.
+	if debugRaw {
+		info := codexSessionInfo{
+			SessionID:   strings.TrimSpace(meta.Payload.ID),
+			SessionPath: nativePath,
+			Meta:        meta,
+		}
+		return processSessionToAgentChat(&info, originCwd, debugRaw)
 	}
-	return processSessionToAgentChat(&info, originCwd, debugRaw)
+	// Index fast path: read records only (skip the whole-file rawData string reindex never
+	// reads) and skip slug derivation (reindex uses the slug from enumeration). The SessionData
+	// produced here is identical to the full path's.
+	records, err := readSessionRecords(nativePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read session data: %w", err)
+	}
+	if len(records) == 0 {
+		return nil, nil
+	}
+	sessionData, err := GenerateAgentSession(records, originCwd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate SessionData: %w", err)
+	}
+	return &spi.AgentChatSession{
+		SessionID:   strings.TrimSpace(meta.Payload.ID),
+		CreatedAt:   meta.Timestamp,
+		SessionData: sessionData,
+	}, nil
 }
 
 // ExecAgentAndWatch executes the Codex CLI in interactive mode and monitors for session updates.
@@ -595,9 +620,23 @@ func findCodexSessions(projectPath string, targetSessionID string, stopOnFirst b
 	return sessions, nil
 }
 
-// readSessionRawData reads all JSONL lines from a Codex CLI session file and returns
-// both the parsed records and the raw JSONL content.
+// readSessionRawData reads all JSONL records and the raw JSONL content from a Codex session.
 func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, error) {
+	return readCodexJSONL(sessionPath, true)
+}
+
+// readSessionRecords reads only the parsed JSONL records, skipping construction of the raw
+// JSONL string. reindex parses on this path: the raw content (up to the full file size — some
+// Codex sessions are hundreds of MB) is never read when indexing, so building it is pure waste.
+func readSessionRecords(sessionPath string) ([]map[string]interface{}, error) {
+	records, _, err := readCodexJSONL(sessionPath, false)
+	return records, err
+}
+
+// readCodexJSONL reads a Codex session's JSONL records, and — when collectRaw is true — the raw
+// JSONL content as one string. Callers that only need records pass collectRaw=false to skip the
+// whole-file string builder.
+func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface{}, string, error) {
 	file, err := os.Open(sessionPath)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to open session file: %w", err)
@@ -669,9 +708,11 @@ func readSessionRawData(sessionPath string) ([]map[string]interface{}, string, e
 			continue
 		}
 
-		// Add to raw data
-		rawBuilder.WriteString(line)
-		rawBuilder.WriteString("\n")
+		// Accumulate raw JSONL only when the caller asked for it (reindex does not).
+		if collectRaw {
+			rawBuilder.WriteString(line)
+			rawBuilder.WriteString("\n")
+		}
 
 		// Parse JSON
 		var record map[string]interface{}
@@ -979,9 +1020,114 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 	}, nil
 }
 
-// ListAllAgentChatSessions enumerates every Codex CLI session across all projects by
-// walking ~/.codex/sessions for *.jsonl rollouts. Codex sessions are not project-keyed
-// by directory; the originating cwd lives in the session_meta record. See
+// codexSessionHeader is the minimal metadata enumeration needs from a session file: the
+// session_meta fields plus the first user message (for slug/name), produced in a SINGLE pass.
+type codexSessionHeader struct {
+	sessionID        string
+	cwd              string
+	createdAt        string
+	firstUserMessage string
+}
+
+// userMessageMarker is the cheap substring screen for a Codex user_message record. Every real
+// user_message record contains it (it is the payload "type" value), so screening on it before a
+// full JSON parse never misses one; a rare false positive (the literal text inside an injected
+// context record) just costs one extra parse that codexUserMessageText then rejects.
+const userMessageMarker = `"user_message"`
+
+// scanCodexSessionHeader reads a Codex session file ONCE and extracts the session_meta
+// (id/cwd/timestamp from line 1) and the first user message. It deliberately avoids fully
+// parsing the large injected-context records (environment, instructions, AGENTS.md — often MB
+// each) that precede the first user message: each line is first cheaply screened for the
+// user_message marker, and only a candidate line is JSON-decoded. The result is identical to the
+// prior loadCodexSessionMeta + extractCodexSessionMetadata pair, in one pass instead of two opens.
+// Returns (nil, nil) for a session with no user message — treated as empty, as before.
+func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
+	file, err := os.Open(sessionPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open session file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	reader := bufio.NewReader(file)
+	h := &codexSessionHeader{}
+	lineNum := 0
+	for {
+		line, readErr := reader.ReadString('\n')
+		if readErr != nil && readErr != io.EOF {
+			return nil, fmt.Errorf("failed to read line: %w", readErr)
+		}
+		lineNum++
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed != "" {
+			if lineNum == 1 {
+				// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
+				// the set of indexed sessions is unchanged from the Scanner-based path.
+				if len(trimmed) > bufio.MaxScanTokenSize {
+					return nil, errors.New("codex session meta exceeds line limit")
+				}
+				var meta codexSessionMeta
+				if err := json.Unmarshal([]byte(trimmed), &meta); err != nil {
+					return nil, fmt.Errorf("failed to parse codex session meta: %w", err)
+				}
+				if meta.Type != "session_meta" {
+					return nil, fmt.Errorf("unexpected codex session record type: %s", meta.Type)
+				}
+				h.sessionID = strings.TrimSpace(meta.Payload.ID)
+				h.cwd = meta.Payload.CWD
+				h.createdAt = meta.Timestamp
+			} else if strings.Contains(trimmed, userMessageMarker) {
+				// Cheap screen passed: only now pay for a full parse. The big context records
+				// before the first user message lack the marker and are skipped without a parse.
+				if msg := codexUserMessageText(trimmed); msg != "" {
+					h.firstUserMessage = msg
+					break
+				}
+			}
+		}
+
+		if readErr == io.EOF {
+			break
+		}
+	}
+
+	if h.sessionID == "" {
+		return nil, errors.New("codex session meta not found")
+	}
+	if h.firstUserMessage == "" {
+		return nil, nil // no user message → empty session, excluded from enumeration
+	}
+	return h, nil
+}
+
+// codexUserMessageText returns the message text when line is an event_msg user_message with a
+// non-empty message, else "". It is only called for lines that passed the userMessageMarker
+// screen, and applies the same structural checks extractCodexSessionMetadata used.
+func codexUserMessageText(line string) string {
+	var record map[string]interface{}
+	if err := json.Unmarshal([]byte(line), &record); err != nil {
+		return ""
+	}
+	if recordType, _ := record["type"].(string); recordType != "event_msg" {
+		return ""
+	}
+	payload, ok := record["payload"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if payloadType, _ := payload["type"].(string); payloadType != "user_message" {
+		return ""
+	}
+	message, _ := payload["message"].(string)
+	return message
+}
+
+// ListAllAgentChatSessions enumerates every Codex CLI session across all projects by walking
+// ~/.codex/sessions for *.jsonl rollouts. Codex sessions are not project-keyed by directory; the
+// originating cwd lives in the session_meta record. The per-file header read is the dominant cost
+// of `specstory reindex` (parsing each file's injected context), so headers are scanned in
+// parallel across CPUs; output order is irrelevant (reindex dedups and sorts later). See
 // docs/SESSIONS-DB.md.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 	homeDir, err := osUserHomeDir()
@@ -994,7 +1140,8 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 		return []spi.GlobalSessionRef{}, nil
 	}
 
-	var refs []spi.GlobalSessionRef
+	// Phase 1: collect file paths (dirents only — no opens).
+	var paths []string
 	walkErr := filepath.WalkDir(sessionsRoot, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable entries rather than abort the sweep
@@ -1002,36 +1149,54 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 		if d.IsDir() || filepath.Ext(path) != ".jsonl" {
 			return nil
 		}
-		meta, err := loadCodexSessionMeta(path)
-		if err != nil {
-			slog.Debug("reindex: failed to load codex session meta", "path", path, "error", err)
-			return nil
-		}
-		info := codexSessionInfo{
-			SessionID:   strings.TrimSpace(meta.Payload.ID),
-			SessionPath: path,
-			Meta:        meta,
-		}
-		metadata, err := extractCodexSessionMetadata(&info)
-		if err != nil {
-			slog.Warn("reindex: failed to extract codex session metadata", "path", path, "error", err)
-			return nil
-		}
-		if metadata == nil {
-			return nil // empty session (no user messages)
-		}
-		refs = append(refs, spi.GlobalSessionRef{
-			SessionID:  metadata.SessionID,
-			CreatedAt:  metadata.CreatedAt,
-			Slug:       metadata.Slug,
-			Name:       metadata.Name,
-			NativePath: path,
-			OriginCwd:  meta.Payload.CWD,
-		})
+		paths = append(paths, path)
 		return nil
 	})
 	if walkErr != nil {
 		return nil, fmt.Errorf("failed to walk codex sessions: %w", walkErr)
 	}
+
+	// Phase 2: scan headers in parallel. Each file's single-pass read is CPU-bound (JSON) and the
+	// files are independent, so this scales across cores.
+	workers := min(runtime.NumCPU(), 12)
+	if workers < 1 {
+		workers = 1
+	}
+	pathCh := make(chan string, workers)
+	refs := make([]spi.GlobalSessionRef, 0, len(paths))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range pathCh {
+				h, err := scanCodexSessionHeader(path)
+				if err != nil {
+					slog.Debug("reindex: failed to scan codex session header", "path", path, "error", err)
+					continue
+				}
+				if h == nil {
+					continue // empty session (no user message)
+				}
+				ref := spi.GlobalSessionRef{
+					SessionID:  h.sessionID,
+					CreatedAt:  h.createdAt,
+					Slug:       spi.GenerateFilenameFromUserMessage(h.firstUserMessage),
+					Name:       spi.GenerateReadableName(h.firstUserMessage),
+					NativePath: path,
+					OriginCwd:  h.cwd,
+				}
+				mu.Lock()
+				refs = append(refs, ref)
+				mu.Unlock()
+			}
+		}()
+	}
+	for _, path := range paths {
+		pathCh <- path
+	}
+	close(pathCh)
+	wg.Wait()
 	return refs, nil
 }

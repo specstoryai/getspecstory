@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -276,6 +277,12 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 	if workers < 1 {
 		workers = 1
 	}
+
+	// Schedule the largest sessions first. A few huge Codex files (hundreds of MB) would
+	// otherwise be end-of-run stragglers that leave most worker cores idle; starting them
+	// first overlaps them with the long tail of small sessions. Order does not affect the
+	// resulting index.
+	sort.SliceStable(work, func(i, j int) bool { return work[i].size > work[j].size })
 
 	sessionsCh := make(chan sessionindex.Session, 256)
 	var writeErr error
