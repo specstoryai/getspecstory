@@ -38,7 +38,9 @@ const (
 	//   3: also skip "[Request interrupted by user…]" markers
 	//   4: canonicalize (case-fold) the workspace_id path hash + prefer a persisted
 	//      .project.json workspace_id, so a project's id no longer varies with path casing
-	reindexVersion = 4
+	//   5: parse Codex bodies from the enumerated NativePath (was a by-id tree search), so a
+	//      session's body and its freshness fingerprint now derive from the same file
+	reindexVersion = 5
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch
@@ -72,6 +74,7 @@ type reindexItem struct {
 	ref   spi.GlobalSessionRef
 	size  int64
 	mtime int64
+	isNew bool // no existing index row → writer can skip the standalone-FTS delete
 }
 
 func runReindex(force bool) error {
@@ -110,7 +113,7 @@ func runReindex(force bool) error {
 	best, order, foundPerAgent := dedupRefs(ids, provs, perProvider)
 	found := len(order)
 	cache := &projectIDCache{m: map[string]projectIDName{}}
-	work, totals, unchanged := selectWork(order, best, fingerprints, "", cache)
+	work, totals, unchanged := selectWork(order, best, fingerprints, "", force, cache)
 
 	if found == 0 {
 		fprintln(os.Stderr, "No agent sessions found to index.")
@@ -225,7 +228,7 @@ func dedupRefs(ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSes
 // deduped set. projectFilter "" means all projects; otherwise only sessions whose originating
 // cwd resolves to that project id are kept (used by the background warm's current-project
 // pass). totals is the per-agent to-do count (drives the foreground progress bars).
-func selectWork(order []string, best map[string]reindexItem, fingerprints map[string]sessionindex.Fingerprint, projectFilter string, cache *projectIDCache) (work []reindexItem, totals map[string]int, unchanged int) {
+func selectWork(order []string, best map[string]reindexItem, fingerprints map[string]sessionindex.Fingerprint, projectFilter string, force bool, cache *projectIDCache) (work []reindexItem, totals map[string]int, unchanged int) {
 	totals = map[string]int{}
 	for _, key := range order {
 		item := best[key]
@@ -234,11 +237,16 @@ func selectWork(order []string, best map[string]reindexItem, fingerprints map[st
 				continue
 			}
 		}
-		if fp, ok := fingerprints[key]; ok &&
-			fp.Size == item.size && fp.Mtime == item.mtime && fp.Version == reindexVersion {
+		fp, ok := fingerprints[key]
+		if ok && fp.Size == item.size && fp.Mtime == item.mtime && fp.Version == reindexVersion {
 			unchanged++
 			continue // already indexed and unchanged
 		}
+		// A session absent from the fingerprint set has no sessions row, hence no sessions_fts
+		// row either (the pair is written atomically) — so the writer can skip the O(rows)
+		// standalone-FTS delete. Under --force the fingerprint map is deliberately empty, so
+		// absence proves nothing; keep the delete to avoid duplicate FTS rows.
+		item.isNew = !force && !ok
 		work = append(work, item)
 		totals[item.agent]++
 	}
@@ -335,7 +343,7 @@ func warmIndexInBackground(ctx context.Context, dbPath, currentProjectID string,
 
 	// Pass 1 — the current project, so its rows are fresh almost immediately.
 	fps, _ := store.Fingerprints()
-	work, _, _ := selectWork(order, best, fps, currentProjectID, cache)
+	work, _, _ := selectWork(order, best, fps, currentProjectID, false, cache)
 	if err := processWork(ctx, store, work, cache, indexedAt, workers, nopReporter{}); err != nil {
 		slog.Debug("warm: current-project pass failed", "error", err)
 	}
@@ -349,7 +357,7 @@ func warmIndexInBackground(ctx context.Context, dbPath, currentProjectID string,
 	// Pass 2 — everything else. Reload fingerprints so pass-1's writes now register as
 	// unchanged and are skipped, leaving only the rest of the corpus to parse.
 	fps, _ = store.Fingerprints()
-	work, _, _ = selectWork(order, best, fps, "", cache)
+	work, _, _ = selectWork(order, best, fps, "", false, cache)
 	if err := processWork(ctx, store, work, cache, indexedAt, workers, nopReporter{}); err != nil {
 		slog.Debug("warm: full pass failed", "error", err)
 	}
@@ -486,12 +494,13 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 		Mtime:        item.mtime,
 		IndexVersion: reindexVersion,
 		IndexedAt:    indexedAt,
+		IsNew:        item.isNew,
 	}
 
 	if ref.OriginCwd == "" {
 		return sess // cannot re-locate without a cwd → metadata-only
 	}
-	full, err := item.prov.GetAgentChatSession(ref.OriginCwd, ref.SessionID, false)
+	full, err := parseFullSession(item.prov, ref)
 	if err != nil || full == nil || full.SessionData == nil {
 		slog.Debug("reindex: full parse unavailable, indexing metadata only",
 			"agent", item.agent, "session", ref.SessionID, "error", err)
@@ -505,6 +514,20 @@ func buildSession(item reindexItem, cache *projectIDCache, indexedAt string) ses
 		sess.UpdatedAt = ts
 	}
 	return sess
+}
+
+// parseFullSession reads a session's full data for indexing. It prefers a provider's
+// path-keyed parse (spi.PathSessionReader) using the ref's already-known NativePath, which
+// avoids the provider's by-id discovery search — for Codex that search walks the entire
+// ~/.codex/sessions tree, so this is the difference between an O(N) and an O(N²) reindex.
+// Providers without the capability (or refs lacking a NativePath) fall back to the by-id
+// lookup. Parsing the known NativePath is also more consistent: the row's freshness
+// fingerprint is stat'd from NativePath, so the body now comes from that same file.
+func parseFullSession(prov spi.Provider, ref spi.GlobalSessionRef) (*spi.AgentChatSession, error) {
+	if pr, ok := prov.(spi.PathSessionReader); ok && ref.NativePath != "" {
+		return pr.GetAgentChatSessionByPath(ref.NativePath, ref.OriginCwd, false)
+	}
+	return prov.GetAgentChatSession(ref.OriginCwd, ref.SessionID, false)
 }
 
 // drainToStore writes parsed sessions to the index in batched transactions.

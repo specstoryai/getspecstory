@@ -50,6 +50,13 @@ type Session struct {
 	// Body is the full conversation text, indexed into sessions_fts (not persisted on
 	// the sessions row). Left empty on rows read back out of the index.
 	Body string
+
+	// IsNew is a write-time hint, not a persisted column: when true, the caller has
+	// determined this (agent, session_id) has no existing index row, so upsertTx can skip
+	// the delete-before-insert on the standalone FTS table (which otherwise scans the whole
+	// FTS, since session_id/agent are UNINDEXED). Leave false when unsure — the delete is
+	// then kept, which is always correct.
+	IsNew bool
 }
 
 // Fingerprint identifies an indexed session's freshness: the native file's size and
@@ -213,9 +220,15 @@ func upsertTx(tx *sql.Tx, sess Session) error {
 		sess.Size, sess.Mtime, sess.IndexVersion, sess.IndexedAt); err != nil {
 		return fmt.Errorf("upsert session row: %w", err)
 	}
-	if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`,
-		sess.Agent, sess.SessionID); err != nil {
-		return fmt.Errorf("clear fts row: %w", err)
+	// Replace the old FTS row. Skipped for brand-new sessions (sess.IsNew): the delete can't
+	// use an index (session_id/agent are UNINDEXED) so it scans the whole FTS — at 25k+
+	// sessions a from-scratch build turns that into O(N²). A new session has no row to
+	// delete, so the scan would be pure waste.
+	if !sess.IsNew {
+		if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`,
+			sess.Agent, sess.SessionID); err != nil {
+			return fmt.Errorf("clear fts row: %w", err)
+		}
 	}
 	if _, err := tx.Exec(`INSERT INTO sessions_fts (session_id, agent, name, body) VALUES (?,?,?,?)`,
 		sess.SessionID, sess.Agent, sess.Name, sess.Body); err != nil {

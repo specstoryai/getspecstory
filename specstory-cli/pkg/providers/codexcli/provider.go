@@ -330,6 +330,25 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	return processSessionToAgentChat(&sessions[0], projectPath, debugRaw)
 }
 
+// GetAgentChatSessionByPath parses a single Codex session directly from its native file
+// path, implementing spi.PathSessionReader. It skips findCodexSessions' whole-tree walk —
+// which is what makes the by-id GetAgentChatSession O(N) per call, and a reindex of every
+// session O(N²) — by reading session_meta from the known file and handing off to the same
+// processSessionToAgentChat the by-id path uses. originCwd is the workspace root, matching
+// what GetAgentChatSession passes as projectPath.
+func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+	meta, err := loadCodexSessionMeta(nativePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load codex session meta: %w", err)
+	}
+	info := codexSessionInfo{
+		SessionID:   strings.TrimSpace(meta.Payload.ID),
+		SessionPath: nativePath,
+		Meta:        meta,
+	}
+	return processSessionToAgentChat(&info, originCwd, debugRaw)
+}
+
 // ExecAgentAndWatch executes the Codex CLI in interactive mode and monitors for session updates.
 // The function blocks until the Codex CLI exits. During execution, it watches for JSONL file changes
 // and invokes sessionCallback for each update, enabling real-time markdown generation and cloud sync.
