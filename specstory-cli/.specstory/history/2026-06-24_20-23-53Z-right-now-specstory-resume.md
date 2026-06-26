@@ -3200,3 +3200,258 @@ Rebuild and lint after revert
 _**Agent (claude-opus-4-8 2026-06-24 20:38:48Z)**_
 
 Reverted — back to the single-line list, builds clean. The validation fix itself stands; just dropped the multi-line formatting attempt.
+
+---
+
+_**User (2026-06-25 22:35:24Z)**_
+
+hmm in my sessions.db for this dir: ~/source/SpecStory/compositions/specstory-search-1
+
+I have sessions that contain `poem.txt` but when I do the FTS search... it works for `poem` and for `txt` but not for `poem.txt`! Even if I quote it or not. Not good!
+
+Don't fix this yet. Just diagnose and explain and suggest what we might do differently to fix it.
+
+---
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:29Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:29Z)**_
+
+Let me investigate the FTS implementation — both the query builder and the index schema/tokenizer.
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:31Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/session_tui.go`
+
+```text
+663		}
+664		for i, a := range m.installed {
+665			if a.id == want {
+666				return i
+667			}
+668		}
+669		return 0
+670	}
+671	
+672	// ftsQuery turns free-form input into a safe FTS5 prefix query (alnum tokens only).
+673	// minQueryLen is the shortest query we run a full-text search for. A single-character
+674	// prefix (e.g. "t*") matches almost the entire corpus, and ranking + snippet generation
+675	// over that set is pathologically slow (~80s on a ~800-session index), so we never fire
+676	// it. Shared by resume and search so both behave the same.
+677	const minQueryLen = 2
+678	
+679	// queryReady reports whether input has enough searchable characters (letters/digits, the
+680	// same runes ftsQuery keeps) to run an FTS query. Below minQueryLen we don't search.
+681	func queryReady(input string) bool {
+682		n := 0
+683		for _, r := range input {
+684			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+685				n++
+686				if n >= minQueryLen {
+687					return true
+688				}
+689			}
+690		}
+691		return false
+692	}
+693	
+694	// ftsQuery turns free-form input into an FTS5 query string. Three shapes:
+695	//
+696	//   - Bare words become independent prefix tokens, AND-ed (matched anywhere, any order) —
+697	//     a loose search:  thank you      -> thank* you*
+698	//   - A double-quoted span becomes a phrase: tokens adjacent and in order —
+699	//     an exact phrase:  "thank you"    -> "thank you"
+700	//   - A still-open quote (the user is mid-typing the phrase) keeps the final word a prefix,
+701	//     so results keep updating live:  "thank yo    -> thank + yo*
+702	//
+703	// Only letters and digits survive tokenization, so no FTS5 syntax character from the raw
+704	// input can reach MATCH — every query this builds is safe to execute.
+705	func ftsQuery(input string) string {
+706		// Splitting on '"' yields alternating runs: even indexes are outside quotes, odd indexes
+707		// are inside. An odd-indexed run that is also the LAST run means the closing quote hasn't
+708		// been typed yet (an open phrase), so its final word stays a prefix for live type-ahead.
+709		segs := strings.Split(input, `"`)
+710		var parts []string
+711		for i, seg := range segs {
+712			words := alnumWords(seg)
+713			if len(words) == 0 {
+714				continue
+715			}
+716			switch {
+717			case i%2 == 0: // outside quotes: loose prefix tokens
+718				for _, w := range words {
+719					parts = append(parts, w+"*")
+720				}
+721			case i == len(segs)-1: // open phrase (still typing): adjacency + prefix last token
+722				parts = append(parts, strings.Join(words, " + ")+"*")
+723			default: // closed phrase: exact adjacency
+724				parts = append(parts, `"`+strings.Join(words, " ")+`"`)
+725			}
+726		}
+727		return strings.Join(parts, " ")
+728	}
+729	
+730	// alnumWords splits s on whitespace and reduces each field to its letters and digits,
+731	// dropping any field with none. This is the tokenization FTS5's default tokenizer applies,
+732	// mirrored here so queryReady and ftsQuery agree on what counts as a searchable token.
+733	func alnumWords(s string) []string {
+734		var words []string
+735		for _, f := range strings.Fields(s) {
+736			var b strings.Builder
+737			for _, r := range f {
+738				if unicode.IsLetter(r) || unicode.IsDigit(r) {
+739					b.WriteRune(r)
+740				}
+741			}
+742			if b.Len() > 0 {
+743				words = append(words, b.String())
+744			}
+745		}
+746		return words
+747	}
+748	
+749	// ---- rendering ----
+750	
+751	var (
+752		styDim    = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+753		styFaint  = lipgloss.NewStyle().Faint(true)
+754		styBold   = lipgloss.NewStyle().Bold(true)
+755		styCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
+756		stySel    = lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
+757	)
+758	
+759	func (m sessionTUI) View() tea.View {
+760		var content string
+761		switch {
+762		case m.previewing:
+763			content = m.renderPreview()
+764		case m.mode == modeTarget:
+765			content = m.renderTarget()
+766		case m.mode == modeProjects && m.globalActive:
+767			content = m.renderGlobalResults()
+768		case m.mode == modeProjects:
+769			content = m.renderProjects()
+770		default:
+771			content = m.renderListScreen()
+772		}
+773		v := tea.NewView(content)
+774		v.AltScreen = true
+775		return v
+776	}
+777	
+778	func (m sessionTUI) renderListScreen() string {
+779		var b strings.Builder
+780		b.WriteString(m.renderHeader())
+781		b.WriteString("\n")
+782		b.WriteString(strings.Repeat("─", m.lineWidth()))
+783		b.WriteString("\n")
+784		b.WriteString(m.renderRows())
+785		b.WriteString("\n")
+786		b.WriteString(strings.Repeat("─", m.lineWidth()))
+787		b.WriteString("\n")
+788		b.WriteString(m.renderGlance())
+789		b.WriteString("\n")
+790		b.WriteString(m.renderFooter())
+791		return b.String()
+792	}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:39Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:40Z)**_
+
+The query side is clear. Now let me confirm what the **indexer** does — the FTS5 table definition and tokenizer:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:41Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find FTS5 table definition
+
+`grep -rn "CREATE VIRTUAL TABLE\|fts5\|tokenize\|USING fts" pkg/sessionindex/*.go`
+
+```text
+pkg/sessionindex/store.go:162:	CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:35:44Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/sessionindex/store.go`
+
+```text
+155			indexed_at    TEXT,
+156			PRIMARY KEY (agent, session_id)
+157		);
+158		CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+159	
+160		-- Standalone FTS5 index over the conversation body + name. session_id/agent ride
+161		-- along UNINDEXED as join keys back to the sessions row. See docs/SESSIONS-DB.md.
+162		CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
+163			session_id UNINDEXED,
+164			agent UNINDEXED,
+165			name,
+166			body
+167		);
+168		`
+169		if _, err := s.db.Exec(schema); err != nil {
+170			return err
+171		}
+172		// Migration for indexes created before index_version existed (the column is part of
+173		// the freshness fingerprint). Ignore the error when it already exists.
+174		_, _ = s.db.Exec(`ALTER TABLE sessions ADD COLUMN index_version INTEGER DEFAULT 0`)
+175		return nil
+176	}
+177	
+178	// Fingerprints returns the freshness fingerprint of every indexed session, keyed by
+179	// fingerprintKey(agent, session_id). reindex loads this once and skips any session
+180	// whose native file is unchanged (same size + mtime) and was indexed by the current
+181	// logic version.
+182	func (s *Store) Fingerprints() (map[string]Fingerprint, error) {
+183		rows, err := s.db.Query(`SELECT agent, session_id, size, mtime, index_version FROM sessions`)
+184		if err != nil {
+185			return nil, err
+186		}
+187		defer func() { _ = rows.Close() }()
+188	
+189		out := make(map[string]Fingerprint)
+190		for rows.Next() {
+191			var agent, sessionID string
+192			var fp Fingerprint
+193			if err := rows.Scan(&agent, &sessionID, &fp.Size, &fp.Mtime, &fp.Version); err != nil {
+194				return nil, err
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-25 22:36:14Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-25 22:36:15Z)**_
+
+Let me confirm the `Search` method runs the built query directly against MATCH, and double-check there's no separate tokenizer config:
+
+_**Agent (claude-opus-4-8 2026-06-25 22:36:15Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find Search query usage
+
+`grep -n "func.*Search\|MATCH\|sessions_fts" pkg/sessionindex/store.go | head`
+
+```text
+50:	// Body is the full conversation text, indexed into sessions_fts (not persisted on
+162:	CREATE VIRTUAL TABLE IF NOT EXISTS sessions_fts USING fts5(
+216:	if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`,
+220:	if _, err := tx.Exec(`INSERT INTO sessions_fts (session_id, agent, name, body) VALUES (?,?,?,?)`,
+356:	err := s.db.QueryRow(`SELECT body FROM sessions_fts WHERE agent = ? AND session_id = ?`,
+366:func (s *Store) Search(query, projectID string) ([]Session, error) {
+374:func (s *Store) SearchContext(ctx context.Context, query, projectID string) ([]Session, error) {
+376:		FROM sessions_fts
+377:		JOIN sessions s ON s.agent = sessions_fts.agent AND s.session_id = sessions_fts.session_id
+378:		WHERE sessions_fts MATCH ?`
+```
+</details></tool-use>

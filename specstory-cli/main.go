@@ -606,6 +606,9 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 	// Setup file output and cloud sync (not needed for --print mode)
 	var config utils.OutputConfig
+	// liveIndex keeps sessions.db current for the sessions we save. Skipped for --print, which
+	// outputs to stdout without saving (so there's nothing to "sync"). Best-effort no-op on nil.
+	var liveIndex *cmdpkg.LiveIndexer
 	if !printToStdout {
 		config, err = utils.SetupOutputConfig(outputDir, debugDir)
 		if err != nil {
@@ -622,6 +625,9 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
 			return err
 		}
+
+		liveIndex = cmdpkg.NewLiveIndexer(cwd)
+		defer liveIndex.Close()
 	}
 
 	registry := factory.GetRegistry()
@@ -654,6 +660,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 
 		// Find session across providers
 		var session *spi.AgentChatSession
+		var foundAgentID string // registry id of the provider that has this session (for indexing)
 
 		// Case A: Provider was specified - use it directly
 		if specifiedProvider != nil {
@@ -675,6 +682,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 				notFoundCount++
 				continue
 			}
+			foundAgentID = args[0]
 		} else {
 			// Case B: No provider specified - try all providers
 			providerIDs := registry.ListIDs()
@@ -690,6 +698,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 					continue
 				}
 				if session != nil {
+					foundAgentID = id
 					if !silent && !printToStdout {
 						fmt.Printf("✅ Found session '%s' for %s\n", sessionID, provider.Name())
 					}
@@ -749,6 +758,8 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 				lastError = err
 			} else {
 				successCount++
+				// Mirror the synced session into the restore index.
+				liveIndex.Record(foundAgentID, session)
 			}
 		}
 	}
@@ -827,6 +838,12 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 		return 0, err
 	}
 
+	// Keep sessions.db current for this project as we sync. We already hold each session's
+	// SessionData below, so indexing it is essentially free. Best-effort: a nil indexer (open
+	// failure) is a safe no-op and never affects the sync. Scoped to the synced project (cwd).
+	liveIndex := cmdpkg.NewLiveIndexer(cwd)
+	defer liveIndex.Close()
+
 	// Create progress callback for parsing phase
 	// The callback updates the "Parsing..." line in place with [n/m] progress
 	var parseProgress spi.ProgressCallback
@@ -898,6 +915,10 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 			sessionpkg.ValidateSessionData(session, debugRaw)
 			sessionpkg.WriteDebugSessionData(session, debugRaw)
+
+			// Mirror this session into the restore index as we sync it (covers normal and
+			// only-stats modes — we have the SessionData either way).
+			liveIndex.Record(providerID, session)
 
 			// Generate markdown from SessionData
 			markdownContent, err := sessionpkg.GenerateMarkdownFromAgentSession(session.SessionData, false, useUTC)

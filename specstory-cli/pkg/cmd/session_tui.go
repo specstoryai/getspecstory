@@ -693,57 +693,83 @@ func queryReady(input string) bool {
 
 // ftsQuery turns free-form input into an FTS5 query string. Three shapes:
 //
-//   - Bare words become independent prefix tokens, AND-ed (matched anywhere, any order) —
+//   - Bare words become independent prefix terms, AND-ed (matched anywhere, any order) —
 //     a loose search:  thank you      -> thank* you*
 //   - A double-quoted span becomes a phrase: tokens adjacent and in order —
 //     an exact phrase:  "thank you"    -> "thank you"
-//   - A still-open quote (the user is mid-typing the phrase) keeps the final word a prefix,
+//   - A still-open quote (the user is mid-typing the phrase) keeps the final token a prefix,
 //     so results keep updating live:  "thank yo    -> thank + yo*
+//
+// A single typed word that contains punctuation (e.g. a filename, "poem.txt") is itself an
+// adjacency phrase. The index's unicode61 tokenizer splits on every non-alphanumeric run, so
+// "poem.txt" is stored as the two adjacent tokens poem, txt — never the fused "poemtxt". We
+// must tokenize the query the same way, or the term can't match what was indexed. So a bare
+// "poem.txt" becomes the phrase poem + txt* (adjacent, prefix the last token for type-ahead);
+// quoted, it is the committed phrase "poem txt" (adjacent, no prefix).
 //
 // Only letters and digits survive tokenization, so no FTS5 syntax character from the raw
 // input can reach MATCH — every query this builds is safe to execute.
 func ftsQuery(input string) string {
 	// Splitting on '"' yields alternating runs: even indexes are outside quotes, odd indexes
 	// are inside. An odd-indexed run that is also the LAST run means the closing quote hasn't
-	// been typed yet (an open phrase), so its final word stays a prefix for live type-ahead.
+	// been typed yet (an open phrase), so its final token stays a prefix for live type-ahead.
 	segs := strings.Split(input, `"`)
 	var parts []string
 	for i, seg := range segs {
-		words := alnumWords(seg)
-		if len(words) == 0 {
-			continue
-		}
 		switch {
-		case i%2 == 0: // outside quotes: loose prefix tokens
-			for _, w := range words {
-				parts = append(parts, w+"*")
+		case i%2 == 0: // outside quotes: each word is its own loose, prefix-terminated term
+			for _, f := range strings.Fields(seg) {
+				if toks := fieldTokens(f); len(toks) > 0 {
+					parts = append(parts, strings.Join(toks, " + ")+"*")
+				}
 			}
-		case i == len(segs)-1: // open phrase (still typing): adjacency + prefix last token
-			parts = append(parts, strings.Join(words, " + ")+"*")
-		default: // closed phrase: exact adjacency
-			parts = append(parts, `"`+strings.Join(words, " ")+`"`)
+		case i == len(segs)-1: // open phrase (still typing): adjacency across all tokens + prefix last
+			if toks := segmentTokens(seg); len(toks) > 0 {
+				parts = append(parts, strings.Join(toks, " + ")+"*")
+			}
+		default: // closed phrase: exact adjacency, no prefix (a committed phrase)
+			if toks := segmentTokens(seg); len(toks) > 0 {
+				parts = append(parts, `"`+strings.Join(toks, " ")+`"`)
+			}
 		}
 	}
 	return strings.Join(parts, " ")
 }
 
-// alnumWords splits s on whitespace and reduces each field to its letters and digits,
-// dropping any field with none. This is the tokenization FTS5's default tokenizer applies,
-// mirrored here so queryReady and ftsQuery agree on what counts as a searchable token.
-func alnumWords(s string) []string {
-	var words []string
-	for _, f := range strings.Fields(s) {
-		var b strings.Builder
-		for _, r := range f {
-			if unicode.IsLetter(r) || unicode.IsDigit(r) {
-				b.WriteRune(r)
-			}
-		}
+// fieldTokens splits one whitespace-delimited field into its FTS5 tokens the way the index's
+// default unicode61 tokenizer does: every run of non-alphanumeric characters is a token
+// boundary. So "poem.txt" -> [poem, txt] and "max-cpu!" -> [max, cpu]. Mirroring the index
+// tokenizer here is the whole point — previously punctuation was stripped and the pieces
+// fused into one token ("poemtxt") that the index, holding poem and txt separately, never had.
+func fieldTokens(field string) []string {
+	var tokens []string
+	var b strings.Builder
+	flush := func() {
 		if b.Len() > 0 {
-			words = append(words, b.String())
+			tokens = append(tokens, b.String())
+			b.Reset()
 		}
 	}
-	return words
+	for _, r := range field {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(r)
+		} else {
+			flush()
+		}
+	}
+	flush()
+	return tokens
+}
+
+// segmentTokens tokenizes a whole quoted segment into one flat, ordered token list — both the
+// whitespace between words and any punctuation within them are token boundaries (unicode61),
+// so the phrase matches the adjacency the index actually stored.
+func segmentTokens(seg string) []string {
+	var tokens []string
+	for _, f := range strings.Fields(seg) {
+		tokens = append(tokens, fieldTokens(f)...)
+	}
+	return tokens
 }
 
 // ---- rendering ----

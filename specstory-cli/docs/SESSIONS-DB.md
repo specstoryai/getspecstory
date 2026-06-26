@@ -252,8 +252,9 @@ The two-level split also keeps the index warm *without* an explicit `reindex`, t
   and queryable in the interim. All of it is best-effort: indexing never disrupts the agent or
   the markdown write (a nil `LiveIndexer` is a safe no-op; per-update errors log at debug).
 
-The only remaining steady-state gap is **batch `sync`**, which still doesn't upsert from the
-`SessionData` it holds — future work.
+- **`sync` indexes as it goes.** `sync`/`sync <provider>`/`sync -s` already load every session's
+  full `SessionData` for the current project, so each is `Record`ed into the index via the same
+  `LiveIndexer` — indexing is essentially free there. `--print` (stdout, no save) is excluded.
 
 ## Build Plan — First Cut
 
@@ -454,9 +455,6 @@ inserted/replaced alongside their `sessions` row during
 
 - **The picker rewiring.** `specstory resume`'s interactive flow still uses the project-scoped
   `ListAgentChatSessions` until a later chunk points it at `sessions.db`.
-- **Steady-state upserts from batch `sync`.** `sync` doesn't yet populate the index from the
-  `SessionData` it already holds. (`watch`/`run`/`resume`-launch DO now, via `LiveIndexer`; and
-  `resume`/`search` warm it in the background — all shipped, see "keeping the index warm" above.)
 - **Storing serialized `SessionData`.** The first cut stores metadata + full-text body, not a
   `SessionData` blob. A blob becomes relevant for cloud Stages 3–4 (where the cloud is the
   source). Deferred.
@@ -478,12 +476,12 @@ Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-
 
 ## Open questions (later chunks)
 
-- **MOSTLY DONE — Warm-keeping triggers.** `resume`/`search` warm the index in the background on
-  launch (current project first, then full corpus), and `watch`/`run`/`resume`-launch upsert
-  each change in real time via `LiveIndexer` (see "keeping the index warm" above and
-  [RESUME-TUI.md](RESUME-TUI.md)). Still **OPEN:** batch `sync` inline upserts; and whether to
-  throttle repeated background warms (today every `resume`/`search` invocation re-enumerates,
-  which is cheap but unbounded in frequency).
+- **DONE — Warm-keeping triggers.** `resume`/`search` warm the index in the background on launch
+  (current project first, then full corpus); `watch`/`run`/`resume`-launch upsert each change in
+  real time via `LiveIndexer`; and `sync` indexes every session it loads (all via the same
+  `LiveIndexer`). See "keeping the index warm" above and [RESUME-TUI.md](RESUME-TUI.md). Possible
+  follow-up: throttle repeated background warms (today every `resume`/`search` invocation
+  re-enumerates, which is cheap but unbounded in frequency).
 - **OPEN — Eviction / prune.** When a native session is deleted, when does its row leave
   `sessions.db`? (Lore prunes on rescan when the file is gone.)
 - **OPEN — Remote-less projects.** How (if at all) cross-project / cross-machine works for
