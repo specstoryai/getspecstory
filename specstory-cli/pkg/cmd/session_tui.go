@@ -92,11 +92,13 @@ type sessionTUI struct {
 	projSearch       textinput.Model
 	projSearchQuery  string
 
-	// global session search: FTS across all projects (or just the home project when
-	// globalHomeOnly is toggled with tab), opened with / in the browser or as `search`.
+	// global session search: FTS across all projects, or scoped to a single project with tab
+	// (the highlighted hit's project, else the current directory's). Opened with / in the
+	// browser or as `search`.
 	globalActive    bool
 	globalSearching bool
-	globalHomeOnly  bool // tab scopes the search to the current (home) project
+	globalScopeID   string // "" = all projects; else the project id the search is scoped to
+	globalScopeName string // display name for the scoped project
 	globalInput     textinput.Model
 	globalQuery     string
 	globalResults   []sessionindex.Session
@@ -1696,10 +1698,23 @@ func (m sessionTUI) globalSelected() *sessionindex.Session {
 	return &m.globalResults[m.globalCursor]
 }
 
-// toggleGlobalScope flips the cross-project search between all projects and the current
-// project (tab), then re-runs the query from the top against the new scope.
+// toggleGlobalScope flips the cross-project search between all projects and a single project
+// (tab): the highlighted hit's project when a result is selected, else the current directory's
+// project (nothing to point at). A second tab widens back to all projects. It then re-runs the
+// query from the top against the new scope.
 func (m *sessionTUI) toggleGlobalScope() tea.Cmd {
-	m.globalHomeOnly = !m.globalHomeOnly
+	switch {
+	case m.globalScopeID != "":
+		// Already scoped → widen back to all projects.
+		m.globalScopeID, m.globalScopeName = "", ""
+	case m.globalSelected() != nil:
+		// A result is highlighted → scope to its project.
+		sel := m.globalSelected()
+		m.globalScopeID, m.globalScopeName = sel.ProjectID, sessionProject(*sel)
+	default:
+		// No results to point at → scope to the current directory's project.
+		m.globalScopeID, m.globalScopeName = m.homeProjectID, m.homeProjectName
+	}
 	m.globalCursor, m.globalTop = 0, 0
 	m.searchSeq++
 	if !queryReady(m.globalQuery) {
@@ -1717,6 +1732,7 @@ func (m *sessionTUI) exitGlobal() {
 	m.globalInput.Blur()
 	m.globalInput.SetValue("")
 	m.globalQuery = ""
+	m.globalScopeID, m.globalScopeName = "", "" // re-enter search at all-projects scope
 	m.globalResults = nil
 	m.globalSnippets = nil
 	m.snippetSeq++
@@ -1767,8 +1783,8 @@ func (m sessionTUI) renderGlobalResults() string {
 	var b strings.Builder
 
 	scope := "all projects"
-	if m.globalHomeOnly {
-		scope = styDim.Render("project: ") + stySel.Render(m.homeProjectName)
+	if m.globalScopeID != "" {
+		scope = styDim.Render("project: ") + stySel.Render(m.globalScopeName)
 	}
 	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
@@ -1779,7 +1795,7 @@ func (m sessionTUI) renderGlobalResults() string {
 	b.WriteString(strings.Repeat("─", m.lineWidth()) + "\n")
 
 	scopeWord := "all projects"
-	if m.globalHomeOnly {
+	if m.globalScopeID != "" {
 		scopeWord = "this project"
 	}
 	switch {
@@ -1808,7 +1824,7 @@ func (m sessionTUI) renderGlobalResults() string {
 		escHint = "esc quit"
 	}
 	scopeKey := "tab this project"
-	if m.globalHomeOnly {
+	if m.globalScopeID != "" {
 		scopeKey = "tab all projects"
 	}
 	if m.globalSearching {
@@ -1905,10 +1921,7 @@ func (m sessionTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cm
 	store := m.store
 	query, projectID := m.searchQuery, m.projectID
 	if kind == modeProjects {
-		query, projectID = m.globalQuery, "" // all projects…
-		if m.globalHomeOnly {
-			projectID = m.homeProjectID // …unless tab scoped it to the current project
-		}
+		query, projectID = m.globalQuery, m.globalScopeID // "" = all projects, else scoped
 	}
 	fq := ftsQuery(query)
 	return func() tea.Msg {
