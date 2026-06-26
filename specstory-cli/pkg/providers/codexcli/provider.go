@@ -1123,13 +1123,20 @@ func codexUserMessageText(line string) string {
 	return message
 }
 
-// ListAllAgentChatSessions enumerates every Codex CLI session across all projects by walking
-// ~/.codex/sessions for *.jsonl rollouts. Codex sessions are not project-keyed by directory; the
-// originating cwd lives in the session_meta record. The per-file header read is the dominant cost
-// of `specstory reindex` (parsing each file's injected context), so headers are scanned in
-// parallel across CPUs; output order is irrelevant (reindex dedups and sorts later). See
-// docs/SESSIONS-DB.md.
+// ListAllAgentChatSessions enumerates every Codex CLI session across all projects. It is the
+// no-progress form of ListAllAgentChatSessionsProgress.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
+}
+
+// ListAllAgentChatSessionsProgress enumerates every Codex CLI session across all projects by
+// walking ~/.codex/sessions for *.jsonl rollouts (Codex sessions are not project-keyed by
+// directory; the originating cwd lives in the session_meta record), reporting scan progress into r
+// (nil-safe). The per-file header read is the dominant cost of `specstory reindex` (parsing each
+// file's injected context), so headers are scanned in parallel across CPUs; output order is
+// irrelevant (reindex dedups and sorts later). Implements spi.ProgressEnumerator. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
 	homeDir, err := osUserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine home directory: %w", err)
@@ -1190,6 +1197,7 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 				mu.Lock()
 				refs = append(refs, ref)
 				mu.Unlock()
+				r.Add(1) // count sessions found, not files scanned (warmup/empty files yield none)
 			}
 		}()
 	}

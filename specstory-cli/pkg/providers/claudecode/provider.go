@@ -12,7 +12,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
@@ -804,18 +806,27 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 	}, nil
 }
 
-// ListAllAgentChatSessions enumerates every Claude Code session across all projects
-// by walking ~/.claude/projects/*/ for *.jsonl. The originating cwd comes from inside
-// each session (the project directory name is a lossy, irreversible encoding of the
-// path, so it cannot be decoded). See docs/SESSIONS-DB.md.
+// ListAllAgentChatSessions enumerates every Claude Code session across all projects. It is the
+// no-progress form of ListAllAgentChatSessionsProgress.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
+}
+
+// ListAllAgentChatSessionsProgress enumerates every Claude Code session across all projects by
+// walking ~/.claude/projects/*/ for *.jsonl (the originating cwd comes from inside each session;
+// the project directory name is a lossy, irreversible encoding of the path), reporting scan
+// progress into r (nil-safe). Headers are scanned in parallel across CPUs; output order is
+// irrelevant (reindex dedups and sorts later). Implements spi.ProgressEnumerator. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
 	projectsDir, err := GetClaudeCodeProjectsDir()
 	if err != nil {
 		// No projects directory yet → nothing to enumerate (not an error).
 		return []spi.GlobalSessionRef{}, nil
 	}
 
-	var refs []spi.GlobalSessionRef
+	// Phase 1: collect file paths (dirents only — no opens).
+	var paths []string
 	walkErr := filepath.WalkDir(projectsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return nil // skip unreadable entries rather than abort the whole sweep
@@ -823,26 +834,55 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 		if d.IsDir() || !strings.HasSuffix(path, ".jsonl") {
 			return nil
 		}
-		scan, scanErr := scanClaudeSession(path)
-		if scanErr != nil {
-			slog.Warn("reindex: failed to scan claude session", "file", path, "error", scanErr)
-			return nil
-		}
-		if !scan.foundRealMessage {
-			return nil // warmup-only session
-		}
-		refs = append(refs, spi.GlobalSessionRef{
-			SessionID:  scan.sessionID,
-			CreatedAt:  scan.timestamp,
-			Slug:       spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
-			Name:       spi.GenerateReadableName(scan.firstUserMessage),
-			NativePath: path,
-			OriginCwd:  scan.cwd,
-		})
+		paths = append(paths, path)
 		return nil
 	})
 	if walkErr != nil {
 		return nil, fmt.Errorf("failed to walk claude projects: %w", walkErr)
 	}
+
+	// Phase 2: scan session headers in parallel — each file's read+parse is independent and
+	// CPU-bound, so this scales across cores.
+	workers := min(runtime.NumCPU(), 12)
+	if workers < 1 {
+		workers = 1
+	}
+	pathCh := make(chan string, workers)
+	var refs []spi.GlobalSessionRef
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range pathCh {
+				scan, scanErr := scanClaudeSession(path)
+				if scanErr != nil {
+					slog.Warn("reindex: failed to scan claude session", "file", path, "error", scanErr)
+					continue
+				}
+				if !scan.foundRealMessage {
+					continue // warmup-only or sidechain-only transcript (not a session)
+				}
+				ref := spi.GlobalSessionRef{
+					SessionID:  scan.sessionID,
+					CreatedAt:  scan.timestamp,
+					Slug:       spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+					Name:       spi.GenerateReadableName(scan.firstUserMessage),
+					NativePath: path,
+					OriginCwd:  scan.cwd,
+				}
+				mu.Lock()
+				refs = append(refs, ref)
+				mu.Unlock()
+				r.Add(1) // count sessions found, not files scanned (warmup/sidechain files yield none)
+			}
+		}()
+	}
+	for _, path := range paths {
+		pathCh <- path
+	}
+	close(pathCh)
+	wg.Wait()
 	return refs, nil
 }

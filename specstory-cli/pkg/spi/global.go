@@ -1,5 +1,7 @@
 package spi
 
+import "sync/atomic"
+
 // GlobalSessionRef is a lightweight, project-discovering reference to a single
 // native session, returned by Provider.ListAllAgentChatSessions.
 //
@@ -36,4 +38,36 @@ type GlobalSessionRef struct {
 // GetAgentChatSession receives as projectPath.
 type PathSessionReader interface {
 	GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*AgentChatSession, error)
+}
+
+// ScanReporter accumulates a provider's enumeration progress (sessions found) so the CLI can
+// render a live "scanning" display. It is safe for concurrent use and safe to call on a nil
+// receiver (a no-op), so providers can report unconditionally.
+type ScanReporter struct {
+	found atomic.Int64
+}
+
+// Add records that n more sessions have been found. Files that yield no session (warmup-only or
+// sidechain-only transcripts) are deliberately not counted, so the running total reflects real
+// sessions rather than raw files.
+func (r *ScanReporter) Add(n int) {
+	if r != nil {
+		r.found.Add(int64(n))
+	}
+}
+
+// Found returns the number of sessions found so far.
+func (r *ScanReporter) Found() int64 {
+	if r == nil {
+		return 0
+	}
+	return r.found.Load()
+}
+
+// ProgressEnumerator is an OPTIONAL Provider capability: enumerate all sessions while reporting
+// scan progress into r (which may be nil — ScanReporter is nil-safe, so report unconditionally).
+// Providers that don't implement it are enumerated via ListAllAgentChatSessions with no live
+// feedback. reindex uses this to render a per-agent "Scanning agents…" display.
+type ProgressEnumerator interface {
+	ListAllAgentChatSessionsProgress(r *ScanReporter) ([]GlobalSessionRef, error)
 }

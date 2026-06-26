@@ -98,8 +98,7 @@ func runReindex(force bool) error {
 	registry := factory.GetRegistry()
 
 	// ---- Phase 1: enumerate every provider concurrently, then dedup ----
-	fprintln(os.Stderr, "\n🔍  Scanning agents…")
-	ids, provs, perProvider := enumerateAll(registry)
+	ids, provs, perProvider := enumerateAll(registry, true)
 
 	// Existing fingerprints, so unchanged sessions can be skipped (the incremental path).
 	fingerprints := map[string]sessionindex.Fingerprint{}
@@ -161,11 +160,20 @@ func runReindex(force bool) error {
 
 // enumerateAll concurrently lists every installed provider's sessions. The returned slices
 // are index-aligned: provs[i]/perProvider[i] correspond to ids[i] (a nil provs[i] marks a
-// provider that failed to load).
-func enumerateAll(registry *factory.Registry) (ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSessionRef) {
+// provider that failed to load). When visible, it renders a live "Scanning agents…" line
+// (foreground reindex); the background warm passes visible=false and stays silent.
+func enumerateAll(registry *factory.Registry, visible bool) (ids []string, provs []spi.Provider, perProvider [][]spi.GlobalSessionRef) {
 	ids = registry.ListIDs()
 	perProvider = make([][]spi.GlobalSessionRef, len(ids))
 	provs = make([]spi.Provider, len(ids))
+
+	var scan *scanProgress
+	if visible {
+		scan = newScanProgress(ids)
+		scan.begin()
+		defer scan.end()
+	}
+
 	var ewg sync.WaitGroup
 	for i, id := range ids {
 		prov, err := registry.Get(id)
@@ -173,15 +181,25 @@ func enumerateAll(registry *factory.Registry) (ids []string, provs []spi.Provide
 			continue
 		}
 		provs[i] = prov
+		reporter := scan.reporterFor(id)
 		ewg.Add(1)
-		go func(i int, id string, prov spi.Provider) {
+		go func(i int, id string, prov spi.Provider, reporter *spi.ScanReporter) {
 			defer ewg.Done()
-			refs, err := prov.ListAllAgentChatSessions()
+			var refs []spi.GlobalSessionRef
+			var err error
+			// Providers that can report progress (Codex, the long pole) tick the live line; the
+			// rest snap to their final count via markDone when they finish.
+			if pe, ok := prov.(spi.ProgressEnumerator); ok {
+				refs, err = pe.ListAllAgentChatSessionsProgress(reporter)
+			} else {
+				refs, err = prov.ListAllAgentChatSessions()
+			}
 			if err != nil {
 				slog.Warn("reindex: enumeration failed", "provider", id, "error", err)
 			}
 			perProvider[i] = refs
-		}(i, id, prov)
+			scan.markDone(id, len(refs))
+		}(i, id, prov, reporter)
 	}
 	ewg.Wait()
 	return ids, provs, perProvider
@@ -337,7 +355,7 @@ func warmIndexInBackground(ctx context.Context, dbPath, currentProjectID string,
 	defer func() { _ = store.Close() }()
 
 	registry := factory.GetRegistry()
-	ids, provs, perProvider := enumerateAll(registry)
+	ids, provs, perProvider := enumerateAll(registry, false)
 	if ctx.Err() != nil {
 		return
 	}
@@ -829,6 +847,159 @@ func isTerminal(f *os.File) bool {
 		return false
 	}
 	return info.Mode()&os.ModeCharDevice != 0
+}
+
+// ---- scan progress (live "Scanning agents…" line) ----
+
+// scanSpinner is the braille spinner cycled while enumerating.
+var scanSpinner = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+
+// scanAgent holds one provider's live enumeration counter.
+type scanAgent struct {
+	id string
+	r  *spi.ScanReporter
+}
+
+// scanProgress renders one live line while enumerateAll scans providers in parallel:
+//
+//	🔍  Scanning agents…  ⠹  codex 18420 · claude 3195 · cursor 10
+//
+// Codex and Claude (the long poles) report sessions-found via spi.ProgressEnumerator; every
+// provider snaps to its final count via markDone when it finishes. Counts are sessions, not raw
+// files (warmup/sidechain transcripts are excluded). On a non-TTY it prints periodic plain lines.
+// A nil *scanProgress is fully silent — the background warm passes nil.
+type scanProgress struct {
+	agents []*scanAgent
+	byID   map[string]*scanAgent
+	tty    bool
+	spin   int
+
+	stopCh     chan struct{}
+	doneCh     chan struct{}
+	linesDrawn int
+}
+
+func newScanProgress(ids []string) *scanProgress {
+	agents := make([]*scanAgent, 0, len(ids))
+	byID := make(map[string]*scanAgent, len(ids))
+	for _, id := range ids {
+		a := &scanAgent{id: id, r: &spi.ScanReporter{}}
+		agents = append(agents, a)
+		byID[id] = a
+	}
+	return &scanProgress{
+		agents: agents,
+		byID:   byID,
+		tty:    isTerminal(os.Stderr),
+		stopCh: make(chan struct{}),
+		doneCh: make(chan struct{}),
+	}
+}
+
+// reporterFor returns a provider's live reporter (nil-safe: a nil scanProgress yields nil, which
+// providers treat as "do not report").
+func (s *scanProgress) reporterFor(id string) *spi.ScanReporter {
+	if s == nil {
+		return nil
+	}
+	if a := s.byID[id]; a != nil {
+		return a.r
+	}
+	return nil
+}
+
+// markDone reconciles a provider's running count to its final session count — a no-op for the
+// reporting providers (Codex/Claude), and the only count for providers that never report
+// (Cursor/Gemini/etc., which appear the moment they finish).
+func (s *scanProgress) markDone(id string, final int) {
+	if s == nil {
+		return
+	}
+	if a := s.byID[id]; a != nil {
+		if delta := final - int(a.r.Found()); delta != 0 {
+			a.r.Add(delta)
+		}
+	}
+}
+
+func (s *scanProgress) begin() {
+	if s == nil {
+		return
+	}
+	if !s.tty {
+		fprintln(os.Stderr, "\n🔍  Scanning agents…")
+	} else {
+		fprintln(os.Stderr) // blank line above the live line
+		s.draw()            // show immediately, before the first tick
+	}
+	go s.loop()
+}
+
+func (s *scanProgress) end() {
+	if s == nil {
+		return
+	}
+	close(s.stopCh)
+	<-s.doneCh
+	if s.tty && s.linesDrawn > 0 {
+		// Erase the live line so the caller's "✓ Found…" line takes its place.
+		fprint(os.Stderr, "\033[1A\033[2K")
+	}
+}
+
+func (s *scanProgress) loop() {
+	defer close(s.doneCh)
+	interval := 100 * time.Millisecond
+	if !s.tty {
+		interval = 1500 * time.Millisecond
+	}
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case <-t.C:
+			s.spin++
+			if s.tty {
+				s.draw()
+			} else {
+				fprintf(os.Stderr, "    scanning… %s\n", s.counts())
+			}
+		}
+	}
+}
+
+func (s *scanProgress) draw() {
+	var b strings.Builder
+	if s.linesDrawn > 0 {
+		b.WriteString("\033[1A") // up to the live line
+	}
+	b.WriteString("\033[2K") // clear it, then redraw
+	b.WriteString(s.line())
+	b.WriteString("\n")
+	fprint(os.Stderr, b.String())
+	s.linesDrawn = 1
+}
+
+func (s *scanProgress) line() string {
+	return fmt.Sprintf("🔍  Scanning agents…  %s  %s", scanSpinner[s.spin%len(scanSpinner)], s.counts())
+}
+
+func (s *scanProgress) counts() string {
+	var parts []string
+	for _, a := range s.agents {
+		found := a.r.Found()
+		if found == 0 {
+			continue // not started, or finished with no sessions
+		}
+		// Plain integers (no thousands separators), matching the "Found …" summary line.
+		parts = append(parts, fmt.Sprintf("%s %d", a.id, found))
+	}
+	if len(parts) == 0 {
+		return "…"
+	}
+	return strings.Join(parts, " · ")
 }
 
 // ---- summary ----
