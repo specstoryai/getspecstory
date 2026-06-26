@@ -87,13 +87,16 @@ type sessionTUI struct {
 	projTop          int
 	projectsLoaded   bool
 	startedInBrowser bool // launched straight into the browser (empty home project)
+	startedInSearch  bool // launched straight into the all-projects search (`specstory search`)
 	projSearching    bool
 	projSearch       textinput.Model
 	projSearchQuery  string
 
-	// global session search: FTS across ALL projects, opened with / in the browser.
+	// global session search: FTS across all projects (or just the home project when
+	// globalHomeOnly is toggled with tab), opened with / in the browser or as `search`.
 	globalActive    bool
 	globalSearching bool
+	globalHomeOnly  bool // tab scopes the search to the current (home) project
 	globalInput     textinput.Model
 	globalQuery     string
 	globalResults   []sessionindex.Session
@@ -172,7 +175,9 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 	switch {
 	case opts.startInSearch:
 		// `search`: land directly in the all-projects FTS, input focused (so the user types
-		// immediately, exactly like before). Init fires the pre-seeded query, if any.
+		// immediately, exactly like before). Init fires the pre-seeded query, if any. The
+		// search IS the root view here, so esc quits rather than unwinding into the browser.
+		m.startedInSearch = true
 		m.enterBrowser()
 		m.globalActive = true
 		m.globalSearching = true
@@ -403,6 +408,12 @@ func (m sessionTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.searching = false
 		m.search.Blur()
 		return m, nil
+	case "up", "down", "pgup", "pgdown":
+		// Arrows do nothing inside the one-line input, so commit the search and let the same
+		// key move the now-focused list — the user reaches a result without a separate enter.
+		m.searching = false
+		m.search.Blur()
+		return m.updateList(msg)
 	}
 	var cmd tea.Cmd
 	m.search, cmd = m.search.Update(msg)
@@ -832,14 +843,18 @@ func (m sessionTUI) projectScope() string {
 	return styDim.Render("project: ") + stySel.Render(m.projectName)
 }
 
-func (m sessionTUI) renderHeader() string {
-	agent := "all"
-	if m.agentFilter != "" {
-		agent = m.agentName(m.agentFilter)
+// agentScope mirrors the project-scope label: an unstyled "all agents" phrase (rendered like
+// "all projects") when unfiltered, else "agent: <name>" matching projectScope's "project: <name>".
+func (m sessionTUI) agentScope() string {
+	if m.agentFilter == "" {
+		return "all agents"
 	}
+	return styDim.Render("agent: ") + stySel.Render(m.agentName(m.agentFilter))
+}
+
+func (m sessionTUI) renderHeader() string {
 	// Agent filter sits left, right after the project, rather than tucked in the far corner.
-	left := m.headerLeft(m.projectScope()) +
-		styDim.Render("  ·  agent: ") + stySel.Render(agent)
+	left := m.headerLeft(m.projectScope()) + styDim.Render("  ·  ") + m.agentScope()
 	return headerRow(left, "", m.lineWidth())
 }
 
@@ -1580,13 +1595,27 @@ func dayDiff(t time.Time) int {
 func (m sessionTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
+		// In `search`, the search is the root → esc quits. In `resume` (reached via the
+		// browser), esc backs out to the browser.
+		if m.startedInSearch {
+			m.result = sessionTUIResult{cancelled: true}
+			return m, tea.Quit
+		}
 		m.searchSeq++
 		m.exitGlobal()
 		return m, nil
+	case "tab":
+		return m, m.toggleGlobalScope()
 	case "enter":
 		m.globalSearching = false // commit → browse the results
 		m.globalInput.Blur()
 		return m, nil
+	case "up", "down", "pgup", "pgdown":
+		// Arrows are useless in the one-line input, so commit and let the same key move into
+		// the results — reach a hit without a separate enter.
+		m.globalSearching = false
+		m.globalInput.Blur()
+		return m.updateGlobalResults(msg)
 	}
 	var cmd tea.Cmd
 	m.globalInput, cmd = m.globalInput.Update(msg)
@@ -1608,7 +1637,15 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		m.result = sessionTUIResult{cancelled: true}
 		return m, tea.Quit
 	case "esc":
+		// In `search`, the search is the root → esc quits. In `resume` (reached via the
+		// browser), esc backs out to the browser.
+		if m.startedInSearch {
+			m.result = sessionTUIResult{cancelled: true}
+			return m, tea.Quit
+		}
 		m.exitGlobal()
+	case "tab":
+		return m, m.toggleGlobalScope()
 	case "/":
 		m.globalSearching = true
 		m.globalInput.SetValue(m.globalQuery)
@@ -1657,6 +1694,21 @@ func (m sessionTUI) globalSelected() *sessionindex.Session {
 		return nil
 	}
 	return &m.globalResults[m.globalCursor]
+}
+
+// toggleGlobalScope flips the cross-project search between all projects and the current
+// project (tab), then re-runs the query from the top against the new scope.
+func (m *sessionTUI) toggleGlobalScope() tea.Cmd {
+	m.globalHomeOnly = !m.globalHomeOnly
+	m.globalCursor, m.globalTop = 0, 0
+	m.searchSeq++
+	if !queryReady(m.globalQuery) {
+		m.globalResults = nil
+		m.globalSnippets = nil
+		m.snippetSeq++
+		return nil
+	}
+	return searchDebounce(m.searchSeq, modeProjects)
 }
 
 func (m *sessionTUI) exitGlobal() {
@@ -1714,10 +1766,11 @@ func (m sessionTUI) globalHeight() int {
 func (m sessionTUI) renderGlobalResults() string {
 	var b strings.Builder
 
-	left := m.headerLeft("all projects")
-	if m.agentFilter != "" {
-		left += styDim.Render("  ·  agent: ") + stySel.Render(m.agentName(m.agentFilter))
+	scope := "all projects"
+	if m.globalHomeOnly {
+		scope = styDim.Render("project: ") + stySel.Render(m.homeProjectName)
 	}
+	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
 		left += styDim.Render(" · ") + stySel.Render(q)
 	}
@@ -1725,9 +1778,13 @@ func (m sessionTUI) renderGlobalResults() string {
 	b.WriteString(headerRow(left, right, m.lineWidth()) + "\n")
 	b.WriteString(strings.Repeat("─", m.lineWidth()) + "\n")
 
+	scopeWord := "all projects"
+	if m.globalHomeOnly {
+		scopeWord = "this project"
+	}
 	switch {
 	case strings.TrimSpace(m.globalQuery) == "":
-		b.WriteString(styFaint.Render("  Type to search sessions across all projects."))
+		b.WriteString(styFaint.Render("  Type to search sessions across " + scopeWord + "."))
 	case len(m.globalResults) == 0:
 		b.WriteString(styFaint.Render("  No matches."))
 	default:
@@ -1744,11 +1801,31 @@ func (m sessionTUI) renderGlobalResults() string {
 	}
 
 	b.WriteString("\n" + strings.Repeat("─", m.lineWidth()) + "\n")
+	// esc quits when search is the root (`specstory search`); otherwise it backs out to the
+	// browser it was opened from (`specstory resume`).
+	escHint := "esc back"
+	if m.startedInSearch {
+		escHint = "esc quit"
+	}
+	scopeKey := "tab this project"
+	if m.globalHomeOnly {
+		scopeKey = "tab all projects"
+	}
 	if m.globalSearching {
-		b.WriteString(m.globalInput.View() + "    " + styFaint.Render("esc cancel · enter browse results"))
+		// While typing: esc quits (search root) or cancels back to the browser (resume). Only
+		// offer "enter browse results" once there's actually something to browse.
+		inputHint := "esc quit"
+		if !m.startedInSearch {
+			inputHint = "esc cancel"
+		}
+		inputHint += " · " + scopeKey
+		if len(m.globalResults) > 0 {
+			inputHint += " · enter browse results"
+		}
+		b.WriteString(m.globalInput.View() + "    " + styFaint.Render(inputHint))
 		return b.String()
 	}
-	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "v " + m.viewMode, "/ edit search", "esc back", "q quit"}
+	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
 	return b.String()
 }
@@ -1828,7 +1905,10 @@ func (m sessionTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cm
 	store := m.store
 	query, projectID := m.searchQuery, m.projectID
 	if kind == modeProjects {
-		query, projectID = m.globalQuery, ""
+		query, projectID = m.globalQuery, "" // all projects…
+		if m.globalHomeOnly {
+			projectID = m.homeProjectID // …unless tab scoped it to the current project
+		}
 	}
 	fq := ftsQuery(query)
 	return func() tea.Msg {
