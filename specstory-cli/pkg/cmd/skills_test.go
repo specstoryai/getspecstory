@@ -2,13 +2,43 @@ package cmd
 
 import (
 	"errors"
+	"regexp"
+	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/spinner"
+	"charm.land/lipgloss/v2"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/skills"
 )
+
+var ansiRE = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+
+func stripANSI(s string) string { return ansiRE.ReplaceAllString(s, "") }
+
+// TestSkillRowAlignment guards the regression where styling the selected row's name before
+// width-padding it let ANSI escapes break the trigger column's alignment.
+func TestSkillRowAlignment(t *testing.T) {
+	m := skillsTUI{viewMode: "dense", width: 140}
+	v := skills.SkillView{SkillRow: cloud.SkillRow{
+		Name: "my-skill", State: cloud.SkillStateReady,
+		Trigger: "TRIGGER_MARKER", CreatedAt: "2026-06-26T17:07:57.636Z",
+	}}
+	// Measure the DISPLAY width of everything before the trigger (not the byte offset — the
+	// selected row's "▸" cursor is a multibyte rune), so this checks true visual alignment.
+	colWidth := func(selected bool) int {
+		row := stripANSI(m.skillRow(v, selected))
+		i := strings.Index(row, "TRIGGER_MARKER")
+		if i < 0 {
+			t.Fatalf("trigger marker not found (selected=%v)", selected)
+		}
+		return lipgloss.Width(row[:i])
+	}
+	if sel, unsel := colWidth(true), colWidth(false); sel != unsel {
+		t.Errorf("trigger column misaligned: selected=%d unselected=%d", sel, unsel)
+	}
+}
 
 func TestInstallOptionsFromFlags(t *testing.T) {
 	tests := []struct {

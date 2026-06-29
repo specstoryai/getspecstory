@@ -1447,16 +1447,20 @@ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 	case v.LocallyInstalled:
 		installed = stySel.Render("✓ ")
 	}
-	name := truncate(v.Name, 34)
+	// Pad the name on the PLAIN string before styling — styling first would let ANSI escape
+	// codes count toward the width and break the trigger column's alignment on the selected row.
+	nameCol := fmt.Sprintf("%-34s", truncate(v.Name, 34))
 	if selected {
-		name = stySel.Render(name)
+		nameCol = stySel.Render(nameCol)
 	}
+	age := styDim.Render(fmt.Sprintf("%-6s", relativeTime(v.CreatedAt)))
+
 	if m.viewMode == "sparse" {
 		sub := "      " + styFaint.Render(truncate(v.Trigger, m.skillsLineWidth()-8))
-		return cursor + installed + state + " " + name + "\n" + sub
+		return cursor + installed + state + " " + nameCol + " " + age + "\n" + sub
 	}
-	trigger := styDim.Render(truncate(v.Trigger, m.skillsLineWidth()-52))
-	return cursor + installed + state + " " + fmt.Sprintf("%-34s", name) + " " + trigger
+	trigger := styDim.Render(truncate(v.Trigger, m.skillsLineWidth()-61))
+	return cursor + installed + state + " " + nameCol + " " + age + "  " + trigger
 }
 
 func (m skillsTUI) renderSkillFooter() string {
