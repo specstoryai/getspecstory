@@ -84,6 +84,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	newID := uuid.NewString()
 	name := spi.ResumedSessionTitle(data.Slug)
 
+	// No specstorySourceSessionId provenance back-link here, unlike claude/codex/droid/gemini/
+	// deepseek. Cursor's store is a content-addressed Merkle-DAG of fixed-shape blobs with no
+	// free-form metadata slot, so threading a source-id field would mean a synthetic blob/meta
+	// entry. Provenance is intentionally deferred for Cursor until a later stage needs it.
+	// See docs/SESSION-PORTABILITY.md.
+
 	// blobs accumulates every blob (id -> data); helper interns by content address.
 	blobs := map[string][]byte{}
 	put := func(b []byte) string { id := blobID(b); blobs[id] = b; return id }

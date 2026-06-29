@@ -13,6 +13,7 @@ const (
 	EventResumeActivated        = "ext_resume_activated"         // Tracks when `resume` command is started
 	EventReindexCompleted       = "ext_reindex_completed"        // Tracks when `reindex` finishes building the restore index
 	EventResumeReconstructed    = "ext_resume_reconstructed"     // Tracks the outcome of a cross-agent session reconstruction (success/unsupported/error)
+	EventSearchActivated        = "ext_search_activated"         // Tracks when `search` command is started
 	EventProjectIdentityCreated = "ext_project_identity_created" // Tracks when new project identity is created
 	EventCheckInstallSuccess    = "ext_check_install_success"    // Tracks successful agent installation check
 	EventCheckInstallFailed     = "ext_check_install_failed"     // Tracks failed agent installation check

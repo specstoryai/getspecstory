@@ -60,6 +60,9 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 			"model":         "",
 			"workspace":     cwd,
 			"mode":          "agent",
+			// Provenance back-link to the source session this was reconstructed from, so the
+			// lineage stays traceable (matches claude/codex/droid). See docs/SESSION-PORTABILITY.md.
+			"specstorySourceSessionId": data.SessionID,
 		},
 		"messages": messages,
 	}

@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -194,18 +195,28 @@ func (s *Store) ensureSchema() error {
 		return fmt.Errorf("executing schema: %w", err)
 	}
 	// Migration for indexes created before index_version existed (the column is part of
-	// the freshness fingerprint). Ignore the error when it already exists.
-	_, _ = s.db.Exec(`ALTER TABLE sessions ADD COLUMN index_version INTEGER DEFAULT 0`)
+	// the freshness fingerprint). The error is benign when the column already exists.
+	s.runMigration(`ALTER TABLE sessions ADD COLUMN index_version INTEGER DEFAULT 0`)
 	// fts_rowid links a session row to its sessions_fts row, so the body read and the
 	// delete-before-insert are O(1) rowid lookups instead of whole-FTS scans (session_id/agent
 	// are UNINDEXED). NULL on rows written before this column existed; a reindex (reindexVersion
-	// bump) repopulates it. Ignore the error when the column already exists.
-	_, _ = s.db.Exec(`ALTER TABLE sessions ADD COLUMN fts_rowid INTEGER`)
+	// bump) repopulates it. Benign error when the column already exists.
+	s.runMigration(`ALTER TABLE sessions ADD COLUMN fts_rowid INTEGER`)
 	// Drop the old single-column project index now superseded by the composite
 	// idx_sessions_project_recent (project_id is its left prefix). Idempotent; a no-op
 	// on fresh databases that never had it.
-	_, _ = s.db.Exec(`DROP INDEX IF EXISTS idx_sessions_project`)
+	s.runMigration(`DROP INDEX IF EXISTS idx_sessions_project`)
 	return nil
+}
+
+// runMigration applies an idempotent schema migration whose error is usually the benign
+// "column/index already exists". We can't cleanly tell that apart from a real failure (locked
+// DB, I/O) without matching driver-specific strings, so we log at Debug rather than fail: a
+// genuine problem still resurfaces as a later query error, but it is no longer fully invisible.
+func (s *Store) runMigration(stmt string) {
+	if _, err := s.db.Exec(stmt); err != nil {
+		slog.Debug("sessionindex: migration step skipped", "stmt", stmt, "error", err)
+	}
 }
 
 // Fingerprints returns the freshness fingerprint of every indexed session, keyed by

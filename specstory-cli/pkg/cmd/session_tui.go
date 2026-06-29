@@ -1346,6 +1346,8 @@ func (m *sessionTUI) enterBrowser() {
 	if !m.projectsLoaded {
 		if ps, err := m.store.ListProjects(); err == nil {
 			m.projects = ps
+		} else {
+			slog.Debug("session browser: failed to list projects", "error", err)
 		}
 		m.projectsLoaded = true
 	}
@@ -1370,6 +1372,7 @@ func (m *sessionTUI) gotoHome() {
 func (m *sessionTUI) drillInto(p sessionindex.ProjectSummary) {
 	sessions, err := m.store.ListByProject(p.ProjectID)
 	if err != nil {
+		slog.Debug("session browser: failed to list project sessions", "project", p.ProjectID, "error", err)
 		return
 	}
 	m.projectID = p.ProjectID

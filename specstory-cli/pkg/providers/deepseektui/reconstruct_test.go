@@ -95,3 +95,24 @@ func TestReconstructSession_Empty(t *testing.T) {
 		t.Fatal("expected error reconstructing a session with no content")
 	}
 }
+
+// TestReconstructSession_Provenance asserts the reconstructed session records a back-link to
+// the source session id under metadata, so the lineage is traceable (see docs/SESSION-PORTABILITY.md).
+func TestReconstructSession_Provenance(t *testing.T) {
+	data := reconstructSampleData()
+	out, err := NewProvider().ReconstructSession(data, spi.ReconstructOptions{WorkspaceRoot: "/tmp/proj"})
+	if err != nil {
+		t.Fatalf("ReconstructSession: %v", err)
+	}
+	var got struct {
+		Metadata struct {
+			SourceSessionID string `json:"specstorySourceSessionId"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(out.Content, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Metadata.SourceSessionID != data.SessionID {
+		t.Errorf("metadata.specstorySourceSessionId = %q, want %q", got.Metadata.SourceSessionID, data.SessionID)
+	}
+}

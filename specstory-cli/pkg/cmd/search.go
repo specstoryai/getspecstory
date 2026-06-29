@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -47,7 +49,8 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 			}
 			defer func() { _ = store.Close() }()
 
-			if total, _ := store.Count(); total == 0 {
+			total, _ := store.Count()
+			if total == 0 {
 				fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent, then try again (or `specstory reindex`).")
 				return nil
 			}
@@ -76,6 +79,11 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				viewMode = cfg.GetResumeViewMode()
 				lastAgent = cfg.GetResumeLastAgent()
 			}
+
+			analytics.TrackEvent(analytics.EventSearchActivated, analytics.Properties{
+				"had_initial_query": initialQuery != "",
+				"indexed_sessions":  total,
+			})
 
 			// `search` is the same TUI as `resume`, entered straight into the all-projects
 			// FTS with the input focused. See newSessionTUI / sessionTUIOpts.
@@ -110,7 +118,11 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 			if err != nil {
 				return fmt.Errorf("unknown target agent %q: %w", rm.result.targetID, err)
 			}
-			_ = config.SaveResumePrefs(viewMode, rm.result.targetID)
+			// Persist the view mode the user actually ended on (they may have toggled it with
+			// `v` mid-search), not the value loaded at startup — matching the `resume` path.
+			if err := config.SaveResumePrefs(rm.viewMode, rm.result.targetID); err != nil {
+				slog.Debug("search: failed to persist resume prefs", "error", err)
+			}
 
 			plan := &resumePlan{
 				from:      fromProv,

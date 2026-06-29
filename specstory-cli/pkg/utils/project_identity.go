@@ -187,12 +187,23 @@ func (m *ProjectIdentityManager) generateWorkspaceID() string {
 	return m.createHash(canonicalizeWorkspacePath(absPath))
 }
 
-// caseInsensitiveFilesystem reports whether the host OS treats paths case-insensitively.
-// macOS (APFS/HFS+) and Windows (NTFS) are case-insensitive/case-preserving; Linux is
-// case-sensitive. It is a var so tests can exercise both behaviors. Windows is included
-// even though the app is built only for macOS/Linux today: the in-flight Windows support
-// lives on a branch that does not carry this file, so folding case here keeps that branch
-// from silently reintroducing case-divergent workspace ids when it merges.
+// caseInsensitiveFilesystem is a best-effort, OS-level default for whether paths
+// should be case-folded — NOT a per-volume probe. macOS and Windows volumes are
+// usually case-insensitive and Linux case-sensitive, so we key off GOOS for
+// simplicity and stability. It is a var so tests can exercise both behaviors.
+// Windows is included even though the app is built only for macOS/Linux today: the
+// in-flight Windows support lives on a branch that does not carry this file, so
+// folding case here keeps that branch from silently reintroducing case-divergent
+// workspace ids when it merges.
+//
+// Accepted trade-off: macOS (APFS/HFS+) can be formatted case-SENSITIVE, where
+// this default wrongly folds two genuinely-distinct directories that differ only
+// by case into one workspace_id. That is rare and low-impact — case-sensitive
+// macOS volumes are uncommon, and it only affects the path-based fallback id
+// (git-remote projects hash the normalized URL, not the path). It is the
+// deliberate inverse of the common bug this fixes: case-divergent references to
+// the SAME directory on the usual case-insensitive volume (e.g. a lowercased
+// $PWD vs a session's recorded cwd) hashing to two different ids.
 var caseInsensitiveFilesystem = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 // canonicalizeWorkspacePath normalizes a path before it is hashed into a workspace_id. On

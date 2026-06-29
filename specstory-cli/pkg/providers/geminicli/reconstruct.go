@@ -60,6 +60,9 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		"lastUpdated": spi.RFC3339Millis(base.Add(time.Duration(len(turns)) * time.Second)),
 		"kind":        "main",
 		"messages":    messages,
+		// Provenance back-link to the source session this was reconstructed from, so the
+		// lineage stays traceable (matches claude/codex/droid). See docs/SESSION-PORTABILITY.md.
+		"specstorySourceSessionId": data.SessionID,
 	}
 
 	var buf bytes.Buffer

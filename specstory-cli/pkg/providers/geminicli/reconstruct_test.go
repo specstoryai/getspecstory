@@ -115,3 +115,22 @@ func TestReconstructSession_Empty(t *testing.T) {
 		t.Fatal("expected error reconstructing a session with no content")
 	}
 }
+
+// TestReconstructSession_Provenance asserts the reconstructed session records a top-level
+// back-link to the source session id, so the lineage is traceable (see docs/SESSION-PORTABILITY.md).
+func TestReconstructSession_Provenance(t *testing.T) {
+	data := reconstructSampleData()
+	out, err := NewProvider().ReconstructSession(data, spi.ReconstructOptions{WorkspaceRoot: "/tmp/proj"})
+	if err != nil {
+		t.Fatalf("ReconstructSession: %v", err)
+	}
+	var got struct {
+		SourceSessionID string `json:"specstorySourceSessionId"`
+	}
+	if err := json.Unmarshal(out.Content, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.SourceSessionID != data.SessionID {
+		t.Errorf("specstorySourceSessionId = %q, want %q", got.SourceSessionID, data.SessionID)
+	}
+}
