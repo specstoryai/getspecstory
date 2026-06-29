@@ -501,31 +501,43 @@ func (m sessionTUI) updateTarget(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // ---- list mechanics ----
 
-func (m *sessionTUI) moveCursor(delta int) {
-	if len(m.filtered) == 0 {
+// moveCursorWithin advances *cursor by delta within a list of n items, clamping to
+// [0, n-1] and then realigning the scroll window via clampScrollWithin. It is the
+// shared core of the three list cursors (sessions, projects, global search), which
+// differ only in which fields they track. A no-op for an empty list.
+func moveCursorWithin(cursor, top *int, delta, n, height int) {
+	if n == 0 {
 		return
 	}
-	m.cursor += delta
-	if m.cursor < 0 {
-		m.cursor = 0
+	*cursor += delta
+	if *cursor < 0 {
+		*cursor = 0
 	}
-	if m.cursor > len(m.filtered)-1 {
-		m.cursor = len(m.filtered) - 1
+	if *cursor > n-1 {
+		*cursor = n - 1
 	}
-	m.clampScroll()
+	clampScrollWithin(cursor, top, height)
+}
+
+// clampScrollWithin keeps the scroll window [*top, *top+height) covering *cursor.
+func clampScrollWithin(cursor, top *int, height int) {
+	if *cursor < *top {
+		*top = *cursor
+	}
+	if *cursor >= *top+height {
+		*top = *cursor - height + 1
+	}
+	if *top < 0 {
+		*top = 0
+	}
+}
+
+func (m *sessionTUI) moveCursor(delta int) {
+	moveCursorWithin(&m.cursor, &m.top, delta, len(m.filtered), m.listHeight())
 }
 
 func (m *sessionTUI) clampScroll() {
-	h := m.listHeight()
-	if m.cursor < m.top {
-		m.top = m.cursor
-	}
-	if m.cursor >= m.top+h {
-		m.top = m.cursor - h + 1
-	}
-	if m.top < 0 {
-		m.top = 0
-	}
+	clampScrollWithin(&m.cursor, &m.top, m.listHeight())
 }
 
 func (m sessionTUI) selected() *sessionindex.Session {
@@ -885,22 +897,35 @@ func (m sessionTUI) snippetAt(i int) string {
 	return ""
 }
 
+// rowCursor renders the two-column selection gutter shared by every list row.
+func rowCursor(selected bool) string {
+	if selected {
+		return styCursor.Render("▸ ")
+	}
+	return "  "
+}
+
+// rowLabel picks a list row's primary text: the highlighted FTS snippet when a search
+// is active, otherwise the session title. titleWidth/snippetWidth are the separate
+// column budgets for each (snippet markup needs slightly more room). Shared by
+// sessionRow and globalRow.
+func rowLabel(s sessionindex.Session, selected bool, snippet string, titleWidth, snippetWidth int) string {
+	if snippet != "" {
+		return renderSnippet(snippet, snippetWidth)
+	}
+	return renderName(sessionTitle(s), selected, titleWidth)
+}
+
 // sessionRow renders one list row. When snippet is non-empty (search active) the row
 // shows the highlighted match context instead of the session title.
 func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet string) string {
-	cursor := "  "
-	if selected {
-		cursor = styCursor.Render("▸ ")
-	}
+	cursor := rowCursor(selected)
 	agent := m.agentTag(s.Agent)
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
 
 	if m.viewMode == "sparse" {
 		turns := styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
-		label := renderName(sessionTitle(s), selected, m.lineWidth()-24)
-		if snippet != "" {
-			label = renderSnippet(snippet, m.lineWidth()-26)
-		}
+		label := rowLabel(s, selected, snippet, m.lineWidth()-24, m.lineWidth()-26)
 		head := cursor + agent + "  " + label + "   " + turns
 		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
@@ -912,10 +937,7 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 	if extra < 0 {
 		extra = 0
 	}
-	label := renderName(sessionTitle(s), selected, m.lineWidth()-22-extra)
-	if snippet != "" {
-		label = renderSnippet(snippet, m.lineWidth()-24-extra)
-	}
+	label := rowLabel(s, selected, snippet, m.lineWidth()-22-extra, m.lineWidth()-24-extra)
 	return cursor + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
 }
 
@@ -1265,7 +1287,10 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 	if err != nil {
 		return nil, fmt.Errorf("resume picker failed: %w", err)
 	}
-	rm := final.(sessionTUI)
+	rm, ok := final.(sessionTUI)
+	if !ok {
+		return nil, fmt.Errorf("resume picker returned unexpected model type %T", final)
+	}
 	if rm.result.cancelled || rm.result.session == nil {
 		return nil, nil
 	}
@@ -1449,30 +1474,11 @@ func (m *sessionTUI) applyProjectFilter() {
 }
 
 func (m *sessionTUI) moveProjCursor(delta int) {
-	if len(m.projFiltered) == 0 {
-		return
-	}
-	m.projCursor += delta
-	if m.projCursor < 0 {
-		m.projCursor = 0
-	}
-	if m.projCursor > len(m.projFiltered)-1 {
-		m.projCursor = len(m.projFiltered) - 1
-	}
-	m.clampProjScroll()
+	moveCursorWithin(&m.projCursor, &m.projTop, delta, len(m.projFiltered), m.projectsHeight())
 }
 
 func (m *sessionTUI) clampProjScroll() {
-	h := m.projectsHeight()
-	if m.projCursor < m.projTop {
-		m.projTop = m.projCursor
-	}
-	if m.projCursor >= m.projTop+h {
-		m.projTop = m.projCursor - h + 1
-	}
-	if m.projTop < 0 {
-		m.projTop = 0
-	}
+	clampScrollWithin(&m.projCursor, &m.projTop, m.projectsHeight())
 }
 
 // projectsHeight reserves room for chrome plus a few date-bucket header lines.
@@ -1740,30 +1746,11 @@ func (m *sessionTUI) exitGlobal() {
 }
 
 func (m *sessionTUI) moveGlobalCursor(delta int) {
-	if len(m.globalResults) == 0 {
-		return
-	}
-	m.globalCursor += delta
-	if m.globalCursor < 0 {
-		m.globalCursor = 0
-	}
-	if m.globalCursor > len(m.globalResults)-1 {
-		m.globalCursor = len(m.globalResults) - 1
-	}
-	m.clampGlobalScroll()
+	moveCursorWithin(&m.globalCursor, &m.globalTop, delta, len(m.globalResults), m.globalHeight())
 }
 
 func (m *sessionTUI) clampGlobalScroll() {
-	h := m.globalHeight()
-	if m.globalCursor < m.globalTop {
-		m.globalTop = m.globalCursor
-	}
-	if m.globalCursor >= m.globalTop+h {
-		m.globalTop = m.globalCursor - h + 1
-	}
-	if m.globalTop < 0 {
-		m.globalTop = 0
-	}
+	clampScrollWithin(&m.globalCursor, &m.globalTop, m.globalHeight())
 }
 
 func (m sessionTUI) globalHeight() int {
@@ -1849,28 +1836,19 @@ func (m sessionTUI) renderGlobalResults() string {
 // globalRow renders a cross-project search hit: agent · time · project · highlighted match
 // snippet. Honors the dense/sparse view mode, matching the project session list.
 func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet string) string {
-	cursor := "  "
-	if selected {
-		cursor = styCursor.Render("▸ ")
-	}
+	cursor := rowCursor(selected)
 	agent := m.agentTag(s.Agent)
 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
 
 	if m.viewMode == "sparse" {
-		label := renderName(sessionTitle(s), selected, m.lineWidth()-30)
-		if snippet != "" {
-			label = renderSnippet(snippet, m.lineWidth()-32)
-		}
+		label := rowLabel(s, selected, snippet, m.lineWidth()-30, m.lineWidth()-32)
 		head := cursor + agent + "  " + styFaint.Render(proj) + "  " + label
 		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
 	}
 
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
-	label := renderName(sessionTitle(s), selected, m.lineWidth()-46)
-	if snippet != "" {
-		label = renderSnippet(snippet, m.lineWidth()-48)
-	}
+	label := rowLabel(s, selected, snippet, m.lineWidth()-46, m.lineWidth()-48)
 	return cursor + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
 }
 

@@ -12,6 +12,10 @@
 
 - Massive improvement in the `sync` performance for Claude Code projects with many sessions.
 
+### 🐛 Bug Fixes
+
+- The Codex CLI provider now respects `CODEX_HOME` if set, [issue 136](https://github.com/specstoryai/getspecstory/issues/136), [contribution](https://github.com/specstoryai/getspecstory/pull/238) by [Shravan-0](https://github.com/Shravan-0).
+
 ## v1.13.0 2026-05-18
 
 ### 📢 Announcements

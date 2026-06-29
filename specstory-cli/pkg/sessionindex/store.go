@@ -137,7 +137,7 @@ func (s *Store) Close() error {
 }
 
 // sessionColumns is the canonical sessions column list, shared by every SELECT so the
-// scan order in scanSession stays in lockstep with it.
+// scan order in scanSessions stays in lockstep with it.
 const sessionColumns = `project_id, project_name, agent, session_id, created_at, updated_at,
 	user_turns, total_turns, slug, name, native_path, origin_cwd, size, mtime, index_version, indexed_at`
 
@@ -187,7 +187,7 @@ func (s *Store) ensureSchema() error {
 	);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
-		return err
+		return fmt.Errorf("executing schema: %w", err)
 	}
 	// Migration for indexes created before index_version existed (the column is part of
 	// the freshness fingerprint). Ignore the error when it already exists.

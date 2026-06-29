@@ -272,6 +272,18 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 		return plan.sessionID, nil
 	}
 
+	// One event records every cross-agent reconstruction outcome so portability usage and
+	// failure rates are visible. Fired at each terminal branch below.
+	track := func(outcome string) {
+		analytics.TrackEvent(analytics.EventResumeReconstructed, analytics.Properties{
+			"from_agent": plan.fromID,
+			"to_agent":   plan.toID,
+			"outcome":    outcome,
+		})
+	}
+	slog.Info("resume: reconstructing cross-agent session",
+		"from", plan.fromID, "to", plan.toID, "sessionID", plan.sessionID)
+
 	// Cross-agent: load source SessionData, reconstruct, write into target store.
 	// The source must be read from the directory it was originally launched in, not the
 	// user's current cwd — a session picked from another project (all-projects browser)
@@ -296,10 +308,13 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	})
 	if err != nil {
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
+			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
 				"%s can't yet be a cross-agent resume target. Choose Claude Code or Codex CLI (or resume in %s itself).",
 				plan.to.Name(), plan.from.Name())}
 		}
+		slog.Warn("resume: reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
+		track("error")
 		return "", fmt.Errorf("failed to reconstruct session for %s: %w", plan.to.Name(), err)
 	}
 
@@ -319,6 +334,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 
 	slog.Info("resume: wrote reconstructed session", "path", path, "newID", rec.SessionID)
+	track("success")
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
 	return rec.SessionID, nil
 }

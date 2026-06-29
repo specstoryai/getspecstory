@@ -76,13 +76,9 @@ func marshalCompact(v interface{}) ([]byte, error) {
 
 // ReconstructSession rebuilds a Cursor CLI native store.db from the neutral SessionData.
 func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
-	if data == nil {
-		return nil, fmt.Errorf("cannot reconstruct nil session data")
-	}
-
-	turns := spi.FlattenSessionData(data, opts.MigrationNote)
-	if len(turns) == 0 {
-		return nil, fmt.Errorf("session has no content to reconstruct")
+	turns, err := spi.PrepareTurns(data, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	newID := uuid.NewString()

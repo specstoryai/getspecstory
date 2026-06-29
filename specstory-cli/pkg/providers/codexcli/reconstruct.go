@@ -37,19 +37,11 @@ func codexTimestamp(t time.Time) string {
 // environment context on every resume, consistent with the cross-provider policy
 // that the target supplies its own preamble. See docs/SESSION-PORTABILITY.md.
 func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
-	if data == nil {
-		return nil, fmt.Errorf("cannot reconstruct nil session data")
+	turns, err := spi.PrepareTurns(data, opts)
+	if err != nil {
+		return nil, err
 	}
-
-	cwd := opts.WorkspaceRoot
-	if cwd == "" {
-		cwd = data.WorkspaceRoot
-	}
-
-	turns := spi.FlattenSessionData(data, opts.MigrationNote)
-	if len(turns) == 0 {
-		return nil, fmt.Errorf("session has no content to reconstruct")
-	}
+	cwd := spi.ResolveWorkspaceRoot(opts, data)
 
 	// Codex session IDs are UUIDv7. Fall back to v4 if v7 generation fails.
 	newID := uuid.NewString()

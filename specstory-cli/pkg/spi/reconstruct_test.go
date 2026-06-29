@@ -171,3 +171,72 @@ func TestFlattenSessionData_ToolOnlySession(t *testing.T) {
 		}
 	}
 }
+
+// TestPrepareTurns covers the two guards every provider's ReconstructSession now
+// shares: nil data and content-free sessions are rejected, real content passes.
+func TestPrepareTurns(t *testing.T) {
+	withText := &schema.SessionData{
+		Exchanges: []schema.Exchange{
+			{Messages: []schema.Message{
+				{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "hi"}}},
+			}},
+		},
+	}
+	empty := &schema.SessionData{}
+
+	tests := []struct {
+		name      string
+		data      *schema.SessionData
+		opts      ReconstructOptions
+		wantErr   string
+		wantTurns int
+	}{
+		{name: "nil data", data: nil, wantErr: "cannot reconstruct nil session data"},
+		{name: "no content", data: empty, wantErr: "session has no content to reconstruct"},
+		{name: "migration note alone counts as content", data: empty, opts: ReconstructOptions{MigrationNote: "imported"}, wantTurns: 1},
+		{name: "real content passes", data: withText, wantTurns: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			turns, err := PrepareTurns(tt.data, tt.opts)
+			if tt.wantErr != "" {
+				if err == nil || err.Error() != tt.wantErr {
+					t.Fatalf("got err %v, want %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(turns) != tt.wantTurns {
+				t.Errorf("got %d turns, want %d", len(turns), tt.wantTurns)
+			}
+		})
+	}
+}
+
+// TestResolveWorkspaceRoot covers the precedence shared by every provider that
+// derives native paths from a workspace: explicit target wins, then the source
+// session's own root, then empty.
+func TestResolveWorkspaceRoot(t *testing.T) {
+	tests := []struct {
+		name string
+		opts ReconstructOptions
+		data *schema.SessionData
+		want string
+	}{
+		{name: "explicit target wins", opts: ReconstructOptions{WorkspaceRoot: "/target"}, data: &schema.SessionData{WorkspaceRoot: "/source"}, want: "/target"},
+		{name: "falls back to session root", opts: ReconstructOptions{}, data: &schema.SessionData{WorkspaceRoot: "/source"}, want: "/source"},
+		{name: "empty when neither set", opts: ReconstructOptions{}, data: &schema.SessionData{}, want: ""},
+		{name: "nil data is safe", opts: ReconstructOptions{}, data: nil, want: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResolveWorkspaceRoot(tt.opts, tt.data); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

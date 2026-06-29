@@ -95,6 +95,39 @@ func FlattenSessionData(data *schema.SessionData, migrationNote string) []Turn {
 	return turns
 }
 
+// PrepareTurns validates session data and flattens it into the neutral turn list
+// every provider's serializer consumes. It centralizes the two guards each
+// ReconstructSession must apply before it can build native output: the source
+// SessionData must be non-nil, and flattening must yield at least one turn.
+// Keeping these here means every provider rejects the same cases with the same
+// messages and cannot drift apart.
+func PrepareTurns(data *schema.SessionData, opts ReconstructOptions) ([]Turn, error) {
+	if data == nil {
+		return nil, errors.New("cannot reconstruct nil session data")
+	}
+
+	turns := FlattenSessionData(data, opts.MigrationNote)
+	if len(turns) == 0 {
+		return nil, errors.New("session has no content to reconstruct")
+	}
+
+	return turns, nil
+}
+
+// ResolveWorkspaceRoot picks the working directory a reconstructed session
+// belongs to: the explicit target from opts when set, otherwise the source
+// session's own recorded root. Providers derive native paths/IDs from the
+// result; the cursor provider is the lone exception that needs no workspace.
+func ResolveWorkspaceRoot(opts ReconstructOptions, data *schema.SessionData) string {
+	if opts.WorkspaceRoot != "" {
+		return opts.WorkspaceRoot
+	}
+	if data == nil {
+		return ""
+	}
+	return data.WorkspaceRoot
+}
+
 // SyntheticCommandTags are the wrapper tags coding agents inject for
 // non-conversational slash-command records: the command invocation, its piped
 // local stdout/stderr, and the local-command caveat. They are conversation

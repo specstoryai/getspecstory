@@ -89,7 +89,10 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 			if err != nil {
 				return fmt.Errorf("search failed: %w", err)
 			}
-			rm := final.(sessionTUI)
+			rm, ok := final.(sessionTUI)
+			if !ok {
+				return fmt.Errorf("search returned unexpected model type %T", final)
+			}
 			if rm.result.cancelled || rm.result.session == nil {
 				return nil // cancelled: nothing to launch
 			}

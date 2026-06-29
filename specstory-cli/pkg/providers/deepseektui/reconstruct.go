@@ -29,19 +29,11 @@ func deepseekTimestamp(t time.Time) string {
 // `user`/`assistant` text messages. The session is associated with a project via
 // metadata.workspace. See docs/SESSION-PORTABILITY.md.
 func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
-	if data == nil {
-		return nil, fmt.Errorf("cannot reconstruct nil session data")
+	turns, err := spi.PrepareTurns(data, opts)
+	if err != nil {
+		return nil, err
 	}
-
-	cwd := opts.WorkspaceRoot
-	if cwd == "" {
-		cwd = data.WorkspaceRoot
-	}
-
-	turns := spi.FlattenSessionData(data, opts.MigrationNote)
-	if len(turns) == 0 {
-		return nil, fmt.Errorf("session has no content to reconstruct")
-	}
+	cwd := spi.ResolveWorkspaceRoot(opts, data)
 
 	newID := uuid.NewString()
 	now := deepseekTimestamp(time.Now().UTC())
