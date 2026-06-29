@@ -452,7 +452,11 @@ func renderSkillsTable(w io.Writer, views []skills.SkillView) {
 }
 
 func renderInstallReport(w io.Writer, r skills.InstallReport) {
-	fprintf(w, "Installed %s (%s) for: %s\n", r.Name, r.Scope, strings.Join(r.Agents, ", "))
+	target := strings.Join(r.Agents, ", ")
+	if target == "" {
+		target = "the canonical store only"
+	}
+	fprintf(w, "Installed %s (%s) for: %s\n", r.Name, r.Scope, target)
 	fprintf(w, "  %s\n", r.CanonicalPath)
 	if len(r.Skipped) > 0 {
 		fprintf(w, "  skipped (not used in this project): %s\n", strings.Join(r.Skipped, ", "))
@@ -615,6 +619,17 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width, m.height = msg.Width, msg.Height
 		m.reader.SetWidth(m.width)
 		m.reader.SetHeight(m.skillsPreviewHeight())
+		// Re-flow an open overlay to the new width so its content isn't clipped or stale.
+		if m.previewing && m.readerSkill != nil {
+			m.reader.SetContent(m.skillPreviewContent(m.readerSkill))
+		} else if m.runDetailing {
+			for i := range m.runs {
+				if m.runs[i].ID == m.detailRunID {
+					m.reader.SetContent(renderRunDetailBody(m.runs[i]))
+					break
+				}
+			}
+		}
 		return m, nil
 	case spinner.TickMsg:
 		// Keep one tick loop alive only while there is something to animate.
@@ -975,9 +990,11 @@ func (m *skillsTUI) runInstall() tea.Cmd {
 			agents = append(agents, m.detected[i].Name)
 		}
 	}
-	if len(agents) == 0 {
-		m.status = "Select at least one agent (space to toggle)."
-		return nil
+	// Zero agents is allowed: the skill still lands in the canonical .agents/skills store
+	// (useful for universal agents and npx-skills interop). We pass an explicit empty,
+	// non-nil slice so the engine treats it as "canonical only", not "default to all".
+	if agents == nil {
+		agents = []string{}
 	}
 	m.mode = skillsModeList
 	m.pendingInstall = nil
@@ -992,8 +1009,12 @@ func (m *skillsTUI) runInstall() tea.Cmd {
 		analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
 			"scope": report.Scope, "agents": len(report.Agents),
 		})
+		target := strings.Join(report.Agents, ", ")
+		if target == "" {
+			target = "the canonical store"
+		}
 		return actionResultMsg{
-			status: fmt.Sprintf("Installed %s (%s) for %s.", name, report.Scope, strings.Join(report.Agents, ", ")),
+			status: fmt.Sprintf("Installed %s (%s) for %s.", name, report.Scope, target),
 			reload: true,
 			scope:  report.Scope,
 		}
@@ -1006,9 +1027,9 @@ func (m *skillsTUI) runInstall() tea.Cmd {
 // updateRuns handles keys on the Runs tab.
 func (m skillsTUI) updateRuns(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "ctrl+c":
+	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
-	case "esc", "tab", "1", "2", "left", "right", "h", "l":
+	case "tab", "left", "h":
 		return m.switchTab(tabLibrary)
 	case "up", "k":
 		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
@@ -1250,14 +1271,42 @@ func (m skillsTUI) openSkillPreview(s *skills.SkillView) (tea.Model, tea.Cmd) {
 	m.readerSkill = s
 	m.reader.SetWidth(m.width)
 	m.reader.SetHeight(m.skillsPreviewHeight())
+	m.reader.SetContent(m.skillPreviewContent(s))
+	m.reader.GotoTop()
+	m.previewing = true
+	return m, nil
+}
+
+// skillPreviewContent renders the preview body: an install-state header (scope + agents +
+// drift) when the skill is installed locally, followed by the glamour-rendered SKILL.md.
+func (m skillsTUI) skillPreviewContent(s *skills.SkillView) string {
 	body := s.SkillMd
 	if strings.TrimSpace(body) == "" {
 		body = "_(no content)_"
 	}
-	m.reader.SetContent(renderGlamour(body, m.width))
-	m.reader.GotoTop()
-	m.previewing = true
-	return m, nil
+	out := renderGlamour(body, m.width)
+	if info := installInfoBlock(s); info != "" {
+		out = info + "\n\n" + out
+	}
+	return out
+}
+
+// installInfoBlock describes where an installed skill lives (scope + agents) and whether a
+// cloud update is available. Empty for skills that aren't installed locally.
+func installInfoBlock(s *skills.SkillView) string {
+	if !s.LocallyInstalled {
+		return ""
+	}
+	agents := strings.Join(s.InstalledAgents, ", ")
+	if agents == "" {
+		agents = "canonical store only"
+	}
+	line := stySel.Render("● installed") + styDim.Render(fmt.Sprintf("  %s · %s", s.InstalledScope, agents))
+	if s.Drift {
+		line += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).
+			Render("↑ update available — close this preview and press R to reinstall")
+	}
+	return line
 }
 
 func (m skillsTUI) skillsListHeight() int {
@@ -1323,7 +1372,13 @@ func (m skillsTUI) renderTabBar() string {
 		}
 		return styDim.Render("○ " + label)
 	}
-	left := tabSty(m.tab == tabLibrary, "Library") + "   " + tabSty(m.tab == tabRuns, "Run Activity")
+	runsTab := tabSty(m.tab == tabRuns, "Run Activity")
+	// Surface a background run from either tab, so starting one and switching back to the
+	// Library doesn't lose sight of it.
+	if m.runsPolling || anyRunInProgress(m.runs) {
+		runsTab += lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Render(" ● live")
+	}
+	left := tabSty(m.tab == tabLibrary, "Library") + "   " + runsTab
 	right := styFaint.Render("tab to switch")
 	return headerRow(left, right, m.skillsLineWidth())
 }
@@ -1383,8 +1438,13 @@ func (m skillsTUI) renderSkillRows() string {
 func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 	cursor := rowCursor(selected)
 	state := skillStateBadge(v.State)
+	// The install marker doubles as a drift indicator: ✓ installed, ↑ installed-but-an-update
+	// is available (reinstall with R). Shown in both view modes.
 	installed := "  "
-	if v.LocallyInstalled {
+	switch {
+	case v.LocallyInstalled && v.Drift:
+		installed = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Render("↑ ")
+	case v.LocallyInstalled:
 		installed = stySel.Render("✓ ")
 	}
 	name := truncate(v.Name, 34)
@@ -1393,11 +1453,7 @@ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 	}
 	if m.viewMode == "sparse" {
 		sub := "      " + styFaint.Render(truncate(v.Trigger, m.skillsLineWidth()-8))
-		drift := ""
-		if v.Drift {
-			drift = styFaint.Render("  · update available")
-		}
-		return cursor + installed + state + " " + name + drift + "\n" + sub
+		return cursor + installed + state + " " + name + "\n" + sub
 	}
 	trigger := styDim.Render(truncate(v.Trigger, m.skillsLineWidth()-52))
 	return cursor + installed + state + " " + fmt.Sprintf("%-34s", name) + " " + trigger

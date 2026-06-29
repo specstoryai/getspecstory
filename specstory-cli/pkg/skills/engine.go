@@ -11,14 +11,23 @@ import (
 // Engine is the single entry point both the TUI and the --json subcommands use. Every
 // user-facing skill operation goes through here, so the two faces (and a future front end
 // driving the CLI) always behave identically.
+//
+// The cloud calls used by the library/install paths are held as function fields so tests can
+// substitute them without a network; they default to the real cloud package functions.
 type Engine struct {
-	projectDir string
+	projectDir      string
+	listLibrary     func() ([]cloud.SkillRow, error)
+	setInstallState func(name, state string) error
 }
 
 // NewEngine builds an engine rooted at projectDir (the current working directory), used as
 // the base for project-scope installs.
 func NewEngine(projectDir string) *Engine {
-	return &Engine{projectDir: projectDir}
+	return &Engine{
+		projectDir:      projectDir,
+		listLibrary:     cloud.ListSkillLibrary,
+		setInstallState: cloud.SetInstallState,
+	}
 }
 
 // SkillView is a cloud skill joined with its local install state — the unified shape the UI
@@ -66,7 +75,7 @@ type InstallOptions struct {
 // List returns every cloud skill joined with local install state, sorted newest-first by
 // state rank then name (installed/ready before review, matching the web UI ordering intent).
 func (e *Engine) List() ([]SkillView, error) {
-	rows, err := cloud.ListSkillLibrary()
+	rows, err := e.listLibrary()
 	if err != nil {
 		return nil, err
 	}
@@ -141,12 +150,12 @@ func (e *Engine) Install(name string, opts InstallOptions) (InstallReport, error
 		return InstallReport{}, fmt.Errorf("%q has no content to install", name)
 	}
 
+	// With no targets (no agents detected, or all deselected) the skill is still written to
+	// the canonical .agents/skills store — universal agents read it directly, and `npx skills`
+	// sees it. So an empty target set is a valid canonical-only install, not an error.
 	targets, err := e.resolveTargets(opts.Agents)
 	if err != nil {
 		return InstallReport{}, err
-	}
-	if len(targets) == 0 {
-		return InstallReport{}, fmt.Errorf("no target agents: none of the known agents were detected (pass --agents to choose explicitly)")
 	}
 
 	disk, err := installSkillToDisk(name, view.SkillMd, opts.Global, e.projectDir, targets)
@@ -183,7 +192,7 @@ func (e *Engine) Install(name string, opts InstallOptions) (InstallReport, error
 	}
 	// Flip the cloud install_state so the web/CLI agree on what's installed. The local
 	// install already succeeded, so a sync failure is reported, not fatal.
-	if err := cloud.SetInstallState(name, cloud.InstallStateInstalled); err != nil {
+	if err := e.setInstallState(name, cloud.InstallStateInstalled); err != nil {
 		report.CloudSyncError = err.Error()
 	}
 	return report, nil
@@ -207,7 +216,7 @@ func (e *Engine) Uninstall(name string) (UninstallReport, error) {
 	}
 
 	report := UninstallReport{Name: name}
-	if err := cloud.SetInstallState(name, cloud.InstallStateAvailable); err != nil {
+	if err := e.setInstallState(name, cloud.InstallStateAvailable); err != nil {
 		report.CloudSyncError = err.Error()
 	}
 	return report, nil
@@ -252,11 +261,15 @@ func (e *Engine) InstalledSkills() ([]InstalledSkill, error) {
 	return out, nil
 }
 
-// resolveTargets maps requested agent names to Agents, defaulting to all detected agents.
-// Unknown names are an error so a typo doesn't silently install nothing.
+// resolveTargets maps requested agent names to Agents. A nil names slice means "default to
+// all detected agents"; an empty (non-nil) slice means "explicitly none" (canonical-only
+// install). Unknown names are an error so a typo doesn't silently install nothing.
 func (e *Engine) resolveTargets(names []string) ([]Agent, error) {
-	if len(names) == 0 {
+	if names == nil {
 		return DetectedAgents(), nil
+	}
+	if len(names) == 0 {
+		return nil, nil // explicit canonical-only
 	}
 	var out []Agent
 	for _, n := range names {
