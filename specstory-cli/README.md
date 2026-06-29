@@ -80,6 +80,36 @@ With a specific session UUID:
 specstory sync -s <session-uuid>
 ```
 
+### Skills
+
+SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
+
+```zsh
+# Interactive browser: preview skills, approve/reject the ones awaiting review,
+# install ready ones, and uninstall/reinstall installed ones.
+specstory skills
+```
+
+Skills install using the same layout as the public `npx skills` CLI: a canonical
+`~/.agents/skills/<name>` store, symlinked into each detected agent's skills directory
+(Claude Code, Codex, Cursor, and more), tracked in the shared `~/.agents/.skill-lock.json`.
+Installs default to global; pass `--project` to install into the current repo instead.
+
+Every action is also a non-interactive subcommand with `--json`, so a front end (e.g. the
+VS Code extension) can drive the same engine:
+
+```zsh
+specstory skills list --json                 # browse the library + local install state
+specstory skills show <name>                 # print a skill's SKILL.md
+specstory skills approve <name>              # approve a skill awaiting review
+specstory skills reject <name> --note "..."  # reject one
+specstory skills install <name>              # install for all detected agents (global)
+specstory skills install <name> --project --agents claude-code,codex
+specstory skills uninstall <name>            # remove files, links, and lock entry
+specstory skills reinstall <name>            # refresh to the current cloud version
+specstory skills status --json               # locally installed skills (no login needed)
+```
+
 ## Configuration File
 
 SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:

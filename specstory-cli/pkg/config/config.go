@@ -135,6 +135,7 @@ type Config struct {
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
 	Providers    ProvidersConfig    `toml:"providers"`
 	Resume       ResumeConfig       `toml:"resume"`
+	Skills       SkillsConfig       `toml:"skills"`
 }
 
 // ResumeConfig holds preferences for the `specstory resume` picker. view_mode is a
@@ -144,6 +145,16 @@ type ResumeConfig struct {
 	ViewMode string `toml:"view_mode"`
 	// LastAgent is the provider id of the agent you last resumed into (default target).
 	LastAgent string `toml:"last_agent"`
+}
+
+// SkillsConfig holds preferences for the `specstory skills` browser. Both keys are written
+// automatically as you use the command (the last install location you chose, and the
+// browser layout), so the next run remembers your choice.
+type SkillsConfig struct {
+	// ViewMode is the browser layout: "dense" or "sparse".
+	ViewMode string `toml:"view_mode"`
+	// DefaultLocation is the last-used install location: "global" or "project".
+	DefaultLocation string `toml:"default_location"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -756,6 +767,23 @@ func (c *Config) GetResumeLastAgent() string {
 	return c.Resume.LastAgent
 }
 
+// GetSkillsViewMode returns the skills browser view mode, defaulting to "dense".
+func (c *Config) GetSkillsViewMode() string {
+	if c.Skills.ViewMode == "sparse" {
+		return "sparse"
+	}
+	return "dense"
+}
+
+// GetSkillsDefaultLocation returns the last-used install location, defaulting to "global"
+// (install-once across repos, per the skills install design).
+func (c *Config) GetSkillsDefaultLocation() string {
+	if c.Skills.DefaultLocation == "project" {
+		return "project"
+	}
+	return "global"
+}
+
 // SaveResumePrefs persists the resume view mode and last-resumed agent to the
 // user-level config (~/.specstory/cli/config.toml). It upserts ONLY the [resume]
 // section, preserving the rest of the file (comments and other sections), so the
@@ -784,30 +812,75 @@ func SaveResumePrefs(viewMode, lastAgent string) error {
 	return nil
 }
 
-// upsertResumeSection replaces the [resume] section of a TOML document with active
-// view_mode/last_agent keys, preserving every other line. If no [resume] section
-// exists it is appended. Only the [resume] block is rewritten — other sections and
-// their comments are untouched.
-func upsertResumeSection(content, viewMode, lastAgent string) string {
-	var block strings.Builder
-	block.WriteString("[resume]\n")
-	if viewMode != "" {
-		fmt.Fprintf(&block, "view_mode = %q\n", viewMode)
+// SaveSkillsPrefs persists the skills browser view mode and last-used install location to
+// the user-level config, upserting ONLY the [skills] section (preserving the rest of the
+// file). Pass an empty value to leave that key out.
+func SaveSkillsPrefs(viewMode, defaultLocation string) error {
+	path := getUserConfigPath()
+	if path == "" {
+		return fmt.Errorf("could not determine user config path")
 	}
-	if lastAgent != "" {
-		fmt.Fprintf(&block, "last_agent = %q\n", lastAgent)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
 	}
 
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("reading config: %w", err)
+		}
+		data = []byte(processTemplate(defaultConfigTemplate, "user"))
+	}
+
+	updated := upsertTOMLSection(string(data), "skills", []tomlKeyVal{
+		{"view_mode", viewMode},
+		{"default_location", defaultLocation},
+	})
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return fmt.Errorf("writing config: %w", err)
+	}
+	return nil
+}
+
+// tomlKeyVal is one key/value to write into a TOML section. An empty val is omitted.
+type tomlKeyVal struct {
+	key string
+	val string
+}
+
+// upsertResumeSection replaces the [resume] section of a TOML document with active
+// view_mode/last_agent keys, preserving every other line.
+func upsertResumeSection(content, viewMode, lastAgent string) string {
+	return upsertTOMLSection(content, "resume", []tomlKeyVal{
+		{"view_mode", viewMode},
+		{"last_agent", lastAgent},
+	})
+}
+
+// upsertTOMLSection replaces the named section of a TOML document with the given keys,
+// preserving every other line. If the section does not exist it is appended after a
+// blank-line separator. Only the named block is rewritten — other sections and their
+// comments are untouched. Keys with an empty value are omitted.
+func upsertTOMLSection(content, section string, kvs []tomlKeyVal) string {
+	var block strings.Builder
+	fmt.Fprintf(&block, "[%s]\n", section)
+	for _, kv := range kvs {
+		if kv.val != "" {
+			fmt.Fprintf(&block, "%s = %q\n", kv.key, kv.val)
+		}
+	}
+
+	header := "[" + section + "]"
 	lines := strings.Split(content, "\n")
 	start := -1
 	for i, ln := range lines {
-		if strings.TrimSpace(ln) == "[resume]" {
+		if strings.TrimSpace(ln) == header {
 			start = i
 			break
 		}
 	}
 
-	// No existing [resume] section — append it after a blank-line separator.
+	// No existing section — append it after a blank-line separator.
 	if start == -1 {
 		out := strings.TrimRight(content, "\n")
 		if out != "" {
@@ -816,7 +889,7 @@ func upsertResumeSection(content, viewMode, lastAgent string) string {
 		return out + block.String()
 	}
 
-	// Replace from [resume] up to (but not including) the next top-level section.
+	// Replace from the header up to (but not including) the next top-level section.
 	end := len(lines)
 	for j := start + 1; j < len(lines); j++ {
 		t := strings.TrimSpace(lines[j])
