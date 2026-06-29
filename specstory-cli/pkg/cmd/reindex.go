@@ -289,7 +289,10 @@ func (nopReporter) inc(string)     {}
 
 // processWork parses each work item (worker pool) and writes the results to the store via a
 // single writer goroutine, reporting progress through rep. It stops feeding work when ctx is
-// cancelled; the writer flushes what it already received. Returns the writer's error, if any.
+// cancelled; the writer flushes what it already received. If the writer fails (a store write
+// error), it closes writerDone and stops draining, so the workers and the feed loop both
+// select on writerDone to tear the pipeline down — otherwise a full sessionsCh buffer would
+// block every worker forever and wwg.Wait would deadlock. Returns the writer's error, if any.
 func processWork(ctx context.Context, store *sessionindex.Store, work []reindexItem, cache *projectIDCache, indexedAt string, workers int, rep reindexReporter) error {
 	if len(work) == 0 {
 		return nil
@@ -321,8 +324,14 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 			for item := range workCh {
 				sess := buildSession(item, cache, indexedAt)
 				rep.observe(sess.ProjectID)
-				sessionsCh <- sess
-				rep.inc(item.agent)
+				// Abandon the push if the writer has already exited on a write error; without
+				// this, a full sessionsCh would block here forever (nothing drains it).
+				select {
+				case sessionsCh <- sess:
+					rep.inc(item.agent)
+				case <-writerDone:
+					return
+				}
 			}
 		}()
 	}
@@ -330,6 +339,8 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 	for _, item := range work {
 		select {
 		case <-ctx.Done():
+			goto closing
+		case <-writerDone: // writer failed — stop feeding rather than block on a full buffer
 			goto closing
 		case workCh <- item:
 		}
