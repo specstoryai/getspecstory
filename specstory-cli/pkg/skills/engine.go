@@ -237,6 +237,25 @@ func (e *Engine) Reinstall(name string, opts InstallOptions, scopeExplicit bool)
 	return e.Install(name, opts)
 }
 
+// AgentInfo describes a known coding agent and whether it's detected on this machine — the
+// data an install picker (TUI checklist or the extension's QuickPick) needs.
+type AgentInfo struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Detected    bool   `json:"detected"`
+}
+
+// Agents returns every known agent with its detection state, sorted by name.
+func (e *Engine) Agents() []AgentInfo {
+	reg := Registry()
+	out := make([]AgentInfo, 0, len(reg))
+	for _, a := range reg {
+		out = append(out, AgentInfo{Name: a.Name, DisplayName: a.DisplayName, Detected: a.Detected()})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
 // TriggerRun starts a new cloud mining run and returns its id.
 func (e *Engine) TriggerRun() (string, error) {
 	return cloud.TriggerRun()

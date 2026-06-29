@@ -78,6 +78,7 @@ non-interactive subcommand with '--json' for scripting and front-end integration
 		newSkillsStatusCmd(),
 		newSkillsRunCmd(),
 		newSkillsRunsCmd(),
+		newSkillsAgentsCmd(),
 	)
 	return skillsCmd
 }
@@ -396,6 +397,32 @@ func newSkillsRunsCmd() *cobra.Command {
 			for _, r := range runs {
 				fprintf(cmd.OutOrStdout(), "%-10s %-10s %3d sessions  %3d skills  %s\n",
 					r.Status, shortID(r.ID), r.SessionsMined, r.DossierTotal, r.CreatedAt)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
+	return cmd
+}
+
+func newSkillsAgentsCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "agents",
+		Short: "List coding agents detected on this machine (install targets)",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			// Local detection only — no login or entitlement needed (like `status`).
+			agents := skills.NewEngine(mustGetwd()).Agents()
+			if jsonOut {
+				return printJSON(cmd.OutOrStdout(), agents)
+			}
+			for _, a := range agents {
+				mark := " "
+				if a.Detected {
+					mark = "✓"
+				}
+				fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", mark, a.Name, a.DisplayName)
 			}
 			return nil
 		},

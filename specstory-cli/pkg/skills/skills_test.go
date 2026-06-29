@@ -208,6 +208,42 @@ func TestResolveTargets(t *testing.T) {
 	}
 }
 
+// TestEngineAgents verifies the agent list reflects on-disk detection.
+func TestEngineAgents(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("CODEX_HOME", "")
+	t.Setenv("XDG_CONFIG_HOME", "")
+	// Make only claude-code detectable.
+	if err := os.MkdirAll(filepath.Join(home, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	agents := NewEngine(home).Agents()
+	var claudeDetected, foundCursor bool
+	for _, a := range agents {
+		if a.DisplayName == "" {
+			t.Errorf("agent %q missing display name", a.Name)
+		}
+		if a.Name == "claude-code" {
+			claudeDetected = a.Detected
+		}
+		if a.Name == "cursor" {
+			foundCursor = true
+			if a.Detected {
+				t.Error("cursor should not be detected with an empty HOME")
+			}
+		}
+	}
+	if !claudeDetected {
+		t.Error("claude-code should be detected when ~/.claude exists")
+	}
+	if !foundCursor {
+		t.Error("expected cursor in the agent registry")
+	}
+}
+
 func TestUniversalAgentDetection(t *testing.T) {
 	codex, _ := FindAgent("codex")
 	if !codex.Universal() {
