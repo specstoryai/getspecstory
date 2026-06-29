@@ -85,8 +85,10 @@ specstory sync -s <session-uuid>
 SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
 
 ```zsh
-# Interactive browser: preview skills, approve/reject the ones awaiting review,
-# install ready ones, and uninstall/reinstall installed ones.
+# Interactive browser with two tabs (press `tab` to switch):
+#   • Library — preview skills, approve/reject those awaiting review, install ready
+#     ones, and uninstall/reinstall installed ones.
+#   • Run Activity — see past runs, kick one off (`n`), and watch it live.
 specstory skills
 ```
 

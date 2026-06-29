@@ -82,19 +82,60 @@ const (
 type Run struct {
 	ID              string         `json:"id"`
 	Status          string         `json:"status"`
+	Trigger         string         `json:"trigger"`
+	ShardCount      int            `json:"shardCount"`
+	ShardsDone      int            `json:"shardsDone"`
 	CreatedAt       string         `json:"createdAt"`
 	StartedAt       string         `json:"startedAt"`
 	EndedAt         string         `json:"endedAt"`
+	UpdatedAt       string         `json:"updatedAt"`
 	Error           string         `json:"error"`
 	SessionsMined   int            `json:"sessionsMined"`
 	DossierTotal    int            `json:"dossierTotal"`
 	DossierVerdicts map[string]int `json:"dossierVerdicts"`
+	Shards          []RunShard     `json:"shards"`
+	Dossiers        []RunDossier   `json:"dossiers"`
+}
+
+// RunShard is one unit of work within a run (today there is one "__all__" shard).
+type RunShard struct {
+	ShardKey     string   `json:"shardKey"`
+	ScopeKind    string   `json:"scopeKind"`
+	Scope        RunScope `json:"scope"`
+	Status       string   `json:"status"`
+	SandboxID    string   `json:"sandboxId"`
+	SessionCount int      `json:"sessionCount"`
+	SpanCount    int      `json:"spanCount"`
+	StartedAt    string   `json:"startedAt"`
+	EndedAt      string   `json:"endedAt"`
+	Error        string   `json:"error"`
+}
+
+// RunScope identifies what a shard mined: a single project or a set of projects.
+type RunScope struct {
+	ProjectID  string   `json:"project_id"`
+	ProjectIDs []string `json:"project_ids"`
+}
+
+// RunDossier is one candidate skill a run produced.
+type RunDossier struct {
+	Name        string `json:"name"`
+	ClusterKey  string `json:"clusterKey"`
+	Verdict     string `json:"verdict"`
+	Confidence  string `json:"confidence"`
+	Adjudicated bool   `json:"adjudicated"`
+	HasSkill    bool   `json:"hasSkill"`
 }
 
 // RunTerminal reports whether a run has finished (successfully or not), so a poller knows to
 // stop watching it.
 func RunTerminal(status string) bool {
 	return status == "done" || status == "failed"
+}
+
+// RunInProgress reports whether a run is still active (the inverse of terminal).
+func RunInProgress(status string) bool {
+	return !RunTerminal(status)
 }
 
 // TriggerRun starts a new mining run for the signed-in user and returns its id. The server

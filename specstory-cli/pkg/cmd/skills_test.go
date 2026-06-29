@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 
+	"charm.land/bubbles/v2/spinner"
+
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/skills"
 )
@@ -155,66 +157,96 @@ func TestApplyActionResult(t *testing.T) {
 	}
 }
 
-// TestApplyRunTriggered verifies a triggered run begins polling, and an error doesn't.
+// TestApplyRunTriggered verifies a triggered run switches to the Runs tab and refreshes;
+// an error does neither.
 func TestApplyRunTriggered(t *testing.T) {
 	ok, cmd := skillsTUI{busy: true, height: 40}.applyRunTriggered(runTriggeredMsg{runID: "r1"})
 	m := ok.(skillsTUI)
-	if !m.runActive || m.runID != "r1" {
-		t.Errorf("expected runActive with id r1, got active=%v id=%q", m.runActive, m.runID)
+	if m.runID != "r1" || m.tab != tabRuns || !m.runsLoading {
+		t.Errorf("expected runs tab + loading with id r1, got tab=%v loading=%v id=%q", m.tab, m.runsLoading, m.runID)
 	}
 	if cmd == nil {
-		t.Error("expected a poll command after a run starts")
+		t.Error("expected a runs-fetch command after a run starts")
 	}
 
 	failModel, failCmd := skillsTUI{busy: true, height: 40}.applyRunTriggered(runTriggeredMsg{err: errors.New("disabled")})
 	fm := failModel.(skillsTUI)
-	if fm.runActive {
-		t.Error("a failed trigger should not start polling")
+	if fm.tab == tabRuns || fm.runsLoading {
+		t.Error("a failed trigger should not switch to the runs tab")
 	}
 	if failCmd != nil {
-		t.Error("no poll command expected on trigger error")
+		t.Error("no command expected on trigger error")
 	}
 	if fm.status != "disabled" {
 		t.Errorf("status = %q, want error text", fm.status)
 	}
 }
 
-// TestApplyRunsFetched covers the poll outcomes: keep polling while running, stop + refresh
-// on done, stop on failure, and ignore stale polls.
+// TestApplyRunsFetched covers the poll loop: start polling while a run is in progress, stop
+// and refresh the library on the transition to all-terminal, and surface load errors.
 func TestApplyRunsFetched(t *testing.T) {
-	base := func() skillsTUI { return skillsTUI{runActive: true, runID: "r1", height: 40} }
-
-	// Still running → keep polling.
-	_, cmd := base().applyRunsFetched(runsFetchedMsg{runID: "r1", runs: []cloud.Run{{ID: "r1", Status: "judging", SessionsMined: 5}}})
-	if cmd == nil {
-		t.Error("expected to keep polling while the run is in progress")
+	// Initial load with an in-progress run → start polling.
+	loadModel, loadCmd := (skillsTUI{runsLoading: true, height: 40}).
+		applyRunsFetched(runsFetchedMsg{runs: []cloud.Run{{ID: "r1", Status: "judging", SessionsMined: 5}}})
+	lm := loadModel.(skillsTUI)
+	if !lm.runsLoaded || lm.runsLoading {
+		t.Error("expected runsLoaded and not loading after a fetch")
+	}
+	if !lm.runsPolling || !lm.runsInProgress {
+		t.Error("expected polling to start for an in-progress run")
+	}
+	if loadCmd == nil {
+		t.Error("expected a poll command while a run is in progress")
 	}
 
-	// Done → stop polling, refresh library.
-	doneModel, doneCmd := base().applyRunsFetched(runsFetchedMsg{runID: "r1", runs: []cloud.Run{{ID: "r1", Status: "done", DossierTotal: 3}}})
+	// Transition to done (a run was in progress) → stop polling, refresh library.
+	doneModel, doneCmd := (skillsTUI{runsInProgress: true, runsPolling: true, height: 40}).
+		applyRunsFetched(runsFetchedMsg{runs: []cloud.Run{{ID: "r1", Status: "done", DossierTotal: 3}}})
 	dm := doneModel.(skillsTUI)
-	if dm.runActive {
-		t.Error("run should be inactive once done")
+	if dm.runsPolling || dm.runsInProgress {
+		t.Error("polling should stop once all runs are terminal")
 	}
 	if doneCmd == nil {
-		t.Error("expected a library-reload command after a completed run")
+		t.Error("expected a library-reload command after a run completes")
 	}
 
-	// Failed → stop polling, no reload.
-	failModel, failCmd := base().applyRunsFetched(runsFetchedMsg{runID: "r1", runs: []cloud.Run{{ID: "r1", Status: "failed", Error: "boom"}}})
-	if failModel.(skillsTUI).runActive {
-		t.Error("run should be inactive once failed")
+	// Steady state, nothing in progress → no polling, no command.
+	idleModel, idleCmd := (skillsTUI{height: 40}).
+		applyRunsFetched(runsFetchedMsg{runs: []cloud.Run{{ID: "r1", Status: "done"}}})
+	if idleModel.(skillsTUI).runsPolling {
+		t.Error("no polling expected when nothing is in progress")
 	}
-	if failCmd != nil {
-		t.Error("no reload expected on failure")
+	if idleCmd != nil {
+		t.Error("no command expected in steady state")
 	}
 
-	// Stale poll (different run id) → ignored.
-	_, staleCmd := base().applyRunsFetched(runsFetchedMsg{runID: "old", runs: nil})
-	if staleCmd != nil {
-		t.Error("a stale poll should be ignored")
+	// Load error → surfaced in status.
+	errModel, _ := (skillsTUI{runsLoading: true, height: 40}).
+		applyRunsFetched(runsFetchedMsg{err: errors.New("nope")})
+	if errModel.(skillsTUI).status == "" {
+		t.Error("expected a load error to be surfaced in status")
 	}
 }
+
+// TestSwitchTabLoadsRunsOnce verifies the runs list is fetched lazily on first switch.
+func TestSwitchTabLoadsRunsOnce(t *testing.T) {
+	m := skillsTUI{height: 40, spinner: spinner.New()}
+	out, cmd := m.switchTab(tabRuns)
+	om := out.(skillsTUI)
+	if om.tab != tabRuns || !om.runsLoading || cmd == nil {
+		t.Errorf("first switch should load runs: tab=%v loading=%v cmd=%v", om.tab, om.runsLoading, cmd != nil)
+	}
+	// Already loaded → no refetch.
+	om.runsLoading = false
+	om.runsLoaded = true
+	back, _ := om.switchTab(tabLibrary)
+	again, cmd2 := back.(skillsTUI).switchTab(tabRuns)
+	if again.(skillsTUI).runsLoading || cmd2 != nil {
+		t.Error("a second switch should not reload an already-loaded runs list")
+	}
+}
+
+// TestSkillsFilterCycle confirms the filter ring advances through all four states and wraps.
 
 // TestSkillsFilterCycle confirms the filter ring advances through all four states and wraps.
 func TestSkillsFilterCycle(t *testing.T) {

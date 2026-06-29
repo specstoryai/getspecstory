@@ -473,6 +473,14 @@ const (
 	skillsModeConfirm                   // a yes/no confirmation for approve/reject/uninstall/reinstall
 )
 
+// skillsTab is the top-level view, mirroring the web Skills workspace's two tabs.
+type skillsTab int
+
+const (
+	tabLibrary skillsTab = iota // the mined skill library
+	tabRuns                     // run activity: past runs + kick off / watch a new one
+)
+
 // skillsTUI is the model behind `specstory skills`. It mirrors the resume picker's structure
 // (Init/Update/View, a glamour preview overlay, a hand-rolled list) and reuses its shared
 // lipgloss styles and helpers (styDim, styCursor, headerRow, truncate, renderGlamour, ...).
@@ -512,11 +520,24 @@ type skillsTUI struct {
 	spinning bool
 	spinner  spinner.Model
 
-	// run polling state. runActive = a mining run we triggered is being polled in the
-	// background; the UI stays usable meanwhile (only loading/busy block input).
-	runActive bool
-	runID     string
-	runStatus string
+	// tab is the active top-level view (library or runs).
+	tab skillsTab
+
+	// runs-tab state. The runs list is loaded lazily on first switch to the tab and
+	// live-refreshed (runsPolling) while any run is in progress — mirroring the web
+	// Activity panel. runID marks a run we just triggered so the cursor can land on it.
+	runs           []cloud.Run
+	runsLoaded     bool
+	runsLoading    bool
+	runsPolling    bool
+	runsInProgress bool // whether any run was in progress at the last fetch (edge detection)
+	runsCursor     int
+	runsTop        int
+	runID          string
+
+	// run detail overlay (expanded view of one run: skills produced + shards).
+	runDetailing bool
+	detailRunID  string
 
 	status        string
 	width, height int
@@ -533,14 +554,13 @@ type runTriggeredMsg struct {
 	err   error
 }
 
-// runPollTickMsg fires on the poll cadence to re-check a running job.
-type runPollTickMsg struct{}
+// runsPollTickMsg fires on the poll cadence to re-fetch runs while one is in progress.
+type runsPollTickMsg struct{}
 
-// runsFetchedMsg carries a runs listing fetched during polling.
+// runsFetchedMsg carries a runs listing (initial load, refresh, or poll).
 type runsFetchedMsg struct {
-	runs  []cloud.Run
-	err   error
-	runID string
+	runs []cloud.Run
+	err  error
 }
 
 // skillsLoadedMsg carries the result of an async library fetch (initial load or refresh).
@@ -598,7 +618,7 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case spinner.TickMsg:
 		// Keep one tick loop alive only while there is something to animate.
-		if m.loading || m.busy || m.runActive {
+		if m.loading || m.busy || m.runsLoading || m.runsPolling {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -611,16 +631,16 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyActionResult(msg)
 	case runTriggeredMsg:
 		return m.applyRunTriggered(msg)
-	case runPollTickMsg:
-		if !m.runActive {
+	case runsPollTickMsg:
+		if !m.runsPolling || !anyRunInProgress(m.runs) {
 			return m, nil
 		}
 		return m, m.runsFetchCmd()
 	case runsFetchedMsg:
 		return m.applyRunsFetched(msg)
 	case tea.KeyPressMsg:
-		// While a request is in flight, swallow input (except quit) so the user can't act on
-		// stale state mid-operation.
+		// While a blocking request is in flight, swallow input (except quit). Run polling is
+		// NOT blocking — the UI stays usable while a run mines in the background.
 		if m.loading || m.busy {
 			if msg.String() == "ctrl+c" {
 				return m, tea.Quit
@@ -630,10 +650,14 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.previewing:
 			return m.updatePreview(msg)
+		case m.runDetailing:
+			return m.updateRunDetail(msg)
 		case m.mode == skillsModeConfirm:
 			return m.updateConfirm(msg)
 		case m.mode == skillsModeInstall:
 			return m.updateInstall(msg)
+		case m.tab == tabRuns:
+			return m.updateRuns(msg)
 		default:
 			return m.updateList(msg)
 		}
@@ -747,6 +771,8 @@ func (m skillsTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.startReinstall()
 	case "n": // new run (mine sessions for skills)
 		return m.startRun()
+	case "tab", "right", "l":
+		return m.switchTab(tabRuns)
 	}
 	return m, nil
 }
@@ -975,11 +1001,74 @@ func (m *skillsTUI) runInstall() tea.Cmd {
 	return m.startAction(cmd)
 }
 
-// ---- run polling ----
+// ---- runs tab ----
 
-// startRun confirms and (on yes) triggers a new mining run, which then polls to completion.
+// updateRuns handles keys on the Runs tab.
+func (m skillsTUI) updateRuns(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		return m, tea.Quit
+	case "esc", "tab", "1", "2", "left", "right", "h", "l":
+		return m.switchTab(tabLibrary)
+	case "up", "k":
+		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
+	case "down", "j":
+		moveCursorWithin(&m.runsCursor, &m.runsTop, 1, len(m.runs), m.runsListHeight())
+	case "pgup":
+		moveCursorWithin(&m.runsCursor, &m.runsTop, -m.runsListHeight(), len(m.runs), m.runsListHeight())
+	case "pgdown":
+		moveCursorWithin(&m.runsCursor, &m.runsTop, m.runsListHeight(), len(m.runs), m.runsListHeight())
+	case "home", "g":
+		m.runsCursor, m.runsTop = 0, 0
+	case "end", "G":
+		m.runsCursor = len(m.runs) - 1
+		clampScrollWithin(&m.runsCursor, &m.runsTop, m.runsListHeight())
+	case "enter", " ", "space":
+		if r := m.selectedRun(); r != nil {
+			return m.openRunDetail(r)
+		}
+	case "n":
+		return m.startRun()
+	case "r":
+		// Manual refresh of the runs list.
+		m.runsLoading = true
+		return m, tea.Batch(m.ensureSpinner(), m.runsFetchCmd())
+	}
+	return m, nil
+}
+
+// updateRunDetail handles keys while a run's detail overlay is open.
+func (m skillsTUI) updateRunDetail(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q", "enter", " ", "space":
+		m.runDetailing = false
+		m.detailRunID = ""
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	var cmd tea.Cmd
+	m.reader, cmd = m.reader.Update(msg)
+	return m, cmd
+}
+
+// switchTab moves between Library and Runs, lazily loading the runs list the first time the
+// Runs tab is opened.
+func (m skillsTUI) switchTab(to skillsTab) (tea.Model, tea.Cmd) {
+	if m.tab == to {
+		return m, nil
+	}
+	m.tab = to
+	if to == tabRuns && !m.runsLoaded && !m.runsLoading {
+		m.runsLoading = true
+		return m, tea.Batch(m.ensureSpinner(), m.runsFetchCmd())
+	}
+	return m, nil
+}
+
+// startRun confirms and (on yes) triggers a new mining run.
 func (m skillsTUI) startRun() (tea.Model, tea.Cmd) {
-	if m.runActive {
+	if anyRunInProgress(m.runs) {
 		m.status = "A run is already in progress."
 		return m, nil
 	}
@@ -997,76 +1086,129 @@ func (m skillsTUI) startRun() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// applyRunTriggered begins background polling once a run has started.
+// applyRunTriggered switches to the Runs tab and refreshes the list, which kicks off polling.
 func (m skillsTUI) applyRunTriggered(msg runTriggeredMsg) (tea.Model, tea.Cmd) {
 	m.busy = false
 	if msg.err != nil {
 		m.status = msg.err.Error()
 		return m, nil
 	}
-	m.runActive = true
 	m.runID = msg.runID
-	m.runStatus = "queued"
+	m.tab = tabRuns
+	m.runsLoading = true
 	m.status = "Run started — mining your sessions…"
-	// Ensure the spinner is animating, then schedule the first poll.
-	if !m.spinning {
-		m.spinning = true
-		return m, tea.Batch(m.spinner.Tick, runPollCmd())
-	}
-	return m, runPollCmd()
+	return m, tea.Batch(m.ensureSpinner(), m.runsFetchCmd())
 }
 
-// runPollCmd schedules the next poll tick.
-func runPollCmd() tea.Cmd {
-	return tea.Tick(runPollInterval, func(time.Time) tea.Msg { return runPollTickMsg{} })
+// runsPollCmd schedules the next poll tick.
+func runsPollCmd() tea.Cmd {
+	return tea.Tick(runPollInterval, func(time.Time) tea.Msg { return runsPollTickMsg{} })
 }
 
 // runsFetchCmd fetches the runs listing off the UI thread.
 func (m skillsTUI) runsFetchCmd() tea.Cmd {
 	eng := m.engine
-	runID := m.runID
 	return func() tea.Msg {
 		runs, err := eng.ListRuns()
-		return runsFetchedMsg{runs: runs, err: err, runID: runID}
+		return runsFetchedMsg{runs: runs, err: err}
 	}
 }
 
-// applyRunsFetched updates the run status line; on completion it stops polling and refreshes
-// the library so freshly minted skills appear. Transient fetch errors keep polling.
+// applyRunsFetched folds a runs listing into the model and manages the background poll loop:
+// it starts polling when a run is in progress and, on the transition to all-terminal,
+// refreshes the library so freshly minted skills appear.
 func (m skillsTUI) applyRunsFetched(msg runsFetchedMsg) (tea.Model, tea.Cmd) {
-	if !m.runActive || msg.runID != m.runID {
-		return m, nil // a stale poll from a previous run
-	}
+	wasLoading := m.runsLoading
+	m.runsLoading = false
+	m.runsLoaded = true
 	if msg.err != nil {
-		return m, runPollCmd() // transient; keep watching
-	}
-	var cur *cloud.Run
-	for i := range msg.runs {
-		if msg.runs[i].ID == m.runID {
-			cur = &msg.runs[i]
-			break
+		if !wasLoading { // a background poll failed; keep watching quietly
+			return m, runsPollCmd()
 		}
-	}
-	if cur == nil {
-		return m, runPollCmd() // not visible yet
-	}
-	m.runStatus = cur.Status
-	if !cloud.RunTerminal(cur.Status) {
-		m.status = fmt.Sprintf("Run %s… (%d sessions mined)", cur.Status, cur.SessionsMined)
-		return m, runPollCmd()
-	}
-	// Terminal.
-	m.runActive = false
-	if cur.Status == "failed" {
-		m.status = "Run failed."
-		if cur.Error != "" {
-			m.status = "Run failed: " + cur.Error
-		}
+		m.status = "Failed to load runs: " + msg.err.Error()
 		return m, nil
 	}
-	m.status = fmt.Sprintf("Run complete — %d sessions mined, %d skills judged. Refreshing…",
-		cur.SessionsMined, cur.DossierTotal)
-	return m, m.loadCmd()
+
+	m.runs = msg.runs
+	// Keep the cursor on the just-triggered run if we can find it.
+	if m.runID != "" {
+		for i := range m.runs {
+			if m.runs[i].ID == m.runID {
+				m.runsCursor = i
+				break
+			}
+		}
+	}
+	clampScrollWithin(&m.runsCursor, &m.runsTop, m.runsListHeight())
+
+	nowInProgress := anyRunInProgress(m.runs)
+	var cmds []tea.Cmd
+
+	// Edge: a run just finished -> refresh the library so new skills show up.
+	if m.runsInProgress && !nowInProgress {
+		m.status = "Run complete — refreshing your library…"
+		cmds = append(cmds, m.loadCmd())
+	}
+	m.runsInProgress = nowInProgress
+
+	// Manage the poll loop: start it when something is in progress, stop it otherwise.
+	if nowInProgress {
+		if !m.runsPolling {
+			m.runsPolling = true
+			cmds = append(cmds, m.ensureSpinner())
+		}
+		cmds = append(cmds, runsPollCmd())
+	} else {
+		m.runsPolling = false
+	}
+	return m, tea.Batch(cmds...)
+}
+
+// openRunDetail renders an expanded view of one run (skills produced + per-shard breakdown)
+// into the scrollable reader.
+func (m skillsTUI) openRunDetail(r *cloud.Run) (tea.Model, tea.Cmd) {
+	m.detailRunID = r.ID
+	m.reader.SetWidth(m.width)
+	m.reader.SetHeight(m.skillsPreviewHeight())
+	m.reader.SetContent(renderRunDetailBody(*r))
+	m.reader.GotoTop()
+	m.runDetailing = true
+	return m, nil
+}
+
+func (m skillsTUI) selectedRun() *cloud.Run {
+	if m.runsCursor < 0 || m.runsCursor >= len(m.runs) {
+		return nil
+	}
+	return &m.runs[m.runsCursor]
+}
+
+func (m skillsTUI) runsListHeight() int {
+	const chrome = 7 // tab bar + header + two rules + status + footer + margin
+	avail := m.height - chrome
+	if avail < 1 {
+		avail = 1
+	}
+	return avail
+}
+
+// ensureSpinner starts the spinner tick loop if it isn't already running.
+func (m *skillsTUI) ensureSpinner() tea.Cmd {
+	if m.spinning {
+		return nil
+	}
+	m.spinning = true
+	return m.spinner.Tick
+}
+
+// anyRunInProgress reports whether any run in the list is still active.
+func anyRunInProgress(runs []cloud.Run) bool {
+	for _, r := range runs {
+		if cloud.RunInProgress(r.Status) {
+			return true
+		}
+	}
+	return false
 }
 
 // ---- list mechanics ----
@@ -1119,7 +1261,7 @@ func (m skillsTUI) openSkillPreview(s *skills.SkillView) (tea.Model, tea.Cmd) {
 }
 
 func (m skillsTUI) skillsListHeight() int {
-	const chrome = 6 // header + two rules + status + footer + margin
+	const chrome = 7 // tab bar + header + two rules + status + footer + margin
 	avail := m.height - chrome
 	per := 1
 	if m.viewMode == "sparse" {
@@ -1157,10 +1299,14 @@ func (m skillsTUI) View() tea.View {
 	switch {
 	case m.previewing:
 		content = m.renderSkillPreview()
+	case m.runDetailing:
+		content = m.renderRunDetail()
 	case m.mode == skillsModeInstall:
 		content = m.renderInstallPanel()
 	case m.mode == skillsModeConfirm:
 		content = m.renderConfirm()
+	case m.tab == tabRuns:
+		content = m.renderRunsList()
 	default:
 		content = m.renderSkillList()
 	}
@@ -1169,13 +1315,28 @@ func (m skillsTUI) View() tea.View {
 	return v
 }
 
+// renderTabBar renders the two-tab header shared by both views.
+func (m skillsTUI) renderTabBar() string {
+	tabSty := func(active bool, label string) string {
+		if active {
+			return stySel.Render("● " + label)
+		}
+		return styDim.Render("○ " + label)
+	}
+	left := tabSty(m.tab == tabLibrary, "Library") + "   " + tabSty(m.tab == tabRuns, "Run Activity")
+	right := styFaint.Render("tab to switch")
+	return headerRow(left, right, m.skillsLineWidth())
+}
+
 func (m skillsTUI) renderSkillList() string {
 	var b strings.Builder
+	b.WriteString(m.renderTabBar())
+	b.WriteString("\n")
 	scope := "all"
 	if m.filter != "" {
 		scope = m.filter
 	}
-	left := styBold.Render("SpecStory Skills") + styDim.Render("  ·  ") + styDim.Render("filter: ") + stySel.Render(scope)
+	left := styDim.Render("filter: ") + stySel.Render(scope)
 	right := styDim.Render(fmt.Sprintf("%d skills", len(m.filtered)))
 	b.WriteString(headerRow(left, right, m.skillsLineWidth()))
 	b.WriteString("\n")
@@ -1186,7 +1347,7 @@ func (m skillsTUI) renderSkillList() string {
 	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
 	b.WriteString("\n")
 	status := m.status
-	if m.busy || m.loading || m.runActive {
+	if m.busy || m.loading {
 		status = m.spinner.View() + " " + status
 	}
 	if strings.TrimSpace(status) != "" {
@@ -1243,7 +1404,7 @@ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 }
 
 func (m skillsTUI) renderSkillFooter() string {
-	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "n run", "q quit"}
+	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "tab runs", "q quit"}
 	return styDim.Render(strings.Join(keys, " · "))
 }
 
@@ -1317,6 +1478,214 @@ func (m skillsTUI) renderConfirm() string {
 	b.WriteString("\n\n")
 	b.WriteString(styDim.Render(strings.Join([]string{"y confirm", "n cancel"}, " · ")))
 	return b.String()
+}
+
+// ---- runs rendering ----
+
+func (m skillsTUI) renderRunsList() string {
+	var b strings.Builder
+	b.WriteString(m.renderTabBar())
+	b.WriteString("\n")
+
+	live := ""
+	if anyRunInProgress(m.runs) {
+		live = lipgloss.NewStyle().Foreground(lipgloss.Color("39")).Render(" ● live")
+	}
+	left := styDim.Render("background runs that mine + forge skills") + live
+	right := styDim.Render(fmt.Sprintf("%d runs", len(m.runs)))
+	b.WriteString(headerRow(left, right, m.skillsLineWidth()))
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
+	b.WriteString("\n")
+	b.WriteString(m.renderRunRows())
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
+	b.WriteString("\n")
+
+	status := m.status
+	if m.runsLoading || m.runsPolling {
+		status = m.spinner.View() + " " + status
+	}
+	if strings.TrimSpace(status) != "" {
+		b.WriteString(styFaint.Render(status))
+		b.WriteString("\n")
+	}
+	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
+	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
+	return b.String()
+}
+
+func (m skillsTUI) renderRunRows() string {
+	if m.runsLoading && len(m.runs) == 0 {
+		return styFaint.Render("  " + m.spinner.View() + " Loading runs…")
+	}
+	if len(m.runs) == 0 {
+		return styFaint.Render("  No runs yet. Press 'n' to mine your sessions for skills.")
+	}
+	h := m.runsListHeight()
+	end := min(m.runsTop+h, len(m.runs))
+	var b strings.Builder
+	for i := m.runsTop; i < end; i++ {
+		b.WriteString(m.runRow(m.runs[i], i == m.runsCursor))
+		if i < end-1 {
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
+}
+
+func (m skillsTUI) runRow(r cloud.Run, selected bool) string {
+	cursor := rowCursor(selected)
+	badge := runStatusBadge(r.Status)
+	when := fmt.Sprintf("%-5s", relativeTime(r.CreatedAt))
+	summary := styDim.Render(fmt.Sprintf("%d sessions · %d/%d shards · %d skills",
+		r.SessionsMined, r.ShardsDone, r.ShardCount, r.DossierTotal))
+	dur := styFaint.Render(fmtRunDuration(r))
+	return cursor + badge + " " + styDim.Render(when) + "  " + summary + "  " + dur
+}
+
+func (m skillsTUI) renderRunDetail() string {
+	var b strings.Builder
+	left := styBold.Render("Run detail")
+	for i := range m.runs {
+		if m.runs[i].ID == m.detailRunID {
+			left += styDim.Render(" · ") + runStatusBadge(m.runs[i].Status)
+			break
+		}
+	}
+	b.WriteString(left)
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
+	b.WriteString("\n")
+	b.WriteString(m.reader.View())
+	b.WriteString("\n")
+	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
+	b.WriteString("\n")
+	b.WriteString(styDim.Render(strings.Join([]string{"↑↓ scroll", "esc close"}, " · ")))
+	return b.String()
+}
+
+// renderRunDetailBody builds the scrollable detail text for one run: timing/totals, the
+// skills it produced, and a per-shard breakdown — mirroring the web Activity panel's
+// expanded card.
+func renderRunDetailBody(r cloud.Run) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s   %s\n", styBold.Render(r.Status), styDim.Render(r.Trigger))
+	fmt.Fprintf(&b, "%s\n\n", styDim.Render(fmt.Sprintf(
+		"%s · %s · %d sessions mined · %d/%d shards · %d skills",
+		fmtRunWhen(r.CreatedAt), fmtRunDuration(r), r.SessionsMined, r.ShardsDone, r.ShardCount, r.DossierTotal)))
+	if r.Error != "" {
+		fmt.Fprintf(&b, "%s\n\n", lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("error: "+r.Error))
+	}
+
+	if len(r.Dossiers) > 0 {
+		b.WriteString(styBold.Render("Skills produced"))
+		b.WriteString("\n")
+		for _, d := range r.Dossiers {
+			line := fmt.Sprintf("  %-12s %s", d.Verdict, d.Name)
+			if d.Confidence != "" {
+				line += styDim.Render("  confidence " + d.Confidence)
+			}
+			if !d.HasSkill {
+				line += styFaint.Render("  · no skill authored")
+			}
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	if len(r.Shards) > 0 {
+		b.WriteString(styBold.Render("Shards"))
+		b.WriteString("\n")
+		for _, s := range r.Shards {
+			line := fmt.Sprintf("  %-10s %s  %d sessions", s.Status, runScopeLabel(s.Scope), s.SessionCount)
+			if s.SandboxID != "" {
+				line += styFaint.Render("  " + s.SandboxID)
+			}
+			if s.Error != "" {
+				line += lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render("  ⚠ " + s.Error)
+			}
+			b.WriteString(line)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString(styFaint.Render("run " + r.ID))
+	return b.String()
+}
+
+// runStatusBadge renders a short colored run-status tag.
+func runStatusBadge(status string) string {
+	var c string
+	switch status {
+	case "done":
+		c = "42" // green
+	case "failed":
+		c = "203" // red
+	case "running", "sharding":
+		c = "39" // blue
+	case "judging", "reducing":
+		c = "214" // amber
+	default:
+		c = "240" // queued/grey
+	}
+	return lipgloss.NewStyle().Foreground(lipgloss.Color(c)).Render(fmt.Sprintf("%-9s", status))
+}
+
+// fmtRunDuration renders how long a run took (or has been running). A terminal run freezes
+// at endedAt (falling back to updatedAt); an in-progress run shows elapsed-from-start.
+func fmtRunDuration(r cloud.Run) string {
+	if r.StartedAt == "" {
+		return "—"
+	}
+	start, err := time.Parse(time.RFC3339, r.StartedAt)
+	if err != nil {
+		return "—"
+	}
+	endStr := r.EndedAt
+	if endStr == "" && cloud.RunTerminal(r.Status) {
+		endStr = r.UpdatedAt
+	}
+	var end time.Time
+	if endStr != "" {
+		if end, err = time.Parse(time.RFC3339, endStr); err != nil {
+			end = time.Now()
+		}
+	} else {
+		end = time.Now()
+	}
+	s := int(end.Sub(start).Seconds())
+	if s < 0 {
+		s = 0
+	}
+	if s < 60 {
+		return fmt.Sprintf("%ds", s)
+	}
+	return fmt.Sprintf("%dm %ds", s/60, s%60)
+}
+
+// fmtRunWhen renders an ISO timestamp as a relative "just now / 5m ago", else absolute.
+func fmtRunWhen(iso string) string {
+	if iso == "" {
+		return "—"
+	}
+	if rel := relativeTime(iso); rel != "" {
+		return rel
+	}
+	return iso
+}
+
+// runScopeLabel summarizes which projects a shard covered.
+func runScopeLabel(s cloud.RunScope) string {
+	if s.ProjectID != "" {
+		return s.ProjectID
+	}
+	if len(s.ProjectIDs) > 0 {
+		return fmt.Sprintf("%d projects", len(s.ProjectIDs))
+	}
+	return "all projects"
 }
 
 // skillStateBadge renders a short colored state tag.
