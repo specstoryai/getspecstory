@@ -414,6 +414,7 @@ plus the same final summary, so logs stay clean.
 | `mtime`         | INTEGER | Native file modification time, epoch ms — part of the freshness fingerprint.                                                                           |
 | `index_version` | INTEGER | reindex logic version that wrote the row — part of the fingerprint; bumping it forces a full re-parse.                                                 |
 | `indexed_at`    | TEXT    | ISO 8601 time this row was last written by `reindex`.                                                                                                  |
+| `fts_rowid`     | INTEGER | rowid of this session's `sessions_fts` row — the O(1) link used to read the body and to delete-before-insert without scanning the FTS (see below). NULL on rows written before this column existed, until a `reindex` repopulates them. |
 
 Primary key: `(agent, session_id)` — a session is unique within a provider, and belongs to
 exactly one project. `project_id` is indexed for per-project filtering. `created_at` /
@@ -450,6 +451,23 @@ all). The two join keys ride along in the row so a `MATCH` hit maps straight bac
 `sessions` row without a separate lookup table. Default FTS5 tokenizer. Rows are
 inserted/replaced alongside their `sessions` row during
 `reindex`; deletion of a `sessions` row removes its `sessions_fts` row.
+
+**Reaching a *specific* FTS row is by `fts_rowid`, never by the join keys.** Because
+`session_id`/`agent` are `UNINDEXED`, a point query like `WHERE agent=? AND session_id=?`
+against `sessions_fts` has nothing to seek on and **scans the entire table** — fine for a
+`MATCH` search (which uses the full-text index), O(N) for a single-row lookup. So the writer
+stores each FTS row's rowid on its `sessions` row (`fts_rowid`) at insert time
+(`last_insert_rowid()`), and:
+
+- **Body reads** (`SessionBody`, the preview pane) join `sessions_fts ON rowid = sessions.fts_rowid`,
+  an O(1) rowid lookup, with a one-time fallback to the by-key scan for rows whose `fts_rowid`
+  is still NULL (written before the column existed; a `reindex` retires the fallback).
+- **Replace-before-insert** deletes the prior FTS row by `WHERE rowid = ?` rather than by the
+  UNINDEXED keys. Brand-new sessions skip the lookup+delete entirely (`Session.IsNew`), since
+  there is no prior row.
+
+This is why the body lookup and the per-row delete stay O(1) as the index grows into the tens of
+thousands of rows, instead of each becoming a full-table scan.
 
 ## Non-Goals (first cut)
 

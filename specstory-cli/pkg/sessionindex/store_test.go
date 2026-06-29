@@ -1,6 +1,7 @@
 package sessionindex
 
 import (
+	"database/sql"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -110,6 +111,50 @@ func TestUpsertIsIdempotent(t *testing.T) {
 	}
 	if hits, _ := s.Search("second", ""); len(hits) != 1 {
 		t.Errorf("new FTS content not searchable after re-upsert")
+	}
+}
+
+// TestUpsertHandlesLegacyNullRowid covers the migration window: rows written before fts_rowid
+// existed have it NULL. Both the body read and the replace-before-insert must fall back to the
+// by-key path for such a row, and a re-index must repopulate fts_rowid without duplicating or
+// orphaning the FTS row.
+func TestUpsertHandlesLegacyNullRowid(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Legacy", "old body text"))
+
+	// Simulate a pre-migration row: clear the fts_rowid link the writer just set.
+	if _, err := s.db.Exec(`UPDATE sessions SET fts_rowid = NULL WHERE agent = 'claude' AND session_id = 'c1'`); err != nil {
+		t.Fatalf("clear fts_rowid: %v", err)
+	}
+
+	// Body read must fall back to the by-key lookup and still find the body.
+	if body, err := s.SessionBody("claude", "c1"); err != nil || body != "old body text" {
+		t.Errorf("SessionBody (NULL fts_rowid) = %q, %v; want fallback to old body", body, err)
+	}
+
+	// Re-index the same session: with no fts_rowid to seek, the delete must fall back to the
+	// by-key path so the stale FTS row is removed rather than duplicated.
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Repopulated", "new body text"))
+
+	if n, _ := s.Count(); n != 1 {
+		t.Fatalf("Count = %d after re-upsert of legacy row; want 1", n)
+	}
+	if hits, _ := s.Search("old", ""); len(hits) != 0 {
+		t.Errorf("stale FTS row survived re-upsert of legacy row: %+v", hits)
+	}
+	if hits, _ := s.Search("new", ""); len(hits) != 1 {
+		t.Errorf("new FTS content not searchable after re-upsert of legacy row")
+	}
+	// fts_rowid is now repopulated, so the body read takes the fast path again.
+	var rowid sql.NullInt64
+	if err := s.db.QueryRow(`SELECT fts_rowid FROM sessions WHERE agent = 'claude' AND session_id = 'c1'`).Scan(&rowid); err != nil {
+		t.Fatal(err)
+	}
+	if !rowid.Valid {
+		t.Error("fts_rowid still NULL after re-upsert; want repopulated")
+	}
+	if body, err := s.SessionBody("claude", "c1"); err != nil || body != "new body text" {
+		t.Errorf("SessionBody after repopulate = %q, %v; want new body via fast path", body, err)
 	}
 }
 

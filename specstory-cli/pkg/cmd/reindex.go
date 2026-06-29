@@ -41,7 +41,9 @@ const (
 	//      .project.json workspace_id, so a project's id no longer varies with path casing
 	//   5: parse Codex bodies from the enumerated NativePath (was a by-id tree search), so a
 	//      session's body and its freshness fingerprint now derive from the same file
-	reindexVersion = 5
+	//   6: populate sessions.fts_rowid (the O(1) link to each session's FTS row) — existing
+	//      rows have it NULL until re-parsed, so bump to repopulate the whole index once
+	reindexVersion = 6
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch

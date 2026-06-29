@@ -53,10 +53,9 @@ type Session struct {
 	Body string
 
 	// IsNew is a write-time hint, not a persisted column: when true, the caller has
-	// determined this (agent, session_id) has no existing index row, so upsertTx can skip
-	// the delete-before-insert on the standalone FTS table (which otherwise scans the whole
-	// FTS, since session_id/agent are UNINDEXED). Leave false when unsure — the delete is
-	// then kept, which is always correct.
+	// determined this (agent, session_id) has no existing index row, so upsertOne can skip
+	// looking up and deleting a prior FTS row before insert. Leave false when unsure — the
+	// lookup-and-delete is then kept, which is always correct (a missing prior row is a no-op).
 	IsNew bool
 }
 
@@ -142,6 +141,12 @@ func (s *Store) Close() error {
 const sessionColumns = `project_id, project_name, agent, session_id, created_at, updated_at,
 	user_turns, total_turns, slug, name, native_path, origin_cwd, size, mtime, index_version, indexed_at`
 
+// sessionInsertColumns is sessionColumns plus fts_rowid, the internal link to the session's
+// FTS row. fts_rowid is write-only — set on insert, read only by SessionBody's join — so it is
+// deliberately kept out of sessionColumns and the Session struct rather than threaded through
+// every read path.
+const sessionInsertColumns = sessionColumns + `, fts_rowid`
+
 func (s *Store) ensureSchema() error {
 	schema := `
 	CREATE TABLE IF NOT EXISTS sessions (
@@ -161,9 +166,16 @@ func (s *Store) ensureSchema() error {
 		mtime         INTEGER,
 		index_version INTEGER,
 		indexed_at    TEXT,
+		fts_rowid     INTEGER,
 		PRIMARY KEY (agent, session_id)
 	);
-	CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
+	-- Composite over the project filter PLUS the picker's sort order. ListByProject
+	-- (the resume picker's hot path) filters by project_id and orders by
+	-- updated_at DESC, created_at DESC; this index serves both, so SQLite walks it
+	-- backward instead of filtering then sorting in a temp b-tree. project_id is the
+	-- left prefix, so ProjectCount/UnattributedCount still use it. Replaces the old
+	-- single-column idx_sessions_project (dropped in the migration below).
+	CREATE INDEX IF NOT EXISTS idx_sessions_project_recent ON sessions(project_id, updated_at, created_at);
 
 	-- Standalone FTS5 index over the conversation body + name. session_id/agent ride
 	-- along UNINDEXED as join keys back to the sessions row. See docs/SESSIONS-DB.md.
@@ -180,6 +192,15 @@ func (s *Store) ensureSchema() error {
 	// Migration for indexes created before index_version existed (the column is part of
 	// the freshness fingerprint). Ignore the error when it already exists.
 	_, _ = s.db.Exec(`ALTER TABLE sessions ADD COLUMN index_version INTEGER DEFAULT 0`)
+	// fts_rowid links a session row to its sessions_fts row, so the body read and the
+	// delete-before-insert are O(1) rowid lookups instead of whole-FTS scans (session_id/agent
+	// are UNINDEXED). NULL on rows written before this column existed; a reindex (reindexVersion
+	// bump) repopulates it. Ignore the error when the column already exists.
+	_, _ = s.db.Exec(`ALTER TABLE sessions ADD COLUMN fts_rowid INTEGER`)
+	// Drop the old single-column project index now superseded by the composite
+	// idx_sessions_project_recent (project_id is its left prefix). Idempotent; a no-op
+	// on fresh databases that never had it.
+	_, _ = s.db.Exec(`DROP INDEX IF EXISTS idx_sessions_project`)
 	return nil
 }
 
@@ -214,58 +235,113 @@ func FingerprintKey(agent, sessionID string) string {
 // sessionUpsertStmts are the per-row statements UpsertBatch prepares once and reuses across
 // every row in a transaction, so the SQL is parsed once per batch instead of once per row.
 type sessionUpsertStmts struct {
-	insSession *sql.Stmt
-	delFTS     *sql.Stmt
-	insFTS     *sql.Stmt
+	insSession    *sql.Stmt
+	selOldRowid   *sql.Stmt
+	delFTSByRowid *sql.Stmt
+	delFTSByKey   *sql.Stmt
+	insFTS        *sql.Stmt
 }
 
 // upsertOne writes one session's row and full-text row using the batch's prepared statements.
-// FTS5 standalone tables are not auto-synced, so the FTS row is replaced by hand — except for
-// brand-new sessions (sess.IsNew), where the delete is skipped: it can't use an index
-// (session_id/agent are UNINDEXED) so it scans the whole FTS, and a new session has no row to
-// delete anyway. At 25k+ sessions that skip is what keeps a from-scratch build out of O(N²).
+// FTS5 standalone tables are not auto-synced, so the FTS row is maintained by hand. The new FTS
+// row is inserted first so its rowid can be stored on the sessions row (fts_rowid) — that link
+// is what makes later body reads and replace-deletes O(1) rowid lookups instead of whole-FTS
+// scans (session_id/agent are UNINDEXED). For an existing session the prior FTS row is removed
+// first; brand-new sessions (sess.IsNew) skip that lookup-and-delete entirely.
 func upsertOne(st sessionUpsertStmts, sess Session) error {
+	if !sess.IsNew {
+		if err := deleteOldFTSRow(st, sess); err != nil {
+			return err
+		}
+	}
+	res, err := st.insFTS.Exec(sess.SessionID, sess.Agent, sess.Name, sess.Body)
+	if err != nil {
+		return fmt.Errorf("insert fts row: %w", err)
+	}
+	ftsRowid, err := res.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("read fts rowid: %w", err)
+	}
 	if _, err := st.insSession.Exec(
 		sess.ProjectID, sess.ProjectName, sess.Agent, sess.SessionID, sess.CreatedAt, sess.UpdatedAt,
 		sess.UserTurns, sess.TotalTurns, sess.Slug, sess.Name, sess.NativePath, sess.OriginCwd,
-		sess.Size, sess.Mtime, sess.IndexVersion, sess.IndexedAt); err != nil {
+		sess.Size, sess.Mtime, sess.IndexVersion, sess.IndexedAt, ftsRowid); err != nil {
 		return fmt.Errorf("upsert session row: %w", err)
-	}
-	if !sess.IsNew {
-		if _, err := st.delFTS.Exec(sess.Agent, sess.SessionID); err != nil {
-			return fmt.Errorf("clear fts row: %w", err)
-		}
-	}
-	if _, err := st.insFTS.Exec(sess.SessionID, sess.Agent, sess.Name, sess.Body); err != nil {
-		return fmt.Errorf("insert fts row: %w", err)
 	}
 	return nil
 }
 
-// prepareUpsert prepares the three per-row statements on tx and returns them with a closer.
+// deleteOldFTSRow removes an existing session's current FTS row before the sessions row is
+// replaced (INSERT OR REPLACE would otherwise drop the fts_rowid link and orphan the FTS row).
+// It resolves the row by its stored fts_rowid (O(1)); for rows written before fts_rowid existed
+// (NULL) it falls back to the by-key delete — a whole-FTS scan that a reindex retires by
+// repopulating fts_rowid.
+func deleteOldFTSRow(st sessionUpsertStmts, sess Session) error {
+	var oldRowid sql.NullInt64
+	switch err := st.selOldRowid.QueryRow(sess.Agent, sess.SessionID).Scan(&oldRowid); {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil // no prior row to remove
+	case err != nil:
+		return fmt.Errorf("look up old fts rowid: %w", err)
+	}
+	if oldRowid.Valid {
+		if _, err := st.delFTSByRowid.Exec(oldRowid.Int64); err != nil {
+			return fmt.Errorf("clear fts row by rowid: %w", err)
+		}
+		return nil
+	}
+	if _, err := st.delFTSByKey.Exec(sess.Agent, sess.SessionID); err != nil {
+		return fmt.Errorf("clear legacy fts row: %w", err)
+	}
+	return nil
+}
+
+// prepareUpsert prepares the per-row statements on tx and returns them with a closer.
 func prepareUpsert(tx *sql.Tx) (sessionUpsertStmts, func(), error) {
-	insSession, err := tx.Prepare(`INSERT OR REPLACE INTO sessions (` + sessionColumns + `)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-	if err != nil {
-		return sessionUpsertStmts{}, func() {}, fmt.Errorf("prepare session upsert: %w", err)
-	}
-	delFTS, err := tx.Prepare(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`)
-	if err != nil {
-		_ = insSession.Close()
-		return sessionUpsertStmts{}, func() {}, fmt.Errorf("prepare fts delete: %w", err)
-	}
-	insFTS, err := tx.Prepare(`INSERT INTO sessions_fts (session_id, agent, name, body) VALUES (?,?,?,?)`)
-	if err != nil {
-		_ = insSession.Close()
-		_ = delFTS.Close()
-		return sessionUpsertStmts{}, func() {}, fmt.Errorf("prepare fts insert: %w", err)
-	}
+	var prepared []*sql.Stmt
 	closer := func() {
-		_ = insSession.Close()
-		_ = delFTS.Close()
-		_ = insFTS.Close()
+		for _, s := range prepared {
+			_ = s.Close()
+		}
 	}
-	return sessionUpsertStmts{insSession: insSession, delFTS: delFTS, insFTS: insFTS}, closer, nil
+	prep := func(what, query string) (*sql.Stmt, error) {
+		s, err := tx.Prepare(query)
+		if err != nil {
+			closer()
+			return nil, fmt.Errorf("prepare %s: %w", what, err)
+		}
+		prepared = append(prepared, s)
+		return s, nil
+	}
+
+	insSession, err := prep("session upsert", `INSERT OR REPLACE INTO sessions (`+sessionInsertColumns+`)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+	if err != nil {
+		return sessionUpsertStmts{}, func() {}, err
+	}
+	selOldRowid, err := prep("fts rowid lookup", `SELECT fts_rowid FROM sessions WHERE agent = ? AND session_id = ?`)
+	if err != nil {
+		return sessionUpsertStmts{}, func() {}, err
+	}
+	delFTSByRowid, err := prep("fts delete by rowid", `DELETE FROM sessions_fts WHERE rowid = ?`)
+	if err != nil {
+		return sessionUpsertStmts{}, func() {}, err
+	}
+	delFTSByKey, err := prep("fts delete by key", `DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`)
+	if err != nil {
+		return sessionUpsertStmts{}, func() {}, err
+	}
+	insFTS, err := prep("fts insert", `INSERT INTO sessions_fts (session_id, agent, name, body) VALUES (?,?,?,?)`)
+	if err != nil {
+		return sessionUpsertStmts{}, func() {}, err
+	}
+	return sessionUpsertStmts{
+		insSession:    insSession,
+		selOldRowid:   selOldRowid,
+		delFTSByRowid: delFTSByRowid,
+		delFTSByKey:   delFTSByKey,
+		insFTS:        insFTS,
+	}, closer, nil
 }
 
 // Upsert inserts or replaces a single session row and its full-text row, atomically. A
@@ -420,9 +496,22 @@ func (s *Store) ListProjects() ([]ProjectSummary, error) {
 // pane), or "" if the session has no indexed body (e.g. Cursor, metadata-only).
 func (s *Store) SessionBody(agent, sessionID string) (string, error) {
 	var body string
-	err := s.db.QueryRow(`SELECT body FROM sessions_fts WHERE agent = ? AND session_id = ?`,
+	// Fast path: resolve the FTS row by the rowid stored on the sessions row (O(1)), instead of
+	// scanning the whole FTS (session_id/agent are UNINDEXED).
+	err := s.db.QueryRow(`SELECT f.body FROM sessions s
+		JOIN sessions_fts f ON f.rowid = s.fts_rowid
+		WHERE s.agent = ? AND s.session_id = ?`, agent, sessionID).Scan(&body)
+	if err == nil {
+		return body, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	// No fts_rowid link (a row written before the column existed). Fall back to the by-key scan;
+	// a reindex repopulates fts_rowid and retires this path.
+	err = s.db.QueryRow(`SELECT body FROM sessions_fts WHERE agent = ? AND session_id = ?`,
 		agent, sessionID).Scan(&body)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return body, err

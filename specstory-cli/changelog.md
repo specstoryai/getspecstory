@@ -1,5 +1,17 @@
 # Specstory CLI Changelog
 
+## v2.0.0 2026-06-29
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports cross-project and cross-agent resume using `specstory resume`. Run `specstory resume` in any project dir and by default it shows you all the agent coding sessions for that project across all the supported providers. You can select any session and then select any coding agent you have installed to resume it in. For example, you can resume a Claude Code session in Codex. You can press `tab` in the UI to switch to a project browser and resume sessions from other projects in the current project. You can press `a` in the UI to filter the sessions by type of coding agent. You can pre-select the target agent you'll be resuming into by specifying it with `specstory resume <agent>`.
+- The SpecStory CLI now supports indexed project and cross-project full-text search of your agent coding sessions using `specstory search`. By default you'll be searching across all projects, and you can limit it to the current project directory with `tab` and filter results to a specific agent with `a`.
+- The `resume` and `search` features rely on a session index created in `~/.specstory/session.db`. This index is created automatically the first time you run `resume` or `search`, or you can create it manually with `specstory reindex`.
+
+### ⚙️ Improvements
+
+- Massive improvement in the `sync` performance for Claude Code projects with many sessions.
+
 ## v1.13.0 2026-05-18
 
 ### 📢 Announcements
