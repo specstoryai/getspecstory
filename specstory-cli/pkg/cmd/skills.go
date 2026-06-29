@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -437,34 +438,51 @@ type skillsTUI struct {
 	agentSel       []bool
 	installCursor  int // 0 = location row, 1..len(detected) = agent rows
 
-	// confirm state
-	confirmMsg    string
-	confirmAction func(*skillsTUI) string // performs the action, returns a status line
+	// confirm state. pendingActionCmd is the async network action to run if the user
+	// confirms (built by the start* helpers); it emits an actionResultMsg.
+	confirmMsg       string
+	pendingActionCmd tea.Cmd
+
+	// async state. loading = the initial library fetch is in flight; busy = a mutating
+	// action (approve/install/...) is in flight. While either is true the spinner runs
+	// (spinning guards against starting a second tick loop) and list keys are ignored.
+	loading  bool
+	busy     bool
+	spinning bool
+	spinner  spinner.Model
 
 	status        string
 	width, height int
 }
 
-// runSkillsTUI loads the library and runs the interactive browser.
-func runSkillsTUI(engine *skills.Engine, viewMode, defaultLocation string) error {
-	views, err := engine.List()
-	if err != nil {
-		return err
-	}
-	if len(views) == 0 {
-		fprintln(os.Stderr, "\nNo skills generated yet. Keep coding with SpecStory syncing your sessions, and skills will appear here.")
-		return nil
-	}
+// skillsLoadedMsg carries the result of an async library fetch (initial load or refresh).
+type skillsLoadedMsg struct {
+	views []skills.SkillView
+	err   error
+}
 
+// actionResultMsg carries the result of an async mutating action.
+type actionResultMsg struct {
+	status string
+	err    error
+	reload bool   // re-fetch the library after a successful mutation
+	scope  string // install scope to remember as the new default, if any
+}
+
+// runSkillsTUI runs the interactive browser. The library is fetched asynchronously after the
+// program starts (Init), so the UI paints immediately with a spinner instead of blocking.
+func runSkillsTUI(engine *skills.Engine, viewMode, defaultLocation string) error {
 	m := skillsTUI{
 		engine:          engine,
-		all:             views,
 		viewMode:        viewMode,
 		defaultLocation: defaultLocation,
 		installGlobal:   defaultLocation != "project",
 		filterCycle:     []string{"", cloud.SkillStateReview, cloud.SkillStateReady, cloud.SkillStateInstalled},
 		reader:          viewport.New(),
 		detected:        skills.DetectedAgents(),
+		loading:         true,
+		spinning:        true,
+		spinner:         spinner.New(spinner.WithSpinner(spinner.MiniDot)),
 	}
 	m.applyFilter()
 
@@ -479,7 +497,9 @@ func runSkillsTUI(engine *skills.Engine, viewMode, defaultLocation string) error
 	return nil
 }
 
-func (m skillsTUI) Init() tea.Cmd { return nil }
+func (m skillsTUI) Init() tea.Cmd {
+	return tea.Batch(m.spinner.Tick, m.loadCmd())
+}
 
 func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -488,7 +508,28 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.reader.SetWidth(m.width)
 		m.reader.SetHeight(m.skillsPreviewHeight())
 		return m, nil
+	case spinner.TickMsg:
+		// Keep one tick loop alive only while there is something to animate.
+		if m.loading || m.busy {
+			var cmd tea.Cmd
+			m.spinner, cmd = m.spinner.Update(msg)
+			return m, cmd
+		}
+		m.spinning = false
+		return m, nil
+	case skillsLoadedMsg:
+		return m.applyLoaded(msg), nil
+	case actionResultMsg:
+		return m.applyActionResult(msg)
 	case tea.KeyPressMsg:
+		// While a request is in flight, swallow input (except quit) so the user can't act on
+		// stale state mid-operation.
+		if m.loading || m.busy {
+			if msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
 		switch {
 		case m.previewing:
 			return m.updatePreview(msg)
@@ -501,6 +542,69 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// loadCmd fetches the library off the UI thread, emitting a skillsLoadedMsg.
+func (m skillsTUI) loadCmd() tea.Cmd {
+	eng := m.engine
+	return func() tea.Msg {
+		views, err := eng.List()
+		return skillsLoadedMsg{views: views, err: err}
+	}
+}
+
+// applyLoaded folds a fetched library into the model, preserving the cursor by name so a
+// post-action refresh doesn't jump the selection.
+func (m skillsTUI) applyLoaded(msg skillsLoadedMsg) skillsTUI {
+	m.loading = false
+	if msg.err != nil {
+		m.status = "Failed to load skills: " + msg.err.Error()
+		return m
+	}
+	selName := ""
+	if sel := m.selectedSkill(); sel != nil {
+		selName = sel.Name
+	}
+	m.all = msg.views
+	m.applyFilter()
+	if selName != "" {
+		for i := range m.filtered {
+			if m.filtered[i].Name == selName {
+				m.cursor = i
+				break
+			}
+		}
+		m.clampSkillScroll()
+	}
+	return m
+}
+
+// applyActionResult clears the busy state, shows the outcome, and refreshes on success.
+func (m skillsTUI) applyActionResult(msg actionResultMsg) (tea.Model, tea.Cmd) {
+	m.busy = false
+	if msg.err != nil {
+		m.status = msg.err.Error()
+		return m, nil
+	}
+	m.status = msg.status
+	if msg.scope != "" {
+		m.defaultLocation = msg.scope
+	}
+	if msg.reload {
+		return m, m.loadCmd()
+	}
+	return m, nil
+}
+
+// startAction puts the model into the busy state and returns the command batch that runs the
+// action and (re)starts the spinner if it isn't already running.
+func (m *skillsTUI) startAction(cmd tea.Cmd) tea.Cmd {
+	m.busy = true
+	if !m.spinning {
+		m.spinning = true
+		return tea.Batch(m.spinner.Tick, cmd)
+	}
+	return cmd
 }
 
 // updateList handles keys while browsing the skill list.
@@ -591,21 +695,21 @@ func (m skillsTUI) updateInstall(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// updateConfirm handles a yes/no confirmation.
+// updateConfirm handles a yes/no confirmation, dispatching the pending action asynchronously.
 func (m skillsTUI) updateConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y", "Y", "enter":
-		action := m.confirmAction
+		action := m.pendingActionCmd
 		m.mode = skillsModeList
-		m.confirmAction = nil
-		if action != nil {
-			m.status = action(&m)
-			m.refresh()
+		m.pendingActionCmd = nil
+		if action == nil {
+			return m, nil
 		}
-		return m, nil
+		m.status = "Working…"
+		return m, m.startAction(action)
 	case "n", "N", "esc", "q":
 		m.mode = skillsModeList
-		m.confirmAction = nil
+		m.pendingActionCmd = nil
 		m.status = "Cancelled."
 		return m, nil
 	case "ctrl+c":
@@ -623,17 +727,18 @@ func (m skillsTUI) startApprove() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	name := sel.Name
+	eng := m.engine
 	m.confirmMsg = fmt.Sprintf("Approve %q? It will be forged into your library and become installable.", name)
-	m.confirmAction = func(mm *skillsTUI) string {
-		view, err := mm.engine.Get(name)
-		if err != nil {
-			return "Approve failed: " + err.Error()
+	m.pendingActionCmd = func() tea.Msg {
+		view, err := eng.Get(name)
+		if err == nil {
+			err = eng.Approve(view)
 		}
-		if err := mm.engine.Approve(view); err != nil {
-			return "Approve failed: " + err.Error()
+		if err != nil {
+			return actionResultMsg{err: fmt.Errorf("approve failed: %w", err)}
 		}
 		analytics.TrackEvent(analytics.EventSkillsApproved, nil)
-		return fmt.Sprintf("Approved %s.", name)
+		return actionResultMsg{status: fmt.Sprintf("Approved %s.", name), reload: true}
 	}
 	m.mode = skillsModeConfirm
 	return m, nil
@@ -646,17 +751,18 @@ func (m skillsTUI) startReject() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	name := sel.Name
+	eng := m.engine
 	m.confirmMsg = fmt.Sprintf("Reject %q? It will be dismissed from your review queue.", name)
-	m.confirmAction = func(mm *skillsTUI) string {
-		view, err := mm.engine.Get(name)
-		if err != nil {
-			return "Reject failed: " + err.Error()
+	m.pendingActionCmd = func() tea.Msg {
+		view, err := eng.Get(name)
+		if err == nil {
+			err = eng.Decline(view, "")
 		}
-		if err := mm.engine.Decline(view, ""); err != nil {
-			return "Reject failed: " + err.Error()
+		if err != nil {
+			return actionResultMsg{err: fmt.Errorf("reject failed: %w", err)}
 		}
 		analytics.TrackEvent(analytics.EventSkillsRejected, nil)
-		return fmt.Sprintf("Rejected %s.", name)
+		return actionResultMsg{status: fmt.Sprintf("Rejected %s.", name), reload: true}
 	}
 	m.mode = skillsModeConfirm
 	return m, nil
@@ -690,17 +796,19 @@ func (m skillsTUI) startUninstall() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	name := sel.Name
+	eng := m.engine
 	m.confirmMsg = fmt.Sprintf("Uninstall %q? Its files and agent links will be removed.", name)
-	m.confirmAction = func(mm *skillsTUI) string {
-		report, err := mm.engine.Uninstall(name)
+	m.pendingActionCmd = func() tea.Msg {
+		report, err := eng.Uninstall(name)
 		if err != nil {
-			return "Uninstall failed: " + err.Error()
+			return actionResultMsg{err: fmt.Errorf("uninstall failed: %w", err)}
 		}
 		analytics.TrackEvent(analytics.EventSkillsUninstalled, nil)
+		status := fmt.Sprintf("Uninstalled %s.", name)
 		if report.CloudSyncError != "" {
-			return fmt.Sprintf("Uninstalled %s (cloud state not updated).", name)
+			status = fmt.Sprintf("Uninstalled %s (cloud state not updated).", name)
 		}
-		return fmt.Sprintf("Uninstalled %s.", name)
+		return actionResultMsg{status: status, reload: true}
 	}
 	m.mode = skillsModeConfirm
 	return m, nil
@@ -713,26 +821,29 @@ func (m skillsTUI) startReinstall() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	name := sel.Name
+	eng := m.engine
 	m.confirmMsg = fmt.Sprintf("Reinstall %q? It will be refreshed to the current cloud version for the same agents.", name)
-	m.confirmAction = func(mm *skillsTUI) string {
-		report, err := mm.engine.Reinstall(name, skills.InstallOptions{}, false)
+	m.pendingActionCmd = func() tea.Msg {
+		report, err := eng.Reinstall(name, skills.InstallOptions{}, false)
 		if err != nil {
-			return "Reinstall failed: " + err.Error()
+			return actionResultMsg{err: fmt.Errorf("reinstall failed: %w", err)}
 		}
 		analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{"scope": report.Scope, "reinstall": true})
-		return fmt.Sprintf("Reinstalled %s.", name)
+		return actionResultMsg{status: fmt.Sprintf("Reinstalled %s.", name), reload: true}
 	}
 	m.mode = skillsModeConfirm
 	return m, nil
 }
 
-// runInstall performs the install from the panel selections, then returns to the list.
+// runInstall validates the panel selections and returns an async command that performs the
+// install off the UI thread, emitting an actionResultMsg.
 func (m *skillsTUI) runInstall() tea.Cmd {
 	if m.pendingInstall == nil {
 		m.mode = skillsModeList
 		return nil
 	}
 	name := m.pendingInstall.Name
+	global := m.installGlobal
 	var agents []string
 	for i, on := range m.agentSel {
 		if on {
@@ -743,39 +854,26 @@ func (m *skillsTUI) runInstall() tea.Cmd {
 		m.status = "Select at least one agent (space to toggle)."
 		return nil
 	}
-	report, err := m.engine.Install(name, skills.InstallOptions{Global: m.installGlobal, Agents: agents})
 	m.mode = skillsModeList
 	m.pendingInstall = nil
-	if err != nil {
-		m.status = "Install failed: " + err.Error()
-		return nil
-	}
-	analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
-		"scope": report.Scope, "agents": len(report.Agents),
-	})
-	m.defaultLocation = report.Scope
-	m.status = fmt.Sprintf("Installed %s (%s) for %s.", name, report.Scope, strings.Join(report.Agents, ", "))
-	m.refresh()
-	return nil
-}
+	m.status = "Installing…"
 
-// refresh reloads the library after a mutating action, keeping the cursor on the same skill.
-func (m *skillsTUI) refresh() {
-	selName := ""
-	if sel := m.selectedSkill(); sel != nil {
-		selName = sel.Name
-	}
-	if views, err := m.engine.List(); err == nil {
-		m.all = views
-	}
-	m.applyFilter()
-	for i := range m.filtered {
-		if m.filtered[i].Name == selName {
-			m.cursor = i
-			break
+	eng := m.engine
+	cmd := func() tea.Msg {
+		report, err := eng.Install(name, skills.InstallOptions{Global: global, Agents: agents})
+		if err != nil {
+			return actionResultMsg{err: fmt.Errorf("install failed: %w", err)}
+		}
+		analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
+			"scope": report.Scope, "agents": len(report.Agents),
+		})
+		return actionResultMsg{
+			status: fmt.Sprintf("Installed %s (%s) for %s.", name, report.Scope, strings.Join(report.Agents, ", ")),
+			reload: true,
+			scope:  report.Scope,
 		}
 	}
-	m.clampSkillScroll()
+	return m.startAction(cmd)
 }
 
 // ---- list mechanics ----
@@ -894,8 +992,12 @@ func (m skillsTUI) renderSkillList() string {
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
 	b.WriteString("\n")
-	if m.status != "" {
-		b.WriteString(styFaint.Render(m.status))
+	status := m.status
+	if m.busy || m.loading {
+		status = m.spinner.View() + " " + status
+	}
+	if strings.TrimSpace(status) != "" {
+		b.WriteString(styFaint.Render(status))
 		b.WriteString("\n")
 	}
 	b.WriteString(m.renderSkillFooter())
@@ -903,6 +1005,12 @@ func (m skillsTUI) renderSkillList() string {
 }
 
 func (m skillsTUI) renderSkillRows() string {
+	if m.loading && len(m.all) == 0 {
+		return styFaint.Render("  " + m.spinner.View() + " Loading skills…")
+	}
+	if len(m.all) == 0 {
+		return styFaint.Render("  No skills generated yet. Keep coding with SpecStory syncing your sessions — skills will appear here.")
+	}
 	if len(m.filtered) == 0 {
 		return styFaint.Render("  No skills match this filter.")
 	}

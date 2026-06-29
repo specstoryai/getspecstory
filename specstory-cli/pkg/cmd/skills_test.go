@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
@@ -75,6 +76,82 @@ func TestSkillsFilter(t *testing.T) {
 	m.applyFilter()
 	if sel := m.selectedSkill(); sel == nil || sel.Name != "d" {
 		t.Errorf("expected to select the single installed skill 'd', got %v", sel)
+	}
+}
+
+// TestApplyLoadedClearsLoadingAndPopulates verifies an async library fetch result is folded
+// into the model: loading clears, rows populate, and an error is surfaced without rows.
+func TestApplyLoadedClearsLoadingAndPopulates(t *testing.T) {
+	m := skillsTUI{loading: true, height: 40}
+	out := m.applyLoaded(skillsLoadedMsg{views: []skills.SkillView{
+		{SkillRow: cloud.SkillRow{Name: "a", State: cloud.SkillStateReady}},
+		{SkillRow: cloud.SkillRow{Name: "b", State: cloud.SkillStateReady}},
+	}})
+	if out.loading {
+		t.Error("loading should be cleared after a load result")
+	}
+	if len(out.filtered) != 2 {
+		t.Errorf("got %d rows, want 2", len(out.filtered))
+	}
+
+	errModel := skillsTUI{loading: true, height: 40}.applyLoaded(skillsLoadedMsg{err: errors.New("boom")})
+	if errModel.loading {
+		t.Error("loading should clear even on error")
+	}
+	if errModel.status == "" {
+		t.Error("error status should be set")
+	}
+}
+
+// TestApplyLoadedPreservesCursor ensures a post-action refresh keeps the selection on the
+// same skill even if the order changed.
+func TestApplyLoadedPreservesCursor(t *testing.T) {
+	m := skillsTUI{height: 40}
+	m.all = []skills.SkillView{
+		{SkillRow: cloud.SkillRow{Name: "a", State: cloud.SkillStateReady}},
+		{SkillRow: cloud.SkillRow{Name: "b", State: cloud.SkillStateReady}},
+	}
+	m.applyFilter()
+	m.cursor = 1 // selecting "b"
+
+	out := m.applyLoaded(skillsLoadedMsg{views: []skills.SkillView{
+		{SkillRow: cloud.SkillRow{Name: "b", State: cloud.SkillStateReady}},
+		{SkillRow: cloud.SkillRow{Name: "a", State: cloud.SkillStateReady}},
+	}})
+	if sel := out.selectedSkill(); sel == nil || sel.Name != "b" {
+		t.Errorf("cursor did not follow 'b', got %v", sel)
+	}
+}
+
+// TestApplyActionResult verifies busy clears, errors surface, and a reload is requested only
+// on success.
+func TestApplyActionResult(t *testing.T) {
+	// Error: busy clears, status is the error, no reload command.
+	model, cmd := skillsTUI{busy: true, height: 40}.applyActionResult(actionResultMsg{err: errors.New("nope")})
+	m := model.(skillsTUI)
+	if m.busy {
+		t.Error("busy should clear on action result")
+	}
+	if cmd != nil {
+		t.Error("no reload command expected on error")
+	}
+	if m.status != "nope" {
+		t.Errorf("status = %q, want error text", m.status)
+	}
+
+	// Success with reload + scope: status set, scope remembered, reload command returned.
+	model2, cmd2 := skillsTUI{busy: true, height: 40}.applyActionResult(actionResultMsg{
+		status: "Installed x.", reload: true, scope: "project",
+	})
+	m2 := model2.(skillsTUI)
+	if cmd2 == nil {
+		t.Error("expected a reload command on success")
+	}
+	if m2.defaultLocation != "project" {
+		t.Errorf("defaultLocation = %q, want project", m2.defaultLocation)
+	}
+	if m2.status != "Installed x." {
+		t.Errorf("status = %q", m2.status)
 	}
 }
 
