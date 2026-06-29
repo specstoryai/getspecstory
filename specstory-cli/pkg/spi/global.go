@@ -118,7 +118,7 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 		go func() {
 			defer wg.Done()
 			for path := range pathCh {
-				ref, scanErr := scan(path)
+				ref, scanErr := safeScan(scan, path)
 				if scanErr != nil {
 					slog.Warn("reindex: failed to scan session", "agent", label, "path", path, "error", scanErr)
 					continue
@@ -139,4 +139,15 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 	close(pathCh)
 	wg.Wait()
 	return refs, nil
+}
+
+// safeScan runs scan(path), converting a panic into an error so one malformed session file is
+// logged and skipped (via the caller's normal error path) rather than crashing the whole sweep.
+func safeScan(scan func(string) (*GlobalSessionRef, error), path string) (ref *GlobalSessionRef, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			ref, err = nil, fmt.Errorf("panic scanning session: %v", r)
+		}
+	}()
+	return scan(path)
 }

@@ -1056,12 +1056,22 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 		lineNum++
-		trimmed := strings.TrimSpace(line)
 
-		if trimmed != "" {
-			if lineNum == 1 {
-				// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
-				// the set of indexed sessions is unchanged from the Scanner-based path.
+		// Skip a pathological/oversized line, for parity with readCodexJSONL's
+		// maxReasonableLineSize cap (this parallel scan must not be the weaker path). Such a
+		// line cannot be the small user_message we seek; line 1 has its own tighter limit below.
+		if len(line) > maxReasonableLineSize {
+			if readErr == io.EOF {
+				break
+			}
+			continue
+		}
+
+		if lineNum == 1 {
+			// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
+			// the set of indexed sessions is unchanged from the Scanner-based path.
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
 				if len(trimmed) > bufio.MaxScanTokenSize {
 					return nil, errors.New("codex session meta exceeds line limit")
 				}
@@ -1075,13 +1085,15 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 				h.sessionID = strings.TrimSpace(meta.Payload.ID)
 				h.cwd = meta.Payload.CWD
 				h.createdAt = meta.Timestamp
-			} else if strings.Contains(trimmed, userMessageMarker) {
-				// Cheap screen passed: only now pay for a full parse. The big context records
-				// before the first user message lack the marker and are skipped without a parse.
-				if msg := codexUserMessageText(trimmed); msg != "" {
-					h.firstUserMessage = msg
-					break
-				}
+			}
+		} else if strings.Contains(line, userMessageMarker) {
+			// Cheap screen passed: only now pay for a full parse. The big context records before
+			// the first user message lack the marker and are skipped without a parse. The marker
+			// is interior JSON, so the screen runs on the RAW line — no TrimSpace copy of a
+			// possibly multi-MB context record; only a real match (a small line) is parsed.
+			if msg := codexUserMessageText(strings.TrimSpace(line)); msg != "" {
+				h.firstUserMessage = msg
+				break
 			}
 		}
 

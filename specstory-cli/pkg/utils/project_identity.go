@@ -499,10 +499,19 @@ func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
 }
 
 // ComputeProjectID resolves the restore-index project identity for a session's
-// working directory. It walks up to the git root and computes identity fresh,
-// ignoring any stored .specstory/.project.json (which fragments a monorepo) and
-// never writing one. Returns the project id (git_id when a remote is resolvable,
-// else the path-based workspace_id) and the project name.
+// working directory. It walks up to the git root and computes identity fresh, never
+// writing a .specstory/.project.json. Returns the project id (git_id when a remote
+// is resolvable, else the path-based workspace_id) and the project name.
+//
+// Stored .project.json handling differs by branch, on purpose:
+//   - With a resolvable remote, the git_id is computed from the remote URL and any
+//     stored file is ignored — this is what collapses a monorepo to one id.
+//   - In the no-remote fallback, a stored workspace_id IS preferred (see below).
+//     That deliberately keeps this id equal to the one cloud sync derives from the
+//     same launch dir's .project.json (sync.go reads it directly and does NOT walk
+//     up). The trade: a remote-less git monorepo whose subdirs carry legacy
+//     per-subdir .project.json files stays fragmented in BOTH the index and cloud,
+//     rather than collapsing in the index while diverging from cloud.
 func ComputeProjectID(cwd string) (id, name string, err error) {
 	if strings.TrimSpace(cwd) == "" {
 		return "", "", fmt.Errorf("cannot resolve project id: empty working directory")

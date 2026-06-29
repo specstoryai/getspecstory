@@ -187,24 +187,36 @@ func enumerateAll(registry *factory.Registry, visible bool) (ids []string, provs
 		ewg.Add(1)
 		go func(i int, id string, prov spi.Provider, reporter *spi.ScanReporter) {
 			defer ewg.Done()
-			var refs []spi.GlobalSessionRef
-			var err error
-			// Providers that can report progress (Codex, the long pole) tick the live line; the
-			// rest snap to their final count via markDone when they finish.
-			if pe, ok := prov.(spi.ProgressEnumerator); ok {
-				refs, err = pe.ListAllAgentChatSessionsProgress(reporter)
-			} else {
-				refs, err = prov.ListAllAgentChatSessions()
-			}
-			if err != nil {
-				slog.Warn("reindex: enumeration failed", "provider", id, "error", err)
-			}
+			refs := enumerateOne(id, prov, reporter)
 			perProvider[i] = refs
 			scan.markDone(id, len(refs))
 		}(i, id, prov, reporter)
 	}
 	ewg.Wait()
 	return ids, provs, perProvider
+}
+
+// enumerateOne enumerates a single provider's sessions, preferring the progress-reporting path
+// (Codex, the long pole, ticks the live line; the rest snap to their final count via markDone).
+// A panic in a provider's enumeration (e.g. a malformed session tree) is recovered and logged so
+// one bad provider degrades to "no sessions" rather than crashing the entire reindex/warm sweep.
+func enumerateOne(id string, prov spi.Provider, reporter *spi.ScanReporter) (refs []spi.GlobalSessionRef) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("reindex: provider enumeration panicked", "provider", id, "panic", r)
+			refs = nil
+		}
+	}()
+	var err error
+	if pe, ok := prov.(spi.ProgressEnumerator); ok {
+		refs, err = pe.ListAllAgentChatSessionsProgress(reporter)
+	} else {
+		refs, err = prov.ListAllAgentChatSessions()
+	}
+	if err != nil {
+		slog.Warn("reindex: enumeration failed", "provider", id, "error", err)
+	}
+	return refs
 }
 
 // dedupRefs collapses enumerated refs by (agent, session_id), keeping the freshest file. A
