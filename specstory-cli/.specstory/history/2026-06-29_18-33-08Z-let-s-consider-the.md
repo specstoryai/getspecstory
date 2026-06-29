@@ -16,6 +16,8 @@ Explain the finding. The implication and ramifications. Why it might be right. W
 
 _**Agent (claude-opus-4-8 2026-06-29 18:33:12Z)**_
 
+_**Agent (claude-opus-4-8 2026-06-29 18:33:12Z)**_
+
 I'll start by fetching the Copilot review comments on PR #244.
 
 _**Agent (claude-opus-4-8 2026-06-29 18:33:15Z)**_
@@ -1269,6 +1271,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:33:25Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:33:27Z)**_
 
+_**Agent (claude-opus-4-8 2026-06-29 18:33:27Z)**_
+
 Let me read the remaining comments.
 
 _**Agent (claude-opus-4-8 2026-06-29 18:33:30Z)**_
@@ -1780,6 +1784,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:33:30Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:33:46Z)**_
 
+_**Agent (claude-opus-4-8 2026-06-29 18:33:46Z)**_
+
 I have all the Copilot comments now. There are 8 distinct findings (several appear as duplicate comments). Since you want to go one by one starting at the top, let me look at the actual code for the first finding before analyzing it.
 
 _**Agent (claude-opus-4-8 2026-06-29 18:33:47Z)**_
@@ -2055,6 +2061,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:33:47Z)**_
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:34:03Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:34:26Z)**_
 
 I've pulled all the Copilot comments and read the current code. Quick orientation before we dive in: Copilot left **13 comments, but they collapse to 8 distinct findings** (the case-sensitivity one has 4 near-identical comments, the Codex line-size one has 3, the `sessionFileReadable` one has 2). I'll go top to bottom, one distinct finding per turn, and pause after each so you can react.
@@ -2113,6 +2121,8 @@ _**User (2026-06-29 18:36:28Z)**_
 Finding 2
 
 ---
+
+_**Agent (claude-opus-4-8 2026-06-29 18:36:32Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:36:33Z)**_
 
@@ -2265,6 +2275,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:36:36Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:36:40Z)**_
 
+_**Agent (claude-opus-4-8 2026-06-29 18:36:40Z)**_
+
 Let me check whether the default config template ships a commented `[resume]` section.
 
 _**Agent (claude-opus-4-8 2026-06-29 18:36:41Z)**_
@@ -2306,6 +2318,8 @@ pkg/config/config_test.go
 
 _**Agent (claude-opus-4-8 2026-06-29 18:36:48Z)**_
 
+_**Agent (claude-opus-4-8 2026-06-29 18:36:48Z)**_
+
 The template literal doesn't contain `[resume]` based on the function-only matches. Let me confirm.
 
 _**Agent (claude-opus-4-8 2026-06-29 18:36:50Z)**_
@@ -2334,6 +2348,8 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 126:`
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:37:06Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:37:22Z)**_
 
@@ -2561,6 +2577,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:39:08Z)**_
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:39:14Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:39:15Z)**_
 
 Line 113 confirms it: `SaveResumePrefs(viewMode, ...)` uses the `viewMode` loaded from config at L74, not anything the user toggled in the TUI. Let me check what the TUI exposes after it exits, and how `resume` handles the same save.
@@ -2634,6 +2652,8 @@ Inspect session_tui struct fields and result
 1881:type snippetResultMsg struct {
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:39:31Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:39:43Z)**_
 
@@ -2726,6 +2746,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:39:49Z)**_
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:39:53Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:39:54Z)**_
 
 The file shifted by a few lines (line 121 now) but content is unchanged. Applying:
@@ -2739,6 +2761,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:39:56Z)**_
 <tool_use_error>File has been modified since read, either by the user or by a linter. Read it again before attempting to write it.</tool_use_error>
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:40:00Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:40:01Z)**_
 
@@ -2810,6 +2834,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:40:01Z)**_
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:40:05Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:40:06Z)**_
 
 The user is editing in parallel — the save is now wrapped with error logging. `viewMode` is still used at L93 so changing L121 is safe. Applying to the current form:
@@ -2842,6 +2868,8 @@ pkg/sessionindex/store.go:14:2: "log/slog" imported and not used
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:40:20Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:40:21Z)**_
 
 Those two errors are from the user's **in-flight edits** (the just-added `analytics.EventSearchActivated` and an unused `slog` import in `sessionindex/store.go`), not from my changes. Let me confirm the config package — which I edited — is clean:
@@ -2858,6 +2886,8 @@ Build config package alone
 exit: 0
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:40:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:40:33Z)**_
 
@@ -2919,6 +2949,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:40:34Z)**_
 212	func (m *ProjectIdentityManager) normalizeGitURL(gitURL string) string {
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:41:01Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:41:22Z)**_
 
@@ -2987,6 +3019,8 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/proje
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:45:07Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:45:12Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -2999,6 +3033,8 @@ Build utils package
 exit: 0
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:45:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:45:18Z)**_
 
@@ -3061,6 +3097,8 @@ _**Agent (claude-opus-4-8 2026-06-29 18:45:23Z)**_
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:45:49Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:45:50Z)**_
 
 Now finding 5 analysis. Let me check whether `bufio` is used elsewhere in `resume.go` (since I may remove the only use) and read the `waitForSessionFileVisible` comment for consistency.
@@ -3097,6 +3135,8 @@ func waitForSessionFileVisible(path string, timeout time.Duration) error {
 }
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:45:55Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:46:09Z)**_
 
@@ -3205,6 +3245,8 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume.
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-29 18:46:35Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-29 18:46:36Z)**_
 
 Let me verify the package compiles (expecting only your in-flight `EventSearchActivated` WIP error, if still present):
@@ -3221,6 +3263,8 @@ Build cmd package
 exit:
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:46:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:46:43Z)**_
 
@@ -3284,3 +3328,899 @@ Find line-size guard and scan function in codex provider
 1149:		h, err := scanCodexSessionHeader(path)
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:46:52Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 18:46:53Z)**_
+
+The current code already has a guard at L1065 — Copilot reviewed an older snapshot. Let me read the full function to assess what's actually there now.
+
+_**Agent (claude-opus-4-8 2026-06-29 18:46:54Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/codexcli/provider.go`
+
+```text
+1036	// scanCodexSessionHeader reads a Codex session file ONCE and extracts the session_meta
+1037	// (id/cwd/timestamp from line 1) and the first user message. It deliberately avoids fully
+1038	// parsing the large injected-context records (environment, instructions, AGENTS.md — often MB
+1039	// each) that precede the first user message: each line is first cheaply screened for the
+1040	// user_message marker, and only a candidate line is JSON-decoded. The result is identical to the
+1041	// prior loadCodexSessionMeta + extractCodexSessionMetadata pair, in one pass instead of two opens.
+1042	// Returns (nil, nil) for a session with no user message — treated as empty, as before.
+1043	func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
+1044		file, err := os.Open(sessionPath)
+1045		if err != nil {
+1046			return nil, fmt.Errorf("failed to open session file: %w", err)
+1047		}
+1048		defer func() { _ = file.Close() }()
+1049	
+1050		reader := bufio.NewReader(file)
+1051		h := &codexSessionHeader{}
+1052		lineNum := 0
+1053		for {
+1054			line, readErr := reader.ReadString('\n')
+1055			if readErr != nil && readErr != io.EOF {
+1056				return nil, fmt.Errorf("failed to read line: %w", readErr)
+1057			}
+1058			lineNum++
+1059			trimmed := strings.TrimSpace(line)
+1060	
+1061			if trimmed != "" {
+1062				if lineNum == 1 {
+1063					// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
+1064					// the set of indexed sessions is unchanged from the Scanner-based path.
+1065					if len(trimmed) > bufio.MaxScanTokenSize {
+1066						return nil, errors.New("codex session meta exceeds line limit")
+1067					}
+1068					var meta codexSessionMeta
+1069					if err := json.Unmarshal([]byte(trimmed), &meta); err != nil {
+1070						return nil, fmt.Errorf("failed to parse codex session meta: %w", err)
+1071					}
+1072					if meta.Type != "session_meta" {
+1073						return nil, fmt.Errorf("unexpected codex session record type: %s", meta.Type)
+1074					}
+1075					h.sessionID = strings.TrimSpace(meta.Payload.ID)
+1076					h.cwd = meta.Payload.CWD
+1077					h.createdAt = meta.Timestamp
+1078				} else if strings.Contains(trimmed, userMessageMarker) {
+1079					// Cheap screen passed: only now pay for a full parse. The big context records
+1080					// before the first user message lack the marker and are skipped without a parse.
+1081					if msg := codexUserMessageText(trimmed); msg != "" {
+1082						h.firstUserMessage = msg
+1083						break
+1084					}
+1085				}
+1086			}
+1087	
+1088			if readErr == io.EOF {
+1089				break
+1090			}
+1091		}
+1092	
+1093		if h.sessionID == "" {
+1094			return nil, errors.New("codex session meta not found")
+1095		}
+1096		if h.firstUserMessage == "" {
+1097			return nil, nil // no user message → empty session, excluded from enumeration
+1098		}
+1099		return h, nil
+1100	}
+1101	
+1102	// codexUserMessageText returns the message text when line is an event_msg user_message with a
+1103	// non-empty message, else "". It is only called for lines that passed the userMessageMarker
+1104	// screen, and applies the same structural checks extractCodexSessionMetadata used.
+1105	func codexUserMessageText(line string) string {
+1106		var record map[string]interface{}
+1107		if err := json.Unmarshal([]byte(line), &record); err != nil {
+1108			return ""
+1109		}
+1110		if recordType, _ := record["type"].(string); recordType != "event_msg" {
+1111			return ""
+1112		}
+1113		payload, ok := record["payload"].(map[string]interface{})
+1114		if !ok {
+1115			return ""
+1116		}
+1117		if payloadType, _ := payload["type"].(string); payloadType != "user_message" {
+1118			return ""
+1119		}
+1120		message, _ := payload["message"].(string)
+1121		return message
+1122	}
+1123	
+1124	// ListAllAgentChatSessions enumerates every Codex CLI session across all projects. It is the
+1125	// no-progress form of ListAllAgentChatSessionsProgress.
+1126	func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+1127		return p.ListAllAgentChatSessionsProgress(nil)
+1128	}
+1129	
+1130	// ListAllAgentChatSessionsProgress enumerates every Codex CLI session across all projects by
+1131	// walking ~/.codex/sessions for *.jsonl rollouts (Codex sessions are not project-keyed by
+1132	// directory; the originating cwd lives in the session_meta record), reporting scan progress into r
+1133	// (nil-safe). The per-file header read is the dominant cost of `specstory reindex` (parsing each
+1134	// file's injected context), so headers are scanned in parallel across CPUs; output order is
+1135	// irrelevant (reindex dedups and sorts later). Implements spi.ProgressEnumerator. See
+1136	// docs/SESSIONS-DB.md.
+1137	func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+1138		homeDir, err := osUserHomeDir()
+1139		if err != nil {
+1140			return nil, fmt.Errorf("failed to determine home directory: %w", err)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 18:48:11Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 18:48:30Z)**_
+
+Now I have the real picture — and it differs from what Copilot saw. Here's the analysis.
+
+---
+
+## Finding 6 — `scanCodexSessionHeader` line reads vs `maxReasonableLineSize` (3 comments)
+
+**File:** `pkg/providers/codexcli/provider.go:1043–1100`
+
+### What Copilot is saying
+
+`readCodexJSONL` caps lines at `maxReasonableLineSize` (250 MB) to avoid OOM on malformed/malicious session files. The newer header-scan path (`scanCodexSessionHeader`) reads lines with `bufio.Reader.ReadString('\n')` and — per Copilot — bypasses that protection. Since this scan runs **in parallel across CPUs** during `reindex`, and Codex injected-context records are "often MB each," one pathological/huge line could cause large transient allocations or OOM. Suggested: add the same sanity limit, or use a bounded read.
+
+### What's actually true now (Copilot reviewed an older snapshot)
+
+- **Line 1 (`session_meta`) is already guarded** — L1065: `if len(trimmed) > bufio.MaxScanTokenSize` (64 KB) → error. So the flat "no size guard" claim is outdated for the first line.
+- **Body lines (2+) are genuinely unguarded.** The loop reads each line with `ReadString('\n')` (no cap), then `strings.TrimSpace(line)` (a *second* full-size copy), then `strings.Contains`. The big injected-context records — which the function's own comment calls "often MB each" — are exactly these body lines, and they sit **before** the first user message, so every one of them is read fully into RAM on the normal path.
+
+So Copilot's core concern is **valid for the body lines**, just no longer for line 1.
+
+### Implication / ramifications
+
+- **Realistic case:** MB-scale context records, read one-at-a-time per file but across `NumCPU` parallel workers → aggregate transient memory = roughly (CPUs × largest-context-line), doubled by the `TrimSpace` copy. Annoying memory spikes on `reindex`, not usually fatal.
+- **Pathological case:** a single >250 MB line (malformed/malicious) is capped in `readCodexJSONL` but **not** here, so the header path is the weaker link — the exact parity gap Copilot names.
+- No correctness impact; this is purely resource safety.
+
+### Why Copilot might be right
+
+The parity argument is sound: two code paths read the same files, one is hardened against giant lines and the other isn't, and the unhardened one is the one fanned out across cores. That's a real, if low-probability, inconsistency.
+
+### Why Copilot might be partly wrong / nuance
+
+- Its literal "add the same sanity limit" only closes the **pathological >250 MB** gap. Note that `readCodexJSONL` *also* uses `ReadString` then checks `len > max` **after** the allocation — so even the "protected" path doesn't truly bound the read; it bounds what it *processes*. Matching it gives consistency, not a true memory bound.
+- The bigger real-world cost (normal MB lines × parallelism) is actually addressable more cheaply by **not double-copying** via `TrimSpace` on huge lines.
+
+### My recommendation — options for you to pick
+
+I'd do **Option B**: it directly answers the review *and* cuts real hot-path memory.
+
+- **Option A — minimal parity.** Add `if len(line) > maxReasonableLineSize { skip }` for body lines, mirroring `readCodexJSONL`. Smallest diff, closes the pathological gap, but doesn't reduce normal-case memory (still allocates each MB line + a TrimSpace copy).
+- **Option B (recommended) — parity + avoid the double-copy.** Add the cap, *and* run the `userMessageMarker` screen against the **raw** line (the marker is interior, so no trim needed) — only `TrimSpace`/parse the small lines that actually match. This both closes the gap and halves the transient allocation on every multi-MB context record. ~10 lines, no behavior change for indexed output.
+- **Option C — truly bounded read** (read-and-discard past a cap). Most invasive; `readCodexJSONL` itself doesn't do this, so it'd be inconsistent over-engineering. I'd skip it.
+
+Which would you like — A, B, or C? My pick is **B**.
+
+---
+
+_**User (2026-06-29 19:18:01Z)**_
+
+B
+
+---
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:04Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:17Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and vet codex provider
+
+`go build ./pkg/providers/codexcli/ && echo "BUILD OK"; go vet ./pkg/providers/codexcli/ 2>&1 | head`
+
+```text
+BUILD OK
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:31Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:32Z)**_
+
+Builds and vets clean. Those diagnostics are all pre-existing style hints (`interface{}`→`any`, unused params) in unrelated functions. Let me run the Codex provider tests to confirm enumeration behavior is unchanged:
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run codex provider tests
+
+`go test ./pkg/providers/codexcli/ 2>&1 | tail -20`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	0.050s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:39Z)**_
+
+Codex tests pass.
+
+✅ **Finding 6** — Option B applied: oversized body lines now skipped (parity with `readCodexJSONL`'s `maxReasonableLineSize`), and the marker screen runs on the raw line so multi-MB context records aren't double-copied by `TrimSpace`.
+
+---
+
+## Finding 7 — `ComputeProjectID` prefers a persisted `workspace_id` even after walking to a git root
+
+**File:** `pkg/utils/project_identity.go` (the `ComputeProjectID` fallback). Let me read the current code.
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:40Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/utils/project_identity.go`
+
+```text
+408	}
+409	
+410	// findGitRoot walks up from dir to the nearest ancestor containing a .git entry and
+411	// returns it. The .git entry may be a directory (normal clone) or a FILE (git
+412	// worktree / submodule); both satisfy the search. Returns false if no .git is found
+413	// before the filesystem root. The walk-up is what lets a session launched from a
+414	// monorepo subdirectory resolve to the repo's identity.
+415	func findGitRoot(dir string) (string, bool) {
+416		if abs, err := filepath.Abs(dir); err == nil {
+417			dir = abs
+418		}
+419		dir = filepath.Clean(dir)
+420		for {
+421			if _, err := os.Stat(filepath.Join(dir, ".git")); err == nil {
+422				return dir, true
+423			}
+424			parent := filepath.Dir(dir)
+425			if parent == dir {
+426				return "", false // reached the filesystem root without finding .git
+427			}
+428			dir = parent
+429		}
+430	}
+431	
+432	// resolveGitConfigPath returns the path to the git config file that holds a root's
+433	// remotes, handling both a normal `.git` directory and a `.git` FILE (worktrees /
+434	// submodules, whose private gitdir points at a commondir that holds the shared
+435	// config). Returns "" when it cannot be resolved.
+436	func resolveGitConfigPath(gitRoot string) string {
+437		gitPath := filepath.Join(gitRoot, ".git")
+438		info, err := os.Stat(gitPath)
+439		if err != nil {
+440			return ""
+441		}
+442		if info.IsDir() {
+443			return filepath.Join(gitPath, "config")
+444		}
+445	
+446		// `.git` is a file of the form "gitdir: <path>" pointing at the worktree's private
+447		// git dir; the shared config lives in the common dir, not that private dir.
+448		data, err := os.ReadFile(gitPath)
+449		if err != nil {
+450			return ""
+451		}
+452		content := strings.TrimSpace(string(data))
+453		if !strings.HasPrefix(content, "gitdir:") {
+454			return ""
+455		}
+456		gitDir := strings.TrimSpace(strings.TrimPrefix(content, "gitdir:"))
+457		if gitDir == "" {
+458			return ""
+459		}
+460		if !filepath.IsAbs(gitDir) {
+461			gitDir = filepath.Join(gitRoot, gitDir)
+462		}
+463		commonDir := gitDir
+464		if cd, err := os.ReadFile(filepath.Join(gitDir, "commondir")); err == nil {
+465			c := strings.TrimSpace(string(cd))
+466			if !filepath.IsAbs(c) {
+467				c = filepath.Join(gitDir, c)
+468			}
+469			commonDir = filepath.Clean(c)
+470		}
+471		return filepath.Join(commonDir, "config")
+472	}
+473	
+474	// resolveIdentity computes a project's identity from a starting directory by walking
+475	// up to the git root. It reads only git metadata — never any .specstory/.project.json
+476	// — so it cannot be fooled by the per-directory identity files that fragment a
+477	// monorepo. Returns the git_id (empty when there is no resolvable origin remote), the
+478	// workspace_id (hash of the resolved root), the project name, and the resolved root.
+479	func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
+480		root = startDir
+481		if gr, ok := findGitRoot(startDir); ok {
+482			root = gr
+483		}
+484	
+485		// A zero-state manager rooted at the resolved root reuses the existing hashing /
+486		// normalization / repo-name helpers (they do not depend on manager state).
+487		rooted := &ProjectIdentityManager{projectRoot: root}
+488		workspaceID = rooted.generateWorkspaceID()
+489		if cfg := resolveGitConfigPath(root); cfg != "" {
+490			if originURL := readOriginURL(cfg); originURL != "" {
+491				gitID = rooted.createHash(rooted.normalizeGitURL(originURL))
+492				name = rooted.parseGitRemoteURL(originURL)
+493			}
+494		}
+495		if name == "" {
+496			name = filepath.Base(root)
+497		}
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:18:44Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/utils/project_identity.go`
+
+```text
+498		return gitID, workspaceID, name, root
+499	}
+500	
+501	// ComputeProjectID resolves the restore-index project identity for a session's
+502	// working directory. It walks up to the git root and computes identity fresh,
+503	// ignoring any stored .specstory/.project.json (which fragments a monorepo) and
+504	// never writing one. Returns the project id (git_id when a remote is resolvable,
+505	// else the path-based workspace_id) and the project name.
+506	func ComputeProjectID(cwd string) (id, name string, err error) {
+507		if strings.TrimSpace(cwd) == "" {
+508			return "", "", fmt.Errorf("cannot resolve project id: empty working directory")
+509		}
+510		gitID, workspaceID, name, _ := resolveIdentity(cwd)
+511	
+512		// Prefer a resolvable git_id: it hashes the normalized remote URL, not a path, so it is
+513		// immune to the case divergence handled below and never fragments a monorepo.
+514		if gitID != "" {
+515			return gitID, name, nil
+516		}
+517	
+518		// No git remote → use the path-based workspace_id. Prefer an id already persisted in the
+519		// launch dir's .project.json so every consumer (reindex, resume, cloud sync) agrees on a
+520		// single value, even for projects whose file predates path canonicalization. Only when no
+521		// file exists (e.g. a portable session whose recorded cwd is not present locally) do we
+522		// fall back to the freshly computed — and now canonical — hash.
+523		if stored := persistedWorkspaceID(cwd); stored != "" {
+524			return stored, name, nil
+525		}
+526		if workspaceID == "" {
+527			return "", "", fmt.Errorf("cannot resolve project id for %q", cwd)
+528		}
+529		return workspaceID, name, nil
+530	}
+531	
+532	// persistedWorkspaceID returns the workspace_id recorded in dir's .specstory/.project.json,
+533	// or "" when there is no readable file or it carries no workspace_id. The file is read from
+534	// the launch directory (where the writer puts it), not the resolved git root.
+535	func persistedWorkspaceID(dir string) string {
+536		m := &ProjectIdentityManager{projectRoot: dir}
+537		identity, err := m.ReadProjectIdentity()
+538		if err != nil || identity == nil {
+539			return ""
+540		}
+541		return identity.WorkspaceID
+542	}
+543
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:19:33Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:19:34Z)**_
+
+This one has real subtlety — including what looks like a doc/code contradiction. Let me investigate how other consumers derive project identity before judging the tradeoff.
+
+_**Agent (claude-opus-4-8 2026-06-29 19:19:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find identity consumers
+
+`echo "=== callers of ComputeProjectID ==="; grep -rn "ComputeProjectID" pkg/ --include=*.go | grep -v _test.go; echo; echo "=== callers of resolveIdentity ==="; grep -rn "resolveIdentity" pkg/ --include=*.go | grep -v _test.go; echo; echo "=== who writes/reads .project.json workspace_id (EnsureProjectIdentity / GetWorkspaceID) ==="; grep -rn "EnsureProjectIdentity\|GetWorkspaceID\|WriteProjectIdentity\|\.WorkspaceID" pkg/ --include=*.go | grep -v _test.go | head -30`
+
+```text
+=== callers of ComputeProjectID ===
+(eval):1: no matches found: --include=*.go
+
+=== callers of resolveIdentity ===
+(eval):1: no matches found: --include=*.go
+
+=== who writes/reads .project.json workspace_id (EnsureProjectIdentity / GetWorkspaceID) ===
+(eval):1: no matches found: --include=*.go
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:19:43Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find ComputeProjectID callers and cloud usage
+
+`echo "=== ComputeProjectID callers ==="; grep -rn "ComputeProjectID" --include="*.go" pkg/ | grep -v "_test.go"; echo; echo "=== cloud sync project id source ==="; grep -rn "ComputeProjectID\|GetProjectID\|workspace_id\|WorkspaceID\|projectID\|ProjectID" --include="*.go" pkg/cloud/ | head -20`
+
+```text
+=== ComputeProjectID callers ===
+pkg/cmd/resume.go:115:			projectID, projectName, idErr := utils.ComputeProjectID(cwd)
+pkg/cmd/search.go:58:			homeID, homeName, idErr := utils.ComputeProjectID(cwd)
+pkg/cmd/reindex.go:453:	projectID, projectName, err := utils.ComputeProjectID(cwd)
+pkg/cmd/reindex.go:675:// projectIDCache memoizes ComputeProjectID by cwd, since many sessions share a cwd and
+pkg/cmd/reindex.go:691:	id, name, err := utils.ComputeProjectID(cwd)
+pkg/utils/project_identity.go:383:// Walk-up identity resolution (shared by ComputeProjectID and the writer).
+pkg/utils/project_identity.go:501:// ComputeProjectID resolves the restore-index project identity for a session's
+pkg/utils/project_identity.go:506:func ComputeProjectID(cwd string) (id, name string, err error) {
+pkg/spi/global.go:19:// identity with utils.ComputeProjectID. The project is discovered, not supplied.
+
+=== cloud sync project id source ===
+pkg/cloud/sync.go:80:	ProjectID   string             `json:"projectId"`
+pkg/cloud/sync.go:100:	WorkspaceID string `json:"workspace_id"`
+pkg/cloud/sync.go:283:// The function makes a GET request to /api/v1/projects/{projectID}/sessions/sizes with automatic
+pkg/cloud/sync.go:288://   - projectID: The project identifier (git_id, workspace_id, or directory name)
+pkg/cloud/sync.go:296:func (syncMgr *SyncManager) fetchBulkSessionSizes(projectID string) (map[string]int, error) {
+pkg/cloud/sync.go:300:	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/sizes"
+pkg/cloud/sync.go:306:				"projectId", projectID,
+pkg/cloud/sync.go:311:				"projectId", projectID,
+pkg/cloud/sync.go:320:				"projectId", projectID,
+pkg/cloud/sync.go:345:				"projectId", projectID,
+pkg/cloud/sync.go:360:				"projectId", projectID,
+pkg/cloud/sync.go:374:				"projectId", projectID,
+pkg/cloud/sync.go:390:				"projectId", projectID,
+pkg/cloud/sync.go:404:				"projectId", projectID,
+pkg/cloud/sync.go:416:			"projectId", projectID,
+pkg/cloud/sync.go:428:func (syncMgr *SyncManager) PreloadSessionSizes(projectID string) {
+pkg/cloud/sync.go:435:		"projectId", projectID)
+pkg/cloud/sync.go:438:	sizes, err := syncMgr.fetchBulkSessionSizes(projectID)
+pkg/cloud/sync.go:442:			"projectId", projectID,
+pkg/cloud/sync.go:454:		"projectId", projectID,
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:20:11Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:20:11Z)**_
+
+`ComputeProjectID` is used **only** by the restore-index subsystem (resume, search, reindex). Let me confirm how cloud sync derives *its* project id — that determines whether Copilot's fix causes a real divergence.
+
+_**Agent (claude-opus-4-8 2026-06-29 19:20:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Trace cloud/session project id derivation
+
+`grep -rn "ComputeProjectID\|EnsureProjectIdentity\|GetGitID\|GetWorkspaceID\|ProjectID:\|\.ProjectID\b\|GenerateProjectID\|projectID :=\|projectId :=" --include="*.go" pkg/cloud/ pkg/session/ pkg/provenance/ 2>/dev/null | grep -iv "_test" | head -30`
+
+```text
+pkg/cloud/sync.go:731:	projectID := ""
+pkg/cloud/sync.go:785:		ProjectID:   projectID,
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:20:17Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cloud/sync.go`
+
+```text
+725			slog.Warn("Cannot sync session to cloud: failed to read project config", "error", err, "sessionId", sessionID)
+726			syncMgr.stats.trackSessionInCategory(sessionID, categoryErrored)
+727			return
+728		}
+729	
+730		// Determine project ID - use git_id if present, otherwise workspace_id
+731		projectID := ""
+732		if projectData != nil && projectData.GitID != "" {
+733			projectID = projectData.GitID
+734		} else if projectData != nil && projectData.WorkspaceID != "" {
+735			projectID = projectData.WorkspaceID
+736		}
+737	
+738		// Project ID is required for cloud sync
+739		if projectID == "" {
+740			slog.Warn("Cannot sync session to cloud: no project ID available", "sessionId", sessionID)
+741			syncMgr.stats.trackSessionInCategory(sessionID, categoryErrored)
+742			return
+743		}
+744	
+745		// Get project name (use directory name as fallback - this is cosmetic only)
+746		projectName := ""
+747		if projectData != nil && projectData.ProjectName != "" {
+748			projectName = projectData.ProjectName
+749		} else {
+750			// Fallback to extracting from mdPath for display purposes only
+751			dir := filepath.Dir(filepath.Dir(mdPath))      // Go up from history to .specstory
+752			projectName = filepath.Base(filepath.Dir(dir)) // Get the project directory name
+753			slog.Debug("No project name in config, using directory name", "projectName", projectName)
+754		}
+755	
+756		// Check if sync is needed using HEAD request
+757		shouldSync, err := syncMgr.requiresSync(sessionID, mdPath, mdContent, projectID, skipHeadCheck)
+758		if err != nil {
+759			slog.Error("Failed to check if sync needed",
+760				"sessionId", sessionID,
+761				"error", err)
+762			// Continue with sync attempt anyway
+763		} else if !shouldSync {
+764			// Track skipped session with precedence rules
+765			syncMgr.stats.trackSessionInCategory(sessionID, categorySkipped)
+766			slog.Info("Skipping cloud sync, already up-to-date",
+767				"sessionId", sessionID)
+768			return
+769		}
+770	
+771		// Extract name from markdown filename (without path or extension)
+772		name := filepath.Base(mdPath)
+773		if ext := filepath.Ext(name); ext != "" {
+774			name = name[:len(name)-len(ext)]
+775		}
+776	
+777		// Create API request
+778		metadata := APIRequestMetadata{
+779			ClientName:    ClientName,
+780			ClientVersion: clientVersion,
+781			AgentName:     agentName, // Use the passed-in agent name
+782			DeviceID:      getDeviceID(),
+783		}
+784		apiReq := APIRequest{
+785			ProjectID:   projectID,
+786			ProjectName: projectName,
+787			Name:        name,
+788			Markdown:    syncData.MDContent,
+789			RawData:     string(syncData.JSONLContent),
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:20:45Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:21:04Z)**_
+
+Now I have the full picture, and finding 7 is genuinely the most nuanced of the set — it's a real tradeoff, not a clear bug.
+
+---
+
+## Finding 7 — `ComputeProjectID` prefers a persisted `workspace_id` even after walking to a git root
+
+**File:** `pkg/utils/project_identity.go:506–530`
+
+### What Copilot is saying
+
+In a **remote-less git monorepo**, `resolveIdentity` correctly walks *up* to the git root and computes a single root-based `workspace_id` (so every subdir collapses to one project). But `ComputeProjectID` then **prefers the launch dir's persisted `.project.json` workspace_id** over that root hash. If older subdirectories already carry their own per-subdir `.project.json` (written before the walk-up existed), preferring the persisted value **reintroduces the subdir fragmentation** the walk-up was built to eliminate. Suggested fix: only prefer the persisted id when no git root was found (`root == cwd`); otherwise use the root-derived hash.
+
+### Is the mechanism real? Yes.
+
+Trace for a remote-less git-monorepo subdir that has a legacy `.project.json`:
+- `gitID == ""` (no remote) → skip the git_id return.
+- `persistedWorkspaceID(cwd)` finds the **per-subdir** file → returns that → **fragmented**, defeating the walk-up.
+
+And there's a **doc/code contradiction**: the function's own doc (L502–505) says it walks up "**ignoring any stored .specstory/.project.json (which fragments a monorepo)**" — yet the fallback at L523 does exactly the opposite. So Copilot is pointing at something the doc itself claims shouldn't happen.
+
+### But here's the catch Copilot didn't see — why the persisted-preference exists
+
+I traced the consumers. The persisted-preference deliberately keeps the **restore-index project id equal to the cloud-sync project id**:
+
+- **Cloud sync** (`sync.go:730–736`) derives its project id straight from the launch dir's `.project.json` — `git_id` if present, else the per-dir `workspace_id`. It does **not** walk up.
+- **Restore index** (`ComputeProjectID`, used by resume/search/reindex) walks up, but then prefers the persisted `.project.json` so its id matches what cloud uses.
+
+So for a remote-less monorepo subdir with a legacy file, the two are consistent **with each other today** (both fragment). Copilot's fix makes the **local index collapse** those subdirs while **cloud still fragments** them — trading "index fragments a monorepo" for "index id ≠ cloud id for the same session." A session could group under project A locally but upload to cloud as project B.
+
+### Why Copilot might be right
+
+- It honors the headline feature (monorepo collapse) and the function's stated purpose, and the restore-index consumers (resume/search/reindex) all go through `ComputeProjectID`, so they'd stay internally consistent.
+- The affected population is narrow, and arguably for a monorepo you *want* one project id.
+
+### Why Copilot might be wrong
+
+- It silently breaks the deliberate index↔cloud id agreement for exactly that narrow case, creating a subtler, harder-to-debug inconsistency than the one it fixes.
+- It also shifts `project_id` for already-indexed sessions on the next reindex (a migration, not just a code change).
+
+### My recommendation — your call, I lean Option 1
+
+This hinges on a product decision: is "collapse a remote-less monorepo in the *local* index" worth diverging from cloud's per-directory id? Three options:
+
+- **Option 1 (recommended) — keep behavior, fix the contradictory doc.** Accept that remote-less monorepo subdirs fragment in *both* index and cloud (mutually consistent). Tighten `ComputeProjectID`'s doc so it stops claiming it ignores stored `.project.json` — explain it prefers the persisted id in the no-remote fallback *specifically* to stay aligned with cloud. Lowest risk; preserves the intended invariant. Note: the common cases are already fine (git-remote → git_id; non-git → root==cwd → persisted is correct).
+- **Option 2 — Copilot's fix.** Prefer persisted only when `root == cwd`; use the root hash when walked up. Needs `resolveIdentity` to expose whether a git root was found, and accepts index≠cloud divergence + a reindex id shift for the narrow case.
+- **Option 3 — full fix.** Make cloud sync *also* walk up so both collapse and agree. Correct end-state, but a bigger change with cloud-side id migration — out of scope for a review pass.
+
+My pick is **Option 1**: the persisted-preference is load-bearing for index/cloud agreement, and Copilot's fix swaps a visible-but-consistent fragmentation for an invisible divergence. But if you consider local monorepo collapse the priority over cloud-id parity, Option 2 is defensible.
+
+Which way do you want to go?
+
+---
+
+_**User (2026-06-29 19:22:09Z)**_
+
+Option 1, then move on to finding 8
+
+---
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:18Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/project_identity.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:21Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build utils after doc edit
+
+`go build ./pkg/utils/ && echo "BUILD OK"`
+
+```text
+BUILD OK
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:25Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:26Z)**_
+
+✅ **Finding 7** — doc reconciled (Option 1). The `strings.Cut` hint is pre-existing and unrelated.
+
+---
+
+## Finding 8 — `recordByUuid` populated but unused after the DAG refactor
+
+**File:** `pkg/providers/claudecode/jsonl_parser.go` (`buildDAGs`)
+
+Let me read the function as it currently stands.
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:27Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/claudecode/jsonl_parser.go`
+
+```text
+539	// buildDAGs constructs parent/child DAGs from records
+540	func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
+541		// Index every record by uuid AND build a parentUuid->children adjacency map in one pass.
+542		// Precomputing children here is what keeps DAG building O(N): the traversal below can then
+543		// look a node's children up directly. The previous version re-scanned the entire record set
+544		// to find children at every node it visited, making a whole-project parse O(N²) — tens of
+545		// seconds for a project with ~25k records (the dominant cost of `specstory sync`).
+546		recordByUuid := make(map[string]JSONLRecord, len(records))
+547		childrenByParent := make(map[string][]JSONLRecord)
+548		roots := []JSONLRecord{}
+549		for _, record := range records {
+550			uuid, ok := record.Data["uuid"].(string)
+551			if !ok {
+552				continue // a record with no uuid can be neither traversed nor linked
+553			}
+554			recordByUuid[uuid] = record
+555			if parentUuid, ok := record.Data["parentUuid"].(string); ok {
+556				childrenByParent[parentUuid] = append(childrenByParent[parentUuid], record)
+557			} else if record.Data["parentUuid"] == nil {
+558				// A nil parentUuid marks a root node (the start of a conversation).
+559				roots = append(roots, record)
+560			}
+561		}
+562	
+563		// Sort each child list by timestamp once, giving the same deterministic traversal order the
+564		// per-node sort used to — but paid O(N log N) total across the forest instead of per visit.
+565		for parentUuid := range childrenByParent {
+566			children := childrenByParent[parentUuid]
+567			sort.Slice(children, func(i, j int) bool {
+568				tsI, _ := children[i].Data["timestamp"].(string)
+569				tsJ, _ := children[j].Data["timestamp"].(string)
+570				return tsI < tsJ
+571			})
+572		}
+573	
+574		// Build a DAG for each root
+575		dags := [][]JSONLRecord{}
+576		for _, root := range roots {
+577			dag := p.buildDAGFromRoot(root, childrenByParent)
+578			if len(dag) > 0 {
+579				dags = append(dags, dag)
+580			}
+581		}
+582	
+583		return dags
+584	}
+585	
+586	// buildDAGFromRoot builds a DAG starting from a root node, following the precomputed
+587	// parentUuid->children adjacency (already timestamp-sorted in buildDAGs).
+588	func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, childrenByParent map[string][]JSONLRecord) []JSONLRecord {
+589		dag := []JSONLRecord{}
+590		visited := make(map[string]bool)
+591	
+592		var traverse func(node JSONLRecord)
+593		traverse = func(node JSONLRecord) {
+594			uuid, ok := node.Data["uuid"].(string)
+595			if !ok || visited[uuid] {
+596				return
+597			}
+598	
+599			visited[uuid] = true
+600			dag = append(dag, node)
+601	
+602			// Children are precomputed and already sorted by timestamp.
+603			for _, child := range childrenByParent[uuid] {
+604				traverse(child)
+605			}
+606		}
+607	
+608		traverse(root)
+609		return dag
+610	}
+611	
+612	// flattenDAG flattens a DAG into an array ordered by timestamp
+613	func (p *JSONLParser) flattenDAG(dag []JSONLRecord) []JSONLRecord {
+614		// Sort by timestamp, with parent-child relationships as tiebreaker
+615		sort.Slice(dag, func(i, j int) bool {
+616			tsI, _ := dag[i].Data["timestamp"].(string)
+617			tsJ, _ := dag[j].Data["timestamp"].(string)
+618			if tsI != tsJ {
+619				return tsI < tsJ
+620			}
+621			// If timestamps are equal, check parent-child relationship
+622			uuidI, _ := dag[i].Data["uuid"].(string)
+623			uuidJ, _ := dag[j].Data["uuid"].(string)
+624			parentI, _ := dag[i].Data["parentUuid"].(string)
+625			parentJ, _ := dag[j].Data["parentUuid"].(string)
+626	
+627			// If j is the parent of i, j should come first
+628			if parentI == uuidJ {
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:43Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:22:54Z)**_
+
+Confirmed: `recordByUuid` is written at L546/L554 but **never read** anywhere in `buildDAGs` (the traversal uses only `childrenByParent`). It's a local, so its scope is just this function — it's genuinely dead.
+
+---
+
+## Finding 8 — `recordByUuid` is dead after the O(N²)→O(N) refactor
+
+**File:** `pkg/providers/claudecode/jsonl_parser.go:540–584`
+
+### What Copilot is saying
+
+The refactor that fixed the O(N²) DAG build introduced `childrenByParent` for direct child lookup, but left `recordByUuid` being populated even though nothing reads it anymore. It's wasted memory and CPU on every parse (worst on large projects — the exact thing the refactor was optimizing), and the comment still implies a uuid index is needed.
+
+### Is it true? Yes — unambiguously.
+
+`recordByUuid` is filled at L554 and read nowhere; `buildDAGFromRoot` takes only `childrenByParent`. Classic leftover-from-refactor. This is the most clear-cut finding in the set.
+
+### Implication / ramifications
+
+- A second `map[string]JSONLRecord` sized to the full record count, fully populated and immediately discarded — pure overhead. On a ~25k-record project (the case the comment cites) that's a meaningful, needless allocation on the hot `sync` path.
+- The guard `uuid, ok := …; if !ok { continue }` must **stay** — a record with no uuid can't be traversed or linked, so it's correctly excluded from `childrenByParent`/`roots` too. Only the map and its one assignment go. (After removing the assignment, `uuid` becomes unused, so it folds to `_, ok`.)
+
+### Why Copilot might be right / wrong
+
+Right: it's dead code with real cost. There's essentially no counterargument — removing it is behavior-preserving (the map had no readers). The only care needed is keeping the `ok` guard, which I'll preserve.
+
+### My recommendation
+
+**Remove it.** Drop the map declaration and its assignment, collapse `uuid, ok` → `_, ok`, and fix the comment to stop claiming a uuid index. Applying:
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:00Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/jsonl_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:04Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and test claudecode provider
+
+`go build ./pkg/providers/claudecode/ && echo "BUILD OK"; go test ./pkg/providers/claudecode/ 2>&1 | tail -5`
+
+```text
+BUILD OK
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	0.476s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:08Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:09Z)**_
+
+Builds and tests pass; those diagnostics are pre-existing style hints in unrelated code. All 8 findings are now addressed. Let me run the full test suite and linter per project convention.
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:14Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check formatting and full build
+
+`gofmt -l pkg/cmd/search.go pkg/cmd/resume.go pkg/config/config.go pkg/utils/project_identity.go pkg/providers/codexcli/provider.go pkg/providers/claudecode/jsonl_parser.go; echo "=== gofmt done (any files listed above need formatting) ==="; go build ./... 2>&1 | head; echo "=== build exit: ${PIPESTATUS[0]} ==="`
+
+```text
+=== gofmt done (any files listed above need formatting) ===
+=== build exit:  ===
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full build and targeted tests
+
+`go build ./... && echo "FULL BUILD OK"; echo "=== tests (changed pkgs) ==="; go test ./pkg/cmd/ ./pkg/config/ ./pkg/utils/ ./pkg/providers/codexcli/ ./pkg/providers/claudecode/ ./pkg/spi/ 2>&1 | tail -15`
+
+```text
+FULL BUILD OK
+=== tests (changed pkgs) ===
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/config	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	(cached)
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	0.471s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.016s
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:23Z)**_
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:24Z)**_
+
+Full build clean, gofmt clean, all tests pass. Now the linter per project convention:
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run golangci-lint on changed packages
+
+`golangci-lint run ./pkg/cmd/... ./pkg/config/... ./pkg/utils/... ./pkg/providers/codexcli/... ./pkg/providers/claudecode/... ./pkg/spi/... 2>&1 | tail -30; echo "=== lint exit: ${PIPESTATUS[0]} ==="`
+
+```text
+0 issues.
+=== lint exit:  ===
+```
+</details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-29 19:23:42Z)**_
+
+Linter clean — 0 issues. 
+
+## All 8 findings resolved
+
+Here's the complete summary of how each Copilot finding was handled:
+
+| # | Finding | Outcome |
+|---|---------|---------|
+| 1 | `isSyntheticTurnText` uses `Contains` not prefix | **Discussed, no change.** `Contains` is correct by design (flattened turns concatenate parts, so markers land mid-string). Code comment already justifies it. Defensible "won't fix." |
+| 2 | `SaveResumePrefs` doc overclaims comment preservation | **Fixed comment.** Now states it preserves every *other* section; the `[resume]` block's template comments are replaced on first save. |
+| 3 | `search` saves stale initial `viewMode` | **Fixed bug.** Now saves `rm.viewMode` (the toggled value), matching the `resume` path. |
+| 4 | `caseInsensitiveFilesystem` asserts a filesystem guarantee | **Fixed comment.** Kept the OS heuristic; comment now frames it as a best-effort default and names the case-sensitive-APFS tradeoff. |
+| 5 | `sessionFileReadable` over-reads with `ReadString('\n')` | **Fixed.** Single-byte read (O(1), format-agnostic for binary stores like Cursor); comments updated; `bufio` import dropped. |
+| 6 | `scanCodexSessionHeader` no line-size guard | **Fixed (Option B).** Oversized body lines skipped for parity with `readCodexJSONL`; marker screen runs on raw line to avoid the `TrimSpace` double-copy of multi-MB context records. |
+| 7 | `ComputeProjectID` prefers persisted id after walk-up | **Fixed doc (Option 1).** Behavior kept (persisted-preference is load-bearing for index↔cloud id agreement); doc reconciled to stop contradicting itself and to explain the deliberate tradeoff. |
+| 8 | `recordByUuid` dead after DAG refactor | **Fixed.** Removed the unused map + assignment, collapsed `uuid, ok`→`_, ok`, kept the no-uuid guard, updated comment. |
+
+**Verification:** full `go build ./...` clean, gofmt clean, all tests pass (cmd/config/utils/codexcli/claudecode/spi), `golangci-lint` reports 0 issues.
+
+Net: 5 code/doc fixes applied (3 functional improvements — findings 3, 5, 6, 8; plus 3 doc/comment corrections — findings 2, 4, 7), and 1 documented "won't fix" (finding 1). 
+
+Want me to draft reply text for each Copilot comment thread, or is there anything you'd like to revisit (e.g. reconsider finding 1's per-part filter, or finding 7 Option 2)?
