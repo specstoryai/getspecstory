@@ -16,7 +16,7 @@ func TestGenerateMarkdown_SkipsEmptyAgentRounds(t *testing.T) {
 			StartTime: "2026-06-16T04:08:00Z",
 			Messages: []Message{
 				{Role: "user", Timestamp: "2026-06-16T04:08:00Z", Content: []ContentPart{{Type: "text", Text: "hi"}}},
-				{Role: "agent", Timestamp: "2026-06-16T04:08:17Z"},                                                         // empty (signature-only thinking)
+				{Role: "agent", Timestamp: "2026-06-16T04:08:17Z", Content: []ContentPart{{Type: "thinking", Text: ""}}},   // signature-only thinking: present part, empty body
 				{Role: "agent", Timestamp: "2026-06-16T04:08:18Z", Content: []ContentPart{{Type: "text", Text: "hello!"}}}, // real text
 			},
 		}},
@@ -33,9 +33,17 @@ func TestGenerateMarkdown_SkipsEmptyAgentRounds(t *testing.T) {
 	if !strings.Contains(md, "hello!") {
 		t.Error("real agent text was dropped")
 	}
-	// The single rendered agent turn must still be separated from the user turn.
-	if !strings.Contains(md, "---") {
-		t.Error("expected a separator between user and agent")
+	// Exactly one separator, and it must sit between the user turn and the
+	// agent turn — this is what the skipped empty round could have broken by
+	// advancing prevRole.
+	if got := strings.Count(md, "\n---\n"); got != 1 {
+		t.Errorf("expected exactly 1 separator, got %d\n---\n%s", got, md)
+	}
+	userIdx := strings.Index(md, "_**User")
+	sepIdx := strings.Index(md, "\n---\n")
+	agentIdx := strings.Index(md, "_**Agent")
+	if userIdx >= sepIdx || sepIdx >= agentIdx {
+		t.Errorf("separator not positioned between user and agent turns:\n%s", md)
 	}
 }
 
@@ -48,8 +56,11 @@ func TestHasRenderableContent(t *testing.T) {
 	}{
 		{"empty", Message{Role: "agent"}, false},
 		{"whitespace only", Message{Content: []ContentPart{{Type: "text", Text: "  \n"}}}, false},
+		{"signature-only thinking", Message{Content: []ContentPart{{Type: "thinking", Text: ""}}}, false},   // the bug this fix targets
+		{"non-rendered type with text", Message{Content: []ContentPart{{Type: "image", Text: "x"}}}, false}, // type renderContentParts ignores → not renderable
 		{"text", Message{Content: []ContentPart{{Type: "text", Text: "hi"}}}, true},
 		{"thinking", Message{Content: []ContentPart{{Type: "thinking", Text: "hmm"}}}, true},
+		{"empty part then text", Message{Content: []ContentPart{{Type: "thinking", Text: ""}, {Type: "text", Text: "hi"}}}, true}, // any renderable part wins
 		{"tool only", Message{Tool: tool}, true},
 	}
 	for _, c := range cases {

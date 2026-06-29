@@ -61,10 +61,11 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	for _, exchange := range sessionData.Exchanges {
 		for _, msg := range exchange.Messages {
 			// A single agent turn is split across several JSONL records (thinking,
-			// text, tool_use). Records with no text, no rendered thinking, and no
-			// tool — e.g. signature-only thinking blocks — would otherwise emit a
-			// bare role header with an empty body. Skip them, and only advance
-			// prevRole for messages we actually render so separators stay correct.
+			// text, tool_use). A record can carry no renderable body — e.g. a
+			// signature-only thinking block whose text is empty — and would
+			// otherwise emit a bare role header. Skip those, and advance prevRole
+			// only for records we actually render so the role-change separators
+			// stay correct.
 			if !hasRenderableContent(msg) {
 				continue
 			}
@@ -105,16 +106,23 @@ func formatTimestamp(timestamp string, useUTC bool) string {
 	return t.Local().Format("2006-01-02 15:04:05-0700")
 }
 
-// hasRenderableContent reports whether a message would produce visible output —
-// a non-empty text/thinking part or a tool use. Messages with none are skipped so
-// they don't emit an empty role header.
+// hasRenderableContent reports whether a message would produce visible output:
+// a tool use, or a text/thinking part with non-whitespace text. Only the part
+// types that renderContentParts actually emits are counted, so "renderable" here
+// stays in lock-step with what gets written — a stray part of any other type
+// can't trick us into emitting a bare role header. PathHints are deliberately
+// excluded: renderMessage never emits them, so a pathHints-only message has no
+// body. Messages with nothing renderable are skipped.
 func hasRenderableContent(msg Message) bool {
 	if msg.Tool != nil {
 		return true
 	}
 	for _, part := range msg.Content {
-		if strings.TrimSpace(part.Text) != "" {
-			return true
+		switch part.Type {
+		case schema.ContentTypeText, schema.ContentTypeThinking:
+			if strings.TrimSpace(part.Text) != "" {
+				return true
+			}
 		}
 	}
 	return false
