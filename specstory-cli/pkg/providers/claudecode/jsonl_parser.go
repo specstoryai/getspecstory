@@ -538,26 +538,43 @@ func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONL
 
 // buildDAGs constructs parent/child DAGs from records
 func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
-	// Create a map for quick lookup by uuid
-	recordByUuid := make(map[string]JSONLRecord)
+	// Index every record by uuid AND build a parentUuid->children adjacency map in one pass.
+	// Precomputing children here is what keeps DAG building O(N): the traversal below can then
+	// look a node's children up directly. The previous version re-scanned the entire record set
+	// to find children at every node it visited, making a whole-project parse O(N²) — tens of
+	// seconds for a project with ~25k records (the dominant cost of `specstory sync`).
+	recordByUuid := make(map[string]JSONLRecord, len(records))
+	childrenByParent := make(map[string][]JSONLRecord)
+	roots := []JSONLRecord{}
 	for _, record := range records {
-		if uuid, ok := record.Data["uuid"].(string); ok {
-			recordByUuid[uuid] = record
+		uuid, ok := record.Data["uuid"].(string)
+		if !ok {
+			continue // a record with no uuid can be neither traversed nor linked
+		}
+		recordByUuid[uuid] = record
+		if parentUuid, ok := record.Data["parentUuid"].(string); ok {
+			childrenByParent[parentUuid] = append(childrenByParent[parentUuid], record)
+		} else if record.Data["parentUuid"] == nil {
+			// A nil parentUuid marks a root node (the start of a conversation).
+			roots = append(roots, record)
 		}
 	}
 
-	// Find all root nodes (parentUuid == null)
-	roots := []JSONLRecord{}
-	for _, record := range records {
-		if record.Data["parentUuid"] == nil {
-			roots = append(roots, record)
-		}
+	// Sort each child list by timestamp once, giving the same deterministic traversal order the
+	// per-node sort used to — but paid O(N log N) total across the forest instead of per visit.
+	for parentUuid := range childrenByParent {
+		children := childrenByParent[parentUuid]
+		sort.Slice(children, func(i, j int) bool {
+			tsI, _ := children[i].Data["timestamp"].(string)
+			tsJ, _ := children[j].Data["timestamp"].(string)
+			return tsI < tsJ
+		})
 	}
 
 	// Build a DAG for each root
 	dags := [][]JSONLRecord{}
 	for _, root := range roots {
-		dag := p.buildDAGFromRoot(root, recordByUuid)
+		dag := p.buildDAGFromRoot(root, childrenByParent)
 		if len(dag) > 0 {
 			dags = append(dags, dag)
 		}
@@ -566,8 +583,9 @@ func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
 	return dags
 }
 
-// buildDAGFromRoot builds a DAG starting from a root node
-func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, recordByUuid map[string]JSONLRecord) []JSONLRecord {
+// buildDAGFromRoot builds a DAG starting from a root node, following the precomputed
+// parentUuid->children adjacency (already timestamp-sorted in buildDAGs).
+func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, childrenByParent map[string][]JSONLRecord) []JSONLRecord {
 	dag := []JSONLRecord{}
 	visited := make(map[string]bool)
 
@@ -581,27 +599,8 @@ func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, recordByUuid map[string
 		visited[uuid] = true
 		dag = append(dag, node)
 
-		// Find all children and collect them first
-		children := []JSONLRecord{}
-		for _, record := range recordByUuid {
-			parentUuid, ok := record.Data["parentUuid"].(string)
-			if ok && parentUuid == uuid {
-				// Check if this child exists in our map (to handle orphans)
-				if _, exists := recordByUuid[record.Data["uuid"].(string)]; exists {
-					children = append(children, record)
-				}
-			}
-		}
-
-		// Sort children by timestamp for deterministic traversal order
-		sort.Slice(children, func(i, j int) bool {
-			tsI, _ := children[i].Data["timestamp"].(string)
-			tsJ, _ := children[j].Data["timestamp"].(string)
-			return tsI < tsJ
-		})
-
-		// Traverse children in sorted order
-		for _, child := range children {
+		// Children are precomputed and already sorted by timestamp.
+		for _, child := range childrenByParent[uuid] {
 			traverse(child)
 		}
 	}

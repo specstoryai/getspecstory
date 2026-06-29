@@ -102,6 +102,10 @@ func TestFlattenSessionData_DropsSyntheticTurns(t *testing.T) {
 				{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "<command-name>/exit</command-name>\n<command-message>exit</command-message>\n<command-args></command-args>"}}},
 				{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "<local-command-stdout>Catch you later!</local-command-stdout>"}}},
 				{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "<local-command-caveat>Caveat: ...DO NOT respond...</local-command-caveat>"}}},
+				{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "<local-command-stderr>boom</local-command-stderr>"}}},
+				// Interrupt markers (and the "…for tool use" variant) must not be replayed either.
+				{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "[Request interrupted by user]"}}},
+				{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "[Request interrupted by user for tool use]"}}},
 				{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "real answer"}}},
 			}},
 		},

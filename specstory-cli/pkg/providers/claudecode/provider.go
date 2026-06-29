@@ -488,26 +488,26 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 // are conversation scaffolding, not the user's actual prompt. Without this, a session
 // that opens with a slash command gets an empty title and falls back to its UUID.
 func isSyntheticMessage(content string) bool {
+	// warmup and the <TEXTBLOCK> title-generation wrapper can be embedded anywhere
+	// in the record, so match them with Contains.
 	if strings.Contains(strings.ToLower(content), "warmup") {
 		return true
 	}
-	// Claude Code wraps the real user prompt in <TEXTBLOCK> tags for title generation.
 	if strings.Contains(content, "<TEXTBLOCK>") {
 		return true
 	}
+	// The slash-command scaffolding tags (shared with reconstruction via
+	// spi.SyntheticCommandTags) and the interrupt marker REPLACE the prompt, so they
+	// appear at the very START of the record. Match by prefix so a real prompt that
+	// merely mentions a tag mid-sentence is still treated as real. The interrupt
+	// marker's "…for tool use" variant is caught by the same prefix.
 	trimmed := strings.TrimSpace(content)
-	for _, marker := range []string{
-		"<command-name>", "<command-message>", "<command-args>",
-		"<local-command-stdout>", "<local-command-stderr>", "<local-command-caveat>",
-		// Claude Code inserts this (and the "…for tool use" variant) when the user
-		// interrupts — it is not a typed prompt.
-		"[Request interrupted by user",
-	} {
+	for _, marker := range spi.SyntheticCommandTags {
 		if strings.HasPrefix(trimmed, marker) {
 			return true
 		}
 	}
-	return false
+	return strings.HasPrefix(trimmed, "[Request interrupted by user")
 }
 
 // extractContentText extracts plain text from a message content field.

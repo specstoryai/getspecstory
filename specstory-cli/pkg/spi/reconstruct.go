@@ -95,25 +95,44 @@ func FlattenSessionData(data *schema.SessionData, migrationNote string) []Turn {
 	return turns
 }
 
-// syntheticTurnMarkers are wrapper tags agents inject for non-conversational
-// records — slash-command invocations, their stdout, and guard/caveat notes (e.g.
-// Claude Code's <command-name>/<local-command-*> and <TEXTBLOCK> title-generation
-// prompts). These are noise — and sometimes actively misleading — when replayed
-// into a resumed session, so reconstruction drops any turn whose text contains
-// one. Markdown generation does NOT use this filter and stays faithful to source.
-var syntheticTurnMarkers = []string{
+// SyntheticCommandTags are the wrapper tags coding agents inject for
+// non-conversational slash-command records: the command invocation, its piped
+// local stdout/stderr, and the local-command caveat. They are conversation
+// scaffolding, never a real user prompt. This is the SINGLE SOURCE OF TRUTH for
+// the tag set, shared by reconstruction's turn filter here (matched anywhere in a
+// flattened turn) and Claude Code's title-selection filter
+// (claudecode.isSyntheticMessage, matched as a leading tag), so the two cannot
+// drift apart.
+var SyntheticCommandTags = []string{
 	"<command-name>",
 	"<command-message>",
 	"<command-args>",
 	"<local-command-stdout>",
+	"<local-command-stderr>",
 	"<local-command-caveat>",
+}
+
+// extraSyntheticTurnMarkers are synthetic markers beyond the shared command tags
+// that must also never be replayed into a resumed session: Claude Code's
+// <TEXTBLOCK> title-generation wrapper and its interrupt marker (which also has a
+// "…for tool use" variant, caught by the prefix).
+var extraSyntheticTurnMarkers = []string{
 	"<TEXTBLOCK>",
+	"[Request interrupted by user",
 }
 
 // isSyntheticTurnText reports whether a flattened turn is a synthetic,
 // non-conversational artifact that should not be replayed into a resumed session.
+// It matches by Contains because a flattened turn concatenates content parts, so a
+// marker can appear anywhere in the text. Markdown generation does NOT use this
+// filter and stays faithful to source.
 func isSyntheticTurnText(text string) bool {
-	for _, marker := range syntheticTurnMarkers {
+	for _, marker := range SyntheticCommandTags {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	for _, marker := range extraSyntheticTurnMarkers {
 		if strings.Contains(text, marker) {
 			return true
 		}

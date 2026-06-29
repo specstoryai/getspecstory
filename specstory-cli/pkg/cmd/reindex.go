@@ -462,6 +462,17 @@ func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
 		return
 	}
 
+	// Skip the whole-table FTS delete (session_id/agent are UNINDEXED, so it scans the entire
+	// FTS) when this session has no existing row to replace. Only the first write of a session
+	// in this process can be new, and even then only if it isn't already in the index from a
+	// prior run — so we check by primary key just once, before lastSeen records the write.
+	isNew := false
+	if _, written := li.lastSeen[sess.SessionID]; !written {
+		if exists, err := li.store.Exists(agentID, sess.SessionID); err == nil {
+			isNew = !exists
+		}
+	}
+
 	userTurns, totalTurns := countTurns(data)
 	row := sessionindex.Session{
 		ProjectID:    li.projectID,
@@ -477,6 +488,7 @@ func (li *LiveIndexer) Record(agentID string, sess *spi.AgentChatSession) {
 		IndexVersion: reindexVersion,
 		IndexedAt:    li.indexedAt,
 		Body:         flattenBody(data),
+		IsNew:        isNew,
 	}
 	if err := li.store.Upsert(row); err != nil {
 		slog.Debug("live index: upsert failed", "sessionId", sess.SessionID, "error", err)

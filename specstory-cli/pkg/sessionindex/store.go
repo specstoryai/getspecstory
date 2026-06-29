@@ -9,6 +9,7 @@ package sessionindex
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -307,6 +308,23 @@ func (s *Store) UpsertBatch(sessions []Session) error {
 	}
 	committed = true
 	return nil
+}
+
+// Exists reports whether a session row is already indexed, looked up by the primary key
+// (agent, session_id) so it stays O(log n) instead of scanning. Because a session's sessions
+// row and its sessions_fts row are always written together (upsertOne, one transaction), a
+// missing sessions row guarantees a missing FTS row — which lets the live writer set
+// Session.IsNew and skip the whole-table FTS delete for genuinely new sessions.
+func (s *Store) Exists(agent, sessionID string) (bool, error) {
+	var one int
+	err := s.db.QueryRow(`SELECT 1 FROM sessions WHERE agent = ? AND session_id = ?`, agent, sessionID).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Count returns the number of indexed sessions.
