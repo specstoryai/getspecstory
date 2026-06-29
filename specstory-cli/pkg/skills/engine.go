@@ -228,6 +228,16 @@ func (e *Engine) Reinstall(name string, opts InstallOptions, scopeExplicit bool)
 	return e.Install(name, opts)
 }
 
+// TriggerRun starts a new cloud mining run and returns its id.
+func (e *Engine) TriggerRun() (string, error) {
+	return cloud.TriggerRun()
+}
+
+// ListRuns returns recent mining runs (newest first).
+func (e *Engine) ListRuns() ([]cloud.Run, error) {
+	return cloud.ListRuns()
+}
+
 // InstalledSkills returns the locally tracked SpecStory skills, sorted by name.
 func (e *Engine) InstalledSkills() ([]InstalledSkill, error) {
 	entries, err := specStoryLockEntries()

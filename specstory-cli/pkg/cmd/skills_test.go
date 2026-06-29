@@ -155,6 +155,67 @@ func TestApplyActionResult(t *testing.T) {
 	}
 }
 
+// TestApplyRunTriggered verifies a triggered run begins polling, and an error doesn't.
+func TestApplyRunTriggered(t *testing.T) {
+	ok, cmd := skillsTUI{busy: true, height: 40}.applyRunTriggered(runTriggeredMsg{runID: "r1"})
+	m := ok.(skillsTUI)
+	if !m.runActive || m.runID != "r1" {
+		t.Errorf("expected runActive with id r1, got active=%v id=%q", m.runActive, m.runID)
+	}
+	if cmd == nil {
+		t.Error("expected a poll command after a run starts")
+	}
+
+	failModel, failCmd := skillsTUI{busy: true, height: 40}.applyRunTriggered(runTriggeredMsg{err: errors.New("disabled")})
+	fm := failModel.(skillsTUI)
+	if fm.runActive {
+		t.Error("a failed trigger should not start polling")
+	}
+	if failCmd != nil {
+		t.Error("no poll command expected on trigger error")
+	}
+	if fm.status != "disabled" {
+		t.Errorf("status = %q, want error text", fm.status)
+	}
+}
+
+// TestApplyRunsFetched covers the poll outcomes: keep polling while running, stop + refresh
+// on done, stop on failure, and ignore stale polls.
+func TestApplyRunsFetched(t *testing.T) {
+	base := func() skillsTUI { return skillsTUI{runActive: true, runID: "r1", height: 40} }
+
+	// Still running → keep polling.
+	_, cmd := base().applyRunsFetched(runsFetchedMsg{runID: "r1", runs: []cloud.Run{{ID: "r1", Status: "judging", SessionsMined: 5}}})
+	if cmd == nil {
+		t.Error("expected to keep polling while the run is in progress")
+	}
+
+	// Done → stop polling, refresh library.
+	doneModel, doneCmd := base().applyRunsFetched(runsFetchedMsg{runID: "r1", runs: []cloud.Run{{ID: "r1", Status: "done", DossierTotal: 3}}})
+	dm := doneModel.(skillsTUI)
+	if dm.runActive {
+		t.Error("run should be inactive once done")
+	}
+	if doneCmd == nil {
+		t.Error("expected a library-reload command after a completed run")
+	}
+
+	// Failed → stop polling, no reload.
+	failModel, failCmd := base().applyRunsFetched(runsFetchedMsg{runID: "r1", runs: []cloud.Run{{ID: "r1", Status: "failed", Error: "boom"}}})
+	if failModel.(skillsTUI).runActive {
+		t.Error("run should be inactive once failed")
+	}
+	if failCmd != nil {
+		t.Error("no reload expected on failure")
+	}
+
+	// Stale poll (different run id) → ignored.
+	_, staleCmd := base().applyRunsFetched(runsFetchedMsg{runID: "old", runs: nil})
+	if staleCmd != nil {
+		t.Error("a stale poll should be ignored")
+	}
+}
+
 // TestSkillsFilterCycle confirms the filter ring advances through all four states and wraps.
 func TestSkillsFilterCycle(t *testing.T) {
 	cycle := []string{"", cloud.SkillStateReview, cloud.SkillStateReady, cloud.SkillStateInstalled}

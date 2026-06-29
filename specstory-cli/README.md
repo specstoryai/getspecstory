@@ -108,7 +108,12 @@ specstory skills install <name> --project --agents claude-code,codex
 specstory skills uninstall <name>            # remove files, links, and lock entry
 specstory skills reinstall <name>            # refresh to the current cloud version
 specstory skills status --json               # locally installed skills (no login needed)
+specstory skills run                         # mine your sessions for new skills
+specstory skills runs --json                 # recent runs and their status
 ```
+
+To generate new skills, kick off a run (`specstory skills run`, or press `n` in the browser to
+watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
 
 ## Configuration File
 

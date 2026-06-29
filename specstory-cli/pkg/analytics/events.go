@@ -37,6 +37,7 @@ const (
 	EventSkillsUninstalled      = "ext_skills_uninstalled"       // Tracks when a cloud skill is uninstalled
 	EventSkillsApproved         = "ext_skills_approved"          // Tracks when a review-state skill is approved
 	EventSkillsRejected         = "ext_skills_rejected"          // Tracks when a review-state skill is rejected
+	EventSkillsRunTriggered     = "ext_skills_run_triggered"     // Tracks when a new lore mining run is started
 )
 
 // Properties is a type alias for event properties to avoid exposing PostHog types

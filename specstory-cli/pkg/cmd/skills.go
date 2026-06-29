@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/viewport"
@@ -75,6 +76,8 @@ non-interactive subcommand with '--json' for scripting and front-end integration
 		newSkillsApproveCmd(),
 		newSkillsRejectCmd(),
 		newSkillsStatusCmd(),
+		newSkillsRunCmd(),
+		newSkillsRunsCmd(),
 	)
 	return skillsCmd
 }
@@ -343,6 +346,64 @@ func newSkillsStatusCmd() *cobra.Command {
 	return cmd
 }
 
+func newSkillsRunCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Start a new run that mines your sessions for skills",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := ensureSkillsAccess(); err != nil {
+				return err
+			}
+			runID, err := skills.NewEngine(mustGetwd()).TriggerRun()
+			if err != nil {
+				return err
+			}
+			analytics.TrackEvent(analytics.EventSkillsRunTriggered, nil)
+			if jsonOut {
+				return printJSON(cmd.OutOrStdout(), map[string]string{"runId": runID})
+			}
+			fprintf(cmd.OutOrStdout(), "Started run %s. Track it with 'specstory skills runs'.\n", runID)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
+	return cmd
+}
+
+func newSkillsRunsCmd() *cobra.Command {
+	var jsonOut bool
+	cmd := &cobra.Command{
+		Use:   "runs",
+		Short: "Show recent mining runs and their status",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := ensureSkillsAccess(); err != nil {
+				return err
+			}
+			runs, err := skills.NewEngine(mustGetwd()).ListRuns()
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				return printJSON(cmd.OutOrStdout(), runs)
+			}
+			if len(runs) == 0 {
+				fprintln(cmd.OutOrStdout(), "No runs yet. Start one with 'specstory skills run'.")
+				return nil
+			}
+			for _, r := range runs {
+				fprintf(cmd.OutOrStdout(), "%-10s %-10s %3d sessions  %3d skills  %s\n",
+					r.Status, shortID(r.ID), r.SessionsMined, r.DossierTotal, r.CreatedAt)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
+	return cmd
+}
+
 // ---- shared subcommand helpers ----
 
 func addInstallFlags(cmd *cobra.Command, jsonOut, global, project *bool, agents *[]string) {
@@ -451,8 +512,35 @@ type skillsTUI struct {
 	spinning bool
 	spinner  spinner.Model
 
+	// run polling state. runActive = a mining run we triggered is being polled in the
+	// background; the UI stays usable meanwhile (only loading/busy block input).
+	runActive bool
+	runID     string
+	runStatus string
+
 	status        string
 	width, height int
+}
+
+// runPollInterval is how often the TUI polls a triggered run's status. Kept under the prompt
+// cache window is irrelevant here; it's just a responsive-but-cheap cadence for a job that
+// takes minutes.
+const runPollInterval = 4 * time.Second
+
+// runTriggeredMsg carries the result of starting a mining run.
+type runTriggeredMsg struct {
+	runID string
+	err   error
+}
+
+// runPollTickMsg fires on the poll cadence to re-check a running job.
+type runPollTickMsg struct{}
+
+// runsFetchedMsg carries a runs listing fetched during polling.
+type runsFetchedMsg struct {
+	runs  []cloud.Run
+	err   error
+	runID string
 }
 
 // skillsLoadedMsg carries the result of an async library fetch (initial load or refresh).
@@ -510,7 +598,7 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case spinner.TickMsg:
 		// Keep one tick loop alive only while there is something to animate.
-		if m.loading || m.busy {
+		if m.loading || m.busy || m.runActive {
 			var cmd tea.Cmd
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
@@ -521,6 +609,15 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyLoaded(msg), nil
 	case actionResultMsg:
 		return m.applyActionResult(msg)
+	case runTriggeredMsg:
+		return m.applyRunTriggered(msg)
+	case runPollTickMsg:
+		if !m.runActive {
+			return m, nil
+		}
+		return m, m.runsFetchCmd()
+	case runsFetchedMsg:
+		return m.applyRunsFetched(msg)
 	case tea.KeyPressMsg:
 		// While a request is in flight, swallow input (except quit) so the user can't act on
 		// stale state mid-operation.
@@ -648,6 +745,8 @@ func (m skillsTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.startUninstall()
 	case "R": // reinstall (locally installed)
 		return m.startReinstall()
+	case "n": // new run (mine sessions for skills)
+		return m.startRun()
 	}
 	return m, nil
 }
@@ -876,6 +975,100 @@ func (m *skillsTUI) runInstall() tea.Cmd {
 	return m.startAction(cmd)
 }
 
+// ---- run polling ----
+
+// startRun confirms and (on yes) triggers a new mining run, which then polls to completion.
+func (m skillsTUI) startRun() (tea.Model, tea.Cmd) {
+	if m.runActive {
+		m.status = "A run is already in progress."
+		return m, nil
+	}
+	eng := m.engine
+	m.confirmMsg = "Start a new run? It mines your synced sessions for new skills (this can take a few minutes)."
+	m.pendingActionCmd = func() tea.Msg {
+		runID, err := eng.TriggerRun()
+		if err != nil {
+			return runTriggeredMsg{err: err}
+		}
+		analytics.TrackEvent(analytics.EventSkillsRunTriggered, nil)
+		return runTriggeredMsg{runID: runID}
+	}
+	m.mode = skillsModeConfirm
+	return m, nil
+}
+
+// applyRunTriggered begins background polling once a run has started.
+func (m skillsTUI) applyRunTriggered(msg runTriggeredMsg) (tea.Model, tea.Cmd) {
+	m.busy = false
+	if msg.err != nil {
+		m.status = msg.err.Error()
+		return m, nil
+	}
+	m.runActive = true
+	m.runID = msg.runID
+	m.runStatus = "queued"
+	m.status = "Run started — mining your sessions…"
+	// Ensure the spinner is animating, then schedule the first poll.
+	if !m.spinning {
+		m.spinning = true
+		return m, tea.Batch(m.spinner.Tick, runPollCmd())
+	}
+	return m, runPollCmd()
+}
+
+// runPollCmd schedules the next poll tick.
+func runPollCmd() tea.Cmd {
+	return tea.Tick(runPollInterval, func(time.Time) tea.Msg { return runPollTickMsg{} })
+}
+
+// runsFetchCmd fetches the runs listing off the UI thread.
+func (m skillsTUI) runsFetchCmd() tea.Cmd {
+	eng := m.engine
+	runID := m.runID
+	return func() tea.Msg {
+		runs, err := eng.ListRuns()
+		return runsFetchedMsg{runs: runs, err: err, runID: runID}
+	}
+}
+
+// applyRunsFetched updates the run status line; on completion it stops polling and refreshes
+// the library so freshly minted skills appear. Transient fetch errors keep polling.
+func (m skillsTUI) applyRunsFetched(msg runsFetchedMsg) (tea.Model, tea.Cmd) {
+	if !m.runActive || msg.runID != m.runID {
+		return m, nil // a stale poll from a previous run
+	}
+	if msg.err != nil {
+		return m, runPollCmd() // transient; keep watching
+	}
+	var cur *cloud.Run
+	for i := range msg.runs {
+		if msg.runs[i].ID == m.runID {
+			cur = &msg.runs[i]
+			break
+		}
+	}
+	if cur == nil {
+		return m, runPollCmd() // not visible yet
+	}
+	m.runStatus = cur.Status
+	if !cloud.RunTerminal(cur.Status) {
+		m.status = fmt.Sprintf("Run %s… (%d sessions mined)", cur.Status, cur.SessionsMined)
+		return m, runPollCmd()
+	}
+	// Terminal.
+	m.runActive = false
+	if cur.Status == "failed" {
+		m.status = "Run failed."
+		if cur.Error != "" {
+			m.status = "Run failed: " + cur.Error
+		}
+		return m, nil
+	}
+	m.status = fmt.Sprintf("Run complete — %d sessions mined, %d skills judged. Refreshing…",
+		cur.SessionsMined, cur.DossierTotal)
+	return m, m.loadCmd()
+}
+
 // ---- list mechanics ----
 
 func (m *skillsTUI) applyFilter() {
@@ -993,7 +1186,7 @@ func (m skillsTUI) renderSkillList() string {
 	b.WriteString(strings.Repeat("─", m.skillsLineWidth()))
 	b.WriteString("\n")
 	status := m.status
-	if m.busy || m.loading {
+	if m.busy || m.loading || m.runActive {
 		status = m.spinner.View() + " " + status
 	}
 	if strings.TrimSpace(status) != "" {
@@ -1050,7 +1243,7 @@ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 }
 
 func (m skillsTUI) renderSkillFooter() string {
-	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "q quit"}
+	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "n run", "q quit"}
 	return styDim.Render(strings.Join(keys, " · "))
 }
 

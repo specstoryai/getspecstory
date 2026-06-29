@@ -77,6 +77,61 @@ const (
 	InstallStateInstalled = "installed"
 )
 
+// Run is one lore mining run, from GET /api/v1/lore/runs. Status progresses
+// queued -> sharding -> running -> judging -> reducing -> done|failed.
+type Run struct {
+	ID              string         `json:"id"`
+	Status          string         `json:"status"`
+	CreatedAt       string         `json:"createdAt"`
+	StartedAt       string         `json:"startedAt"`
+	EndedAt         string         `json:"endedAt"`
+	Error           string         `json:"error"`
+	SessionsMined   int            `json:"sessionsMined"`
+	DossierTotal    int            `json:"dossierTotal"`
+	DossierVerdicts map[string]int `json:"dossierVerdicts"`
+}
+
+// RunTerminal reports whether a run has finished (successfully or not), so a poller knows to
+// stop watching it.
+func RunTerminal(status string) bool {
+	return status == "done" || status == "failed"
+}
+
+// TriggerRun starts a new mining run for the signed-in user and returns its id. The server
+// gates this on the LORE_RUN_ENABLED flag and refuses (409) when a run is already in
+// progress for the owner; those server messages are surfaced verbatim.
+func TriggerRun() (string, error) {
+	var resp struct {
+		Success bool   `json:"success"`
+		RunID   string `json:"runId"`
+		Error   string `json:"error"`
+	}
+	// Empty JSON body: ownerId is optional and defaults to the caller server-side.
+	if err := skillsAPIRequest(http.MethodPost, "/api/v1/lore/run", map[string]any{}, &resp); err != nil {
+		return "", err
+	}
+	if !resp.Success {
+		return "", fmt.Errorf("starting run failed: %s", resp.Error)
+	}
+	return resp.RunID, nil
+}
+
+// ListRuns returns the recent mining runs (newest first), owner-scoped.
+func ListRuns() ([]Run, error) {
+	var resp struct {
+		Success bool   `json:"success"`
+		Runs    []Run  `json:"runs"`
+		Error   string `json:"error"`
+	}
+	if err := skillsAPIRequest(http.MethodGet, "/api/v1/lore/runs", nil, &resp); err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("listing runs failed: %s", resp.Error)
+	}
+	return resp.Runs, nil
+}
+
 // GetEntitlement fetches the signed-in user's plan + feature flags. Callers use
 // Features.Skills to gate the skills command and craft an upgrade message.
 func GetEntitlement() (*Entitlement, error) {
@@ -216,6 +271,14 @@ func skillsAPIRequest(method, path string, reqBody any, out any) error {
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		slog.Debug("skills API non-2xx", "path", path, "status", resp.StatusCode, "body", string(respBody))
+		// Surface the server's own error message when present ({success:false, error:"..."}),
+		// so 403 upgrade_required / 409 already-in-progress read clearly to the user.
+		var envelope struct {
+			Error string `json:"error"`
+		}
+		if json.Unmarshal(respBody, &envelope) == nil && envelope.Error != "" {
+			return fmt.Errorf("%s", envelope.Error)
+		}
 		return fmt.Errorf("%s %s returned status %d", method, path, resp.StatusCode)
 	}
 
