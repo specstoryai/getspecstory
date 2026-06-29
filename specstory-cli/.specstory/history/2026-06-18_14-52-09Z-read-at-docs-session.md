@@ -10,8 +10,6 @@ read @docs/SESSION-PORTABILITY.md task to follow
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 14:52:17Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 14:52:23Z)**_
 
 I've read `docs/SESSION-PORTABILITY.md`. Quick orientation on where things stand so I'm ready for the task you're about to give:
@@ -53,8 +51,6 @@ Read that codebase comprehensively, then explain back to me in a few short parag
 It's just a pattern for us to look at... I don't think we can literally use the Lore index for many possible reasons... but as we look at presenting a good UX for cross-project resume we probably need to have an index of all the sessions we know about, and an ability to do full-text search on them (maybe even store their SessionData... we'll see).
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 14:56:21Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 14:56:22Z)**_
 
@@ -489,8 +485,6 @@ _**Agent (claude-opus-4-8 2026-06-18 14:56:39Z)**_
 137
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 14:56:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 14:56:42Z)**_
 
@@ -1085,8 +1079,6 @@ _**Agent (claude-opus-4-8 2026-06-18 14:56:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 14:56:57Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 14:56:57Z)**_
-
 Let me confirm whether lore uses any full-text search (FTS5) before I summarize — the user specifically flagged full-text search as a likely need.
 
 _**Agent (claude-opus-4-8 2026-06-18 14:56:57Z)**_
@@ -1123,8 +1115,6 @@ Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 14:57:08Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 14:57:31Z)**_
 
 I've read the lore corpus engine comprehensively (`db.mjs`, `discover.mjs`, `indexer.mjs`, `parse.mjs`, plus `AS-BUILT-ARCHITECTURE.md`). Here's our strategy there, and the parts worth stealing vs. the parts that won't transfer.
@@ -1158,8 +1148,6 @@ _**User (2026-06-18 15:02:02Z)**_
 We (SpecStory) already have a project identity that's git based and can tell us it's the same project across dirs, machines, users. It's our `.specstory/.project.json`
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 15:02:05Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 15:02:06Z)**_
 
@@ -1619,8 +1607,6 @@ _**Agent (claude-opus-4-8 2026-06-18 15:02:14Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 15:02:26Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 15:02:39Z)**_
 
 Confirmed — this is native to the CLI, not just something lore reads. `pkg/utils/project_identity.go` owns it, and `pkg/cloud/sync.go` + `main.go` consume it. So lore is a *downstream consumer* of an identity the CLI already mints; I had the dependency arrow backwards in my last message. Worth being precise about what it actually gives us:
@@ -1651,8 +1637,6 @@ Options:
 
 **Answer:** You decide / discuss
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 15:03:15Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 15:03:35Z)**_
 
@@ -1710,8 +1694,6 @@ There seems we want a NEW SPI capability maybe... where the rather than.... "Hey
 Thoughts?
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 15:12:37Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 15:12:38Z)**_
 
@@ -1846,8 +1828,6 @@ type Provider interface {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 15:13:33Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 15:14:00Z)**_
 
 This is the right question to be chewing on, and grounding it in the SPI surface sharpens it. The whole interface is `projectPath`-scoped today — every `List/Get/WatchAgentChatSessions` takes a project dir and maps it *forward* to a native store location. What you're describing inverts that, and the inversion has consequences worth pulling out.
@@ -1899,8 +1879,6 @@ _**User (2026-06-18 15:17:59Z)**_
 sure... let's do a new doc... RESTORE-DB.md   but note, this is a strawman at this point. I haven't grokked and agreed to everything above.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 15:18:04Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 15:18:05Z)**_
 
@@ -2119,8 +2097,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 15:18:59Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 15:19:00Z)**_
 
 Done — `docs/RESTORE-DB.md` written as an explicit strawman. Let me quickly confirm the cross-reference link isn't dead.
@@ -2164,8 +2140,6 @@ Maybe `~/.specstory/.restore.db` is better?
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 15:30:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 15:30:12Z)**_
 
 Quick question worth grounding in what's actually there and the existing conventions before I opine.
@@ -2190,8 +2164,6 @@ drwx------    4 sean  staff       128 Mar 20 11:01 cli
 drwxr-xr-x    4 sean  staff       128 Feb 26 04:55 provenance
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 15:30:21Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 15:30:27Z)**_
 
@@ -2252,8 +2224,6 @@ Let's not worry about keeping it warm yet. We can make a lot of progress w/ an e
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 16:09:37Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 16:09:39Z)**_
 
 Good call — an explicit `reindex` plus the SPI extension and schema is the right foundation, and it's independently useful regardless of how we later keep it warm. Before I propose anything concrete (and per this repo's conventions I won't write code or new files until we agree on the shape), I need to ground the design in the existing PoC and provider code. Let me map the relevant surfaces.
@@ -2297,8 +2267,6 @@ geminicli
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 16:09:46Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 16:09:47Z)**_
 
 `resume.go` exists (the PoC), and there's **no SQLite anywhere in the codebase yet** — that's a new-dependency decision I'll flag. Let me read the PoC and check the dependency surface.
@@ -2340,8 +2308,6 @@ go.sum:github.com/mattn/go-runewidth v0.0.19/go.mod h1:XBkDxAl56ILZc9knddidhrOlY
 (eval):1: no matches found: pkg/providers/*.go
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 16:09:54Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 16:09:55Z)**_
 
@@ -2874,8 +2840,6 @@ _**Agent (claude-opus-4-8 2026-06-18 16:10:01Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 16:10:06Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 16:10:06Z)**_
-
 Now the registry and the existing SQLite-in-Go pattern (provenance store), plus how Claude/Codex resolve their native stores.
 
 _**Agent (claude-opus-4-8 2026-06-18 16:10:06Z)**_
@@ -3093,8 +3057,6 @@ _**Agent (claude-opus-4-8 2026-06-18 16:10:06Z)**_
 206
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 16:10:10Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 16:10:11Z)**_
 
@@ -3329,8 +3291,6 @@ _**Agent (claude-opus-4-8 2026-06-18 16:10:17Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 16:10:25Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 16:10:27Z)**_
 
 A key correction surfaces already: Claude's `encodeProjectDirName` is **lossy** (every non-alphanumeric char → dash), so the cwd is *not* reliably decodable from the directory name — the reliable cwd lives in the JSONL records' `cwd` field (`agent_session.go:96`). That actually unifies the model. Let me confirm the Codex side and look at the existing SQLite-in-Go pattern.
@@ -3426,8 +3386,6 @@ How Codex lists sessions and filters by project/cwd
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 16:10:38Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 16:10:39Z)**_
 
 How Codex filters its global session pile down to a project today (it must already walk-all-and-match-cwd), plus the existing SQLite-in-Go house style.
@@ -3466,8 +3424,6 @@ pkg/providers/codexcli/provider.go:855:func (p *Provider) ListAgentChatSessions(
 70:	CREATE TABLE IF NOT EXISTS events (
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 16:10:46Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 16:10:47Z)**_
 
@@ -3591,8 +3547,6 @@ _**Agent (claude-opus-4-8 2026-06-18 16:10:49Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 16:11:44Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 16:11:58Z)**_
 
 I now have what I need. Before proposing anything to build, three findings that change the strawman — two make this easier, one corrects it:
@@ -3649,8 +3603,6 @@ claude  codex  gemini  droid  deepseek  cursor
 Full cross-project/cross-agent picker
 from day one.
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 16:34:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 16:34:48Z)**_
 
@@ -3716,8 +3668,6 @@ Is the plan in our doc?
 
 _**Agent (claude-opus-4-8 2026-06-18 20:53:49Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 20:53:49Z)**_
-
 Not yet — the doc is still the strawman with everything marked OPEN. Let me read its current state and fold in the ratified decisions, corrections, and the build plan.
 
 _**Agent (claude-opus-4-8 2026-06-18 20:53:50Z)**_
@@ -3730,8 +3680,6 @@ _**Agent (claude-opus-4-8 2026-06-18 20:53:50Z)**_
 Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 20:54:03Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 20:54:04Z)**_
 
@@ -3845,8 +3793,6 @@ _**Agent (claude-opus-4-8 2026-06-18 20:54:04Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 20:54:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 20:54:12Z)**_
 
 The doc still marks the SPI shape, FTS, and the build approach as OPEN/strawman — none of our decisions are in it. Let me fold them in. Several targeted edits:
@@ -3887,8 +3833,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB
 
 _**Agent (claude-opus-4-8 2026-06-18 20:54:56Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 20:54:56Z)**_
-
 Now reconcile the "two fill-levels" section with the full-body-FTS decision, and replace Non-Goals / Open-questions with the resolved state plus the build plan:
 
 _**Agent (claude-opus-4-8 2026-06-18 20:55:05Z)**_
@@ -3910,8 +3854,6 @@ _**Agent (claude-opus-4-8 2026-06-18 20:55:28Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 20:55:32Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 20:55:33Z)**_
 
@@ -3946,8 +3888,6 @@ _**Agent (claude-opus-4-8 2026-06-18 20:55:45Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 20:55:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 20:55:48Z)**_
 
@@ -4002,8 +3942,6 @@ Confirm reindex references are now top-level only
 233:5. **`specstory reindex` command** — a new top-level command (its own `pkg/cmd/reindex.go`,
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 20:56:01Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 20:56:01Z)**_
 
@@ -4099,8 +4037,6 @@ But it does seem to address our projects in multiple places on a machine or mult
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 21:13:49Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:14:01Z)**_
 
 This is a great test — it isolates exactly the right thing, and it exposes that my doc *oversold* where the monorepo fix lives. Let me read your evidence precisely:
@@ -4160,8 +4096,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:14:23Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:14:28Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:14:29Z)**_
 
@@ -4238,8 +4172,6 @@ yup.... so... I wonder though if we are being to targetted with this fix... we s
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 21:17:31Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:17:32Z)**_
 
 You're right, and you've put your finger on something that's actually a bigger smell than the monorepo bug itself. Let me check one thing before I answer — how the cloud uses this identity, since that's where the blast radius lives.
@@ -4283,8 +4215,6 @@ How cloud sync consumes project identity
 827:		"projectId", projectID,
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:17:56Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:18:09Z)**_
 
@@ -4356,8 +4286,6 @@ Cloud uses it to group sessions from the same project into the same Cloud projec
 Uhhh... we're not concerned about monorepo sub syncs to existing cloud projects. Total edge case. Fine for them to "move" after this fix. Desirable even.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 21:20:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:20:45Z)**_
 
@@ -4444,8 +4372,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:21:10Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:21:11Z)**_
 
 Now adding the dedicated `## Schema` section with the MD tables (one table per DB table, one row per column), inserted after the Build Plan:
@@ -4459,8 +4385,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:21:21Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:21:31Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:21:32Z)**_
 
@@ -4528,8 +4452,6 @@ _**User (2026-06-18 21:23:08Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 21:23:14Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:23:15Z)**_
 
 Good catch — Cursor has no per-session file; it's rows in one SQLite `store.db`. Let me check how the Cursor reader actually locates a session so I answer from the real structure, not a guess.
@@ -4589,8 +4511,6 @@ pkg/providers/cursorcli/sqlite_reader.go:353:	slog.Debug("DAG rowids", "rowids",
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:23:40Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:23:49Z)**_
 
 Good news — it stays a real, unique path for Cursor. Cursor isn't one shared database; it's **one `store.db` per session**, in its own directory:
@@ -4631,8 +4551,6 @@ sure... tighten the description
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 21:25:45Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:25:47Z)**_
 
 Agreed — that header is genuinely misleading. In FTS5, `UNINDEXED` is a column *keyword* meaning "excluded from the **full-text** index" — but FTS5 tables have no secondary b-tree indexes at all, so calling the FK-ish columns "UNINDEXED" reads backwards. Let me reframe the column as "In FTS index?" and add a clarifying note, plus tighten `native_path`.
@@ -4647,8 +4565,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:25:48Z)**_
 String: | `native_path` | TEXT | Absolute path to the native session file in the agent's store. |</tool_use_error>
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:25:51Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:25:52Z)**_
 
@@ -4704,8 +4620,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:25:52Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:26:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:26:02Z)**_
 
 The user has been aligning these tables. Let me update both spots — `native_path` description and the FTS column header/note:
@@ -4729,8 +4643,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:26:17Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:26:21Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:26:21Z)**_
 
@@ -4823,8 +4735,6 @@ _**User (2026-06-18 21:32:16Z)**_
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-18-17.31.25.png]
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 21:33:41Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:34:00Z)**_
 
@@ -4919,8 +4829,6 @@ seems maybe Claude does in their jsonl data?!?! Can you verify that?
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 21:41:45Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:41:46Z)**_
 
 Good calls — `updated_at` yes, `user_turns`/`total_turns` yes, drop user naming. Let me verify the branch claim against real Claude JSONL on this machine rather than assert it.
@@ -4950,8 +4858,6 @@ file: /Users/sean/.claude/projects/-private-var-folders-jc-p0flb9dx5x3bck7thdb0w
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:41:52Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:41:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -4973,8 +4879,6 @@ file: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-spe
 ["mode","sessionId","type"]
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:42:05Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:42:07Z)**_
 
@@ -5016,8 +4920,6 @@ grep branch/git in first 2 lines:
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:42:41Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:42:54Z)**_
 
 Verified — here's the real picture:
@@ -5056,8 +4958,6 @@ let's just leave git out since it's only Claude
 lineage there... by that you just mean the indicator that the session came from a SpecStory resumption? Or am I misunderstanding?
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 21:44:36Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:44:36Z)**_
 
@@ -5101,8 +5001,6 @@ pkg/providers/claudecode/reconstruct_test.go
 pkg/providers/droidcli/reconstruct.go
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:44:58Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:45:05Z)**_
 
@@ -5153,8 +5051,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:45:06Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:45:15Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:45:19Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -5164,8 +5060,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:45:19Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:45:22Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:45:23Z)**_
 
@@ -5216,8 +5110,6 @@ Yup. And proceed through step 4.
 We need to talk about the UX/progress indications for 5 before that step.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 21:49:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:49:29Z)**_
 
@@ -5322,8 +5214,6 @@ main.go:1608:					if projectID, err := identityManager.GetProjectID(); err == ni
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:52:06Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:52:08Z)**_
 
 Plan confirmed against reality: the `generate*` methods are unit-tested directly, so I'll keep them (refactored to share parsing) and add the walk-up resolver alongside, then point `EnsureProjectIdentity` at it. Let me implement Step 1.
@@ -5342,8 +5232,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/proje
 
 _**Agent (claude-opus-4-8 2026-06-18 21:52:18Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 21:52:18Z)**_
-
 Now `generateProjectName` to share the same reader:
 
 _**Agent (claude-opus-4-8 2026-06-18 21:52:23Z)**_
@@ -5355,8 +5243,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:52:23Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/project_identity.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:52:31Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:52:33Z)**_
 
@@ -5496,8 +5382,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:52:56Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:53:05Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 21:53:05Z)**_
-
 Now rewire `EnsureProjectIdentity` to the walk-up resolver:
 
 _**Agent (claude-opus-4-8 2026-06-18 21:53:18Z)**_
@@ -5509,8 +5393,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:53:18Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/project_identity.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:53:21Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:53:22Z)**_
 
@@ -5529,8 +5411,6 @@ BUILD OK
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.545s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:54:07Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:54:08Z)**_
 
@@ -5718,8 +5598,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.482s
 
 _**Agent (claude-opus-4-8 2026-06-18 21:54:37Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 21:54:37Z)**_
-
 All six pass, including worktree and monorepo collapse. Now the full lint + test gate:
 
 _**Agent (claude-opus-4-8 2026-06-18 21:54:45Z)**_
@@ -5737,8 +5615,6 @@ Lint and test the utils package
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.355s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:55:08Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:55:10Z)**_
 
@@ -5946,8 +5822,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:55:16Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:55:52Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:55:53Z)**_
 
 Claude's pattern is clear. Let me look at Codex's discovery (which already carries cwd), then the other four, to size the per-provider work:
@@ -6052,8 +5926,6 @@ pkg/providers/cursorcli/agent_session.go:483:	// The tool result also lacks CWD 
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:56:28Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:56:30Z)**_
 
 The per-provider cwd sources differ a lot (Codex has it in `codexSessionInfo`, DeepSeek in `metadata.workspace`, Cursor buried in `store.db`, etc.), so Step 3 is the bulk. I'll add the SPI type + interface method with temporary stubs to keep the build green, then replace stubs with real implementations one provider at a time, verifying against real session data. Creating the type first:
@@ -6150,8 +6022,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/provide
 
 _**Agent (claude-opus-4-8 2026-06-18 21:57:13Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 21:57:13Z)**_
-
 Now all six must implement the method or the build breaks. Let me confirm the receiver shape across providers, then add stubs to keep the build green while I implement real ones:
 
 _**Agent (claude-opus-4-8 2026-06-18 21:57:15Z)**_
@@ -6171,8 +6041,6 @@ pkg/providers/droidcli/provider.go:497:func (p *Provider) ListAgentChatSessions(
 pkg/providers/geminicli/provider.go:359:func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:57:19Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:57:20Z)**_
 
@@ -6205,8 +6073,6 @@ BUILD OK
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:57:53Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:57:55Z)**_
 
 Build green. Now real implementations, starting with Claude. I'll refactor `extractSessionMetadata` into a cwd-capturing scan (reused by both the project-scoped path and the global one):
@@ -6220,8 +6086,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:58:19Z)**_
 <tool_use_error>File has been modified since read, either by the user or by a linter. Read it again before attempting to write it.</tool_use_error>
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:58:23Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:58:25Z)**_
 
@@ -6238,8 +6102,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:58:25Z)**_
 630			return nil, fmt.Errorf("failed to open session file: %w", err)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:58:30Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:58:30Z)**_
 
@@ -6269,8 +6131,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/c
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 21:59:14Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 21:59:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -6283,8 +6143,6 @@ Build after Claude enumerator
 BUILD OK
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:59:23Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:59:23Z)**_
 
@@ -6340,8 +6198,6 @@ PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	3.129s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:59:40Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:59:41Z)**_
 
@@ -6419,8 +6275,6 @@ sed -n '505,560p' pkg/providers/codexcli/provider.go
 							slog.Debug("findCodexSessions: Found target session, stopping search", "sessionID", targetSessionID)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 21:59:51Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 21:59:52Z)**_
 
@@ -6505,8 +6359,6 @@ _**Agent (claude-opus-4-8 2026-06-18 21:59:53Z)**_
 505						slog.Debug("findCodexSessions: Failed to read Codex day directory", "path", dayPath, "error", err)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:00:12Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:00:13Z)**_
 
@@ -6605,8 +6457,6 @@ PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli	0.453s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:00:45Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:00:46Z)**_
 
@@ -6712,8 +6562,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:00:47Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:00:54Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:00:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -6760,8 +6608,6 @@ pkg/providers/deepseektui/watcher.go:75:		// Watch parent .deepseek directory.
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:01:07Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:01:08Z)**_
 
 DeepSeek has ideal helpers (`listSessionFiles`, `extractSessionMetadata`, `extractWorkspaceFast`). Writing its enumerator:
@@ -6775,8 +6621,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:01:14Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/deepseektui/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:01:18Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:01:18Z)**_
 
@@ -6862,8 +6706,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:01:19Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:01:24Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:01:27Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -6915,8 +6757,6 @@ pkg/providers/droidcli/types.go:64:type fdSession struct {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:01:39Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:01:40Z)**_
 
 Droid's `parseFactorySession` yields `WorkspaceRoot` (preferring the session's `cwd`). Writing its enumerator:
@@ -6930,8 +6770,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:01:46Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:01:50Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:01:51Z)**_
 
@@ -7022,8 +6860,6 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:02:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:02:02Z)**_
 
 Gemini needs the global tmp-dir walk. Let me look at its path utils (`.project_root` marker, tmp structure, `FindSessions`):
@@ -7080,8 +6916,6 @@ Gemini path utils: tmp dirs and .project_root marker
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:02:17Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:02:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -7122,8 +6956,6 @@ type GeminiSession struct {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:02:27Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:02:28Z)**_
 
 Gemini has `FilePath` on the session and `.project_root` markers. Writing its enumerator (walk all tmp dirs, cwd from the marker):
@@ -7137,8 +6969,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:02:37Z)**_
 <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:02:40Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:02:41Z)**_
 
@@ -7165,8 +6995,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:02:51Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/geminicli/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:02:56Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:02:56Z)**_
 
@@ -7270,8 +7098,6 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:03:17Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:03:18Z)**_
 
 Cursor is the crux — its `projectHash` is a one-way hash of the workspace, and the code comments note Cursor tool calls lack CWD. I need to find whether the workspace path is recoverable at all. Let me investigate the hash derivation and a real `store.db`:
@@ -7342,8 +7168,6 @@ What we w
 
 _**Agent (claude-opus-4-8 2026-06-18 22:03:37Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 22:03:37Z)**_
-
 `projectHash = md5(canonicalPath)` — one-way, not reversible. Let me decode the full `meta` blob to see if the workspace path is stored anywhere inside:
 
 _**Agent (claude-opus-4-8 2026-06-18 22:03:43Z)**_
@@ -7377,8 +7201,6 @@ sqlite3 "$db" "SELECT data FROM blobs;" 2>/dev/null | strings | grep -ao '/Users
 /Users/sean/Source/SpecStory/specstory-cli/pkg/spi/wasm/provider.go
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:04:45Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:04:48Z)**_
 
@@ -7448,8 +7270,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	1.820s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:05:32Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:05:33Z)**_
 
 All green — build OK, lint 0 issues, all provider/spi/utils tests pass. Claude (683) and Codex (70) already verified on real data. Let me smoke-test the registry sweep across all six (Cursor has 21 hash dirs here), then move on:
@@ -7502,8 +7322,6 @@ PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	3.468s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:05:51Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:05:53Z)**_
 
@@ -7610,8 +7428,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:05:54Z)**_
 90
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:06:21Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:06:21Z)**_
 
@@ -7861,8 +7677,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 
 _**Agent (claude-opus-4-8 2026-06-18 22:06:59Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 22:06:59Z)**_
-
 I referenced a `prefixed` helper — let me add it and the `strings` import:
 
 _**Agent (claude-opus-4-8 2026-06-18 22:07:01Z)**_
@@ -8052,8 +7866,6 @@ exit: 0
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:07:46Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:07:47Z)**_
 
 **Step 4 ✅** — FTS5 works in modernc (body + name search), idempotent upsert verified (re-upsert replaces, stale FTS row removed), `ListByProject` works. Lint clean.
@@ -8081,8 +7893,6 @@ go test ./... 2>&1 | grep -cE "^ok "; echo "packages passing"
 packages passing
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:08:23Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:08:36Z)**_
 
@@ -8117,8 +7927,6 @@ _**User (2026-06-18 22:12:50Z)**_
 2-3. "unknown" is fine for these... just make SURE we capture this deferred Cursor work and do it next. Can't lose track of it.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-18 22:13:44Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:13:45Z)**_
 
@@ -8172,8 +7980,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:14:10Z)**_
 The file /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory/memory/MEMORY.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:14:18Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:14:18Z)**_
 
@@ -8271,8 +8077,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:15:05Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:15:20Z)**_
 
 Captured — memory (`restore-cursor-cwd-deferred`, indexed in MEMORY.md) + a "**Deferred — DO NEXT**" section in the doc. It won't get lost.
@@ -8324,8 +8128,6 @@ Let's capture the details of the concurrency plan in the doc... so we get it all
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 22:23:00Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:23:01Z)**_
 
 Let me capture the concurrency plan in the doc first, then we'll design the progress UX. Reading the current Build Plan step 5:
@@ -8364,8 +8166,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:23:02Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:23:09Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:23:25Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -8375,8 +8175,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:23:25Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:24:15Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:24:26Z)**_
 
@@ -8435,8 +8233,6 @@ Indexing  512/822 · 23 projects · 130/s
   gemini   ▕██████████████▏   1/1  ✓
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:26:12Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:26:13Z)**_
 
 Per-agent live bars it is — the world-class option. Let me capture the full UX decision in the doc, then run the concurrency audit.
@@ -8450,8 +8246,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:26:23Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:26:30Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:26:31Z)**_
 
@@ -8518,8 +8312,6 @@ func NewProvider() *Provider {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:26:41Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:26:42Z)**_
 
 All six `Provider` structs are empty (`struct{}`) — zero receiver state. Now package-level mutable vars that the parse path might write:
@@ -8558,8 +8350,6 @@ pkg/providers/cursorcli/watcher.go:26:	callbackWg      sync.WaitGroup           
 pkg/providers/cursorcli/watcher.go:33:	mu              sync.RWMutex                // Protects maps
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:26:55Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:26:56Z)**_
 
@@ -8603,8 +8393,6 @@ pkg/providers/claudecode/agent_session.go:512:	if formatter, ok := toolFormatter
 === does cursor GetAgentChatSession create a fresh MessageTimestampCache per call? ===
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:27:44Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:27:46Z)**_
 
@@ -8670,8 +8458,6 @@ pkg/spi/schema/types_test.go:437:// TestSessionData_Validate_WithMessages tests 
 
 _**Agent (claude-opus-4-8 2026-06-18 22:28:00Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 22:28:00Z)**_
-
 Schema clear. Confirming the exact `FlattenSessionData` signature and `Turn` type:
 
 _**Agent (claude-opus-4-8 2026-06-18 22:28:03Z)**_
@@ -8700,8 +8486,6 @@ pkg/spi/reconstruct.go:58:func FlattenSessionData(data *schema.SessionData, migr
 61:	GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*AgentChatSession, error)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:29:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:29:44Z)**_
 
@@ -8796,8 +8580,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/analytics/e
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:30:36Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:30:37Z)**_
 
 Now I'll add a batched `UpsertBatch` to the store (for the writer goroutine's batched transactions), refactoring the per-session SQL into a shared tx helper:
@@ -8811,8 +8593,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:30:51Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/restore/store.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:30:59Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:31:00Z)**_
 
@@ -9188,8 +8968,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:31:55Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:31:56Z)**_
 
 Let me fix the enumeration loop (I overcomplicated the goroutine indexing) and remove the dead `indexOf`/sort:
@@ -9213,8 +8991,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:32:09Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:32:48Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:32:49Z)**_
 
@@ -9453,8 +9229,6 @@ appended
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:33:29Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:33:30Z)**_
 
 Appended. Now register the command in `main.go` and build (the diagnostics look stale — the appended definitions should resolve them):
@@ -9532,8 +9306,6 @@ go build -o specstory . 2>&1 | head -20 && echo "=== BUILD OK ==="
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:33:59Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:34:00Z)**_
 
 Build clean. Now the real end-to-end run against this machine's ~822 sessions (non-TTY here, so I'll see the plain-line path + summary):
@@ -9573,8 +9345,6 @@ indexed 822/822…
 tail -25  0.00s user 0.00s system 0% cpu 14.928 total
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:34:30Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:34:31Z)**_
 
@@ -9633,8 +9403,6 @@ claude  read @docs/SESSION-PORTABILITY.md task t
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:35:14Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:35:17Z)**_
 
 Strong result overall — FTS works, project attribution (102 projects), per-agent parse coverage all correct, Cursor metadata-only as designed. Two things to check: Claude enumerated 683 but DB has 650 (33 fewer), and `created_at` is empty on some rows. Let me investigate the count drop — I need to rule out empty-`session_id` collisions (a real bug) vs. legitimate duplicate session IDs (resumed sessions sharing an id):
@@ -9679,8 +9447,6 @@ gemini                0      1
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:36:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:36:13Z)**_
 
 Two real issues found:
@@ -9713,8 +9479,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:36:25Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:36:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:36:29Z)**_
 
@@ -9753,8 +9517,6 @@ droid       16              0         0
 gemini       1              0         0
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:37:07Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:37:08Z)**_
 
@@ -9796,8 +9558,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	1.355s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:37:36Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:37:37Z)**_
 
 Lint 0 issues, all 17 packages pass. Let me verify reindex idempotency (re-run shouldn't duplicate), then add Step 5 unit tests:
@@ -9824,8 +9584,6 @@ rows before re-run: 788 · after re-run: 788 · fts rows: 788
 (idempotent if before == after == fts)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:38:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:38:17Z)**_
 
@@ -9984,8 +9742,6 @@ exit 0
 
 _**Agent (claude-opus-4-8 2026-06-18 22:38:52Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 22:38:52Z)**_
-
 All Step 5 tests pass, lint clean. Final full-project gate:
 
 _**Agent (claude-opus-4-8 2026-06-18 22:39:08Z)**_
@@ -10086,8 +9842,6 @@ Indexing  818/818 · 102 projects · 42/s
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-18 22:51:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:51:03Z)**_
 
 You're completely right — that's dumb. The second run re-parses and re-upserts all 818 sessions even though nothing changed. The schema already carries `size`/`mtime` ("fingerprint for a future incremental skip") — I just never wrote the skip. This is exactly lore's idempotency contract (skip when `size+mtime+version` unchanged), and reindex should have it. Let me add it.
@@ -10158,8 +9912,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:51:29Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/restore/store.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:51:35Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:51:36Z)**_
 
@@ -10269,8 +10021,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/restore/sto
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:52:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:52:12Z)**_
 
 Now wire the skip into reindex. The const + item fields first:
@@ -10333,8 +10083,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:53:03Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:53:04Z)**_
 
 I referenced a `foundCounts` helper that doesn't exist — let me build a `foundPerAgent` map inline instead (the "Found" line should show enumerated counts, while `totals` drives the bars):
@@ -10363,8 +10111,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:53:37Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:53:38Z)**_
 
 Now thread `unchanged` and the full per-agent counts into the summary. Updating the call and `printReindexSummary`:
@@ -10388,8 +10134,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:53:51Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:54:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:54:18Z)**_
 
@@ -10444,8 +10188,6 @@ String: func printReindexSummary(ids []string, perAgent map[string]int, prog *re
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:54:53Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:54:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -10485,8 +10227,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:55:00Z)**_
 597		fprintf(w, "\n")
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:55:08Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:55:09Z)**_
 
@@ -10528,8 +10268,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:55:31Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:55:32Z)**_
 
 `prog`'s counters are still used by the live display, so no dead code. Build, test, and verify the incremental skip with back-to-back runs:
@@ -10567,8 +10305,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.447s
       102 projects  ·  50 unattributed
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:56:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:56:18Z)**_
 
@@ -10629,8 +10365,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:56:33Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:56:34Z)**_
 
 Now remove the unused `unattr` field from the struct:
@@ -10686,8 +10420,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-18 22:56:53Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-18 22:56:54Z)**_
 
 Now build, full lint, and test:
@@ -10714,8 +10446,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.479s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/restore	(cached)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:57:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:57:17Z)**_
 
@@ -10750,8 +10480,6 @@ PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/restore	0.401s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:57:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:57:44Z)**_
 
@@ -10826,8 +10554,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB
 
 _**Agent (claude-opus-4-8 2026-06-18 22:58:12Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-18 22:58:12Z)**_
-
 Now Build Plan step 5 and the schema table (the `size`/`mtime` note and the new `index_version` column):
 
 _**Agent (claude-opus-4-8 2026-06-18 22:58:13Z)**_
@@ -10873,8 +10599,6 @@ _**Agent (claude-opus-4-8 2026-06-18 22:58:32Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-18 22:58:41Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-18 22:58:41Z)**_
 
@@ -11047,8 +10771,6 @@ Indexing  28/28 · 4 projects · 26/s
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 00:38:15Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:38:18Z)**_
 
 That's a real bug, not active-file churn — runs seconds apart re-index the *same* ~28-30 Claude sessions every time. It's the **duplicate-`session_id`** case: resumed Claude sessions span multiple `.jsonl` files sharing one `sessionId` (679 files → 649 distinct ids = 30 dupes). Both files map to the same `(agent, session_id)` fingerprint key but have *different* size/mtime, so they ping-pong — each run, file A's stat ≠ the stored fingerprint (which was file B's), re-index A, store A's; then B mismatches, re-index B… forever.
@@ -11154,8 +10876,6 @@ BUILD OK
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 00:39:10Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:39:12Z)**_
 
 Fixed and verified. The thrash is gone:
@@ -11186,8 +10906,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
 (no file = gofmt clean)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:39:27Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:39:28Z)**_
 
@@ -11252,8 +10970,6 @@ _**User (2026-06-19 00:40:55Z)**_
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-18-20.40.25.png]
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 00:41:25Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:41:27Z)**_
 
@@ -11321,8 +11037,6 @@ How would we even do a countdown to 0... we don't know how long it's going to ta
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 00:42:55Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:42:57Z)**_
 
 You're right — an ETA would be a guess (sessions vary wildly in size, so remaining-count × past-rate is unreliable and would jump around). Simplest and most honest: just remove it. The `788/788` and the per-agent bars already show progress.
@@ -11336,8 +11050,6 @@ _**Agent (claude-opus-4-8 2026-06-19 00:42:59Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/reindex.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:43:05Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:43:05Z)**_
 
@@ -11359,8 +11071,6 @@ grep -n "\.start\b\|start  *time.Time\|p.start" pkg/cmd/reindex.go
 459:	p.start = time.Now()
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:43:13Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:43:13Z)**_
 
@@ -11464,8 +11174,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.435s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 00:44:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:44:14Z)**_
 
 Done. The live header is now just:
@@ -11487,8 +11195,6 @@ hmmm   maybe index.db makes more sense than restore.db
 We don't even call the operation restore, we call it resume.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 00:46:32Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:46:40Z)**_
 
@@ -11515,8 +11221,6 @@ _**User (2026-06-19 00:47:30Z)**_
 let's go with sessions.db
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 00:48:18Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:48:19Z)**_
 
@@ -11572,8 +11276,6 @@ docs/RESTORE-DB.md
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 00:49:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:49:02Z)**_
 
 Scope is contained — no source docs link to `RESTORE-DB.md` (only a `.specstory` history file, which I ignore). I'll do the full rename: db file, package (`pkg/restore` → `pkg/sessionindex`, since `pkg/sessions` would collide with the existing `pkg/session`), and the doc. Let me check the code-comment references to the doc filename, then execute:
@@ -11619,8 +11321,6 @@ pkg/spi/global.go:1
 pkg/restore/store.go:4
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:49:57Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:49:58Z)**_
 
@@ -11693,8 +11393,6 @@ pkg/sessionindex/store.go:77:		return nil, fmt.Errorf("opening restore.db: %w", 
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 00:50:42Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:50:43Z)**_
 
 The `set -e` loop aborted early (it matched unrelated files containing the word "restore" and choked), so `reindex.go` and `store.go` weren't fully swept. Let me redo it cleanly on the exact known files:
@@ -11746,8 +11444,6 @@ pkg/cmd/reindex.go:302:	batch := make([]restore.Session, 0, reindexWriteBatch)
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 00:51:04Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:51:05Z)**_
 
 The `\b` word-boundary doesn't work in BSD sed, so the selectors didn't swap (but the import path did — a mismatch). Fixing the selectors with a plain pattern:
@@ -11786,8 +11482,6 @@ grep -n "sessionindex" pkg/cmd/reindex.go | head
 
 _**Agent (claude-opus-4-8 2026-06-19 00:51:16Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 00:51:16Z)**_
-
 Code is clean. Build + test:
 
 _**Agent (claude-opus-4-8 2026-06-19 00:51:21Z)**_
@@ -11809,8 +11503,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.446s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:51:41Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:51:42Z)**_
 
@@ -11852,8 +11544,6 @@ grep -n "restore" docs/SESSIONS-DB.md | head -20 || echo "  (no 'restore' left)"
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 00:52:03Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:52:04Z)**_
 
 A few leftovers (the `\b` bit BSD sed again, plus prose). Fixing `pkg/restore`, `restore.Session`, and the catchup line:
@@ -11882,8 +11572,6 @@ grep -n "restore" docs/SESSIONS-DB.md
 456:Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-cwd-deferred`.)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:52:12Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:52:13Z)**_
 
@@ -11935,8 +11623,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSIONS-D
 
 _**Agent (claude-opus-4-8 2026-06-19 00:52:46Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 00:52:46Z)**_
-
 Now the memory files:
 
 _**Agent (claude-opus-4-8 2026-06-19 00:52:50Z)**_
@@ -11960,8 +11646,6 @@ restore-cursor-cwd-deferred.md:10:In the `specstory-cli` sessions.db / `specstor
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:52:58Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:52:58Z)**_
 
@@ -11999,8 +11683,6 @@ packages ok
 /Users/sean/.specstory/sessions.db
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 00:53:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 00:53:49Z)**_
 
@@ -12058,8 +11740,6 @@ How's this sound? Ask questions!
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 00:58:46Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 00:58:47Z)**_
 
 This is the marquee feature — let me make sure I build the right thing. First, quick recon (is any TUI lib already vendored? what queries does the store expose?), then I'll ask the decisions that actually shape the build.
@@ -12114,8 +11794,6 @@ pkg/config/config.go:36:# by a project-level config at ./.specstory/cli/config.t
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 01:00:15Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 01:00:37Z)**_
 
 Love this — and yes, this is the feature that determines whether people reach for `specstory resume`. Let me make sure I build the right thing.
@@ -12166,8 +11844,6 @@ If no TUI lib, should probably check ~/source/SpecStory/stoa/stoa-cli and use th
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 01:00:45Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 01:00:46Z)**_
 
 Good call — matching the sibling project's choice keeps the org consistent. Let me check what stoa-cli uses.
@@ -12196,8 +11872,6 @@ Check stoa-cli TUI dependencies
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:01:05Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:01:06Z)**_
 
@@ -12282,8 +11956,6 @@ Don't yet worry about if it's "stale". We'll handle that when we come back aroun
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 01:07:16Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 01:07:18Z)**_
 
 Decisions captured. Two quick groundings before I build: confirm what "latest" resolves to (v2 line, which aligns with the `lipgloss/v2` already pulled in by fang), and learn stoa-cli's TUI idioms since they literally have a `restore.go` selection UI.
@@ -12320,8 +11992,6 @@ github.com/charmbracelet/bubbles → v1.0.0
 	charm.land/lipgloss/v2 v2.0.0-beta.3.0.20251106193318-19329a3e8410 // indirect
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:07:59Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:08:01Z)**_
 
@@ -12363,8 +12033,6 @@ go: github.com/charmbracelet/lipgloss/v2@latest (v2.0.4) requires github.com/cha
 BUILD OK
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:08:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:08:17Z)**_
 
@@ -12410,8 +12078,6 @@ go: upgraded github.com/mattn/go-runewidth v0.0.19 => v0.0.23
 BUILD OK
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:09:03Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:09:05Z)**_
 
@@ -12466,8 +12132,6 @@ grep -n "type.*Model\|func.*Init\|func.*Update\|func.*View\|key.Matches\|KeyMsg\
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:09:55Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:09:57Z)**_
 
@@ -13234,8 +12898,6 @@ _**Agent (claude-opus-4-8 2026-06-19 01:09:58Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 01:11:08Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 01:11:11Z)**_
 
 The config is **read-only today** — it only writes the commented template once, never programmatic values. Persisting `view_mode`/`last_agent` to `config.toml` means adding a *surgical* write-back that updates just a `[resume]` section without clobbering the self-documenting comments in the rest of the file. That's the one real wrinkle in honoring "put it in config.toml," and it's solvable. 
@@ -13275,8 +12937,6 @@ _**Agent (claude-opus-4-8 2026-06-19 01:11:46Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/config/config.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:11:56Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:11:56Z)**_
 
@@ -13382,8 +13042,6 @@ PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/config	0.388s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:12:36Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:12:37Z)**_
 
@@ -13551,8 +13209,6 @@ lint: 0
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 01:13:49Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 01:13:50Z)**_
 
 Foundation done — config persistence + project-rollup/preview queries, all tested, lint clean. Let me capture the TUI design and flag the staleness trigger, then I'll checkpoint before the Bubble Tea model.
@@ -13644,8 +13300,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 
 _**Agent (claude-opus-4-8 2026-06-19 01:14:15Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 01:14:15Z)**_
-
 Now flag `resume` as a staleness trigger in the warm-keeping section:
 
 _**Agent (claude-opus-4-8 2026-06-19 01:14:16Z)**_
@@ -13710,8 +13364,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSIONS-D
 
 _**Agent (claude-opus-4-8 2026-06-19 01:14:46Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 01:14:46Z)**_
-
 Final gate on the foundation:
 
 _**Agent (claude-opus-4-8 2026-06-19 01:15:05Z)**_
@@ -13741,8 +13393,6 @@ packages ok
 (gofmt clean if empty)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 01:15:23Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 01:15:36Z)**_
 
@@ -13788,8 +13438,6 @@ hmm I like those key bindings... except where is the preview? I know that's in S
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 10:05:39Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:05:46Z)**_
 
 Quick correction first: the **preview is Stage A**, not B — it's how you decide *which* session to resume, so it ships with the current-project list. (Stage B is just the all-projects rollup.) So yes, we need its key now.
@@ -13818,8 +13466,6 @@ _**User (2026-06-19 10:06:23Z)**_
 yes! proceed w/ A!
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 10:06:51Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:06:52Z)**_
 
@@ -13869,8 +13515,6 @@ type Model interface {
 /Users/sean/source/go/pkg/mod/charm.land/bubbletea/v2@v2.0.7/screen.go:9:type WindowSizeMsg struct {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:07:08Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:07:09Z)**_
 
@@ -13934,8 +13578,6 @@ viewport
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:07:26Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:07:27Z)**_
 
 `View` wraps a string via `tea.NewView()`. Let me confirm the alt-screen mechanism (v2 changed it) and key idioms, then I'll write a minimal compiling skeleton before layering features:
@@ -13982,8 +13624,6 @@ grep -rn "^func Quit\b\|func (k Key) String\|KeyPressMsg) String" "$btdir"/*.go 
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:07:42Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:07:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -14005,8 +13645,6 @@ grep -rn "^func [A-Z].*Cmd\|^var [A-Z].* Cmd\|AltScreen" "$btdir"/screen.go | he
 === how examples enter alt screen (check screen.go exported) ===
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:07:52Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:08:01Z)**_
 
@@ -14031,8 +13669,6 @@ grep -rnE "^func [A-Z][A-Za-z]*Alt|AltScreen\b" "$btdir"/commands.go "$btdir"/te
 === anything 'AltScreen' exported anywhere ===
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:08:14Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:08:15Z)**_
 
@@ -14143,8 +13779,6 @@ type View struct {
 	// position.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:08:31Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:08:31Z)**_
 
@@ -14262,8 +13896,6 @@ there are [Go Docs][docs].
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:09:00Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:09:01Z)**_
 
 Alt-screen is declared on the `tea.View` struct in v2. Let me see its remaining fields:
@@ -14317,8 +13949,6 @@ grep -nE "func \(v \*?View\)" "$btdir"/tea.go | head
 279:func (v *View) SetContent(s string) {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:10:53Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:10:55Z)**_
 
@@ -14718,8 +14348,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:11:53Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:11:54Z)**_
 
 Now the View rendering — header, rows (dense/sparse), glance, footer, preview overlay, target picker:
@@ -15032,8 +14660,6 @@ PKG BUILD OK (or errors above)
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:13:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:13:02Z)**_
 
 Two real issues: `go.sum` needs the textinput transitive dep, and in lipgloss v2 `lipgloss.Color` is a *function* returning `color.Color`, not a type. Let me fix the field type and tidy modules:
@@ -15084,8 +14710,6 @@ go build ./pkg/cmd/ 2>&1 | head -25 && echo "=== PKG CMD BUILD OK ==="
 === PKG CMD BUILD OK ===
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:14:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:14:48Z)**_
 
@@ -15234,8 +14858,6 @@ gofmt -w pkg/cmd/resume_tui.go && go build ./pkg/cmd/ 2>&1 | head -15 && echo "=
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:15:25Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:15:26Z)**_
 
 Those diagnostics are stale (the build printed no errors). Let me confirm clean, then wire `resume.go` — reading its current RunE selection point:
@@ -15274,8 +14896,6 @@ grep -n "cobra.NoArgs\|selectResumePlan\|os.Getwd\|func selectResumePlan\|func p
 
 _**Agent (claude-opus-4-8 2026-06-19 10:15:40Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 10:15:40Z)**_
-
 Clean build. Let me check what `resume_test.go` exercises before removing the old menu functions:
 
 _**Agent (claude-opus-4-8 2026-06-19 10:15:42Z)**_
@@ -15305,8 +14925,6 @@ grep -n "func Test\|selectResumePlan\|pickSession\|promptIndex\|sortSessionsDesc
 79:		t.Errorf("plural(0)/plural(2) should be %q", "s")
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:16:09Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:16:10Z)**_
 
@@ -15362,8 +14980,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume.
 
 _**Agent (claude-opus-4-8 2026-06-19 10:16:32Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 10:16:32Z)**_
-
 Now add the `presetTarget` from args and update `Args`. Let me read the RunE header:
 
 _**Agent (claude-opus-4-8 2026-06-19 10:16:33Z)**_
@@ -15397,8 +15013,6 @@ _**Agent (claude-opus-4-8 2026-06-19 10:16:33Z)**_
 87
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:16:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:16:46Z)**_
 
@@ -15436,8 +15050,6 @@ _**Agent (claude-opus-4-8 2026-06-19 10:16:54Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:17:08Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:17:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -15470,8 +15082,6 @@ grep -n "^func selectResumePlan\|^func pickSession\|^func promptIndex\|^func sor
 496:func plural(n int) string {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:17:30Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:17:30Z)**_
 
@@ -15518,8 +15128,6 @@ _**Agent (claude-opus-4-8 2026-06-19 10:17:31Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:17:44Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 10:17:44Z)**_
-
 Deleting the old menu functions (keeping `shortID`) — higher range first to avoid reshifting:
 
 _**Agent (claude-opus-4-8 2026-06-19 10:17:49Z)**_
@@ -15550,8 +15158,6 @@ pkg/cmd/resume.go:14:2: "strconv" imported and not used
 pkg/cmd/resume.go:17:2: "time" imported and not used
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:17:57Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:17:58Z)**_
 
@@ -15705,8 +15311,6 @@ _**Agent (claude-opus-4-8 2026-06-19 10:18:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:18:33Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 10:18:33Z)**_
-
 The package won't compile until `resume_test.go` stops referencing removed funcs (that cascades the other "undefined" errors). Replacing it with a test for the kept `shortID`:
 
 _**Agent (claude-opus-4-8 2026-06-19 10:18:33Z)**_
@@ -15756,8 +15360,6 @@ go build -o specstory . 2>&1 | head -20 && echo "=== FULL BUILD OK ==="
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:18:54Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:18:55Z)**_
 
 Full build OK. Let me lint + test — there may be a now-unused `resumePageSize` const and other cleanups:
@@ -15788,8 +15390,6 @@ lint exit: 0
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.774s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:19:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:19:17Z)**_
 
@@ -15840,8 +15440,6 @@ packages ok
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:20:05Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:20:07Z)**_
 
 All green — build OK, lint clean, 17 packages pass. Let me verify the command is wired and see how it behaves headless (the TUI needs a real TTY, so a non-interactive run should reach the program-open and fail gracefully there):
@@ -15885,8 +15483,6 @@ echo "=== headless run (expect a TTY-related error, proving it reached the progr
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 10:20:34Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 10:20:35Z)**_
 
 The command is wired correctly — it reaches the Bubble Tea program and fails only at the TTY open (expected headless; it'll run in a real terminal). Stage A compiles, lints, and tests clean. Let me fix the now-stale command comment/help to reflect the new flow and document the `resume <agent>` arg:
@@ -15900,8 +15496,6 @@ _**Agent (claude-opus-4-8 2026-06-19 10:20:42Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 10:20:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 10:20:48Z)**_
 
@@ -15972,8 +15566,6 @@ OK, all was well with A, proceed with B
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 11:02:48Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 11:02:49Z)**_
 
 A works — onto Stage B: the all-projects browser. This adds a `modeProjects` screen (date-bucketed project rollup with agent counts), the `tab` scope toggle, project-name search (distinct from session FTS), and empty-home → browser. Let me build it onto the existing model.
@@ -16041,8 +15633,6 @@ _**Agent (claude-opus-4-8 2026-06-19 11:03:42Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 11:04:36Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:04:36Z)**_
 
@@ -16340,8 +15930,6 @@ appended
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 11:05:17Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 11:05:18Z)**_
 
 Now wire `View()` to render the browser, reflect drill-in scope in the header, and update `selectResumeViaTUI` for the empty-home case:
@@ -16365,8 +15953,6 @@ _**Agent (claude-opus-4-8 2026-06-19 11:05:34Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 11:05:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:05:43Z)**_
 
@@ -16415,8 +16001,6 @@ go build -o specstory . 2>&1 | head -20 && echo "=== BUILD OK ==="
 
 _**Agent (claude-opus-4-8 2026-06-19 11:06:19Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 11:06:19Z)**_
-
 Build OK. Lint + test:
 
 _**Agent (claude-opus-4-8 2026-06-19 11:06:39Z)**_
@@ -16440,8 +16024,6 @@ lint exit: 0
 packages ok
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 11:06:54Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:06:55Z)**_
 
@@ -16471,8 +16053,6 @@ echo "=== from /tmp (no sessions → starts in all-projects browser; must not pa
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 11:07:13Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 11:07:14Z)**_
 
 Both entry paths construct cleanly (the `/tmp` run exercised `enterBrowser()` → `ListProjects()` at construction with no panic). Stage B is built and green. Updating the doc:
@@ -16486,8 +16066,6 @@ _**Agent (claude-opus-4-8 2026-06-19 11:07:24Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESUME-TUI.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 11:07:34Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:07:42Z)**_
 
@@ -16521,8 +16099,6 @@ hmmm so in the all projects view / is searching projects by name? Or it's FT on 
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 11:35:34Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 11:35:42Z)**_
 
 In the all-projects browser, `/` filters **projects by name** (substring match) — it is *not* FTS on sessions. To be precise about both search surfaces today:
@@ -16554,8 +16130,6 @@ It does make sense to have the project name search... but for that it should be 
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 11:37:05Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 11:37:12Z)**_
 
 Got it — `/` becomes full-text session search everywhere, scope follows the view:
@@ -16585,8 +16159,6 @@ _**User (2026-06-19 11:37:33Z)**_
 p, make it so
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 11:38:20Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:38:21Z)**_
 
@@ -16649,8 +16221,6 @@ _**Agent (claude-opus-4-8 2026-06-19 11:39:03Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 11:39:35Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:39:35Z)**_
 
@@ -16854,8 +16424,6 @@ appended
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 11:40:07Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 11:40:08Z)**_
 
 Now wire `View()` to the global-results screen and update the rollup footer:
@@ -16906,8 +16474,6 @@ packages ok
   Resume picker failed: bubbletea: error opening TTY: bubbletea: could not open TTY: open /dev/tty: device not
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 11:40:59Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 11:41:00Z)**_
 
@@ -16975,8 +16541,6 @@ _**User (2026-06-19 12:24:34Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 12:25:40Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 12:25:41Z)**_
 
 Good — the TUI is working. The UUID rows are a real bug: those Claude sessions have an **empty `name`**, so `sessionTitle` falls back to the short UUID. And some have 53 user turns, so it's not that they're empty — the first-user-message extraction is failing for them. Let me diagnose against the actual data:
@@ -17014,8 +16578,6 @@ native_path: /Users/sean/.claude/projects/-Users-sean-Source-idera-hexawise-hexa
 
 _**Agent (claude-opus-4-8 2026-06-19 12:26:03Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 12:26:03Z)**_
-
 357 empty-name Claude sessions — over half. Let me look at what the first user message actually looks like in one of these files:
 
 _**Agent (claude-opus-4-8 2026-06-19 12:26:10Z)**_
@@ -17044,8 +16606,6 @@ jq -rc 'select(.type=="user") | .message.content' "$f" 2>/dev/null | head -1 | h
 <local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:26:20Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:26:21Z)**_
 
@@ -17079,8 +16639,6 @@ jq -rc 'select(.type=="user" and (.isMeta!=true)) | (.message.content | type)' "
    6 string
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:26:54Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:26:55Z)**_
 
@@ -17169,8 +16727,6 @@ _**Agent (claude-opus-4-8 2026-06-19 12:27:08Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 12:27:53Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 12:27:55Z)**_
 
 Found it. `isSyntheticMessage` only filters `warmup` and `<TEXTBLOCK>` — **not** the slash-command wrappers (`<command-name>`, `<local-command-stdout>`, `<local-command-caveat>`). So `scanClaudeSession` captures `<command-name>/effort…` as the "first user message," stops looking, and `GenerateReadableName` cleans those tags to empty → UUID fallback. The real prompt deeper in the session is never reached.
@@ -17199,8 +16755,6 @@ pkg/providers/claudecode/provider.go:714:									if !isSyntheticMessage(content
 (eval):4: no matches found: --include=*.go
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:28:33Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:28:34Z)**_
 
@@ -17244,8 +16798,6 @@ _**Agent (claude-opus-4-8 2026-06-19 12:28:48Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:28:57Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:28:57Z)**_
 
@@ -17344,8 +16896,6 @@ name: write a lymeric to the file system
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 12:30:33Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 12:30:34Z)**_
 
 357 → 126 — 231 sessions recovered. The remaining empties are likely genuinely command/tool-only sessions, but let me check a couple to see if there's another fixable pattern (and confirm *this* project improved):
@@ -17381,8 +16931,6 @@ project_id=0f81-fa3b-cc40-b565
 <command-message>code-review</command-message>
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:31:59Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:32:01Z)**_
 
@@ -17549,8 +17097,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 12:33:58Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 12:34:00Z)**_
 
 Outstanding result: **empty-name Claude sessions went 357 → 126 → 2** across the *entire* index, and **this project is now 0 UUIDs**. Slash-command-only sessions now show `/code-review`, `/today`, `/research`, etc. Let me clean up `between` (the linter flags `strings.Index` → `strings.Cut`, and `close` shadows a builtin):
@@ -17589,8 +17135,6 @@ lint: 0
 packages ok
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:34:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:34:47Z)**_
 
@@ -17695,8 +17239,6 @@ _**User (2026-06-19 12:44:12Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 12:44:54Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 12:44:58Z)**_
 
 Exactly right on the architecture — and yes, it already works that way. "Get me the first user message" **is** delegated to each provider: each provider's `ListAllAgentChatSessions`/`ListAgentChatSessions` produces the `Name`/`Slug`, and the synthetic-message filtering lives *inside that provider* (`isSyntheticMessage` is in `pkg/providers/claudecode`, not in the resume/TUI/index code). The TUI and `sessions.db` just consume `Name` — zero Claude-specific logic leaks out. So we're correctly only improving the **Claude provider's** implementation here.
@@ -17757,8 +17299,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	
 0|
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 12:46:36Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 12:46:37Z)**_
 
@@ -17840,8 +17380,6 @@ What we need to do is replace the text we usually show for the session with the 
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 15:48:17Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 15:48:19Z)**_
 
 Yes — that's the standard "search result with context + highlight" UX, and SQLite FTS5 gives it to us directly via the `snippet()` function. Let me verify the SQL works against the real index before wiring it:
@@ -17880,8 +17418,6 @@ sqlite3 ~/.specstory/sessions.db "SELECT sql FROM sqlite_master WHERE name='sess
 8:		body
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 15:49:19Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:49:20Z)**_
 
@@ -17928,8 +17464,6 @@ _**Agent (claude-opus-4-8 2026-06-19 15:49:40Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessionindex/store.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 15:49:54Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:49:55Z)**_
 
@@ -18045,8 +17579,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.482s
 
 _**Agent (claude-opus-4-8 2026-06-19 15:50:28Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 15:50:28Z)**_
-
 Store green. Now the TUI. Adding the snippet fields to the model:
 
 _**Agent (claude-opus-4-8 2026-06-19 15:50:32Z)**_
@@ -18121,8 +17653,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 15:51:14Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 15:51:15Z)**_
 
 Now `recomputeGlobal`:
@@ -18169,8 +17699,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:51:40Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 15:51:40Z)**_
-
 Add snippet clearing to `exitGlobal`:
 
 _**Agent (claude-opus-4-8 2026-06-19 15:51:41Z)**_
@@ -18203,8 +17731,6 @@ _**Agent (claude-opus-4-8 2026-06-19 15:51:49Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 15:51:58Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:51:59Z)**_
 
@@ -18343,8 +17869,6 @@ _**Agent (claude-opus-4-8 2026-06-19 15:52:30Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 15:52:39Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:52:40Z)**_
 
@@ -18498,8 +18022,6 @@ packages ok
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 15:53:54Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 15:53:55Z)**_
 
 Unused consts (the SQL uses `char(2)`/`char(3)` and the renderer uses rune literals). Removing them, keeping the contract in the comment:
@@ -18541,8 +18063,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
 …Here's the result of running `cat -n` on a [[snippet]] of…
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 15:54:24Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:54:25Z)**_
 
@@ -18597,8 +18117,6 @@ PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.288s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 15:54:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 15:54:43Z)**_
 
@@ -18681,8 +18199,6 @@ _**User (2026-06-19 16:00:42Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 16:02:34Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 16:02:37Z)**_
 
 The snippet UX looks great — but you've hit two real input bugs. Let me diagnose both:
@@ -18712,8 +18228,6 @@ _**Agent (claude-opus-4-8 2026-06-19 16:02:51Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 16:03:04Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 16:03:04Z)**_
 
@@ -18770,8 +18284,6 @@ _**Agent (claude-opus-4-8 2026-06-19 16:03:44Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 16:04:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 16:04:16Z)**_
 
@@ -18885,8 +18397,6 @@ BUILD OK
 
 _**Agent (claude-opus-4-8 2026-06-19 16:04:47Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 16:04:47Z)**_
-
 Build OK. Lint + test:
 
 _**Agent (claude-opus-4-8 2026-06-19 16:05:08Z)**_
@@ -18909,8 +18419,6 @@ lint: 0
 packages ok
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 16:05:19Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 16:05:20Z)**_
 
@@ -18966,8 +18474,6 @@ the debounce feels a little slow, let's do 50ms, yes, start the SESSION-SEARCH.m
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 16:07:38Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 16:07:40Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -18994,8 +18500,6 @@ go build -o specstory . 2>&1 | head && echo "BUILD OK (debounce → 50ms)"
 BUILD OK (debounce → 50ms)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 16:08:51Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 16:08:52Z)**_
 
@@ -19178,8 +18682,6 @@ _**User (2026-06-19 18:56:59Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 18:58:04Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 18:58:05Z)**_
 
 All four locked. Let me update the plan with the ratified decisions, then — since you want to *see* glamour before committing on #2 — I'll wire up a quick spike so you can evaluate it on a real session.
@@ -19205,8 +18707,6 @@ _**Agent (claude-opus-4-8 2026-06-19 18:58:30Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSION-SEARCH.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 18:58:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 18:58:45Z)**_
 
@@ -19238,8 +18738,6 @@ github.com/charmbracelet/glamour → v1.0.0
 .specstory/history/2026-02-16_16-27-42Z-implement-the-following-plan.md
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 18:59:12Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 18:59:13Z)**_
 
@@ -19303,8 +18801,6 @@ glamour_spike.go:11:2: no required module provides package charm.land/glamour; t
 
 _**Agent (claude-opus-4-8 2026-06-19 18:59:31Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 18:59:31Z)**_
-
 glamour hasn't migrated to charm.land — it's `github.com/charmbracelet/glamour`. Fixing:
 
 _**Agent (claude-opus-4-8 2026-06-19 18:59:39Z)**_
@@ -19353,8 +18849,6 @@ go: added github.com/yuin/goldmark-emoji v1.0.6
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:00:06Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:00:07Z)**_
 
 There's a real dependency conflict: glamour v1.0.0 pulls `x/cellbuf@v0.0.13`, which uses the **old** `x/ansi` API, but our v2 charm stack requires a **newer** `x/ansi` (where `Style.Italic` takes a bool). Let me see if a newer `cellbuf` resolves it via MVS:
@@ -19387,8 +18881,6 @@ go: upgraded github.com/charmbracelet/x/cellbuf v0.0.13 => v0.0.15
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:00:31Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:00:32Z)**_
 
 Forcing `cellbuf@v0.0.15` resolves it — glamour renders cleanly (headers, italic `*User*` markers, word-wrap). So glamour **is** viable, with a small `cellbuf` bump. Let me confirm that bump didn't break the main build:
@@ -19410,8 +18902,6 @@ go test ./pkg/cmd/ 2>&1 | tail -1
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:00:51Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:01:01Z)**_
 
@@ -19447,8 +18937,6 @@ _**User (2026-06-19 19:04:42Z)**_
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-15.04.25.png]
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 19:05:18Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:05:20Z)**_
 
@@ -19516,8 +19004,6 @@ doesn't need to be fullproof, just need to tell me how to see it... how do I do 
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 19:06:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:06:03Z)**_
 
 Two ways — pick either, run it in your terminal in the repo:
@@ -19542,8 +19028,6 @@ cat glamour-sample.txt  where?
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 19:06:32Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:06:33Z)**_
 
 In your terminal, from the repo. Or just use the full path so it works from anywhere:
@@ -19561,8 +19045,6 @@ _**User (2026-06-19 19:07:08Z)**_
 pretty it is, build the reader with glamour
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 19:08:06Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:08:07Z)**_
 
@@ -19591,8 +19073,6 @@ pkg/session/markdown.go:29:// GenerateMarkdownFromAgentSession generates markdow
 pkg/session/markdown.go:33:func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageIDs bool, useUTC bool) (string, error) {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:08:55Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:08:56Z)**_
 
@@ -19638,8 +19118,6 @@ grep -nE "func NewTermRenderer|func WithWordWrap|func WithStandardStyle|func Wit
 191:func WithWordWrap(wordWrap int) TermRendererOption {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:10:08Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:10:09Z)**_
 
@@ -19790,8 +19268,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:10:11Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:10:38Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:10:39Z)**_
 
 This launch sequence is the shared bit. Let me factor it into `launchResume(plan, cwd, opts)` so `search`'s `r` reuses it. Replacing the RunE launch block with a call + the extracted function:
@@ -19805,8 +19281,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:10:51Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:11:09Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:11:09Z)**_
 
@@ -19869,8 +19343,6 @@ gofmt -w pkg/cmd/resume.go && go build ./pkg/cmd/ 2>&1 | head && echo "=== resum
 === resume.go factored, builds ===
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:13:03Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:13:05Z)**_
 
@@ -20337,8 +19809,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:14:06Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:14:07Z)**_
 
 A couple of issues to fix: the `searchFTSDebounce` callback signature is wrong, and I haven't written `View()` yet. Fixing the debounce + adding the missing `time` import:
@@ -20362,8 +19832,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:14:19Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:14:58Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:14:58Z)**_
 
@@ -20530,8 +19998,6 @@ gofmt -w pkg/cmd/search_tui.go && go build ./pkg/cmd/ 2>&1 | head -20 && echo "=
 
 _**Agent (claude-opus-4-8 2026-06-19 19:15:51Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 19:15:51Z)**_
-
 Package builds. Now the command. Let me write `search.go`:
 
 _**Agent (claude-opus-4-8 2026-06-19 19:16:05Z)**_
@@ -20656,8 +20122,6 @@ File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstor
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:16:24Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:16:25Z)**_
 
 Now fix `toggleScope`/`cycleAgent` to actually re-run the search, and guard the resume action when no agents are installed:
@@ -20671,8 +20135,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:16:33Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:16:46Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:16:47Z)**_
 
@@ -20721,8 +20183,6 @@ go build -o specstory . 2>&1 | head -20 && echo "=== FULL BUILD (errors above if
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:17:28Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:17:29Z)**_
 
 Full build OK. Now clean up the spike, tidy modules (glamour is a real dep now), and run the gate:
@@ -20756,8 +20216,6 @@ pkg/cmd/search_tui.go:90:2: S1011: should replace loop with cycle = append(cycle
 lint: 0
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:17:50Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:17:51Z)**_
 
@@ -20806,8 +20264,6 @@ packages ok
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:18:38Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:18:39Z)**_
 
 Search feature is built and green — build OK, lint 0, 17 packages pass, and `specstory search max cpu` wires correctly (reaches the program, accepts the pre-seeded query). Let me mark the doc built with the keybinding reality:
@@ -20821,8 +20277,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:18:52Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSION-SEARCH.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:19:03Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:19:03Z)**_
 
@@ -20888,8 +20342,6 @@ _**User (2026-06-19 19:22:32Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 19:23:24Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:23:29Z)**_
 
 The input isn't focused — that's the bug. I focus it in `Init()`, but `Init()` has a value receiver and returns only a `Cmd`, so the focus *state* it sets is thrown away (the runtime keeps the model from `NewProgram`). Resume works because it focuses inside `Update` (which returns the model). The fix is to focus in the **constructor** so the model handed to `NewProgram` is already focused:
@@ -20903,8 +20355,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:23:29Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:23:49Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:23:49Z)**_
 
@@ -20929,8 +20379,6 @@ BUILD OK
 lint: 0
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:24:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:24:21Z)**_
 
@@ -20965,8 +20413,6 @@ _**User (2026-06-19 19:28:16Z)**_
 [Image: source: /Users/sean/.claude/image-cache/8fd5765e-f98e-45fc-908e-0cfa83ea52be/11.png]
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 19:29:15Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:29:15Z)**_
 
@@ -21029,8 +20475,6 @@ _**User (2026-06-19 19:29:45Z)**_
 you don't need to check, "try" is definitely in sessions
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 19:32:02Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:32:03Z)**_
 
@@ -21102,8 +20546,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	1.377s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:32:42Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:32:44Z)**_
 
 **The model logic is correct** — fed `searchFTSDebounceMsg{seq:1}`, it produced 400 hits and applied them. So the break is in the *live* path: the `tea.Tick` debounce message isn't matching/arriving during real typing. Let me test the actual keystroke→seq→debounce path by constructing real key messages:
@@ -21165,8 +20607,6 @@ type Key struct {
 	// Console API.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:33:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:33:18Z)**_
 
@@ -21232,8 +20672,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	1.352s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:34:14Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:34:15Z)**_
 
 Logic is fully correct (typing → seq=3 → debounce match → 400 results). So the break is purely that **`tea.Tick` isn't delivering the debounce message live**. Let me check v2's `tea.Tick`:
@@ -21286,8 +20724,6 @@ what's interesting is we don't have this problem w/ `specstory resume`
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 19:36:34Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:36:36Z)**_
 
 Right — same `tea.Tick` works in resume, so it's not the tick. The logic works when I feed messages manually, so something in the *live* message flow differs. Let me instrument the live path with file logging to see exactly what arrives:
@@ -21321,8 +20757,6 @@ rm -f /tmp/ss-search.log
 BUILD OK — debug instrumented
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:37:15Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:37:18Z)**_
 
@@ -21469,8 +20903,6 @@ debounce arrived seq=3 m.seq=3
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:40:49Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:40:51Z)**_
 
 Now we have it. The debounce arrives and matches `m.seq` — so `runSearch(msg.seq)` is returned as a Cmd — but **`result arrived` never logs**. The query Cmd either isn't running, returns nil, or panics silently. Let me read the actual `runSearch`/`applyResults` and instrument inside the closure:
@@ -21615,8 +21047,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:40:52Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:41:12Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:41:14Z)**_
 
 The closure never returns a message at all — not even `hits=0`. So `store.SearchWithSnippets(fq, scope)` panics or hangs. The key difference from resume: search defaults to **scoped** (`scope = homeID`, non-empty, since you're in specstory-cli which has sessions), while you likely tested resume in all-projects view (empty scope). Let me check the scoped query path:
@@ -21711,8 +21141,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:41:18Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:41:44Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:41:46Z)**_
 
 The query is fine on its face. The closure runs (BT executed the identical debounce-tick Cmd moments earlier) but never returns its message — so `SearchWithSnippets` is hanging or panicking *only* in the Cmd goroutine. Let me instrument inside the closure with a recover to catch it:
@@ -21775,8 +21203,6 @@ runSearch DONE seq=3 hits=0 err=sql: database is closed
 ---END---
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:42:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:42:43Z)**_
 
@@ -21870,8 +21296,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:42:47Z)**_
 904		if cfg, _ := config.Load(nil); cfg != nil {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:43:14Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:43:16Z)**_
 
@@ -22007,8 +21431,6 @@ _**Agent (claude-opus-4-8 2026-06-19 19:43:16Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:45:07Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:45:10Z)**_
 
 The smoking gun is clear now. Two things combine:
@@ -22067,8 +21489,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	83.100s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:47:26Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:47:30Z)**_
 
 **Confirmed — and it's brutal:** `"t*"` takes **80 seconds** (matches almost the whole 789-session corpus; `snippet()` + `ORDER BY rank` over that set). With a single DB connection, that one query pins everything. `"tr*"` is 1.3s, `"try*"` 0.78s, `"max cpu"` 0.23s.
@@ -22101,8 +21521,6 @@ grep -n "PLACEHOLDER_CLOSURE\|ssdbg\|\"os\"" pkg/cmd/search_tui.go
 5:	"os"
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:47:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:47:43Z)**_
 
@@ -22142,8 +21560,6 @@ func (m searchTUI) runSearch(seq int) tea.Cmd {
 }
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 19:47:50Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:47:51Z)**_
 
@@ -22209,8 +21625,6 @@ _**User (2026-06-19 19:49:17Z)**_
 Why is this not impacting `specstory resume` or... what is this telling us we need to do there?
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 19:49:44Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 19:49:44Z)**_
 
@@ -22283,8 +21697,6 @@ func (m resumeTUI) runSearch(seq int, kind tuiMode) tea.Cmd {
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 19:50:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 19:50:15Z)**_
 
 Confirmed — resume's `runSearch` is the *same code*, and in `modeProjects` it passes `projectID = ""`. So resume has the **identical 80-second landmine**; it's just masked by where resume starts you. Three reasons it hasn't bitten:
@@ -22334,8 +21746,6 @@ Options:
 
 **Answer:** All 3. Let's use 2 char as the min length for search in both resume and search experiences., 2 characters
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 20:54:11Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 20:54:12Z)**_
 
@@ -22461,8 +21871,6 @@ _**Agent (claude-opus-4-8 2026-06-19 20:54:16Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 20:54:21Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 20:54:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -22549,8 +21957,6 @@ func (m resumeTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) 
 
 _**Agent (claude-opus-4-8 2026-06-19 20:55:45Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 20:55:45Z)**_
-
 I have everything I need. Let me implement all three, starting with the shared store layer (cancellation context + reader pool):
 
 _**Agent (claude-opus-4-8 2026-06-19 20:55:50Z)**_
@@ -22596,8 +22002,6 @@ _**Agent (claude-opus-4-8 2026-06-19 20:56:14Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessionindex/store.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 20:56:16Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 20:56:17Z)**_
 
@@ -22717,8 +22121,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_
 
 _**Agent (claude-opus-4-8 2026-06-19 20:57:01Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 20:57:01Z)**_
-
 Update `applyFilter`'s gate, then add the `context` import:
 
 _**Agent (claude-opus-4-8 2026-06-19 20:57:03Z)**_
@@ -22771,8 +22173,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 20:57:17Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 20:57:18Z)**_
 
 Now switch `openOrBuildResumeIndex` to the reader pool:
@@ -22786,8 +22186,6 @@ _**Agent (claude-opus-4-8 2026-06-19 20:57:21Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 20:57:25Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 20:57:25Z)**_
 
@@ -22873,8 +22271,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_
 
 _**Agent (claude-opus-4-8 2026-06-19 20:58:06Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 20:58:06Z)**_
-
 Now build, format, lint, and test:
 
 _**Agent (claude-opus-4-8 2026-06-19 20:58:13Z)**_
@@ -22911,8 +22307,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.743s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.445s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 20:58:24Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 20:58:25Z)**_
 
@@ -22980,8 +22374,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.991s
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 20:58:40Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 20:58:42Z)**_
 
 Both mechanisms proven against the real DB:
@@ -23042,8 +22434,6 @@ The "no matches" we see while wating for the search is no good when these search
 Should be "searching..." there, yeah?
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 22:02:09Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:02:11Z)**_
 
@@ -23163,8 +22553,6 @@ _**Agent (claude-opus-4-8 2026-06-19 22:02:16Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 22:02:50Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:02:52Z)**_
 
 That's two things. The `Searching…` state I'll implement now — it's clearly right. Let me wire a `loading` flag through the search TUI:
@@ -23212,8 +22600,6 @@ _**Agent (claude-opus-4-8 2026-06-19 22:03:10Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:03:15Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:03:19Z)**_
 
@@ -23267,8 +22653,6 @@ go build -o specstory . 2>&1 | head && echo "=== BUILD OK ===" && golangci-lint 
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-19 22:04:04Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:04:05Z)**_
 
 Build clean. Now the scope default — you're confirming search should open in **all projects** with `tab` narrowing to the current project (a sensible search-specific divergence from resume). Right now it does the opposite (scopes to this project when it has sessions). Let me flip the default:
@@ -23305,8 +22689,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:04:15Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 22:04:15Z)**_
-
 `homeID` is still used for `homeProjectID`, so that `_ = homeID` is wrong. Let me remove it:
 
 _**Agent (claude-opus-4-8 2026-06-19 22:04:18Z)**_
@@ -23337,8 +22719,6 @@ go build -o specstory . 2>&1 | head && echo "=== BUILD OK ===" && golangci-lint 
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:04:42Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:04:43Z)**_
 
@@ -23399,8 +22779,6 @@ Let's have this "Type to search your sessions across all projects" as " Type to 
 In the reader view... Pg Up and Pg Dn work, but we don't say they work in the footer, they should be there next to scroll...
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 22:10:05Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:10:07Z)**_
 
@@ -23491,8 +22869,6 @@ let's put little dot delimiters between items in the footer
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 22:11:30Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:11:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -23518,8 +22894,6 @@ grep -n 'scopeKey\|strings.Join(keys\|styDim.Render("' pkg/cmd/search_tui.go
 605:	b.WriteString("\n" + styDim.Render("↑↓ move   ↵ resume   esc back"))
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:11:41Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:11:42Z)**_
 
@@ -23595,8 +22969,6 @@ let's seperate out... ESC to clear (not esc) and q to quit. Rather than using ES
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 22:13:03Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:13:06Z)**_
 
 The catch: in the results screen the search input is **always focused**, so every printable key — including `q` — types into the query. That's the whole "always-on input" design. So `q` can't be a quit key there; the only keys free to mean "quit" are non-printable ones (`Esc`, `Ctrl+C`).
@@ -23659,8 +23031,6 @@ Let's have ESC or left arrow go back in the read view (can keep the footer just 
 And let's have enter or right arrow go to read view from the search result list, can have it just keep enter as the only mention in the footer.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 22:14:10Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:14:11Z)**_
 
@@ -23767,8 +23137,6 @@ in the top left where it says "search" in white, make it "SpecStory Search"
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 22:16:26Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:16:27Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -23812,8 +23180,6 @@ In both the search and read views.
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 22:20:00Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:20:02Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -23833,8 +23199,6 @@ _**Agent (claude-opus-4-8 2026-06-19 22:20:05Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:20:08Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:20:09Z)**_
 
@@ -23884,8 +23248,6 @@ _**User (2026-06-19 22:21:42Z)**_
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-18.20.34.png]
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 22:22:07Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:22:08Z)**_
 
@@ -23945,8 +23307,6 @@ whoa... I had the question first... so it is relevance... how does that work... 
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-19 22:23:27Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-19 22:23:43Z)**_
 
 Ha — fair, let me actually answer that before changing anything. It's **not** random; it's relevance ranking (FTS5's default `rank`, which is **BM25**). Here's what BM25 is doing.
@@ -23991,8 +23351,6 @@ _**User (2026-06-19 22:25:36Z)**_
 yup, recency... can we give sqlite a hint that we aren't interested in the BM25 (presumably by not using the ORDER BY rank) and will that speed up our queries?
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-19 22:26:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:26:18Z)**_
 
@@ -24051,8 +23409,6 @@ go test -v -run TestZZOrder ./pkg/sessionindex/ 2>&1 | grep -E "rank|updated_at"
 Command running in background with ID: b9m5pog1s. Output is being written to: /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/8fd5765e-f98e-45fc-908e-0cfa83ea52be/tasks/b9m5pog1s.output. You will be notified when it completes. To check interim output, use Read on that file path.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:28:33Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:28:34Z)**_
 
@@ -24124,8 +23480,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessioninde
 
 _**Agent (claude-opus-4-8 2026-06-19 22:28:53Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-19 22:28:53Z)**_
-
 Let me fix the now-stale doc comment ("best match first" → recency):
 
 _**Agent (claude-opus-4-8 2026-06-19 22:28:55Z)**_
@@ -24148,8 +23502,6 @@ _**Agent (claude-opus-4-8 2026-06-19 22:29:01Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/8fd5765e-f98e-45fc-908e-0cfa83ea52be/tasks/b9m5pog1s.output`
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:29:08Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:29:08Z)**_
 
@@ -24181,8 +23533,6 @@ pkg/sessionindex/zz_order_test.go:19:1: File is not properly formatted (gofmt)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.520s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:29:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:29:18Z)**_
 
@@ -24225,8 +23575,6 @@ Show benchmark output
     zz_order_test.go:23: updated_at DESC              "t*"       ->  500 rows in 1m12.844513042s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-19 22:29:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-19 22:29:48Z)**_
 
@@ -24288,8 +23636,6 @@ Seem good?
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-20 13:34:02Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-20 13:34:03Z)**_
 
 Good catch — `Dec 31` is genuinely ambiguous when it's from a prior year. Let me look at `relativeTime`:
@@ -24329,8 +23675,6 @@ func relativeTime(iso string) string {
 }
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-20 13:35:14Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-20 13:35:16Z)**_
 
@@ -24384,8 +23728,6 @@ func (m resumeTUI) sessionRow(s sessionindex.Session, selected bool, snippet str
 
 _**Agent (claude-opus-4-8 2026-06-20 13:36:50Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-20 13:36:50Z)**_
-
 Let me see the rest of resume's row (dense mode) so the shared `relativeTime` change doesn't break its layout:
 
 _**Agent (claude-opus-4-8 2026-06-20 13:36:51Z)**_
@@ -24417,8 +23759,6 @@ _**Agent (claude-opus-4-8 2026-06-20 13:36:51Z)**_
 650		flush := func() {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-20 13:38:58Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-20 13:38:59Z)**_
 
@@ -24455,8 +23795,6 @@ _**Agent (claude-opus-4-8 2026-06-20 13:39:00Z)**_
 1449		if s.ProjectID == unknownProjectID || s.ProjectID == "" {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-20 13:39:19Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-20 13:39:20Z)**_
 
@@ -24512,8 +23850,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	(cached)
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-20 13:40:18Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-20 13:40:19Z)**_
 
 Date change is in (build/lint/tests green). Now to your two questions — both are empirical, so let me measure rather than theorize. First I need to see how `sessions_fts` is defined (whether I can rebuild it with a prefix index from existing content):
@@ -24547,8 +23883,6 @@ awk '/func \(s \*Store\) ensureSchema/,/^}/' pkg/sessionindex/store.go | grep -A
 }
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-20 13:41:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-20 13:41:18Z)**_
 
@@ -24658,8 +23992,6 @@ Command running in background with ID: bjq0sjxm1. Output is being written to: /p
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-20 13:41:46Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-20 13:41:49Z)**_
 
 While it runs, let me lay out what each column will tell us:
@@ -24720,8 +24052,6 @@ FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	3.726s
 FAIL
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-20 13:42:18Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-20 13:42:19Z)**_
 
@@ -24817,8 +24147,6 @@ Command running in background with ID: btix24oa6. Output is being written to: /p
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-20 13:42:39Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-20 13:42:40Z)**_
 
 Waiting on that (it builds two ~178MB FTS copies, then runs the matrix). I'll read results when it completes.
@@ -24859,8 +24187,6 @@ func*    26.287625ms      863.67225ms      26.427041ms      862.528833ms     (36
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	78.761s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-20 13:44:41Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-20 13:44:42Z)**_
 
@@ -24939,8 +24265,6 @@ yup... drop prefix index, let's do lazy snippets
 
 _**Agent (claude-opus-4-8 2026-06-23 13:40:46Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-23 13:40:46Z)**_
-
 On it. Lazy snippets it is, prefix index dropped. Let me map every call site I need to change first:
 
 _**Agent (claude-opus-4-8 2026-06-23 13:40:49Z)**_
@@ -25003,8 +24327,6 @@ pkg/sessionindex/store.go:412:			&h.Size, &h.Mtime, &h.IndexVersion, &h.IndexedA
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-23 13:42:21Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-23 13:42:23Z)**_
 
 This is a sizable refactor. To keep the blast radius reviewable, I'll **add** `Search` + `Snippets` (lazy) to the store while keeping `SearchWithSnippets` for now, migrate **`search_tui` first** (where you hit the 10s freezes), and do resume's global search as a follow-up. Let me confirm the store's tail so I anchor the additions correctly:
@@ -25059,8 +24381,6 @@ _**User (2026-06-23 14:11:05Z)**_
 Let's just be sure to get rid of SearchWithSnippets at the end and not leave it laying around unused.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-06-23 14:11:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-23 14:11:31Z)**_
 
