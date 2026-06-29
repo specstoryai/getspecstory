@@ -115,6 +115,21 @@ specstory skills runs --json                 # recent runs and their status
 To generate new skills, kick off a run (`specstory skills run`, or press `n` in the browser to
 watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
 
+### Targeting a non-production cloud
+
+By default the CLI talks to `https://cloud.specstory.com`. To point every command at a
+dev/staging cloud without passing `--cloud-url` each time, set an environment variable:
+
+```zsh
+export SPECSTORY_CLOUD_URL=https://cloud-dev.specstory.com
+specstory login   # authenticate against that cloud
+specstory skills  # ...and everything else now uses it
+```
+
+Resolution order is `--cloud-url` flag → `SPECSTORY_CLOUD_URL` → production default, so a
+one-off `--cloud-url` still wins for a single command. `login` prints the target host when it
+isn't production, so you always know which cloud you're authenticating against.
+
 ## Configuration File
 
 SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:

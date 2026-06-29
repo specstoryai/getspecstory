@@ -71,10 +71,16 @@ specstory login`,
 			// User is not authenticated - start login flow
 			slog.Info("Starting login flow")
 			analytics.TrackEvent(analytics.EventLoginAttempted, nil)
-			loginURL := cloud.GetAPIBaseURL() + "/cli-login"
+			baseURL := cloud.GetAPIBaseURL()
+			loginURL := baseURL + "/cli-login"
 
 			fmt.Println()
 			fmt.Println("🌐 Opening your browser to log in to SpecStory Cloud...")
+			// Surface the target host when it isn't production, so a SPECSTORY_CLOUD_URL
+			// env var (or --cloud-url) can never silently point login at the wrong cloud.
+			if baseURL != cloud.DefaultAPIBaseURL {
+				fmt.Printf("   ↳ cloud: %s\n", baseURL)
+			}
 			fmt.Println()
 
 			// Try to open the browser

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -609,12 +610,27 @@ func SetAPIBaseURL(url string) {
 	apiBaseURL = url
 }
 
-// GetAPIBaseURL returns the base URL for API requests
+// DefaultAPIBaseURL is the production cloud API base URL used when neither the --cloud-url
+// flag nor the SPECSTORY_CLOUD_URL env var is set.
+const DefaultAPIBaseURL = "https://cloud.specstory.com"
+
+// EnvCloudURL overrides the default cloud API base URL for the whole CLI. The --cloud-url
+// flag still takes precedence over it; this is the per-shell convenience for pointing at a
+// dev/staging cloud without passing the flag on every command.
+const EnvCloudURL = "SPECSTORY_CLOUD_URL"
+
+// GetAPIBaseURL returns the base URL for API requests. Precedence, highest first:
+//  1. the --cloud-url flag (set via SetAPIBaseURL)
+//  2. the SPECSTORY_CLOUD_URL environment variable
+//  3. the production default
 func GetAPIBaseURL() string {
-	if apiBaseURL == "" {
-		return "https://cloud.specstory.com" // Default API base URL
+	if apiBaseURL != "" {
+		return apiBaseURL // explicit --cloud-url flag wins
 	}
-	return apiBaseURL
+	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
+		return env
+	}
+	return DefaultAPIBaseURL
 }
 
 // GetUserAgent returns the User-Agent string for API requests
