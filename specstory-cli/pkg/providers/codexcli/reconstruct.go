@@ -19,11 +19,6 @@ import (
 // the loader accepts a synthesized file.
 const reconstructedCodexCliVersion = "0.139.0"
 
-// codexTimestamp formats a time the way Codex records do (RFC3339 millis, Z).
-func codexTimestamp(t time.Time) string {
-	return t.Format("2006-01-02T15:04:05.000Z")
-}
-
 // ReconstructSession rebuilds a Codex CLI native rollout from the neutral
 // SessionData so `codex resume <id>` can continue the conversation.
 //
@@ -60,7 +55,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 
 	// session_meta must be the first record; it also carries provenance.
-	metaTS := codexTimestamp(base)
+	metaTS := spi.RFC3339Millis(base)
 	if err := encode(map[string]interface{}{
 		"timestamp": metaTS,
 		"type":      "session_meta",
@@ -79,7 +74,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 
 	for i, turn := range turns {
-		ts := codexTimestamp(base.Add(time.Duration(i+1) * time.Second))
+		ts := spi.RFC3339Millis(base.Add(time.Duration(i+1) * time.Second))
 
 		var role, contentType, eventType string
 		if turn.Role == schema.RoleUser {

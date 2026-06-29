@@ -28,6 +28,23 @@ const (
 	readerConns = 4
 )
 
+// connectionPragmas are applied to EVERY pooled connection via the DSN rather than run once
+// with db.Exec. synchronous/cache_size/temp_store/mmap_size are per-connection settings, and
+// OpenReader uses several connections — a one-shot Exec would configure only whichever single
+// connection happened to serve it and leave the rest on SQLite defaults, defeating the
+// multi-reader design. page_size only takes effect before the database file is created, so it
+// must be set at open time (on the writer that first creates sessions.db), not after the schema
+// exists. Values avoid spaces so they need no URL escaping in the DSN query string.
+var connectionPragmas = []string{
+	"busy_timeout=15000",
+	"journal_mode(WAL)",
+	"synchronous=NORMAL",
+	"cache_size=-64000",
+	"temp_store=MEMORY",
+	"mmap_size=268435456",
+	"page_size=8192",
+}
+
 // Session is one row of the restore index (the `sessions` table), plus Body, which is
 // indexed into the FTS table rather than stored on the row. See docs/SESSIONS-DB.md.
 type Session struct {
@@ -101,7 +118,7 @@ func openWith(path string, maxConns int) (*Store, error) {
 		return nil, fmt.Errorf("creating database directory: %w", err)
 	}
 
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout=15000&_pragma=journal_mode(WAL)", filepath.ToSlash(path))
+	dsn := "file:" + filepath.ToSlash(path) + "?_pragma=" + strings.Join(connectionPragmas, "&_pragma=")
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("opening sessions.db: %w", err)
@@ -109,19 +126,6 @@ func openWith(path string, maxConns int) (*Store, error) {
 
 	db.SetMaxOpenConns(maxConns)
 	db.SetMaxIdleConns(maxConns)
-
-	for _, p := range []string{
-		"PRAGMA synchronous=NORMAL",
-		"PRAGMA cache_size = -64000",
-		"PRAGMA temp_store = MEMORY",
-		"PRAGMA mmap_size = 268435456",
-		"PRAGMA page_size = 8192",
-	} {
-		if _, err := db.Exec(p); err != nil {
-			_ = db.Close()
-			return nil, fmt.Errorf("setting pragma %q: %w", p, err)
-		}
-	}
 
 	s := &Store{db: db}
 	if err := s.ensureSchema(); err != nil {

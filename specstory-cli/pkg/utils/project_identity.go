@@ -207,27 +207,6 @@ func canonicalizeWorkspacePath(path string) string {
 	return path
 }
 
-// generateGitID generates a git ID by finding and hashing the git origin URL
-func (m *ProjectIdentityManager) generateGitID() (string, error) {
-	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
-
-	// Check if git config exists
-	if _, err := os.Stat(gitConfigPath); err != nil {
-		return "", fmt.Errorf("no git config found: %w", err)
-	}
-
-	// Read the origin remote URL from the config (shared with the walk-up resolver).
-	originURL := readOriginURL(gitConfigPath)
-	if originURL == "" {
-		return "", fmt.Errorf("no origin URL found in git config")
-	}
-
-	// Normalize git URLs to ensure HTTPS and SSH URLs for the same repo generate the same ID
-	normalizedURL := m.normalizeGitURL(originURL)
-
-	return m.createHash(normalizedURL), nil
-}
-
 // normalizeGitURL normalizes a git URL to ensure HTTPS and SSH URLs for the same repo generate the same ID
 // It extracts the host and repository path, normalizing different URL formats to a common form
 func (m *ProjectIdentityManager) normalizeGitURL(gitURL string) string {
@@ -377,20 +356,6 @@ func (m *ProjectIdentityManager) parseGitRemoteURL(remoteURL string) string {
 	return repoName
 }
 
-// generateProjectName generates a project name from git remote or directory name
-func (m *ProjectIdentityManager) generateProjectName() string {
-	// First, try to get from git remote
-	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
-	if originURL := readOriginURL(gitConfigPath); originURL != "" {
-		if repoName := m.parseGitRemoteURL(originURL); repoName != "" {
-			return repoName
-		}
-	}
-
-	// Fallback: use the last component of the project directory
-	return filepath.Base(m.projectRoot)
-}
-
 // GetProjectName returns the project name from the project identity
 func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 	identity, err := m.ReadProjectIdentity()
@@ -407,11 +372,11 @@ func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 // Walk-up identity resolution (shared by ComputeProjectID and the writer).
 //
 // The stored .specstory/.project.json fragments a monorepo: it is written per
-// launch directory, and generateGitID looks for .git at exactly that directory and
-// never walks up — so a session launched from a subdirectory gets no git_id and a
-// path-based workspace_id all its own. The resolver below instead walks UP to the
-// git root and computes identity from there, so every directory inside one repo
-// resolves to a single project. See docs/SESSIONS-DB.md.
+// launch directory, keyed to a .git at exactly that directory with no walk-up — so a
+// session launched from a subdirectory gets no git_id and a path-based workspace_id all
+// its own. The resolver below instead walks UP to the git root and computes identity
+// from there, so every directory inside one repo resolves to a single project. See
+// docs/SESSIONS-DB.md.
 // ---------------------------------------------------------------------------
 
 // originRemoteURLRegex captures the origin remote's url value from a git config file.

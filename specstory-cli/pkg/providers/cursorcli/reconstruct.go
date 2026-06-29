@@ -82,10 +82,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 
 	newID := uuid.NewString()
-	name := data.Slug
-	if name == "" {
-		name = "Resumed session"
-	}
+	name := spi.ResumedSessionTitle(data.Slug)
 
 	// blobs accumulates every blob (id -> data); helper interns by content address.
 	blobs := map[string][]byte{}

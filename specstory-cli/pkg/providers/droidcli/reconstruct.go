@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,11 +13,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
-
-// droidTimestamp formats a time the way Factory Droid records do (RFC3339 millis, Z).
-func droidTimestamp(t time.Time) string {
-	return t.Format("2006-01-02T15:04:05.000Z")
-}
 
 // ReconstructSession rebuilds a Factory Droid native JSONL session from the neutral
 // SessionData so `droid --resume <id>` can continue the conversation.
@@ -38,10 +32,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	newID := uuid.NewString()
 	base := time.Now().UTC()
 
-	title := strings.TrimSpace(data.Slug)
-	if title == "" {
-		title = "Resumed session"
-	}
+	title := spi.ResumedSessionTitle(data.Slug)
 
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
@@ -66,17 +57,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	var prevID string
 	for i, turn := range turns {
 		msgID := uuid.NewString()
-		role := "assistant"
-		if turn.Role == schema.RoleUser {
-			role = "user"
-		}
-
 		rec := map[string]interface{}{
 			"type":      "message",
 			"id":        msgID,
-			"timestamp": droidTimestamp(base.Add(time.Duration(i) * time.Second)),
+			"timestamp": spi.RFC3339Millis(base.Add(time.Duration(i) * time.Second)),
 			"message": map[string]interface{}{
-				"role":    role,
+				"role":    spi.ReconstructRole(turn.Role),
 				"content": []map[string]interface{}{{"type": "text", "text": turn.Text}},
 			},
 		}
