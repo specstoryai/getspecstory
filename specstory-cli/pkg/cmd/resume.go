@@ -95,20 +95,8 @@ a known, installed provider, or the command errors.`
 				}
 			}
 
-			// Read flags (subset mirroring run/watch).
-			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-			useUTC := !useLocalTimezone
-			outputDir, _ := cmd.Flags().GetString("output-dir")
-			flagDebugDir, _ := cmd.Flags().GetString("debug-dir")
-			noCloudSync, _ := cmd.Flags().GetBool("no-cloud-sync")
-			onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
-			provenanceEnabled, _ := cmd.Flags().GetBool("provenance")
-			noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
-
-			if flagDebugDir != "" {
-				spi.SetDebugBaseDir(flagDebugDir)
-			}
+			// Read the run/watch flags that affect the resumed session (shared with `search`).
+			launchOpts := readResumeLaunchOpts(cmd)
 
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -139,33 +127,65 @@ a known, installed provider, or the command errors.`
 				return nil
 			}
 
-			return launchResume(plan, cwd, resumeLaunchOpts{
-				outputDir:          outputDir,
-				flagDebugDir:       flagDebugDir,
-				debugRaw:           debugRaw,
-				useUTC:             useUTC,
-				noCloudSync:        noCloudSync,
-				onlyCloudSync:      onlyCloudSync,
-				provenanceEnabled:  provenanceEnabled,
-				noTelemetryPrompts: noTelemetryPrompts,
-			})
+			return launchResume(plan, cwd, launchOpts)
 		},
 	}
 
-	resumeCmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
-	resumeCmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
-	resumeCmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
-	resumeCmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
-	resumeCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
-	_ = resumeCmd.Flags().MarkHidden("debug-raw")
-	resumeCmd.Flags().Bool("local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
-	resumeCmd.Flags().Bool("provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
-	_ = resumeCmd.Flags().MarkHidden("provenance")
-	resumeCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = resumeCmd.Flags().MarkHidden("cloud-url")
-	resumeCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
-
+	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
 	return resumeCmd
+}
+
+// registerResumeLaunchFlags registers the run/watch flags that affect the resumed session,
+// shared by `resume` and `search` so the two stay in lockstep with each other and with watch.
+// cloud-url binds to the shared pointer the root applies in PersistentPreRunE. The telemetry
+// endpoint/service-name flags are inert here — they are consumed process-wide by main's startup
+// arg scan — and registered only so cobra accepts them. debug-raw, provenance and cloud-url are
+// hidden, matching run/watch.
+func registerResumeLaunchFlags(cmd *cobra.Command, cloudURL *string, localTimeZone bool, debugDir string) {
+	cmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
+	cmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
+	cmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	cmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
+	cmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
+	_ = cmd.Flags().MarkHidden("debug-raw")
+	cmd.Flags().Bool("local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
+	cmd.Flags().Bool("provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
+	_ = cmd.Flags().MarkHidden("provenance")
+	cmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
+	_ = cmd.Flags().MarkHidden("cloud-url")
+	cmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	cmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
+	cmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
+}
+
+// readResumeLaunchOpts reads the session-affecting flags registered by registerResumeLaunchFlags
+// into the launch options, applying the debug-dir override as a side effect (mirrors run/watch).
+// cloud-url and the telemetry endpoint/service-name are consumed elsewhere (PersistentPreRunE and
+// main's startup scan, respectively), so they are deliberately absent from the returned opts.
+func readResumeLaunchOpts(cmd *cobra.Command) resumeLaunchOpts {
+	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
+	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
+	outputDir, _ := cmd.Flags().GetString("output-dir")
+	flagDebugDir, _ := cmd.Flags().GetString("debug-dir")
+	noCloudSync, _ := cmd.Flags().GetBool("no-cloud-sync")
+	onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
+	provenanceEnabled, _ := cmd.Flags().GetBool("provenance")
+	noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
+
+	if flagDebugDir != "" {
+		spi.SetDebugBaseDir(flagDebugDir)
+	}
+
+	return resumeLaunchOpts{
+		outputDir:          outputDir,
+		flagDebugDir:       flagDebugDir,
+		debugRaw:           debugRaw,
+		useUTC:             !useLocalTimezone,
+		noCloudSync:        noCloudSync,
+		onlyCloudSync:      onlyCloudSync,
+		provenanceEnabled:  provenanceEnabled,
+		noTelemetryPrompts: noTelemetryPrompts,
+	}
 }
 
 // resumeLaunchOpts carries the resume launch configuration shared by `resume` and

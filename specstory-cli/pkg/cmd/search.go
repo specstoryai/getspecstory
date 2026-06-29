@@ -18,8 +18,8 @@ import (
 // `specstory resume` (see sessionTUI), entered straight into the all-projects full-text
 // search with the input focused: type to search, `space` previews a match (glamour-rendered),
 // and `r` resumes it through the same launch path as `resume`. See docs/SESSION-SEARCH.md.
-func CreateSearchCommand() *cobra.Command {
-	return &cobra.Command{
+func CreateSearchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
+	searchCmd := &cobra.Command{
 		Use:   "search [query…]",
 		Short: "Search and read your past coding-agent sessions",
 		Long: `Full-text search across every session SpecStory has indexed, then read the match.
@@ -31,6 +31,10 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry := factory.GetRegistry()
 			initialQuery := strings.TrimSpace(strings.Join(args, " "))
+
+			// Read the run/watch flags that affect the resumed session (shared with `resume`),
+			// before opening the index so the debug-dir override is in effect.
+			launchOpts := readResumeLaunchOpts(cmd)
 
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -118,7 +122,10 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				to:      toProv,
 				toID:    rm.result.targetID,
 			}
-			return launchResume(plan, cwd, resumeLaunchOpts{useUTC: true})
+			return launchResume(plan, cwd, launchOpts)
 		},
 	}
+
+	registerResumeLaunchFlags(searchCmd, cloudURL, localTimeZone, debugDir)
+	return searchCmd
 }

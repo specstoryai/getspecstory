@@ -1456,7 +1456,7 @@ func main() {
 	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir)
 	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, localTimeZone, debugDir)
 	reindexCmd := cmdpkg.CreateReindexCommand()
-	searchCmd := cmdpkg.CreateSearchCommand()
+	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, localTimeZone, debugDir)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()
 	checkCmd := cmdpkg.CreateCheckCommand()
