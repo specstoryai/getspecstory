@@ -9,6 +9,8 @@ import (
 
 // codexSessionsRoot returns the root directory where Codex stores session files.
 func codexSessionsRoot(homeDir string) string {
+	// Codex CLI honors CODEX_HOME as its base directory (default ~/.codex), so
+	// read sessions from the same place rather than assuming the default.
 	if codexHome := os.Getenv("CODEX_HOME"); codexHome != "" {
 		return filepath.Join(codexHome, "sessions")
 	}
