@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -428,8 +427,8 @@ func writeReconstructedSession(path string, content []byte) (err error) {
 	return nil
 }
 
-// waitForSessionFileVisible polls until path is readable — present AND with at least its
-// first line available, since on a weak-coherence filesystem a stat can succeed before the
+// waitForSessionFileVisible polls until path is readable — present AND with at least one
+// byte available, since on a weak-coherence filesystem a stat can succeed before the
 // content propagates — or the timeout elapses, in which case it returns a diagnostic error
 // so the caller can fail clearly rather than launch a --resume the agent would reject.
 func waitForSessionFileVisible(path string, timeout time.Duration) error {
@@ -447,9 +446,11 @@ func waitForSessionFileVisible(path string, timeout time.Duration) error {
 	}
 }
 
-// sessionFileReadable reports whether path exists and at least its first line can be read.
-// A reconstructed session always has at least one record, so an empty read means the content
-// has not propagated yet even though the directory entry exists.
+// sessionFileReadable reports whether path exists and at least one byte can be read.
+// A reconstructed session always has content, so an empty read means it has not propagated
+// yet even though the directory entry exists. This is a readiness probe, not a parse: a
+// single-byte read keeps it O(1) and format-agnostic, so it stays cheap for a binary native
+// format (e.g. Cursor's store.db, which has no newline to scan to) as well as JSONL.
 func sessionFileReadable(path string) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -457,8 +458,9 @@ func sessionFileReadable(path string) (bool, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	line, err := bufio.NewReader(f).ReadString('\n')
-	if len(line) > 0 {
+	var b [1]byte
+	n, err := f.Read(b[:])
+	if n > 0 {
 		return true, nil
 	}
 	if err == io.EOF || err == nil {

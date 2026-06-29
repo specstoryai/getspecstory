@@ -1407,9 +1407,9 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "down", "j":
 		m.moveProjCursor(1)
 	case "pgup":
-		m.moveProjCursor(-m.projectsHeight())
+		m.moveProjCursor(-m.projectsBudget())
 	case "pgdown":
-		m.moveProjCursor(m.projectsHeight())
+		m.moveProjCursor(m.projectsBudget())
 	case "home", "g":
 		m.projCursor, m.projTop = 0, 0
 	case "end", "G":
@@ -1477,19 +1477,59 @@ func (m *sessionTUI) applyProjectFilter() {
 }
 
 func (m *sessionTUI) moveProjCursor(delta int) {
-	moveCursorWithin(&m.projCursor, &m.projTop, delta, len(m.projFiltered), m.projectsHeight())
+	n := len(m.projFiltered)
+	if n == 0 {
+		return
+	}
+	m.projCursor += delta
+	if m.projCursor < 0 {
+		m.projCursor = 0
+	}
+	if m.projCursor > n-1 {
+		m.projCursor = n - 1
+	}
+	m.clampProjScroll()
 }
 
+// clampProjScroll scrolls projTop so the cursor row stays on screen, counting the interspersed
+// date-bucket headers (via projLines) rather than assuming one line per row. The generic
+// clampScrollWithin can't be used here because those headers make the rows variable-height.
 func (m *sessionTUI) clampProjScroll() {
-	clampScrollWithin(&m.projCursor, &m.projTop, m.projectsHeight())
+	if m.projCursor < m.projTop {
+		m.projTop = m.projCursor // cursor above the window — pull the top up to it
+	}
+	// Cursor below the fold: advance the top until rows [projTop, projCursor] fit the budget.
+	budget := m.projectsBudget()
+	for m.projTop < m.projCursor && m.projLines(m.projTop, m.projCursor+1) > budget {
+		m.projTop++
+	}
 }
 
-// projectsHeight reserves room for chrome plus a few date-bucket header lines.
-func (m sessionTUI) projectsHeight() int {
-	const chrome = 9
+// projLines is how many terminal lines the project rows [from, end) occupy, including the
+// date-bucket header renderProjects emits at the first rendered row and at every bucket change.
+// It is the shared accounting clampProjScroll and renderProjects both use, so they agree on
+// exactly which rows fit and the cursor can never land below the fold.
+func (m sessionTUI) projLines(from, end int) int {
+	lines := 0
+	prevBucket := "" // the first rendered row always emits a header (matches renderProjects)
+	for i := from; i < end; i++ {
+		if b := dateBucket(m.projFiltered[i].LastActivity); b != prevBucket {
+			lines++ // bucket header line
+			prevBucket = b
+		}
+		lines++ // the project row itself
+	}
+	return lines
+}
+
+// projectsBudget is the number of terminal lines available to the project list region. The
+// project rows AND the date-bucket headers share this budget (see projLines), so the floor is
+// 2 — room for at least the cursor row plus its header.
+func (m sessionTUI) projectsBudget() int {
+	const chrome = 5 // header(1) + two rules(2) + footer(1) + margin
 	avail := m.height - chrome
-	if avail < 1 {
-		avail = 1
+	if avail < 2 {
+		avail = 2
 	}
 	return avail
 }
@@ -1505,16 +1545,27 @@ func (m sessionTUI) renderProjects() string {
 	if len(m.projFiltered) == 0 {
 		b.WriteString(styFaint.Render("  No projects match."))
 	} else {
-		h := m.projectsHeight()
-		end := min(m.projTop+h, len(m.projFiltered))
+		// Fill the line budget exactly, charging a line for each bucket header as well as each
+		// row, so the rendered block never overflows past the fold (see projLines/clampProjScroll).
+		budget := m.projectsBudget()
+		lines := 0
 		lastBucket := ""
-		for i := m.projTop; i < end; i++ {
+		for i := m.projTop; i < len(m.projFiltered); i++ {
 			p := m.projFiltered[i]
-			if bucket := dateBucket(p.LastActivity); bucket != lastBucket {
+			bucket := dateBucket(p.LastActivity)
+			cost := 1
+			if bucket != lastBucket {
+				cost++ // room for the bucket header line
+			}
+			if lines+cost > budget {
+				break // out of vertical room
+			}
+			if bucket != lastBucket {
 				b.WriteString(styFaint.Render("  ── "+bucket) + "\n")
 				lastBucket = bucket
 			}
 			b.WriteString(m.projectRow(p, i == m.projCursor) + "\n")
+			lines += cost
 		}
 	}
 
