@@ -318,3 +318,38 @@ func printDetectionHelp() {
 	log.UserMessage("No DeepSeek TUI sessions found under ~/.deepseek/sessions yet.\n")
 	log.UserMessage("Run DeepSeek TUI inside this project to create a session, then rerun `specstory sync deepseek`.\n")
 }
+
+// ListAllAgentChatSessions enumerates every DeepSeek TUI session in
+// ~/.deepseek/sessions/. DeepSeek sessions are not project-scoped by directory; the
+// originating workspace is recorded in each session's metadata.workspace field. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	files, err := listSessionFiles()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []spi.GlobalSessionRef{}, nil
+		}
+		return nil, err
+	}
+
+	var refs []spi.GlobalSessionRef
+	for _, file := range files {
+		metadata, err := extractSessionMetadata(file.Path)
+		if err != nil {
+			slog.Debug("reindex: failed to extract deepseek session metadata", "path", file.Path, "error", err)
+			continue
+		}
+		if metadata == nil {
+			continue // empty session
+		}
+		refs = append(refs, spi.GlobalSessionRef{
+			SessionID:  metadata.SessionID,
+			CreatedAt:  metadata.CreatedAt,
+			Slug:       metadata.Slug,
+			Name:       metadata.Name,
+			NativePath: file.Path,
+			OriginCwd:  extractWorkspaceFast(file.Path),
+		})
+	}
+	return refs, nil
+}

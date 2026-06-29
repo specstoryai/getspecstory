@@ -1279,3 +1279,52 @@ claude_cmd = "claude --project-level"
 		}
 	})
 }
+
+func TestUpsertResumeSection_AppendWhenAbsent(t *testing.T) {
+	in := "[local_sync]\n# enabled = false\n"
+	out := upsertResumeSection(in, "sparse", "codex")
+	if !strings.Contains(out, "[local_sync]") || !strings.Contains(out, "# enabled = false") {
+		t.Errorf("existing section/comments not preserved:\n%s", out)
+	}
+	if !strings.Contains(out, "[resume]") || !strings.Contains(out, `view_mode = "sparse"`) || !strings.Contains(out, `last_agent = "codex"`) {
+		t.Errorf("resume section not appended:\n%s", out)
+	}
+	var cfg Config
+	if _, err := toml.Decode(out, &cfg); err != nil {
+		t.Fatalf("result is not valid TOML: %v", err)
+	}
+	if cfg.GetResumeViewMode() != "sparse" || cfg.GetResumeLastAgent() != "codex" {
+		t.Errorf("round-trip mismatch: %+v", cfg.Resume)
+	}
+}
+
+func TestUpsertResumeSection_ReplacePreservingOthers(t *testing.T) {
+	in := "[resume]\nview_mode = \"dense\"\nlast_agent = \"claude\"\n\n[providers]\n# claude_cmd = \"claude\"\n"
+	out := upsertResumeSection(in, "sparse", "gemini")
+	// The other section and its comment must survive untouched.
+	if !strings.Contains(out, "[providers]") || !strings.Contains(out, `# claude_cmd = "claude"`) {
+		t.Errorf("trailing section clobbered:\n%s", out)
+	}
+	// Old resume values replaced, not duplicated.
+	if strings.Count(out, "[resume]") != 1 {
+		t.Errorf("resume section duplicated:\n%s", out)
+	}
+	var cfg Config
+	if _, err := toml.Decode(out, &cfg); err != nil {
+		t.Fatalf("invalid TOML: %v", err)
+	}
+	if cfg.GetResumeViewMode() != "sparse" || cfg.GetResumeLastAgent() != "gemini" {
+		t.Errorf("values not replaced: %+v", cfg.Resume)
+	}
+}
+
+func TestGetResumeViewModeDefaults(t *testing.T) {
+	var c Config
+	if c.GetResumeViewMode() != "dense" {
+		t.Errorf("default view mode = %q; want dense", c.GetResumeViewMode())
+	}
+	c.Resume.ViewMode = "sparse"
+	if c.GetResumeViewMode() != "sparse" {
+		t.Errorf("view mode not honored")
+	}
+}

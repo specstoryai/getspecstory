@@ -831,8 +831,8 @@ func TestBuildDAGs_LargeDataset(t *testing.T) {
 		validate     func(t *testing.T, dags [][]JSONLRecord, recordCount int)
 	}{
 		{
-			name:         "Single session with 10000 records",
-			recordCount:  10000,
+			name:         "Single session with 30000 records",
+			recordCount:  30000,
 			sessionCount: 1,
 			description:  "Should handle deep chain without stack overflow",
 			validate: func(t *testing.T, dags [][]JSONLRecord, recordCount int) {
@@ -846,9 +846,9 @@ func TestBuildDAGs_LargeDataset(t *testing.T) {
 			},
 		},
 		{
-			name:         "Multiple sessions totaling 10000 records",
-			recordCount:  10000,
-			sessionCount: 100, // 100 sessions with 100 records each
+			name:         "Multiple sessions totaling 30000 records",
+			recordCount:  30000,
+			sessionCount: 100, // 100 sessions with 300 records each
 			description:  "Should handle many separate DAGs efficiently",
 			validate: func(t *testing.T, dags [][]JSONLRecord, recordCount int) {
 				if len(dags) != 100 {
@@ -884,8 +884,13 @@ func TestBuildDAGs_LargeDataset(t *testing.T) {
 			dags := parser.buildDAGs(records)
 			elapsed := time.Since(startTime)
 
-			// Performance check - should complete within reasonable time
-			maxDuration := 20 * time.Second
+			// Performance tripwire against reintroducing an O(N²) children/parent lookup in DAG
+			// construction (a per-node scan of all records once cost a real ~25k-record project
+			// 50s+ in `specstory sync`). The linear builder does 30k records in tens of ms, so
+			// this 3s ceiling is a ~100x margin against CI jitter while staying well under where
+			// a quadratic lands. Dataset size matters: an O(N²) bug only trips the ceiling once
+			// N is large enough, so this must stay in the tens of thousands, not the thousands.
+			maxDuration := 3 * time.Second
 			if elapsed > maxDuration {
 				t.Errorf("%s: DAG building took %v, exceeding max duration of %v",
 					tt.description, elapsed, maxDuration)

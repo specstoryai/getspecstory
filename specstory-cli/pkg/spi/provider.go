@@ -95,4 +95,31 @@ type Provider interface {
 	// sessionCallback: called with AgentChatSession on each update (provider should not block on callback)
 	// The implementation should handle its own file watching and session tracking
 	WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*AgentChatSession)) error
+
+	// ReconstructSession rebuilds the provider's native session format from the
+	// neutral SessionData so the agent can resume the conversation (the reverse of
+	// the parse/generate path). It is a pure transform: it returns the native file
+	// bytes, a freshly minted native-format session ID, and a suggested filename,
+	// but does NOT touch the filesystem — writing into the live agent store is the
+	// caller's responsibility.
+	//
+	// Every provider carries this responsibility; providers that do not yet have a
+	// native serializer return ErrReconstructionUnsupported.
+	// See docs/SESSION-PORTABILITY.md for the design.
+	ReconstructSession(data *schema.SessionData, opts ReconstructOptions) (*ReconstructedSession, error)
+
+	// NativeSessionPath resolves the absolute path where a reconstructed session
+	// file (with the given base filename, from ReconstructedSession.Filename)
+	// belongs in this provider's native store for the given project, WITHOUT
+	// requiring the directory to exist — the caller creates it and writes the file.
+	// Providers without a native serializer return ErrReconstructionUnsupported.
+	NativeSessionPath(projectPath string, filename string) (string, error)
+
+	// ListAllAgentChatSessions enumerates every session in this provider's native
+	// store, regardless of project — the inverse of the project-scoped
+	// ListAgentChatSessions. Each returned ref carries the originating cwd (read from
+	// inside the session) so the caller can resolve project identity; the project is
+	// discovered, not supplied. Lightweight: metadata only, no full SessionData parse.
+	// Used by `specstory reindex` to (re)build the restore index. See docs/SESSIONS-DB.md.
+	ListAllAgentChatSessions() ([]GlobalSessionRef, error)
 }
