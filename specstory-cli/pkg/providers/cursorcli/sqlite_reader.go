@@ -181,7 +181,7 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 
 	slog.Debug("Opening Cursor CLI SQLite database", "path", dbPath)
 
-	// Open the database in read-only mode
+	// Open the database in read-only mode with controlled connection pooling
 	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
 	if err != nil {
 		return "", "", nil, nil, fmt.Errorf("failed to open database: %w", err)
@@ -192,16 +192,12 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 		}
 	}()
 
-	slog.Debug("Successfully opened database", "path", dbPath)
+	// Limit the connection pool to prevent file descriptor accumulation
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(30 * time.Second)
 
-	// Enable WAL mode for non-blocking reads
-	// This prevents readers from blocking the cursor-agent writer
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		// Log warning but continue - not fatal if WAL fails
-		slog.Warn("Failed to enable WAL mode", "error", err)
-	} else {
-		slog.Debug("Enabled WAL mode for non-blocking reads")
-	}
+	slog.Debug("Successfully opened database", "path", dbPath)
 
 	// Validate that this is actually a Cursor database with the expected schema
 	if err := validateCursorDatabase(db); err != nil {
@@ -356,6 +352,47 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 	slug := extractSlugFromBlobs(blobRecords)
 
 	return createdAt, slug, blobRecords, orphanRecords, nil
+}
+
+// EnsureWALMode ensures the database is running in WAL journal mode.
+// WAL mode is required so that the -wal file exists and file modification
+// detection works reliably. This opens a brief read-write connection and
+// is intended to be called once per session database, not on every read.
+func EnsureWALMode(dbPath string) error {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open database for WAL check: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close database after WAL check", "error", closeErr)
+		}
+	}()
+
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	var currentMode string
+	if err := db.QueryRow("PRAGMA journal_mode").Scan(&currentMode); err != nil {
+		return fmt.Errorf("failed to query journal mode: %w", err)
+	}
+
+	if strings.EqualFold(currentMode, "wal") {
+		slog.Debug("Database already in WAL mode", "path", dbPath)
+		return nil
+	}
+
+	var newMode string
+	if err := db.QueryRow("PRAGMA journal_mode=WAL").Scan(&newMode); err != nil {
+		return fmt.Errorf("failed to set WAL mode: %w", err)
+	}
+
+	if !strings.EqualFold(newMode, "wal") {
+		return fmt.Errorf("failed to enable WAL mode: got %q instead", newMode)
+	}
+
+	slog.Info("Enabled WAL mode on database", "path", dbPath)
+	return nil
 }
 
 // min returns the minimum of two integers

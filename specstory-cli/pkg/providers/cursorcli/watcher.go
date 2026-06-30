@@ -192,22 +192,21 @@ func (w *CursorWatcher) checkForChanges() {
 		dbPath := filepath.Join(w.hashDir, sessionID, "store.db")
 
 		// Check if database exists
-		fileInfo, err := os.Stat(dbPath)
-		if err != nil {
+		if _, err := os.Stat(dbPath); err != nil {
 			continue // Skip sessions without store.db
 		}
 
 		// For NEW sessions, process them once and then watch for changes
 		if !isKnown {
 			// Check if we've already seen this new session
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
+			if w.hasSessionChanged(sessionID, dbPath) {
 				slog.Info("Detected NEW Cursor session", "sessionId", sessionID)
 				w.processSessionChanges(sessionID, dbPath)
 			}
 		} else if isResumed {
 			// For resumed session, check for changes
 			slog.Debug("Polling resumed session for changes", "sessionId", sessionID)
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
+			if w.hasSessionChanged(sessionID, dbPath) {
 				slog.Info("Detected changes in resumed Cursor session", "sessionId", sessionID)
 				w.processSessionChanges(sessionID, dbPath)
 			} else {
@@ -218,14 +217,14 @@ func (w *CursorWatcher) checkForChanges() {
 }
 
 // hasSessionChanged checks if a session database has new records
-func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo, dbPath string) bool {
+func (w *CursorWatcher) hasSessionChanged(sessionID string, dbPath string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
 	// Always check record count - don't rely on file modification time
 	// SQLite with WAL mode may not update file mtime when records are added
 
-	// Open database to count records (with WAL mode)
+	// Open database to count records (read-only with controlled pool)
 	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
 	if err != nil {
 		slog.Error("Failed to open database", "sessionId", sessionID, "error", err)
@@ -237,10 +236,10 @@ func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo
 		}
 	}()
 
-	// Enable WAL mode for non-blocking reads
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		slog.Debug("Failed to enable WAL mode in watcher", "error", err)
-	}
+	// Limit the connection pool to prevent file descriptor accumulation
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(30 * time.Second)
 
 	// Count total records in the blobs table
 	var count int
@@ -255,6 +254,12 @@ func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo
 	w.lastCounts[sessionID] = count
 
 	if !countExists {
+		// First time seeing this session - ensure WAL mode before we start polling it
+		if err := EnsureWALMode(dbPath); err != nil {
+			slog.Warn("Failed to ensure WAL mode on session database",
+				"sessionId", sessionID, "error", err)
+		}
+
 		// First time seeing this session - only process if it has content
 		if count > 0 {
 			slog.Debug("First check of session with content", "sessionId", sessionID, "recordCount", count)
