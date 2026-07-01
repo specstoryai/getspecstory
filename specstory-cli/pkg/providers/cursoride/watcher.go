@@ -31,6 +31,7 @@ type CursorIDEWatcher struct {
 	lastThrottledCall time.Time        // Track last throttled call
 	pendingCheck      bool             // Whether a check is pending after throttle
 	fsWatcher         *fsnotify.Watcher
+	initialCheckTimer *time.Timer // Cancelled in Stop() so it can't fire a check after shutdown begins
 	// pendingIncomplete tracks sessions whose last bubble is a user message with no agent
 	// response yet. Cursor writes the user bubble and updates lastUpdatedAt atomically,
 	// so the header count matches the loaded bubble count (the existing bubble-count guard
@@ -143,8 +144,9 @@ func (w *CursorIDEWatcher) Start() error {
 	w.wg.Add(1)
 	go w.safetyNetPoller()
 
-	// Perform initial check after a short delay
-	time.AfterFunc(5*time.Second, func() {
+	// Perform initial check after a short delay. The timer is stored so Stop() can
+	// cancel it if it hasn't fired yet.
+	w.initialCheckTimer = time.AfterFunc(5*time.Second, func() {
 		w.triggerCheck("initial")
 	})
 
@@ -155,6 +157,12 @@ func (w *CursorIDEWatcher) Start() error {
 // Stop gracefully stops the watcher
 func (w *CursorIDEWatcher) Stop() {
 	slog.Info("Stopping Cursor IDE watcher")
+
+	// Stop the initial-check timer in case it hasn't fired yet — no point starting a
+	// check that would just have to be waited on below.
+	if w.initialCheckTimer != nil {
+		w.initialCheckTimer.Stop()
+	}
 
 	// Perform one final check before stopping
 	slog.Info("Performing final check for changes before stopping")
@@ -267,9 +275,17 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 				"trigger", trigger,
 				"delay", delay)
 
+			w.wg.Add(1)
 			go func() {
-				time.Sleep(delay)
-				w.executePendingCheck()
+				defer w.wg.Done()
+				timer := time.NewTimer(delay)
+				defer timer.Stop()
+				select {
+				case <-w.ctx.Done():
+					return
+				case <-timer.C:
+					w.executePendingCheck()
+				}
 			}()
 		}
 		return
@@ -278,7 +294,21 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 	// Execute immediately
 	w.lastThrottledCall = now
 	w.pendingCheck = false
-	go w.checkForChanges(trigger)
+	w.runCheckAsync(trigger)
+}
+
+// runCheckAsync runs checkForChanges in a new goroutine tracked by w.wg, so Stop()'s
+// w.wg.Wait() actually waits for it instead of returning while it's still running.
+// It's a no-op if the watcher's context is already cancelled.
+func (w *CursorIDEWatcher) runCheckAsync(trigger string) {
+	if w.ctx.Err() != nil {
+		return
+	}
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.checkForChanges(trigger)
+	}()
 }
 
 // executePendingCheck executes a pending check if one was scheduled
@@ -296,7 +326,7 @@ func (w *CursorIDEWatcher) executePendingCheck() {
 	if timeSinceLastCall >= w.throttleDuration {
 		w.lastThrottledCall = now
 		w.pendingCheck = false
-		go w.checkForChanges("throttled")
+		w.runCheckAsync("throttled")
 	}
 }
 
