@@ -360,6 +360,69 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	return metadataList, nil
 }
 
+// ListAllAgentChatSessions enumerates every Cursor IDE session across all workspaces,
+// regardless of project. OriginCwd is derived from the workspace.json that references
+// each composer; when a composer appears in multiple workspaces (WSL/SSH setups) the
+// first-seen path is used. NativePath is the global database path (shared by all sessions)
+// because Cursor IDE stores all conversations as key-value rows in a single state.vscdb.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	slog.Debug("ListAllAgentChatSessions: enumerating all Cursor IDE sessions")
+
+	// Build composerID → project path mapping by scanning all workspace databases.
+	composerToPath, err := ScanAllWorkspaceComposerPaths()
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan workspaces: %w", err)
+	}
+	if len(composerToPath) == 0 {
+		return []spi.GlobalSessionRef{}, nil
+	}
+
+	// Load lightweight composer metadata from the global database (no bubble data).
+	globalDbPath, err := GetGlobalDatabasePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global database path: %w", err)
+	}
+	composers, err := LoadAllComposerDataLightweight(globalDbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer metadata: %w", err)
+	}
+
+	var refs []spi.GlobalSessionRef
+	for composerID, projectPath := range composerToPath {
+		composer, exists := composers[composerID]
+		if !exists {
+			// Workspace references a composer that no longer exists in the global DB.
+			slog.Debug("Composer referenced in workspace but missing from global DB",
+				"composerID", composerID)
+			continue
+		}
+
+		// Skip composers that have never had a conversation.
+		if len(composer.Conversation) == 0 && len(composer.FullConversationHeadersOnly) == 0 {
+			slog.Debug("Skipping empty composer", "composerID", composerID)
+			continue
+		}
+
+		var createdAt string
+		if composer.CreatedAt > 0 {
+			t := time.Unix(composer.CreatedAt/1000, (composer.CreatedAt%1000)*1000000).UTC()
+			createdAt = t.Format(time.RFC3339)
+		}
+
+		refs = append(refs, spi.GlobalSessionRef{
+			SessionID:  composerID,
+			CreatedAt:  createdAt,
+			Slug:       generateSlug(composer),
+			Name:       generateCursorIDESessionName(composer),
+			NativePath: globalDbPath,
+			OriginCwd:  projectPath,
+		})
+	}
+
+	slog.Info("Listed all Cursor IDE sessions", "count", len(refs))
+	return refs, nil
+}
+
 // ExecAgentAndWatch is not supported for Cursor IDE (IDE-based, not CLI)
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	return fmt.Errorf("cursor IDE does not support execution via CLI (IDE-based, not CLI-based)")

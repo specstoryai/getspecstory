@@ -419,6 +419,84 @@ func LoadComposerIDsFromAllWorkspaces(workspaces []WorkspaceMatch) ([]string, er
 	return allIDs, nil
 }
 
+// ScanAllWorkspaceComposerPaths enumerates every Cursor IDE workspace directory and
+// returns a map of composerID → project path (the OriginCwd for each session).
+// When a composer appears in multiple workspaces (e.g. WSL/SSH setups), the first-seen
+// workspace path is used. Workspaces that cannot be read are silently skipped so a
+// single bad entry does not abort the whole enumeration.
+func ScanAllWorkspaceComposerPaths() (map[string]string, error) {
+	workspaceStoragePath, err := GetWorkspaceStoragePath()
+	if err != nil {
+		// No workspace storage directory means Cursor IDE has never been opened.
+		slog.Debug("Workspace storage not found, no Cursor IDE sessions", "error", err)
+		return map[string]string{}, nil
+	}
+	return scanWorkspaceDirForComposerPaths(workspaceStoragePath)
+}
+
+// scanWorkspaceDirForComposerPaths does the actual directory walk for
+// ScanAllWorkspaceComposerPaths. It is a separate function so tests can call it
+// directly with a temp directory rather than relying on the live Cursor installation.
+func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]string, error) {
+	entries, err := os.ReadDir(workspaceStoragePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read workspace storage: %w", err)
+	}
+
+	composerToPath := make(map[string]string)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		workspacePath := filepath.Join(workspaceStoragePath, entry.Name())
+		dbPath := filepath.Join(workspacePath, "state.vscdb")
+		if _, statErr := os.Stat(dbPath); statErr != nil {
+			continue // workspace directory has no database yet
+		}
+
+		workspaceJSON, jsonErr := readWorkspaceJSON(filepath.Join(workspacePath, "workspace.json"))
+		if jsonErr != nil {
+			slog.Debug("Skipping workspace (no valid workspace.json)",
+				"workspace", entry.Name(), "error", jsonErr)
+			continue
+		}
+
+		workspaceURI := workspaceJSON.Workspace
+		if workspaceURI == "" {
+			workspaceURI = workspaceJSON.Folder
+		}
+		if workspaceURI == "" {
+			continue
+		}
+
+		projectPath, uriErr := uriToPath(workspaceURI)
+		if uriErr != nil {
+			slog.Debug("Skipping workspace (unresolvable URI)",
+				"workspace", entry.Name(), "uri", workspaceURI, "error", uriErr)
+			continue
+		}
+
+		composerIDs, idsErr := LoadWorkspaceComposerIDs(dbPath)
+		if idsErr != nil {
+			slog.Warn("Failed to load composer IDs from workspace",
+				"workspace", entry.Name(), "error", idsErr)
+			continue
+		}
+
+		for _, id := range composerIDs {
+			if _, exists := composerToPath[id]; !exists {
+				// First-seen workspace path wins; a composer scoped to multiple workspaces
+				// (WSL/SSH setups) is attributed to whichever workspace is encountered first.
+				composerToPath[id] = projectPath
+			}
+		}
+	}
+
+	slog.Debug("Scanned all workspaces for composer paths", "composerCount", len(composerToPath))
+	return composerToPath, nil
+}
+
 // readWorkspaceJSON reads and parses a workspace.json file
 func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	data, err := os.ReadFile(path)

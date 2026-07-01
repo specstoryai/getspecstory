@@ -313,3 +313,52 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 
 	return composers, nil
 }
+
+// LoadAllComposerDataLightweight loads composer records for all sessions in the global database.
+// Unlike LoadComposerDataBatch, it only reads composerData:* keys — no bubble records — so it
+// is fast enough for global enumeration (ListAllAgentChatSessions). Inline conversation turns
+// are included when present (Cursor 2 format); for Cursor 3 only the header list is returned
+// and slug/name derivation falls back to the composer Name field.
+func LoadAllComposerDataLightweight(globalDbPath string) (map[string]*ComposerData, error) {
+	db, err := OpenDatabase(globalDbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open global database: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close global database", "error", closeErr)
+		}
+	}()
+
+	rows, err := db.Query("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'")
+	if err != nil {
+		return nil, fmt.Errorf("failed to query composer data: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Warn("Failed to close query rows", "error", closeErr)
+		}
+	}()
+
+	composers := make(map[string]*ComposerData)
+	for rows.Next() {
+		var key, valueJSON string
+		if err := rows.Scan(&key, &valueJSON); err != nil {
+			slog.Warn("Failed to scan composer row", "error", err)
+			continue
+		}
+		composerID := strings.TrimPrefix(key, "composerData:")
+		var composer ComposerData
+		if err := json.Unmarshal([]byte(valueJSON), &composer); err != nil {
+			slog.Warn("Failed to parse composer data", "composerID", composerID, "error", err)
+			continue
+		}
+		composers[composerID] = &composer
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating composer rows: %w", err)
+	}
+
+	slog.Debug("Loaded lightweight composer data from global database", "count", len(composers))
+	return composers, nil
+}
