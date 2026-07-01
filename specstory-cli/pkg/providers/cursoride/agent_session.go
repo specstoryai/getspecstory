@@ -57,8 +57,10 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 
 	// Convert conversation messages to exchanges
 	// Each exchange groups one user turn with the agent response(s) that follow it.
+	// ExchangeID is assigned after the loop (sessionID:index) rather than derived from
+	// the triggering bubble's ID, matching every other provider — see the assignment
+	// pass below.
 	var currentMessages []schema.Message
-	var currentExchangeID string // bubble ID of the user message that started the current exchange
 	for i, bubble := range composer.Conversation {
 		// Skip empty bubbles that have no content to display
 		// BUT: Don't skip tool invocations (capabilityType=15) - they generate content from tool data
@@ -141,20 +143,10 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 		}
 
 		// If this is a user message and we have pending messages, flush the current exchange
-		// and start a new one keyed by this user bubble.
+		// and start a new one.
 		if bubble.Type == 1 && len(currentMessages) > 0 {
-			exchange := schema.Exchange{
-				ExchangeID: currentExchangeID,
-				Messages:   currentMessages,
-			}
-			sessionData.Exchanges = append(sessionData.Exchanges, exchange)
+			sessionData.Exchanges = append(sessionData.Exchanges, schema.Exchange{Messages: currentMessages})
 			currentMessages = nil
-			currentExchangeID = bubble.BubbleID
-		}
-
-		// Record the exchange ID from the first user bubble of each exchange.
-		if bubble.Type == 1 && currentExchangeID == "" {
-			currentExchangeID = bubble.BubbleID
 		}
 
 		currentMessages = append(currentMessages, message)
@@ -162,11 +154,13 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 
 	// Create final exchange if there are remaining messages
 	if len(currentMessages) > 0 {
-		exchange := schema.Exchange{
-			ExchangeID: currentExchangeID,
-			Messages:   currentMessages,
-		}
-		sessionData.Exchanges = append(sessionData.Exchanges, exchange)
+		sessionData.Exchanges = append(sessionData.Exchanges, schema.Exchange{Messages: currentMessages})
+	}
+
+	// Assign exchangeId to each exchange (format: sessionId:index), matching every
+	// other provider. Always non-empty, unlike deriving it from a triggering bubble ID.
+	for i := range sessionData.Exchanges {
+		sessionData.Exchanges[i].ExchangeID = fmt.Sprintf("%s:%d", sessionID, i)
 	}
 
 	// Marshal to JSON for raw data
