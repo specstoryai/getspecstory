@@ -11,9 +11,11 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// ConvertToAgentChatSession converts Cursor composer data to AgentChatSession format
+// ConvertToAgentChatSession converts Cursor composer data to AgentChatSession format.
+// workspaceRoot is the project path the caller is scanning — threaded straight through
+// to SessionData.WorkspaceRoot, matching every other provider's convention.
 // This is a minimal implementation - markdown output will be improved later
-func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, error) {
+func ConvertToAgentChatSession(composer *ComposerData, workspaceRoot string) (*spi.AgentChatSession, error) {
 	// Use composer ID as session ID
 	sessionID := composer.ComposerID
 
@@ -37,10 +39,11 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			Name:    "Cursor IDE",
 			Version: "unknown",
 		},
-		SessionID: sessionID,
-		CreatedAt: createdAt,
-		Slug:      slug,
-		Exchanges: []schema.Exchange{},
+		SessionID:     sessionID,
+		CreatedAt:     createdAt,
+		Slug:          slug,
+		WorkspaceRoot: workspaceRoot,
+		Exchanges:     []schema.Exchange{},
 	}
 
 	// Get composer-level model name as fallback

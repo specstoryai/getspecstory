@@ -474,7 +474,7 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 			}
 
 			// Convert to AgentChatSession
-			session, err := ConvertToAgentChatSession(composer)
+			session, err := ConvertToAgentChatSession(composer, w.projectPath)
 			if err != nil {
 				// Don't advance knownComposers on failure — leave the watermark where it
 				// was so this composer is retried on the next check instead of being

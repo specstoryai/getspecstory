@@ -177,7 +177,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 			continue
 		}
 
-		session, err := ConvertToAgentChatSession(composer)
+		session, err := ConvertToAgentChatSession(composer, projectPath)
 		if err != nil {
 			slog.Warn("Failed to convert composer to session",
 				"composerID", composerID,
@@ -281,7 +281,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	}
 
 	// Step 7: Convert to AgentChatSession
-	session, err := ConvertToAgentChatSession(composer)
+	session, err := ConvertToAgentChatSession(composer, projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert composer to session: %w", err)
 	}
