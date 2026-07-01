@@ -192,40 +192,27 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 	}, nil
 }
 
-// generateSlug creates a slug from the composer name or first user message
+// generateSlug creates a filesystem-safe slug from the composer name or first user message,
+// matching the spi.GenerateFilenameFromUserMessage convention used by every other provider.
 func generateSlug(composer *ComposerData) string {
 	// Use composer name if available
 	if composer.Name != "" {
-		return slugify(composer.Name)
+		if slug := spi.GenerateFilenameFromUserMessage(composer.Name); slug != "" {
+			return slug
+		}
 	}
 
 	// Otherwise, use first user message
 	for _, bubble := range composer.Conversation {
 		if bubble.Type == 1 && bubble.Text != "" {
-			// Take first 4 words
-			return slugifyText(bubble.Text, 4)
+			if slug := spi.GenerateFilenameFromUserMessage(bubble.Text); slug != "" {
+				return slug
+			}
 		}
 	}
 
 	// Fallback to composer ID
 	return composer.ComposerID
-}
-
-// slugify converts a string to a slug while preserving casing
-// The casing is preserved for use in titles, and will be lowercased for filenames by the caller
-func slugify(s string) string {
-	// Replace spaces with hyphens, keep original casing
-	s = strings.ReplaceAll(s, " ", "-")
-	return s
-}
-
-// slugifyText converts text to a slug using the first N words
-func slugifyText(text string, wordCount int) string {
-	words := strings.Fields(text)
-	if len(words) > wordCount {
-		words = words[:wordCount]
-	}
-	return slugify(strings.Join(words, " "))
 }
 
 // getRoleFromType converts Cursor's message type to schema role
