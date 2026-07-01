@@ -14,7 +14,7 @@ require (
 	github.com/charmbracelet/fang v0.4.4 // Styled terminal output for Cobra commands
 	github.com/fsnotify/fsnotify v1.9.0 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
-	github.com/posthog/posthog-go v1.15.0 // Analytics tracking
+	github.com/posthog/posthog-go v1.17.2 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
@@ -39,6 +39,7 @@ require (
 
 require (
 	github.com/alecthomas/chroma/v2 v2.20.0 // indirect
+	github.com/andybalholm/brotli v1.1.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
@@ -65,6 +66,7 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.23 // indirect
