@@ -91,7 +91,7 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 				if languageId, hasLang := codeblockData["languageId"].(string); hasLang {
 					lang = languageId
 				}
-				fmt.Fprintf(&message, "```%s\n%s\n```\n\n", lang, content)
+				fmt.Fprintf(&message, "```%s\n%s\n```\n\n", lang, escapeCodeBlock(content))
 			}
 		}
 	}
@@ -265,7 +265,7 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 				}
 			}
 			language := extensionToLanguage(extension)
-			fmt.Fprintf(&message, "```%s\n%s\n```\n\n", language, result.TextEditContent)
+			fmt.Fprintf(&message, "```%s\n%s\n```\n\n", language, escapeCodeBlock(result.TextEditContent))
 		} else {
 			message.WriteString("_No content to show_\n")
 		}

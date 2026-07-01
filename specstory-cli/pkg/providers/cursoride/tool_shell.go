@@ -55,8 +55,8 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (string, 
 
 	// If we have a command, show it in the summary and as a bash block
 	if command != "" {
-		fmt.Fprintf(&message, " • Run command: %s</summary>\n\n", command)
-		fmt.Fprintf(&message, "```bash\n%s\n```", command)
+		fmt.Fprintf(&message, " • Run command: %s</summary>\n\n", escapeCodeBlock(command))
+		fmt.Fprintf(&message, "```bash\n%s\n```", escapeCodeBlock(command))
 	} else {
 		message.WriteString("</summary>\n")
 	}
