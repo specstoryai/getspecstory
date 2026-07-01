@@ -112,29 +112,15 @@ func (r *ToolRegistry) GetHandler(toolName string) ToolHandler {
 	return r.handlers[toolName]
 }
 
-// FormatToolInvocation formats a tool invocation as markdown
-// This is the main entry point for processing tool invocations
-func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) string {
-	// Handle invalid tool (tool = 0)
-	if bubble.Tool == 0 {
-		return formatToolError(bubble)
-	}
-
-	// Handle error status
-	if bubble.Status == "error" {
-		return formatToolError(bubble)
-	}
-
-	// Handle cancelled status
-	if bubble.Status == "cancelled" {
-		return "Cancelled"
-	}
-
-	// Get the handler for this tool name
+// FormatToolContent resolves the handler for a tool invocation (or falls back to the
+// catch-all formatter for unregistered tools) and returns its formatted body, without
+// the outer <tool-use> wrapper. Split out from FormatToolInvocation so callers that
+// embed the content elsewhere (e.g. schema.ToolInfo.FormattedMarkdown, which the shared
+// markdown renderer wraps itself) don't end up with a nested <tool-use> block.
+// Callers are responsible for the error/cancelled/invalid-tool special cases handled by
+// FormatToolInvocation — this only covers the "normal" handler-resolution path.
+func FormatToolContent(bubble *BubbleConversation, registry *ToolRegistry) (content string, toolType ToolType) {
 	handler := registry.GetHandler(bubble.Name)
-	var toolType ToolType
-	var content string
-
 	if handler != nil {
 		// Use the registered handler
 		toolType = handler.GetToolType()
@@ -155,6 +141,30 @@ func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) st
 		toolType = ToolTypeUnknown
 		content = formatCatchAll(bubble)
 	}
+	return content, toolType
+}
+
+// FormatToolInvocation formats a tool invocation as a complete markdown block,
+// including the outer <tool-use> wrapper. This is the fallback path used when a tool
+// invocation can't be resolved into a structured schema.ToolInfo (see
+// resolveToolInfo in agent_session.go) and needs to be embedded directly in Content.
+func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) string {
+	// Handle invalid tool (tool = 0)
+	if bubble.Tool == 0 {
+		return formatToolError(bubble)
+	}
+
+	// Handle error status
+	if bubble.Status == "error" {
+		return formatToolError(bubble)
+	}
+
+	// Handle cancelled status
+	if bubble.Status == "cancelled" {
+		return "Cancelled"
+	}
+
+	content, toolType := FormatToolContent(bubble, registry)
 
 	// Wrap in tool-use HTML tag
 	// Format: <tool-use data-tool-type="read" data-tool-name="read_file">

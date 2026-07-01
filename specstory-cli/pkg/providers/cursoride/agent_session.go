@@ -68,11 +68,20 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 				"capabilityType", bubble.CapabilityType)
 			continue
 		}
+		// Resolve tool invocations into structured ToolInfo (with pre-formatted markdown)
+		// up front, so buildMessageText knows whether to also embed the tool content in
+		// Content — otherwise the tool use would render twice: once from Content, once
+		// from Tool.
+		var tool *schema.ToolInfo
+		if bubble.CapabilityType == 15 {
+			tool = resolveToolInfo(&bubble, capabilitiesMap, toolRegistry, composer.Version)
+		}
+
 		// Build the message text, including thinking blocks and tool invocations if present
-		messageText := buildMessageText(&bubble, capabilitiesMap, toolRegistry, composer.Version)
+		messageText := buildMessageText(&bubble, capabilitiesMap, toolRegistry, composer.Version, tool != nil)
 
 		// Skip if we still have no content after processing (shouldn't happen, but safety check)
-		if messageText == "" {
+		if messageText == "" && tool == nil {
 			slog.Debug("Skipping bubble with no content after processing",
 				"bubbleId", bubble.BubbleID,
 				"capabilityType", bubble.CapabilityType)
@@ -113,26 +122,14 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			Role:      getRoleFromType(bubble.Type),
 			Timestamp: timestamp,
 			Model:     modelName,
-			Content: []schema.ContentPart{
+			Tool:      tool,
+		}
+		if messageText != "" {
+			message.Content = []schema.ContentPart{
 				{
 					Type: schema.ContentTypeText,
 					Text: messageText,
 				},
-			},
-		}
-
-		// Populate message.Tool for tool bubbles so telemetry stats can count them.
-		// The formatted markdown is already in Content; Tool carries structured metadata.
-		if bubble.CapabilityType == 15 {
-			if toolData := resolveToolData(&bubble, capabilitiesMap, composer.Version); toolData != nil && toolData.Name != "" {
-				toolType := schema.ToolTypeUnknown
-				if handler := toolRegistry.GetHandler(toolData.Name); handler != nil {
-					toolType = toSchemaToolType(handler.GetToolType())
-				}
-				message.Tool = &schema.ToolInfo{
-					Name: toolData.Name,
-					Type: toolType,
-				}
 			}
 		}
 
@@ -223,8 +220,13 @@ func getRoleFromType(messageType int) string {
 	return schema.RoleAgent
 }
 
-// buildMessageText constructs the full message text including thinking blocks and tool invocations
-func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) string {
+// buildMessageText constructs the full message text including thinking blocks and,
+// for tool bubbles that resolveToolInfo couldn't turn into structured ToolInfo, a
+// plain-text tool fallback. toolHandledSeparately is true when the caller already
+// resolved the tool invocation into message.Tool — in that case the formatted tool
+// markdown lives in Tool.FormattedMarkdown and must not also be embedded here,
+// otherwise the tool use renders twice.
+func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int, toolHandledSeparately bool) string {
 	var parts []string
 
 	// Add thinking block if present
@@ -235,9 +237,11 @@ func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*Cap
 
 	// Process tool invocations if this is a tool capability (capabilityType = 15)
 	if bubble.CapabilityType == 15 {
-		toolText := processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
-		if toolText != "" {
-			parts = append(parts, toolText)
+		if !toolHandledSeparately {
+			toolText := processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
+			if toolText != "" {
+				parts = append(parts, toolText)
+			}
 		}
 	} else if bubble.Text != "" {
 		// Add main text if present (non-tool bubbles)
@@ -245,6 +249,27 @@ func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*Cap
 	}
 
 	return strings.Join(parts, "\n\n---\n\n")
+}
+
+// resolveToolInfo resolves a tool-invocation bubble (capabilityType 15) whose handler
+// completed normally into a schema.ToolInfo carrying pre-formatted markdown, so the
+// tool use renders exactly once via the Tool field instead of also being embedded in
+// Content. Returns nil when the bubble has no resolvable tool data, or ended in an
+// error/cancelled/invalid state — those cases fall back to FormatToolInvocation's
+// plain text via processToolInvocation/buildMessageText instead, matching their
+// existing (unwrapped) rendering.
+func resolveToolInfo(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) *schema.ToolInfo {
+	toolData := resolveToolData(bubble, capabilitiesMap, composerVersion)
+	if toolData == nil || toolData.Name == "" || toolData.Tool == 0 || toolData.Status == "error" || toolData.Status == "cancelled" {
+		return nil
+	}
+
+	content, toolType := FormatToolContent(toolData, toolRegistry)
+	return &schema.ToolInfo{
+		Name:              toolData.Name,
+		Type:              toSchemaToolType(toolType),
+		FormattedMarkdown: &content,
+	}
 }
 
 // resolveToolData finds the BubbleConversation for a tool bubble.
