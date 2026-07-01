@@ -81,17 +81,22 @@ func NewCursorIDEWatcher(
 	}
 
 	return &CursorIDEWatcher{
-		projectPath:       projectPath,
-		workspaces:        workspaces,
-		globalDbPath:      globalDbPath,
-		debugRaw:          debugRaw,
-		sessionCallback:   sessionCallback,
-		ctx:               ctx,
-		cancel:            cancel,
-		knownComposers:    make(map[string]int64),
-		checkInterval:     checkInterval,
-		throttleDuration:  10 * time.Second,
-		lastThrottledCall: time.Now(),
+		projectPath:      projectPath,
+		workspaces:       workspaces,
+		globalDbPath:     globalDbPath,
+		debugRaw:         debugRaw,
+		sessionCallback:  sessionCallback,
+		ctx:              ctx,
+		cancel:           cancel,
+		knownComposers:   make(map[string]int64),
+		checkInterval:    checkInterval,
+		throttleDuration: 10 * time.Second,
+		// Zero value, not time.Now(): lastThrottledCall means "the last time a check
+		// actually ran," not "when the watcher was constructed." Seeding it with the
+		// current time made the very first real check (5s after Start()) look like it
+		// arrived too soon after a "previous" check that never happened, throttling it
+		// by another full throttleDuration and delaying startup by up to ~2x intended.
+		lastThrottledCall: time.Time{},
 		pendingCheck:      false,
 		fsWatcher:         fsWatcher,
 		pendingIncomplete: make(map[string]time.Time),
