@@ -15,7 +15,7 @@ import (
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath       string
-	workspace         *WorkspaceMatch
+	workspaces        []WorkspaceMatch // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
 	globalDbPath      string
 	debugRaw          bool
 	sessionCallback   func(*spi.AgentChatSession)
@@ -53,8 +53,9 @@ func NewCursorIDEWatcher(
 	sessionCallback func(*spi.AgentChatSession),
 	checkInterval time.Duration,
 ) (*CursorIDEWatcher, error) {
-	// Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// Find all workspaces matching the project (a project can match more than one
+	// workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace for project: %w", err)
 	}
@@ -80,7 +81,7 @@ func NewCursorIDEWatcher(
 
 	return &CursorIDEWatcher{
 		projectPath:       projectPath,
-		workspace:         workspace,
+		workspaces:        workspaces,
 		globalDbPath:      globalDbPath,
 		debugRaw:          debugRaw,
 		sessionCallback:   sessionCallback,
@@ -101,8 +102,7 @@ func NewCursorIDEWatcher(
 func (w *CursorIDEWatcher) Start() error {
 	slog.Info("Starting Cursor IDE watcher",
 		"projectPath", w.projectPath,
-		"workspaceID", w.workspace.ID,
-		"workspaceDbPath", w.workspace.DBPath,
+		"workspaceCount", len(w.workspaces),
 		"globalDbPath", w.globalDbPath,
 		"checkInterval", w.checkInterval,
 		"throttleDuration", w.throttleDuration)
@@ -110,18 +110,24 @@ func (w *CursorIDEWatcher) Start() error {
 	// Ensure WAL mode is enabled on all databases before watching.
 	// WAL mode is required so that the -wal file exists for fsnotify to detect changes.
 	// This is a one-time read-write operation at startup; all subsequent reads are read-only.
-	if err := EnsureWALMode(w.workspace.DBPath); err != nil {
-		slog.Warn("Failed to ensure WAL mode on workspace database",
-			"workspaceID", w.workspace.ID,
-			"error", err)
+	for _, ws := range w.workspaces {
+		if err := EnsureWALMode(ws.DBPath); err != nil {
+			slog.Warn("Failed to ensure WAL mode on workspace database",
+				"workspaceID", ws.ID,
+				"error", err)
+		}
 	}
 	if err := EnsureWALMode(w.globalDbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
 	}
 
-	// Set up file watching on workspace database
-	if err := w.watchDatabaseFiles(w.workspace.DBPath); err != nil {
-		slog.Warn("Failed to watch workspace database files", "error", err)
+	// Set up file watching on all matching workspace databases
+	for _, ws := range w.workspaces {
+		if err := w.watchDatabaseFiles(ws.DBPath); err != nil {
+			slog.Warn("Failed to watch workspace database files",
+				"workspaceID", ws.ID,
+				"error", err)
+		}
 	}
 
 	// Set up file watching on global database
@@ -312,8 +318,8 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 	w.lastCheck = time.Now()
 	w.mu.Unlock()
 
-	// Load composer IDs from workspace database
-	composerIDs, err := LoadWorkspaceComposerIDs(w.workspace.DBPath)
+	// Load composer IDs from all matching workspace databases
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(w.workspaces)
 	if err != nil {
 		slog.Error("Failed to load workspace composer IDs", "error", err)
 		return

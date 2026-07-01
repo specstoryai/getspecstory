@@ -130,120 +130,17 @@ func normalizePathForComparison(path string) (string, error) {
 var FindWorkspaceForProject = findWorkspaceForProject
 
 // findWorkspaceForProject is the real implementation; FindWorkspaceForProject delegates to it.
+// It picks a single workspace for callers that need exactly one write/watch target (e.g.
+// reconstructing a session into a specific state.vscdb). It delegates to
+// FindAllWorkspacesForProject so it benefits from the same matching methods (direct path,
+// SSH-remote basename fallback, .code-workspace folder membership) rather than duplicating
+// a weaker, path-only version of that logic.
 func findWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
-	// Get canonical project path (resolve symlinks, normalize case)
-	absProjectPath, err := filepath.Abs(projectPath)
+	matches, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+		return nil, err
 	}
 
-	canonicalProjectPath, err := spi.GetCanonicalPath(absProjectPath)
-	if err != nil {
-		slog.Warn("Failed to get canonical path, using absolute path",
-			"projectPath", projectPath,
-			"error", err)
-		canonicalProjectPath = absProjectPath
-	}
-
-	slog.Debug("Searching for workspace matching project",
-		"projectPath", projectPath,
-		"canonicalPath", canonicalProjectPath)
-
-	// Get workspace storage directory
-	workspaceStoragePath, err := GetWorkspaceStoragePath()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workspace storage path: %w", err)
-	}
-
-	// Read all workspace directories
-	entries, err := os.ReadDir(workspaceStoragePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read workspace storage directory: %w", err)
-	}
-
-	// Track all workspace directories for potential matches
-	var matches []WorkspaceMatch
-
-	// Check each workspace directory
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		workspaceID := entry.Name()
-		workspacePath := filepath.Join(workspaceStoragePath, workspaceID)
-
-		// Read workspace.json
-		workspaceJSONPath := filepath.Join(workspacePath, "workspace.json")
-		workspaceJSON, err := readWorkspaceJSON(workspaceJSONPath)
-		if err != nil {
-			slog.Debug("Skipping workspace directory (no valid workspace.json)",
-				"workspaceID", workspaceID,
-				"error", err)
-			continue
-		}
-
-		// Get the workspace URI (prefer workspace over folder)
-		workspaceURI := workspaceJSON.Workspace
-		if workspaceURI == "" {
-			workspaceURI = workspaceJSON.Folder
-		}
-
-		if workspaceURI == "" {
-			slog.Debug("Skipping workspace directory (no workspace or folder URI)",
-				"workspaceID", workspaceID)
-			continue
-		}
-
-		// Convert URI to file path
-		workspaceFilePath, err := uriToPath(workspaceURI)
-		if err != nil {
-			slog.Debug("Skipping workspace directory (invalid URI)",
-				"workspaceID", workspaceID,
-				"uri", workspaceURI,
-				"error", err)
-			continue
-		}
-
-		// Get canonical workspace path
-		canonicalWorkspacePath, err := spi.GetCanonicalPath(workspaceFilePath)
-		if err != nil {
-			slog.Debug("Failed to get canonical workspace path",
-				"workspacePath", workspaceFilePath,
-				"error", err)
-			canonicalWorkspacePath = workspaceFilePath
-		}
-
-		// Compare paths
-		if canonicalProjectPath == canonicalWorkspacePath {
-			// Check if workspace database exists
-			dbPath := filepath.Join(workspacePath, "state.vscdb")
-			if _, err := os.Stat(dbPath); err != nil {
-				slog.Debug("Workspace match found but database missing",
-					"workspaceID", workspaceID,
-					"dbPath", dbPath)
-				continue
-			}
-
-			matches = append(matches, WorkspaceMatch{
-				ID:     workspaceID,
-				Path:   workspacePath,
-				DBPath: dbPath,
-				URI:    workspaceURI,
-			})
-
-			slog.Debug("Found matching workspace",
-				"workspaceID", workspaceID,
-				"projectPath", canonicalProjectPath,
-				"workspaceURI", workspaceURI)
-		}
-	}
-
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("no workspace found for project path: %s", projectPath)
-	}
-
-	// If multiple matches, return the first one (could sort by timestamp if needed)
 	if len(matches) > 1 {
 		slog.Debug("Multiple workspaces match project path, using first",
 			"projectPath", projectPath,

@@ -78,8 +78,10 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		return false
 	}
 
-	// Try to find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// Try to find all workspaces for project. A project can match more than one
+	// workspace entry (e.g. opened via a .code-workspace file, over SSH, or from WSL),
+	// so we search all of them rather than picking just one.
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "projectPath", projectPath, "error", err)
 		if helpOutput {
@@ -92,18 +94,18 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		return false
 	}
 
-	// Check if workspace has any composers
-	composerIDs, err := LoadWorkspaceComposerIDs(workspace.DBPath)
+	// Check if any matching workspace has composers
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
 	if err != nil {
 		slog.Debug("Failed to load composer IDs", "error", err)
 		return false
 	}
 
 	if len(composerIDs) == 0 {
-		slog.Debug("No composers found in workspace")
+		slog.Debug("No composers found in any matching workspace")
 		if helpOutput {
 			fmt.Println("\n⚠️  Cursor IDE workspace found but no conversations yet")
-			fmt.Printf("  • Workspace ID: %s\n", workspace.ID)
+			fmt.Printf("  • Workspaces found: %d\n", len(workspaces))
 			fmt.Printf("  • Use Cursor IDE's Composer feature to create conversations\n")
 			fmt.Println()
 		}
@@ -111,7 +113,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	}
 
 	slog.Debug("Cursor IDE activity detected",
-		"workspaceID", workspace.ID,
+		"workspaceCount", len(workspaces),
 		"composerCount", len(composerIDs))
 	return true
 }
@@ -122,27 +124,28 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
-	// Step 1: Find workspace for project path
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// Step 1: Find all workspaces matching the project path (a project can match more
+	// than one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace for project: %w", err)
 	}
 
-	slog.Info("Found workspace for project",
-		"workspaceID", workspace.ID,
+	slog.Info("Found workspaces for project",
+		"workspaceCount", len(workspaces),
 		"projectPath", projectPath)
 
-	// Step 2: Load composer IDs from workspace database
-	composerIDs, err := LoadWorkspaceComposerIDs(workspace.DBPath)
+	// Step 2: Load composer IDs from all matching workspace databases
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load composer IDs from workspace: %w", err)
+		return nil, fmt.Errorf("failed to load composer IDs from workspaces: %w", err)
 	}
 
-	slog.Info("Loaded composer IDs from workspace",
+	slog.Info("Loaded composer IDs from workspaces",
 		"count", len(composerIDs))
 
 	if len(composerIDs) == 0 {
-		slog.Info("No composers found in workspace")
+		slog.Info("No composers found in any matching workspace")
 		return []spi.AgentChatSession{}, nil
 	}
 
@@ -215,26 +218,27 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		"sessionID", sessionID,
 		"debugRaw", debugRaw)
 
-	// Step 1: Find workspace for project path
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// Step 1: Find all workspaces matching the project path (a project can match more
+	// than one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "error", err)
 		return nil, nil // Return nil (not error) if workspace not found
 	}
 
-	slog.Debug("Found workspace for project",
-		"workspaceID", workspace.ID,
+	slog.Debug("Found workspaces for project",
+		"workspaceCount", len(workspaces),
 		"projectPath", projectPath)
 
-	// Step 2: Load composer IDs from workspace database
-	composerIDs, err := LoadWorkspaceComposerIDs(workspace.DBPath)
+	// Step 2: Load composer IDs from all matching workspace databases
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load composer IDs from workspace: %w", err)
+		return nil, fmt.Errorf("failed to load composer IDs from workspaces: %w", err)
 	}
 
-	slog.Debug("Loaded composer IDs from workspace", "count", len(composerIDs))
+	slog.Debug("Loaded composer IDs from workspaces", "count", len(composerIDs))
 
-	// Step 3: Check if the requested session ID exists in this workspace
+	// Step 3: Check if the requested session ID exists in any matching workspace
 	found := false
 	for _, id := range composerIDs {
 		if id == sessionID {
@@ -244,10 +248,10 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	}
 
 	if !found {
-		slog.Debug("Session ID not found in workspace",
+		slog.Debug("Session ID not found in any matching workspace",
 			"sessionID", sessionID,
 			"workspaceComposerCount", len(composerIDs))
-		return nil, nil // Return nil (not error) if session not in this workspace
+		return nil, nil // Return nil (not error) if session not in any matching workspace
 	}
 
 	// Step 4: Get global database path
@@ -304,27 +308,28 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	slog.Debug("ListAgentChatSessions: Loading Cursor IDE session list",
 		"projectPath", projectPath)
 
-	// Step 1: Find workspace for project path
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// Step 1: Find all workspaces matching the project path (a project can match more
+	// than one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "error", err)
 		return []spi.SessionMetadata{}, nil // Return empty list if no workspace
 	}
 
-	slog.Debug("Found workspace for project",
-		"workspaceID", workspace.ID,
+	slog.Debug("Found workspaces for project",
+		"workspaceCount", len(workspaces),
 		"projectPath", projectPath)
 
-	// Step 2: Load composer IDs from workspace database
-	composerIDs, err := LoadWorkspaceComposerIDs(workspace.DBPath)
+	// Step 2: Load composer IDs from all matching workspace databases
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load composer IDs from workspace: %w", err)
+		return nil, fmt.Errorf("failed to load composer IDs from workspaces: %w", err)
 	}
 
-	slog.Debug("Loaded composer IDs from workspace", "count", len(composerIDs))
+	slog.Debug("Loaded composer IDs from workspaces", "count", len(composerIDs))
 
 	if len(composerIDs) == 0 {
-		slog.Debug("No composers found in workspace")
+		slog.Debug("No composers found in any matching workspace")
 		return []spi.SessionMetadata{}, nil
 	}
 
