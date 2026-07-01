@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // createTestGlobalDB builds a minimal global state.vscdb in a temp directory with
-// the cursorDiskKV table populated from kvPairs. The driver is registered by
+// both cursorDiskKV and ItemTable tables, matching the structure of the real Cursor
+// global database. kvPairs seeds the cursorDiskKV table. The driver is registered by
 // database.go's blank import, so no re-import is needed here.
 func createTestGlobalDB(t *testing.T, kvPairs map[string]string) string {
 	t.Helper()
@@ -19,7 +21,13 @@ func createTestGlobalDB(t *testing.T, kvPairs map[string]string) string {
 	}
 	if _, err := db.Exec("CREATE TABLE cursorDiskKV (key TEXT PRIMARY KEY, value TEXT)"); err != nil {
 		_ = db.Close()
-		t.Fatalf("createTestGlobalDB: create table: %v", err)
+		t.Fatalf("createTestGlobalDB: create cursorDiskKV: %v", err)
+	}
+	// ItemTable is the VSCode/Cursor key-value store for non-bubble data, including
+	// composer.composerHeaders which WriteGlobalComposerHeader reads and writes.
+	if _, err := db.Exec("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)"); err != nil {
+		_ = db.Close()
+		t.Fatalf("createTestGlobalDB: create ItemTable: %v", err)
 	}
 	for k, v := range kvPairs {
 		if _, err := db.Exec("INSERT INTO cursorDiskKV (key, value) VALUES (?, ?)", k, v); err != nil {
@@ -128,5 +136,153 @@ func TestLoadAllComposerDataLightweight_MalformedJSON(t *testing.T) {
 	}
 	if _, ok := composers["valid"]; !ok {
 		t.Error("expected 'valid' composer to be present")
+	}
+}
+
+// readComposerHeaders reads the allComposers slice from composer.composerHeaders in ItemTable.
+func readComposerHeaders(t *testing.T, dbPath string) []map[string]interface{} {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("readComposerHeaders: open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var raw string
+	if err := db.QueryRow("SELECT value FROM ItemTable WHERE key='composer.composerHeaders'").Scan(&raw); err != nil {
+		t.Fatalf("readComposerHeaders: query: %v", err)
+	}
+	var blob map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &blob); err != nil {
+		t.Fatalf("readComposerHeaders: unmarshal blob: %v", err)
+	}
+	var entries []map[string]interface{}
+	if err := json.Unmarshal(blob["allComposers"], &entries); err != nil {
+		t.Fatalf("readComposerHeaders: unmarshal allComposers: %v", err)
+	}
+	return entries
+}
+
+// TestWriteGlobalComposerHeader_WritesEntry verifies the function adds a properly-formed
+// head entry to composer.composerHeaders in the global ItemTable.
+func TestWriteGlobalComposerHeader_WritesEntry(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+	nowMs := time.Now().UnixMilli()
+	meta := ComposerHeadMeta{
+		ComposerID:    "test-composer-abc",
+		Name:          "Fix the login bug",
+		CreatedAt:     nowMs,
+		LastUpdatedAt: nowMs + 1000,
+		WorkspaceID:   "ws-hash-123",
+	}
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/proj"); err != nil {
+		t.Fatalf("WriteGlobalComposerHeader: %v", err)
+	}
+
+	entries := readComposerHeaders(t, dbPath)
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry in allComposers, got %d", len(entries))
+	}
+	e := entries[0]
+
+	// Required fields for sidebar visibility.
+	if e["type"] != "head" {
+		t.Errorf("type = %v, want %q", e["type"], "head")
+	}
+	if e["composerId"] != "test-composer-abc" {
+		t.Errorf("composerId = %v, want %q", e["composerId"], "test-composer-abc")
+	}
+	if e["name"] != "Fix the login bug" {
+		t.Errorf("name = %v, want %q", e["name"], "Fix the login bug")
+	}
+	if e["isDraft"] != false {
+		t.Errorf("isDraft = %v, want false", e["isDraft"])
+	}
+	if e["isArchived"] != false {
+		t.Errorf("isArchived = %v, want false", e["isArchived"])
+	}
+	if e["isSpec"] != false {
+		t.Errorf("isSpec = %v, want false", e["isSpec"])
+	}
+	if e["unifiedMode"] != "agent" {
+		t.Errorf("unifiedMode = %v, want %q", e["unifiedMode"], "agent")
+	}
+	// workspaceIdentifier must carry the id and uri so Cursor can route to the right project.
+	wi, ok := e["workspaceIdentifier"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("workspaceIdentifier missing or wrong type: %T %v", e["workspaceIdentifier"], e["workspaceIdentifier"])
+	}
+	if wi["id"] != "ws-hash-123" {
+		t.Errorf("workspaceIdentifier.id = %v, want %q", wi["id"], "ws-hash-123")
+	}
+	uri, _ := wi["uri"].(map[string]interface{})
+	if uri["fsPath"] != "/tmp/proj" {
+		t.Errorf("workspaceIdentifier.uri.fsPath = %v, want %q", uri["fsPath"], "/tmp/proj")
+	}
+}
+
+// TestWriteGlobalComposerHeader_Idempotent verifies a second call with the same composerId
+// is a no-op (the entry is not duplicated).
+func TestWriteGlobalComposerHeader_Idempotent(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+	nowMs := time.Now().UnixMilli()
+	meta := ComposerHeadMeta{
+		ComposerID:    "test-composer-dup",
+		Name:          "Session",
+		CreatedAt:     nowMs,
+		LastUpdatedAt: nowMs,
+		WorkspaceID:   "ws-abc",
+	}
+
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/p"); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/p"); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+
+	entries := readComposerHeaders(t, dbPath)
+	if len(entries) != 1 {
+		t.Errorf("expected 1 entry after two writes of same ID, got %d", len(entries))
+	}
+}
+
+// TestWriteGlobalComposerHeader_PreservesExisting verifies that writing a new session
+// prepends it to allComposers without dropping existing entries.
+func TestWriteGlobalComposerHeader_PreservesExisting(t *testing.T) {
+	existing, _ := json.Marshal(map[string]interface{}{
+		"type": "head", "composerId": "existing-id", "name": "Old session",
+	})
+	initial, _ := json.Marshal(map[string]interface{}{
+		"allComposers": []interface{}{json.RawMessage(existing)},
+	})
+	dbPath := createTestGlobalDB(t, map[string]string{})
+
+	// Seed ItemTable with an existing header.
+	db, _ := sql.Open("sqlite", dbPath)
+	_, _ = db.Exec("INSERT INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)", string(initial))
+	_ = db.Close()
+
+	nowMs := time.Now().UnixMilli()
+	meta := ComposerHeadMeta{
+		ComposerID:    "new-id",
+		Name:          "New session",
+		CreatedAt:     nowMs,
+		LastUpdatedAt: nowMs,
+		WorkspaceID:   "ws-x",
+	}
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/q"); err != nil {
+		t.Fatalf("WriteGlobalComposerHeader: %v", err)
+	}
+
+	entries := readComposerHeaders(t, dbPath)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(entries))
+	}
+	// New entry should be first (prepended for recency ordering).
+	if entries[0]["composerId"] != "new-id" {
+		t.Errorf("first entry composerId = %v, want %q", entries[0]["composerId"], "new-id")
+	}
+	if entries[1]["composerId"] != "existing-id" {
+		t.Errorf("second entry composerId = %v, want %q", entries[1]["composerId"], "existing-id")
 	}
 }

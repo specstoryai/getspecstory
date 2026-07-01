@@ -743,7 +743,7 @@ func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								content := extractContentText(message["content"])
 								if content != "" {
-								if isSyntheticMessage(content) {
+									if isSyntheticMessage(content) {
 										// A slash-command session may have no free-text prompt;
 										// remember the command name as a fallback title.
 										if scan.commandFallback == "" {

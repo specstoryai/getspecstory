@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -156,7 +158,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		return nil, fmt.Errorf("failed to load composer data: %w", err)
 	}
 
-	slog.Info("Loaded composers from global database",
+	slog.Debug("Loaded composers from global database",
 		"count", len(composers))
 
 	// Step 5: Convert to AgentChatSessions
@@ -290,7 +292,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		}
 	}
 
-	slog.Info("Successfully loaded single session",
+	slog.Debug("Successfully loaded single session",
 		"sessionID", sessionID,
 		"slug", session.Slug)
 
@@ -423,9 +425,51 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 	return refs, nil
 }
 
-// ExecAgentAndWatch is not supported for Cursor IDE (IDE-based, not CLI)
-func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	return fmt.Errorf("cursor IDE does not support execution via CLI (IDE-based, not CLI-based)")
+// ExecAgentAndWatch opens Cursor IDE at the project path so the user can continue the
+// reconstructed session. Cursor IDE is an IDE, not a CLI, so there is no --resume flag
+// to pass the session ID; the session is already in the global database and will appear
+// in the composer panel. Watching is not possible, so the function returns once the open
+// attempt completes.
+func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, _ string, _ bool, _ func(*spi.AgentChatSession)) error {
+	fmt.Fprintln(os.Stderr, "\nSession is ready in Cursor IDE. Open the composer panel to find it.")
+	if err := openCursorIDE(projectPath); err != nil {
+		// Opening is best-effort; a failure here should not surface as a hard error
+		// since the session is already written and the user can open Cursor manually.
+		slog.Debug("Could not open Cursor IDE automatically", "error", err)
+		fmt.Fprintf(os.Stderr, "Open Cursor IDE manually in: %s\n", projectPath)
+	}
+	return nil
+}
+
+// openCursorIDE attempts to launch Cursor IDE at the given project path using the
+// platform-specific mechanism. On macOS this is `open -a Cursor`; on Linux the
+// `cursor` binary is tried if it is on PATH.
+func openCursorIDE(projectPath string) error {
+	args := cursorOpenArgs(projectPath)
+	if len(args) == 0 {
+		return fmt.Errorf("no known way to open Cursor IDE on this platform")
+	}
+	cmd := execCommand(args[0], args[1:]...)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%w: %s", err, string(out))
+	}
+	return nil
+}
+
+// cursorOpenArgs returns the command + arguments to open Cursor IDE at the given path for
+// the current platform. Returns nil when no mechanism is known.
+func cursorOpenArgs(projectPath string) []string {
+	switch runtime.GOOS {
+	case "darwin":
+		return []string{"open", "-a", "Cursor", projectPath}
+	default: // Linux
+		return []string{"cursor", projectPath}
+	}
+}
+
+// execCommand is a thin wrapper around exec.Command to allow test patching if needed.
+var execCommand = func(name string, args ...string) *exec.Cmd {
+	return exec.Command(name, args...)
 }
 
 // WatchAgent watches for Cursor IDE activity and calls the callback with AgentChatSession

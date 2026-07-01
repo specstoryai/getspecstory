@@ -55,9 +55,6 @@ func EnsureWALMode(dbPath string) error {
 		}
 	}()
 
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-
 	// Check current journal mode
 	var currentMode string
 	if err := db.QueryRow("PRAGMA journal_mode").Scan(&currentMode); err != nil {
@@ -185,8 +182,8 @@ func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 	return composerIDs, nil
 }
 
-// LoadComposerDataBatch loads multiple composers and their bubbles from the global database
-// This is the main function for workspace-filtered loading
+// LoadComposerDataBatch loads multiple composers and their bubbles from the global database.
+// Queries are chunked to composerBatchSize to stay within SQLite's expression-tree depth limit.
 func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[string]*ComposerData, error) {
 	if len(composerIDs) == 0 {
 		return map[string]*ComposerData{}, nil
@@ -202,59 +199,58 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 		}
 	}()
 
-	// Build SQL query with placeholders for composer IDs
-	// We need to query for both composerData:* keys and bubbleId:* keys
+	composers := make(map[string]*ComposerData)
+	bubbles := make(map[string]map[string]*ComposerConversation)
 
-	// Part 1: Build IN clause for composerData keys
-	composerDataKeys := make([]string, len(composerIDs))
-	composerDataPlaceholders := make([]string, len(composerIDs))
-	for i, id := range composerIDs {
-		composerDataKeys[i] = "composerData:" + id
-		composerDataPlaceholders[i] = "?"
+	for i := 0; i < len(composerIDs); i += composerBatchSize {
+		end := min(i+composerBatchSize, len(composerIDs))
+		chunk := composerIDs[i:end]
+		if err := loadComposerChunk(db, chunk, composers, bubbles); err != nil {
+			return nil, err
+		}
 	}
 
-	// Part 2: Build LIKE conditions for bubbleId keys
-	bubbleLikeConditions := make([]string, len(composerIDs))
-	for i := range composerIDs {
-		bubbleLikeConditions[i] = "key LIKE ?"
-	}
+	assembleComposerConversations(composers, bubbles)
 
-	// Build the complete query
-	query := fmt.Sprintf(`SELECT key, value FROM cursorDiskKV
-		WHERE value IS NOT NULL AND (
-			key IN (%s)
-			OR (%s)
-		)`,
-		strings.Join(composerDataPlaceholders, ","),
-		strings.Join(bubbleLikeConditions, " OR "))
+	slog.Debug("Loaded composers from global database", "composerCount", len(composers))
+	return composers, nil
+}
 
-	// Build params array: first all composerData keys, then all bubbleId patterns
+// loadComposerChunk runs one bounded query for a slice of composer IDs and merges
+// the results into the caller-provided composers and bubbles maps.
+func loadComposerChunk(db *sql.DB, composerIDs []string, composers map[string]*ComposerData, bubbles map[string]map[string]*ComposerConversation) error {
+	placeholders := make([]string, len(composerIDs))
+	likeConditions := make([]string, len(composerIDs))
 	params := make([]interface{}, 0, len(composerIDs)*2)
-	for _, key := range composerDataKeys {
-		params = append(params, key)
+
+	for i, id := range composerIDs {
+		placeholders[i] = "?"
+		likeConditions[i] = "key LIKE ?"
+		params = append(params, "composerData:"+id)
 	}
 	for _, id := range composerIDs {
 		params = append(params, "bubbleId:"+id+":%")
 	}
 
-	slog.Debug("Executing batch query",
-		"composerCount", len(composerIDs),
-		"query", query)
+	query := fmt.Sprintf(`SELECT key, value FROM cursorDiskKV
+		WHERE value IS NOT NULL AND (
+			key IN (%s)
+			OR (%s)
+		)`,
+		strings.Join(placeholders, ","),
+		strings.Join(likeConditions, " OR "))
 
-	// Execute the query
+	slog.Debug("Executing composer chunk query", "composerCount", len(composerIDs))
+
 	rows, err := db.Query(query, params...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query composer data: %w", err)
+		return fmt.Errorf("failed to query composer chunk: %w", err)
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			slog.Warn("Failed to close query rows", "error", closeErr)
+			slog.Warn("Failed to close chunk query rows", "error", closeErr)
 		}
 	}()
-
-	// Parse results
-	composers := make(map[string]*ComposerData)
-	bubbles := make(map[string]map[string]*ComposerConversation) // composerID -> bubbleID -> bubble
 
 	for rows.Next() {
 		var key, valueJSON string
@@ -263,106 +259,326 @@ func LoadComposerDataBatch(globalDbPath string, composerIDs []string) (map[strin
 			continue
 		}
 
-		// Determine key type and parse accordingly
 		if strings.HasPrefix(key, "composerData:") {
-			// This is a composer record
 			composerID := strings.TrimPrefix(key, "composerData:")
-
 			var composer ComposerData
 			if err := json.Unmarshal([]byte(valueJSON), &composer); err != nil {
-				slog.Warn("Failed to parse composer data",
-					"composerID", composerID,
-					"error", err)
+				slog.Warn("Failed to parse composer data", "composerID", composerID, "error", err)
 				continue
 			}
-
 			composers[composerID] = &composer
-			slog.Debug("Loaded composer",
-				"composerID", composerID,
-				"name", composer.Name)
-
+			slog.Debug("Loaded composer", "composerID", composerID, "name", composer.Name)
 		} else if strings.HasPrefix(key, "bubbleId:") {
-			// This is a bubble record: bubbleId:{composerID}:{bubbleID}
 			parts := strings.SplitN(key, ":", 3)
 			if len(parts) != 3 {
 				slog.Warn("Invalid bubble key format", "key", key)
 				continue
 			}
-
-			composerID := parts[1]
-			bubbleID := parts[2]
-
+			composerID, bubbleID := parts[1], parts[2]
 			var bubble ComposerConversation
 			if err := json.Unmarshal([]byte(valueJSON), &bubble); err != nil {
-				slog.Warn("Failed to parse bubble data",
-					"composerID", composerID,
-					"bubbleID", bubbleID,
-					"error", err)
+				slog.Warn("Failed to parse bubble data", "composerID", composerID, "bubbleID", bubbleID, "error", err)
 				continue
 			}
-
-			// Initialize bubble map for this composer if needed
 			if bubbles[composerID] == nil {
 				bubbles[composerID] = make(map[string]*ComposerConversation)
 			}
 			bubbles[composerID][bubbleID] = &bubble
-
-			slog.Debug("Loaded bubble",
-				"composerID", composerID,
-				"bubbleID", bubbleID,
-				"type", bubble.Type)
+			slog.Debug("Loaded bubble", "composerID", composerID, "bubbleID", bubbleID, "type", bubble.Type)
 		}
 	}
+	return rows.Err()
+}
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	// Assemble conversations: merge bubbles into composers
+// assembleComposerConversations merges the per-bubble map into each composer's Conversation slice.
+func assembleComposerConversations(composers map[string]*ComposerData, bubbles map[string]map[string]*ComposerConversation) {
 	for composerID, composer := range composers {
-		if composerBubbles, exists := bubbles[composerID]; exists {
-			// If composer has fullConversationHeadersOnly, load those bubbles into conversation array
-			if len(composer.FullConversationHeadersOnly) > 0 {
-				composer.Conversation = make([]ComposerConversation, 0, len(composer.FullConversationHeadersOnly))
-				for _, header := range composer.FullConversationHeadersOnly {
-					if bubble, found := composerBubbles[header.BubbleID]; found {
-						composer.Conversation = append(composer.Conversation, *bubble)
-					}
+		composerBubbles, exists := bubbles[composerID]
+		if !exists {
+			continue
+		}
+		if len(composer.FullConversationHeadersOnly) > 0 {
+			composer.Conversation = make([]ComposerConversation, 0, len(composer.FullConversationHeadersOnly))
+			for _, header := range composer.FullConversationHeadersOnly {
+				if bubble, found := composerBubbles[header.BubbleID]; found {
+					composer.Conversation = append(composer.Conversation, *bubble)
 				}
-			} else if len(composer.Conversation) > 0 {
-				// Composer has a conversation array - merge individual bubble data into it
-				// The composerData record may have basic bubble info, but individual bubble
-				// records have the complete data (including thinking blocks)
-				for i := range composer.Conversation {
-					bubbleID := composer.Conversation[i].BubbleID
-					if fullBubble, found := composerBubbles[bubbleID]; found {
-						// Merge the full bubble data into the conversation array
-						// Keep the original if fields are not set in the full bubble
-						if fullBubble.Thinking != nil {
-							composer.Conversation[i].Thinking = fullBubble.Thinking
-						}
-						if fullBubble.Text != "" {
-							composer.Conversation[i].Text = fullBubble.Text
-						}
-						if fullBubble.TimingInfo != nil {
-							composer.Conversation[i].TimingInfo = fullBubble.TimingInfo
-						}
-						if fullBubble.ModelInfo != nil {
-							composer.Conversation[i].ModelInfo = fullBubble.ModelInfo
-						}
-						if fullBubble.ToolFormerData != nil {
-							composer.Conversation[i].ToolFormerData = fullBubble.ToolFormerData
-						}
-					}
+			}
+		} else {
+			// Cursor 2 inline format: merge full bubble data (thinking, timing, etc.) into the
+			// conversation array that was already embedded in the composerData row.
+			for i := range composer.Conversation {
+				bubbleID := composer.Conversation[i].BubbleID
+				fullBubble, found := composerBubbles[bubbleID]
+				if !found {
+					continue
+				}
+				if fullBubble.Thinking != nil {
+					composer.Conversation[i].Thinking = fullBubble.Thinking
+				}
+				if fullBubble.Text != "" {
+					composer.Conversation[i].Text = fullBubble.Text
+				}
+				if fullBubble.TimingInfo != nil {
+					composer.Conversation[i].TimingInfo = fullBubble.TimingInfo
+				}
+				if fullBubble.ModelInfo != nil {
+					composer.Conversation[i].ModelInfo = fullBubble.ModelInfo
+				}
+				if fullBubble.ToolFormerData != nil {
+					composer.Conversation[i].ToolFormerData = fullBubble.ToolFormerData
 				}
 			}
 		}
 	}
+}
 
-	slog.Info("Loaded composers from global database",
-		"composerCount", len(composers))
+// OpenDatabaseReadWrite opens a SQLite database in read-write mode with controlled
+// connection pooling. It calls EnsureWALMode before returning so the database is
+// in WAL mode when the caller starts writing.
+func OpenDatabaseReadWrite(dbPath string) (*sql.DB, error) {
+	if err := EnsureWALMode(dbPath); err != nil {
+		slog.Warn("Failed to ensure WAL mode before opening read-write database", "error", err)
+	}
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database for writing: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(30 * time.Second)
+	return db, nil
+}
 
-	return composers, nil
+// InsertComposerSession writes a reconstructed composer session into the global state.vscdb
+// within a single transaction: one composerData:* row for the metadata and one
+// bubbleId:*:* row per conversation turn. An existing row with the same key is replaced
+// so re-runs of the same session ID are idempotent.
+// composerJSON is the raw JSON to store verbatim; the caller is responsible for serializing
+// all required Cursor fields (see ReconstructSession for the full set).
+func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, bubbles []ComposerConversation) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	var txErr error
+	defer func() {
+		if txErr != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if _, txErr = tx.Exec(
+		"INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)",
+		"composerData:"+composerID, string(composerJSON),
+	); txErr != nil {
+		return fmt.Errorf("failed to insert composer data: %w", txErr)
+	}
+
+	for i := range bubbles {
+		bubbleJSON, err := json.Marshal(&bubbles[i])
+		if err != nil {
+			txErr = fmt.Errorf("failed to marshal bubble %s: %w", bubbles[i].BubbleID, err)
+			return txErr
+		}
+		key := "bubbleId:" + composerID + ":" + bubbles[i].BubbleID
+		if _, txErr = tx.Exec(
+			"INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)",
+			key, string(bubbleJSON),
+		); txErr != nil {
+			return fmt.Errorf("failed to insert bubble %s: %w", bubbles[i].BubbleID, txErr)
+		}
+	}
+
+	txErr = tx.Commit()
+	return txErr
+}
+
+// ComposerHeadMeta holds the session metadata needed to register a reconstructed session
+// in the workspace-level indexes (both the JSON allComposers array and the SQL composerHeaders table).
+type ComposerHeadMeta struct {
+	ComposerID    string
+	Name          string
+	CreatedAt     int64
+	LastUpdatedAt int64
+	// WorkspaceID is the workspace storage directory hash (workspaceIdentifier.id).
+	// Used as the workspaceId column in the composerHeaders SQL table.
+	WorkspaceID string
+}
+
+// AppendToSelectedComposerIDs adds composerID to the selectedComposerIds list in the
+// workspace DB's "composer.composerData" key. This makes the reconstructed session appear
+// as an already-open tab in Cursor's tab bar — a UX convenience so the session is visible
+// immediately on open rather than requiring the user to find it in the sidebar list.
+// Sidebar visibility itself comes from composer.composerHeaders in the global DB.
+func AppendToSelectedComposerIDs(workspaceDbPath, composerID string) error {
+	db, err := OpenDatabaseReadWrite(workspaceDbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open workspace database: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close workspace database after selectedComposerIds update", "error", closeErr)
+		}
+	}()
+
+	// Read-modify-write: preserve all existing fields in composer.composerData and only
+	// update selectedComposerIds, deduplicating the new ID.
+	blob := make(map[string]json.RawMessage)
+	var existing string
+	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerData'").Scan(&existing)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to read composer.composerData: %w", err)
+	}
+	if existing != "" {
+		if jsonErr := json.Unmarshal([]byte(existing), &blob); jsonErr != nil {
+			slog.Warn("Failed to parse composer.composerData, starting fresh", "error", jsonErr)
+			blob = make(map[string]json.RawMessage)
+		}
+	}
+
+	var ids []string
+	if raw, ok := blob["selectedComposerIds"]; ok {
+		_ = json.Unmarshal(raw, &ids)
+	}
+	for _, id := range ids {
+		if id == composerID {
+			return nil // already present
+		}
+	}
+	ids = append(ids, composerID)
+	encoded, err := json.Marshal(ids)
+	if err != nil {
+		return fmt.Errorf("failed to marshal selectedComposerIds: %w", err)
+	}
+	blob["selectedComposerIds"] = encoded
+
+	refsJSON, err := json.Marshal(blob)
+	if err != nil {
+		return fmt.Errorf("failed to marshal composer.composerData: %w", err)
+	}
+	if _, err := db.Exec(
+		"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerData', ?)",
+		string(refsJSON),
+	); err != nil {
+		return fmt.Errorf("failed to write composer.composerData: %w", err)
+	}
+	return nil
+}
+
+// WriteGlobalComposerHeader adds a lightweight "head" entry for the reconstructed session to
+// the "composer.composerHeaders" key in the GLOBAL DB's ItemTable. This is the authoritative
+// source from which composerDataService.allComposersData.allComposers is populated on startup.
+// Cursor's Agent sidebar SWC component reads allComposersData.allComposers and filters by name,
+// so the entry MUST have a non-empty "name" field or it is silently hidden.
+func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, workspaceRoot string) error {
+	db, err := OpenDatabaseReadWrite(globalDbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open global database for composer header: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close global database after writing composer header", "error", closeErr)
+		}
+	}()
+
+	// Read the existing blob; handle missing key gracefully.
+	var raw string
+	blob := make(map[string]json.RawMessage)
+	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'").Scan(&raw)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to read composer.composerHeaders: %w", err)
+	}
+	if raw != "" {
+		if jsonErr := json.Unmarshal([]byte(raw), &blob); jsonErr != nil {
+			slog.Warn("Failed to parse composer.composerHeaders, starting fresh", "error", jsonErr)
+			blob = make(map[string]json.RawMessage)
+		}
+	}
+
+	var allComposers []json.RawMessage
+	if rawArr, ok := blob["allComposers"]; ok {
+		_ = json.Unmarshal(rawArr, &allComposers)
+	}
+
+	// Skip if already registered (idempotent).
+	for _, entry := range allComposers {
+		var ref struct {
+			ComposerID string `json:"composerId"`
+		}
+		if json.Unmarshal(entry, &ref) == nil && ref.ComposerID == meta.ComposerID {
+			return nil
+		}
+	}
+
+	headEntry := map[string]interface{}{
+		"type":                      "head",
+		"composerId":                meta.ComposerID,
+		"name":                      meta.Name,
+		"createdAt":                 meta.CreatedAt,
+		"lastUpdatedAt":             meta.LastUpdatedAt,
+		"unifiedMode":               "agent",
+		"forceMode":                 "edit",
+		"hasUnreadMessages":         false,
+		"totalLinesAdded":           0,
+		"totalLinesRemoved":         0,
+		"filesChangedCount":         0,
+		"subtitle":                  "",
+		"hasBlockingPendingActions": false,
+		"hasPendingPlan":            false,
+		"isArchived":                false,
+		"isDraft":                   false,
+		"isWorktree":                false,
+		"worktreeStartedReadOnly":   false,
+		"isSpec":                    false,
+		"isProject":                 false,
+		"isBestOfNSubcomposer":      false,
+		"numSubComposers":           0,
+		"referencedPlans":           []interface{}{},
+		"trackedGitRepos":           []interface{}{},
+		"workspaceIdentifier": map[string]interface{}{
+			"id": meta.WorkspaceID,
+			"uri": map[string]interface{}{
+				"$mid":     1,
+				"fsPath":   workspaceRoot,
+				"external": "file://" + workspaceRoot,
+				"path":     workspaceRoot,
+				"scheme":   "file",
+			},
+		},
+	}
+
+	entryJSON, err := json.Marshal(headEntry)
+	if err != nil {
+		return fmt.Errorf("failed to marshal composer header entry: %w", err)
+	}
+
+	// Prepend so the newest session sorts to the top (Cursor sorts by lastUpdatedAt DESC).
+	allComposers = append([]json.RawMessage{entryJSON}, allComposers...)
+	encoded, err := json.Marshal(allComposers)
+	if err != nil {
+		return fmt.Errorf("failed to marshal allComposers: %w", err)
+	}
+	blob["allComposers"] = encoded
+
+	dataJSON, err := json.Marshal(blob)
+	if err != nil {
+		return fmt.Errorf("failed to marshal composer.composerHeaders: %w", err)
+	}
+	if _, err := db.Exec(
+		"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
+		string(dataJSON),
+	); err != nil {
+		return fmt.Errorf("failed to write composer.composerHeaders: %w", err)
+	}
+
+	// Checkpoint the WAL so our write lands in the main DB file before Cursor opens it.
+	// In WAL mode SQLite flushes commits lazily; without this Cursor may read a pre-write
+	// snapshot and only see the session after its own first-open checkpoint.
+	if _, err := db.Exec("PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
+		slog.Warn("WAL checkpoint failed on global database", "error", err)
+	}
+	return nil
 }
 
 // LoadAllComposerDataLightweight loads composer records for all sessions in the global database.
@@ -381,7 +597,7 @@ func LoadAllComposerDataLightweight(globalDbPath string) (map[string]*ComposerDa
 		}
 	}()
 
-	rows, err := db.Query("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'")
+	rows, err := db.Query("SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%' AND value IS NOT NULL")
 	if err != nil {
 		return nil, fmt.Errorf("failed to query composer data: %w", err)
 	}

@@ -9,3 +9,5 @@ dist/
 # local .specstory artifacts not tracked on dev (history itself stays tracked)
 .specstory/statistics.json
 .specstory/cli/
+
+.specstory/

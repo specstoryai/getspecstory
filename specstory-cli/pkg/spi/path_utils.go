@@ -203,7 +203,7 @@ func GetCanonicalPath(p string) (string, error) {
 	} else if err != nil {
 		// Symlink resolution failed (e.g., path doesn't exist yet),
 		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 

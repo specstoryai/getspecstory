@@ -125,9 +125,12 @@ func normalizePathForComparison(path string) (string, error) {
 	return canonicalPath, nil
 }
 
-// FindWorkspaceForProject finds the workspace directory that matches the given project path
-// Returns the workspace match or an error if not found
-func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+// FindWorkspaceForProject finds the workspace directory that matches the given project path.
+// It is a var so tests can replace it with a stub that returns a temporary workspace.
+var FindWorkspaceForProject = findWorkspaceForProject
+
+// findWorkspaceForProject is the real implementation; FindWorkspaceForProject delegates to it.
+func findWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 	// Get canonical project path (resolve symlinks, normalize case)
 	absProjectPath, err := filepath.Abs(projectPath)
 	if err != nil {
@@ -229,7 +232,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 				URI:    workspaceURI,
 			})
 
-			slog.Info("Found matching workspace",
+			slog.Debug("Found matching workspace",
 				"workspaceID", workspaceID,
 				"projectPath", canonicalProjectPath,
 				"workspaceURI", workspaceURI)
@@ -242,7 +245,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 
 	// If multiple matches, return the first one (could sort by timestamp if needed)
 	if len(matches) > 1 {
-		slog.Warn("Multiple workspaces match project path, using first",
+		slog.Debug("Multiple workspaces match project path, using first",
 			"projectPath", projectPath,
 			"matchCount", len(matches))
 	}
