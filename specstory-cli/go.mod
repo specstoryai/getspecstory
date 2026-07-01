@@ -12,7 +12,7 @@ go 1.26.4
 require (
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
 	github.com/charmbracelet/fang v0.4.4 // Styled terminal output for Cobra commands
-	github.com/fsnotify/fsnotify v1.9.0 // Cross-platform file system event notifications
+	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
 	github.com/posthog/posthog-go v1.15.0 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
