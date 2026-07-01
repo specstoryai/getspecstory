@@ -480,17 +480,32 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 }
 
 // isSyntheticMessage checks if a message is synthetic/internal and should be skipped
-// when looking for the first real user message.
-// Currently filters warmup messages and Claude Code session title generation prompts.
+// when looking for the first real user message (e.g. for the session title/slug).
+// Filters warmup prompts, title-generation prompts, and slash-command noise (the
+// command invocation, its local stdout/stderr, and the local-command caveat) — these
+// are conversation scaffolding, not the user's actual prompt. Without this, a session
+// that opens with a slash command gets an empty title and falls back to its UUID.
 func isSyntheticMessage(content string) bool {
+	// warmup and the <TEXTBLOCK> title-generation wrapper can be embedded anywhere
+	// in the record, so match them with Contains.
 	if strings.Contains(strings.ToLower(content), "warmup") {
 		return true
 	}
-	// Claude Code wraps the real user prompt in <TEXTBLOCK> tags for title generation
 	if strings.Contains(content, "<TEXTBLOCK>") {
 		return true
 	}
-	return false
+	// The slash-command scaffolding tags (shared with reconstruction via
+	// spi.SyntheticCommandTags) and the interrupt marker REPLACE the prompt, so they
+	// appear at the very START of the record. Match by prefix so a real prompt that
+	// merely mentions a tag mid-sentence is still treated as real. The interrupt
+	// marker's "…for tool use" variant is caught by the same prefix.
+	trimmed := strings.TrimSpace(content)
+	for _, marker := range spi.SyntheticCommandTags {
+		if strings.HasPrefix(trimmed, marker) {
+			return true
+		}
+	}
+	return strings.HasPrefix(trimmed, "[Request interrupted by user")
 }
 
 // cleanSyntheticPrefixes strips known boilerplate prefixes that Claude Code
@@ -639,9 +654,23 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	return sessions, nil
 }
 
-// extractSessionMetadata reads minimal data from a session file to extract metadata
-// Returns nil if the session is warmup-only (no real messages)
-func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
+// claudeSessionScan holds the minimal fields read from a session file in one pass:
+// identity + first-message metadata, plus the originating cwd (Claude Code stamps a
+// top-level "cwd" on every conversational record). foundRealMessage is false for
+// warmup-only sessions (no real messages).
+type claudeSessionScan struct {
+	sessionID        string
+	timestamp        string
+	firstUserMessage string
+	commandFallback  string // slash command title when there is no free-text prompt
+	cwd              string
+	foundRealMessage bool
+}
+
+// scanClaudeSession reads minimal data from a session file: session id, first-real
+// timestamp, first user message, and originating cwd. Shared by the project-scoped
+// metadata path and the global enumeration (ListAllAgentChatSessions).
+func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open session file: %w", err)
@@ -651,10 +680,7 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 	}()
 
 	reader := bufio.NewReader(file)
-	var sessionID string
-	var timestamp string
-	var firstUserMessage string
-	foundRealMessage := false
+	scan := &claudeSessionScan{}
 
 	// Read records until we find everything we need.
 	// Why: ReadString can return data AND io.EOF on the last line (no trailing newline),
@@ -679,9 +705,17 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 					"error", jsonErr)
 			} else {
 				// Extract session ID (from any record)
-				if sessionID == "" {
+				if scan.sessionID == "" {
 					if sid, ok := record["sessionId"].(string); ok {
-						sessionID = sid
+						scan.sessionID = sid
+					}
+				}
+
+				// Capture the originating cwd (first record that carries one). This is
+				// the input to project-identity resolution for the restore index.
+				if scan.cwd == "" {
+					if cwd, ok := record["cwd"].(string); ok && cwd != "" {
+						scan.cwd = cwd
 					}
 				}
 
@@ -691,25 +725,32 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 				isSystemRecord := hasType && (recordType == "file-history-snapshot" || recordType == "file-change")
 
 				if !isSidechain && !isSystemRecord {
-					// This is the first real message record - extract timestamp
-					if !foundRealMessage {
-						foundRealMessage = true
-						if ts, ok := record["timestamp"].(string); ok {
-							timestamp = ts
+					scan.foundRealMessage = true
+					// created_at = the first real record that actually carries a timestamp.
+					// (The leading {mode,sessionId,type} record has none, so we can't gate
+					// timestamp capture on "first real record" — it would stay empty.)
+					if scan.timestamp == "" {
+						if ts, ok := record["timestamp"].(string); ok && ts != "" {
+							scan.timestamp = ts
 						}
 					}
 
 					// Extract first user message for slug (if this is a user message)
 					// Content may be a string or a list of typed blocks (see extractContentText)
-					if firstUserMessage == "" && hasType && recordType == "user" {
+					if scan.firstUserMessage == "" && hasType && recordType == "user" {
 						isMeta, _ := record["isMeta"].(bool)
 						if !isMeta {
 							if message, ok := record["message"].(map[string]interface{}); ok {
 								content := extractContentText(message["content"])
 								if content != "" {
-									// Skip synthetic messages (warmup, title generation prompts, etc.)
-									if !isSyntheticMessage(content) {
-										firstUserMessage = cleanSyntheticPrefixes(content)
+								if isSyntheticMessage(content) {
+										// A slash-command session may have no free-text prompt;
+										// remember the command name as a fallback title.
+										if scan.commandFallback == "" {
+											scan.commandFallback = extractCommandName(content)
+										}
+									} else {
+										scan.firstUserMessage = content
 									}
 								}
 							}
@@ -720,26 +761,100 @@ func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
 		}
 
 		// Single exit: found everything we need, or reached end of file
-		if (sessionID != "" && timestamp != "" && firstUserMessage != "") || readErr == io.EOF {
+		if (scan.sessionID != "" && scan.timestamp != "" && scan.firstUserMessage != "" && scan.cwd != "") || readErr == io.EOF {
 			break
 		}
 	}
 
+	// Fall back to the slash command when there was no real user prompt (so a
+	// command-only session shows e.g. "/code-review" instead of its UUID).
+	if scan.firstUserMessage == "" {
+		scan.firstUserMessage = scan.commandFallback
+	}
+	return scan, nil
+}
+
+// extractCommandName pulls the slash command from a Claude Code command record, e.g.
+// "<command-name>/code-review</command-name>…" -> "/code-review". Falls back to the
+// bare command-message name (prefixed with "/"). Returns "" when none is present.
+func extractCommandName(content string) string {
+	if c := between(content, "<command-name>", "</command-name>"); c != "" {
+		return c
+	}
+	if c := between(content, "<command-message>", "</command-message>"); c != "" {
+		return "/" + c
+	}
+	return ""
+}
+
+// between returns the text between the first open/close markers, trimmed, or "".
+func between(s, openTag, closeTag string) string {
+	_, after, ok := strings.Cut(s, openTag)
+	if !ok {
+		return ""
+	}
+	inner, _, ok := strings.Cut(after, closeTag)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(inner)
+}
+
+// extractSessionMetadata reads minimal data from a session file to extract metadata
+// Returns nil if the session is warmup-only (no real messages)
+func extractSessionMetadata(filePath string) (*spi.SessionMetadata, error) {
+	scan, err := scanClaudeSession(filePath)
+	if err != nil {
+		return nil, err
+	}
+
 	// If no real message was found, this is a warmup-only session
-	if !foundRealMessage {
+	if !scan.foundRealMessage {
 		return nil, nil
 	}
 
-	// Generate slug from first user message
-	slug := spi.GenerateFilenameFromUserMessage(firstUserMessage)
-
-	// Generate human-readable name from first user message
-	name := spi.GenerateReadableName(firstUserMessage)
-
 	return &spi.SessionMetadata{
-		SessionID: sessionID,
-		CreatedAt: timestamp,
-		Slug:      slug,
-		Name:      name,
+		SessionID: scan.sessionID,
+		CreatedAt: scan.timestamp,
+		Slug:      spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+		Name:      spi.GenerateReadableName(scan.firstUserMessage),
 	}, nil
+}
+
+// ListAllAgentChatSessions enumerates every Claude Code session across all projects. It is the
+// no-progress form of ListAllAgentChatSessionsProgress.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
+}
+
+// ListAllAgentChatSessionsProgress enumerates every Claude Code session across all projects by
+// walking ~/.claude/projects/*/ for *.jsonl (the originating cwd comes from inside each session;
+// the project directory name is a lossy, irreversible encoding of the path), reporting scan
+// progress into r (nil-safe). Headers are scanned in parallel across CPUs; output order is
+// irrelevant (reindex dedups and sorts later). Implements spi.ProgressEnumerator. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+	projectsDir, err := GetClaudeCodeProjectsDir()
+	if err != nil {
+		// No projects directory yet → nothing to enumerate (not an error).
+		return []spi.GlobalSessionRef{}, nil
+	}
+
+	return spi.ScanSessionsInParallel(projectsDir, "claude", r, func(path string) (*spi.GlobalSessionRef, error) {
+		scan, scanErr := scanClaudeSession(path)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		if !scan.foundRealMessage {
+			return nil, nil // warmup-only or sidechain-only transcript (not a session)
+		}
+		return &spi.GlobalSessionRef{
+			SessionID:  scan.sessionID,
+			CreatedAt:  scan.timestamp,
+			Slug:       spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+			Name:       spi.GenerateReadableName(scan.firstUserMessage),
+			NativePath: path,
+			OriginCwd:  scan.cwd,
+		}, nil
+	})
 }
