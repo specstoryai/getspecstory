@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -141,13 +142,40 @@ func findWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		return nil, err
 	}
 
-	if len(matches) > 1 {
-		slog.Debug("Multiple workspaces match project path, using first",
-			"projectPath", projectPath,
-			"matchCount", len(matches))
+	if len(matches) == 1 {
+		return &matches[0], nil
 	}
 
-	return &matches[0], nil
+	// Multiple matches: pick the most recently used workspace (by state.vscdb mtime),
+	// not just the first one in directory-listing order, so a reconstructed session
+	// lands in the workspace instance the user is most likely to actually open next.
+	best := &matches[0]
+	bestModTime := workspaceDBModTime(best)
+	for i := 1; i < len(matches); i++ {
+		if modTime := workspaceDBModTime(&matches[i]); modTime.After(bestModTime) {
+			best = &matches[i]
+			bestModTime = modTime
+		}
+	}
+
+	slog.Debug("Multiple workspaces match project path, using most recently used",
+		"projectPath", projectPath,
+		"matchCount", len(matches),
+		"selectedWorkspaceID", best.ID)
+
+	return best, nil
+}
+
+// workspaceDBModTime returns the modification time of a workspace's state.vscdb, used
+// as a proxy for how recently that workspace was actually used in Cursor IDE. Returns
+// the zero time if the file can't be stat'd, so it loses any tie-break comparison
+// rather than erroring out the whole lookup.
+func workspaceDBModTime(m *WorkspaceMatch) time.Time {
+	info, err := os.Stat(m.DBPath)
+	if err != nil {
+		return time.Time{}
+	}
+	return info.ModTime()
 }
 
 // FindAllWorkspacesForProject finds all workspace directories that match the given project path.
