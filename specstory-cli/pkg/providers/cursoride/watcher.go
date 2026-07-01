@@ -438,19 +438,23 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				}
 			}
 
-			// Update known timestamp
-			w.mu.Lock()
-			w.knownComposers[composerID] = currentTimestamp
-			w.mu.Unlock()
-
 			// Convert to AgentChatSession
 			session, err := ConvertToAgentChatSession(composer)
 			if err != nil {
+				// Don't advance knownComposers on failure — leave the watermark where it
+				// was so this composer is retried on the next check instead of being
+				// silently skipped forever.
 				slog.Warn("Failed to convert composer to session",
 					"composerID", composerID,
 					"error", err)
 				continue
 			}
+
+			// Update known timestamp. Only done after a successful conversion so a
+			// failure (see above) doesn't permanently poison the watermark for this composer.
+			w.mu.Lock()
+			w.knownComposers[composerID] = currentTimestamp
+			w.mu.Unlock()
 
 			// Write debug output if requested
 			if w.debugRaw {
