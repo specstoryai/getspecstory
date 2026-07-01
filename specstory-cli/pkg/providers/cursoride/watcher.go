@@ -22,6 +22,7 @@ type CursorIDEWatcher struct {
 	ctx               context.Context
 	cancel            context.CancelFunc
 	wg                sync.WaitGroup
+	callbackWg        sync.WaitGroup // Tracks in-flight sessionCallback goroutines
 	mu                sync.RWMutex
 	lastCheck         time.Time
 	knownComposers    map[string]int64 // composerID -> lastUpdatedAt
@@ -163,6 +164,10 @@ func (w *CursorIDEWatcher) Stop() {
 	// Cancel context and wait for goroutines
 	w.cancel()
 	w.wg.Wait()
+
+	// Wait for any pending callback goroutines to complete
+	slog.Info("Waiting for pending callbacks to complete")
+	w.callbackWg.Wait()
 
 	slog.Info("Cursor IDE watcher stopped")
 }
@@ -450,11 +455,22 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				}
 			}
 
-			// Invoke callback
+			// Invoke callback asynchronously so a panic during processing (e.g. markdown
+			// write or cloud sync) doesn't crash the watcher, and slow callback I/O
+			// doesn't delay processing of the remaining sessions in this check.
 			slog.Info("Invoking callback for session",
 				"sessionID", session.SessionID,
 				"slug", session.Slug)
-			w.sessionCallback(session)
+			w.callbackWg.Add(1)
+			go func(s *spi.AgentChatSession) {
+				defer w.callbackWg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("Session callback panicked", "panic", r, "sessionID", s.SessionID)
+					}
+				}()
+				w.sessionCallback(s)
+			}(session)
 		}
 	}
 
