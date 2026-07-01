@@ -11,7 +11,7 @@ go 1.26.4
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
 require (
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
-	github.com/charmbracelet/fang v0.4.4 // Styled terminal output for Cobra commands
+	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
 	github.com/fsnotify/fsnotify v1.9.0 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
 	github.com/posthog/posthog-go v1.15.0 // Analytics tracking
