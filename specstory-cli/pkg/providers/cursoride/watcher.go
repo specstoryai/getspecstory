@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -31,6 +32,12 @@ type CursorIDEWatcher struct {
 	lastThrottledCall time.Time        // Track last throttled call
 	pendingCheck      bool             // Whether a check is pending after throttle
 	fsWatcher         *fsnotify.Watcher
+	// watchedDBPaths lists the database paths whose parent directories are being
+	// watched, so handleFileEvents can filter directory events down to the db files
+	// (state.vscdb and its -wal/-shm siblings) and ignore unrelated neighbors like
+	// workspace.json. Populated in Start() before the event goroutine launches, and
+	// read-only afterwards, so it needs no locking.
+	watchedDBPaths    []string
 	initialCheckTimer *time.Timer // Cancelled in Stop() so it can't fire a check after shutdown begins
 	// pendingIncomplete tracks sessions whose last bubble is a user message with no agent
 	// response yet. Cursor writes the user bubble and updates lastUpdatedAt atomically,
@@ -197,28 +204,40 @@ func (w *CursorIDEWatcher) Stop() {
 	slog.Info("Cursor IDE watcher stopped")
 }
 
-// watchDatabaseFiles sets up file watching for a database and its WAL file
+// watchDatabaseFiles sets up file watching for a database and its WAL file.
+//
+// Why the parent directory instead of the files themselves: in WAL mode nearly every
+// write lands in state.vscdb-wal, and SQLite deletes that file when the last
+// connection closes and recreates it on the next open. A watch on the file itself is
+// never added when the file doesn't exist yet (watcher started before Cursor), and
+// dies with the inode when Cursor checkpoints/restarts — silently degrading all
+// updates to the 2-minute safety-net poll. A directory watch keeps delivering
+// Create/Write events for the db and its -wal across those lifecycles.
 func (w *CursorIDEWatcher) watchDatabaseFiles(dbPath string) error {
-	// Watch the database file itself
-	if err := w.fsWatcher.Add(dbPath); err != nil {
+	dir := filepath.Dir(dbPath)
+	if err := w.fsWatcher.Add(dir); err != nil {
 		// Log but don't fail - we'll rely on polling
-		slog.Warn("Failed to watch database file", "path", dbPath, "error", err)
+		slog.Warn("Failed to watch database directory", "dir", dir, "error", err)
 		return err
 	}
-	slog.Debug("Watching database file", "path", dbPath)
 
-	// Watch the WAL file if it exists
-	walPath := dbPath + "-wal"
-	if _, err := os.Stat(walPath); err == nil {
-		if err := w.fsWatcher.Add(walPath); err != nil {
-			slog.Warn("Failed to watch WAL file", "path", walPath, "error", err)
-			// Don't return error - WAL is optional
-		} else {
-			slog.Debug("Watching WAL file", "path", walPath)
-		}
-	}
+	// Register the db path so handleFileEvents can filter directory events
+	// down to this database's files.
+	w.watchedDBPaths = append(w.watchedDBPaths, dbPath)
+	slog.Debug("Watching database directory", "dir", dir, "dbPath", dbPath)
 
 	return nil
+}
+
+// isWatchedDBFile reports whether a file event path belongs to one of the watched
+// databases (the db file itself or a sibling like -wal/-shm/-journal).
+func (w *CursorIDEWatcher) isWatchedDBFile(name string) bool {
+	for _, dbPath := range w.watchedDBPaths {
+		if name == dbPath || strings.HasPrefix(name, dbPath+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 // handleFileEvents processes file system events from fsnotify
@@ -235,8 +254,10 @@ func (w *CursorIDEWatcher) handleFileEvents() {
 				return
 			}
 
-			// Only care about Write and Create events
-			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+			// Only care about Write and Create events on the database files —
+			// the watch is on the parent directory, so unrelated neighbors
+			// (e.g. workspace.json) must be filtered out.
+			if (event.Has(fsnotify.Write) || event.Has(fsnotify.Create)) && w.isWatchedDBFile(event.Name) {
 				slog.Debug("Database file changed", "path", event.Name, "op", event.Op)
 				w.triggerCheck("file-change")
 			}
