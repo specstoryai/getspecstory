@@ -11,6 +11,7 @@
 ### ⚙️ Improvements
 
 - Massive improvement in the `sync` performance for Claude Code projects with many sessions.
+- Skip rendering content-less messages with just an agent header, [contribution](https://github.com/specstoryai/getspecstory/pull/237) by [huangruizhe](https://github.com/huangruizhe).
 
 ### 🐛 Bug Fixes
 

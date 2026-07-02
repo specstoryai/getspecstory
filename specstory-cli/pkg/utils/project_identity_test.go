@@ -123,130 +123,46 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 	})
 }
 
-// TestProjectIdentityManager_generateGitID tests git ID generation from various git URL formats
-func TestProjectIdentityManager_generateGitID(t *testing.T) {
-	tests := []struct {
-		name        string
-		gitURL      string
-		expectedID  string // We'll calculate this for each URL
-		shouldMatch bool   // Whether GitHub HTTPS and SSH should match
+// TestGitIDFromURL verifies the git_id derivation that resolveIdentity uses —
+// createHash(normalizeGitURL(url)) — is well-formed for assorted URL shapes, and that
+// HTTPS and SSH clones of the same repo converge to one id (the point of normalizeGitURL).
+func TestGitIDFromURL(t *testing.T) {
+	manager := &ProjectIdentityManager{}
+	gitID := func(url string) string { return manager.createHash(manager.normalizeGitURL(url)) }
+
+	formats := []struct {
+		name   string
+		gitURL string
 	}{
-		{
-			name:        "GitHub HTTPS",
-			gitURL:      "https://github.com/specstoryai/specstory-cli.git",
-			shouldMatch: true,
-		},
-		{
-			name:        "GitHub SSH",
-			gitURL:      "git@github.com:specstoryai/specstory-cli.git",
-			shouldMatch: true,
-		},
-		{
-			name:        "GitLab SSH",
-			gitURL:      "git@gitlab.com:patterns-ai-core/langchainrb.git",
-			shouldMatch: false,
-		},
-		{
-			name:        "Custom Git Server",
-			gitURL:      "git@custom.example.com:myorg/myrepo.git",
-			shouldMatch: false,
-		},
+		{"GitHub HTTPS", "https://github.com/specstoryai/specstory-cli.git"},
+		{"GitHub SSH", "git@github.com:specstoryai/specstory-cli.git"},
+		{"GitLab HTTPS", "https://gitlab.com/patterns-ai-core/langchainrb.git"},
+		{"GitLab SSH", "git@gitlab.com:patterns-ai-core/langchainrb.git"},
+		{"Custom Git Server", "git@custom.example.com:myorg/myrepo.git"},
 	}
-
-	// Create temporary directory for each test
-	for _, tt := range tests {
+	for _, tt := range formats {
 		t.Run(tt.name, func(t *testing.T) {
-			tempDir, err := os.MkdirTemp("", "specstory-git-test-*")
-			if err != nil {
-				t.Fatalf("Failed to create temp dir: %v", err)
-			}
-			defer func() { _ = os.RemoveAll(tempDir) }()
-
-			// Create .git/config
-			gitDir := filepath.Join(tempDir, ".git")
-			if err := os.MkdirAll(gitDir, 0755); err != nil {
-				t.Fatalf("Failed to create .git directory: %v", err)
-			}
-
-			gitConfig := `[remote "origin"]
-	url = ` + tt.gitURL
-
-			if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(gitConfig), 0644); err != nil {
-				t.Fatalf("Failed to write git config: %v", err)
-			}
-
-			manager := NewProjectIdentityManager(tempDir)
-			gitID, err := manager.generateGitID()
-			if err != nil {
-				t.Errorf("generateGitID failed: %v", err)
-			}
-
-			// Verify format
-			if !IsValidProjectID(gitID) {
-				t.Errorf("Invalid git_id format: %s", gitID)
-			}
-
-			// Store the ID for comparison
-			if tt.shouldMatch {
-				tt.expectedID = gitID
+			if id := gitID(tt.gitURL); !IsValidProjectID(id) {
+				t.Errorf("invalid git_id format for %q: %s", tt.gitURL, id)
 			}
 		})
 	}
 
-	// Verify that HTTPS and SSH URLs generate the same ID for all git hosts
-	// Group URLs by expected normalized form
-	urlGroups := map[string][]string{
-		"github": {"GitHub HTTPS", "GitHub SSH"},
-		"gitlab": {"GitLab HTTPS", "GitLab SSH"},
-	}
-
-	// Add GitLab HTTPS test case
-	tests = append(tests, struct {
-		name        string
-		gitURL      string
-		expectedID  string
-		shouldMatch bool
+	// HTTPS and SSH URLs for the same repo must hash to the same id: a clone over either
+	// protocol resolves to one project.
+	convergence := []struct {
+		name       string
+		https, ssh string
 	}{
-		name:        "GitLab HTTPS",
-		gitURL:      "https://gitlab.com/patterns-ai-core/langchainrb.git",
-		shouldMatch: true,
-	})
-
-	for groupName, testNames := range urlGroups {
-		var ids []string
-
-		for _, testName := range testNames {
-			for _, tt := range tests {
-				if tt.name == testName {
-					tempDir, _ := os.MkdirTemp("", "specstory-git-test-*")
-					defer func() { _ = os.RemoveAll(tempDir) }()
-
-					gitDir := filepath.Join(tempDir, ".git")
-					_ = os.MkdirAll(gitDir, 0755)
-
-					gitConfig := `[remote "origin"]
-	url = ` + tt.gitURL
-
-					_ = os.WriteFile(filepath.Join(gitDir, "config"), []byte(gitConfig), 0644)
-
-					manager := NewProjectIdentityManager(tempDir)
-					gitID, _ := manager.generateGitID()
-					ids = append(ids, gitID)
-					break
-				}
+		{"GitHub", "https://github.com/specstoryai/specstory-cli.git", "git@github.com:specstoryai/specstory-cli.git"},
+		{"GitLab", "https://gitlab.com/patterns-ai-core/langchainrb.git", "git@gitlab.com:patterns-ai-core/langchainrb.git"},
+	}
+	for _, c := range convergence {
+		t.Run(c.name+" HTTPS==SSH", func(t *testing.T) {
+			if gitID(c.https) != gitID(c.ssh) {
+				t.Errorf("%s HTTPS and SSH should converge, got %s vs %s", c.name, gitID(c.https), gitID(c.ssh))
 			}
-		}
-
-		// Verify all IDs in the group are the same
-		if len(ids) > 1 {
-			for i := 1; i < len(ids); i++ {
-				if ids[i] != ids[0] {
-					t.Errorf("%s HTTPS and SSH URLs should generate the same ID, but got different IDs: %v",
-						groupName, ids)
-					break
-				}
-			}
-		}
+		})
 	}
 }
 
@@ -854,56 +770,39 @@ func TestParseGitRemoteURL(t *testing.T) {
 	}
 }
 
-// TestGenerateProjectName tests project name generation with git and fallback
-func TestGenerateProjectName(t *testing.T) {
-	t.Run("WithGitRemote", func(t *testing.T) {
-		tempDir, err := os.MkdirTemp("", "specstory-projectname-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		defer func() { _ = os.RemoveAll(tempDir) }()
+// TestProjectNameFromRemote tests repo-name extraction from a git remote URL
+// (parseGitRemoteURL, which resolveIdentity uses to name a project from its origin).
+func TestProjectNameFromRemote(t *testing.T) {
+	manager := &ProjectIdentityManager{}
+	tests := []struct {
+		name, url, want string
+	}{
+		{"GitHub HTTPS", "https://github.com/specstoryai/my-awesome-project.git", "my-awesome-project"},
+		{"GitHub SSH", "git@github.com:specstoryai/my-awesome-project.git", "my-awesome-project"},
+		{"Implicit host/path", "github.com/specstoryai/my-awesome-project", "my-awesome-project"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := manager.parseGitRemoteURL(tt.url); got != tt.want {
+				t.Errorf("parseGitRemoteURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}
 
-		// Create a git config with origin
-		gitDir := filepath.Join(tempDir, ".git")
-		if err := os.MkdirAll(gitDir, 0755); err != nil {
-			t.Fatalf("Failed to create .git directory: %v", err)
-		}
+// TestProjectNameFallsBackToDirName verifies a project with no resolvable git remote is
+// named by its directory basename — the fallback branch in resolveIdentity.
+func TestProjectNameFallsBackToDirName(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "test-project-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
-		gitConfig := `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = https://github.com/specstoryai/my-awesome-project.git
-	fetch = +refs/heads/*:refs/remotes/origin/*`
-
-		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(gitConfig), 0644); err != nil {
-			t.Fatalf("Failed to write git config: %v", err)
-		}
-
-		manager := NewProjectIdentityManager(tempDir)
-		projectName := manager.generateProjectName()
-
-		if projectName != "my-awesome-project" {
-			t.Errorf("Expected project name 'my-awesome-project', got '%s'", projectName)
-		}
-	})
-
-	t.Run("WithoutGitRemote", func(t *testing.T) {
-		// Create a directory with a specific name
-		tempDir, err := os.MkdirTemp("", "test-project-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		defer func() { _ = os.RemoveAll(tempDir) }()
-
-		manager := NewProjectIdentityManager(tempDir)
-		projectName := manager.generateProjectName()
-
-		// Should be the directory name
-		expectedName := filepath.Base(tempDir)
-		if projectName != expectedName {
-			t.Errorf("Expected project name '%s', got '%s'", expectedName, projectName)
-		}
-	})
+	_, _, name, _ := resolveIdentity(tempDir)
+	if want := filepath.Base(tempDir); name != want {
+		t.Errorf("expected project name %q, got %q", want, name)
+	}
 }
 
 // TestProjectNameInFullFlow tests project_name in the complete identity flow

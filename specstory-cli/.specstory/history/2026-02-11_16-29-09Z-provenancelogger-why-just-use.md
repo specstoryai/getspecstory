@@ -167,12 +167,6 @@ For any new test cases that were added, confirm the tests are:
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-11 16:29:11Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-11 16:29:12Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -4921,12 +4915,6 @@ yes
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-11 16:52:27Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-11 16:52:28Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -5379,12 +5367,6 @@ In the `specstory run` command the startup order should be, fs watcher, then age
 Right now the agent starts before the provenance engine, this is backwards
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-11 17:02:12Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-11 17:02:13Z)**_
 

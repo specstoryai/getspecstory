@@ -187,24 +187,36 @@ func enumerateAll(registry *factory.Registry, visible bool) (ids []string, provs
 		ewg.Add(1)
 		go func(i int, id string, prov spi.Provider, reporter *spi.ScanReporter) {
 			defer ewg.Done()
-			var refs []spi.GlobalSessionRef
-			var err error
-			// Providers that can report progress (Codex, the long pole) tick the live line; the
-			// rest snap to their final count via markDone when they finish.
-			if pe, ok := prov.(spi.ProgressEnumerator); ok {
-				refs, err = pe.ListAllAgentChatSessionsProgress(reporter)
-			} else {
-				refs, err = prov.ListAllAgentChatSessions()
-			}
-			if err != nil {
-				slog.Warn("reindex: enumeration failed", "provider", id, "error", err)
-			}
+			refs := enumerateOne(id, prov, reporter)
 			perProvider[i] = refs
 			scan.markDone(id, len(refs))
 		}(i, id, prov, reporter)
 	}
 	ewg.Wait()
 	return ids, provs, perProvider
+}
+
+// enumerateOne enumerates a single provider's sessions, preferring the progress-reporting path
+// (Codex, the long pole, ticks the live line; the rest snap to their final count via markDone).
+// A panic in a provider's enumeration (e.g. a malformed session tree) is recovered and logged so
+// one bad provider degrades to "no sessions" rather than crashing the entire reindex/warm sweep.
+func enumerateOne(id string, prov spi.Provider, reporter *spi.ScanReporter) (refs []spi.GlobalSessionRef) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("reindex: provider enumeration panicked", "provider", id, "panic", r)
+			refs = nil
+		}
+	}()
+	var err error
+	if pe, ok := prov.(spi.ProgressEnumerator); ok {
+		refs, err = pe.ListAllAgentChatSessionsProgress(reporter)
+	} else {
+		refs, err = prov.ListAllAgentChatSessions()
+	}
+	if err != nil {
+		slog.Warn("reindex: enumeration failed", "provider", id, "error", err)
+	}
+	return refs
 }
 
 // dedupRefs collapses enumerated refs by (agent, session_id), keeping the freshest file. A
@@ -289,7 +301,10 @@ func (nopReporter) inc(string)     {}
 
 // processWork parses each work item (worker pool) and writes the results to the store via a
 // single writer goroutine, reporting progress through rep. It stops feeding work when ctx is
-// cancelled; the writer flushes what it already received. Returns the writer's error, if any.
+// cancelled; the writer flushes what it already received. If the writer fails (a store write
+// error), it closes writerDone and stops draining, so the workers and the feed loop both
+// select on writerDone to tear the pipeline down — otherwise a full sessionsCh buffer would
+// block every worker forever and wwg.Wait would deadlock. Returns the writer's error, if any.
 func processWork(ctx context.Context, store *sessionindex.Store, work []reindexItem, cache *projectIDCache, indexedAt string, workers int, rep reindexReporter) error {
 	if len(work) == 0 {
 		return nil
@@ -321,8 +336,14 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 			for item := range workCh {
 				sess := buildSession(item, cache, indexedAt)
 				rep.observe(sess.ProjectID)
-				sessionsCh <- sess
-				rep.inc(item.agent)
+				// Abandon the push if the writer has already exited on a write error; without
+				// this, a full sessionsCh would block here forever (nothing drains it).
+				select {
+				case sessionsCh <- sess:
+					rep.inc(item.agent)
+				case <-writerDone:
+					return
+				}
 			}
 		}()
 	}
@@ -330,6 +351,8 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 	for _, item := range work {
 		select {
 		case <-ctx.Done():
+			goto closing
+		case <-writerDone: // writer failed — stop feeding rather than block on a full buffer
 			goto closing
 		case workCh <- item:
 		}

@@ -187,12 +187,23 @@ func (m *ProjectIdentityManager) generateWorkspaceID() string {
 	return m.createHash(canonicalizeWorkspacePath(absPath))
 }
 
-// caseInsensitiveFilesystem reports whether the host OS treats paths case-insensitively.
-// macOS (APFS/HFS+) and Windows (NTFS) are case-insensitive/case-preserving; Linux is
-// case-sensitive. It is a var so tests can exercise both behaviors. Windows is included
-// even though the app is built only for macOS/Linux today: the in-flight Windows support
-// lives on a branch that does not carry this file, so folding case here keeps that branch
-// from silently reintroducing case-divergent workspace ids when it merges.
+// caseInsensitiveFilesystem is a best-effort, OS-level default for whether paths
+// should be case-folded — NOT a per-volume probe. macOS and Windows volumes are
+// usually case-insensitive and Linux case-sensitive, so we key off GOOS for
+// simplicity and stability. It is a var so tests can exercise both behaviors.
+// Windows is included even though the app is built only for macOS/Linux today: the
+// in-flight Windows support lives on a branch that does not carry this file, so
+// folding case here keeps that branch from silently reintroducing case-divergent
+// workspace ids when it merges.
+//
+// Accepted trade-off: macOS (APFS/HFS+) can be formatted case-SENSITIVE, where
+// this default wrongly folds two genuinely-distinct directories that differ only
+// by case into one workspace_id. That is rare and low-impact — case-sensitive
+// macOS volumes are uncommon, and it only affects the path-based fallback id
+// (git-remote projects hash the normalized URL, not the path). It is the
+// deliberate inverse of the common bug this fixes: case-divergent references to
+// the SAME directory on the usual case-insensitive volume (e.g. a lowercased
+// $PWD vs a session's recorded cwd) hashing to two different ids.
 var caseInsensitiveFilesystem = runtime.GOOS == "darwin" || runtime.GOOS == "windows"
 
 // canonicalizeWorkspacePath normalizes a path before it is hashed into a workspace_id. On
@@ -205,27 +216,6 @@ func canonicalizeWorkspacePath(path string) string {
 		return strings.ToLower(path)
 	}
 	return path
-}
-
-// generateGitID generates a git ID by finding and hashing the git origin URL
-func (m *ProjectIdentityManager) generateGitID() (string, error) {
-	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
-
-	// Check if git config exists
-	if _, err := os.Stat(gitConfigPath); err != nil {
-		return "", fmt.Errorf("no git config found: %w", err)
-	}
-
-	// Read the origin remote URL from the config (shared with the walk-up resolver).
-	originURL := readOriginURL(gitConfigPath)
-	if originURL == "" {
-		return "", fmt.Errorf("no origin URL found in git config")
-	}
-
-	// Normalize git URLs to ensure HTTPS and SSH URLs for the same repo generate the same ID
-	normalizedURL := m.normalizeGitURL(originURL)
-
-	return m.createHash(normalizedURL), nil
 }
 
 // normalizeGitURL normalizes a git URL to ensure HTTPS and SSH URLs for the same repo generate the same ID
@@ -377,20 +367,6 @@ func (m *ProjectIdentityManager) parseGitRemoteURL(remoteURL string) string {
 	return repoName
 }
 
-// generateProjectName generates a project name from git remote or directory name
-func (m *ProjectIdentityManager) generateProjectName() string {
-	// First, try to get from git remote
-	gitConfigPath := filepath.Join(m.projectRoot, ".git", "config")
-	if originURL := readOriginURL(gitConfigPath); originURL != "" {
-		if repoName := m.parseGitRemoteURL(originURL); repoName != "" {
-			return repoName
-		}
-	}
-
-	// Fallback: use the last component of the project directory
-	return filepath.Base(m.projectRoot)
-}
-
 // GetProjectName returns the project name from the project identity
 func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 	identity, err := m.ReadProjectIdentity()
@@ -407,11 +383,11 @@ func (m *ProjectIdentityManager) GetProjectName() (string, error) {
 // Walk-up identity resolution (shared by ComputeProjectID and the writer).
 //
 // The stored .specstory/.project.json fragments a monorepo: it is written per
-// launch directory, and generateGitID looks for .git at exactly that directory and
-// never walks up — so a session launched from a subdirectory gets no git_id and a
-// path-based workspace_id all its own. The resolver below instead walks UP to the
-// git root and computes identity from there, so every directory inside one repo
-// resolves to a single project. See docs/SESSIONS-DB.md.
+// launch directory, keyed to a .git at exactly that directory with no walk-up — so a
+// session launched from a subdirectory gets no git_id and a path-based workspace_id all
+// its own. The resolver below instead walks UP to the git root and computes identity
+// from there, so every directory inside one repo resolves to a single project. See
+// docs/SESSIONS-DB.md.
 // ---------------------------------------------------------------------------
 
 // originRemoteURLRegex captures the origin remote's url value from a git config file.
@@ -523,10 +499,19 @@ func resolveIdentity(startDir string) (gitID, workspaceID, name, root string) {
 }
 
 // ComputeProjectID resolves the restore-index project identity for a session's
-// working directory. It walks up to the git root and computes identity fresh,
-// ignoring any stored .specstory/.project.json (which fragments a monorepo) and
-// never writing one. Returns the project id (git_id when a remote is resolvable,
-// else the path-based workspace_id) and the project name.
+// working directory. It walks up to the git root and computes identity fresh, never
+// writing a .specstory/.project.json. Returns the project id (git_id when a remote
+// is resolvable, else the path-based workspace_id) and the project name.
+//
+// Stored .project.json handling differs by branch, on purpose:
+//   - With a resolvable remote, the git_id is computed from the remote URL and any
+//     stored file is ignored — this is what collapses a monorepo to one id.
+//   - In the no-remote fallback, a stored workspace_id IS preferred (see below).
+//     That deliberately keeps this id equal to the one cloud sync derives from the
+//     same launch dir's .project.json (sync.go reads it directly and does NOT walk
+//     up). The trade: a remote-less git monorepo whose subdirs carry legacy
+//     per-subdir .project.json files stays fragmented in BOTH the index and cloud,
+//     rather than collapsing in the index while diverging from cloud.
 func ComputeProjectID(cwd string) (id, name string, err error) {
 	if strings.TrimSpace(cwd) == "" {
 		return "", "", fmt.Errorf("cannot resolve project id: empty working directory")

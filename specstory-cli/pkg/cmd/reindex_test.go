@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -297,5 +298,43 @@ func TestLiveIndexerRecordConcurrent(t *testing.T) {
 	}
 	if len(rows) != n {
 		t.Errorf("got %d rows, want %d (one per distinct session)", len(rows), n)
+	}
+}
+
+// TestProcessWorkReturnsOnWriteError guards the pipeline against a deadlock when the store
+// write fails: a closed store makes every UpsertBatch fail, so the writer goroutine exits on
+// the first flush. With more queued items than the sessionsCh buffer (256) and the write batch
+// (200), the workers would block forever on the full, no-longer-drained buffer unless they tear
+// down on writerDone. processWork must instead return the write error promptly.
+func TestProcessWorkReturnsOnWriteError(t *testing.T) {
+	store, err := sessionindex.Open(filepath.Join(t.TempDir(), "sessions.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	_ = store.Close() // a closed store fails every UpsertBatch
+
+	// Empty OriginCwd keeps buildSession metadata-only (no provider/file access). 1000 items
+	// overflow both the 256-slot buffer and the 200-row write batch, so a flush fires mid-stream.
+	work := make([]reindexItem, 1000)
+	for i := range work {
+		work[i] = reindexItem{
+			agent: "claude",
+			ref:   spi.GlobalSessionRef{SessionID: fmt.Sprintf("s%d", i)},
+		}
+	}
+
+	cache := &projectIDCache{m: map[string]projectIDName{}}
+	done := make(chan error, 1)
+	go func() {
+		done <- processWork(context.Background(), store, work, cache, "2026-01-01T00:00:00Z", 4, nopReporter{})
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected a write error from the closed store, got nil")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("processWork deadlocked on write error instead of returning it")
 	}
 }

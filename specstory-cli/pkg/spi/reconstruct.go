@@ -3,6 +3,7 @@ package spi
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -126,6 +127,38 @@ func ResolveWorkspaceRoot(opts ReconstructOptions, data *schema.SessionData) str
 		return ""
 	}
 	return data.WorkspaceRoot
+}
+
+// reconstructMillisLayout is the RFC 3339 millisecond layout with a literal Z that the
+// Claude Code, Codex, Droid, and Gemini serializers stamp on reconstructed records.
+// (DeepSeek uses microsecond precision and formats its own.)
+const reconstructMillisLayout = "2006-01-02T15:04:05.000Z"
+
+// RFC3339Millis formats t with millisecond precision and a literal Z, the timestamp shape
+// shared by the Claude/Codex/Droid/Gemini serializers. Callers pass a UTC time.
+func RFC3339Millis(t time.Time) string {
+	return t.Format(reconstructMillisLayout)
+}
+
+// ResumedSessionTitle returns the display title for a reconstructed session: the trimmed
+// source slug, or "Resumed session" when the slug is blank or whitespace-only. Centralizing
+// this keeps the trim (which a couple of serializers previously skipped) and the fallback
+// consistent across providers.
+func ResumedSessionTitle(slug string) string {
+	if title := strings.TrimSpace(slug); title != "" {
+		return title
+	}
+	return "Resumed session"
+}
+
+// ReconstructRole maps a flattened Turn role to the "user"/"assistant" role string used by
+// most native session formats. Providers with a different role vocabulary (e.g. Gemini's
+// "gemini", Codex's event labels) map their own.
+func ReconstructRole(role string) string {
+	if role == schema.RoleUser {
+		return "user"
+	}
+	return "assistant"
 }
 
 // SyntheticCommandTags are the wrapper tags coding agents inject for

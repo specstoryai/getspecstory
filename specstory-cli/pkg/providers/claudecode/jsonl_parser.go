@@ -538,20 +538,17 @@ func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONL
 
 // buildDAGs constructs parent/child DAGs from records
 func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
-	// Index every record by uuid AND build a parentUuid->children adjacency map in one pass.
-	// Precomputing children here is what keeps DAG building O(N): the traversal below can then
-	// look a node's children up directly. The previous version re-scanned the entire record set
-	// to find children at every node it visited, making a whole-project parse O(N²) — tens of
-	// seconds for a project with ~25k records (the dominant cost of `specstory sync`).
-	recordByUuid := make(map[string]JSONLRecord, len(records))
+	// Build a parentUuid->children adjacency map in one pass. Precomputing children here is what
+	// keeps DAG building O(N): the traversal below can then look a node's children up directly.
+	// The previous version re-scanned the entire record set to find children at every node it
+	// visited, making a whole-project parse O(N²) — tens of seconds for a project with ~25k
+	// records (the dominant cost of `specstory sync`).
 	childrenByParent := make(map[string][]JSONLRecord)
 	roots := []JSONLRecord{}
 	for _, record := range records {
-		uuid, ok := record.Data["uuid"].(string)
-		if !ok {
+		if _, ok := record.Data["uuid"].(string); !ok {
 			continue // a record with no uuid can be neither traversed nor linked
 		}
-		recordByUuid[uuid] = record
 		if parentUuid, ok := record.Data["parentUuid"].(string); ok {
 			childrenByParent[parentUuid] = append(childrenByParent[parentUuid], record)
 		} else if record.Data["parentUuid"] == nil {

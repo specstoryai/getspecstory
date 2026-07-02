@@ -14,11 +14,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// geminiTimestamp formats a time the way Gemini chat records do (RFC3339 millis, Z).
-func geminiTimestamp(t time.Time) string {
-	return t.Format("2006-01-02T15:04:05.000Z")
-}
-
 // ReconstructSession rebuilds a Gemini CLI native chat session from the neutral
 // SessionData so `gemini --resume <id>` can continue the conversation.
 //
@@ -46,7 +41,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	for i, turn := range turns {
 		msg := map[string]interface{}{
 			"id":        uuid.NewString(),
-			"timestamp": geminiTimestamp(base.Add(time.Duration(i) * time.Second)),
+			"timestamp": spi.RFC3339Millis(base.Add(time.Duration(i) * time.Second)),
 		}
 		if turn.Role == schema.RoleUser {
 			msg["type"] = "user"
@@ -61,10 +56,13 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	session := map[string]interface{}{
 		"sessionId":   newID,
 		"projectHash": projectHash,
-		"startTime":   geminiTimestamp(base),
-		"lastUpdated": geminiTimestamp(base.Add(time.Duration(len(turns)) * time.Second)),
+		"startTime":   spi.RFC3339Millis(base),
+		"lastUpdated": spi.RFC3339Millis(base.Add(time.Duration(len(turns)) * time.Second)),
 		"kind":        "main",
 		"messages":    messages,
+		// Provenance back-link to the source session this was reconstructed from, so the
+		// lineage stays traceable (matches claude/codex/droid). See docs/SESSION-PORTABILITY.md.
+		"specstorySourceSessionId": data.SessionID,
 	}
 
 	var buf bytes.Buffer

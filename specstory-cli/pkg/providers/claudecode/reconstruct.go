@@ -51,7 +51,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	var prevUUID string
 	for i, turn := range turns {
 		recUUID := uuid.NewString()
-		ts := base.Add(time.Duration(i) * time.Second).Format("2006-01-02T15:04:05.000Z")
+		ts := spi.RFC3339Millis(base.Add(time.Duration(i) * time.Second))
 
 		rec := map[string]interface{}{
 			"isSidechain": false,

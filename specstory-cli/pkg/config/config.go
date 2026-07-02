@@ -786,8 +786,9 @@ func (c *Config) GetSkillsDefaultLocation() string {
 
 // SaveResumePrefs persists the resume view mode and last-resumed agent to the
 // user-level config (~/.specstory/cli/config.toml). It upserts ONLY the [resume]
-// section, preserving the rest of the file (comments and other sections), so the
-// self-documenting template stays intact. Pass an empty value to leave that key out.
+// section, preserving every other section and its comments. The [resume] block
+// itself is rewritten with the active keys, so that section's template comments
+// are replaced on first save. Pass an empty value to leave that key out.
 func SaveResumePrefs(viewMode, lastAgent string) error {
 	path := getUserConfigPath()
 	if path == "" {

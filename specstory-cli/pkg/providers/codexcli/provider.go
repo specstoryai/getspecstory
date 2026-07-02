@@ -11,9 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
@@ -1058,12 +1056,22 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 		lineNum++
-		trimmed := strings.TrimSpace(line)
 
-		if trimmed != "" {
-			if lineNum == 1 {
-				// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
-				// the set of indexed sessions is unchanged from the Scanner-based path.
+		// Skip a pathological/oversized line, for parity with readCodexJSONL's
+		// maxReasonableLineSize cap (this parallel scan must not be the weaker path). Such a
+		// line cannot be the small user_message we seek; line 1 has its own tighter limit below.
+		if len(line) > maxReasonableLineSize {
+			if readErr == io.EOF {
+				break
+			}
+			continue
+		}
+
+		if lineNum == 1 {
+			// Line 1 is session_meta. Keep loadCodexSessionMeta's 64 KB first-line limit so
+			// the set of indexed sessions is unchanged from the Scanner-based path.
+			trimmed := strings.TrimSpace(line)
+			if trimmed != "" {
 				if len(trimmed) > bufio.MaxScanTokenSize {
 					return nil, errors.New("codex session meta exceeds line limit")
 				}
@@ -1077,13 +1085,15 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 				h.sessionID = strings.TrimSpace(meta.Payload.ID)
 				h.cwd = meta.Payload.CWD
 				h.createdAt = meta.Timestamp
-			} else if strings.Contains(trimmed, userMessageMarker) {
-				// Cheap screen passed: only now pay for a full parse. The big context records
-				// before the first user message lack the marker and are skipped without a parse.
-				if msg := codexUserMessageText(trimmed); msg != "" {
-					h.firstUserMessage = msg
-					break
-				}
+			}
+		} else if strings.Contains(line, userMessageMarker) {
+			// Cheap screen passed: only now pay for a full parse. The big context records before
+			// the first user message lack the marker and are skipped without a parse. The marker
+			// is interior JSON, so the screen runs on the RAW line — no TrimSpace copy of a
+			// possibly multi-MB context record; only a real match (a small line) is parsed.
+			if msg := codexUserMessageText(strings.TrimSpace(line)); msg != "" {
+				h.firstUserMessage = msg
+				break
 			}
 		}
 
@@ -1147,64 +1157,21 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 		return []spi.GlobalSessionRef{}, nil
 	}
 
-	// Phase 1: collect file paths (dirents only — no opens).
-	var paths []string
-	walkErr := filepath.WalkDir(sessionsRoot, func(path string, d os.DirEntry, err error) error {
+	return spi.ScanSessionsInParallel(sessionsRoot, "codex", r, func(path string) (*spi.GlobalSessionRef, error) {
+		h, err := scanCodexSessionHeader(path)
 		if err != nil {
-			return nil // skip unreadable entries rather than abort the sweep
+			return nil, err
 		}
-		if d.IsDir() || filepath.Ext(path) != ".jsonl" {
-			return nil
+		if h == nil {
+			return nil, nil // empty session (no user message)
 		}
-		paths = append(paths, path)
-		return nil
+		return &spi.GlobalSessionRef{
+			SessionID:  h.sessionID,
+			CreatedAt:  h.createdAt,
+			Slug:       spi.GenerateFilenameFromUserMessage(h.firstUserMessage),
+			Name:       spi.GenerateReadableName(h.firstUserMessage),
+			NativePath: path,
+			OriginCwd:  h.cwd,
+		}, nil
 	})
-	if walkErr != nil {
-		return nil, fmt.Errorf("failed to walk codex sessions: %w", walkErr)
-	}
-
-	// Phase 2: scan headers in parallel. Each file's single-pass read is CPU-bound (JSON) and the
-	// files are independent, so this scales across cores.
-	workers := min(runtime.NumCPU(), 12)
-	if workers < 1 {
-		workers = 1
-	}
-	pathCh := make(chan string, workers)
-	refs := make([]spi.GlobalSessionRef, 0, len(paths))
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for path := range pathCh {
-				h, err := scanCodexSessionHeader(path)
-				if err != nil {
-					slog.Debug("reindex: failed to scan codex session header", "path", path, "error", err)
-					continue
-				}
-				if h == nil {
-					continue // empty session (no user message)
-				}
-				ref := spi.GlobalSessionRef{
-					SessionID:  h.sessionID,
-					CreatedAt:  h.createdAt,
-					Slug:       spi.GenerateFilenameFromUserMessage(h.firstUserMessage),
-					Name:       spi.GenerateReadableName(h.firstUserMessage),
-					NativePath: path,
-					OriginCwd:  h.cwd,
-				}
-				mu.Lock()
-				refs = append(refs, ref)
-				mu.Unlock()
-				r.Add(1) // count sessions found, not files scanned (warmup/empty files yield none)
-			}
-		}()
-	}
-	for _, path := range paths {
-		pathCh <- path
-	}
-	close(pathCh)
-	wg.Wait()
-	return refs, nil
 }

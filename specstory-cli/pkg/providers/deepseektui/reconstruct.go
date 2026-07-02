@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,19 +37,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	newID := uuid.NewString()
 	now := deepseekTimestamp(time.Now().UTC())
 
-	title := strings.TrimSpace(data.Slug)
-	if title == "" {
-		title = "Resumed session"
-	}
+	title := spi.ResumedSessionTitle(data.Slug)
 
 	messages := make([]map[string]interface{}, 0, len(turns))
 	for _, turn := range turns {
-		role := "assistant"
-		if turn.Role == schema.RoleUser {
-			role = "user"
-		}
 		messages = append(messages, map[string]interface{}{
-			"role":    role,
+			"role":    spi.ReconstructRole(turn.Role),
 			"content": []map[string]interface{}{{"type": "text", "text": turn.Text}},
 		})
 	}
@@ -68,6 +60,9 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 			"model":         "",
 			"workspace":     cwd,
 			"mode":          "agent",
+			// Provenance back-link to the source session this was reconstructed from, so the
+			// lineage stays traceable (matches claude/codex/droid). See docs/SESSION-PORTABILITY.md.
+			"specstorySourceSessionId": data.SessionID,
 		},
 		"messages": messages,
 	}
