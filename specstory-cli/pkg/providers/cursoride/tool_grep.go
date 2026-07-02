@@ -228,17 +228,29 @@ func escapeTableCellValue(value string) string {
 	return value
 }
 
-// escapeBraces escapes curly braces in markdown
+// escapeBraces escapes curly braces in markdown.
+//
+// Why count backslashes: a brace is only already escaped when preceded by an odd
+// number of backslashes. Looking at just the previous character mistakes an
+// escaped backslash ("\\{") for an escaped brace and leaves the brace unescaped.
 func escapeBraces(s string) string {
 	var result strings.Builder
-	prevChar := rune(0)
+	backslashCount := 0
 
 	for _, char := range s {
-		if (char == '{' || char == '}') && prevChar != '\\' {
-			result.WriteRune('\\')
+		switch char {
+		case '\\':
+			backslashCount++
+		case '{', '}':
+			// An even count (including zero) means the brace is not yet escaped.
+			if backslashCount%2 == 0 {
+				result.WriteRune('\\')
+			}
+			backslashCount = 0
+		default:
+			backslashCount = 0
 		}
 		result.WriteRune(char)
-		prevChar = char
 	}
 
 	return result.String()
