@@ -16,6 +16,23 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// markdownHeadingRe matches a leading Markdown ATX heading marker after outer
+// whitespace has been trimmed: 1-6 '#' characters followed by whitespace. The
+// trailing whitespace requirement is what distinguishes a real heading ("# Title")
+// from hashtag-like text ("#login issue"), which must be left untouched.
+var markdownHeadingRe = regexp.MustCompile(`^#{1,6}\s+`)
+
+// stripMarkdownHeading removes a leading markdown heading marker (e.g. "# Title" → "Title").
+// These are structural formatting, not meaningful slug content.
+func stripMarkdownHeading(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if markdownHeadingRe.MatchString(trimmed) {
+		trimmed = markdownHeadingRe.ReplaceAllString(trimmed, "")
+		trimmed = strings.TrimSpace(trimmed)
+	}
+	return trimmed
+}
+
 // xmlTagsRe matches XML-style tag blocks including their content, such as
 // <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
 // These are injected by IDE tools/system prompts and should be stripped before
@@ -50,6 +67,9 @@ func extractWordsFromMessage(message string, maxWords int) []string {
 	if message == "" {
 		return []string{}
 	}
+
+	// Strip leading markdown heading markers before they get converted to "hash"
+	message = stripMarkdownHeading(message)
 
 	// Normalize unicode and remove accents
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
@@ -189,7 +209,7 @@ func GetCanonicalPath(p string) (string, error) {
 	} else if err != nil {
 		// Symlink resolution failed (e.g., path doesn't exist yet),
 		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 
