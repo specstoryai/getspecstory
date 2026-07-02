@@ -109,7 +109,7 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 	message := fmt.Sprintf(`<details>
 <summary>Tool use: **%s** • Searched codebase "%s" • **%d** result%s in **%d** %s</summary>
 %s
-</details>`, bubble.Name, rawArgs.GlobPattern, resultsLength, resultsPluralSuffix, directoriesCount, directoriesPluralSuffix, messageDetails)
+</details>`, escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.GlobPattern), resultsLength, resultsPluralSuffix, directoriesCount, directoriesPluralSuffix, messageDetails)
 
 	return message, nil
 }

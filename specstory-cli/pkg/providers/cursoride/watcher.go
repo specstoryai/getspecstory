@@ -344,9 +344,13 @@ func (w *CursorIDEWatcher) executePendingCheck() {
 // checkForChanges queries the databases and processes any new or updated sessions.
 // The checking mutex prevents concurrent executions that would multiply DB connections.
 func (w *CursorIDEWatcher) checkForChanges(trigger string) {
-	// Prevent overlapping checks — if one is already running, skip this trigger.
-	// TryLock avoids blocking the goroutine (and piling up) when a check is slow.
-	if !w.checking.TryLock() {
+	// Prevent overlapping checks. Normal triggers use TryLock and skip so slow checks
+	// don't pile up goroutines, but the shutdown flush must not be skipped — its whole
+	// purpose is to catch changes an in-flight check's snapshot missed, so it blocks
+	// until that check finishes.
+	if trigger == "shutdown" {
+		w.checking.Lock()
+	} else if !w.checking.TryLock() {
 		slog.Debug("Skipping check, previous check still running", "trigger", trigger)
 		return
 	}
@@ -525,7 +529,12 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 		}
 	}
 
-	elapsed := time.Since(lastCheck)
+	// On the very first check lastCheck is the zero time; report 0 instead of a
+	// nonsensical ~2000-year duration.
+	var elapsed time.Duration
+	if !lastCheck.IsZero() {
+		elapsed = time.Since(lastCheck)
+	}
 	slog.Info("Completed check for changes",
 		"trigger", trigger,
 		"totalComposers", len(composers),

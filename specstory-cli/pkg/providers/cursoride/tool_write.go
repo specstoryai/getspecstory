@@ -53,9 +53,9 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 
 	// Build summary line
 	if params.RelativeWorkspacePath != "" {
-		fmt.Fprintf(&message, "<details><summary>Tool use: **%s** • Edit file: %s</summary>\n\n", bubble.Name, params.RelativeWorkspacePath)
+		fmt.Fprintf(&message, "<details><summary>Tool use: **%s** • Edit file: %s</summary>\n\n", escapeSummaryText(bubble.Name), escapeSummaryText(params.RelativeWorkspacePath))
 	} else {
-		fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+		fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", escapeSummaryText(bubble.Name))
 	}
 
 	// Add instructions if present
@@ -123,7 +123,7 @@ func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", escapeSummaryText(bubble.Name))
 
 	if rawArgs.Explanation != "" {
 		fmt.Fprintf(&message, "Explanation: %s\n\n", rawArgs.Explanation)
@@ -157,7 +157,7 @@ func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, "<details>\n        <summary>Tool use: **%s** • Apply patch for %s</summary>\n      ", bubble.Name, rawArgs.FilePath)
+	fmt.Fprintf(&message, "<details>\n        <summary>Tool use: **%s** • Apply patch for %s</summary>\n      ", escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.FilePath))
 
 	if rawArgs.Patch != "" {
 		fmt.Fprintf(&message, "\n\n```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
@@ -240,7 +240,7 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s** • %s</summary>\n\n", bubble.Name, invocationMsg)
+	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s** • %s</summary>\n\n", escapeSummaryText(bubble.Name), escapeSummaryText(invocationMsg))
 
 	// Check if operation failed
 	if bubble.Status == "error" && bubble.Error != "" {

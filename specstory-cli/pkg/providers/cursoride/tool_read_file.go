@@ -35,7 +35,7 @@ func (h *ReadFileHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 	// `<details><summary>Tool use: **${toolName}** • Read file: ${path}</summary>\n\n</details>`
 	return fmt.Sprintf(`<details><summary>Tool use: **%s** • Read file: %s</summary>
 
-</details>`, bubble.Name, filePath), nil
+</details>`, escapeSummaryText(bubble.Name), escapeSummaryText(filePath)), nil
 }
 
 // GetToolType returns the tool type category

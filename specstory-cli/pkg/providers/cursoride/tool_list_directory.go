@@ -59,7 +59,7 @@ func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (string,
 
 	message := fmt.Sprintf(`<details>
 <summary>Tool use: **%s** • Listed %s, %d result%s</summary>
-`, bubble.Name, workspaceDisplay, filesLength, pluralSuffix)
+`, escapeSummaryText(bubble.Name), escapeSummaryText(workspaceDisplay), filesLength, pluralSuffix)
 
 	if filesLength == 0 {
 		message += "\nNo results found"

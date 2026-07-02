@@ -77,9 +77,9 @@ func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	var message strings.Builder
 	message.WriteString(`<details>
             <summary>Tool use: **`)
-	message.WriteString(bubble.Name)
+	message.WriteString(escapeSummaryText(bubble.Name))
 	message.WriteString(`** • Grep search for "`)
-	message.WriteString(rawArgs.Query)
+	message.WriteString(escapeSummaryText(rawArgs.Query))
 	message.WriteString(`" • **`)
 	fmt.Fprintf(&message, "%d", resultsLength)
 	message.WriteString(`** files</summary>

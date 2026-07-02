@@ -115,13 +115,13 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 	// Build summary line
 	inString := ""
 	if params.Path != "" {
-		inString = fmt.Sprintf(` in "%s"`, params.Path)
+		inString = fmt.Sprintf(` in "%s"`, escapeSummaryText(params.Path))
 	}
 	matchWord := "match"
 	if resultsLength != 1 {
 		matchWord = "matches"
 	}
-	fmt.Fprintf(&message, "<summary>Tool use: **%s** • Grep for \"%s\"%s • %d %s</summary>\n\n", bubble.Name, params.Pattern, inString, resultsLength, matchWord)
+	fmt.Fprintf(&message, "<summary>Tool use: **%s** • Grep for \"%s\"%s • %d %s</summary>\n\n", escapeSummaryText(bubble.Name), escapeSummaryText(params.Pattern), inString, resultsLength, matchWord)
 
 	// Add output mode
 	outputMode := params.OutputMode
@@ -198,7 +198,8 @@ func (h *GrepHandler) formatFilesResults(files *GrepFilesResult) string {
 	result.WriteString("\n| File |\n|------|\n")
 
 	for _, file := range files.Files {
-		fmt.Fprintf(&result, "| `%s` |\n", file)
+		// Escape the DB-sourced name so pipes/newlines can't break the table
+		fmt.Fprintf(&result, "| `%s` |\n", escapeTableCellValue(file))
 	}
 
 	return result.String()

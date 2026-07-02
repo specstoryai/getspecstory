@@ -50,7 +50,7 @@ func (h *FileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	// Build the markdown message
 	message := fmt.Sprintf(`<details>
 <summary>Tool use: **%s** • Searched codebase "%s" • **%d** results</summary>
-`, bubble.Name, rawArgs.Query, resultsLength)
+`, escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.Query), resultsLength)
 
 	if resultsLength == 0 {
 		message += "\nNo results found"

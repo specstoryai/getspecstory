@@ -173,7 +173,15 @@ func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) st
 	// malicious name (quotes, angle brackets) from breaking out of the attribute.
 	return fmt.Sprintf(`<tool-use data-tool-type="%s" data-tool-name="%s">
 %s
-</tool-use>`, toolType, html.EscapeString(bubble.Name), content)
+</tool-use>`, toolType, escapeSummaryText(bubble.Name), content)
+}
+
+// escapeSummaryText escapes DB-sourced strings (tool names, queries, file paths)
+// before they are interpolated into HTML contexts like <summary> lines or tag
+// attributes. These values come from Cursor's database, so a malformed string
+// containing <, >, & or quotes would otherwise break the generated markup.
+func escapeSummaryText(s string) string {
+	return html.EscapeString(s)
 }
 
 // formatToolError formats a tool error message
@@ -199,7 +207,7 @@ func formatCatchAll(bubble *BubbleConversation) string {
 
 	// Start with summary line (just tool name, no params). Escape the DB-sourced
 	// name so it can't inject markup into the <summary> element.
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", html.EscapeString(bubble.Name))
+	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", escapeSummaryText(bubble.Name))
 
 	// Parse params
 	var params map[string]interface{}

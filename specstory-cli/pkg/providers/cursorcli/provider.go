@@ -302,7 +302,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 
 // readAgentChatSession reads a single session from a known hash directory.  It is the
 // shared implementation used by both GetAgentChatSession and GetAgentChatSessions so
-// that the potentially-expensive workspace scan in FindProjectHashDir is only done once
+// that the potentially-expensive workspace scan in GetProjectHashDir is only done once
 // per bulk operation rather than once per session.
 func (p *Provider) readAgentChatSession(hashDir, projectPath, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	// Check if the session exists and has store.db

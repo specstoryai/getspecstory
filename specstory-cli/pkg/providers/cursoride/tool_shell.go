@@ -45,7 +45,7 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (string, 
 	}
 
 	var message strings.Builder
-	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**", bubble.Name)
+	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**", escapeSummaryText(bubble.Name))
 
 	// Get command from params or rawArgs (prefer params)
 	command := params.Command
