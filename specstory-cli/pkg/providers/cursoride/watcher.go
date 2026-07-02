@@ -54,6 +54,12 @@ func NewCursorIDEWatcher(
 	sessionCallback func(*spi.AgentChatSession),
 	checkInterval time.Duration,
 ) (*CursorIDEWatcher, error) {
+	// A nil callback would only surface as a panic deep inside checkForChanges,
+	// long after construction — fail fast here instead.
+	if sessionCallback == nil {
+		return nil, fmt.Errorf("sessionCallback must not be nil")
+	}
+
 	// Find all workspaces matching the project (a project can match more than one
 	// workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
 	workspaces, err := FindAllWorkspacesForProject(projectPath)

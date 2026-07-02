@@ -1,5 +1,14 @@
 # Cursor IDE Provider — Gap Analysis vs. SPI & Peer Providers
 
+> **⚠️ Historical document — the analysis below is outdated.** This was a point-in-time
+> gap analysis; the blockers it describes have since been resolved on this branch:
+> `cursoride` now implements the full `spi.Provider` interface (including
+> `ListAllAgentChatSessions`, `ReconstructSession`, and `NativeSessionPath`), the binary
+> builds, `ExecAgentAndWatch` opens Cursor IDE instead of erroring, the watcher is
+> fsnotify-based (with polling as fallback), and the package has unit tests
+> (`agent_session_test.go`, `database_test.go`, `reconstruct_test.go`, `workspace_test.go`).
+> It is kept for context on the decisions made; do not treat its findings as current.
+
 ## Bottom line
 
 **The branch does not compile.** `cursoride` implements only **7 of the 10** methods on `spi.Provider`. When the session-portability SPI was merged from `dev` into `cursor-ide`, three new interface methods were added but `cursoride` was never updated, so the registry fails to build:

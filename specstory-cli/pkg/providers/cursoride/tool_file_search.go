@@ -65,7 +65,8 @@ func (h *FileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 			if displayName == "" {
 				displayName = file.URI
 			}
-			message += fmt.Sprintf("| `%s` |\n", displayName)
+			// Escape the DB-sourced name so pipes/newlines can't break the table
+			message += fmt.Sprintf("| `%s` |\n", escapeTableCellValue(displayName))
 		}
 	}
 

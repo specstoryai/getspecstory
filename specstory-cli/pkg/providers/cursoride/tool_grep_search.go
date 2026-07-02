@@ -100,9 +100,9 @@ func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 					lineNumber = matchEntry.Match.RangeLocations[0].Source.StartLineNumber + 1
 				}
 
-				// Add row
+				// Add row (escape both DB-sourced cells so pipes/newlines can't break the table)
 				fmt.Fprintf(&message, "| `%s` | L%d | `%s` |\n",
-					fileResult.Resource,
+					escapeTableCellValue(fileResult.Resource),
 					lineNumber,
 					escapeTableCellValue(matchEntry.Match.PreviewText))
 			}

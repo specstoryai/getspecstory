@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -33,6 +34,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check for global database
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
+		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+			"provider":      "cursoride",
+			"error_type":    "database_not_found",
+			"error_message": err.Error(),
+		})
 		return spi.CheckResult{
 			Success:      false,
 			Version:      "",
@@ -44,6 +50,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Try to open the database
 	db, err := OpenDatabase(globalDbPath)
 	if err != nil {
+		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+			"provider":      "cursoride",
+			"error_type":    "database_open_failed",
+			"error_message": err.Error(),
+		})
 		return spi.CheckResult{
 			Success:      false,
 			Version:      "",
@@ -58,6 +69,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}()
 
 	slog.Debug("Cursor IDE check successful", "dbPath", globalDbPath)
+
+	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+		"provider": "cursoride",
+		"location": globalDbPath,
+	})
 
 	return spi.CheckResult{
 		Success:      true,

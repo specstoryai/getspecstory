@@ -73,7 +73,8 @@ func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (string,
 			if file.IsDirectory {
 				icon = "📁"
 			}
-			message += fmt.Sprintf("| %s `%s` |\n", icon, file.Name)
+			// Escape the DB-sourced name so pipes/newlines can't break the table
+			message += fmt.Sprintf("| %s `%s` |\n", icon, escapeTableCellValue(file.Name))
 		}
 	}
 

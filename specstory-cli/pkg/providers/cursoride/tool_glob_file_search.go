@@ -89,7 +89,8 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 					if displayName == "" {
 						displayName = "Unknown file"
 					}
-					messageDetails += fmt.Sprintf("| `%s` |\n", displayName)
+					// Escape the DB-sourced name so pipes/newlines can't break the table
+					messageDetails += fmt.Sprintf("| `%s` |\n", escapeTableCellValue(displayName))
 				}
 			}
 		}

@@ -3,6 +3,7 @@ package cursoride
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 )
@@ -168,9 +169,11 @@ func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) st
 
 	// Wrap in tool-use HTML tag
 	// Format: <tool-use data-tool-type="read" data-tool-name="read_file">
+	// bubble.Name comes from the Cursor DB, so escape it to keep a malformed or
+	// malicious name (quotes, angle brackets) from breaking out of the attribute.
 	return fmt.Sprintf(`<tool-use data-tool-type="%s" data-tool-name="%s">
 %s
-</tool-use>`, toolType, bubble.Name, content)
+</tool-use>`, toolType, html.EscapeString(bubble.Name), content)
 }
 
 // formatToolError formats a tool error message
@@ -194,8 +197,9 @@ func formatToolError(bubble *BubbleConversation) string {
 func formatCatchAll(bubble *BubbleConversation) string {
 	var message strings.Builder
 
-	// Start with summary line (just tool name, no params)
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+	// Start with summary line (just tool name, no params). Escape the DB-sourced
+	// name so it can't inject markup into the <summary> element.
+	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", html.EscapeString(bubble.Name))
 
 	// Parse params
 	var params map[string]interface{}
