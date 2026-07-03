@@ -34,11 +34,11 @@ type CodeEditResult struct {
 }
 
 // AdaptMessage formats code edit tool invocations as markdown
-func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var params CodeEditParams
 	if bubble.Params != "" {
 		if err := json.Unmarshal([]byte(bubble.Params), &params); err != nil {
-			return "", fmt.Errorf("failed to parse code edit params: %w", err)
+			return "", "", fmt.Errorf("failed to parse code edit params: %w", err)
 		}
 	}
 
@@ -48,15 +48,14 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 		_ = json.Unmarshal([]byte(bubble.Result), &result)
 	}
 
-	var message strings.Builder
-	message.WriteString("\n")
-
 	// Build summary line
 	if params.RelativeWorkspacePath != "" {
-		fmt.Fprintf(&message, "<details><summary>Tool use: **%s** • Edit file: %s</summary>\n\n", escapeSummaryText(bubble.Name), escapeSummaryText(params.RelativeWorkspacePath))
+		summary = fmt.Sprintf("Tool use: **%s** • Edit file: %s", escapeSummaryText(bubble.Name), escapeSummaryText(params.RelativeWorkspacePath))
 	} else {
-		fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", escapeSummaryText(bubble.Name))
+		summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 	}
+
+	var message strings.Builder
 
 	// Add instructions if present
 	if params.Instructions != "" {
@@ -96,8 +95,7 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 		}
 	}
 
-	message.WriteString("</details>\n")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -114,23 +112,22 @@ type DeleteFileRawArgs struct {
 }
 
 // AdaptMessage formats delete_file tool invocations as markdown
-func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs DeleteFileRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse delete_file rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse delete_file rawArgs: %w", err)
 		}
 	}
 
-	var message strings.Builder
-	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", escapeSummaryText(bubble.Name))
+	summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 
+	var message strings.Builder
 	if rawArgs.Explanation != "" {
 		fmt.Fprintf(&message, "Explanation: %s\n\n", rawArgs.Explanation)
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -148,23 +145,22 @@ type ApplyPatchRawArgs struct {
 }
 
 // AdaptMessage formats apply_patch tool invocations as markdown
-func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs ApplyPatchRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse apply_patch rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse apply_patch rawArgs: %w", err)
 		}
 	}
 
-	var message strings.Builder
-	fmt.Fprintf(&message, "<details>\n        <summary>Tool use: **%s** • Apply patch for %s</summary>\n      ", escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.FilePath))
+	summary = fmt.Sprintf("Tool use: **%s** • Apply patch for %s", escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.FilePath))
 
+	var message strings.Builder
 	if rawArgs.Patch != "" {
-		fmt.Fprintf(&message, "\n\n```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
+		fmt.Fprintf(&message, "```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -196,7 +192,7 @@ type CopilotApplyPatchResult struct {
 }
 
 // AdaptMessage formats copilot apply patch tool invocations as markdown
-func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs CopilotApplyPatchRawArgs
 	if bubble.RawArgs != "" {
 		// Parse rawArgs, but ignore errors (non-fatal, use defaults)
@@ -239,8 +235,9 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 		invocationMsg = fmt.Sprintf("Edit file: %s", filePath)
 	}
 
+	summary = fmt.Sprintf("Tool use: **%s** • %s", escapeSummaryText(bubble.Name), escapeSummaryText(invocationMsg))
+
 	var message strings.Builder
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s** • %s</summary>\n\n", escapeSummaryText(bubble.Name), escapeSummaryText(invocationMsg))
 
 	// Check if operation failed
 	if bubble.Status == "error" && bubble.Error != "" {
@@ -276,8 +273,7 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 		}
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category

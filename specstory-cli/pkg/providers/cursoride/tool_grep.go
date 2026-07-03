@@ -63,18 +63,18 @@ type GrepFilesResult struct {
 }
 
 // AdaptMessage formats grep tool invocations as markdown
-func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var params GrepParams
 	if bubble.Params != "" {
 		if err := json.Unmarshal([]byte(bubble.Params), &params); err != nil {
-			return "", fmt.Errorf("failed to parse grep params: %w", err)
+			return "", "", fmt.Errorf("failed to parse grep params: %w", err)
 		}
 	}
 
 	var result GrepResult
 	if bubble.Result != "" {
 		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
-			return "", fmt.Errorf("failed to parse grep result: %w", err)
+			return "", "", fmt.Errorf("failed to parse grep result: %w", err)
 		}
 	}
 
@@ -108,10 +108,6 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 		messageDetails = "\n_No matches found_"
 	}
 
-	// Build the message
-	var message strings.Builder
-	message.WriteString("<details>\n")
-
 	// Build summary line
 	inString := ""
 	if params.Path != "" {
@@ -121,7 +117,10 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 	if resultsLength != 1 {
 		matchWord = "matches"
 	}
-	fmt.Fprintf(&message, "<summary>Tool use: **%s** • Grep for \"%s\"%s • %d %s</summary>\n\n", escapeSummaryText(bubble.Name), escapeSummaryText(params.Pattern), inString, resultsLength, matchWord)
+	summary = fmt.Sprintf("Tool use: **%s** • Grep for \"%s\"%s • %d %s", escapeSummaryText(bubble.Name), escapeSummaryText(params.Pattern), inString, resultsLength, matchWord)
+
+	// Build the body
+	var message strings.Builder
 
 	// Add output mode
 	outputMode := params.OutputMode
@@ -133,8 +132,7 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 	// Add details
 	fmt.Fprintf(&message, "\n%s\n", messageDetails)
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // formatContentResults formats content matches as a markdown table

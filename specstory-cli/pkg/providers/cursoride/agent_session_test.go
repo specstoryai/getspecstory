@@ -139,6 +139,19 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 				if toolMsg.Tool.FormattedMarkdown == nil || *toolMsg.Tool.FormattedMarkdown == "" {
 					t.Errorf("expected Tool.FormattedMarkdown to be populated")
 				}
+				// Regression check for the nested <details> bug: FormattedMarkdown must be a
+				// body-only fragment. The shared renderer (pkg/session/markdown.go) supplies
+				// its own <details>/<summary> wrapper, so a handler-embedded one produces
+				// nested <details> blocks and a duplicated "Tool use" heading.
+				if toolMsg.Tool.FormattedMarkdown != nil && strings.Contains(*toolMsg.Tool.FormattedMarkdown, "<details>") {
+					t.Errorf("Tool.FormattedMarkdown must not contain its own <details> wrapper, got: %q", *toolMsg.Tool.FormattedMarkdown)
+				}
+				if toolMsg.Tool.Summary == nil || *toolMsg.Tool.Summary == "" {
+					t.Errorf("expected Tool.Summary to be populated")
+				}
+				if toolMsg.Tool.Summary != nil && strings.Contains(*toolMsg.Tool.Summary, "<summary>") {
+					t.Errorf("Tool.Summary must be plain text, not pre-wrapped in <summary> tags, got: %q", *toolMsg.Tool.Summary)
+				}
 				if len(toolMsg.Content) != 0 {
 					t.Errorf("expected Content to be empty when Tool is set (else markdown.go renders the tool use twice), got: %+v", toolMsg.Content)
 				}

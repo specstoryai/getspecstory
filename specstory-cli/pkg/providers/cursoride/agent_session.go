@@ -261,11 +261,12 @@ func resolveToolInfo(bubble *ComposerConversation, capabilitiesMap map[int]*Capa
 		return nil
 	}
 
-	content, toolType := FormatToolContent(toolData, toolRegistry)
+	summary, body, toolType := FormatToolContent(toolData, toolRegistry)
 	return &schema.ToolInfo{
 		Name:              toolData.Name,
 		Type:              toSchemaToolType(toolType),
-		FormattedMarkdown: &content,
+		Summary:           &summary,
+		FormattedMarkdown: &body,
 	}
 }
 
