@@ -113,7 +113,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 			"uri": map[string]interface{}{
 				"$mid":     1,
 				"fsPath":   workspaceRoot,
-				"external": "file://" + workspaceRoot,
+				"external": pathToFileURI(workspaceRoot),
 				"path":     workspaceRoot,
 				"scheme":   "file",
 			},

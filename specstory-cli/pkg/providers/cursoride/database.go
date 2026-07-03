@@ -541,7 +541,7 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 			"uri": map[string]interface{}{
 				"$mid":     1,
 				"fsPath":   workspaceRoot,
-				"external": "file://" + workspaceRoot,
+				"external": pathToFileURI(workspaceRoot),
 				"path":     workspaceRoot,
 				"scheme":   "file",
 			},

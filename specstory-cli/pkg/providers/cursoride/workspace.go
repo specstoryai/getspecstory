@@ -445,6 +445,16 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	return &workspace, nil
 }
 
+// pathToFileURI converts an absolute filesystem path to a file:// URI.
+// Cursor stores workspaceIdentifier.uri.external in percent-encoded form (e.g.
+// spaces as %20), so raw string concatenation would produce a URI that doesn't
+// match what Cursor writes for paths containing reserved characters, which can
+// mis-associate reconstructed sessions with their workspace.
+func pathToFileURI(path string) string {
+	u := url.URL{Scheme: "file", Path: path}
+	return u.String()
+}
+
 // uriToPath converts a workspace URI to a local file path.
 // Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
 // vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL,
