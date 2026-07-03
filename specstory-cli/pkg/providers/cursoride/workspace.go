@@ -320,19 +320,20 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	return matches, nil
 }
 
-// isRemoteURIRequiringBasenameMatch checks if a URI is a vscode-remote SSH or dev-container
-// URI. Case-insensitive to stay consistent with parseVSCodeRemoteURI, which accepts uppercase
-// authorities — this check gates basename matching, so a case mismatch would silently drop
-// remote workspaces instead of just changing a log line.
+// isRemoteURIRequiringBasenameMatch checks if a URI is a vscode-remote SSH, tunnel, or
+// dev-container URI. Case-insensitive to stay consistent with parseVSCodeRemoteURI, which
+// accepts uppercase authorities — this check gates basename matching, so a case mismatch
+// would silently drop remote workspaces instead of just changing a log line.
 //
-// Both SSH and dev-container workspace paths live outside the local filesystem (a remote
-// machine or a container), so direct path comparison can never succeed for them and the
-// folder basename is the only usable signal. WSL is deliberately excluded: WSL paths are
+// SSH, tunnel, and dev-container workspace paths all live outside the local filesystem (a
+// remote machine or a container), so direct path comparison can never succeed for them and
+// the folder basename is the only usable signal. WSL is deliberately excluded: WSL paths are
 // reachable from the host via \\wsl.localhost\... / /mnt/wsl/..., so direct path matching
 // already works there and doesn't need the (weaker, name-collision-prone) basename fallback.
 func isRemoteURIRequiringBasenameMatch(uri string) bool {
 	lower := strings.ToLower(uri)
 	return strings.HasPrefix(lower, "vscode-remote://ssh-remote") ||
+		strings.HasPrefix(lower, "vscode-remote://tunnel") ||
 		strings.HasPrefix(lower, "vscode-remote://dev-container")
 }
 
@@ -468,7 +469,8 @@ func pathToFileURI(path string) string {
 // uriToPath converts a workspace URI to a local file path.
 // Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
 // vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL,
-// and vscode-remote://ssh-remote+config/path URIs for SSH remotes.
+// vscode-remote://ssh-remote+config/path URIs for SSH remotes, and
+// vscode-remote://tunnel+host/path URIs for remote tunnels.
 func uriToPath(uri string) (string, error) {
 	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
 	// rejects percent-encoded characters like %2B in the host component
@@ -574,9 +576,10 @@ func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool
 }
 
 // parseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI.
-// Handles two types of remote URIs:
+// Handles three types of remote URIs:
 // 1. WSL: vscode-remote://wsl%2B{distro}/{path} - path is the WSL filesystem path
 // 2. SSH: vscode-remote://ssh-remote%2B{config-hex}/{path} - path is the remote filesystem path
+// 3. Tunnel: vscode-remote://tunnel%2B{host}/{path} - path is the remote filesystem path
 // Go's url.Parse rejects %2B in the host component, so we parse manually.
 func parseVSCodeRemoteURI(uri string) (string, error) {
 	// Strip scheme prefix: "vscode-remote://"
@@ -605,6 +608,8 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 		!strings.EqualFold(decodedHost, "wsl") &&
 		!strings.HasPrefix(hostLower, "ssh-remote+") &&
 		!strings.EqualFold(decodedHost, "ssh-remote") &&
+		!strings.HasPrefix(hostLower, "tunnel+") &&
+		!strings.EqualFold(decodedHost, "tunnel") &&
 		!strings.HasPrefix(hostLower, "dev-container+") &&
 		!strings.EqualFold(decodedHost, "dev-container") {
 		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
@@ -620,6 +625,8 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 	switch {
 	case strings.HasPrefix(hostLower, "ssh-remote"):
 		slog.Debug("Converted vscode-remote SSH URI to path", "uri", uri, "path", path)
+	case strings.HasPrefix(hostLower, "tunnel"):
+		slog.Debug("Converted vscode-remote tunnel URI to path", "uri", uri, "path", path)
 	case strings.HasPrefix(hostLower, "dev-container"):
 		slog.Debug("Converted vscode-remote dev container URI to path", "uri", uri, "path", path)
 	default:
