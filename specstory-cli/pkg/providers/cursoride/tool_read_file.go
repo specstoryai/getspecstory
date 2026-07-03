@@ -15,12 +15,12 @@ type ReadFileParams struct {
 }
 
 // AdaptMessage formats the read_file tool invocation as markdown
-func (h *ReadFileHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *ReadFileHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	// Parse params to get the file path
 	var params ReadFileParams
 	if bubble.Params != "" {
 		if err := json.Unmarshal([]byte(bubble.Params), &params); err != nil {
-			return "", fmt.Errorf("failed to parse read_file params: %w", err)
+			return "", "", fmt.Errorf("failed to parse read_file params: %w", err)
 		}
 	}
 
@@ -30,12 +30,9 @@ func (h *ReadFileHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 		filePath = params.TargetFile
 	}
 
-	// Format as a collapsed details block
-	// This matches the TypeScript implementation:
-	// `<details><summary>Tool use: **${toolName}** • Read file: ${path}</summary>\n\n</details>`
-	return fmt.Sprintf(`<details><summary>Tool use: **%s** • Read file: %s</summary>
-
-</details>`, escapeSummaryText(bubble.Name), escapeSummaryText(filePath)), nil
+	// Matches the TypeScript implementation's summary text; there's no body content.
+	summary = fmt.Sprintf("Tool use: **%s** • Read file: %s", escapeSummaryText(bubble.Name), escapeSummaryText(filePath))
+	return summary, "", nil
 }
 
 // GetToolType returns the tool type category

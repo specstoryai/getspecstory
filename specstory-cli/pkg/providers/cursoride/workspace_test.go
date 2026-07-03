@@ -83,6 +83,11 @@ func TestUriToPath(t *testing.T) {
 			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
 			wantPath: "/Users/bago/code/getspecstory",
 		},
+		{
+			name:     "vscode-remote tunnel URI with percent-encoded host",
+			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
 
 		// Unsupported schemes
 		{
@@ -222,6 +227,23 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			wantPath: "/home/user/project",
 		},
 
+		// Valid tunnel URIs
+		{
+			name:     "tunnel with simple host",
+			uri:      "vscode-remote://tunnel+myhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
+		{
+			name:     "tunnel with percent-encoded host",
+			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
+		{
+			name:     "tunnel case insensitive",
+			uri:      "vscode-remote://TUNNEL+myhost/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
 		// Dev container URIs - path returned as-is (container-internal path)
 		{
 			name:     "dev container URI with hex-encoded config",
@@ -264,6 +286,63 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 
 			if got != tt.wantPath {
 				t.Errorf("parseVSCodeRemoteURI(%q) = %q, want %q", tt.uri, got, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestIsRemoteURIRequiringBasenameMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want bool
+	}{
+		{
+			name: "ssh-remote URI matches",
+			uri:  "vscode-remote://ssh-remote+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "ssh-remote URI case insensitive",
+			uri:  "vscode-remote://SSH-REMOTE+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "tunnel URI matches",
+			uri:  "vscode-remote://tunnel+myhost/work/group/user/myproject",
+			want: true,
+		},
+		{
+			name: "tunnel URI case insensitive",
+			uri:  "vscode-remote://TUNNEL+myhost/work/group/user/myproject",
+			want: true,
+		},
+		{
+			name: "dev-container URI matches",
+			uri:  "vscode-remote://dev-container%2Babc123/workspace",
+			want: true,
+		},
+		{
+			name: "dev-container URI case insensitive",
+			uri:  "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
+			want: true,
+		},
+		{
+			name: "wsl URI does not match",
+			uri:  "vscode-remote://wsl%2Bubuntu/home/user/project",
+			want: false,
+		},
+		{
+			name: "local file URI does not match",
+			uri:  "file:///Users/bago/code/getspecstory",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRemoteURIRequiringBasenameMatch(tt.uri); got != tt.want {
+				t.Errorf("isRemoteURIRequiringBasenameMatch(%q) = %v, want %v", tt.uri, got, tt.want)
 			}
 		})
 	}
