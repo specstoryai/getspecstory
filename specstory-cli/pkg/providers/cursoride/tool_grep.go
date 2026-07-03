@@ -210,11 +210,17 @@ func (h *GrepHandler) GetToolType() ToolType {
 	return ToolTypeSearch
 }
 
-// escapeTableCellValue escapes special characters for markdown table cells
-// Matches the TypeScript escapeTableCellValue function
+// escapeTableCellValue escapes special characters for markdown table cells.
+// Matches the TypeScript escapeTableCellValue function, plus backtick escaping:
+// callers wrap cell values in `...` code spans, and grep results contain source
+// code lines where backticks are common (markdown, JS template literals), which
+// would otherwise terminate the span and corrupt the table. The TS extension has
+// the same flaw; &#96; follows the escapeCodeBlock convention in this package.
 func escapeTableCellValue(value string) string {
 	// Escape pipes
 	value = strings.ReplaceAll(value, "|", "\\|")
+	// Escape backticks so values survive being wrapped in `...` code spans
+	value = strings.ReplaceAll(value, "`", "&#96;")
 	// Convert newlines to HTML breaks
 	value = strings.ReplaceAll(value, "\n", "<br/>")
 	// Escape braces (for some markdown parsers)
