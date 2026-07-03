@@ -181,7 +181,8 @@ func workspaceDBModTime(m *WorkspaceMatch) time.Time {
 // FindAllWorkspacesForProject finds all workspace directories that match the given project path.
 // In WSL, the same project may have multiple workspaces with different URI formats
 // (e.g., file://wsl.localhost/... and vscode-remote://wsl+...).
-// For SSH remotes, matches are based on Git repository identity when available.
+// For SSH remotes, where the workspace path lives on a different machine and can never
+// equal the local path, matching falls back to comparing the workspace folder basename.
 func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
 	canonicalProjectPath, err := normalizePathForComparison(projectPath)
@@ -253,22 +254,23 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// Method 1: Direct path matching (works for local and WSL workspaces)
 		isMatch := canonicalProjectPath == canonicalWorkspacePath
 
-		// Method 2: Basename matching (for SSH remotes)
-		// When direct path comparison fails, fall back to basename matching.
-		// This handles SSH remotes where the workspace path is on a different machine.
-		if !isMatch {
+		// Method 2: Basename matching (SSH remotes only).
+		// SSH-remote workspace paths live on a different machine, so direct path
+		// comparison can never succeed and the folder basename is the only usable
+		// signal. The fallback must not apply to local workspaces: two unrelated
+		// projects sharing a directory name (e.g. two different "backend" folders)
+		// would otherwise match and export each other's sessions.
+		if !isMatch && isSSHRemoteURI(workspaceURI) {
 			workspaceBasename := filepath.Base(canonicalWorkspacePath)
 
 			if projectBasename == workspaceBasename {
 				isMatch = true
-				if isSSHRemoteURI(workspaceURI) {
-					slog.Info("Matched SSH remote workspace by repository name",
-						"workspaceID", workspaceID,
-						"workspaceURI", workspaceURI,
-						"localPath", canonicalProjectPath,
-						"remotePath", canonicalWorkspacePath,
-						"repoName", projectBasename)
-				}
+				slog.Info("Matched SSH remote workspace by folder basename",
+					"workspaceID", workspaceID,
+					"workspaceURI", workspaceURI,
+					"localPath", canonicalProjectPath,
+					"remotePath", canonicalWorkspacePath,
+					"repoName", projectBasename)
 			}
 		}
 
@@ -316,9 +318,12 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	return matches, nil
 }
 
-// isSSHRemoteURI checks if a URI is a vscode-remote SSH URI
+// isSSHRemoteURI checks if a URI is a vscode-remote SSH URI. Case-insensitive to
+// stay consistent with parseVSCodeRemoteURI, which accepts uppercase authorities —
+// this check now gates basename matching, so a case mismatch would silently drop
+// SSH workspaces instead of just changing a log line.
 func isSSHRemoteURI(uri string) bool {
-	return strings.HasPrefix(uri, "vscode-remote://ssh-remote")
+	return strings.HasPrefix(strings.ToLower(uri), "vscode-remote://ssh-remote")
 }
 
 // LoadComposerIDsFromAllWorkspaces loads and deduplicates composer IDs from all matching workspaces.
