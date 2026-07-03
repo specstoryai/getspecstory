@@ -134,7 +134,7 @@ var FindWorkspaceForProject = findWorkspaceForProject
 // It picks a single workspace for callers that need exactly one write/watch target (e.g.
 // reconstructing a session into a specific state.vscdb). It delegates to
 // FindAllWorkspacesForProject so it benefits from the same matching methods (direct path,
-// SSH-remote basename fallback, .code-workspace folder membership) rather than duplicating
+// remote basename fallback, .code-workspace folder membership) rather than duplicating
 // a weaker, path-only version of that logic.
 func findWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 	matches, err := FindAllWorkspacesForProject(projectPath)
@@ -181,8 +181,9 @@ func workspaceDBModTime(m *WorkspaceMatch) time.Time {
 // FindAllWorkspacesForProject finds all workspace directories that match the given project path.
 // In WSL, the same project may have multiple workspaces with different URI formats
 // (e.g., file://wsl.localhost/... and vscode-remote://wsl+...).
-// For SSH remotes, where the workspace path lives on a different machine and can never
-// equal the local path, matching falls back to comparing the workspace folder basename.
+// For SSH remotes and dev containers, where the workspace path lives on a different machine
+// or inside a container and can never equal the local path, matching falls back to comparing
+// the workspace folder basename.
 func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
 	canonicalProjectPath, err := normalizePathForComparison(projectPath)
@@ -190,8 +191,9 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		return nil, fmt.Errorf("failed to normalize project path: %w", err)
 	}
 
-	// Get the project basename for SSH remote matching
-	// SSH remotes have paths on different machines, so we match by repository name
+	// Get the project basename for SSH remote / dev container matching.
+	// Those workspace paths live on a different machine or inside a container, so we
+	// match by repository name instead.
 	projectBasename := filepath.Base(canonicalProjectPath)
 
 	slog.Debug("Searching for all workspaces matching project",
@@ -254,18 +256,18 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// Method 1: Direct path matching (works for local and WSL workspaces)
 		isMatch := canonicalProjectPath == canonicalWorkspacePath
 
-		// Method 2: Basename matching (SSH remotes only).
-		// SSH-remote workspace paths live on a different machine, so direct path
-		// comparison can never succeed and the folder basename is the only usable
+		// Method 2: Basename matching (SSH remotes and dev containers only).
+		// These workspace paths live on a different machine or inside a container, so direct
+		// path comparison can never succeed and the folder basename is the only usable
 		// signal. The fallback must not apply to local workspaces: two unrelated
 		// projects sharing a directory name (e.g. two different "backend" folders)
 		// would otherwise match and export each other's sessions.
-		if !isMatch && isSSHRemoteURI(workspaceURI) {
+		if !isMatch && isRemoteURIRequiringBasenameMatch(workspaceURI) {
 			workspaceBasename := filepath.Base(canonicalWorkspacePath)
 
 			if projectBasename == workspaceBasename {
 				isMatch = true
-				slog.Info("Matched SSH remote workspace by folder basename",
+				slog.Info("Matched remote workspace by folder basename",
 					"workspaceID", workspaceID,
 					"workspaceURI", workspaceURI,
 					"localPath", canonicalProjectPath,
@@ -318,12 +320,20 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	return matches, nil
 }
 
-// isSSHRemoteURI checks if a URI is a vscode-remote SSH URI. Case-insensitive to
-// stay consistent with parseVSCodeRemoteURI, which accepts uppercase authorities —
-// this check now gates basename matching, so a case mismatch would silently drop
-// SSH workspaces instead of just changing a log line.
-func isSSHRemoteURI(uri string) bool {
-	return strings.HasPrefix(strings.ToLower(uri), "vscode-remote://ssh-remote")
+// isRemoteURIRequiringBasenameMatch checks if a URI is a vscode-remote SSH or dev-container
+// URI. Case-insensitive to stay consistent with parseVSCodeRemoteURI, which accepts uppercase
+// authorities — this check gates basename matching, so a case mismatch would silently drop
+// remote workspaces instead of just changing a log line.
+//
+// Both SSH and dev-container workspace paths live outside the local filesystem (a remote
+// machine or a container), so direct path comparison can never succeed for them and the
+// folder basename is the only usable signal. WSL is deliberately excluded: WSL paths are
+// reachable from the host via \\wsl.localhost\... / /mnt/wsl/..., so direct path matching
+// already works there and doesn't need the (weaker, name-collision-prone) basename fallback.
+func isRemoteURIRequiringBasenameMatch(uri string) bool {
+	lower := strings.ToLower(uri)
+	return strings.HasPrefix(lower, "vscode-remote://ssh-remote") ||
+		strings.HasPrefix(lower, "vscode-remote://dev-container")
 }
 
 // LoadComposerIDsFromAllWorkspaces loads and deduplicates composer IDs from all matching workspaces.

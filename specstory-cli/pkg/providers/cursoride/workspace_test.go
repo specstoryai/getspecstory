@@ -269,6 +269,53 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 	}
 }
 
+func TestIsRemoteURIRequiringBasenameMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want bool
+	}{
+		{
+			name: "ssh-remote URI matches",
+			uri:  "vscode-remote://ssh-remote+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "ssh-remote URI case insensitive",
+			uri:  "vscode-remote://SSH-REMOTE+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "dev-container URI matches",
+			uri:  "vscode-remote://dev-container%2Babc123/workspace",
+			want: true,
+		},
+		{
+			name: "dev-container URI case insensitive",
+			uri:  "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
+			want: true,
+		},
+		{
+			name: "wsl URI does not match",
+			uri:  "vscode-remote://wsl%2Bubuntu/home/user/project",
+			want: false,
+		},
+		{
+			name: "local file URI does not match",
+			uri:  "file:///Users/bago/code/getspecstory",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRemoteURIRequiringBasenameMatch(tt.uri); got != tt.want {
+				t.Errorf("isRemoteURIRequiringBasenameMatch(%q) = %v, want %v", tt.uri, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCodeWorkspaceContainsFolder(t *testing.T) {
 	// Create a temporary directory structure.
 	tmpDir, err := os.MkdirTemp("", "workspace-contains-test")
