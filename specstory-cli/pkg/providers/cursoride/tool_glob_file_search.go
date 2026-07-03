@@ -69,8 +69,9 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 				pluralSuffix = "s"
 			}
 
-			// Add directory name
-			messageDetails += fmt.Sprintf("\nDirectory: **%s** (%d file%s)\n", directory.AbsPath, filesCount, pluralSuffix)
+			// Add directory name (escaped: a newline or backtick in the DB-sourced
+			// path would break the line structure of the details block)
+			messageDetails += fmt.Sprintf("\nDirectory: **%s** (%d file%s)\n", escapeTableCellValue(directory.AbsPath), filesCount, pluralSuffix)
 
 			if len(directory.Files) > 0 {
 				// Add table header
