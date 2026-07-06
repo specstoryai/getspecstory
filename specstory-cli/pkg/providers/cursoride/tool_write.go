@@ -241,13 +241,18 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (sum
 
 	// Check if operation failed
 	if bubble.Status == "error" && bubble.Error != "" {
+		// Prefer the parsed message, but fall back to the raw error text when
+		// bubble.Error isn't valid JSON or doesn't carry a message — otherwise the
+		// failure is silently hidden with an empty body.
+		errMsg := bubble.Error
 		var errorData struct {
 			Message string `json:"message"`
 		}
-		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil {
-			message.WriteString("**❌ Patch Failed**\n\n")
-			fmt.Fprintf(&message, "%s\n", errorData.Message)
+		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil && errorData.Message != "" {
+			errMsg = errorData.Message
 		}
+		message.WriteString("**❌ Patch Failed**\n\n")
+		fmt.Fprintf(&message, "%s\n", errMsg)
 	} else {
 		// Add the collected content
 		if result.Content != "" && strings.TrimSpace(result.Content) != "" {
