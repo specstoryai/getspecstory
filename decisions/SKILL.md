@@ -73,7 +73,10 @@ The work is split in two, and the split is the design:
 Invoked bare, ask three short questions (`AskUserQuestion` or plain chat), then run:
 
 - **Scope** - which repos / parent directory of `.specstory/history` corpora?
-- **Window** - all time (default - supersession needs history), or last 30 / 90 days?
+- **Window** - how many days back? Same choices as the workthreads rollup: last **7**
+  days (default) / **30** / **90** (`--days N` for anything else, `--days 0` for all
+  time). Indexing is always unbounded, so supersession chains keep their full history
+  regardless of the report window.
 - **Goal** - the full **report**, just **open decisions**, just **changed decisions**, or the
   **insights** (churn + debt)?
 

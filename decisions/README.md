@@ -68,7 +68,8 @@ Start a new Claude Code session (skills load at session start), then:
 
 or just ask: _"what did we decide this month?"_, _"what's still undecided?"_,
 _"what decisions changed?"_. With no arguments it asks three short questions - **Scope**
-(which repos), **Window** (all time / 30 / 90 days), **Goal** (full report / open
+(which repos), **Window** (last 7 days default / 30 / 90, same as workthreads; 0 = all
+time), **Goal** (full report / open
 decisions / changed decisions / insights) - then runs and saves the report to
 `.specstory/decisions/<YYYY-MM-DD>-decisions.md`.
 
