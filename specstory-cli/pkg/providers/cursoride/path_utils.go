@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 )
 
 // GetGlobalDatabasePath finds the Cursor IDE global database.
@@ -20,40 +19,22 @@ func getGlobalDatabasePath() (string, error) {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	var possiblePaths []string
+	var dbPath string
 	switch runtime.GOOS {
 	case "darwin":
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"))
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, ".cursor", "extensions", "cursor-context-manager-*", "globalStorage", "cursor-context-manager", "state.vscdb"))
+		dbPath = filepath.Join(homeDir, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb")
 	case "linux":
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, ".config", "Cursor", "User", "globalStorage", "state.vscdb"))
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, ".cursor", "extensions", "cursor-context-manager-*", "globalStorage", "cursor-context-manager", "state.vscdb"))
+		dbPath = filepath.Join(homeDir, ".config", "Cursor", "User", "globalStorage", "state.vscdb")
 	default:
 		return "", fmt.Errorf("unsupported operating system: %s (only macOS and Linux are supported)", runtime.GOOS)
 	}
 
-	for _, path := range possiblePaths {
-		if strings.Contains(path, "*") {
-			matches, err := filepath.Glob(path)
-			if err == nil && len(matches) > 0 {
-				if _, err := os.Stat(matches[0]); err == nil {
-					slog.Debug("Found Cursor IDE global database", "path", matches[0])
-					return matches[0], nil
-				}
-			}
-		} else {
-			if _, err := os.Stat(path); err == nil {
-				slog.Debug("Found Cursor IDE global database", "path", path)
-				return path, nil
-			}
-		}
+	if _, err := os.Stat(dbPath); err != nil {
+		return "", fmt.Errorf("global database not found at %s (has Cursor IDE been used?)", dbPath)
 	}
 
-	return "", fmt.Errorf("global database not found in any of the expected locations")
+	slog.Debug("Found Cursor IDE global database", "path", dbPath)
+	return dbPath, nil
 }
 
 // GetWorkspaceStoragePath returns the OS-specific workspace storage directory
