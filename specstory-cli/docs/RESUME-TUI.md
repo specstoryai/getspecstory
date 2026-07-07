@@ -37,6 +37,17 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
 - **`r` resumes; `enter` is deliberately inert in the lists.** Resuming launches an agent, so
   it must be an explicit keystroke (`r`) — a stray `↵` can't accidentally start a session. The
   one place `↵` *does* commit is the final target-agent step (an explicit confirmation screen).
+- **`d` deletes (soft), behind a `y/N` confirmation.** In a session list (or a cross-project
+  search hit) `d` removes the highlighted **session**; in the all-projects browser it removes
+  the highlighted **project** (all its sessions at once). This is a *soft delete*: the native
+  session files on disk are untouched, but the row is tombstoned (`sessions.deleted = 1`, FTS
+  body stripped) so it vanishes from resume/search and — crucially — **is not re-added by any
+  later `reindex`/warm or live write** (see the tombstone guard in
+  [SESSIONS-DB.md](SESSIONS-DB.md)). Deleting a project does **not** blacklist it: new sessions
+  started there later index normally. The only way to restore a tombstoned session is to delete
+  `~/.specstory/sessions.db` and rebuild it with `specstory reindex`. The confirmation screen
+  spells all of this out; every key other than `y` cancels, so the destructive path is never
+  the default.
 - **Target agent (last step).** `specstory resume` lets the user pick the target agent as the
   final step; `specstory resume <agent>` pre-selects it. The **last-resumed agent** is the
   default selection there, remembered in `[resume] last_agent`.
@@ -59,7 +70,8 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
   only `[resume]` so the self-documenting template's comments survive.
 - `sessionindex`: `ListByProject(projectID)` (sessions, newest first), `ListProjects()`
   (date-sortable rollup with per-agent counts), `SessionBody(agent, sessionID)` (preview),
-  `Search(query)` (global FTS). All tested.
+  `Search(query)` (global FTS), `SoftDeleteSession(agent, id)` / `SoftDeleteProject(projectID)`
+  (the `d` tombstone). All tested.
 
 ## Build plan
 
@@ -76,8 +88,9 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
 - Resume a session (`r`) → target-agent step (pre-selected by `resume <agent>`; else the
   last-resumed agent; else the session's own agent) → hands off to the existing
   `prepareResumeTarget` + `ExecAgentAndWatch`.
-- Keys: `↑↓`/`jk` move · `r` resume · `space` preview · `/` search · `a` agent · `v`
-  dense/sparse · `tab` all-projects · `q`/`esc` quit. (`↵` is inert in the list.)
+- Keys: `↑↓`/`jk` move · `r` resume · `space` preview · `/` search · `a` agent · `d` delete
+  (soft, confirmed) · `v` dense/sparse · `tab` all-projects · `q`/`esc` quit. (`↵` is inert in
+  the list.)
 
 **Deferred to Stage B / follow-up:** empty current project currently shows a message rather
 than jumping to all-projects (that view *is* Stage B); the `tab` scope toggle; and persisting
@@ -96,8 +109,8 @@ is validated by running it in a real terminal (it can't be exercised headless).
 - **Empty current project → browser:** the picker opens directly in `modeProjects`.
 - **Search:** `/` in the browser runs **session FTS across all projects** → a flat results
   list (agent · time · project · highlighted snippet); `r` resumes a hit, `space` previews it,
-  `a`/`v` filter and toggle density, `esc` back to the rollup. `p` filters the **project list
-  by name**. (`/` in a drilled-in session list stays project-scoped FTS — same key, scope
+  `d` soft-deletes it, `a`/`v` filter and toggle density, `esc` back to the rollup. `p` filters
+  the **project list by name**; in the rollup, `d` soft-deletes the highlighted **project**. (`/` in a drilled-in session list stays project-scoped FTS — same key, scope
   follows the view. This same screen, entered directly, *is* `specstory search`.)
 - Header reflects scope: `project: <name>` vs `all projects`. The whole-index empty case
   (nothing indexed at all) prints a hint instead of opening an empty browser.

@@ -279,3 +279,183 @@ func TestSearchAndSnippets(t *testing.T) {
 		t.Errorf("global search for stripe = %+v; want x1", hits)
 	}
 }
+
+// TestSoftDeleteSessionHidesFromReads verifies a soft-deleted session vanishes from every read
+// path (count, project list, search) while its siblings remain, and reports one row affected.
+func TestSoftDeleteSessionHidesFromReads(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth refactor", "rewrote the login flow"))
+	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "Billing", "moved billing to stripe"))
+
+	affected, err := s.SoftDeleteSession("claude", "c1")
+	if err != nil || affected != 1 {
+		t.Fatalf("SoftDeleteSession = %d, %v; want 1, nil", affected, err)
+	}
+
+	if n, _ := s.Count(); n != 1 {
+		t.Errorf("Count = %d after delete; want 1", n)
+	}
+	got, _ := s.ListByProject("proj-a")
+	if len(got) != 1 || got[0].SessionID != "x1" {
+		t.Errorf("ListByProject after delete = %+v; want only x1", got)
+	}
+	if hits, _ := s.Search("login", ""); len(hits) != 0 {
+		t.Errorf("deleted session still searchable: %+v", hits)
+	}
+	if hits, _ := s.Search("stripe", ""); len(hits) != 1 {
+		t.Errorf("sibling session no longer searchable after delete")
+	}
+}
+
+// TestSoftDeleteSurvivesReupsert is the tombstone guard: once soft-deleted, re-indexing the same
+// session (even with new content, as reindex/live/sync would) must not resurrect it.
+func TestSoftDeleteSurvivesReupsert(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth", "old body"))
+	mustSoftDeleteSession(t, s, "claude", "c1")
+
+	// A later write with fresh content — must be a no-op against the tombstone.
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth v2", "brand new body"))
+
+	if n, _ := s.Count(); n != 0 {
+		t.Errorf("Count = %d; tombstone was resurrected by re-upsert", n)
+	}
+	if hits, _ := s.Search("brand", ""); len(hits) != 0 {
+		t.Errorf("re-upsert leaked new content into search: %+v", hits)
+	}
+	fps, _ := s.Fingerprints()
+	if fp := fps[FingerprintKey("claude", "c1")]; !fp.Deleted {
+		t.Errorf("fingerprint.Deleted = false; want true for tombstone")
+	}
+}
+
+// TestSoftDeleteProject tombstones every session in a project while leaving other projects intact,
+// and confirms a NEW session in the deleted project still indexes (the project isn't blacklisted).
+func TestSoftDeleteProject(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "a1", "body"))
+	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "a2", "body"))
+	mustUpsert(t, s, newSession("claude", "c2", "proj-b", "b1", "body"))
+
+	if _, err := s.SoftDeleteProject("proj-a"); err != nil {
+		t.Fatalf("SoftDeleteProject: %v", err)
+	}
+	if got, _ := s.ListByProject("proj-a"); len(got) != 0 {
+		t.Errorf("proj-a not fully hidden: %+v", got)
+	}
+	if got, _ := s.ListByProject("proj-b"); len(got) != 1 {
+		t.Errorf("proj-b affected by proj-a delete: %+v", got)
+	}
+
+	// A future session in the deleted project indexes normally — only pre-existing rows are gone.
+	mustUpsert(t, s, newSession("claude", "c3", "proj-a", "a3", "fresh work"))
+	if got, _ := s.ListByProject("proj-a"); len(got) != 1 || got[0].SessionID != "c3" {
+		t.Errorf("new session in deleted project should index: %+v", got)
+	}
+}
+
+// TestSoftDeleteAffectedCount pins the row-count contract of both soft-delete entry points across
+// the combinations that matter: a live target reports how many rows it tombstoned, while an
+// already-deleted or never-indexed target is a no-op (0) — so the caller (and its analytics
+// "affected" property) can trust the number. Each row runs on a fresh store so state can't leak.
+func TestSoftDeleteAffectedCount(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, s *Store)
+		del   func(s *Store) (int, error)
+		want  int
+	}{
+		{
+			name:  "single live session",
+			setup: func(t *testing.T, s *Store) { mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth", "body")) },
+			del:   func(s *Store) (int, error) { return s.SoftDeleteSession("claude", "c1") },
+			want:  1,
+		},
+		{
+			name: "already-tombstoned session is a no-op",
+			setup: func(t *testing.T, s *Store) {
+				mustUpsert(t, s, newSession("claude", "c1", "proj-a", "Auth", "body"))
+				mustSoftDeleteSession(t, s, "claude", "c1")
+			},
+			del:  func(s *Store) (int, error) { return s.SoftDeleteSession("claude", "c1") },
+			want: 0,
+		},
+		{
+			name:  "never-indexed session",
+			setup: func(t *testing.T, s *Store) {},
+			del:   func(s *Store) (int, error) { return s.SoftDeleteSession("claude", "ghost") },
+			want:  0,
+		},
+		{
+			name: "whole project with two live sessions",
+			setup: func(t *testing.T, s *Store) {
+				mustUpsert(t, s, newSession("claude", "c1", "proj-a", "a1", "body"))
+				mustUpsert(t, s, newSession("codex", "x1", "proj-a", "a2", "body"))
+			},
+			del:  func(s *Store) (int, error) { return s.SoftDeleteProject("proj-a") },
+			want: 2,
+		},
+		{
+			name: "already-tombstoned project is a no-op",
+			setup: func(t *testing.T, s *Store) {
+				mustUpsert(t, s, newSession("claude", "c1", "proj-a", "a1", "body"))
+				if _, err := s.SoftDeleteProject("proj-a"); err != nil {
+					t.Fatal(err)
+				}
+			},
+			del:  func(s *Store) (int, error) { return s.SoftDeleteProject("proj-a") },
+			want: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := openTemp(t)
+			tt.setup(t, s)
+			got, err := tt.del(s)
+			if err != nil {
+				t.Fatalf("delete: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("affected = %d; want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSoftDeleteUpdatesProjectSummary covers the all-projects browser's rolled-up counts: deleting
+// one of a project's sessions must lower ListProjects' per-project (and per-agent) totals, not just
+// hide the row from ListByProject. The project itself stays visible because a live session remains.
+func TestSoftDeleteUpdatesProjectSummary(t *testing.T) {
+	s := openTemp(t)
+	mustUpsert(t, s, newSession("claude", "c1", "proj-a", "a1", "body"))
+	mustUpsert(t, s, newSession("codex", "x1", "proj-a", "a2", "body"))
+	mustSoftDeleteSession(t, s, "claude", "c1")
+
+	projs, err := s.ListProjects()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var proj *ProjectSummary
+	for i := range projs {
+		if projs[i].ProjectID == "proj-a" {
+			proj = &projs[i]
+		}
+	}
+	if proj == nil {
+		t.Fatalf("proj-a missing from ListProjects after deleting one of two sessions")
+	}
+	if proj.Sessions != 1 {
+		t.Errorf("summary Sessions = %d after deleting one of two; want 1", proj.Sessions)
+	}
+	if proj.AgentCounts["claude"] != 0 || proj.AgentCounts["codex"] != 1 {
+		t.Errorf("summary AgentCounts = %+v; want only codex=1", proj.AgentCounts)
+	}
+}
+
+// mustSoftDeleteSession tombstones a session in test setup, failing the test on error.
+func mustSoftDeleteSession(t *testing.T, s *Store, agent, sessionID string) {
+	t.Helper()
+	if _, err := s.SoftDeleteSession(agent, sessionID); err != nil {
+		t.Fatalf("SoftDeleteSession(%s, %s): %v", agent, sessionID, err)
+	}
+}

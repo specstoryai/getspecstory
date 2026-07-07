@@ -84,6 +84,10 @@ type Fingerprint struct {
 	Size    int64
 	Mtime   int64
 	Version int
+	// Deleted marks a soft-deleted (tombstoned) session. reindex skips it regardless of
+	// whether the native file changed, so a user's delete stays deleted until sessions.db
+	// is wiped and rebuilt. See the deleted-column migration in ensureSchema.
+	Deleted bool
 }
 
 // Store is a handle to sessions.db.
@@ -202,6 +206,15 @@ func (s *Store) ensureSchema() error {
 	// are UNINDEXED). NULL on rows written before this column existed; a reindex (reindexVersion
 	// bump) repopulates it. Benign error when the column already exists.
 	s.runMigration(`ALTER TABLE sessions ADD COLUMN fts_rowid INTEGER`)
+	// Soft-delete tombstone: a user can remove a session (or a whole project) from the
+	// picker via the resume/search TUI. Rather than dropping the row — which reindex would
+	// simply re-add on the next pass — we keep the row, flag it deleted, and strip its FTS
+	// body. Every read path filters deleted=0, the write path (upsertOne) refuses to
+	// resurrect a tombstoned row even on new content, and reindex skips it. So a delete
+	// stays deleted until the user wipes sessions.db and rebuilds. Benign error when the
+	// column already exists. Constant DEFAULT keeps existing rows visible (0). See
+	// docs/SESSIONS-DB.md.
+	s.runMigration(`ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0`)
 	// Drop the old single-column project index now superseded by the composite
 	// idx_sessions_project_recent (project_id is its left prefix). Idempotent; a no-op
 	// on fresh databases that never had it.
@@ -224,7 +237,7 @@ func (s *Store) runMigration(stmt string) {
 // whose native file is unchanged (same size + mtime) and was indexed by the current
 // logic version.
 func (s *Store) Fingerprints() (map[string]Fingerprint, error) {
-	rows, err := s.db.Query(`SELECT agent, session_id, size, mtime, index_version FROM sessions`)
+	rows, err := s.db.Query(`SELECT agent, session_id, size, mtime, index_version, deleted FROM sessions`)
 	if err != nil {
 		return nil, err
 	}
@@ -233,10 +246,12 @@ func (s *Store) Fingerprints() (map[string]Fingerprint, error) {
 	out := make(map[string]Fingerprint)
 	for rows.Next() {
 		var agent, sessionID string
+		var deleted int
 		var fp Fingerprint
-		if err := rows.Scan(&agent, &sessionID, &fp.Size, &fp.Mtime, &fp.Version); err != nil {
+		if err := rows.Scan(&agent, &sessionID, &fp.Size, &fp.Mtime, &fp.Version, &deleted); err != nil {
 			return nil, err
 		}
+		fp.Deleted = deleted != 0
 		out[FingerprintKey(agent, sessionID)] = fp
 	}
 	return out, rows.Err()
@@ -265,8 +280,21 @@ type sessionUpsertStmts struct {
 // first; brand-new sessions (sess.IsNew) skip that lookup-and-delete entirely.
 func upsertOne(st sessionUpsertStmts, sess Session) error {
 	if !sess.IsNew {
-		if err := deleteOldFTSRow(st, sess); err != nil {
+		ex, err := lookupExisting(st, sess)
+		if err != nil {
 			return err
+		}
+		// A soft-deleted session stays deleted even when new turns arrive: skip the write
+		// entirely so the tombstone (and its stripped FTS body) survives. This covers every
+		// writer — reindex, the live `run`/`watch` indexer, and `sync` — so a delete only
+		// comes back after a full sessions.db wipe + reindex. See the deleted-column migration.
+		if ex.deleted {
+			return nil
+		}
+		if ex.found {
+			if err := clearOldFTSRow(st, sess, ex.ftsRowid); err != nil {
+				return err
+			}
 		}
 	}
 	res, err := st.insFTS.Exec(sess.SessionID, sess.Agent, sess.Name, sess.Body)
@@ -286,21 +314,39 @@ func upsertOne(st sessionUpsertStmts, sess Session) error {
 	return nil
 }
 
-// deleteOldFTSRow removes an existing session's current FTS row before the sessions row is
+// existingRow is the prior index state for a session: its FTS rowid link (if any) and whether
+// it is a soft-delete tombstone. found is false when there is no prior sessions row at all.
+type existingRow struct {
+	ftsRowid sql.NullInt64
+	deleted  bool
+	found    bool
+}
+
+// lookupExisting resolves the prior sessions row for sess by primary key, reporting its FTS
+// rowid link and tombstone flag. It is the single read upsertOne needs before writing: a
+// tombstoned row must not be resurrected, and a live row's stale FTS row must be cleared first.
+func lookupExisting(st sessionUpsertStmts, sess Session) (existingRow, error) {
+	var ex existingRow
+	var deleted int
+	switch err := st.selOldRowid.QueryRow(sess.Agent, sess.SessionID).Scan(&ex.ftsRowid, &deleted); {
+	case errors.Is(err, sql.ErrNoRows):
+		return ex, nil // no prior row
+	case err != nil:
+		return ex, fmt.Errorf("look up existing session: %w", err)
+	}
+	ex.found = true
+	ex.deleted = deleted != 0
+	return ex, nil
+}
+
+// clearOldFTSRow removes an existing session's current FTS row before the sessions row is
 // replaced (INSERT OR REPLACE would otherwise drop the fts_rowid link and orphan the FTS row).
-// It resolves the row by its stored fts_rowid (O(1)); for rows written before fts_rowid existed
+// It uses the already-resolved fts_rowid (O(1)); for rows written before fts_rowid existed
 // (NULL) it falls back to the by-key delete — a whole-FTS scan that a reindex retires by
 // repopulating fts_rowid.
-func deleteOldFTSRow(st sessionUpsertStmts, sess Session) error {
-	var oldRowid sql.NullInt64
-	switch err := st.selOldRowid.QueryRow(sess.Agent, sess.SessionID).Scan(&oldRowid); {
-	case errors.Is(err, sql.ErrNoRows):
-		return nil // no prior row to remove
-	case err != nil:
-		return fmt.Errorf("look up old fts rowid: %w", err)
-	}
-	if oldRowid.Valid {
-		if _, err := st.delFTSByRowid.Exec(oldRowid.Int64); err != nil {
+func clearOldFTSRow(st sessionUpsertStmts, sess Session, ftsRowid sql.NullInt64) error {
+	if ftsRowid.Valid {
+		if _, err := st.delFTSByRowid.Exec(ftsRowid.Int64); err != nil {
 			return fmt.Errorf("clear fts row by rowid: %w", err)
 		}
 		return nil
@@ -334,7 +380,7 @@ func prepareUpsert(tx *sql.Tx) (sessionUpsertStmts, func(), error) {
 	if err != nil {
 		return sessionUpsertStmts{}, func() {}, err
 	}
-	selOldRowid, err := prep("fts rowid lookup", `SELECT fts_rowid FROM sessions WHERE agent = ? AND session_id = ?`)
+	selOldRowid, err := prep("existing row lookup", `SELECT fts_rowid, deleted FROM sessions WHERE agent = ? AND session_id = ?`)
 	if err != nil {
 		return sessionUpsertStmts{}, func() {}, err
 	}
@@ -401,6 +447,77 @@ func (s *Store) UpsertBatch(sessions []Session) error {
 	return nil
 }
 
+// SoftDeleteSession tombstones a single session: flags the sessions row deleted and strips its
+// FTS body, so it vanishes from the picker and search but the row survives as a fingerprint that
+// reindex/warm skip forever (see the deleted-column migration and upsertOne's tombstone guard).
+// The native session file on disk is untouched. Must be called on a writer handle (Open, not
+// OpenReader). Returns the number of rows affected (0 when the session isn't indexed).
+func (s *Store) SoftDeleteSession(agent, sessionID string) (int, error) {
+	return s.softDelete(`agent = ? AND session_id = ?`, agent, sessionID)
+}
+
+// SoftDeleteProject tombstones every session in a project (see SoftDeleteSession). Future
+// sessions in the same project are NOT blocked — a fresh session there indexes normally; only
+// the rows that exist at delete time are tombstoned. Returns the number of rows affected.
+func (s *Store) SoftDeleteProject(projectID string) (int, error) {
+	return s.softDelete(`project_id = ?`, projectID)
+}
+
+// softDelete flags the rows matched by where (deleted = 1) and clears their FTS rows in one
+// transaction, keeping each sessions row (and its fingerprint) so reindex treats it as
+// unchanged. FTS rows are removed by (agent, session_id) — the same by-key delete upsert uses,
+// which works on the UNINDEXED FTS columns without relying on row-value subquery support in
+// FTS5. Only already-live rows are touched (deleted = 0), so a re-delete is a no-op returning 0.
+func (s *Store) softDelete(where string, args ...any) (int, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, fmt.Errorf("begin soft delete: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// Resolve exactly which sessions this delete targets, so the FTS rows can be cleared by key.
+	rows, err := tx.Query(`SELECT agent, session_id FROM sessions WHERE (`+where+`) AND deleted = 0`, args...)
+	if err != nil {
+		return 0, fmt.Errorf("select rows to delete: %w", err)
+	}
+	type key struct{ agent, sessionID string }
+	var targets []key
+	for rows.Next() {
+		var k key
+		if err := rows.Scan(&k.agent, &k.sessionID); err != nil {
+			_ = rows.Close()
+			return 0, fmt.Errorf("scan row to delete: %w", err)
+		}
+		targets = append(targets, k)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return 0, fmt.Errorf("iterate rows to delete: %w", err)
+	}
+	_ = rows.Close()
+
+	for _, k := range targets {
+		if _, err := tx.Exec(`DELETE FROM sessions_fts WHERE agent = ? AND session_id = ?`, k.agent, k.sessionID); err != nil {
+			return 0, fmt.Errorf("clear fts row: %w", err)
+		}
+	}
+
+	if _, err := tx.Exec(`UPDATE sessions SET deleted = 1, fts_rowid = NULL WHERE (`+where+`) AND deleted = 0`, args...); err != nil {
+		return 0, fmt.Errorf("tombstone sessions: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit soft delete: %w", err)
+	}
+	committed = true
+	return len(targets), nil
+}
+
 // Exists reports whether a session row is already indexed, looked up by the primary key
 // (agent, session_id) so it stays O(log n) instead of scanning. Because a session's sessions
 // row and its sessions_fts row are always written together (upsertOne, one transaction), a
@@ -421,7 +538,7 @@ func (s *Store) Exists(agent, sessionID string) (bool, error) {
 // Count returns the number of indexed sessions.
 func (s *Store) Count() (int, error) {
 	var n int
-	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&n); err != nil {
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE deleted = 0`).Scan(&n); err != nil {
 		return 0, err
 	}
 	return n, nil
@@ -431,14 +548,14 @@ func (s *Store) Count() (int, error) {
 // (excluding the unknownID bucket).
 func (s *Store) ProjectCount(unknownID string) (int, error) {
 	var n int
-	err := s.db.QueryRow(`SELECT COUNT(DISTINCT project_id) FROM sessions WHERE project_id != ?`, unknownID).Scan(&n)
+	err := s.db.QueryRow(`SELECT COUNT(DISTINCT project_id) FROM sessions WHERE project_id != ? AND deleted = 0`, unknownID).Scan(&n)
 	return n, err
 }
 
 // UnattributedCount returns the number of sessions in the unknownID bucket.
 func (s *Store) UnattributedCount(unknownID string) (int, error) {
 	var n int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE project_id = ?`, unknownID).Scan(&n)
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM sessions WHERE project_id = ? AND deleted = 0`, unknownID).Scan(&n)
 	return n, err
 }
 
@@ -446,7 +563,7 @@ func (s *Store) UnattributedCount(unknownID string) (int, error) {
 // populated (it lives only in the FTS index). Used by the `specstory resume` picker.
 func (s *Store) ListByProject(projectID string) ([]Session, error) {
 	rows, err := s.db.Query(`SELECT `+sessionColumns+`
-		FROM sessions WHERE project_id = ? ORDER BY updated_at DESC, created_at DESC`, projectID)
+		FROM sessions WHERE project_id = ? AND deleted = 0 ORDER BY updated_at DESC, created_at DESC`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +585,7 @@ type ProjectSummary struct {
 // the caller decides how to present it.
 func (s *Store) ListProjects() ([]ProjectSummary, error) {
 	rows, err := s.db.Query(`SELECT project_id, project_name, agent, COUNT(*), MAX(updated_at)
-		FROM sessions GROUP BY project_id, agent`)
+		FROM sessions WHERE deleted = 0 GROUP BY project_id, agent`)
 	if err != nil {
 		return nil, err
 	}
@@ -546,7 +663,7 @@ func (s *Store) SearchContext(ctx context.Context, query, projectID string) ([]S
 	q := `SELECT ` + prefixed("s", sessionColumns) + `
 		FROM sessions_fts
 		JOIN sessions s ON s.agent = sessions_fts.agent AND s.session_id = sessions_fts.session_id
-		WHERE sessions_fts MATCH ?`
+		WHERE sessions_fts MATCH ? AND s.deleted = 0`
 	args := []any{query}
 	if projectID != "" {
 		q += ` AND s.project_id = ?`

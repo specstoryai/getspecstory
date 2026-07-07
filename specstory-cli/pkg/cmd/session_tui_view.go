@@ -22,11 +22,14 @@ var (
 	styBold   = lipgloss.NewStyle().Bold(true)
 	styCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
 	stySel    = lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
+	styWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true) // transient error notice
 )
 
 func (m sessionTUI) View() tea.View {
 	var content string
 	switch {
+	case m.confirmingDelete:
+		content = m.renderDeleteConfirm()
 	case m.previewing:
 		content = m.renderPreview()
 	case m.mode == modeTarget:
@@ -37,6 +40,11 @@ func (m sessionTUI) View() tea.View {
 		content = m.renderProjects()
 	default:
 		content = m.renderListScreen()
+	}
+	// A transient notice (a failed delete) rides under whatever screen is showing; the modal
+	// itself never sets one, so it only appears once we're back on a normal view.
+	if m.statusMsg != "" {
+		content += "\n" + styWarn.Render(m.statusMsg)
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
@@ -86,7 +94,14 @@ func (m sessionTUI) agentScope() string {
 func (m sessionTUI) renderHeader() string {
 	// Agent filter sits left, right after the project, rather than tucked in the far corner.
 	left := m.headerLeft(m.projectScope()) + styDim.Render("  ·  ") + m.agentScope()
-	return headerRow(left, "", m.lineWidth())
+	right := ""
+	// Surface a locked-in scoped search the same way the all-projects search does: a labelled
+	// "search: <q>" chip on the left and a match count on the right, so the filter isn't invisible.
+	if q := strings.TrimSpace(m.searchQuery); q != "" && !m.searching {
+		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
+		right = styDim.Render(fmt.Sprintf("%d matches", len(m.filtered)))
+	}
+	return headerRow(left, right, m.lineWidth())
 }
 
 func (m sessionTUI) renderRows() string {
@@ -224,7 +239,7 @@ func (m sessionTUI) renderFooter() string {
 	if m.inBrowser {
 		scopeKey = "tab/esc back"
 	}
-	keys := []string{"↑↓ move", "r resume", "space preview", "/ search", "a agent", scopeKey, "v " + m.viewMode, "q quit"}
+	keys := []string{"↑↓ move", "r resume", "space preview", "/ search", "a agent", "d delete", scopeKey, "v " + m.viewMode, "q quit"}
 	return styDim.Render(strings.Join(keys, " · "))
 }
 
@@ -268,6 +283,34 @@ func (m sessionTUI) renderTarget() string {
 	}
 	b.WriteString("\n")
 	b.WriteString(styDim.Render(strings.Join([]string{"↑↓ move", "↵ resume", "esc back"}, " · ")))
+	return b.String()
+}
+
+// renderDeleteConfirm draws the y/N soft-delete confirmation, spelling out that the delete hides
+// the session(s) from resume/search without touching the native files on disk, and that it can
+// only be undone by wiping and rebuilding the index.
+func (m sessionTUI) renderDeleteConfirm() string {
+	pd := m.pendingDelete
+	var b strings.Builder
+	b.WriteString(styBold.Render("Remove from the index?"))
+	b.WriteString("\n\n")
+
+	if pd.source == deleteFromProjects {
+		b.WriteString(styDim.Render("Project: ") + stySel.Render(pd.label) + "\n")
+		b.WriteString(fmt.Sprintf("Removes all %d indexed session(s) in this project from resume and search.", pd.count) + "\n")
+		b.WriteString(styFaint.Render("New sessions you start in this project later will still be indexed normally."))
+	} else {
+		b.WriteString(styDim.Render("Session: ") + stySel.Render(pd.label) + "\n")
+		b.WriteString("Removes this session from resume and search.")
+	}
+	b.WriteString("\n\n")
+	b.WriteString(styFaint.Render("Soft delete: the native session file on disk is untouched, but this session"))
+	b.WriteString("\n")
+	b.WriteString(styFaint.Render("won't be re-indexed. To restore it, delete ~/.specstory/sessions.db and run"))
+	b.WriteString("\n")
+	b.WriteString(styFaint.Render("`specstory reindex`."))
+	b.WriteString("\n\n")
+	b.WriteString(styBold.Render("Delete?") + styDim.Render("  y / N"))
 	return b.String()
 }
 
