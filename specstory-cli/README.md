@@ -372,7 +372,7 @@ Each exchange is recorded as a child span with these attributes:
 ### Development Prerequisites
 
 - macOS development environment
-- Go 1.26.0 or later
+- Go 1.26.4 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 

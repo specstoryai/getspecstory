@@ -28,12 +28,12 @@ type FileSearchFile struct {
 }
 
 // AdaptMessage formats the file_search tool invocation as markdown
-func (h *FileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *FileSearchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	// Parse raw args to get the query
 	var rawArgs FileSearchRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse file_search rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse file_search rawArgs: %w", err)
 		}
 	}
 
@@ -41,22 +41,19 @@ func (h *FileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 	var result FileSearchResult
 	if bubble.Result != "" {
 		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
-			return "", fmt.Errorf("failed to parse file_search result: %w", err)
+			return "", "", fmt.Errorf("failed to parse file_search result: %w", err)
 		}
 	}
 
 	resultsLength := len(result.Files)
 
-	// Build the markdown message
-	message := fmt.Sprintf(`<details>
-<summary>Tool use: **%s** • Searched codebase "%s" • **%d** results</summary>
-`, bubble.Name, rawArgs.Query, resultsLength)
+	summary = fmt.Sprintf(`Tool use: **%s** • Searched codebase "%s" • **%d** results`, escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.Query), resultsLength)
 
 	if resultsLength == 0 {
-		message += "\nNo results found"
+		body = "No results found"
 	} else {
 		// Add table header
-		message += "\n| File |\n|------|\n"
+		message := "| File |\n|------|\n"
 
 		// Add table rows
 		for _, file := range result.Files {
@@ -65,13 +62,13 @@ func (h *FileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 			if displayName == "" {
 				displayName = file.URI
 			}
-			message += fmt.Sprintf("| `%s` |\n", displayName)
+			// Escape the DB-sourced name so pipes/newlines can't break the table
+			message += fmt.Sprintf("| `%s` |\n", escapeTableCellValue(displayName))
 		}
+		body = message
 	}
 
-	message += "\n</details>"
-
-	return message, nil
+	return summary, body, nil
 }
 
 // GetToolType returns the tool type category

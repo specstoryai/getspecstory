@@ -1,6 +1,8 @@
 package cursoride
 
 import (
+	"database/sql"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -80,6 +82,11 @@ func TestUriToPath(t *testing.T) {
 			name:     "vscode-remote SSH URI with hex-encoded config",
 			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
 			wantPath: "/Users/bago/code/getspecstory",
+		},
+		{
+			name:     "vscode-remote tunnel URI with percent-encoded host",
+			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
 		},
 
 		// Unsupported schemes
@@ -220,6 +227,23 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 			wantPath: "/home/user/project",
 		},
 
+		// Valid tunnel URIs
+		{
+			name:     "tunnel with simple host",
+			uri:      "vscode-remote://tunnel+myhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
+		{
+			name:     "tunnel with percent-encoded host",
+			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
+		{
+			name:     "tunnel case insensitive",
+			uri:      "vscode-remote://TUNNEL+myhost/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
 		// Dev container URIs - path returned as-is (container-internal path)
 		{
 			name:     "dev container URI with hex-encoded config",
@@ -262,6 +286,63 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 
 			if got != tt.wantPath {
 				t.Errorf("parseVSCodeRemoteURI(%q) = %q, want %q", tt.uri, got, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestIsRemoteURIRequiringBasenameMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want bool
+	}{
+		{
+			name: "ssh-remote URI matches",
+			uri:  "vscode-remote://ssh-remote+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "ssh-remote URI case insensitive",
+			uri:  "vscode-remote://SSH-REMOTE+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "tunnel URI matches",
+			uri:  "vscode-remote://tunnel+myhost/work/group/user/myproject",
+			want: true,
+		},
+		{
+			name: "tunnel URI case insensitive",
+			uri:  "vscode-remote://TUNNEL+myhost/work/group/user/myproject",
+			want: true,
+		},
+		{
+			name: "dev-container URI matches",
+			uri:  "vscode-remote://dev-container%2Babc123/workspace",
+			want: true,
+		},
+		{
+			name: "dev-container URI case insensitive",
+			uri:  "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
+			want: true,
+		},
+		{
+			name: "wsl URI does not match",
+			uri:  "vscode-remote://wsl%2Bubuntu/home/user/project",
+			want: false,
+		},
+		{
+			name: "local file URI does not match",
+			uri:  "file:///Users/bago/code/getspecstory",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isRemoteURIRequiringBasenameMatch(tt.uri); got != tt.want {
+				t.Errorf("isRemoteURIRequiringBasenameMatch(%q) = %v, want %v", tt.uri, got, tt.want)
 			}
 		})
 	}
@@ -361,4 +442,137 @@ func searchString(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// createWorkspaceDB builds a minimal workspace state.vscdb with the given composer IDs
+// stored in the allComposers list under the composer.composerData key.
+func createWorkspaceDB(t *testing.T, path string, composerIDs []string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("createWorkspaceDB: open: %v", err)
+	}
+	if _, err := db.Exec("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)"); err != nil {
+		_ = db.Close()
+		t.Fatalf("createWorkspaceDB: create table: %v", err)
+	}
+	refs := WorkspaceComposerRefs{AllComposers: make([]ComposerRef, len(composerIDs))}
+	for i, id := range composerIDs {
+		refs.AllComposers[i] = ComposerRef{ComposerID: id}
+	}
+	value, _ := json.Marshal(refs)
+	if _, err := db.Exec("INSERT INTO ItemTable (key, value) VALUES (?, ?)", "composer.composerData", string(value)); err != nil {
+		_ = db.Close()
+		t.Fatalf("createWorkspaceDB: insert: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("createWorkspaceDB: close: %v", err)
+	}
+}
+
+// TestScanWorkspaceDirForComposerPaths verifies that composer IDs are correctly mapped
+// to their project paths by scanning a workspace storage directory.
+func TestScanWorkspaceDirForComposerPaths(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Workspace 1: one composer under /project-a
+	ws1 := filepath.Join(tmpDir, "ws1")
+	if err := os.Mkdir(ws1, 0755); err != nil {
+		t.Fatalf("mkdir ws1: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ws1, "workspace.json"), []byte(`{"folder":"file:///project-a"}`), 0644); err != nil {
+		t.Fatalf("write workspace.json: %v", err)
+	}
+	createWorkspaceDB(t, filepath.Join(ws1, "state.vscdb"), []string{"composer-aaa"})
+
+	// Workspace 2: two composers under /project-b
+	ws2 := filepath.Join(tmpDir, "ws2")
+	if err := os.Mkdir(ws2, 0755); err != nil {
+		t.Fatalf("mkdir ws2: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ws2, "workspace.json"), []byte(`{"folder":"file:///project-b"}`), 0644); err != nil {
+		t.Fatalf("write workspace.json: %v", err)
+	}
+	createWorkspaceDB(t, filepath.Join(ws2, "state.vscdb"), []string{"composer-bbb", "composer-ccc"})
+
+	// Workspace 3: no workspace.json — should be silently skipped
+	ws3 := filepath.Join(tmpDir, "ws3")
+	if err := os.Mkdir(ws3, 0755); err != nil {
+		t.Fatalf("mkdir ws3: %v", err)
+	}
+	createWorkspaceDB(t, filepath.Join(ws3, "state.vscdb"), []string{"composer-zzz"})
+
+	// A plain file in the storage dir — must be ignored (not a directory)
+	if err := os.WriteFile(filepath.Join(tmpDir, "not-a-dir.txt"), []byte(""), 0644); err != nil {
+		t.Fatalf("write not-a-dir.txt: %v", err)
+	}
+
+	result, err := scanWorkspaceDirForComposerPaths(tmpDir)
+	if err != nil {
+		t.Fatalf("scanWorkspaceDirForComposerPaths: %v", err)
+	}
+
+	if len(result) != 3 {
+		t.Errorf("expected 3 composer mappings, got %d: %v", len(result), result)
+	}
+	if result["composer-aaa"] != "/project-a" {
+		t.Errorf("composer-aaa path = %q, want /project-a", result["composer-aaa"])
+	}
+	if result["composer-bbb"] != "/project-b" {
+		t.Errorf("composer-bbb path = %q, want /project-b", result["composer-bbb"])
+	}
+	if result["composer-ccc"] != "/project-b" {
+		t.Errorf("composer-ccc path = %q, want /project-b", result["composer-ccc"])
+	}
+	if _, ok := result["composer-zzz"]; ok {
+		t.Error("composer-zzz from workspace without workspace.json should not appear")
+	}
+}
+
+// TestScanWorkspaceDirForComposerPaths_DuplicateComposer verifies that when the same
+// composer ID appears in multiple workspaces (e.g. WSL/SSH setups), the first-seen
+// project path is used and no entry is duplicated.
+func TestScanWorkspaceDirForComposerPaths_DuplicateComposer(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ws1 := filepath.Join(tmpDir, "ws1")
+	if err := os.Mkdir(ws1, 0755); err != nil {
+		t.Fatalf("mkdir ws1: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ws1, "workspace.json"), []byte(`{"folder":"file:///first-project"}`), 0644); err != nil {
+		t.Fatalf("write workspace.json: %v", err)
+	}
+	createWorkspaceDB(t, filepath.Join(ws1, "state.vscdb"), []string{"shared-composer"})
+
+	ws2 := filepath.Join(tmpDir, "ws2")
+	if err := os.Mkdir(ws2, 0755); err != nil {
+		t.Fatalf("mkdir ws2: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(ws2, "workspace.json"), []byte(`{"folder":"file:///second-project"}`), 0644); err != nil {
+		t.Fatalf("write workspace.json: %v", err)
+	}
+	createWorkspaceDB(t, filepath.Join(ws2, "state.vscdb"), []string{"shared-composer"})
+
+	result, err := scanWorkspaceDirForComposerPaths(tmpDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry (deduped), got %d: %v", len(result), result)
+	}
+	if result["shared-composer"] == "" {
+		t.Error("expected shared-composer to have a non-empty path")
+	}
+}
+
+// TestScanWorkspaceDirForComposerPaths_Empty verifies an empty storage directory
+// returns an empty map without error.
+func TestScanWorkspaceDirForComposerPaths_Empty(t *testing.T) {
+	result, err := scanWorkspaceDirForComposerPaths(t.TempDir())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty result, got %d entries", len(result))
+	}
 }

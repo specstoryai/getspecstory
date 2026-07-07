@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,13 +16,14 @@ import (
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath       string
-	workspace         *WorkspaceMatch
+	workspaces        []WorkspaceMatch // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
 	globalDbPath      string
 	debugRaw          bool
 	sessionCallback   func(*spi.AgentChatSession)
 	ctx               context.Context
 	cancel            context.CancelFunc
 	wg                sync.WaitGroup
+	callbackWg        sync.WaitGroup // Tracks in-flight sessionCallback goroutines
 	mu                sync.RWMutex
 	lastCheck         time.Time
 	knownComposers    map[string]int64 // composerID -> lastUpdatedAt
@@ -30,6 +32,13 @@ type CursorIDEWatcher struct {
 	lastThrottledCall time.Time        // Track last throttled call
 	pendingCheck      bool             // Whether a check is pending after throttle
 	fsWatcher         *fsnotify.Watcher
+	// watchedDBPaths lists the database paths whose parent directories are being
+	// watched, so handleFileEvents can filter directory events down to the db files
+	// (state.vscdb and its -wal/-shm siblings) and ignore unrelated neighbors like
+	// workspace.json. Populated in Start() before the event goroutine launches, and
+	// read-only afterwards, so it needs no locking.
+	watchedDBPaths    []string
+	initialCheckTimer *time.Timer // Cancelled in Stop() so it can't fire a check after shutdown begins
 	// pendingIncomplete tracks sessions whose last bubble is a user message with no agent
 	// response yet. Cursor writes the user bubble and updates lastUpdatedAt atomically,
 	// so the header count matches the loaded bubble count (the existing bubble-count guard
@@ -39,6 +48,10 @@ type CursorIDEWatcher struct {
 	// anyway so the markdown is not lost permanently.
 	pendingIncomplete map[string]time.Time // composerID -> time first seen as incomplete
 	incompleteTimeout time.Duration        // How long to wait before processing an incomplete session anyway
+	// checking prevents concurrent checkForChanges executions. If a check takes
+	// longer than the throttle window, a new trigger could launch a second
+	// goroutine that opens its own DB connections, multiplying file descriptors.
+	checking sync.Mutex
 }
 
 // NewCursorIDEWatcher creates a new watcher for Cursor IDE databases
@@ -48,8 +61,15 @@ func NewCursorIDEWatcher(
 	sessionCallback func(*spi.AgentChatSession),
 	checkInterval time.Duration,
 ) (*CursorIDEWatcher, error) {
-	// Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	// A nil callback would only surface as a panic deep inside checkForChanges,
+	// long after construction — fail fast here instead.
+	if sessionCallback == nil {
+		return nil, fmt.Errorf("sessionCallback must not be nil")
+	}
+
+	// Find all workspaces matching the project (a project can match more than one
+	// workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace for project: %w", err)
 	}
@@ -74,17 +94,22 @@ func NewCursorIDEWatcher(
 	}
 
 	return &CursorIDEWatcher{
-		projectPath:       projectPath,
-		workspace:         workspace,
-		globalDbPath:      globalDbPath,
-		debugRaw:          debugRaw,
-		sessionCallback:   sessionCallback,
-		ctx:               ctx,
-		cancel:            cancel,
-		knownComposers:    make(map[string]int64),
-		checkInterval:     checkInterval,
-		throttleDuration:  10 * time.Second,
-		lastThrottledCall: time.Now(),
+		projectPath:      projectPath,
+		workspaces:       workspaces,
+		globalDbPath:     globalDbPath,
+		debugRaw:         debugRaw,
+		sessionCallback:  sessionCallback,
+		ctx:              ctx,
+		cancel:           cancel,
+		knownComposers:   make(map[string]int64),
+		checkInterval:    checkInterval,
+		throttleDuration: 10 * time.Second,
+		// Zero value, not time.Now(): lastThrottledCall means "the last time a check
+		// actually ran," not "when the watcher was constructed." Seeding it with the
+		// current time made the very first real check (5s after Start()) look like it
+		// arrived too soon after a "previous" check that never happened, throttling it
+		// by another full throttleDuration and delaying startup by up to ~2x intended.
+		lastThrottledCall: time.Time{},
 		pendingCheck:      false,
 		fsWatcher:         fsWatcher,
 		pendingIncomplete: make(map[string]time.Time),
@@ -96,15 +121,32 @@ func NewCursorIDEWatcher(
 func (w *CursorIDEWatcher) Start() error {
 	slog.Info("Starting Cursor IDE watcher",
 		"projectPath", w.projectPath,
-		"workspaceID", w.workspace.ID,
-		"workspaceDbPath", w.workspace.DBPath,
+		"workspaceCount", len(w.workspaces),
 		"globalDbPath", w.globalDbPath,
 		"checkInterval", w.checkInterval,
 		"throttleDuration", w.throttleDuration)
 
-	// Set up file watching on workspace database
-	if err := w.watchDatabaseFiles(w.workspace.DBPath); err != nil {
-		slog.Warn("Failed to watch workspace database files", "error", err)
+	// Ensure WAL mode is enabled on all databases before watching.
+	// WAL mode is required so that the -wal file exists for fsnotify to detect changes.
+	// This is a one-time read-write operation at startup; all subsequent reads are read-only.
+	for _, ws := range w.workspaces {
+		if err := EnsureWALMode(ws.DBPath); err != nil {
+			slog.Warn("Failed to ensure WAL mode on workspace database",
+				"workspaceID", ws.ID,
+				"error", err)
+		}
+	}
+	if err := EnsureWALMode(w.globalDbPath); err != nil {
+		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
+	}
+
+	// Set up file watching on all matching workspace databases
+	for _, ws := range w.workspaces {
+		if err := w.watchDatabaseFiles(ws.DBPath); err != nil {
+			slog.Warn("Failed to watch workspace database files",
+				"workspaceID", ws.ID,
+				"error", err)
+		}
 	}
 
 	// Set up file watching on global database
@@ -120,8 +162,9 @@ func (w *CursorIDEWatcher) Start() error {
 	w.wg.Add(1)
 	go w.safetyNetPoller()
 
-	// Perform initial check after a short delay
-	time.AfterFunc(5*time.Second, func() {
+	// Perform initial check after a short delay. The timer is stored so Stop() can
+	// cancel it if it hasn't fired yet.
+	w.initialCheckTimer = time.AfterFunc(5*time.Second, func() {
 		w.triggerCheck("initial")
 	})
 
@@ -132,6 +175,12 @@ func (w *CursorIDEWatcher) Start() error {
 // Stop gracefully stops the watcher
 func (w *CursorIDEWatcher) Stop() {
 	slog.Info("Stopping Cursor IDE watcher")
+
+	// Stop the initial-check timer in case it hasn't fired yet — no point starting a
+	// check that would just have to be waited on below.
+	if w.initialCheckTimer != nil {
+		w.initialCheckTimer.Stop()
+	}
 
 	// Perform one final check before stopping
 	slog.Info("Performing final check for changes before stopping")
@@ -148,31 +197,47 @@ func (w *CursorIDEWatcher) Stop() {
 	w.cancel()
 	w.wg.Wait()
 
+	// Wait for any pending callback goroutines to complete
+	slog.Info("Waiting for pending callbacks to complete")
+	w.callbackWg.Wait()
+
 	slog.Info("Cursor IDE watcher stopped")
 }
 
-// watchDatabaseFiles sets up file watching for a database and its WAL file
+// watchDatabaseFiles sets up file watching for a database and its WAL file.
+//
+// Why the parent directory instead of the files themselves: in WAL mode nearly every
+// write lands in state.vscdb-wal, and SQLite deletes that file when the last
+// connection closes and recreates it on the next open. A watch on the file itself is
+// never added when the file doesn't exist yet (watcher started before Cursor), and
+// dies with the inode when Cursor checkpoints/restarts — silently degrading all
+// updates to the 2-minute safety-net poll. A directory watch keeps delivering
+// Create/Write events for the db and its -wal across those lifecycles.
 func (w *CursorIDEWatcher) watchDatabaseFiles(dbPath string) error {
-	// Watch the database file itself
-	if err := w.fsWatcher.Add(dbPath); err != nil {
+	dir := filepath.Dir(dbPath)
+	if err := w.fsWatcher.Add(dir); err != nil {
 		// Log but don't fail - we'll rely on polling
-		slog.Warn("Failed to watch database file", "path", dbPath, "error", err)
+		slog.Warn("Failed to watch database directory", "dir", dir, "error", err)
 		return err
 	}
-	slog.Debug("Watching database file", "path", dbPath)
 
-	// Watch the WAL file if it exists
-	walPath := dbPath + "-wal"
-	if _, err := os.Stat(walPath); err == nil {
-		if err := w.fsWatcher.Add(walPath); err != nil {
-			slog.Warn("Failed to watch WAL file", "path", walPath, "error", err)
-			// Don't return error - WAL is optional
-		} else {
-			slog.Debug("Watching WAL file", "path", walPath)
-		}
-	}
+	// Register the db path so handleFileEvents can filter directory events
+	// down to this database's files.
+	w.watchedDBPaths = append(w.watchedDBPaths, dbPath)
+	slog.Debug("Watching database directory", "dir", dir, "dbPath", dbPath)
 
 	return nil
+}
+
+// isWatchedDBFile reports whether a file event path belongs to one of the watched
+// databases (the db file itself or a sibling like -wal/-shm/-journal).
+func (w *CursorIDEWatcher) isWatchedDBFile(name string) bool {
+	for _, dbPath := range w.watchedDBPaths {
+		if name == dbPath || strings.HasPrefix(name, dbPath+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 // handleFileEvents processes file system events from fsnotify
@@ -189,8 +254,10 @@ func (w *CursorIDEWatcher) handleFileEvents() {
 				return
 			}
 
-			// Only care about Write and Create events
-			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+			// Only care about Write and Create events on the database files —
+			// the watch is on the parent directory, so unrelated neighbors
+			// (e.g. workspace.json) must be filtered out.
+			if (event.Has(fsnotify.Write) || event.Has(fsnotify.Create)) && w.isWatchedDBFile(event.Name) {
 				slog.Debug("Database file changed", "path", event.Name, "op", event.Op)
 				w.triggerCheck("file-change")
 			}
@@ -240,9 +307,17 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 				"trigger", trigger,
 				"delay", delay)
 
+			w.wg.Add(1)
 			go func() {
-				time.Sleep(delay)
-				w.executePendingCheck()
+				defer w.wg.Done()
+				timer := time.NewTimer(delay)
+				defer timer.Stop()
+				select {
+				case <-w.ctx.Done():
+					return
+				case <-timer.C:
+					w.executePendingCheck()
+				}
 			}()
 		}
 		return
@@ -251,7 +326,21 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 	// Execute immediately
 	w.lastThrottledCall = now
 	w.pendingCheck = false
-	go w.checkForChanges(trigger)
+	w.runCheckAsync(trigger)
+}
+
+// runCheckAsync runs checkForChanges in a new goroutine tracked by w.wg, so Stop()'s
+// w.wg.Wait() actually waits for it instead of returning while it's still running.
+// It's a no-op if the watcher's context is already cancelled.
+func (w *CursorIDEWatcher) runCheckAsync(trigger string) {
+	if w.ctx.Err() != nil {
+		return
+	}
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.checkForChanges(trigger)
+	}()
 }
 
 // executePendingCheck executes a pending check if one was scheduled
@@ -269,12 +358,25 @@ func (w *CursorIDEWatcher) executePendingCheck() {
 	if timeSinceLastCall >= w.throttleDuration {
 		w.lastThrottledCall = now
 		w.pendingCheck = false
-		go w.checkForChanges("throttled")
+		w.runCheckAsync("throttled")
 	}
 }
 
-// checkForChanges queries the databases and processes any new or updated sessions
+// checkForChanges queries the databases and processes any new or updated sessions.
+// The checking mutex prevents concurrent executions that would multiply DB connections.
 func (w *CursorIDEWatcher) checkForChanges(trigger string) {
+	// Prevent overlapping checks. Normal triggers use TryLock and skip so slow checks
+	// don't pile up goroutines, but the shutdown flush must not be skipped — its whole
+	// purpose is to catch changes an in-flight check's snapshot missed, so it blocks
+	// until that check finishes.
+	if trigger == "shutdown" {
+		w.checking.Lock()
+	} else if !w.checking.TryLock() {
+		slog.Debug("Skipping check, previous check still running", "trigger", trigger)
+		return
+	}
+	defer w.checking.Unlock()
+
 	slog.Debug("Checking for changes", "trigger", trigger)
 
 	w.mu.Lock()
@@ -282,8 +384,8 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 	w.lastCheck = time.Now()
 	w.mu.Unlock()
 
-	// Load composer IDs from workspace database
-	composerIDs, err := LoadWorkspaceComposerIDs(w.workspace.DBPath)
+	// Load composer IDs from all matching workspace databases
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(w.workspaces)
 	if err != nil {
 		slog.Error("Failed to load workspace composer IDs", "error", err)
 		return
@@ -402,19 +504,23 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				}
 			}
 
-			// Update known timestamp
-			w.mu.Lock()
-			w.knownComposers[composerID] = currentTimestamp
-			w.mu.Unlock()
-
 			// Convert to AgentChatSession
-			session, err := ConvertToAgentChatSession(composer)
+			session, err := ConvertToAgentChatSession(composer, w.projectPath)
 			if err != nil {
+				// Don't advance knownComposers on failure — leave the watermark where it
+				// was so this composer is retried on the next check instead of being
+				// silently skipped forever.
 				slog.Warn("Failed to convert composer to session",
 					"composerID", composerID,
 					"error", err)
 				continue
 			}
+
+			// Update known timestamp. Only done after a successful conversion so a
+			// failure (see above) doesn't permanently poison the watermark for this composer.
+			w.mu.Lock()
+			w.knownComposers[composerID] = currentTimestamp
+			w.mu.Unlock()
 
 			// Write debug output if requested
 			if w.debugRaw {
@@ -425,15 +531,31 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 				}
 			}
 
-			// Invoke callback
+			// Invoke callback asynchronously so a panic during processing (e.g. markdown
+			// write or cloud sync) doesn't crash the watcher, and slow callback I/O
+			// doesn't delay processing of the remaining sessions in this check.
 			slog.Info("Invoking callback for session",
 				"sessionID", session.SessionID,
 				"slug", session.Slug)
-			w.sessionCallback(session)
+			w.callbackWg.Add(1)
+			go func(s *spi.AgentChatSession) {
+				defer w.callbackWg.Done()
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("Session callback panicked", "panic", r, "sessionID", s.SessionID)
+					}
+				}()
+				w.sessionCallback(s)
+			}(session)
 		}
 	}
 
-	elapsed := time.Since(lastCheck)
+	// On the very first check lastCheck is the zero time; report 0 instead of a
+	// nonsensical ~2000-year duration.
+	var elapsed time.Duration
+	if !lastCheck.IsZero() {
+		elapsed = time.Since(lastCheck)
+	}
 	slog.Info("Completed check for changes",
 		"trigger", trigger,
 		"totalComposers", len(composers),

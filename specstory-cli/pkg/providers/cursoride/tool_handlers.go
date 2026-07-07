@@ -3,6 +3,7 @@ package cursoride
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 )
@@ -24,9 +25,12 @@ const (
 // ToolHandler is the interface for all tool handlers
 // Each handler knows how to format the markdown output for a specific tool
 type ToolHandler interface {
-	// AdaptMessage formats the tool invocation as markdown
-	// Returns the formatted markdown text
-	AdaptMessage(bubble *BubbleConversation) (string, error)
+	// AdaptMessage formats the tool invocation, returning a one-line summary
+	// (rendered inside <summary>...</summary> by the caller) and a body-only
+	// markdown fragment (rendered inside <details>...</details> by the caller).
+	// Handlers must not include the <details>/<summary> wrapper themselves —
+	// callers own it, so it's only added once (see FormatToolContent).
+	AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error)
 
 	// GetToolType returns the tool type category
 	GetToolType() ToolType
@@ -112,8 +116,43 @@ func (r *ToolRegistry) GetHandler(toolName string) ToolHandler {
 	return r.handlers[toolName]
 }
 
-// FormatToolInvocation formats a tool invocation as markdown
-// This is the main entry point for processing tool invocations
+// FormatToolContent resolves the handler for a tool invocation (or falls back to the
+// catch-all formatter for unregistered tools) and returns its one-line summary and
+// body-only markdown, without any <details>/<summary> or <tool-use> wrapper. Split out
+// from FormatToolInvocation so callers that embed the content elsewhere (e.g.
+// schema.ToolInfo, which the shared markdown renderer wraps itself) don't end up with
+// a nested <details> block and a duplicated "Tool use" heading.
+// Callers are responsible for the error/cancelled/invalid-tool special cases handled by
+// FormatToolInvocation — this only covers the "normal" handler-resolution path.
+func FormatToolContent(bubble *BubbleConversation, registry *ToolRegistry) (summary string, body string, toolType ToolType) {
+	handler := registry.GetHandler(bubble.Name)
+	if handler != nil {
+		// Use the registered handler
+		toolType = handler.GetToolType()
+		var err error
+		summary, body, err = handler.AdaptMessage(bubble)
+		if err != nil {
+			slog.Warn("Error adapting tool message, using fallback",
+				"toolName", bubble.Name,
+				"error", err)
+			// Fallback to catch-all handler
+			toolType = ToolTypeUnknown
+			summary, body = formatCatchAll(bubble)
+		}
+	} else {
+		// Unknown tool - use catch-all handler
+		slog.Debug("Unknown tool, using catch-all handler",
+			"toolName", bubble.Name)
+		toolType = ToolTypeUnknown
+		summary, body = formatCatchAll(bubble)
+	}
+	return summary, body, toolType
+}
+
+// FormatToolInvocation formats a tool invocation as a complete markdown block,
+// including the outer <tool-use> and <details>/<summary> wrapper. This is the fallback
+// path used when a tool invocation can't be resolved into a structured schema.ToolInfo
+// (see resolveToolInfo in agent_session.go) and needs to be embedded directly in Content.
 func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) string {
 	// Handle invalid tool (tool = 0)
 	if bubble.Tool == 0 {
@@ -130,37 +169,27 @@ func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) st
 		return "Cancelled"
 	}
 
-	// Get the handler for this tool name
-	handler := registry.GetHandler(bubble.Name)
-	var toolType ToolType
-	var content string
-
-	if handler != nil {
-		// Use the registered handler
-		toolType = handler.GetToolType()
-		var err error
-		content, err = handler.AdaptMessage(bubble)
-		if err != nil {
-			slog.Warn("Error adapting tool message, using fallback",
-				"toolName", bubble.Name,
-				"error", err)
-			// Fallback to catch-all handler
-			toolType = ToolTypeUnknown
-			content = formatCatchAll(bubble)
-		}
-	} else {
-		// Unknown tool - use catch-all handler
-		slog.Debug("Unknown tool, using catch-all handler",
-			"toolName", bubble.Name)
-		toolType = ToolTypeUnknown
-		content = formatCatchAll(bubble)
-	}
+	summary, body, toolType := FormatToolContent(bubble, registry)
 
 	// Wrap in tool-use HTML tag
 	// Format: <tool-use data-tool-type="read" data-tool-name="read_file">
+	// bubble.Name comes from the Cursor DB, so escape it to keep a malformed or
+	// malicious name (quotes, angle brackets) from breaking out of the attribute.
 	return fmt.Sprintf(`<tool-use data-tool-type="%s" data-tool-name="%s">
+<details>
+<summary>%s</summary>
+
 %s
-</tool-use>`, toolType, bubble.Name, content)
+</details>
+</tool-use>`, toolType, escapeSummaryText(bubble.Name), summary, body)
+}
+
+// escapeSummaryText escapes DB-sourced strings (tool names, queries, file paths)
+// before they are interpolated into HTML contexts like <summary> lines or tag
+// attributes. These values come from Cursor's database, so a malformed string
+// containing <, >, & or quotes would otherwise break the generated markup.
+func escapeSummaryText(s string) string {
+	return html.EscapeString(s)
 }
 
 // formatToolError formats a tool error message
@@ -181,11 +210,12 @@ func formatToolError(bubble *BubbleConversation) string {
 
 // formatCatchAll is the fallback formatter for unknown tools
 // Matches the TypeScript CatchAllBubbleHandler format
-func formatCatchAll(bubble *BubbleConversation) string {
-	var message strings.Builder
+func formatCatchAll(bubble *BubbleConversation) (summary string, body string) {
+	// Summary is just the tool name, no params. Escape the DB-sourced name so it
+	// can't inject markup into the <summary> element.
+	summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 
-	// Start with summary line (just tool name, no params)
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+	var message strings.Builder
 
 	// Parse params
 	var params map[string]interface{}
@@ -240,9 +270,7 @@ func formatCatchAll(bubble *BubbleConversation) string {
 		message.WriteString(formatEscapeJSONBlock(errorData))
 	}
 
-	message.WriteString("\n</details>")
-
-	return message.String()
+	return summary, message.String()
 }
 
 // formatEscapeJSONBlock formats JSON with escaped special characters

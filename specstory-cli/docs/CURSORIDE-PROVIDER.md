@@ -9,7 +9,9 @@ Add a new provider called `cursoride` that reads Cursor's SQLite database direct
 **Goal:** Port extension's Cursor database reading functionality to CLI as a new provider
 
 **Key Features:**
-- Read from global Cursor database (`~/.cursor/extensions/.../state.vscdb`)
+- Read from the global Cursor database in Cursor's user globalStorage
+  (`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on macOS,
+  `~/.config/Cursor/User/globalStorage/state.vscdb` on Linux)
 - Filter by workspace (matches Claude Code's project-scoped behavior)
 - Export conversations to markdown in `.specstory/history/`
 - Debug mode for raw data inspection
@@ -23,7 +25,9 @@ Add a new provider called `cursoride` that reads Cursor's SQLite database direct
 
 ## Background
 
-The existing extension (in `ts-extension/`) reads from Cursor's SQLite database at `~/.cursor/extensions/cursor-context-manager-*/globalStorage/cursor-context-manager/state.vscdb`. We're porting this functionality to the CLI as a new provider.
+The existing extension (in `ts-extension/`) reads from Cursor's SQLite database at `<Cursor user dir>/globalStorage/state.vscdb`, resolved via VS Code's `context.globalStorageUri` (see `PathsService.getGlobalStoragePath()`). We're porting this functionality to the CLI as a new provider.
+
+Note: the CLI implementation (`GetGlobalDatabasePath` in `pkg/providers/cursoride/path_utils.go`) resolves Cursor's user globalStorage directly (`~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` on macOS, `~/.config/Cursor/User/globalStorage/state.vscdb` on Linux).
 
 ## Critical Files
 
@@ -56,10 +60,9 @@ Create `pkg/providers/cursoride/provider.go`:
 
 ### Step 3: Path Resolution
 Create `pkg/providers/cursoride/path_utils.go`:
-- `GetGlobalDatabasePath()` → Find `~/.cursor/extensions/cursor-context-manager-*/globalStorage/cursor-context-manager/state.vscdb`
+- `GetGlobalDatabasePath()` → Find `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb` (macOS) or `~/.config/Cursor/User/globalStorage/state.vscdb` (Linux)
 - `GetWorkspaceStoragePath()` → Find `~/Library/Application Support/Cursor/User/workspaceStorage/` (macOS) or equivalent
 - `FindMatchingWorkspace(projectPath)` → Match projectPath to workspace directory (if Option B chosen)
-- Use glob pattern to find versioned extension directory
 - Handle case where database doesn't exist
 - Check for WAL files (`.vscdb-wal`)
 
@@ -353,7 +356,7 @@ After implementation:
 | Aspect | cursorcli (Cursor CLI) | cursoride (Cursor IDE) |
 |--------|------------------------|------------------------|
 | **Product** | Cursor CLI agent (`cursor-agent` command) | Cursor IDE (VS Code fork) |
-| **Data Location** | `~/.cursor/chats/<md5-hash>/<session-id>/store.db` | Global: `~/.cursor/extensions/.../state.vscdb`<br>Workspace: `~/Library/.../workspaceStorage/` |
+| **Data Location** | `~/.cursor/chats/<md5-hash>/<session-id>/store.db` | Global: `~/Library/.../User/globalStorage/state.vscdb`<br>Workspace: `~/Library/.../workspaceStorage/` |
 | **Database Structure** | One SQLite DB per session | Single global SQLite DB for all composers |
 | **Database Schema** | `blobs` table (id, data)<br>`meta` table (key, value) | Global DB: `cursorDiskKV` (key, value)<br>Workspace DB: `ItemTable` (key, value)<br>Keys: `composerData:*`, `bubbleId:*` |
 | **Project Matching** | MD5 hash of canonical project path | Workspace URI matching via `workspace.json` |
@@ -383,9 +386,8 @@ After implementation:
 
 **cursoride (What We're Building):**
 ```
-~/.cursor/extensions/cursor-context-manager-*/
-  └── globalStorage/cursor-context-manager/
-      └── state.vscdb (ALL composer data)
+~/Library/Application Support/Cursor/User/globalStorage/
+  └── state.vscdb (ALL composer data)
 
 ~/Library/Application Support/Cursor/User/workspaceStorage/
   ├── workspace-id-1/

@@ -188,6 +188,11 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				fmt.Println()
 			}
 
+			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
+			// if the index can't be opened — never block the watcher on it).
+			liveIndex := NewLiveIndexer(cwd)
+			defer liveIndex.Close()
+
 			// Track sessions we've seen to suppress initial-scan output.
 			// Existing sessions found at startup get their markdown refreshed
 			// but don't produce output — only new activity does.
@@ -222,6 +227,9 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 						"error", err)
 					return
 				}
+
+				// Mirror the markdown write into the restore index in real time.
+				liveIndex.Record(providerID, sess)
 
 				// Suppress output for existing sessions seen for the first time (initial scan).
 				// New sessions (!fileExists) always get output since they represent real activity.

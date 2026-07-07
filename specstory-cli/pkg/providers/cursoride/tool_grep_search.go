@@ -53,18 +53,18 @@ type GrepSearchSource struct {
 }
 
 // AdaptMessage formats grep_search tool invocations as markdown
-func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs GrepSearchRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse grep_search rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse grep_search rawArgs: %w", err)
 		}
 	}
 
 	var result GrepSearchResult
 	if bubble.Result != "" {
 		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
-			return "", fmt.Errorf("failed to parse grep_search result: %w", err)
+			return "", "", fmt.Errorf("failed to parse grep_search result: %w", err)
 		}
 	}
 
@@ -74,22 +74,14 @@ func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 		resultsLength = len(result.Internal.Results)
 	}
 
-	var message strings.Builder
-	message.WriteString(`<details>
-            <summary>Tool use: **`)
-	message.WriteString(bubble.Name)
-	message.WriteString(`** • Grep search for "`)
-	message.WriteString(rawArgs.Query)
-	message.WriteString(`" • **`)
-	fmt.Fprintf(&message, "%d", resultsLength)
-	message.WriteString(`** files</summary>
-        `)
+	summary = fmt.Sprintf(`Tool use: **%s** • Grep search for "%s" • **%d** files`, escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.Query), resultsLength)
 
+	var message strings.Builder
 	if resultsLength == 0 {
-		message.WriteString("\nNo results found")
+		message.WriteString("No results found")
 	} else {
 		// Add table header
-		message.WriteString("\n| File | Line | Match |\n|------|------|-------|\n")
+		message.WriteString("| File | Line | Match |\n|------|------|-------|\n")
 
 		// Add table rows
 		for _, fileResult := range result.Internal.Results {
@@ -100,17 +92,16 @@ func (h *GrepSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, er
 					lineNumber = matchEntry.Match.RangeLocations[0].Source.StartLineNumber + 1
 				}
 
-				// Add row
+				// Add row (escape both DB-sourced cells so pipes/newlines can't break the table)
 				fmt.Fprintf(&message, "| `%s` | L%d | `%s` |\n",
-					fileResult.Resource,
+					escapeTableCellValue(fileResult.Resource),
 					lineNumber,
 					escapeTableCellValue(matchEntry.Match.PreviewText))
 			}
 		}
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category

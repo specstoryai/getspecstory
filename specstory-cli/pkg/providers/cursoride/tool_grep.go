@@ -63,18 +63,18 @@ type GrepFilesResult struct {
 }
 
 // AdaptMessage formats grep tool invocations as markdown
-func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var params GrepParams
 	if bubble.Params != "" {
 		if err := json.Unmarshal([]byte(bubble.Params), &params); err != nil {
-			return "", fmt.Errorf("failed to parse grep params: %w", err)
+			return "", "", fmt.Errorf("failed to parse grep params: %w", err)
 		}
 	}
 
 	var result GrepResult
 	if bubble.Result != "" {
 		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
-			return "", fmt.Errorf("failed to parse grep result: %w", err)
+			return "", "", fmt.Errorf("failed to parse grep result: %w", err)
 		}
 	}
 
@@ -108,20 +108,19 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 		messageDetails = "\n_No matches found_"
 	}
 
-	// Build the message
-	var message strings.Builder
-	message.WriteString("<details>\n")
-
 	// Build summary line
 	inString := ""
 	if params.Path != "" {
-		inString = fmt.Sprintf(` in "%s"`, params.Path)
+		inString = fmt.Sprintf(` in "%s"`, escapeSummaryText(params.Path))
 	}
 	matchWord := "match"
 	if resultsLength != 1 {
 		matchWord = "matches"
 	}
-	fmt.Fprintf(&message, "<summary>Tool use: **%s** • Grep for \"%s\"%s • %d %s</summary>\n\n", bubble.Name, params.Pattern, inString, resultsLength, matchWord)
+	summary = fmt.Sprintf("Tool use: **%s** • Grep for \"%s\"%s • %d %s", escapeSummaryText(bubble.Name), escapeSummaryText(params.Pattern), inString, resultsLength, matchWord)
+
+	// Build the body
+	var message strings.Builder
 
 	// Add output mode
 	outputMode := params.OutputMode
@@ -133,8 +132,7 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
 	// Add details
 	fmt.Fprintf(&message, "\n%s\n", messageDetails)
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // formatContentResults formats content matches as a markdown table
@@ -198,7 +196,8 @@ func (h *GrepHandler) formatFilesResults(files *GrepFilesResult) string {
 	result.WriteString("\n| File |\n|------|\n")
 
 	for _, file := range files.Files {
-		fmt.Fprintf(&result, "| `%s` |\n", file)
+		// Escape the DB-sourced name so pipes/newlines can't break the table
+		fmt.Fprintf(&result, "| `%s` |\n", escapeTableCellValue(file))
 	}
 
 	return result.String()
@@ -209,11 +208,17 @@ func (h *GrepHandler) GetToolType() ToolType {
 	return ToolTypeSearch
 }
 
-// escapeTableCellValue escapes special characters for markdown table cells
-// Matches the TypeScript escapeTableCellValue function
+// escapeTableCellValue escapes special characters for markdown table cells.
+// Matches the TypeScript escapeTableCellValue function, plus backtick escaping:
+// callers wrap cell values in `...` code spans, and grep results contain source
+// code lines where backticks are common (markdown, JS template literals), which
+// would otherwise terminate the span and corrupt the table. The TS extension has
+// the same flaw; &#96; follows the escapeCodeBlock convention in this package.
 func escapeTableCellValue(value string) string {
 	// Escape pipes
 	value = strings.ReplaceAll(value, "|", "\\|")
+	// Escape backticks so values survive being wrapped in `...` code spans
+	value = strings.ReplaceAll(value, "`", "&#96;")
 	// Convert newlines to HTML breaks
 	value = strings.ReplaceAll(value, "\n", "<br/>")
 	// Escape braces (for some markdown parsers)
@@ -228,17 +233,29 @@ func escapeTableCellValue(value string) string {
 	return value
 }
 
-// escapeBraces escapes curly braces in markdown
+// escapeBraces escapes curly braces in markdown.
+//
+// Why count backslashes: a brace is only already escaped when preceded by an odd
+// number of backslashes. Looking at just the previous character mistakes an
+// escaped backslash ("\\{") for an escaped brace and leaves the brace unescaped.
 func escapeBraces(s string) string {
 	var result strings.Builder
-	prevChar := rune(0)
+	backslashCount := 0
 
 	for _, char := range s {
-		if (char == '{' || char == '}') && prevChar != '\\' {
-			result.WriteRune('\\')
+		switch char {
+		case '\\':
+			backslashCount++
+		case '{', '}':
+			// An even count (including zero) means the brace is not yet escaped.
+			if backslashCount%2 == 0 {
+				result.WriteRune('\\')
+			}
+			backslashCount = 0
+		default:
+			backslashCount = 0
 		}
 		result.WriteRune(char)
-		prevChar = char
 	}
 
 	return result.String()

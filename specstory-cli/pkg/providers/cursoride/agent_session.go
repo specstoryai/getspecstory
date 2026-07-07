@@ -11,9 +11,11 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// ConvertToAgentChatSession converts Cursor composer data to AgentChatSession format
+// ConvertToAgentChatSession converts Cursor composer data to AgentChatSession format.
+// workspaceRoot is the project path the caller is scanning — threaded straight through
+// to SessionData.WorkspaceRoot, matching every other provider's convention.
 // This is a minimal implementation - markdown output will be improved later
-func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, error) {
+func ConvertToAgentChatSession(composer *ComposerData, workspaceRoot string) (*spi.AgentChatSession, error) {
 	// Use composer ID as session ID
 	sessionID := composer.ComposerID
 
@@ -37,10 +39,11 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			Name:    "Cursor IDE",
 			Version: "unknown",
 		},
-		SessionID: sessionID,
-		CreatedAt: createdAt,
-		Slug:      slug,
-		Exchanges: []schema.Exchange{},
+		SessionID:     sessionID,
+		CreatedAt:     createdAt,
+		Slug:          slug,
+		WorkspaceRoot: workspaceRoot,
+		Exchanges:     []schema.Exchange{},
 	}
 
 	// Get composer-level model name as fallback
@@ -57,8 +60,10 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 
 	// Convert conversation messages to exchanges
 	// Each exchange groups one user turn with the agent response(s) that follow it.
+	// ExchangeID is assigned after the loop (sessionID:index) rather than derived from
+	// the triggering bubble's ID, matching every other provider — see the assignment
+	// pass below.
 	var currentMessages []schema.Message
-	var currentExchangeID string // bubble ID of the user message that started the current exchange
 	for i, bubble := range composer.Conversation {
 		// Skip empty bubbles that have no content to display
 		// BUT: Don't skip tool invocations (capabilityType=15) - they generate content from tool data
@@ -68,11 +73,20 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 				"capabilityType", bubble.CapabilityType)
 			continue
 		}
+		// Resolve tool invocations into structured ToolInfo (with pre-formatted markdown)
+		// up front, so buildMessageText knows whether to also embed the tool content in
+		// Content — otherwise the tool use would render twice: once from Content, once
+		// from Tool.
+		var tool *schema.ToolInfo
+		if bubble.CapabilityType == 15 {
+			tool = resolveToolInfo(&bubble, capabilitiesMap, toolRegistry, composer.Version)
+		}
+
 		// Build the message text, including thinking blocks and tool invocations if present
-		messageText := buildMessageText(&bubble, capabilitiesMap, toolRegistry, composer.Version)
+		messageText := buildMessageText(&bubble, capabilitiesMap, toolRegistry, composer.Version, tool != nil)
 
 		// Skip if we still have no content after processing (shouldn't happen, but safety check)
-		if messageText == "" {
+		if messageText == "" && tool == nil {
 			slog.Debug("Skipping bubble with no content after processing",
 				"bubbleId", bubble.BubbleID,
 				"capabilityType", bubble.CapabilityType)
@@ -113,26 +127,14 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 			Role:      getRoleFromType(bubble.Type),
 			Timestamp: timestamp,
 			Model:     modelName,
-			Content: []schema.ContentPart{
+			Tool:      tool,
+		}
+		if messageText != "" {
+			message.Content = []schema.ContentPart{
 				{
 					Type: schema.ContentTypeText,
 					Text: messageText,
 				},
-			},
-		}
-
-		// Populate message.Tool for tool bubbles so telemetry stats can count them.
-		// The formatted markdown is already in Content; Tool carries structured metadata.
-		if bubble.CapabilityType == 15 {
-			if toolData := resolveToolData(&bubble, capabilitiesMap, composer.Version); toolData != nil && toolData.Name != "" {
-				toolType := schema.ToolTypeUnknown
-				if handler := toolRegistry.GetHandler(toolData.Name); handler != nil {
-					toolType = toSchemaToolType(handler.GetToolType())
-				}
-				message.Tool = &schema.ToolInfo{
-					Name: toolData.Name,
-					Type: toolType,
-				}
 			}
 		}
 
@@ -144,20 +146,10 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 		}
 
 		// If this is a user message and we have pending messages, flush the current exchange
-		// and start a new one keyed by this user bubble.
+		// and start a new one.
 		if bubble.Type == 1 && len(currentMessages) > 0 {
-			exchange := schema.Exchange{
-				ExchangeID: currentExchangeID,
-				Messages:   currentMessages,
-			}
-			sessionData.Exchanges = append(sessionData.Exchanges, exchange)
+			sessionData.Exchanges = append(sessionData.Exchanges, schema.Exchange{Messages: currentMessages})
 			currentMessages = nil
-			currentExchangeID = bubble.BubbleID
-		}
-
-		// Record the exchange ID from the first user bubble of each exchange.
-		if bubble.Type == 1 && currentExchangeID == "" {
-			currentExchangeID = bubble.BubbleID
 		}
 
 		currentMessages = append(currentMessages, message)
@@ -165,11 +157,13 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 
 	// Create final exchange if there are remaining messages
 	if len(currentMessages) > 0 {
-		exchange := schema.Exchange{
-			ExchangeID: currentExchangeID,
-			Messages:   currentMessages,
-		}
-		sessionData.Exchanges = append(sessionData.Exchanges, exchange)
+		sessionData.Exchanges = append(sessionData.Exchanges, schema.Exchange{Messages: currentMessages})
+	}
+
+	// Assign exchangeId to each exchange (format: sessionId:index), matching every
+	// other provider. Always non-empty, unlike deriving it from a triggering bubble ID.
+	for i := range sessionData.Exchanges {
+		sessionData.Exchanges[i].ExchangeID = fmt.Sprintf("%s:%d", sessionID, i)
 	}
 
 	// Marshal to JSON for raw data
@@ -192,40 +186,27 @@ func ConvertToAgentChatSession(composer *ComposerData) (*spi.AgentChatSession, e
 	}, nil
 }
 
-// generateSlug creates a slug from the composer name or first user message
+// generateSlug creates a filesystem-safe slug from the composer name or first user message,
+// matching the spi.GenerateFilenameFromUserMessage convention used by every other provider.
 func generateSlug(composer *ComposerData) string {
 	// Use composer name if available
 	if composer.Name != "" {
-		return slugify(composer.Name)
+		if slug := spi.GenerateFilenameFromUserMessage(composer.Name); slug != "" {
+			return slug
+		}
 	}
 
 	// Otherwise, use first user message
 	for _, bubble := range composer.Conversation {
 		if bubble.Type == 1 && bubble.Text != "" {
-			// Take first 4 words
-			return slugifyText(bubble.Text, 4)
+			if slug := spi.GenerateFilenameFromUserMessage(bubble.Text); slug != "" {
+				return slug
+			}
 		}
 	}
 
 	// Fallback to composer ID
 	return composer.ComposerID
-}
-
-// slugify converts a string to a slug while preserving casing
-// The casing is preserved for use in titles, and will be lowercased for filenames by the caller
-func slugify(s string) string {
-	// Replace spaces with hyphens, keep original casing
-	s = strings.ReplaceAll(s, " ", "-")
-	return s
-}
-
-// slugifyText converts text to a slug using the first N words
-func slugifyText(text string, wordCount int) string {
-	words := strings.Fields(text)
-	if len(words) > wordCount {
-		words = words[:wordCount]
-	}
-	return slugify(strings.Join(words, " "))
 }
 
 // getRoleFromType converts Cursor's message type to schema role
@@ -236,8 +217,13 @@ func getRoleFromType(messageType int) string {
 	return schema.RoleAgent
 }
 
-// buildMessageText constructs the full message text including thinking blocks and tool invocations
-func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) string {
+// buildMessageText constructs the full message text including thinking blocks and,
+// for tool bubbles that resolveToolInfo couldn't turn into structured ToolInfo, a
+// plain-text tool fallback. toolHandledSeparately is true when the caller already
+// resolved the tool invocation into message.Tool — in that case the formatted tool
+// markdown lives in Tool.FormattedMarkdown and must not also be embedded here,
+// otherwise the tool use renders twice.
+func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int, toolHandledSeparately bool) string {
 	var parts []string
 
 	// Add thinking block if present
@@ -248,9 +234,11 @@ func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*Cap
 
 	// Process tool invocations if this is a tool capability (capabilityType = 15)
 	if bubble.CapabilityType == 15 {
-		toolText := processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
-		if toolText != "" {
-			parts = append(parts, toolText)
+		if !toolHandledSeparately {
+			toolText := processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
+			if toolText != "" {
+				parts = append(parts, toolText)
+			}
 		}
 	} else if bubble.Text != "" {
 		// Add main text if present (non-tool bubbles)
@@ -258,6 +246,28 @@ func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*Cap
 	}
 
 	return strings.Join(parts, "\n\n---\n\n")
+}
+
+// resolveToolInfo resolves a tool-invocation bubble (capabilityType 15) whose handler
+// completed normally into a schema.ToolInfo carrying pre-formatted markdown, so the
+// tool use renders exactly once via the Tool field instead of also being embedded in
+// Content. Returns nil when the bubble has no resolvable tool data, or ended in an
+// error/cancelled/invalid state — those cases fall back to FormatToolInvocation's
+// plain text via processToolInvocation/buildMessageText instead, matching their
+// existing (unwrapped) rendering.
+func resolveToolInfo(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) *schema.ToolInfo {
+	toolData := resolveToolData(bubble, capabilitiesMap, composerVersion)
+	if toolData == nil || toolData.Name == "" || toolData.Tool == 0 || toolData.Status == "error" || toolData.Status == "cancelled" {
+		return nil
+	}
+
+	summary, body, toolType := FormatToolContent(toolData, toolRegistry)
+	return &schema.ToolInfo{
+		Name:              toolData.Name,
+		Type:              toSchemaToolType(toolType),
+		Summary:           &summary,
+		FormattedMarkdown: &body,
+	}
 }
 
 // resolveToolData finds the BubbleConversation for a tool bubble.
