@@ -1,5 +1,12 @@
 # Specstory CLI Changelog
 
+## v2.1.0 2026-07-06
+
+### ⚙️ Improvements
+
+- Delete any session or project from the `~/.specstory/sessions.db` index using the `d` hotkey in `specstory resume` or `specstory search`.
+- Small improvement in the `specstory search` / `resume` TUI to label the currently active search query.
+
 ## v2.0.0 2026-06-29
 
 ### 📢 Announcements

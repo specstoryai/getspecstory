@@ -10,6 +10,7 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
@@ -30,6 +31,30 @@ const (
 	modeTarget                  // choosing which agent to resume into
 	modeProjects                // the all-projects browser (Stage B)
 )
+
+// deleteSource records which view a pending delete was triggered from, so the confirm prompt,
+// the store call (a single session vs. a whole project), and the post-delete refresh all match
+// the originating view.
+type deleteSource int
+
+const (
+	deleteFromList     deleteSource = iota // a session in the (home or drilled-in) session list
+	deleteFromGlobal                       // a session in the cross-project search results
+	deleteFromProjects                     // a whole project in the all-projects browser
+)
+
+// pendingDelete is the target captured when 'd' is pressed, applied only if the user confirms.
+// It is a soft delete: the session(s) are hidden from the picker/search and won't be re-indexed,
+// but the native files on disk are untouched and the rows survive as tombstones. See
+// sessionindex.SoftDeleteSession / SoftDeleteProject.
+type pendingDelete struct {
+	source    deleteSource
+	agent     string // session target (deleteFromList / deleteFromGlobal)
+	sessionID string
+	projectID string // project target (deleteFromProjects)
+	label     string // human label for the confirmation line
+	count     int    // project session count (deleteFromProjects)
+}
 
 // agentMeta carries an agent's display name + accent color for the list.
 type agentMeta struct {
@@ -111,6 +136,16 @@ type sessionTUI struct {
 	previewing    bool
 	reader        viewport.Model
 	readerSession *sessionindex.Session
+
+	// confirmingDelete is a top-level modal (like previewing): 'd' in a session list, the global
+	// search results, or the project browser opens a y/N soft-delete confirmation for pendingDelete.
+	confirmingDelete bool
+	pendingDelete    pendingDelete
+
+	// statusMsg is a transient one-line notice (currently only a failed delete) shown under the
+	// footer until the next keypress. A soft delete otherwise gives no feedback beyond the row
+	// disappearing, so a failure would look like a silent no-op without this.
+	statusMsg string
 
 	mode         tuiMode
 	chosen       *sessionindex.Session
@@ -247,7 +282,14 @@ func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyPressMsg:
+		// Any keypress dismisses a lingering status notice (e.g. a failed delete); it has served
+		// its purpose once the user has read it and moved on.
+		m.statusMsg = ""
 		switch {
+		case m.confirmingDelete:
+			// The delete confirmation is a top-level modal, reachable from the list, the global
+			// results, or the project browser, so it is checked before any mode-specific routing.
+			return m.updateDeleteConfirm(msg)
 		case m.previewing:
 			// The preview is a top-level overlay: it opens over the list OR the global
 			// results, so it must be checked before any mode-specific routing.
@@ -380,8 +422,142 @@ func (m sessionTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "v":
 		m.toggleViewMode()
 		return m, m.requestVisibleSnippets(modeList)
+	case "d":
+		if sel := m.selected(); sel != nil {
+			m.pendingDelete = pendingDelete{source: deleteFromList, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
+			m.confirmingDelete = true
+		}
 	}
 	return m, nil
+}
+
+// updateDeleteConfirm handles the y/N soft-delete confirmation modal. Deletion requires an
+// explicit "y"; every other key (n, esc, q, or a stray press) cancels, so the destructive path
+// is never the default.
+func (m sessionTUI) updateDeleteConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "Y":
+		return m.performDelete()
+	case "ctrl+c":
+		m.result = sessionTUIResult{cancelled: true}
+		return m, tea.Quit
+	default:
+		m.confirmingDelete = false
+	}
+	return m, nil
+}
+
+// performDelete applies the pending soft delete, records an analytics event, and refreshes the
+// originating view. A soft delete hides the session(s) from the picker/search and stops reindex
+// re-adding them; the native session files on disk are left untouched.
+func (m sessionTUI) performDelete() (tea.Model, tea.Cmd) {
+	m.confirmingDelete = false
+	pd := m.pendingDelete
+
+	affected, err := softDeletePending(pd)
+	if err != nil {
+		slog.Debug("resume: soft delete failed", "error", err)
+		m.statusMsg = "Delete failed — " + pd.label + " left in place"
+		return m, nil
+	}
+
+	scope := "session"
+	if pd.source == deleteFromProjects {
+		scope = "project"
+	}
+	analytics.TrackEvent(analytics.EventSessionDeleted, analytics.Properties{
+		"scope":    scope,
+		"agent":    pd.agent,
+		"affected": affected,
+	})
+
+	return m.refreshAfterDelete(pd)
+}
+
+// softDeletePending opens a short-lived writer handle to sessions.db — the browse handle is
+// read-only (OpenReader) — applies the tombstone, and closes it. Delete is a rare interactive
+// action, so the open/close cost is irrelevant; WAL lets this writer commit alongside the read
+// handle and the background warm's writer.
+func softDeletePending(pd pendingDelete) (int, error) {
+	dbPath, err := sessionindex.DefaultPath()
+	if err != nil {
+		return 0, err
+	}
+	w, err := sessionindex.Open(dbPath)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = w.Close() }()
+
+	if pd.source == deleteFromProjects {
+		return w.SoftDeleteProject(pd.projectID)
+	}
+	return w.SoftDeleteSession(pd.agent, pd.sessionID)
+}
+
+// refreshAfterDelete re-syncs the view the delete was triggered from so the removed session or
+// project drops out immediately, without a restart. The read handle (m.store) sees the writer's
+// committed change on its next query (WAL starts a fresh read snapshot per statement).
+func (m sessionTUI) refreshAfterDelete(pd pendingDelete) (tea.Model, tea.Cmd) {
+	switch pd.source {
+	case deleteFromProjects:
+		// Re-roll the project list; a project with no live sessions left drops out entirely.
+		m.projectsLoaded = false
+		m.enterBrowser()
+		// Deleting the last project would leave the cursor past the shortened list, so clamp it
+		// (mirrors the session-list and global paths below) before fixing the scroll window.
+		m.projCursor = clampIndex(m.projCursor, len(m.projFiltered))
+		m.clampProjScroll()
+		return m, nil
+	case deleteFromGlobal:
+		// Drop the deleted hit from the in-memory results. Its FTS row is already gone, so a
+		// re-query would also exclude it, but removing in place avoids an async round trip.
+		m.globalResults = removeSession(m.globalResults, pd.agent, pd.sessionID)
+		delete(m.globalSnippets, sessionindex.FingerprintKey(pd.agent, pd.sessionID))
+		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
+		m.clampGlobalScroll()
+		return m, m.requestVisibleSnippets(modeProjects)
+	default: // deleteFromList
+		// Re-query the active project (home or drilled-in) and rebuild. The cursor keeps its
+		// index (clamped), so the next session slides up under it.
+		sessions, err := m.store.ListByProject(m.projectID)
+		if err != nil {
+			slog.Debug("resume: refresh after delete failed", "error", err)
+			return m, nil
+		}
+		if m.projectID == m.homeProjectID {
+			m.homeSessions = sessions
+		}
+		m.all = sessions
+		m.rebuildAgentCycle()
+		m.applyFilter()
+		m.cursor = clampIndex(m.cursor, len(m.filtered))
+		m.clampScroll()
+		return m, m.requestVisibleSnippets(modeList)
+	}
+}
+
+// removeSession returns sessions without the (agent, sessionID) entry.
+func removeSession(sessions []sessionindex.Session, agent, sessionID string) []sessionindex.Session {
+	out := make([]sessionindex.Session, 0, len(sessions))
+	for _, s := range sessions {
+		if s.Agent == agent && s.SessionID == sessionID {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+// clampIndex keeps a cursor within [0, n-1], or 0 when the list is empty.
+func clampIndex(i, n int) int {
+	if i > n-1 {
+		i = n - 1
+	}
+	if i < 0 {
+		i = 0
+	}
+	return i
 }
 
 // updateSearch handles the full-text search input. The typed character is applied to the

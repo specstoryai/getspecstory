@@ -64,6 +64,44 @@ is a **cache** over them. Two consequences drive the rest of this design:
    got in were live SpecStory events, any session we failed to witness would be missing
    *forever*. Because catchup can always rebuild, gaps are transient, not permanent.
 
+There is **one deliberate exception** to "rebuild reproduces everything": the soft-delete
+tombstone below. It is the single piece of state a rebuild-from-native-files does *not*
+reconstruct — by design, because its whole purpose is to keep a session out of the index that
+the native store still contains. Wiping `sessions.db` (deleting the file) clears the tombstones
+too, which is exactly the documented "undo".
+
+## Soft delete (the `d` key)
+
+The resume/search TUI lets a user remove a session — or a whole project's sessions — from the
+picker with `d` (behind a `y/N` confirmation). It is a **soft delete**: the native session file
+on disk is never touched. Instead the `sessions` row is kept but **tombstoned**:
+
+- `deleted` is set to `1` and the row's `sessions_fts` body is deleted (so search can't match
+  it), while `size`/`mtime`/`index_version` — the freshness fingerprint — are left intact.
+- Every read path (`Count`, `ProjectCount`, `UnattributedCount`, `ListByProject`,
+  `ListProjects`, and defensively `SearchContext`) filters `deleted = 0`, so the session
+  vanishes from resume, search, and the project rollup.
+
+The point of keeping the row rather than deleting it is that a plain `DELETE` would be undone by
+the very next `reindex`/warm (the session's native file is still there, so it would be
+re-enumerated and re-added). The tombstone makes the delete **stick**:
+
+- **`reindex`/warm** skip tombstoned rows in `selectWork` (a perf optimization — the fingerprint
+  match already means "unchanged", and this avoids re-parsing a body that would be discarded).
+- **The write path itself is the backstop:** `upsertOne` refuses to write any row whose existing
+  record is tombstoned, so *no* writer — `reindex` (even `--force`, where fingerprints aren't
+  loaded), the live `run`/`watch` indexer, or `sync` — can resurrect it, even if the native file
+  grows new turns.
+
+So a soft delete survives everything **except** deleting `~/.specstory/sessions.db` and running
+`specstory reindex` — which is the intended (and only) way to bring a deleted session back.
+Deleting a *project* tombstones exactly the sessions that exist at delete time; it does **not**
+blacklist the project — a new session started there later indexes normally.
+
+The writer methods are `Store.SoftDeleteSession(agent, id)` and
+`Store.SoftDeleteProject(projectID)` (both on a writer handle — the TUI's browse handle is
+read-only, so the `d` action opens a short-lived `Open` writer for the one transaction).
+
 ## Project identity: reuse the algorithm, NOT the stored files
 
 `pkg/utils/project_identity.go` already defines the identity *algorithm* this index needs:
@@ -415,6 +453,7 @@ plus the same final summary, so logs stay clean.
 | `index_version` | INTEGER | reindex logic version that wrote the row — part of the fingerprint; bumping it forces a full re-parse.                                                 |
 | `indexed_at`    | TEXT    | ISO 8601 time this row was last written by `reindex`.                                                                                                  |
 | `fts_rowid`     | INTEGER | rowid of this session's `sessions_fts` row — the O(1) link used to read the body and to delete-before-insert without scanning the FTS (see below). NULL on rows written before this column existed, until a `reindex` repopulates them. |
+| `deleted`       | INTEGER | Soft-delete tombstone (`0` = live, `1` = user-deleted). Set by the `d` key in the resume/search TUI; see [Soft delete](#soft-delete-the-d-key). `DEFAULT 0`, so pre-existing rows stay visible. |
 
 Primary key: `(agent, session_id)` — a session is unique within a provider, and belongs to
 exactly one project. `project_id` is indexed for per-project filtering. `created_at` /
@@ -500,8 +539,10 @@ Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-
   `LiveIndexer`). See "keeping the index warm" above and [RESUME-TUI.md](RESUME-TUI.md). Possible
   follow-up: throttle repeated background warms (today every `resume`/`search` invocation
   re-enumerates, which is cheap but unbounded in frequency).
-- **OPEN — Eviction / prune.** When a native session is deleted, when does its row leave
-  `sessions.db`? (Lore prunes on rescan when the file is gone.)
+- **OPEN — Eviction / prune.** When a native session is *deleted on disk*, when does its row
+  leave `sessions.db`? (Lore prunes on rescan when the file is gone.) Distinct from the
+  user-initiated [soft delete](#soft-delete-the-d-key), which keeps the row as a tombstone; this
+  is about automatic cleanup when the native file itself disappears.
 - **OPEN — Remote-less projects.** How (if at all) cross-project / cross-machine works for
   repos with only a `workspace_id`.
 

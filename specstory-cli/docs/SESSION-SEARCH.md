@@ -43,7 +43,7 @@ The search input is the footer line (bottom), results above, consistent with `re
    codex    1w   intent-server   …the worker pegs …max… …cpu… at 100% during…
    gemini   3w   stoa-cli        …cap …cpu… usage; the …max… concurrency was…
  ─────────────────────────────────────────────────────────────────────────────────────
- ↑↓ move · r resume · space preview · a agent · v dense · / edit search · esc back · q quit
+ ↑↓ move · r resume · space preview · a agent · d delete · v dense · / edit search · esc back · q quit
  / max cpu▌
 ```
 
@@ -51,7 +51,10 @@ The search input is the footer line (bottom), results above, consistent with `re
 markdown via `session.GenerateMarkdownFromAgentSession`, falling back to the plain FTS body for
 sessions that can't be re-parsed, e.g. Cursor). `r` (in the list or the preview) hands off to
 the shared target-agent step → reconstruct + `ExecAgentAndWatch`. `↵` is inert in the list, so
-a stray return can't accidentally launch an agent.
+a stray return can't accidentally launch an agent. `d` soft-deletes the highlighted hit behind
+a `y/N` confirmation — the same tombstone as `resume` (hidden from search/resume, native file
+untouched, undone only by wiping and rebuilding `sessions.db`); see [RESUME-TUI.md](RESUME-TUI.md)
+and [SESSIONS-DB.md](SESSIONS-DB.md).
 
 ## Command
 

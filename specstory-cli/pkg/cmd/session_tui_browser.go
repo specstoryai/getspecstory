@@ -284,6 +284,17 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.projSearching = true
 		m.projSearch.SetValue(m.projSearchQuery)
 		return m, m.projSearch.Focus()
+	case "d":
+		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+			p := m.projFiltered[m.projCursor]
+			m.pendingDelete = pendingDelete{
+				source:    deleteFromProjects,
+				projectID: p.ProjectID,
+				label:     projectDisplayName(p),
+				count:     p.Sessions,
+			}
+			m.confirmingDelete = true
+		}
 	}
 	return m, nil
 }
@@ -428,7 +439,7 @@ func (m sessionTUI) renderProjects() string {
 		b.WriteString(m.projSearch.View() + "    " + styFaint.Render("esc clear · enter apply"))
 		return b.String()
 	}
-	keys := []string{"↑↓ move", "↵ open", "/ search sessions", "p filter projects"}
+	keys := []string{"↑↓ move", "↵ open", "/ search sessions", "p filter projects", "d delete"}
 	if !m.startedInBrowser {
 		keys = append(keys, "tab this project")
 	}
@@ -600,6 +611,11 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		m.toggleViewMode()
 		m.clampGlobalScroll() // toggleViewMode clamps the list; the global list scrolls separately
 		return m, m.requestVisibleSnippets(modeProjects)
+	case "d":
+		if sel := m.globalSelected(); sel != nil {
+			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
+			m.confirmingDelete = true
+		}
 	}
 	return m, nil
 }
@@ -683,7 +699,9 @@ func (m sessionTUI) renderGlobalResults() string {
 	}
 	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
-		left += styDim.Render(" · ") + stySel.Render(q)
+		// Label the locked-in query "search: <q>" so it reads as a filter, mirroring the
+		// "agent: <name>" / "project: <name>" labels rather than a bare unexplained word.
+		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
 	}
 	right := styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
 	b.WriteString(headerRow(left, right, m.lineWidth()) + "\n")
@@ -736,7 +754,7 @@ func (m sessionTUI) renderGlobalResults() string {
 		b.WriteString(m.globalInput.View() + "    " + styFaint.Render(inputHint))
 		return b.String()
 	}
-	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
+	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "d delete", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
 	return b.String()
 }
