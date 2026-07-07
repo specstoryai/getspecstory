@@ -28,7 +28,7 @@ var builtinPatterns = []redactPattern{
 	// \b prevents sk- from matching inside longer prefixes like ask-.
 	{regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{20,}`), "ANTHROPIC_API_KEY"},
 	{regexp.MustCompile(`\bsk-proj-[A-Za-z0-9_-]{20,}`), "OPENAI_PROJECT_KEY"},
-	{regexp.MustCompile(`\bsk-[A-Za-z0-9]{40,}`), "OPENAI_API_KEY"},
+	{regexp.MustCompile(`\bsk-[A-Za-z0-9_-]{40,}`), "OPENAI_API_KEY"},
 	{regexp.MustCompile(`AIza[A-Za-z0-9_-]{35,}`), "GOOGLE_API_KEY"},
 	{regexp.MustCompile(`AKIA[A-Z0-9]{16}`), "AWS_ACCESS_KEY_ID"},
 }
