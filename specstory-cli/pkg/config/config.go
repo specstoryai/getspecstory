@@ -93,6 +93,14 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
+[redaction]
+# Redact secrets and API keys from saved markdown history. (default: true)
+# Built-in patterns cover GitHub, Groq, OpenAI, Anthropic, Google, and AWS keys.
+# enabled = false
+
+# Additional Go regular expressions to redact. Matches are replaced with [REDACTED:custom].
+# extra_patterns = ["my-token-[A-Za-z0-9]{32}"]
+
 [resume]
 # Default view mode for the 'specstory resume' picker: "dense" (more sessions) or
 # "sparse" (more detail per session). The picker also remembers your last choice here.
@@ -133,6 +141,7 @@ type Config struct {
 	Logging      LoggingConfig      `toml:"logging"`
 	Analytics    AnalyticsConfig    `toml:"analytics"`
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
+	Redaction    RedactionConfig    `toml:"redaction"`
 	Providers    ProvidersConfig    `toml:"providers"`
 	Resume       ResumeConfig       `toml:"resume"`
 }
@@ -144,6 +153,16 @@ type ResumeConfig struct {
 	ViewMode string `toml:"view_mode"`
 	// LastAgent is the provider id of the agent you last resumed into (default target).
 	LastAgent string `toml:"last_agent"`
+}
+
+// RedactionConfig holds secret redaction settings for markdown output.
+type RedactionConfig struct {
+	// Enabled controls whether secrets are redacted from saved markdown files.
+	// Defaults to true when not explicitly set.
+	Enabled *bool `toml:"enabled"`
+	// ExtraPatterns is a list of additional Go regular expressions to redact.
+	// Matches are replaced with [REDACTED:custom].
+	ExtraPatterns []string `toml:"extra_patterns"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -749,6 +768,20 @@ func (c *Config) GetResumeViewMode() string {
 		return "sparse"
 	}
 	return "dense"
+}
+
+// IsRedactionEnabled returns whether secret redaction is enabled.
+// Defaults to true if not explicitly set.
+func (c *Config) IsRedactionEnabled() bool {
+	if c.Redaction.Enabled != nil {
+		return *c.Redaction.Enabled
+	}
+	return true // default: redaction on
+}
+
+// GetRedactionExtraPatterns returns the list of additional redaction patterns.
+func (c *Config) GetRedactionExtraPatterns() []string {
+	return c.Redaction.ExtraPatterns
 }
 
 // GetResumeLastAgent returns the provider id of the last-resumed agent, or "".
