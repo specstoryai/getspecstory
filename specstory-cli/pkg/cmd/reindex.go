@@ -271,6 +271,14 @@ func selectWork(order []string, best map[string]reindexItem, fingerprints map[st
 			}
 		}
 		fp, ok := fingerprints[key]
+		// A soft-deleted (user-tombstoned) session is never re-indexed, even if its native file
+		// changed since — otherwise a delete wouldn't stick. This skip just avoids re-parsing the
+		// body; upsertOne's tombstone guard is the actual backstop (and covers --force, where the
+		// fingerprint map is empty so this branch can't fire). Restored only by wiping sessions.db.
+		if ok && fp.Deleted {
+			unchanged++
+			continue
+		}
 		if ok && fp.Size == item.size && fp.Mtime == item.mtime && fp.Version == reindexVersion {
 			unchanged++
 			continue // already indexed and unchanged
