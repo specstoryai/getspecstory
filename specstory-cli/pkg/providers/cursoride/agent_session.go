@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -82,11 +81,26 @@ func ConvertToAgentChatSession(composer *ComposerData, workspaceRoot string) (*s
 			tool = resolveToolInfo(&bubble, capabilitiesMap, toolRegistry, composer.Version)
 		}
 
-		// Build the message text, including thinking blocks and tool invocations if present
+		// Build the content parts: thinking first as a dedicated part (the shared
+		// renderer owns its presentation, matching other providers), then the
+		// message text including tool fallbacks if present.
+		var contentParts []schema.ContentPart
+		if bubble.Thinking != nil && bubble.Thinking.Text != "" {
+			contentParts = append(contentParts, schema.ContentPart{
+				Type: schema.ContentTypeThinking,
+				Text: bubble.Thinking.Text,
+			})
+		}
 		messageText := buildMessageText(&bubble, capabilitiesMap, toolRegistry, composer.Version, tool != nil)
+		if messageText != "" {
+			contentParts = append(contentParts, schema.ContentPart{
+				Type: schema.ContentTypeText,
+				Text: messageText,
+			})
+		}
 
 		// Skip if we still have no content after processing (shouldn't happen, but safety check)
-		if messageText == "" && tool == nil {
+		if len(contentParts) == 0 && tool == nil {
 			slog.Debug("Skipping bubble with no content after processing",
 				"bubbleId", bubble.BubbleID,
 				"capabilityType", bubble.CapabilityType)
@@ -129,13 +143,8 @@ func ConvertToAgentChatSession(composer *ComposerData, workspaceRoot string) (*s
 			Model:     modelName,
 			Tool:      tool,
 		}
-		if messageText != "" {
-			message.Content = []schema.ContentPart{
-				{
-					Type: schema.ContentTypeText,
-					Text: messageText,
-				},
-			}
+		if len(contentParts) > 0 {
+			message.Content = contentParts
 		}
 
 		// Add mode to metadata for agent messages
@@ -217,35 +226,23 @@ func getRoleFromType(messageType int) string {
 	return schema.RoleAgent
 }
 
-// buildMessageText constructs the full message text including thinking blocks and,
-// for tool bubbles that resolveToolInfo couldn't turn into structured ToolInfo, a
-// plain-text tool fallback. toolHandledSeparately is true when the caller already
-// resolved the tool invocation into message.Tool — in that case the formatted tool
-// markdown lives in Tool.FormattedMarkdown and must not also be embedded here,
-// otherwise the tool use renders twice.
+// buildMessageText constructs the message's plain text: the bubble text, or, for tool
+// bubbles that resolveToolInfo couldn't turn into structured ToolInfo, a plain-text
+// tool fallback. Thinking is deliberately not included — it becomes a dedicated
+// thinking ContentPart (see the conversion loop) so the shared renderer owns its
+// presentation, matching other providers. toolHandledSeparately is true when the
+// caller already resolved the tool invocation into message.Tool — in that case the
+// formatted tool markdown lives in Tool.FormattedMarkdown and must not also be
+// embedded here, otherwise the tool use renders twice.
 func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int, toolHandledSeparately bool) string {
-	var parts []string
-
-	// Add thinking block if present
-	if bubble.Thinking != nil && bubble.Thinking.Text != "" {
-		thinkingBlock := fmt.Sprintf("<think><details><summary>Thought Process</summary>\n%s</details></think>", bubble.Thinking.Text)
-		parts = append(parts, thinkingBlock)
-	}
-
 	// Process tool invocations if this is a tool capability (capabilityType = 15)
 	if bubble.CapabilityType == 15 {
-		if !toolHandledSeparately {
-			toolText := processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
-			if toolText != "" {
-				parts = append(parts, toolText)
-			}
+		if toolHandledSeparately {
+			return ""
 		}
-	} else if bubble.Text != "" {
-		// Add main text if present (non-tool bubbles)
-		parts = append(parts, bubble.Text)
+		return processToolInvocation(bubble, capabilitiesMap, toolRegistry, composerVersion)
 	}
-
-	return strings.Join(parts, "\n\n---\n\n")
+	return bubble.Text
 }
 
 // resolveToolInfo resolves a tool-invocation bubble (capabilityType 15) into a

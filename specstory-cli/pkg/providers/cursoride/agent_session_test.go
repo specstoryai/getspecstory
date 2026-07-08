@@ -197,6 +197,77 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 	}
 }
 
+// TestConvertToAgentChatSession_ThinkingParts covers the thinking ContentPart fix:
+// thinking must be emitted as a dedicated part with Type "thinking" (rendered by the
+// shared renderer, like other providers), never embedded as <think> HTML in the text
+// part, and a thinking-only bubble must still produce a message.
+func TestConvertToAgentChatSession_ThinkingParts(t *testing.T) {
+	tests := []struct {
+		name      string
+		bubble    ComposerConversation
+		wantParts []struct{ partType, textHas string }
+	}{
+		{
+			name: "thinking plus text yields a thinking part then a text part",
+			bubble: ComposerConversation{
+				BubbleID: "b2",
+				Type:     2,
+				Text:     "here is the answer",
+				Thinking: &ThinkingData{Text: "let me reason about this"},
+			},
+			wantParts: []struct{ partType, textHas string }{
+				{partType: "thinking", textHas: "let me reason about this"},
+				{partType: "text", textHas: "here is the answer"},
+			},
+		},
+		{
+			name: "thinking-only bubble still produces a message",
+			bubble: ComposerConversation{
+				BubbleID: "b2",
+				Type:     2,
+				Thinking: &ThinkingData{Text: "only thoughts here"},
+			},
+			wantParts: []struct{ partType, textHas string }{
+				{partType: "thinking", textHas: "only thoughts here"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composer := &ComposerData{
+				ComposerID: "think",
+				Version:    3,
+				Conversation: []ComposerConversation{
+					{BubbleID: "b1", Type: 1, Text: "question"},
+					tt.bubble,
+				},
+			}
+
+			session, err := ConvertToAgentChatSession(composer, "/tmp/proj")
+			if err != nil {
+				t.Fatalf("ConvertToAgentChatSession failed: %v", err)
+			}
+
+			msg := session.SessionData.Exchanges[0].Messages[1]
+			if len(msg.Content) != len(tt.wantParts) {
+				t.Fatalf("expected %d content parts, got %d: %+v", len(tt.wantParts), len(msg.Content), msg.Content)
+			}
+			for i, want := range tt.wantParts {
+				if msg.Content[i].Type != want.partType {
+					t.Errorf("part %d: expected type %q, got %q", i, want.partType, msg.Content[i].Type)
+				}
+				if !strings.Contains(msg.Content[i].Text, want.textHas) {
+					t.Errorf("part %d: expected text to contain %q, got %q", i, want.textHas, msg.Content[i].Text)
+				}
+				if strings.Contains(msg.Content[i].Text, "<think>") {
+					t.Errorf("part %d: thinking must not be embedded as <think> HTML, got %q", i, msg.Content[i].Text)
+				}
+			}
+		})
+	}
+}
+
 // TestConvertToAgentChatSession_ExchangeIDs covers the empty-ExchangeID fix: every
 // exchange must get a non-empty, sequential "sessionId:index" ID, even when the
 // conversation's first surviving bubble isn't a user message.
