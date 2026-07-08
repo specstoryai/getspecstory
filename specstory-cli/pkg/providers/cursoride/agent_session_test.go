@@ -74,14 +74,17 @@ func TestGenerateSlug(t *testing.T) {
 }
 
 // TestConvertToAgentChatSession_ToolRendering covers the duplicate tool-use rendering
-// fix: a successfully-resolved tool bubble must populate Tool.FormattedMarkdown and
-// leave Content empty (single render path via Tool), while error/cancelled/unresolvable
-// tool bubbles must fall back to plain text in Content with Tool left nil.
+// fix and the structured error/cancelled handling: every tool bubble with resolvable,
+// named tool data (including error, cancelled and invalid states) must populate
+// Tool.Summary/FormattedMarkdown and leave Content empty (single render path via
+// Tool), so the shared renderer's generic fallback never runs for this provider.
+// Only bubbles whose tool data can't be resolved (or has no name) fall back to Content.
 func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 	tests := []struct {
 		name           string
 		toolData       *ToolInvocationData
 		wantToolNonNil bool
+		wantBodyHas    string // substring expected in Tool.FormattedMarkdown, if wantToolNonNil
 		wantContentHas string // substring expected in Content, if wantToolNonNil is false
 	}{
 		{
@@ -95,22 +98,43 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 			wantToolNonNil: true,
 		},
 		{
-			name: "cancelled tool falls back to plain Content, no Tool",
+			name: "cancelled tool is structured with Cancelled body",
 			toolData: &ToolInvocationData{
 				Tool:   1,
 				Name:   "run_terminal_cmd",
 				Status: "cancelled",
 			},
-			wantToolNonNil: false,
-			wantContentHas: "Cancelled",
+			wantToolNonNil: true,
+			wantBodyHas:    "Cancelled",
 		},
 		{
-			name: "invalid tool (Tool=0) falls back to plain Content, no Tool",
+			name: "invalid tool (Tool=0) is structured with error body",
 			toolData: &ToolInvocationData{
 				Tool: 0,
 				Name: "unknown_tool",
 			},
+			wantToolNonNil: true,
+			wantBodyHas:    "An unknown error occurred",
+		},
+		{
+			name: "errored tool is structured with the error message as body",
+			toolData: &ToolInvocationData{
+				Tool:   1,
+				Name:   "run_terminal_cmd",
+				Status: "error",
+				Error:  `{"clientVisibleErrorMessage":"command not found"}`,
+			},
+			wantToolNonNil: true,
+			wantBodyHas:    "command not found",
+		},
+		{
+			name: "tool data without a name falls back to Content, no Tool",
+			toolData: &ToolInvocationData{
+				Tool:   1,
+				Status: "completed",
+			},
 			wantToolNonNil: false,
+			wantContentHas: "<tool-use",
 		},
 	}
 
@@ -151,6 +175,9 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 				}
 				if toolMsg.Tool.Summary != nil && strings.Contains(*toolMsg.Tool.Summary, "<summary>") {
 					t.Errorf("Tool.Summary must be plain text, not pre-wrapped in <summary> tags, got: %q", *toolMsg.Tool.Summary)
+				}
+				if tt.wantBodyHas != "" && toolMsg.Tool.FormattedMarkdown != nil && !strings.Contains(*toolMsg.Tool.FormattedMarkdown, tt.wantBodyHas) {
+					t.Errorf("expected Tool.FormattedMarkdown to contain %q, got: %q", tt.wantBodyHas, *toolMsg.Tool.FormattedMarkdown)
 				}
 				if len(toolMsg.Content) != 0 {
 					t.Errorf("expected Content to be empty when Tool is set (else markdown.go renders the tool use twice), got: %+v", toolMsg.Content)

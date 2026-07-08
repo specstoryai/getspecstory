@@ -248,26 +248,51 @@ func buildMessageText(bubble *ComposerConversation, capabilitiesMap map[int]*Cap
 	return strings.Join(parts, "\n\n---\n\n")
 }
 
-// resolveToolInfo resolves a tool-invocation bubble (capabilityType 15) whose handler
-// completed normally into a schema.ToolInfo carrying pre-formatted markdown, so the
-// tool use renders exactly once via the Tool field instead of also being embedded in
-// Content. Returns nil when the bubble has no resolvable tool data, or ended in an
-// error/cancelled/invalid state — those cases fall back to FormatToolInvocation's
-// plain text via processToolInvocation/buildMessageText instead, matching their
-// existing (unwrapped) rendering.
+// resolveToolInfo resolves a tool-invocation bubble (capabilityType 15) into a
+// schema.ToolInfo carrying pre-formatted markdown, so the tool use renders exactly
+// once via the Tool field instead of also being embedded in Content. Error, cancelled
+// and invalid (tool = 0) invocations are structured too — with the error message or
+// "Cancelled" as the body — so every tool the provider emits carries
+// Summary/FormattedMarkdown (cross-agent resume flattens tool calls from these fields
+// only). Returns nil only when the bubble has no resolvable tool data at all; that
+// case falls back to plain text via processToolInvocation/buildMessageText.
 func resolveToolInfo(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, toolRegistry *ToolRegistry, composerVersion int) *schema.ToolInfo {
 	toolData := resolveToolData(bubble, capabilitiesMap, composerVersion)
-	if toolData == nil || toolData.Name == "" || toolData.Tool == 0 || toolData.Status == "error" || toolData.Status == "cancelled" {
+	if toolData == nil || toolData.Name == "" {
 		return nil
 	}
 
-	summary, body, toolType := FormatToolContent(toolData, toolRegistry)
+	var summary, body string
+	var toolType ToolType
+	switch {
+	case toolData.Tool == 0 || toolData.Status == "error":
+		summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(toolData.Name))
+		body = formatToolError(toolData)
+		toolType = registeredToolType(toolData.Name, toolRegistry)
+	case toolData.Status == "cancelled":
+		summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(toolData.Name))
+		body = "Cancelled"
+		toolType = registeredToolType(toolData.Name, toolRegistry)
+	default:
+		summary, body, toolType = FormatToolContent(toolData, toolRegistry)
+	}
+
 	return &schema.ToolInfo{
 		Name:              toolData.Name,
 		Type:              toSchemaToolType(toolType),
 		Summary:           &summary,
 		FormattedMarkdown: &body,
 	}
+}
+
+// registeredToolType looks up the tool's category from the registry so error and
+// cancelled invocations keep their real type (shell, write, …) instead of unknown,
+// falling back to unknown for unregistered tools.
+func registeredToolType(toolName string, toolRegistry *ToolRegistry) ToolType {
+	if handler := toolRegistry.GetHandler(toolName); handler != nil {
+		return handler.GetToolType()
+	}
+	return ToolTypeUnknown
 }
 
 // resolveToolData finds the BubbleConversation for a tool bubble.
