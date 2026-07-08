@@ -161,8 +161,8 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 
 	// Parse first line - should be kind:0 with initial state
 	var firstLine struct {
-		Kind int            `json:"kind"`
-		V    VSCodeComposer `json:"v"`
+		Kind int             `json:"kind"`
+		V    json.RawMessage `json:"v"`
 	}
 
 	if err := json.Unmarshal([]byte(lines[0]), &firstLine); err != nil {
@@ -173,7 +173,13 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		return VSCodeComposer{}, fmt.Errorf("expected kind:0 in first line, got kind:%d", firstLine.Kind)
 	}
 
-	composer := firstLine.V
+	// Keep the session in map form while applying updates so each line mutates
+	// in place; converting the whole composer to a map and back per update line
+	// is O(session size) per line and dominates load time on long sessions.
+	var composerMap map[string]any
+	if err := json.Unmarshal(firstLine.V, &composerMap); err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to parse initial state in first JSONL line: %w", err)
+	}
 
 	// Apply subsequent updates.
 	// kind:1 = incremental key-path update (small field changes, e.g. customTitle)
@@ -195,7 +201,7 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		case 1:
 			if len(update.K) > 0 {
 				// Replace the value at the key path
-				if err := applyUpdate(&composer, update.K, update.V); err != nil {
+				if err := applyUpdate(composerMap, update.K, update.V); err != nil {
 					slog.Warn("Failed to apply JSONL update", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
 				}
 			}
@@ -204,7 +210,7 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 				// Append items to the array at the key path.
 				// VS Code writes one kind:2 per user turn, each containing only the new
 				// request(s) for that turn — not the full history — so we must accumulate.
-				if err := appendUpdate(&composer, update.K, update.V); err != nil {
+				if err := appendUpdate(composerMap, update.K, update.V); err != nil {
 					slog.Warn("Failed to apply JSONL append", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
 				}
 			}
@@ -214,108 +220,73 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		}
 	}
 
+	// Decode the fully-updated map into the typed composer once
+	finalData, err := json.Marshal(composerMap)
+	if err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to marshal updated session: %w", err)
+	}
+
+	var composer VSCodeComposer
+	if err := json.Unmarshal(finalData, &composer); err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to parse updated session: %w", err)
+	}
+
 	return composer, nil
 }
 
-// appendUpdate appends items to an array at a specific key path in the composer.
-// Used for kind:2 lines where VS Code writes only the newly added items (e.g. a single
-// new request per turn) rather than the full array, so each write must be accumulated.
-// Falls back to replace semantics when the target or incoming value is not an array.
-func appendUpdate(composer *VSCodeComposer, keyPath []string, value any) error {
-	newItems, isArray := value.([]any)
-	if !isArray {
-		// Not an array delta — treat as a plain replace
-		return applyUpdate(composer, keyPath, value)
-	}
-
-	// Convert composer to map so we can read and update the existing slice dynamically
-	composerData, err := json.Marshal(composer)
-	if err != nil {
-		return fmt.Errorf("failed to marshal composer: %w", err)
-	}
-
-	var composerMap map[string]any
-	if err := json.Unmarshal(composerData, &composerMap); err != nil {
-		return fmt.Errorf("failed to unmarshal composer to map: %w", err)
-	}
-
-	// Navigate to the parent of the target key
-	current := composerMap
+// navigateToParent walks keyPath in m up to (but not including) the final key,
+// creating intermediate maps as needed, and returns the map holding the final key.
+func navigateToParent(m map[string]any, keyPath []string) (map[string]any, error) {
+	current := m
 	for i := 0; i < len(keyPath)-1; i++ {
 		key := keyPath[i]
 		if _, exists := current[key]; !exists {
 			current[key] = make(map[string]any)
 		}
-		if nextMap, ok := current[key].(map[string]any); ok {
-			current = nextMap
-		} else {
-			return fmt.Errorf("cannot navigate through non-map value at key: %s", key)
+		nextMap, ok := current[key].(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("cannot navigate through non-map value at key: %s", key)
 		}
+		current = nextMap
+	}
+	return current, nil
+}
+
+// appendUpdate appends items to an array at a specific key path in the map-form session.
+// Used for kind:2 lines where VS Code writes only the newly added items (e.g. a single
+// new request per turn) rather than the full array, so each write must be accumulated.
+// Falls back to replace semantics when the target or incoming value is not an array.
+func appendUpdate(composerMap map[string]any, keyPath []string, value any) error {
+	newItems, isArray := value.([]any)
+	if !isArray {
+		// Not an array delta — treat as a plain replace
+		return applyUpdate(composerMap, keyPath, value)
+	}
+
+	parent, err := navigateToParent(composerMap, keyPath)
+	if err != nil {
+		return err
 	}
 
 	// Append the new items to whatever is already there; fall back to replace if needed
 	lastKey := keyPath[len(keyPath)-1]
-	if existing, ok := current[lastKey].([]any); ok {
-		current[lastKey] = append(existing, newItems...)
+	if existing, ok := parent[lastKey].([]any); ok {
+		parent[lastKey] = append(existing, newItems...)
 	} else {
-		current[lastKey] = newItems
-	}
-
-	// Convert back to VSCodeComposer
-	updatedData, err := json.Marshal(composerMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated map: %w", err)
-	}
-
-	if err := json.Unmarshal(updatedData, composer); err != nil {
-		return fmt.Errorf("failed to unmarshal updated composer: %w", err)
+		parent[lastKey] = newItems
 	}
 
 	return nil
 }
 
-// applyUpdate applies an update to a composer at a specific key path
+// applyUpdate sets value at a specific key path in the map-form session.
 // keyPath is an array of keys representing the path (e.g., ["inputState", "inputText"])
-func applyUpdate(composer *VSCodeComposer, keyPath []string, value any) error {
-	// Convert composer to map for dynamic updates
-	composerData, err := json.Marshal(composer)
+func applyUpdate(composerMap map[string]any, keyPath []string, value any) error {
+	parent, err := navigateToParent(composerMap, keyPath)
 	if err != nil {
-		return fmt.Errorf("failed to marshal composer: %w", err)
+		return err
 	}
 
-	var composerMap map[string]any
-	if err := json.Unmarshal(composerData, &composerMap); err != nil {
-		return fmt.Errorf("failed to unmarshal composer to map: %w", err)
-	}
-
-	// Navigate to the parent of the target key
-	current := composerMap
-	for i := 0; i < len(keyPath)-1; i++ {
-		key := keyPath[i]
-		if _, exists := current[key]; !exists {
-			// Create intermediate maps as needed
-			current[key] = make(map[string]any)
-		}
-		if nextMap, ok := current[key].(map[string]any); ok {
-			current = nextMap
-		} else {
-			return fmt.Errorf("cannot navigate through non-map value at key: %s", key)
-		}
-	}
-
-	// Set the value at the final key
-	lastKey := keyPath[len(keyPath)-1]
-	current[lastKey] = value
-
-	// Convert back to VSCodeComposer
-	updatedData, err := json.Marshal(composerMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated map: %w", err)
-	}
-
-	if err := json.Unmarshal(updatedData, composer); err != nil {
-		return fmt.Errorf("failed to unmarshal updated composer: %w", err)
-	}
-
+	parent[keyPath[len(keyPath)-1]] = value
 	return nil
 }

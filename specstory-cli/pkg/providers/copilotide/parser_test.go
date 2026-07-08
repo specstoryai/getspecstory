@@ -204,6 +204,50 @@ func TestCodeFence(t *testing.T) {
 	}
 }
 
+// TestParseJSONL verifies the incremental update semantics: kind:1 replaces at a key
+// path (creating intermediate maps), kind:2 appends array deltas (or replaces when the
+// value isn't an array), unknown kinds and malformed lines are skipped, and the final
+// typed composer reflects all accumulated updates.
+func TestParseJSONL(t *testing.T) {
+	lines := []string{
+		`{"kind":0,"v":{"version":3,"sessionId":"s-1","requesterUsername":"user","requests":[{"requestId":"r-1","message":{"text":"first"}}]}}`,
+		// kind:1 replace of a top-level field
+		`{"kind":1,"k":["customTitle"],"v":"My Title"}`,
+		// kind:1 creating an intermediate map that wasn't in the snapshot
+		`{"kind":1,"k":["inputState","inputText"],"v":"draft"}`,
+		// kind:2 array delta: appends to the existing requests
+		`{"kind":2,"k":["requests"],"v":[{"requestId":"r-2","message":{"text":"second"}}]}`,
+		// kind:2 with a non-array value degrades to replace
+		`{"kind":2,"k":["responderUsername"],"v":"GitHub Copilot"}`,
+		// unknown kind and malformed line must both be skipped without failing the parse
+		`{"kind":9,"k":["requests"],"v":"bogus"}`,
+		`not json at all`,
+		// later kind:1 overwrites the earlier value
+		`{"kind":1,"k":["customTitle"],"v":"Final Title"}`,
+	}
+
+	composer, err := parseJSONL([]byte(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatalf("parseJSONL() error = %v", err)
+	}
+
+	if composer.SessionID != "s-1" {
+		t.Errorf("SessionID = %q, want %q", composer.SessionID, "s-1")
+	}
+	if composer.CustomTitle != "Final Title" {
+		t.Errorf("CustomTitle = %q, want %q", composer.CustomTitle, "Final Title")
+	}
+	if len(composer.Requests) != 2 {
+		t.Fatalf("len(Requests) = %d, want 2", len(composer.Requests))
+	}
+	if got := composer.Requests[1].Message.Text; got != "second" {
+		t.Errorf("Requests[1].Message.Text = %q, want %q", got, "second")
+	}
+	if composer.ResponderUsername != "GitHub Copilot" {
+		t.Errorf("ResponderUsername = %q, want %q", composer.ResponderUsername, "GitHub Copilot")
+	}
+}
+
 // TestGenerateSlug verifies slugs follow the shared spi.GenerateFilenameFromUserMessage
 // convention: punctuation acts as a word separator (not silently dropped), output is
 // bounded regardless of title length, and empty candidates fall through to the next
