@@ -329,7 +329,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a cross-agent resume target. Choose Claude Code or Codex CLI (or resume in %s itself).",
+				"%s can't yet be a cross-agent resume target. Choose a different target agent (or resume in %s itself).",
 				plan.to.Name(), plan.from.Name())}
 		}
 		slog.Warn("resume: reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
@@ -362,6 +362,13 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
 	if plan.toID == "cursoride" {
 		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
+	}
+	if plan.toID == "copilotide" {
+		// VS Code holds its chat session index in memory and flushes it over ours on
+		// shutdown, so the imported session only shows up after a full restart.
+		// "Developer: Reload Window" is NOT enough — it keeps the main process (and
+		// the in-memory index) alive; verified empirically.
+		fprintf(out, "\nNote: quit and restart VS Code to see the imported session in the Chat panel.\n")
 	}
 	return rec.SessionID, nil
 }

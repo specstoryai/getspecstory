@@ -29,6 +29,21 @@ type WorkspaceJSON struct {
 // FindWorkspaceForProject finds the workspace directory that matches the given project path
 // Returns the workspace match or an error if not found
 func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+	return findWorkspaceForProject(projectPath, true)
+}
+
+// FindWorkspaceForReconstruction finds the workspace a reconstructed session should be
+// written into. Unlike FindWorkspaceForProject it accepts workspaces whose chatSessions
+// directory does not exist yet (the resume flow creates it when writing the session file).
+// Declared as a var so tests can patch the workspace lookup.
+var FindWorkspaceForReconstruction = func(projectPath string) (*WorkspaceMatch, error) {
+	return findWorkspaceForProject(projectPath, false)
+}
+
+// findWorkspaceForProject matches projectPath against every workspace.json in the storage
+// directory. requireChatSessions filters out matches that have never had a chat session —
+// wanted when reading sessions, not when picking a write target for reconstruction.
+func findWorkspaceForProject(projectPath string, requireChatSessions bool) (*WorkspaceMatch, error) {
 	// Get canonical project path (resolve symlinks, normalize case)
 	absProjectPath, err := filepath.Abs(projectPath)
 	if err != nil {
@@ -153,9 +168,10 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		}
 
 		if isMatch {
-			// Check if chatSessions directory exists
+			// Check if chatSessions directory exists (skipped for reconstruction targets,
+			// where the directory is created on first write)
 			chatSessionsPath := GetChatSessionsPath(workspaceDir)
-			if _, err := os.Stat(chatSessionsPath); err != nil {
+			if _, err := os.Stat(chatSessionsPath); err != nil && requireChatSessions {
 				slog.Debug("Workspace match found but chatSessions directory missing",
 					"workspaceID", workspaceID,
 					"chatSessionsPath", chatSessionsPath)

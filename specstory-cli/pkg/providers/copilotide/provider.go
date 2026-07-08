@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // Provider implements the SPI Provider interface for VS Code Copilot IDE
@@ -293,19 +292,6 @@ func vscodeOpenArgs(projectPath string) []string {
 // execCommand is a thin wrapper around exec.Command to allow test patching if needed.
 var execCommand = func(name string, args ...string) *exec.Cmd {
 	return exec.Command(name, args...)
-}
-
-// ReconstructSession is not yet supported for VS Code Copilot. Making Copilot IDE a
-// cross-agent resume target requires serializing the neutral SessionData into VS Code's
-// native chatSessions format AND registering the session in the workspace state.vscdb
-// chat.ChatSessionStore.index — planned as a follow-up; see docs/SESSION-PORTABILITY.md.
-func (p *Provider) ReconstructSession(_ *schema.SessionData, _ spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
-	return nil, spi.ErrReconstructionUnsupported
-}
-
-// NativeSessionPath is not yet supported for VS Code Copilot (see ReconstructSession).
-func (p *Provider) NativeSessionPath(_ string, _ string) (string, error) {
-	return "", spi.ErrReconstructionUnsupported
 }
 
 // ListAllAgentChatSessions enumerates every VS Code Copilot session across all
