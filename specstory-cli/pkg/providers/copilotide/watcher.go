@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -36,6 +37,11 @@ func WatchChatSessions(
 			slog.Warn("Failed to close watcher", "error", err)
 		}
 	}()
+
+	// Tracks in-flight sessionCallback goroutines so we don't return while a
+	// callback is still writing. Runs before the watcher-close defer (LIFO).
+	var callbackWg sync.WaitGroup
+	defer callbackWg.Wait()
 
 	// Watch the chatSessions directory
 	if err := watcher.Add(chatSessionsPath); err != nil {
@@ -145,9 +151,20 @@ func WatchChatSessions(
 					}
 				}
 
-				// Invoke callback
+				// Invoke callback asynchronously so a panic during processing (e.g.
+				// markdown write or cloud sync) doesn't crash the watcher, and slow
+				// callback I/O doesn't block the fsnotify event loop.
 				slog.Info("Invoking callback for session", "sessionId", sessionID, "slug", session.Slug)
-				sessionCallback(&session)
+				callbackWg.Add(1)
+				go func(s *spi.AgentChatSession) {
+					defer callbackWg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
+						}
+					}()
+					sessionCallback(s)
+				}(&session)
 			}
 
 		case err, ok := <-watcher.Errors:
