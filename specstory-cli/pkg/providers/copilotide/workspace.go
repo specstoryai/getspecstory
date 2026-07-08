@@ -193,7 +193,7 @@ func findWorkspaceForProject(projectPath string, requireChatSessions bool) (*Wor
 	}
 
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("no workspace found for project path: %s", projectPath)
+		return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, workspaceStoragePath)
 	}
 
 	// If multiple matches, return the newest one (based on state.vscdb modification time)

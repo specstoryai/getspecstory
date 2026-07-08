@@ -297,6 +297,7 @@ func valueToString(value any) string {
 	// If it's an object, marshal to JSON
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
+		slog.Debug("Failed to marshal tool result value", "type", fmt.Sprintf("%T", value), "error", err)
 		return ""
 	}
 	return string(jsonBytes)

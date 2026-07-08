@@ -182,6 +182,32 @@ func TestFormatToolMarkdown_ResultCap(t *testing.T) {
 	}
 }
 
+// TestCapRunes verifies rune-safe truncation without materializing []rune:
+// multi-byte characters are never split, and strings whose byte length exceeds
+// the cap but whose rune count doesn't are returned unchanged.
+func TestCapRunes(t *testing.T) {
+	const marker = "\n… (output truncated)"
+	tests := []struct {
+		name string
+		s    string
+		max  int
+		want string
+	}{
+		{"short ascii unchanged", "hello", 10, "hello"},
+		{"ascii truncated", "hello world", 5, "hello" + marker},
+		{"multibyte truncated on rune boundary", strings.Repeat("é", 10), 5, strings.Repeat("é", 5) + marker},
+		{"more bytes than max but fewer runes", "ééé", 4, "ééé"},
+		{"exact rune count unchanged", "héllo", 5, "héllo"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := capRunes(tt.s, tt.max); got != tt.want {
+				t.Errorf("capRunes(%q, %d) = %q, want %q", tt.s, tt.max, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCodeFence(t *testing.T) {
 	tests := []struct {
 		name  string

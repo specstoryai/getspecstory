@@ -76,7 +76,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	title := spi.ResumedSessionTitle(data.Slug)
 
 	requests := buildRequestBlocks(turns, nowMs)
-	lastMs := nowMs + int64(len(requests))*1000
+	// Match the timestamp of the last request block (staggered 1s per request
+	// starting at nowMs) so the session's "last updated" ordering is exact.
+	lastMs := nowMs
+	if n := len(requests); n > 0 {
+		lastMs = nowMs + int64(n-1)*1000
+	}
 
 	// Top-level snapshot fields mirror what current VS Code writes (observed on a real
 	// v3 session file); customTitle is what the Chat panel displays and what our own
