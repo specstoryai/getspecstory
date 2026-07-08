@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -239,24 +239,27 @@ func capRunes(s string, max int) string {
 	return string(runes[:max]) + "\n… (output truncated)"
 }
 
-// GenerateSlug creates a URL-safe slug from composer name or first message
+// GenerateSlug creates a filesystem-safe slug from the composer title, name, or
+// first request message, using the spi.GenerateFilenameFromUserMessage convention
+// shared by every other provider (word cap, punctuation as separators, markdown
+// heading stripping) so slugs stay consistent and bounded across code paths.
 func GenerateSlug(composer VSCodeComposer) string {
-	// Use custom title if available
 	if composer.CustomTitle != "" {
-		return slugify(composer.CustomTitle)
+		if slug := spi.GenerateFilenameFromUserMessage(composer.CustomTitle); slug != "" {
+			return slug
+		}
 	}
 	if composer.Name != "" {
-		return slugify(composer.Name)
+		if slug := spi.GenerateFilenameFromUserMessage(composer.Name); slug != "" {
+			return slug
+		}
 	}
 
 	// Fall back to first request message
 	if len(composer.Requests) > 0 {
-		firstMsg := composer.Requests[0].Message.Text
-		// Take first 50 chars
-		if len(firstMsg) > 50 {
-			firstMsg = firstMsg[:50]
+		if slug := spi.GenerateFilenameFromUserMessage(composer.Requests[0].Message.Text); slug != "" {
+			return slug
 		}
-		return slugify(firstMsg)
 	}
 
 	return "untitled"
@@ -266,37 +269,4 @@ func GenerateSlug(composer VSCodeComposer) string {
 func FormatTimestamp(unixMs int64) string {
 	t := time.Unix(0, unixMs*int64(time.Millisecond))
 	return t.Format(time.RFC3339)
-}
-
-// slugify converts text to URL-safe slug
-func slugify(text string) string {
-	// Convert to lowercase
-	text = strings.ToLower(text)
-
-	// Replace non-alphanumeric characters with hyphens
-	var builder strings.Builder
-	for _, r := range text {
-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			builder.WriteRune(r)
-		} else if unicode.IsSpace(r) {
-			builder.WriteRune('-')
-		}
-	}
-
-	slug := builder.String()
-
-	// Remove consecutive hyphens
-	for strings.Contains(slug, "--") {
-		slug = strings.ReplaceAll(slug, "--", "-")
-	}
-
-	// Trim hyphens from start and end
-	slug = strings.Trim(slug, "-")
-
-	// Ensure we have something
-	if slug == "" {
-		return "untitled"
-	}
-
-	return slug
 }

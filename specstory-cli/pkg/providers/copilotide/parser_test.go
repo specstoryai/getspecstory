@@ -204,6 +204,59 @@ func TestCodeFence(t *testing.T) {
 	}
 }
 
+// TestGenerateSlug verifies slugs follow the shared spi.GenerateFilenameFromUserMessage
+// convention: punctuation acts as a word separator (not silently dropped), output is
+// bounded regardless of title length, and empty candidates fall through to the next
+// source (custom title -> name -> first request -> "untitled").
+func TestGenerateSlug(t *testing.T) {
+	longTitle := strings.Repeat("verylongword ", 40)
+	tests := []struct {
+		name     string
+		composer VSCodeComposer
+		want     string
+	}{
+		{
+			name:     "punctuation separates words",
+			composer: VSCodeComposer{CustomTitle: "Plan: Replace parser"},
+			want:     "plan-replace-parser",
+		},
+		{
+			name:     "long title is bounded",
+			composer: VSCodeComposer{CustomTitle: longTitle},
+			want:     "verylongword-verylongword-verylongword-verylongword",
+		},
+		{
+			name:     "custom title preferred over name",
+			composer: VSCodeComposer{CustomTitle: "Custom Title", Name: "Other Name"},
+			want:     "custom-title",
+		},
+		{
+			name:     "punctuation-only title falls through to name",
+			composer: VSCodeComposer{CustomTitle: "!!!", Name: "My Session"},
+			want:     "my-session",
+		},
+		{
+			name: "falls back to first request message",
+			composer: VSCodeComposer{Requests: []VSCodeRequestBlock{
+				{Message: VSCodeMessage{Text: "Fix the flaky loader test please"}},
+			}},
+			want: "fix-the-flaky-loader",
+		},
+		{
+			name:     "nothing available",
+			composer: VSCodeComposer{},
+			want:     "untitled",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GenerateSlug(tt.composer); got != tt.want {
+				t.Errorf("GenerateSlug() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestParseResponsesForTools_HiddenToolsKeepSequenceAligned guards the sequence-based
 // matching: metadata's toolCallRounds include hidden tools, so a hidden invocation must
 // consume its sequence slot (without emitting a message) or every later visible tool
