@@ -266,6 +266,17 @@ func BuildToolInfoFromInvocation(
 		}
 	}
 
+	// Pre-render Summary/FormattedMarkdown: cross-agent resume flattens tool calls
+	// from these fields only, so without them the tool's payload (e.g. a written
+	// file's content) would collapse to a bare tool name in the resumed session.
+	// The summary matches the markdown generator's default, so archival markdown
+	// keeps its familiar <summary> line.
+	summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
+	toolInfo.Summary = &summary
+	if formatted := FormatToolMarkdown(toolInfo); formatted != "" {
+		toolInfo.FormattedMarkdown = &formatted
+	}
+
 	return toolInfo
 }
 

@@ -3,9 +3,13 @@ package copilotide
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // ParseResponseKind identifies the response type without fully parsing
@@ -96,19 +100,50 @@ func ExtractResponseFromToolCallRounds(metadata VSCodeResultMetadata) string {
 	return ""
 }
 
-// ExtractTextFromResponseArray extracts text from the response array
-// Handles response items that have a "value" field but no "kind" field
+// ExtractTextFromResponseArray reassembles the agent's rendered text from the response
+// array. VS Code splits the text into fragments: plain markdown items (objects with a
+// "value" field and no "kind") interleaved with inlineReference items (file/symbol
+// chips rendered inline). Taking only the first markdown fragment would truncate the
+// message at the first chip, so all fragments are joined in order and each inline
+// reference is rendered as its name.
 func ExtractTextFromResponseArray(responses []json.RawMessage) string {
+	var b strings.Builder
 	for _, rawResp := range responses {
-		// Try to parse as a value response (no kind field)
-		var valueResp struct {
-			Value string `json:"value"`
+		var item struct {
+			Kind            string    `json:"kind"`
+			Value           string    `json:"value"`
+			Name            string    `json:"name"` // symbol references carry a name
+			InlineReference VSCodeUri `json:"inlineReference"`
 		}
-		if err := json.Unmarshal(rawResp, &valueResp); err == nil && valueResp.Value != "" {
-			return valueResp.Value
+		if err := json.Unmarshal(rawResp, &item); err != nil {
+			continue
+		}
+		switch {
+		case item.Kind == "" && item.Value != "":
+			b.WriteString(item.Value)
+		case item.Kind == "inlineReference":
+			b.WriteString(inlineReferenceText(item.Name, item.InlineReference))
 		}
 	}
-	return ""
+	return b.String()
+}
+
+// inlineReferenceText renders an inlineReference response item the way it reads in the
+// chat: the symbol name when present, otherwise the referenced file's base name, in
+// backticks. Returns empty when the reference carries neither (nothing to render).
+func inlineReferenceText(name string, uri VSCodeUri) string {
+	text := name
+	if text == "" {
+		path := uri.FSPath
+		if path == "" {
+			path = uri.Path
+		}
+		if path == "" {
+			return ""
+		}
+		text = filepath.Base(path)
+	}
+	return "`" + text + "`"
 }
 
 // ExtractFinalAgentMessage gets the final text response from metadata
@@ -120,6 +155,88 @@ func ExtractFinalAgentMessage(metadata VSCodeResultMetadata) string {
 		}
 	}
 	return ""
+}
+
+// toolResultCap bounds how much tool output is pre-rendered into FormattedMarkdown.
+// Inputs are not capped — they carry what the agent chose to do (e.g. the full content
+// of a written file) — but results (file reads, command output) can be arbitrarily
+// large and matter less once the agent has already responded to them.
+const toolResultCap = 2000
+
+// FormatToolMarkdown pre-renders a tool call's Input/Output as markdown for
+// ToolInfo.FormattedMarkdown. The markdown generator would fall back to an equivalent
+// generic rendering on its own, but cross-agent resume would not: the flattener
+// (spi.FlattenSessionData) carries only Summary/FormattedMarkdown, so without this the
+// tool's payload (e.g. a written file's content) would collapse to a bare tool name in
+// the resumed session. Returns empty when the tool has nothing to render.
+func FormatToolMarkdown(tool *schema.ToolInfo) string {
+	var b strings.Builder
+
+	// Input as key-value pairs, multiline values fenced (mirrors the generic renderer).
+	keys := make([]string, 0, len(tool.Input))
+	for key := range tool.Input {
+		// Skip internal fields like _cwd (matches the markdown generator).
+		if !strings.HasPrefix(key, "_") {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	if len(keys) > 0 {
+		b.WriteString("\n**Input:**\n\n")
+		for _, key := range keys {
+			valueStr := fmt.Sprintf("%v", tool.Input[key])
+			if strings.Contains(valueStr, "\n") {
+				fence := codeFence(valueStr)
+				fmt.Fprintf(&b, "- %s:\n\n%s\n%s\n%s\n\n", key, fence, valueStr, fence)
+			} else {
+				fmt.Fprintf(&b, "- %s: `%s`\n", key, valueStr)
+			}
+		}
+	}
+
+	// Result from the output map (BuildToolInfoFromInvocation stores it under "result").
+	if result, ok := tool.Output["result"].(string); ok && strings.TrimSpace(result) != "" {
+		capped := capRunes(result, toolResultCap)
+		fence := codeFence(capped)
+		fmt.Fprintf(&b, "\n**Result:**\n\n%s\n%s\n%s\n", fence, capped, fence)
+	}
+
+	return b.String()
+}
+
+// codeFence returns a backtick fence long enough to safely wrap s: one backtick more
+// than the longest backtick run inside it (a value containing ``` would otherwise
+// terminate a plain three-backtick fence early), never shorter than the standard three.
+func codeFence(s string) string {
+	longest, run := 0, 0
+	for _, r := range s {
+		if r == '`' {
+			run++
+			if run > longest {
+				longest = run
+			}
+		} else {
+			run = 0
+		}
+	}
+	size := longest + 1
+	if size < 3 {
+		size = 3
+	}
+	return strings.Repeat("`", size)
+}
+
+// capRunes truncates s to at most max runes, marking the cut. Rune-based so a cap
+// never splits a multi-byte character.
+func capRunes(s string, max int) string {
+	if len(s) <= max {
+		return s // fast path: byte length bounds rune length
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "\n… (output truncated)"
 }
 
 // GenerateSlug creates a URL-safe slug from composer name or first message
