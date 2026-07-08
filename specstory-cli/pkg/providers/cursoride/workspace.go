@@ -597,52 +597,15 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	return folders
 }
 
-// codeWorkspaceContainsFolder reads a .code-workspace JSON file and checks whether
-// any of its folder entries resolves to canonicalFolder. This is used to find
-// workspaces that were opened via a .code-workspace file referencing the target folder.
+// codeWorkspaceContainsFolder checks whether any folder entry in a .code-workspace
+// JSON file resolves to canonicalFolder. This is used to find workspaces that were
+// opened via a .code-workspace file referencing the target folder.
 func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
-	data, err := os.ReadFile(workspaceFilePath)
-	if err != nil {
-		slog.Debug("codeWorkspaceContainsFolder: failed to read workspace file",
-			"path", workspaceFilePath, "error", err)
-		return false
-	}
-
-	var workspace struct {
-		Folders []struct {
-			Path string `json:"path"`
-		} `json:"folders"`
-	}
-	if err := json.Unmarshal(data, &workspace); err != nil {
-		slog.Debug("codeWorkspaceContainsFolder: failed to parse workspace file",
-			"path", workspaceFilePath, "error", err)
-		return false
-	}
-
-	workspaceDir := filepath.Dir(workspaceFilePath)
-	for _, folder := range workspace.Folders {
-		if folder.Path == "" {
-			continue
-		}
-
-		// Resolve relative paths against the workspace file's directory.
-		var resolved string
-		if filepath.IsAbs(folder.Path) {
-			resolved = folder.Path
-		} else {
-			resolved = filepath.Join(workspaceDir, folder.Path)
-		}
-
-		canonical, err := normalizePathForComparison(resolved)
-		if err != nil {
-			canonical = filepath.Clean(resolved)
-		}
-
-		if canonical == canonicalFolder {
+	for _, folder := range collectCodeWorkspaceFolders(workspaceFilePath) {
+		if folder == canonicalFolder {
 			return true
 		}
 	}
-
 	return false
 }
 
