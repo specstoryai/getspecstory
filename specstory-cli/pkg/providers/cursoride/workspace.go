@@ -550,8 +550,9 @@ func uriToPath(uri string) (string, error) {
 }
 
 // collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
-// normalized paths of all listed folders. Relative paths are resolved against the
-// workspace file's directory.
+// canonicalized paths of every folder it lists. Used when the project path passed
+// in is itself a .code-workspace file, so workspace entries opened directly from
+// one of its folders can also be matched (Method 4 in FindAllWorkspacesForProject).
 func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	data, err := os.ReadFile(workspaceFilePath)
 	if err != nil {
@@ -596,14 +597,52 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	return folders
 }
 
-// codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
-// .code-workspace file at workspaceFilePath.
+// codeWorkspaceContainsFolder reads a .code-workspace JSON file and checks whether
+// any of its folder entries resolves to canonicalFolder. This is used to find
+// workspaces that were opened via a .code-workspace file referencing the target folder.
 func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
-	for _, f := range collectCodeWorkspaceFolders(workspaceFilePath) {
-		if f == canonicalFolder {
+	data, err := os.ReadFile(workspaceFilePath)
+	if err != nil {
+		slog.Debug("codeWorkspaceContainsFolder: failed to read workspace file",
+			"path", workspaceFilePath, "error", err)
+		return false
+	}
+
+	var workspace struct {
+		Folders []struct {
+			Path string `json:"path"`
+		} `json:"folders"`
+	}
+	if err := json.Unmarshal(data, &workspace); err != nil {
+		slog.Debug("codeWorkspaceContainsFolder: failed to parse workspace file",
+			"path", workspaceFilePath, "error", err)
+		return false
+	}
+
+	workspaceDir := filepath.Dir(workspaceFilePath)
+	for _, folder := range workspace.Folders {
+		if folder.Path == "" {
+			continue
+		}
+
+		// Resolve relative paths against the workspace file's directory.
+		var resolved string
+		if filepath.IsAbs(folder.Path) {
+			resolved = folder.Path
+		} else {
+			resolved = filepath.Join(workspaceDir, folder.Path)
+		}
+
+		canonical, err := normalizePathForComparison(resolved)
+		if err != nil {
+			canonical = filepath.Clean(resolved)
+		}
+
+		if canonical == canonicalFolder {
 			return true
 		}
 	}
+
 	return false
 }
 
