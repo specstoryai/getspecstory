@@ -98,16 +98,19 @@ func WatchChatSessions(
 				slog.Debug("Debouncing rapid event", "path", event.Name)
 				continue
 			}
-			lastProcessed[event.Name] = now
 
 			slog.Debug("File event detected", "path", event.Name, "op", event.Op)
 
 			// Load the session file
 			composer, err := LoadSessionFile(event.Name)
 			if err != nil {
+				// Don't record the debounce timestamp on failure: the file was
+				// likely caught mid-write, and the follow-up write event must
+				// not be swallowed by the debounce window or the update is lost.
 				slog.Warn("Failed to load session after event", "path", event.Name, "error", err)
 				continue
 			}
+			lastProcessed[event.Name] = now
 
 			// Check if this is new or updated
 			sessionID := composer.SessionID
