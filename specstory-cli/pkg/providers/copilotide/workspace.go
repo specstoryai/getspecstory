@@ -323,7 +323,9 @@ func uriToPath(uri string) (string, error) {
 		return "", fmt.Errorf("failed to parse URI: %w", err)
 	}
 
-	// Get the path from the URI
+	// url.Parse already percent-decodes into Path (e.g. %20 -> space), so no
+	// extra PathUnescape is needed — unescaping again would corrupt paths
+	// containing literal % sequences.
 	path := parsedURI.Path
 
 	// On Windows, URL paths have an extra leading slash (e.g., /C:/Users)

@@ -171,11 +171,6 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 				continue
 			}
 
-			// Skip hidden tools (don't increment sequence index for hidden tools)
-			if invocation.Presentation == "hidden" {
-				continue
-			}
-
 			// Match by sequence: get the next tool call from the ordered list
 			if sequenceIndex >= len(toolCallSequence) {
 				slog.Debug("Tool invocation has no matching tool call in sequence",
@@ -187,6 +182,12 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 
 			toolCall := toolCallSequence[sequenceIndex]
 			sequenceIndex++
+
+			// Hidden tools still occupy a slot in metadata's tool call sequence,
+			// so consume the slot above but don't emit a message for them.
+			if invocation.Presentation == "hidden" {
+				continue
+			}
 
 			slog.Debug("Matched tool by sequence",
 				"sequenceIndex", sequenceIndex-1,
@@ -244,9 +245,11 @@ func BuildToolInfoFromInvocation(
 		}
 	}
 
-	// Add output from results map
-	// Note: We still look up results by invocation.ToolCallID since that's the VS Code ID
-	if result, ok := toolResults[invocation.ToolCallID]; ok {
+	// Add output from results map. metadata.toolCallResults is keyed by the
+	// same OpenAI-style IDs as toolCallRounds (verified on real session files),
+	// not by the invocation's VS Code UUID — so look up with the matched
+	// toolCall's ID.
+	if result, ok := toolResults[toolCall.ID]; ok {
 		output := make(map[string]any)
 		if len(result.Content) > 0 {
 			var contentParts []string

@@ -204,17 +204,82 @@ func TestCodeFence(t *testing.T) {
 	}
 }
 
+// TestParseResponsesForTools_HiddenToolsKeepSequenceAligned guards the sequence-based
+// matching: metadata's toolCallRounds include hidden tools, so a hidden invocation must
+// consume its sequence slot (without emitting a message) or every later visible tool
+// gets the wrong name/args/results.
+func TestParseResponsesForTools_HiddenToolsKeepSequenceAligned(t *testing.T) {
+	metadata := VSCodeResultMetadata{
+		ToolCallRounds: []VSCodeToolCallRound{
+			{ToolCalls: []VSCodeToolCallInfo{
+				{ID: "call-1", Name: "read_file", Arguments: `{"filePath": "/proj/a.go"}`},
+				{ID: "call-2", Name: "get_errors", Arguments: `{}`},
+				{ID: "call-3", Name: "create_file", Arguments: `{"filePath": "/proj/b.go"}`},
+			}},
+		},
+	}
+	responses := rawMessages(
+		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-1"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-2", "presentation": "hidden"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-3"}`,
+	)
+
+	messages := ParseResponsesForTools(responses, metadata, "model-x")
+
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 visible tool messages, got %d", len(messages))
+	}
+	if got := messages[0].Tool.Name; got != "read_file" {
+		t.Errorf("first visible tool = %q, want %q", got, "read_file")
+	}
+	// Without slot consumption for the hidden call-2, this would misalign to get_errors.
+	if got := messages[1].Tool.Name; got != "create_file" {
+		t.Errorf("second visible tool = %q, want %q", got, "create_file")
+	}
+}
+
+// TestUriToPath verifies file URI conversion, in particular that percent-encoded
+// characters come back decoded exactly once (url.Parse decodes; adding PathUnescape
+// on top would corrupt paths with literal % sequences).
+func TestUriToPath(t *testing.T) {
+	tests := []struct {
+		name    string
+		uri     string
+		want    string
+		wantErr bool
+	}{
+		{"plain path", "file:///Users/me/proj", "/Users/me/proj", false},
+		{"space decoded", "file:///Users/me/My%20Project", "/Users/me/My Project", false},
+		{"unicode decoded", "file:///Users/me/caf%C3%A9", "/Users/me/café", false},
+		{"literal percent preserved", "file:///Users/me/literal%2520pct", "/Users/me/literal%20pct", false},
+		{"non-file scheme rejected", "vscode-remote://wsl/home/me/proj", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := uriToPath(tt.uri)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("uriToPath(%q) error = %v, wantErr %v", tt.uri, err, tt.wantErr)
+			}
+			if got != tt.want {
+				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestBuildToolInfoFromInvocation_PreRenders verifies the forward pass populates
 // Summary and FormattedMarkdown so tool payloads survive cross-agent resume.
 func TestBuildToolInfoFromInvocation_PreRenders(t *testing.T) {
-	invocation := VSCodeToolInvocationResponse{Kind: "toolInvocationSerialized", ToolCallID: "call-1"}
+	// Real sessions: the invocation carries a VS Code UUID while toolCallResults
+	// is keyed by the OpenAI-style ID from toolCallRounds — they never match.
+	invocation := VSCodeToolInvocationResponse{Kind: "toolInvocationSerialized", ToolCallID: "b4fc9b8c-59db-473d-9f87-16bf9c1bb481"}
 	toolCall := VSCodeToolCallInfo{
-		ID:        "call-1",
+		ID:        "call_abc__vscode-1763114684819",
 		Name:      "create_file",
 		Arguments: `{"filePath": "/proj/a.md", "content": "line one\nline two"}`,
 	}
 	results := map[string]VSCodeToolCallResult{
-		"call-1": {Content: []VSCodeToolCallContent{{Value: "created"}}},
+		"call_abc__vscode-1763114684819": {Content: []VSCodeToolCallContent{{Value: "created"}}},
 	}
 
 	toolInfo := BuildToolInfoFromInvocation(invocation, toolCall, results)
