@@ -248,6 +248,52 @@ func TestParseJSONL(t *testing.T) {
 	}
 }
 
+// TestParseJSONL_ArrayIndexPaths verifies key paths containing numeric array indices,
+// which VS Code uses for the vast majority of updates on real sessions (observed shape:
+// ["requests", <idx>, "<field>"] for kind:1 field updates and kind:2 response-part
+// appends). These were previously dropped because the path was decoded as []string.
+func TestParseJSONL_ArrayIndexPaths(t *testing.T) {
+	lines := []string{
+		`{"kind":0,"v":{"version":3,"sessionId":"s-2","requests":[` +
+			`{"requestId":"r-1","message":{"text":"first"},"response":[{"value":"partial"}]},` +
+			`{"requestId":"r-2","message":{"text":"second"}}]}}`,
+		// kind:1 field update inside an indexed request
+		`{"kind":1,"k":["requests",0,"modelId"],"v":"gpt-5"}`,
+		// kind:1 full replace of an indexed element's response array
+		`{"kind":1,"k":["requests",0,"response"],"v":[{"value":"replaced"}]}`,
+		// kind:2 append of response parts inside an indexed request
+		`{"kind":2,"k":["requests",1,"response"],"v":[{"value":"part one"}]}`,
+		`{"kind":2,"k":["requests",1,"response"],"v":[{"value":"part two"}]}`,
+		// index == length appends a new element
+		`{"kind":1,"k":["requests",2],"v":{"requestId":"r-3","message":{"text":"third"}}}`,
+		// index past the end is rejected and skipped without failing the parse
+		`{"kind":1,"k":["requests",9,"modelId"],"v":"dropped"}`,
+		// string key against an array is rejected and skipped
+		`{"kind":1,"k":["requests","notAnIndex"],"v":"dropped"}`,
+	}
+
+	composer, err := parseJSONL([]byte(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatalf("parseJSONL() error = %v", err)
+	}
+
+	if len(composer.Requests) != 3 {
+		t.Fatalf("len(Requests) = %d, want 3", len(composer.Requests))
+	}
+	if got := composer.Requests[0].ModelID; got != "gpt-5" {
+		t.Errorf("Requests[0].ModelID = %q, want %q", got, "gpt-5")
+	}
+	if got := len(composer.Requests[0].Response); got != 1 {
+		t.Errorf("len(Requests[0].Response) = %d, want 1 (replaced, not appended)", got)
+	}
+	if got := len(composer.Requests[1].Response); got != 2 {
+		t.Errorf("len(Requests[1].Response) = %d, want 2 (two appended parts)", got)
+	}
+	if got := composer.Requests[2].Message.Text; got != "third" {
+		t.Errorf("Requests[2].Message.Text = %q, want %q", got, "third")
+	}
+}
+
 // TestGenerateSlug verifies slugs follow the shared spi.GenerateFilenameFromUserMessage
 // convention: punctuation acts as a word separator (not silently dropped), output is
 // bounded regardless of title length, and empty candidates fall through to the next
