@@ -50,18 +50,21 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (summary 
 		command = rawArgs.Command
 	}
 
-	// If we have a command, show it in the summary and as a bash block
+	// If we have a command, show it in the summary and as a bash block.
+	// The command is an input (what the agent chose to run), so it is not capped.
 	var message strings.Builder
 	if command != "" {
-		summary = fmt.Sprintf("Tool use: **%s** • Run command: %s", escapeSummaryText(bubble.Name), escapeCodeBlock(command))
-		fmt.Fprintf(&message, "```bash\n%s\n```", escapeCodeBlock(command))
+		summary = fmt.Sprintf("Tool use: **%s** • Run command: %s", escapeSummaryText(bubble.Name), escapeSummaryText(command))
+		message.WriteString(fencedBlock("bash", command))
 	} else {
 		summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 	}
 
-	// If we have output, show it in a code block
+	// If we have output, show it in a code block. Output is a result, so it is
+	// capped — command output can be arbitrarily large.
 	if result.Output != "" {
-		fmt.Fprintf(&message, "\n\n```\n%s\n```", escapeCodeBlock(result.Output))
+		message.WriteString("\n\n")
+		message.WriteString(fencedBlock("", capRunes(result.Output, toolResultCap)))
 	}
 
 	return summary, message.String(), nil

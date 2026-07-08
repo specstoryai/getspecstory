@@ -213,7 +213,7 @@ func (h *GrepHandler) GetToolType() ToolType {
 // callers wrap cell values in `...` code spans, and grep results contain source
 // code lines where backticks are common (markdown, JS template literals), which
 // would otherwise terminate the span and corrupt the table. The TS extension has
-// the same flaw; &#96; follows the escapeCodeBlock convention in this package.
+// the same flaw; &#96; renders back as a literal backtick in HTML-capable viewers.
 func escapeTableCellValue(value string) string {
 	// Escape pipes
 	value = strings.ReplaceAll(value, "|", "\\|")

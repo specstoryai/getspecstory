@@ -72,15 +72,15 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (summary stri
 		message.WriteString("**Apply failed**\n\n")
 	}
 
-	// Add diff chunks if present
+	// Add diff chunks if present. Diffs carry the edit the agent made, so they are
+	// rendered verbatim and uncapped like other inputs.
 	if result.Diff != nil && len(result.Diff.Chunks) > 0 {
 		for i, chunk := range result.Diff.Chunks {
 			fmt.Fprintf(&message, "**Chunk %d**\n", i+1)
 			fmt.Fprintf(&message, "Lines added: %d, lines removed: %d\n\n", chunk.LinesAdded, chunk.LinesRemoved)
-			message.WriteString("```diff\n")
-			fmt.Fprintf(&message, "@@ -%d,%d +%d,%d @@\n", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines)
-			message.WriteString(escapeCodeBlock(chunk.DiffString))
-			message.WriteString("\n```\n\n")
+			header := fmt.Sprintf("@@ -%d,%d +%d,%d @@", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines)
+			message.WriteString(fencedBlock("diff", header+"\n"+chunk.DiffString))
+			message.WriteString("\n\n")
 		}
 	} else if len(bubble.AdditionalData) > 0 {
 		// Check for codeblock in additionalData (edit_file_v2 format)
@@ -90,7 +90,8 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (summary stri
 				if languageId, hasLang := codeblockData["languageId"].(string); hasLang {
 					lang = languageId
 				}
-				fmt.Fprintf(&message, "```%s\n%s\n```\n\n", lang, escapeCodeBlock(content))
+				message.WriteString(fencedBlock(lang, content))
+				message.WriteString("\n\n")
 			}
 		}
 	}
@@ -157,7 +158,8 @@ func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (summary st
 
 	var message strings.Builder
 	if rawArgs.Patch != "" {
-		fmt.Fprintf(&message, "```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
+		message.WriteString(fencedBlock("diff", rawArgs.Patch))
+		message.WriteString("\n")
 	}
 
 	return summary, message.String(), nil
@@ -267,7 +269,9 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (sum
 				}
 			}
 			language := extensionToLanguage(extension)
-			fmt.Fprintf(&message, "```%s\n%s\n```\n\n", language, escapeCodeBlock(result.TextEditContent))
+			// The edit content is what the agent chose to write, so it is not capped.
+			message.WriteString(fencedBlock(language, result.TextEditContent))
+			message.WriteString("\n\n")
 		} else {
 			message.WriteString("_No content to show_\n")
 		}
@@ -337,14 +341,4 @@ func extensionToLanguage(extension string) string {
 		return extension
 	}
 	return "text"
-}
-
-// escapeCodeBlock escapes special characters for markdown code blocks
-// Matches the TypeScript escapeCodeBlock function
-func escapeCodeBlock(code string) string {
-	code = strings.ReplaceAll(code, "&", "&amp;")
-	code = strings.ReplaceAll(code, "`", "&#96;")
-	code = strings.ReplaceAll(code, "<", "&lt;")
-	code = strings.ReplaceAll(code, ">", "&gt;")
-	return code
 }

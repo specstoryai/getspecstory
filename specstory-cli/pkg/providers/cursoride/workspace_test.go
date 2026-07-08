@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -111,7 +112,7 @@ func TestUriToPath(t *testing.T) {
 					t.Errorf("uriToPath(%q) expected error containing %q, got nil", tt.uri, tt.wantError)
 					return
 				}
-				if got := err.Error(); !contains(got, tt.wantError) {
+				if got := err.Error(); !strings.Contains(got, tt.wantError) {
 					t.Errorf("uriToPath(%q) error = %q, want error containing %q", tt.uri, got, tt.wantError)
 				}
 				return
@@ -273,7 +274,7 @@ func TestParseVSCodeRemoteURI(t *testing.T) {
 					t.Errorf("parseVSCodeRemoteURI(%q) expected error containing %q, got nil", tt.uri, tt.wantError)
 					return
 				}
-				if got := err.Error(); !contains(got, tt.wantError) {
+				if got := err.Error(); !strings.Contains(got, tt.wantError) {
 					t.Errorf("parseVSCodeRemoteURI(%q) error = %q, want error containing %q", tt.uri, got, tt.wantError)
 				}
 				return
@@ -428,20 +429,6 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			}
 		})
 	}
-}
-
-// contains checks if s contains substr (simple helper to avoid importing strings in tests)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // createWorkspaceDB builds a minimal workspace state.vscdb with the given composer IDs

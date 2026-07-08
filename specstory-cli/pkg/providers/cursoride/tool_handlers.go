@@ -227,16 +227,17 @@ func formatCatchAll(bubble *BubbleConversation) (summary string, body string) {
 		}
 	}
 
-	// Add parameters section (outside summary, inside details)
+	// Add parameters section (outside summary, inside details).
+	// Parameters and additional data are inputs, so they are not capped.
 	if len(params) > 0 {
 		message.WriteString("\nParameters:\n\n")
-		message.WriteString(formatEscapeJSONBlock(params))
+		message.WriteString(formatJSONBlock(params, 0))
 	}
 
 	// Add additional data section
 	if len(bubble.AdditionalData) > 0 {
 		message.WriteString("Additional data:\n\n")
-		message.WriteString(formatEscapeJSONBlock(bubble.AdditionalData))
+		message.WriteString(formatJSONBlock(bubble.AdditionalData, 0))
 	}
 
 	// Parse and add result section
@@ -249,7 +250,7 @@ func formatCatchAll(bubble *BubbleConversation) (summary string, body string) {
 		}
 		if len(result) > 0 {
 			message.WriteString("Result:\n\n")
-			message.WriteString(formatEscapeJSONBlock(result))
+			message.WriteString(formatJSONBlock(result, toolResultCap))
 		}
 	}
 
@@ -267,27 +268,74 @@ func formatCatchAll(bubble *BubbleConversation) (summary string, body string) {
 	if bubble.Error != "" {
 		message.WriteString("Error:\n\n")
 		errorData := map[string]interface{}{"error": bubble.Error}
-		message.WriteString(formatEscapeJSONBlock(errorData))
+		message.WriteString(formatJSONBlock(errorData, 0))
 	}
 
 	return summary, message.String()
 }
 
-// formatEscapeJSONBlock formats JSON with escaped special characters
-// Matches the TypeScript formatEscapeJsonBlock function
-func formatEscapeJSONBlock(data map[string]interface{}) string {
-	// Marshal JSON with indentation
-	jsonBytes, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("```json\n%v\n```\n", data)
+// formatJSONBlock renders data as an indented JSON code block, truncated to at most
+// maxRunes when positive (<= 0 means no cap). Content is kept verbatim (fencedBlock
+// sizes the fence around any backticks) so resumed sessions carry real JSON instead
+// of HTML entities.
+func formatJSONBlock(data map[string]interface{}, maxRunes int) string {
+	var jsonStr string
+	if jsonBytes, err := json.MarshalIndent(data, "", "  "); err != nil {
+		jsonStr = fmt.Sprintf("%v", data)
+	} else {
+		jsonStr = string(jsonBytes)
 	}
+	if maxRunes > 0 {
+		jsonStr = capRunes(jsonStr, maxRunes)
+	}
+	return fencedBlock("json", jsonStr) + "\n"
+}
 
-	// Escape special characters (backticks, <, >, &)
-	jsonStr := string(jsonBytes)
-	jsonStr = strings.ReplaceAll(jsonStr, "&", "&amp;")
-	jsonStr = strings.ReplaceAll(jsonStr, "`", "&#96;")
-	jsonStr = strings.ReplaceAll(jsonStr, "<", "&lt;")
-	jsonStr = strings.ReplaceAll(jsonStr, ">", "&gt;")
+// toolResultCap bounds how much tool output is rendered into the markdown body.
+// Inputs are not capped — they carry what the agent chose to do (e.g. a patch or
+// edit content) — but results (command output, tool result payloads) can be
+// arbitrarily large and matter less once the agent has already responded to them.
+const toolResultCap = 2000
 
-	return fmt.Sprintf("```json\n%s\n```\n", jsonStr)
+// fencedBlock wraps content in a code fence with an optional language tag, keeping
+// the content verbatim. codeFence sizes the fence so embedded backtick runs can't
+// terminate the block early.
+func fencedBlock(lang, content string) string {
+	fence := codeFence(content)
+	return fmt.Sprintf("%s%s\n%s\n%s", fence, lang, content, fence)
+}
+
+// codeFence returns a backtick fence long enough to safely wrap s: one backtick more
+// than the longest backtick run inside it (a value containing ``` would otherwise
+// terminate a plain three-backtick fence early), never shorter than the standard three.
+func codeFence(s string) string {
+	longest, run := 0, 0
+	for _, r := range s {
+		if r == '`' {
+			run++
+			if run > longest {
+				longest = run
+			}
+		} else {
+			run = 0
+		}
+	}
+	size := longest + 1
+	if size < 3 {
+		size = 3
+	}
+	return strings.Repeat("`", size)
+}
+
+// capRunes truncates s to at most max runes, marking the cut. Rune-based so a cap
+// never splits a multi-byte character.
+func capRunes(s string, max int) string {
+	if len(s) <= max {
+		return s // fast path: byte length bounds rune length
+	}
+	runes := []rune(s)
+	if len(runes) <= max {
+		return s
+	}
+	return string(runes[:max]) + "\n… (output truncated)"
 }
