@@ -1,7 +1,5 @@
 package piagent
 
-import "encoding/json"
-
 // leafPathEntries walks from the leaf (last entry in file order) to the root,
 // reverses to chronological order, and applies compaction: if a compaction
 // entry is on the path, entries before its firstKeptEntryId are dropped.
@@ -69,14 +67,11 @@ func applyCompaction(path []rawEntry) []rawEntry {
 	return path
 }
 
-// compactionFirstKept extracts firstKeptEntryId from a compaction entry's raw
-// message payload. Returns "" if absent.
+// compactionFirstKept returns the firstKeptEntryId of a compaction entry. pi
+// stores this as a top-level field on the entry (not inside a message
+// payload), so it is decoded directly into rawEntry.FirstKeptEntryID.
 func compactionFirstKept(e rawEntry) string {
-	var p struct {
-		FirstKeptEntryID string `json:"firstKeptEntryId"`
-	}
-	_ = json.Unmarshal(e.Message, &p)
-	return p.FirstKeptEntryID
+	return e.FirstKeptEntryID
 }
 
 // keepFromIndex returns the index of the entry with id==keptID in path, or -1

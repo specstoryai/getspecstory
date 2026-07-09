@@ -177,31 +177,34 @@ func TestParseSession_ProviderVersionPopulated(t *testing.T) {
 
 // TestParseSession_CompactionHonorsFirstKeptEntryId asserts that when a
 // compaction entry is on the leaf path, entries before firstKeptEntryId are
-// dropped from the conversation. The fixture's compaction points at a1, so the
-// pre-compaction user prompt u1 must NOT appear, while u2 (post-compaction) must.
+// dropped, and entries from firstKeptEntryId forward are kept. The fixture's
+// compaction points at a1, so u1 (pre-kept) must NOT appear, while a1 (the kept
+// entry) and u2 (post-compaction) MUST appear.
 func TestParseSession_CompactionHonorsFirstKeptEntryId(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "compaction.jsonl"))
 	if err != nil {
 		t.Fatalf("ParseSession returned error: %v", err)
 	}
-	var hasPre, hasPost bool
+	var hasDroppedPre, hasKept, hasPost bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
-			if msg.Role != schema.RoleUser {
-				continue
-			}
 			for _, part := range msg.Content {
-				if strings.Contains(part.Text, "before compaction") {
-					hasPre = true
-				}
-				if strings.Contains(part.Text, "after compaction") {
+				switch {
+				case strings.Contains(part.Text, "first prompt before compaction"):
+					hasDroppedPre = true
+				case strings.Contains(part.Text, "first answer before compaction"):
+					hasKept = true
+				case strings.Contains(part.Text, "after compaction"):
 					hasPost = true
 				}
 			}
 		}
 	}
-	if hasPre {
-		t.Error("pre-compaction user prompt was not dropped by compaction")
+	if hasDroppedPre {
+		t.Error("pre-kept user prompt (u1) was not dropped by compaction")
+	}
+	if !hasKept {
+		t.Error("kept entry (a1, firstKeptEntryId) was dropped — compaction kept from the compaction entry instead of from firstKeptEntryId")
 	}
 	if !hasPost {
 		t.Error("post-compaction user prompt was dropped by compaction")

@@ -29,13 +29,15 @@ const (
 
 // rawEntry is the minimal envelope every pi entry shares. The message payload
 // (for type=="message") is kept as raw json.RawMessage so we can decode it per
-// role without fighting a single union struct.
+// role without fighting a single union struct. Compaction entries carry
+// firstKeptEntryId as a top-level field (no message wrapper).
 type rawEntry struct {
-	Type      string          `json:"type"`
-	ID        string          `json:"id"`
-	ParentID  *string         `json:"parentId"` // null for the first entry
-	Timestamp string          `json:"timestamp"`
-	Message   json.RawMessage `json:"message,omitempty"`
+	Type             string          `json:"type"`
+	ID               string          `json:"id"`
+	ParentID         *string         `json:"parentId"` // null for the first entry
+	Timestamp        string          `json:"timestamp"`
+	FirstKeptEntryID string          `json:"firstKeptEntryId,omitempty"` // compaction entries only
+	Message          json.RawMessage `json:"message,omitempty"`
 }
 
 // sessionHeader is the first line of a pi session file (no id/parentId).
