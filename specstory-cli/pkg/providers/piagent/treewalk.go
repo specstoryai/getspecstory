@@ -45,26 +45,31 @@ func reverse(s []rawEntry) {
 	}
 }
 
-// applyCompaction drops entries before the compaction point when a compaction
-// entry is on the path. If no compaction is present, the path is returned as-is.
+// applyCompaction drops entries before the most recent compaction point when
+// one or more compaction entries are on the path. pi's buildContextEntries
+// builds context from the LATEST compaction's firstKeptEntryId forward (each
+// new compaction summarizes prior compactions into itself), so when multiple
+// compactions exist we use the last one in chronological order, not the first.
 // If firstKeptEntryId is missing from the path, we keep from the compaction
-// entry forward (path[i:]) rather than the whole path, so pre-compaction
-// entries are never accidentally retained.
+// entry forward so pre-compaction entries are never accidentally retained.
 func applyCompaction(path []rawEntry) []rawEntry {
+	last := -1
 	for i, e := range path {
-		if e.Type != entryCompaction {
-			continue
+		if e.Type == entryCompaction {
+			last = i
 		}
-		keptID := compactionFirstKept(e)
-		if keptID == "" {
-			return path[i:]
-		}
-		if idx := keepFromIndex(path, keptID); idx >= 0 {
-			return path[idx:]
-		}
-		return path[i:]
 	}
-	return path
+	if last < 0 {
+		return path
+	}
+	keptID := compactionFirstKept(path[last])
+	if keptID == "" {
+		return path[last:]
+	}
+	if idx := keepFromIndex(path, keptID); idx >= 0 {
+		return path[idx:]
+	}
+	return path[last:]
 }
 
 // compactionFirstKept returns the firstKeptEntryId of a compaction entry. pi

@@ -7,7 +7,8 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// loadFixture returns the absolute path to a testdata file.
+// loadFixture returns the path to a testdata file (relative to the test
+// working directory, which is the package dir).
 func loadFixture(t *testing.T, name string) string {
 	t.Helper()
 	return filepath.Join("testdata", name)
