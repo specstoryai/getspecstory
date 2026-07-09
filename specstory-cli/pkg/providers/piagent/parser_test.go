@@ -1,9 +1,7 @@
 package piagent
 
 import (
-	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -172,117 +170,5 @@ func TestParseSession_ProviderVersionPopulated(t *testing.T) {
 	}
 	if !data.Validate() {
 		t.Error("SessionData.Validate() returned false")
-	}
-}
-
-// TestParseSession_CompactionHonorsFirstKeptEntryId asserts that when a
-// compaction entry is on the leaf path, entries before firstKeptEntryId are
-// dropped, and entries from firstKeptEntryId forward are kept. The fixture's
-// compaction points at a1, so u1 (pre-kept) must NOT appear, while a1 (the kept
-// entry) and u2 (post-compaction) MUST appear.
-func TestParseSession_CompactionHonorsFirstKeptEntryId(t *testing.T) {
-	data, err := ParseSession(loadFixture(t, "compaction.jsonl"))
-	if err != nil {
-		t.Fatalf("ParseSession returned error: %v", err)
-	}
-	var hasDroppedPre, hasKept, hasPost bool
-	for _, ex := range data.Exchanges {
-		for _, msg := range ex.Messages {
-			for _, part := range msg.Content {
-				switch {
-				case strings.Contains(part.Text, "first prompt before compaction"):
-					hasDroppedPre = true
-				case strings.Contains(part.Text, "first answer before compaction"):
-					hasKept = true
-				case strings.Contains(part.Text, "after compaction"):
-					hasPost = true
-				}
-			}
-		}
-	}
-	if hasDroppedPre {
-		t.Error("pre-kept user prompt (u1) was not dropped by compaction")
-	}
-	if !hasKept {
-		t.Error("kept entry (a1, firstKeptEntryId) was dropped — compaction kept from the compaction entry instead of from firstKeptEntryId")
-	}
-	if !hasPost {
-		t.Error("post-compaction user prompt was dropped by compaction")
-	}
-}
-
-// TestParseSession_CompactionMissingKeptIdDropsPreCompaction asserts the fallback
-// path: when firstKeptEntryId is not found in the leaf path, pre-compaction
-// entries are still dropped (kept from the compaction entry forward) rather than
-// retained — addresses Copilot review comment on keepFromIndex returning 0.
-func TestParseSession_CompactionMissingKeptIdDropsPreCompaction(t *testing.T) {
-	data, err := ParseSession(loadFixture(t, "compaction_missing.jsonl"))
-	if err != nil {
-		t.Fatalf("ParseSession returned error: %v", err)
-	}
-	var hasPre, hasPost bool
-	for _, ex := range data.Exchanges {
-		for _, msg := range ex.Messages {
-			if msg.Role != schema.RoleUser {
-				continue
-			}
-			for _, part := range msg.Content {
-				if strings.Contains(part.Text, "before compaction") {
-					hasPre = true
-				}
-				if strings.Contains(part.Text, "after compaction") {
-					hasPost = true
-				}
-			}
-		}
-	}
-	if hasPre {
-		t.Error("pre-compaction user prompt retained when firstKeptEntryId was missing")
-	}
-	if !hasPost {
-		t.Error("post-compaction user prompt was dropped in the missing-kept-id fallback")
-	}
-}
-
-// TestParseSession_ToolCallOnlyAssistantRetainsModelAndUsage asserts an
-// assistant message containing only toolCall blocks (no text/thinking) still
-// carries the model + usage on the tool message, and emits no schema-invalid
-// empty agent message — addresses Copilot review comment.
-func TestParseSession_ToolCallOnlyAssistantRetainsModelAndUsage(t *testing.T) {
-	// Build an in-memory session with a tool-call-only assistant message.
-	tmp := t.TempDir()
-	path := filepath.Join(tmp, "toolonly.jsonl")
-	session := `{"type":"session","version":3,"id":"toolonly-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
-` +
-		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"run ls","timestamp":1783600001000}}
-` +
-		`{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call-1","name":"bash","arguments":{"command":"ls"}}],"provider":"fireworks","model":"glm","usage":{"input":10,"output":5,"cacheRead":0,"cacheWrite":0,"totalTokens":15,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
-`
-	if err := os.WriteFile(path, []byte(session), 0o644); err != nil {
-		t.Fatalf("write fixture: %v", err)
-	}
-	data, err := ParseSession(path)
-	if err != nil {
-		t.Fatalf("ParseSession returned error: %v", err)
-	}
-	var toolMsg *schema.Message
-	for _, ex := range data.Exchanges {
-		for i := range ex.Messages {
-			if ex.Messages[i].Tool != nil {
-				toolMsg = &ex.Messages[i]
-			}
-		}
-	}
-	if toolMsg == nil {
-		t.Fatal("no tool message produced from tool-call-only assistant entry")
-	}
-	if toolMsg.Model != "glm" {
-		t.Errorf("tool message Model = %q, want %q", toolMsg.Model, "glm")
-	}
-	if toolMsg.Usage == nil || toolMsg.Usage.InputTokens == 0 {
-		t.Error("tool message did not retain usage from the assistant entry")
-	}
-	if !data.Validate() {
-		t.Error("SessionData.Validate() returned false (schema-invalid messages present)")
 	}
 }

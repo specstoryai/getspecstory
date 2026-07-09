@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // sessionFile pairs a discovered pi session file with its header metadata.
@@ -84,7 +82,7 @@ func (p *Provider) GetAgentChatSession(projectPath, sessionID string, debugRaw b
 	if path == "" {
 		return nil, nil
 	}
-	return parseToAgentSession(path, projectPath, debugRaw)
+	return parseToAgentSession(path, debugRaw)
 }
 
 // GetAgentChatSessions returns all pi sessions for the project.
@@ -96,7 +94,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	total := len(files)
 	var result []spi.AgentChatSession
 	for i, sf := range files {
-		chat, pErr := parseToAgentSession(sf.Path, projectPath, debugRaw)
+		chat, pErr := parseToAgentSession(sf.Path, debugRaw)
 		if pErr != nil {
 			slog.Debug("pi: skipping session", "path", sf.Path, "error", pErr)
 		} else if chat != nil {
@@ -109,9 +107,9 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	return result, nil
 }
 
-// parseToAgentSession parses one session file into an AgentChatSession, writing
-// debug-raw artifacts when debugRaw is true.
-func parseToAgentSession(path, _ string, debugRaw bool) (*spi.AgentChatSession, error) {
+// parseToAgentSession parses one session file into an AgentChatSession,
+// writing debug-raw artifacts when debugRaw is true.
+func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, error) {
 	data, err := ParseSession(path)
 	if err != nil {
 		return nil, err
@@ -135,22 +133,6 @@ func parseToAgentSession(path, _ string, debugRaw bool) (*spi.AgentChatSession, 
 }
 
 // deriveSlug returns a filename-safe slug from the first user message text.
-func deriveSlug(data *schema.SessionData) string {
-	for _, ex := range data.Exchanges {
-		for _, msg := range ex.Messages {
-			if msg.Role != schema.RoleUser {
-				continue
-			}
-			for _, part := range msg.Content {
-				if t := strings.TrimSpace(part.Text); t != "" {
-					return spi.GenerateFilenameFromUserMessage(part.Text)
-				}
-			}
-		}
-	}
-	return ""
-}
-
 // ListAgentChatSessions returns lightweight metadata for all project sessions
 // without a full parse (header fields only).
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {

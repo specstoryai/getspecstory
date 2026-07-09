@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -125,6 +126,23 @@ func mapUsage(u *piUsage) *schema.Usage {
 		CacheReadInputTokens:     int(u.CacheRead),
 		CacheCreationInputTokens: int(u.CacheWrite),
 	}
+}
+
+// deriveSlug returns a filename-safe slug from the first user message text.
+func deriveSlug(data *schema.SessionData) string {
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			if msg.Role != schema.RoleUser {
+				continue
+			}
+			for _, part := range msg.Content {
+				if t := strings.TrimSpace(part.Text); t != "" {
+					return spi.GenerateFilenameFromUserMessage(part.Text)
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // classifyToolType maps pi tool names to the schema tool-type taxonomy.
