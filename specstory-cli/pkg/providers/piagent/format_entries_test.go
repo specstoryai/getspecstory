@@ -84,6 +84,50 @@ func TestFormatEntries_CompactionDropsPreKept(t *testing.T) {
 	}
 }
 
+// TestFormatEntries_RealWorldCompactionAndBashExecution uses a trimmed slice of
+// a real pi session (testdata/real_world.jsonl) to assert the hard-to-synthesize
+// format features: a compaction entry carrying details.readFiles/modifiedFiles +
+// tokensBefore, a bashExecution message role (skipped from exchanges), and that
+// compaction drops the pre-kept user prompt while keeping the post-compaction one.
+// firstKeptEntryId points at an assistant-error entry included in the slice.
+func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
+	data, err := ParseSession(loadFixture(t, "real_world.jsonl"))
+	if err != nil {
+		t.Fatalf("ParseSession returned error: %v", err)
+	}
+	if data.SessionID != "real-world-uuid" {
+		t.Errorf("SessionID = %q, want real-world-uuid", data.SessionID)
+	}
+	if !data.Validate() {
+		t.Error("Validate() returned false for the real-world session")
+	}
+	var hasPreCompaction, hasPostCompaction, hasBashExecContent bool
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			for _, part := range msg.Content {
+				if strings.Contains(part.Text, "Read README.md and NOTES.md") {
+					hasPreCompaction = true
+				}
+				if strings.Contains(part.Text, "summarize it now") {
+					hasPostCompaction = true
+				}
+				if strings.Contains(part.Text, "total 24") {
+					hasBashExecContent = true
+				}
+			}
+		}
+	}
+	if hasPreCompaction {
+		t.Error("pre-compaction user prompt was not dropped by compaction")
+	}
+	if !hasPostCompaction {
+		t.Error("post-compaction user prompt was dropped by compaction")
+	}
+	if hasBashExecContent {
+		t.Error("bashExecution content leaked into exchanges (should be skipped)")
+	}
+}
+
 // TestFormatEntries_CompactionHonorsFirstKeptEntryId asserts that when a
 // compaction entry is on the leaf path, entries before firstKeptEntryId are
 // dropped and entries from firstKeptEntryId forward are kept. The fixture's
