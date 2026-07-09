@@ -67,7 +67,7 @@ func buildAgentMessages(e rawEntry) []schema.Message {
 				parts = append(parts, schema.ContentPart{Type: schema.ContentTypeThinking, Text: b.Thinking})
 			}
 		case "toolCall":
-			messages = append(messages, buildToolMessage(e, b))
+			messages = append(messages, buildToolMessage(e, b, am))
 		}
 	}
 	if len(parts) > 0 {
@@ -82,28 +82,27 @@ func buildAgentMessages(e rawEntry) []schema.Message {
 		return append([]schema.Message{head}, messages...)
 	}
 	if len(messages) == 0 {
-		// An assistant message with only a toolCall still carries usage/model on
-		// the tool message so nothing is lost.
-		if len(messages) == 0 {
-			messages = append(messages, schema.Message{
-				ID:        e.ID,
-				Timestamp: e.Timestamp,
-				Role:      schema.RoleAgent,
-				Model:     am.Model,
-				Usage:     mapUsage(am.Usage),
-			})
-		}
+		return nil
+	}
+	// Tool-call-only assistant message: carry model+usage once on the first
+	// tool message so no metadata is lost and no schema-invalid empty message
+	// is emitted.
+	messages[0].Model = am.Model
+	if messages[0].Usage == nil {
+		messages[0].Usage = mapUsage(am.Usage)
 	}
 	return messages
 }
 
 // buildToolMessage builds an agent Message wrapping a ToolInfo from a toolCall.
-func buildToolMessage(e rawEntry, b contentBlock) schema.Message {
+// The parent assistant message's model is passed through so tool messages carry
+// the same model metadata as text/thinking messages.
+func buildToolMessage(e rawEntry, b contentBlock, am assistantMessage) schema.Message {
 	return schema.Message{
 		ID:        e.ID,
 		Timestamp: e.Timestamp,
 		Role:      schema.RoleAgent,
-		Model:     "",
+		Model:     am.Model,
 		Tool: &schema.ToolInfo{
 			Name:  b.Name,
 			Type:  classifyToolType(b.Name),

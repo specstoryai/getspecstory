@@ -22,6 +22,12 @@ func ParseSession(path string) (*schema.SessionData, error) {
 	if header == nil {
 		return nil, fmt.Errorf("pi: no session header in %s", path)
 	}
+	if header.Type != entrySession {
+		return nil, fmt.Errorf("pi: %s is not a pi session (header type %q)", path, header.Type)
+	}
+	if header.ID == "" {
+		return nil, fmt.Errorf("pi: session header in %s has no id", path)
+	}
 	if len(entries) == 0 {
 		return nil, fmt.Errorf("pi: session %s has no entries", header.ID)
 	}
@@ -68,13 +74,24 @@ func readEntries(path string) (*sessionHeader, []rawEntry, error) {
 	return header, entries, nil
 }
 
+// piProviderVersion derives the provider version string recorded on SessionData
+// from the pi session header's format version (e.g. v3). Always non-empty so
+// schema.Validate() does not warn about a missing provider.version.
+func piProviderVersion(header *sessionHeader) string {
+	if header.Version > 0 {
+		return fmt.Sprintf("v%d", header.Version)
+	}
+	return "v1"
+}
+
 // buildSessionData maps the ordered leaf-path entries into schema.SessionData.
 func buildSessionData(header *sessionHeader, ordered []rawEntry) *schema.SessionData {
 	return &schema.SessionData{
 		SchemaVersion: "1.0",
 		Provider: schema.ProviderInfo{
-			ID:   providerID,
-			Name: providerName,
+			ID:      providerID,
+			Name:    providerName,
+			Version: piProviderVersion(header),
 		},
 		SessionID:     header.ID,
 		CreatedAt:     header.Timestamp,

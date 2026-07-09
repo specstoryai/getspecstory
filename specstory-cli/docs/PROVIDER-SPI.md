@@ -42,7 +42,7 @@ pkg/
     ├── claudecode/        # Claude Code provider implementation
     ├── cursorcli/         # Cursor CLI provider implementation
     ├── codexcli/          # Codex CLI provider implementation
-    ├── gemini/            # Gemini CLI provider implementation
+    ├── geminicli/         # Gemini CLI provider implementation
     └── piagent/           # Pi provider implementation
 ```
 
@@ -55,7 +55,7 @@ main.go
       → providers/claudecode
       → providers/cursorcli
       → providers/codexcli
-      → providers/gemini
+      → providers/geminicli
       → providers/piagent
 
 providers/* → spi (interfaces and schema)

@@ -36,7 +36,9 @@ func findProjectSession(projectPath, sessionID string) (string, error) {
 	return "", nil
 }
 
-// readHeader parses only the first line of a session file.
+// readHeader parses only the first line of a session file and returns it only
+// if it is a valid pi session header (type=="session" with a non-empty id).
+// Non-session files return (nil, nil) so callers skip them.
 func readHeader(path string) (*sessionHeader, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -46,7 +48,10 @@ func readHeader(path string) (*sessionHeader, error) {
 	dec := json.NewDecoder(f)
 	var h sessionHeader
 	if err := dec.Decode(&h); err != nil {
-		return nil, err
+		return nil, nil
+	}
+	if h.Type != entrySession || h.ID == "" {
+		return nil, nil
 	}
 	return &h, nil
 }

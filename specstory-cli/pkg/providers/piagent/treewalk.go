@@ -10,7 +10,7 @@ func leafPathEntries(entries []rawEntry) []rawEntry {
 	leaf := entries[len(entries)-1]
 	path := walkToRoot(leaf, byID)
 	reverse(path)
-	return applyCompaction(path, byID)
+	return applyCompaction(path)
 }
 
 // indexByID builds an id -> entry lookup for the tree walk.
@@ -49,7 +49,10 @@ func reverse(s []rawEntry) {
 
 // applyCompaction drops entries before the compaction point when a compaction
 // entry is on the path. If no compaction is present, the path is returned as-is.
-func applyCompaction(path []rawEntry, _ map[string]rawEntry) []rawEntry {
+// If firstKeptEntryId is missing from the path, we keep from the compaction
+// entry forward (path[i:]) rather than the whole path, so pre-compaction
+// entries are never accidentally retained.
+func applyCompaction(path []rawEntry) []rawEntry {
 	for i, e := range path {
 		if e.Type != entryCompaction {
 			continue
@@ -58,7 +61,10 @@ func applyCompaction(path []rawEntry, _ map[string]rawEntry) []rawEntry {
 		if keptID == "" {
 			return path[i:]
 		}
-		return path[keepFromIndex(path, keptID):]
+		if idx := keepFromIndex(path, keptID); idx >= 0 {
+			return path[idx:]
+		}
+		return path[i:]
 	}
 	return path
 }
@@ -73,13 +79,13 @@ func compactionFirstKept(e rawEntry) string {
 	return p.FirstKeptEntryID
 }
 
-// keepFromIndex returns the index of the entry with id==keptID in path, or 0
-// if not found (defensive: keep everything from the compaction point).
+// keepFromIndex returns the index of the entry with id==keptID in path, or -1
+// if not found.
 func keepFromIndex(path []rawEntry, keptID string) int {
 	for i, e := range path {
 		if e.ID == keptID {
 			return i
 		}
 	}
-	return 0
+	return -1
 }
