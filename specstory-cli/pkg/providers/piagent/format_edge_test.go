@@ -76,3 +76,58 @@ func TestFormatEdge_ExchangeEndTimeReflectsFinalToolResult(t *testing.T) {
 		t.Errorf("last exchange EndTime = %q, want the toolResult tr1 timestamp", last.EndTime)
 	}
 }
+
+// TestScan_PopulatesSlugAndName asserts scanPiSession derives Slug/Name from the
+// first user message in a bounded single pass (no full parse), matching how
+// other providers populate ListAgentChatSessions / ListAllAgentChatSessions refs.
+func TestScan_PopulatesSlugAndName(t *testing.T) {
+	scan, err := scanPiSession(loadFixture(t, "fields.jsonl"))
+	if err != nil {
+		t.Fatalf("scanPiSession returned error: %v", err)
+	}
+	if scan == nil || !scan.foundUser {
+		t.Fatal("scan did not find a user message")
+	}
+	if scan.firstUserMessage == "" {
+		t.Error("firstUserMessage is empty")
+	}
+	ref := scanToGlobalRef(scan, "fields.jsonl")
+	if ref == nil {
+		t.Fatal("scanToGlobalRef returned nil")
+	}
+	if ref.Slug == "" {
+		t.Error("ref.Slug is empty")
+	}
+	if ref.Name == "" {
+		t.Error("ref.Name is empty")
+	}
+}
+
+// TestScan_NonSessionFileReturnsNilNil asserts scanPiSession returns (nil, nil)
+// for a file whose first line is not a pi session header, so ScanSessionsInParallel
+// skips it silently (without logging an error).
+func TestScan_NonSessionFileReturnsNilNil(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "notsession.jsonl")
+	if err := os.WriteFile(path, []byte(`{"type":"message","id":"x","parentId":null,"timestamp":"2026-07-09T10:00:00.000Z","message":{"role":"user","content":"hi"}}
+`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	scan, err := scanPiSession(path)
+	if err != nil {
+		t.Fatalf("scanPiSession returned error for non-session file: %v", err)
+	}
+	if scan != nil {
+		t.Errorf("scanPiSession returned %v for non-session file, want nil", scan)
+	}
+}
+
+// TestScan_UnreadableFileReturnsError asserts scanPiSession returns a non-nil
+// error when the file cannot be opened, so ScanSessionsInParallel logs it during
+// reindex instead of silently skipping (the contract Copilot flagged).
+func TestScan_UnreadableFileReturnsError(t *testing.T) {
+	_, err := scanPiSession(filepath.Join(t.TempDir(), "does-not-exist.jsonl"))
+	if err == nil {
+		t.Fatal("scanPiSession returned nil error for a missing file")
+	}
+}

@@ -136,18 +136,29 @@ func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, err
 	}, nil
 }
 
-// ListAgentChatSessions returns lightweight metadata for all project sessions
-// without a full parse (header fields only).
+// ListAgentChatSessions returns lightweight metadata for all project sessions,
+// deriving Slug/Name from the first user message via a bounded single-pass scan
+// (no full parse), matching how other providers populate metadata.
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
-	files, err := listProjectSessions(projectPath)
+	files, err := SessionFilesInProject(projectPath)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]spi.SessionMetadata, 0, len(files))
-	for _, sf := range files {
+	for _, f := range files {
+		scan, scanErr := scanPiSession(f)
+		if scanErr != nil {
+			slog.Debug("pi: skipping unreadable session file", "path", f, "error", scanErr)
+			continue
+		}
+		if scan == nil || !scan.foundUser {
+			continue
+		}
 		result = append(result, spi.SessionMetadata{
-			SessionID: sf.Header.ID,
-			CreatedAt: sf.Header.Timestamp,
+			SessionID: scan.sessionID,
+			CreatedAt: scan.timestamp,
+			Slug:      spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+			Name:      spi.GenerateReadableName(scan.firstUserMessage),
 		})
 	}
 	return result, nil
@@ -160,7 +171,8 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 }
 
 // ListAllAgentChatSessionsProgress enumerates all pi sessions with live scan
-// progress, using the shared parallel scanner.
+// progress, using the shared parallel scanner. Each ref carries Slug/Name
+// derived from the first user message and the originating cwd from the header.
 func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
 	root, err := piSessionsRoot()
 	if err != nil {
@@ -172,15 +184,15 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 		}
 		return nil, statErr
 	}
-	return spi.ScanSessionsInParallel(root, providerID, r, scanPiSession)
-}
-
-// scanPiSession reads one .jsonl file's header and returns a GlobalSessionRef
-// carrying the originating cwd, or (nil, nil) for non-session files.
-func scanPiSession(path string) (*spi.GlobalSessionRef, error) {
-	h, err := readHeader(path)
-	if err != nil || h == nil {
-		return nil, nil
+	scan := func(path string) (*spi.GlobalSessionRef, error) {
+		s, sErr := scanPiSession(path)
+		if sErr != nil {
+			return nil, sErr
+		}
+		if s == nil {
+			return nil, nil // non-session file
+		}
+		return scanToGlobalRef(s, path), nil
 	}
-	return &spi.GlobalSessionRef{SessionID: h.ID, CreatedAt: h.Timestamp, NativePath: path, OriginCwd: h.Cwd}, nil
+	return spi.ScanSessionsInParallel(root, providerID, r, scan)
 }
