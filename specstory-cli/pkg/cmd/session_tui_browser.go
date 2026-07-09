@@ -582,14 +582,28 @@ func (m sessionTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 	m.globalInput, cmd = m.globalInput.Update(msg)
 	m.globalQuery = m.globalInput.Value()
 	m.searchSeq++
+	m.cloudSearchSeq++ // supersede any in-flight cloud search too
+	// The current cloud hits are for the PREVIOUS query — drop them so the fresh local result
+	// doesn't merge stale cloud rows. The new fire-on-pause cloud search refills them on a pause.
+	m.globalCloud = nil
+	m.globalCloudSnippets = nil
 	if !queryReady(m.globalQuery) {
 		// Too short to search the whole corpus: no results until the 2nd character.
 		m.globalResults = nil
 		m.globalSnippets = nil
+		m.globalLocal = nil
+		m.globalCloud = nil
+		m.globalCloudSnippets = nil
+		m.cloudSearchPending = false
 		m.snippetSeq++
 		return m, cmd
 	}
-	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeProjects))
+	cmds := []tea.Cmd{cmd, searchDebounce(m.searchSeq, modeProjects)}
+	// Cloud search fires on its own slower fire-on-pause debounce, only when eligible.
+	if m.cloudEligible {
+		cmds = append(cmds, cloudSearchDebounce(m.cloudSearchSeq, modeProjects))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -641,13 +655,15 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		}
 	case "a":
 		return m, m.cycleAgent()
+	case "m":
+		return m, m.cycleMachine()
 	case "v":
 		m.toggleViewMode()
 		m.clampGlobalScroll() // toggleViewMode clamps the list; the global list scrolls separately
 		return m, m.requestVisibleSnippets(modeProjects)
 	case "d":
 		if sel := m.globalSelected(); sel != nil {
-			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
+			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}
 			m.confirmingDelete = true
 		}
 	}
@@ -681,13 +697,23 @@ func (m *sessionTUI) toggleGlobalScope() tea.Cmd {
 	}
 	m.globalCursor, m.globalTop = 0, 0
 	m.searchSeq++
+	m.cloudSearchSeq++
+	// Scope changed, so the current cloud hits are for the old scope — drop them and let the fresh
+	// cloud search (now scoped server-side to globalScopeID) refill on a pause.
+	m.globalCloud = nil
+	m.globalCloudSnippets = nil
 	if !queryReady(m.globalQuery) {
 		m.globalResults = nil
 		m.globalSnippets = nil
+		m.cloudSearchPending = false
 		m.snippetSeq++
 		return nil
 	}
-	return searchDebounce(m.searchSeq, modeProjects)
+	cmds := []tea.Cmd{searchDebounce(m.searchSeq, modeProjects)}
+	if m.cloudEligible {
+		cmds = append(cmds, cloudSearchDebounce(m.cloudSearchSeq, modeProjects))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *sessionTUI) exitGlobal() {
@@ -699,6 +725,11 @@ func (m *sessionTUI) exitGlobal() {
 	m.globalScopeID, m.globalScopeName = "", "" // re-enter search at all-projects scope
 	m.globalResults = nil
 	m.globalSnippets = nil
+	m.globalLocal = nil
+	m.globalCloud = nil
+	m.globalCloudSnippets = nil
+	m.cloudSearchSeq++ // supersede any in-flight cloud search
+	m.cloudSearchPending = false
 	m.snippetSeq++
 	m.globalCursor, m.globalTop = 0, 0
 }
@@ -732,12 +763,19 @@ func (m sessionTUI) renderGlobalResults() string {
 		scope = styDim.Render("project: ") + stySel.Render(m.globalScopeName)
 	}
 	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
+	if ml := m.machineScopeLabel(); ml != "" {
+		left += styDim.Render("  ·  ") + styDim.Render("machine: ") + stySel.Render(ml)
+	}
 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
 		// Label the locked-in query "search: <q>" so it reads as a filter, mirroring the
 		// "agent: <name>" / "project: <name>" labels rather than a bare unexplained word.
 		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
 	}
-	right := styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
+	right := ""
+	if m.cloudSearchPending {
+		right = styDim.Render("☁ searching cloud…  ·  ")
+	}
+	right += styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
 	b.WriteString(headerRow(left, right, m.lineWidth()) + "\n")
 	b.WriteString(strings.Repeat("─", m.lineWidth()) + "\n")
 
@@ -755,7 +793,11 @@ func (m sessionTUI) renderGlobalResults() string {
 		end := min(m.globalTop+h, len(m.globalResults))
 		for i := m.globalTop; i < end; i++ {
 			s := m.globalResults[i]
-			snip := m.globalSnippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]
+			key := sessionindex.FingerprintKey(s.Agent, s.SessionID)
+			snip := m.globalSnippets[key]
+			if snip == "" {
+				snip = m.globalCloudSnippets[key] // cloud hits carry their snippet from the server
+			}
 			b.WriteString(m.globalRow(s, i == m.globalCursor, snip))
 			if i < end-1 {
 				b.WriteString("\n")
@@ -788,7 +830,11 @@ func (m sessionTUI) renderGlobalResults() string {
 		b.WriteString(m.globalInput.View() + "    " + styFaint.Render(inputHint))
 		return b.String()
 	}
-	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "d delete", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
+	keys := []string{"↑↓ move", "r resume", "space preview", "a agent"}
+	if len(m.machineCycle) > 1 {
+		keys = append(keys, "m machine")
+	}
+	keys = append(keys, "d delete", "v "+m.viewMode, "/ edit search", scopeKey, escHint, "q quit")
 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
 	return b.String()
 }
@@ -797,19 +843,20 @@ func (m sessionTUI) renderGlobalResults() string {
 // snippet. Honors the dense/sparse view mode, matching the project session list.
 func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet string) string {
 	cursor := rowCursor(selected)
+	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
 	agent := m.agentTag(s.Agent)
 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
 
 	if m.viewMode == "sparse" {
-		label := rowLabel(s, selected, snippet, m.lineWidth()-30, m.lineWidth()-32)
-		head := cursor + agent + "  " + styFaint.Render(proj) + "  " + label
-		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+		label := rowLabel(s, selected, snippet, m.lineWidth()-33, m.lineWidth()-35)
+		head := cursor + mark + " " + agent + "  " + styFaint.Render(proj) + "  " + label
+		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
 	}
 
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
-	label := rowLabel(s, selected, snippet, m.lineWidth()-46, m.lineWidth()-48)
-	return cursor + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
+	label := rowLabel(s, selected, snippet, m.lineWidth()-49, m.lineWidth()-51)
+	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
 }
 
 func sessionProject(s sessionindex.Session) string {

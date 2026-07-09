@@ -34,6 +34,7 @@ type CloudSessionMetadata struct {
 	AgentName   string `json:"agentName"`   // human name, e.g. "Claude Code" (not the provider id)
 	DeviceID    string `json:"deviceId"`    // stable machine id; sessions group/filter by this
 	MachineName string `json:"machineName"` // human machine label, e.g. "Mac-Studio.local"
+	Title       string `json:"title"`       // readable prompt title (first user message); "" for pre-title blobs
 }
 
 // CloudSession is a cloud-resumable session summary (server type: SessionSummary). Only the
@@ -41,16 +42,24 @@ type CloudSessionMetadata struct {
 // exchangeCount are intentionally omitted: the ?resumable=true list takes a lean path that never
 // populates them, so decoding them would only carry guaranteed-empty dead weight.)
 type CloudSession struct {
-	ID              string               `json:"id"`        // internal session uuid (cloud-side)
-	ClientID        string               `json:"clientId"`  // native session id (== local session_id)
-	ProjectID       string               `json:"projectId"` // git_id / workspace_id
-	Name            string               `json:"name"`
-	UserTitle       string               `json:"userTitle,omitempty"`
-	MarkdownSize    int                  `json:"markdownSize"`
-	SessionDataSize int                  `json:"sessionDataSize"` // > 0 (list is ?resumable), 0 if absent
-	CreatedAt       string               `json:"createdAt"`
-	UpdatedAt       string               `json:"updatedAt"`
-	Metadata        CloudSessionMetadata `json:"metadata"`
+	ID        string `json:"id"`        // internal session uuid (cloud-side)
+	ClientID  string `json:"clientId"`  // native session id (== local session_id)
+	ProjectID string `json:"projectId"` // git_id / workspace_id
+	// ProjectName is the workspace's display name. Returned by the search endpoint (which shows a
+	// project column in cross-project results); the per-project list omits it (context supplies it).
+	ProjectName     string `json:"projectName"`
+	Name            string `json:"name"`
+	UserTitle       string `json:"userTitle,omitempty"`
+	MarkdownSize    int    `json:"markdownSize"`
+	SessionDataSize int    `json:"sessionDataSize"` // > 0 (list is ?resumable), 0 if absent
+	CreatedAt       string `json:"createdAt"`       // row created_at (sync time)
+	UpdatedAt       string `json:"updatedAt"`       // row updated_at (sync time)
+	// StartedAt/EndedAt are the session's real activity times (first/last exchange), set by the
+	// server's duration worker. Empty until it has processed the session. Preferred over the sync
+	// timestamps above for display + recency sort so a cloud row reflects when it actually happened.
+	StartedAt string               `json:"startedAt"`
+	EndedAt   string               `json:"endedAt"`
+	Metadata  CloudSessionMetadata `json:"metadata"`
 }
 
 // CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
@@ -110,6 +119,41 @@ func ListCloudSessions(projectID string) ([]CloudSession, error) {
 		return nil, fmt.Errorf("list cloud sessions failed: %s", resp.Error)
 	}
 	return resp.Data.Sessions, nil
+}
+
+// CloudSearchHit is one cloud-resume search result: a resumable session plus a highlighted snippet
+// from its first matching exchange. The snippet uses the same STX/ETX markers as local search, so
+// the TUI renders local and cloud hits identically.
+type CloudSearchHit struct {
+	CloudSession
+	Snippet string `json:"snippet"`
+}
+
+// SearchCloudSessions runs the aligned cloud-resume search for a query and returns the matching
+// resumable sessions (newest first, server-capped at 500), each with a highlighted snippet. The
+// server mirrors local search semantics, so results blend with local hits coherently.
+func SearchCloudSessions(query, projectID string) ([]CloudSearchHit, error) {
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Results []CloudSearchHit `json:"results"`
+		} `json:"data"`
+		Error string `json:"error"`
+	}
+
+	reqBody := map[string]string{"query": query}
+	// Scope to one project server-side when the caller is the project-scoped list search; omitted
+	// (all projects) for the global cross-project search.
+	if projectID != "" {
+		reqBody["projectId"] = projectID
+	}
+	if err := skillsAPIRequest(http.MethodPost, "/api/v1/search/resume", reqBody, &resp); err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("cloud search failed: %s", resp.Error)
+	}
+	return resp.Data.Results, nil
 }
 
 // ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only

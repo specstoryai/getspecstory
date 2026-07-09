@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -10,7 +11,9 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // machineEntry is one stop in the machine-filter ring: a stable key and its display label.
@@ -25,18 +28,23 @@ type machineEntry struct {
 // stable order; duplicate names get (1)/(2) suffixes). This machine never appears as its own remote
 // entry — it's covered by "local only".
 func (m *sessionTUI) rebuildMachineCycle() {
-	// Latest machineName per remote deviceId.
+	// Latest machineName per remote deviceId, across whichever cloud rows are in play (browse's
+	// cloudAll and search's globalCloud).
 	names := map[string]string{}
-	for _, s := range m.cloudAll {
-		if !s.IsCloud || s.DeviceID == "" || s.DeviceID == m.deviceID {
-			continue
-		}
-		if s.MachineName != "" {
-			names[s.DeviceID] = s.MachineName
-		} else if _, ok := names[s.DeviceID]; !ok {
-			names[s.DeviceID] = shortID(s.DeviceID)
+	addMachine := func(rows []sessionindex.Session) {
+		for _, s := range rows {
+			if !s.IsCloud || s.DeviceID == "" || s.DeviceID == m.deviceID {
+				continue
+			}
+			if s.MachineName != "" {
+				names[s.DeviceID] = s.MachineName
+			} else if _, ok := names[s.DeviceID]; !ok {
+				names[s.DeviceID] = shortID(s.DeviceID)
+			}
 		}
 	}
+	addMachine(m.cloudAll)
+	addMachine(m.globalCloud)
 
 	if len(names) == 0 {
 		// No other machines to distinguish — the filter would be a no-op, so hide it.
@@ -98,6 +106,13 @@ func (m *sessionTUI) cycleMachine() tea.Cmd {
 		}
 	}
 	m.machineFilter = m.machineCycle[(idx+1)%len(m.machineCycle)].key
+	// Client-side re-filter of cached rows — same as the agent filter, in whichever view is active.
+	if m.mode == modeProjects && m.globalActive {
+		m.rebuildGlobalResults()
+		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
+		m.clampGlobalScroll()
+		return m.requestVisibleSnippets(modeProjects)
+	}
 	m.refilterCurrentAgent()
 	return m.requestVisibleSnippets(modeList)
 }
@@ -194,6 +209,29 @@ func cloudProjectsFetchCmd() tea.Cmd {
 // cloudToSessions converts cloud session summaries to local index rows for blending. Rows whose
 // agent can't be resolved to a known provider id are skipped — they can't be reconstructed/resumed
 // here, so rendering them would only offer an action that fails.
+// cloudTitle picks a cloud row's display title: the prompt-derived title synced in metadata (built
+// by the same GenerateReadableName a local row uses, so it renders identically) when present, else
+// the filename name. Older blobs synced before titles were stored have no metadata title and show
+// the filename until they re-sync.
+func cloudTitle(metaTitle, name string) string {
+	if metaTitle != "" {
+		return metaTitle
+	}
+	return name
+}
+
+// firstNonEmpty returns the first non-empty string, or "" if all are empty. Used to pick a cloud
+// row's real activity time (ended/started, from the duration worker) over the sync timestamp, so the
+// row displays and sorts by when the session happened rather than when it was last pushed.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func cloudToSessions(cs []cloud.CloudSession, agentIDByName map[string]string) []sessionindex.Session {
 	out := make([]sessionindex.Session, 0, len(cs))
 	for _, c := range cs {
@@ -207,15 +245,61 @@ func cloudToSessions(cs []cloud.CloudSession, agentIDByName map[string]string) [
 			ProjectID:   c.ProjectID,
 			Agent:       agentID,
 			SessionID:   c.ClientID,
-			CreatedAt:   c.CreatedAt,
-			UpdatedAt:   c.UpdatedAt,
-			Name:        c.Name,
+			CreatedAt:   firstNonEmpty(c.StartedAt, c.CreatedAt),
+			UpdatedAt:   firstNonEmpty(c.EndedAt, c.StartedAt, c.UpdatedAt),
+			Name:        cloudTitle(c.Metadata.Title, c.Name),
 			IsCloud:     true,
 			DeviceID:    c.Metadata.DeviceID,
 			MachineName: c.Metadata.MachineName,
 		})
 	}
 	return out
+}
+
+// ---- cloud preview (space on a cloud-only row) ----
+
+// cloudPreviewMsg carries a cloud row's rendered markdown back to the model. seq matches the
+// openPreview that requested it, so a result that arrives after the reader closed or moved on is
+// dropped. On error, markdown is a short human-readable notice rendered in place of the content.
+type cloudPreviewMsg struct {
+	seq      int
+	markdown string
+}
+
+// cloudPreviewCmd fetches a cloud session's SessionData blob and renders it to markdown off the UI
+// thread. It reuses the exact blob resume fetches and the same markdown generator the local preview
+// uses, so a cloud row previews identically to its local counterpart.
+func cloudPreviewCmd(s sessionindex.Session, seq int) tea.Cmd {
+	return func() tea.Msg {
+		raw, err := cloud.FetchSessionData(s.ProjectID, s.SessionID)
+		if err != nil {
+			slog.Debug("cloud preview: fetch failed", "sessionId", s.SessionID, "error", err)
+			return cloudPreviewMsg{seq: seq, markdown: "_(couldn't load this session from SpecStory Cloud)_"}
+		}
+		var data schema.SessionData
+		if err := json.Unmarshal(raw, &data); err != nil {
+			slog.Debug("cloud preview: parse failed", "sessionId", s.SessionID, "error", err)
+			return cloudPreviewMsg{seq: seq, markdown: "_(couldn't read this session's data)_"}
+		}
+		md, err := session.GenerateMarkdownFromAgentSession(&data, false, true)
+		if err != nil {
+			slog.Debug("cloud preview: render failed", "sessionId", s.SessionID, "error", err)
+			return cloudPreviewMsg{seq: seq, markdown: "_(couldn't render this session)_"}
+		}
+		return cloudPreviewMsg{seq: seq, markdown: md}
+	}
+}
+
+// applyCloudPreview installs a cloud preview's markdown into the reader, but only if it's still the
+// one being shown (seq matches and the reader is open) — otherwise the user has closed it or moved
+// to another row and the result is stale.
+func (m sessionTUI) applyCloudPreview(msg cloudPreviewMsg) (tea.Model, tea.Cmd) {
+	if !m.previewing || msg.seq != m.previewSeq {
+		return m, nil
+	}
+	m.reader.SetContent(renderGlamour(msg.markdown, m.width))
+	m.reader.GotoTop()
+	return m, nil
 }
 
 // cloudFetchForActiveCmd starts a cloud fetch for the active project when the user is cloud-
@@ -252,6 +336,170 @@ func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
 	return out
 }
 
+// ---- cloud search (global search view) ----
+
+// cloudSearchDebounceDelay is the fire-on-pause window for cloud search: it only fires after this
+// much keyboard silence. Local FTS stays per-keystroke (searchDebounceDelay); the cloud query is
+// deliberately slower so a typed query makes 1-2 cloud requests, not one per keystroke.
+const cloudSearchDebounceDelay = 600 * time.Millisecond
+
+// cloud search serves two views: the global cross-project search (modeProjects) and the project-
+// scoped list search (modeList). kind routes a debounce/result to the right one; they share
+// cloudSearchSeq since only one is ever active at a time.
+type cloudSearchDebounceMsg struct {
+	seq  int
+	kind tuiMode
+}
+
+type cloudSearchResultMsg struct {
+	seq      int
+	kind     tuiMode
+	sessions []sessionindex.Session
+	snippets map[string]string
+	err      error
+}
+
+// cloudSearchDebounce schedules a fire-on-pause tick; on fire, the model checks the seq and cloud
+// eligibility before actually querying (so only the last keystroke in a burst hits the network).
+func cloudSearchDebounce(seq int, kind tuiMode) tea.Cmd {
+	return tea.Tick(cloudSearchDebounceDelay, func(time.Time) tea.Msg {
+		return cloudSearchDebounceMsg{seq: seq, kind: kind}
+	})
+}
+
+// cloudSearchCmd runs the aligned cloud search off the UI thread and converts hits to index rows.
+// projectID scopes the search to one project server-side ("" = all projects, for global search).
+func cloudSearchCmd(query string, seq int, kind tuiMode, projectID string, agentIDByName map[string]string) tea.Cmd {
+	return func() tea.Msg {
+		hits, err := cloud.SearchCloudSessions(query, projectID)
+		if err != nil {
+			return cloudSearchResultMsg{seq: seq, kind: kind, err: err}
+		}
+		sessions, snippets := cloudSearchHitsToSessions(hits, agentIDByName)
+		return cloudSearchResultMsg{seq: seq, kind: kind, sessions: sessions, snippets: snippets}
+	}
+}
+
+// cloudSearchHitsToSessions converts search hits to index rows (like cloudToSessions) and collects
+// their server-highlighted snippets, keyed by FingerprintKey so the renderer finds them.
+func cloudSearchHitsToSessions(
+	hits []cloud.CloudSearchHit, agentIDByName map[string]string,
+) ([]sessionindex.Session, map[string]string) {
+	sessions := make([]sessionindex.Session, 0, len(hits))
+	snippets := make(map[string]string, len(hits))
+	for _, h := range hits {
+		agentID, ok := agentIDByName[h.Metadata.AgentName]
+		if !ok {
+			slog.Debug("cloud search: skipping hit with unknown agent",
+				"agentName", h.Metadata.AgentName, "sessionId", h.ClientID)
+			continue
+		}
+		sessions = append(sessions, sessionindex.Session{
+			ProjectID:   h.ProjectID,
+			ProjectName: h.ProjectName,
+			Agent:       agentID,
+			SessionID:   h.ClientID,
+			CreatedAt:   firstNonEmpty(h.StartedAt, h.CreatedAt),
+			UpdatedAt:   firstNonEmpty(h.EndedAt, h.StartedAt, h.UpdatedAt),
+			Name:        cloudTitle(h.Metadata.Title, h.Name),
+			IsCloud:     true,
+			DeviceID:    h.Metadata.DeviceID,
+			MachineName: h.Metadata.MachineName,
+		})
+		if h.Snippet != "" {
+			snippets[sessionindex.FingerprintKey(agentID, h.ClientID)] = h.Snippet
+		}
+	}
+	return sessions, snippets
+}
+
+// applyCloudSearchDebounce fires the actual cloud query only if this is still the latest request
+// and cloud is eligible — otherwise it's a no-op (a newer keystroke superseded it, or the user
+// isn't Pro/logged-in).
+func (m sessionTUI) applyCloudSearchDebounce(msg cloudSearchDebounceMsg) (tea.Model, tea.Cmd) {
+	if msg.seq != m.cloudSearchSeq || !m.cloudEligible {
+		return m, nil
+	}
+	if msg.kind == modeList {
+		// Project-scoped list search: scope the cloud query to the active project server-side.
+		if !queryReady(m.searchQuery) {
+			return m, nil
+		}
+		m.cloudSearchPending = true
+		return m, cloudSearchCmd(m.searchQuery, msg.seq, modeList, m.projectID, m.agentIDByName)
+	}
+	// Global cross-project search: pass the current scope (globalScopeID; "" = all projects).
+	if !queryReady(m.globalQuery) {
+		return m, nil
+	}
+	m.cloudSearchPending = true
+	return m, cloudSearchCmd(m.globalQuery, msg.seq, modeProjects, m.globalScopeID, m.agentIDByName)
+}
+
+// applyCloudSearchResult merges a completed cloud search into the global results (dedup local-
+// preferred, re-sorted by recency), preserving the selected row. Stale/failed responses degrade
+// silently to local-only.
+func (m sessionTUI) applyCloudSearchResult(msg cloudSearchResultMsg) (tea.Model, tea.Cmd) {
+	if msg.seq != m.cloudSearchSeq {
+		return m, nil // a newer query superseded this one
+	}
+	m.cloudSearchPending = false
+	if msg.err != nil {
+		slog.Debug("cloud search failed, showing local only", "error", msg.err)
+		return m, nil
+	}
+
+	if msg.kind == modeList {
+		// Project-scoped list search: merge the cloud hits into m.filtered (deduped local-preferred,
+		// recency-sorted) via refilterCurrentAgent, preserving the selected row.
+		selID := ""
+		if sel := m.selected(); sel != nil {
+			selID = sel.SessionID
+		}
+		m.listCloud = msg.sessions
+		m.listCloudSnippets = msg.snippets
+		m.refilterCurrentAgent()
+		m.cursor = indexOfSession(m.filtered, selID)
+		m.clampScroll()
+		return m, nil
+	}
+
+	selID := ""
+	if sel := m.globalSelected(); sel != nil {
+		selID = sel.SessionID
+	}
+	m.globalCloud = msg.sessions
+	m.globalCloudSnippets = msg.snippets
+	m.rebuildGlobalResults()
+	m.globalCursor = indexOfSession(m.globalResults, selID)
+	m.clampGlobalScroll()
+	return m, nil
+}
+
+// rebuildGlobalResults derives the visible global-search list by merging the local FTS results with
+// the cloud search hits (dedup local-preferred, recency-sorted) and applying the agent + machine
+// filters. Cursor management is the caller's — this only rebuilds the list and the machine ring.
+func (m *sessionTUI) rebuildGlobalResults() {
+	src := m.globalLocal
+	if len(m.globalCloud) > 0 {
+		src = mergeCloudRows(m.globalLocal, m.globalCloud)
+	}
+	out := make([]sessionindex.Session, 0, len(src))
+	for _, s := range src {
+		// Project scope is applied server-side now (both the local FTS and the cloud query are scoped
+		// by globalScopeID), so both sources already contain only in-scope rows here.
+		if m.agentFilter != "" && s.Agent != m.agentFilter {
+			continue
+		}
+		if !m.machineMatch(s) {
+			continue
+		}
+		out = append(out, s)
+	}
+	m.globalResults = out
+	m.rebuildMachineCycle()
+}
+
 // applyCloudEligibility records the eligibility result, sets the appropriate nudge, and — when
 // eligible — starts the first cloud fetch for the active (home) project's sessions and the user's
 // cloud project list (for the blended all-projects browser).
@@ -270,10 +518,18 @@ func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, t
 		return m, nil
 	}
 	m.cloudPending = true
-	return m, tea.Batch(
+	cmds := []tea.Cmd{
 		cloudFetchCmd(m.projectID, m.agentIDByName),
 		cloudProjectsFetchCmd(),
-	)
+	}
+	// Opened straight into search with a pre-seeded query (`specstory search foo`): now that we know
+	// we're eligible, kick the cloud search too (the per-keystroke path only fires on later typing).
+	if m.globalActive && queryReady(m.globalQuery) {
+		m.cloudSearchSeq++
+		m.cloudSearchPending = true
+		cmds = append(cmds, cloudSearchCmd(m.globalQuery, m.cloudSearchSeq, modeProjects, m.globalScopeID, m.agentIDByName))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
@@ -441,7 +697,15 @@ func (m sessionTUI) applyCloudDeleteResult(msg cloudDeleteResultMsg) (tea.Model,
 		return m, nil
 	}
 
+	// Session delete: drop it from whichever cloud slice holds it and refresh that view.
 	m.cloudAll = removeSession(m.cloudAll, pd.agent, pd.sessionID)
+	m.globalCloud = removeSession(m.globalCloud, pd.agent, pd.sessionID)
+	if pd.source == deleteFromGlobal {
+		m.rebuildGlobalResults()
+		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
+		m.clampGlobalScroll()
+		return m, m.requestVisibleSnippets(modeProjects)
+	}
 	m.rebuildAgentCycle()
 	m.applyFilter()
 	m.cursor = clampIndex(m.cursor, len(m.filtered))

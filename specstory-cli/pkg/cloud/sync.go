@@ -68,6 +68,7 @@ type pendingSyncRequest struct {
 	rawData     []byte
 	sessionData string // normalized SessionData JSON (canonical cloud-resume blob)
 	agentName   string
+	title       string // readable session title (first user message), for metadata.title
 }
 
 // BulkSizesResponse represents the API response for bulk session sizes
@@ -105,6 +106,10 @@ type APIRequestMetadata struct {
 	// MachineName is os.Hostname() at sync time — displayed for the machine badge/filter
 	// while sessions group by the stable deviceId. Omitted when unavailable.
 	MachineName string `json:"machineName,omitempty"`
+	// Title is the readable session title (first user message via GenerateReadableName, capped at
+	// ~100 chars) so a cloud row shows the same prompt title a local row does, instead of the
+	// filename. Omitted when there is no user message to derive it from.
+	Title string `json:"title,omitempty"`
 }
 
 // ProjectData represents the structure of the .specstory/.project.json file
@@ -783,7 +788,7 @@ func GetSyncManager() *SyncManager {
 }
 
 // performSync executes the actual sync operation (HEAD check + PUT request)
-func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName string, skipHeadCheck bool) {
+func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, skipHeadCheck bool) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Log the sync attempt
@@ -875,6 +880,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 		AgentName:     agentName, // Use the passed-in agent name
 		DeviceID:      getDeviceID(),
 		MachineName:   getMachineName(),
+		Title:         title,
 	}
 	apiReq := APIRequest{
 		ProjectID:   projectID,
@@ -989,7 +995,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 
 // debouncedSync implements debouncing logic for a session
 // Always skips HEAD check since we know content just changed in autosave mode
-func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName string) {
+func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string) {
 	// Get or create debounce state for this session
 	stateInterface, _ := syncMgr.debounceSessions.LoadOrStore(sessionID, &sessionDebounceState{})
 	state := stateInterface.(*sessionDebounceState)
@@ -1020,7 +1026,7 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 				syncMgr.wg.Done()
 				atomic.AddInt32(&syncMgr.syncCount, -1)
 			}()
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, true)
+			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, true)
 		}()
 
 		// Log with timeSinceLastSync only if meaningful (not after cleanup)
@@ -1043,6 +1049,7 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 		rawData:     rawData,
 		sessionData: sessionData,
 		agentName:   agentName,
+		title:       title,
 	}
 
 	// Set timer if not already set
@@ -1097,7 +1104,7 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 			syncMgr.wg.Done()
 			atomic.AddInt32(&syncMgr.syncCount, -1)
 		}()
-		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, true)
+		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, true)
 	}()
 
 	slog.Debug("Flushed pending sync after debounce, cleaned up session state",
@@ -1134,7 +1141,7 @@ func (syncMgr *SyncManager) flushAllPending() {
 					syncMgr.wg.Done()
 					atomic.AddInt32(&syncMgr.syncCount, -1)
 				}()
-				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, true)
+				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, true)
 			}()
 
 			slog.Info("Flushing pending sync on shutdown",
@@ -1148,7 +1155,7 @@ func (syncMgr *SyncManager) flushAllPending() {
 // SyncSessionToCloud asynchronously syncs a session to the cloud
 // When isAutosaveMode is true (run command), syncs are debounced and skip HEAD checks for efficiency
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
-func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionData string, agentName string, isAutosaveMode bool) {
+func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionData string, agentName string, title string, isAutosaveMode bool) {
 	syncManagerMutex.RLock()
 	syncMgr := globalSyncManager
 	syncManagerMutex.RUnlock()
@@ -1171,7 +1178,7 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 	// Route to debounced or immediate sync based on mode
 	if isAutosaveMode {
 		// Autosave mode: debounce syncs and skip HEAD checks
-		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName)
+		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title)
 	} else {
 		// Manual sync mode: immediate sync with HEAD check
 		syncMgr.wg.Add(1)
@@ -1181,7 +1188,7 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 				syncMgr.wg.Done()
 				atomic.AddInt32(&syncMgr.syncCount, -1)
 			}()
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, false)
+			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, false)
 		}()
 	}
 }

@@ -140,6 +140,10 @@ type sessionTUI struct {
 	previewing    bool
 	reader        viewport.Model
 	readerSession *sessionindex.Session
+	// previewSeq is bumped on every openPreview. A cloud preview loads its markdown off-thread
+	// (a blob fetch), so its late-arriving result is applied only when this seq still matches —
+	// dropping the result if the user has since closed the reader or moved to another session.
+	previewSeq int
 
 	// confirmingDelete is a top-level modal (like previewing): 'd' in a session list, the global
 	// search results, or the project browser opens a y/N soft-delete confirmation for pendingDelete.
@@ -173,8 +177,24 @@ type sessionTUI struct {
 	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
 	// is just [all] until then. Keyed by stable deviceId; displayed by machineName.
 	machineFilter string         // "" = all; "local" = this machine; else a remote deviceId
-	machineCycle  []machineEntry // the filter ring, rebuilt from cloudAll
+	machineCycle  []machineEntry // the filter ring, rebuilt from cloud rows in play
 	deviceID      string         // this machine's stable id (for the "local only" match)
+
+	// Cloud search (global search view). Kept separate from the local FTS results, exactly like
+	// cloudAll vs all in browse, so a fresh local query (per keystroke) and a cloud result (on the
+	// slower fire-on-pause debounce) don't clobber each other; rebuildGlobalResults merges them.
+	globalLocal         []sessionindex.Session // raw local FTS results for the active global query
+	globalCloud         []sessionindex.Session // cloud search hits for the active global query
+	globalCloudSnippets map[string]string      // cloud snippets, keyed by FingerprintKey(agent, id)
+	cloudSearchSeq      int                    // debounce seq for cloud search (separate from searchSeq)
+	cloudSearchPending  bool                   // a cloud search is in flight (drives the indicator)
+
+	// Cloud search for the project-scoped list search (`/` inside a drilled-in project). Same
+	// separate-slice pattern as globalCloud: the server scopes these to the active project, and
+	// refilterCurrentAgent merges them into m.filtered so a per-keystroke local re-query can't
+	// discard them.
+	listCloud         []sessionindex.Session
+	listCloudSnippets map[string]string // cloud snippets for the list search, keyed by FingerprintKey
 
 	mode         tuiMode
 	chosen       *sessionindex.Session
@@ -327,6 +347,12 @@ func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.applyCloudProjects(msg)
 	case cloudDeleteResultMsg:
 		return m.applyCloudDeleteResult(msg)
+	case cloudSearchDebounceMsg:
+		return m.applyCloudSearchDebounce(msg)
+	case cloudSearchResultMsg:
+		return m.applyCloudSearchResult(msg)
+	case cloudPreviewMsg:
+		return m.applyCloudPreview(msg)
 	case tea.KeyPressMsg:
 		// Any keypress dismisses a lingering status notice (e.g. a failed delete); it has served
 		// its purpose once the user has read it and moved on.
@@ -624,6 +650,9 @@ func (m sessionTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.search.Blur()
 		m.searchQuery = ""
 		m.searchSeq++ // invalidate any in-flight search
+		m.cloudSearchSeq++
+		m.listCloud = nil
+		m.listCloudSnippets = nil
 		m.snippetSeq++
 		m.applyFilter()
 		return m, nil
@@ -642,13 +671,24 @@ func (m sessionTUI) updateSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	m.search, cmd = m.search.Update(msg)
 	m.searchQuery = m.search.Value()
 	m.searchSeq++
+	m.cloudSearchSeq++ // supersede any in-flight cloud search
+	// Current cloud hits are for the previous query — drop them so a fresh local result doesn't merge
+	// stale cloud rows; the fire-on-pause cloud search refills them.
+	m.listCloud = nil
+	m.listCloudSnippets = nil
 	if !queryReady(m.searchQuery) {
 		// Too short to search: show the full (agent-filtered) list synchronously.
+		m.cloudSearchPending = false
 		m.snippetSeq++
 		m.applyFilter()
 		return m, cmd
 	}
-	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeList))
+	cmds := []tea.Cmd{cmd, searchDebounce(m.searchSeq, modeList)}
+	// Cloud search fires on its own slower fire-on-pause debounce, only when eligible.
+	if m.cloudEligible {
+		cmds = append(cmds, cloudSearchDebounce(m.cloudSearchSeq, modeList))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 // updatePreview handles keys while the glamour preview reader is open. Close keys return to
@@ -680,9 +720,19 @@ func (m sessionTUI) openPreview(s *sessionindex.Session) (tea.Model, tea.Cmd) {
 	m.readerSession = s
 	m.reader.SetWidth(m.width)
 	m.reader.SetHeight(m.previewHeight())
-	m.reader.SetContent(renderGlamour(sessionMarkdown(m.registry, m.store, s), m.width))
 	m.reader.GotoTop()
 	m.previewing = true
+	m.previewSeq++
+
+	// A cloud-only session has no local native file and no local FTS body, so sessionMarkdown
+	// can't render it. Fetch its SessionData blob from the cloud (the same one resume uses) and
+	// render it off-thread, showing a placeholder meanwhile so the reader opens instantly.
+	if s.IsCloud {
+		m.reader.SetContent(renderGlamour("_Loading from SpecStory Cloud…_", m.width))
+		return m, cloudPreviewCmd(*s, m.previewSeq)
+	}
+
+	m.reader.SetContent(renderGlamour(sessionMarkdown(m.registry, m.store, s), m.width))
 	return m, nil
 }
 
@@ -885,7 +935,13 @@ func (m *sessionTUI) refilterCurrentAgent() {
 		src = mergeCloudRows(m.all, m.cloudAll)
 	}
 	if searching {
+		// Blend the project's cloud search hits (fetched server-side, scoped to this project) with the
+		// local FTS results — deduped local-preferred and recency-sorted, the same merge browse and
+		// global search use. Kept out of searchRaw so a per-keystroke local re-query can't drop them.
 		src = m.searchRaw
+		if len(m.listCloud) > 0 {
+			src = mergeCloudRows(m.searchRaw, m.listCloud)
+		}
 	}
 	out := make([]sessionindex.Session, 0, len(src))
 	for _, s := range src {

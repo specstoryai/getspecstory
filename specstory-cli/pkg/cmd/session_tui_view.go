@@ -152,7 +152,11 @@ func (m sessionTUI) renderRows() string {
 func (m sessionTUI) snippetAt(i int) string {
 	if i >= 0 && i < len(m.filtered) {
 		s := m.filtered[i]
-		return m.filteredSnippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]
+		key := sessionindex.FingerprintKey(s.Agent, s.SessionID)
+		if snip := m.filteredSnippets[key]; snip != "" {
+			return snip
+		}
+		return m.listCloudSnippets[key] // cloud hits carry their snippet from the server
 	}
 	return ""
 }
@@ -363,8 +367,7 @@ func (m sessionTUI) renderDeleteConfirm() string {
 }
 
 // renderCloudDeleteConfirm draws the confirmation for deleting a session or project from SpecStory
-// Cloud. Unlike the local soft delete, this is a permanent, cross-machine removal, so the copy says
-// so plainly.
+// Cloud.
 func (m sessionTUI) renderCloudDeleteConfirm(pd pendingDelete) string {
 	var b strings.Builder
 	b.WriteString(styBold.Render("Delete from SpecStory Cloud?"))
@@ -377,8 +380,6 @@ func (m sessionTUI) renderCloudDeleteConfirm(pd pendingDelete) string {
 		b.WriteString(styDim.Render("Cloud session: ") + stySel.Render(pd.label) + "\n")
 		b.WriteString("Deletes this session from SpecStory Cloud.")
 	}
-	b.WriteString("\n\n")
-	b.WriteString(styWarn.Render("This removes it from the cloud for ALL your machines and can't be undone."))
 	b.WriteString("\n\n")
 	b.WriteString(styBold.Render("Delete?") + styDim.Render("  y / N"))
 	return b.String()
