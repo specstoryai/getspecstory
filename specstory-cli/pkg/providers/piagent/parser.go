@@ -178,7 +178,7 @@ func mergeToolResult(current *schema.Exchange, e rawEntry) {
 	for i := range current.Messages {
 		msg := &current.Messages[i]
 		if msg.Tool != nil && msg.Tool.UseID == tr.ToolCallID {
-			msg.Tool.Output = map[string]any{"content": content, "is_error": tr.IsError}
+			msg.Tool.Output = buildToolOutput(content, tr)
 			msg.Timestamp = e.Timestamp
 			current.EndTime = e.Timestamp
 			return

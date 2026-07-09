@@ -153,6 +153,17 @@ func TestFormatFields_ToolResultFields(t *testing.T) {
 	if isErr, _ := tool.Tool.Output["is_error"].(bool); isErr {
 		t.Error("tool output is_error = true, want false")
 	}
+	details, hasDetails := tool.Tool.Output["details"]
+	if !hasDetails {
+		t.Fatal("tool output missing 'details' — toolResult details were dropped")
+	}
+	detMap, ok := details.(map[string]any)
+	if !ok {
+		t.Fatalf("details is %T, want map[string]any", details)
+	}
+	if exitCode, _ := detMap["exitCode"].(float64); exitCode != 0 {
+		t.Errorf("details.exitCode = %v, want 0", detMap["exitCode"])
+	}
 }
 
 // TestFormatFields_NonConversationRolesSkipped covers the message roles v1 does

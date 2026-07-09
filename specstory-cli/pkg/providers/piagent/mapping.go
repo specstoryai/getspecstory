@@ -126,6 +126,21 @@ func toolMessageID(entryID, callID string) string {
 	return entryID
 }
 
+// buildToolOutput constructs the ToolInfo.Output map from a toolResult's
+// content, error flag, and optional details blob. details (e.g. exitCode) is
+// decoded into a generic value so downstream consumers (markdown rendering,
+// cloud) can surface structured tool metadata without re-parsing raw JSON.
+func buildToolOutput(content string, tr toolResultMessage) map[string]any {
+	out := map[string]any{"content": content, "is_error": tr.IsError}
+	if len(tr.Details) > 0 {
+		var details any
+		if err := json.Unmarshal(tr.Details, &details); err == nil {
+			out["details"] = details
+		}
+	}
+	return out
+}
+
 // mapUsage converts a pi usage object to the schema Usage. pi's input/output map
 // to InputTokens/OutputTokens; cacheRead/cacheWrite map to the Claude-style
 // cache fields (pi uses the same semantics).

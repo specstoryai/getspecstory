@@ -88,9 +88,10 @@ type piUsage struct {
 
 // toolResultMessage is a pi toolResult-role message (a top-level entry).
 type toolResultMessage struct {
-	Role       string         `json:"role"`
-	ToolCallID string         `json:"toolCallId"`
-	ToolName   string         `json:"toolName"`
-	Content    []contentBlock `json:"content"`
-	IsError    bool           `json:"isError"`
+	Role       string          `json:"role"`
+	ToolCallID string          `json:"toolCallId"`
+	ToolName   string          `json:"toolName"`
+	Content    []contentBlock  `json:"content"`
+	Details    json.RawMessage `json:"details,omitempty"` // tool-specific metadata (e.g. exitCode)
+	IsError    bool            `json:"isError"`
 }

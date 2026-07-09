@@ -100,15 +100,17 @@ func firstUserText(e rawEntry) string {
 }
 
 // userContentString extracts a plain string from a pi user message content
-// field (either a string or an array of {type:text} blocks).
+// field (either a string or an array of {type:text} blocks). The result is
+// trimmed so the scan path produces the same Slug/Name as the full-parse path
+// (deriveSlug trims too).
 func userContentString(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
 	}
+	var s string
 	if raw[0] == '"' {
-		var s string
 		if err := json.Unmarshal(raw, &s); err == nil {
-			return s
+			return strings.TrimSpace(s)
 		}
 	}
 	var blocks []contentBlock
@@ -117,7 +119,7 @@ func userContentString(raw json.RawMessage) string {
 	}
 	for _, b := range blocks {
 		if b.Type == "text" && b.Text != "" {
-			return b.Text
+			return strings.TrimSpace(b.Text)
 		}
 	}
 	return ""
