@@ -31,6 +31,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`  |
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)     | JSON        | `~/.gemini/tmp/`        |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/` |
+| [Pi](https://pi.dev)                                      | [piagent](pkg/providers/piagent/)         | JSONL       | `~/.pi/agent/sessions/` |
 
 ### Agent Provider SPI (Service Provider Interface)
 

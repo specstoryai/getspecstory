@@ -1,0 +1,149 @@
+package piagent
+
+import (
+	"encoding/json"
+	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+)
+
+// buildUserMessage maps a pi user message entry to a schema user Message.
+// pi user content is either a plain string or an array of {type:text|image}.
+func buildUserMessage(e rawEntry) schema.Message {
+	var um userMessage
+	_ = json.Unmarshal(e.Message, &um)
+	parts := userContentParts(um.Content)
+	return schema.Message{
+		ID:        e.ID,
+		Timestamp: e.Timestamp,
+		Role:      schema.RoleUser,
+		Content:   parts,
+	}
+}
+
+// userContentParts decodes a pi user message's content (string or array) into
+// schema ContentParts. Image blocks are dropped in v1 (recorded as a gap).
+func userContentParts(raw json.RawMessage) []schema.ContentPart {
+	if len(raw) == 0 {
+		return nil
+	}
+	if raw[0] == '"' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			return []schema.ContentPart{{Type: schema.ContentTypeText, Text: s}}
+		}
+	}
+	var blocks []contentBlock
+	if err := json.Unmarshal(raw, &blocks); err != nil {
+		return nil
+	}
+	var parts []schema.ContentPart
+	for _, b := range blocks {
+		if b.Type == schema.ContentTypeText && b.Text != "" {
+			parts = append(parts, schema.ContentPart{Type: schema.ContentTypeText, Text: b.Text})
+		}
+	}
+	return parts
+}
+
+// buildAgentMessages maps a pi assistant message entry to one or more schema
+// Messages: one Message holds the text+thinking content parts; each toolCall
+// block becomes its own agent Message carrying a ToolInfo.
+func buildAgentMessages(e rawEntry) []schema.Message {
+	var am assistantMessage
+	if err := json.Unmarshal(e.Message, &am); err != nil {
+		return nil
+	}
+	var parts []schema.ContentPart
+	var messages []schema.Message
+	for _, b := range am.Content {
+		switch b.Type {
+		case schema.ContentTypeText:
+			if b.Text != "" {
+				parts = append(parts, schema.ContentPart{Type: schema.ContentTypeText, Text: b.Text})
+			}
+		case schema.ContentTypeThinking:
+			if b.Thinking != "" {
+				parts = append(parts, schema.ContentPart{Type: schema.ContentTypeThinking, Text: b.Thinking})
+			}
+		case "toolCall":
+			messages = append(messages, buildToolMessage(e, b))
+		}
+	}
+	if len(parts) > 0 {
+		head := schema.Message{
+			ID:        e.ID,
+			Timestamp: e.Timestamp,
+			Role:      schema.RoleAgent,
+			Model:     am.Model,
+			Content:   parts,
+			Usage:     mapUsage(am.Usage),
+		}
+		return append([]schema.Message{head}, messages...)
+	}
+	if len(messages) == 0 {
+		// An assistant message with only a toolCall still carries usage/model on
+		// the tool message so nothing is lost.
+		if len(messages) == 0 {
+			messages = append(messages, schema.Message{
+				ID:        e.ID,
+				Timestamp: e.Timestamp,
+				Role:      schema.RoleAgent,
+				Model:     am.Model,
+				Usage:     mapUsage(am.Usage),
+			})
+		}
+	}
+	return messages
+}
+
+// buildToolMessage builds an agent Message wrapping a ToolInfo from a toolCall.
+func buildToolMessage(e rawEntry, b contentBlock) schema.Message {
+	return schema.Message{
+		ID:        e.ID,
+		Timestamp: e.Timestamp,
+		Role:      schema.RoleAgent,
+		Model:     "",
+		Tool: &schema.ToolInfo{
+			Name:  b.Name,
+			Type:  classifyToolType(b.Name),
+			UseID: b.ID,
+			Input: b.Args,
+		},
+	}
+}
+
+// mapUsage converts a pi usage object to the schema Usage. pi's input/output map
+// to InputTokens/OutputTokens; cacheRead/cacheWrite map to the Claude-style
+// cache fields (pi uses the same semantics).
+func mapUsage(u *piUsage) *schema.Usage {
+	if u == nil {
+		return nil
+	}
+	return &schema.Usage{
+		InputTokens:              int(u.Input),
+		OutputTokens:             int(u.Output),
+		CacheReadInputTokens:     int(u.CacheRead),
+		CacheCreationInputTokens: int(u.CacheWrite),
+	}
+}
+
+// classifyToolType maps pi tool names to the schema tool-type taxonomy.
+func classifyToolType(name string) string {
+	switch strings.ToLower(name) {
+	case "read":
+		return schema.ToolTypeRead
+	case "edit", "write":
+		return schema.ToolTypeWrite
+	case "bash":
+		return schema.ToolTypeShell
+	case "grep", "find", "ls", "web_search", "fetch_content":
+		return schema.ToolTypeSearch
+	case "until_done_set", "until_done_plan", "until_done_task_update",
+		"until_done_progress", "until_done_complete", "until_done_block",
+		"until_done_replan", "until_done_distill":
+		return schema.ToolTypeTask
+	default:
+		return schema.ToolTypeUnknown
+	}
+}
