@@ -55,7 +55,8 @@ func readHeader(path string) (*sessionHeader, error) {
 }
 
 // listProjectSessions returns all session files in the project's pi directory
-// with their headers, skipping malformed files.
+// with their headers. Non-session files (readHeader returns nil,nil) are
+// skipped silently; only a genuine read error is logged.
 func listProjectSessions(projectPath string) ([]sessionFile, error) {
 	files, err := SessionFilesInProject(projectPath)
 	if err != nil {
@@ -64,9 +65,12 @@ func listProjectSessions(projectPath string) ([]sessionFile, error) {
 	var out []sessionFile
 	for _, f := range files {
 		h, err := readHeader(f)
-		if err != nil || h == nil {
-			slog.Debug("pi: skipping malformed session file", "path", f, "error", err)
+		if err != nil {
+			slog.Debug("pi: skipping unreadable session file", "path", f, "error", err)
 			continue
+		}
+		if h == nil {
+			continue // not a pi session file (bad header type/id)
 		}
 		out = append(out, sessionFile{Path: f, Header: *h})
 	}
@@ -132,7 +136,6 @@ func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, err
 	}, nil
 }
 
-// deriveSlug returns a filename-safe slug from the first user message text.
 // ListAgentChatSessions returns lightweight metadata for all project sessions
 // without a full parse (header fields only).
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {

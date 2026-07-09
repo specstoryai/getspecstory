@@ -34,12 +34,14 @@ func (p *Provider) Name() string { return providerName }
 // Check verifies the pi binary is on PATH and reports its version.
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName := strings.TrimSpace(customCommand)
+	isCustom := cmdName != ""
 	if cmdName == "" {
 		cmdName = defaultCmd
 	}
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
 		slog.Info("pi: Check binary not found", "command", cmdName, "error", err)
+		trackCheckFailure(isCustom, cmdName, "", "not_found", err.Error())
 		return spi.CheckResult{
 			Success:      false,
 			ErrorMessage: fmt.Sprintf("pi binary '%s' not found on PATH", cmdName),
@@ -51,6 +53,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		slog.Info("pi: Check version probe failed", "resolved", resolved, "error", err)
+		trackCheckFailure(isCustom, cmdName, resolved, "version_probe_failed", err.Error())
 		return spi.CheckResult{
 			Success:      false,
 			Location:     resolved,
@@ -61,6 +64,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = "unknown"
 	}
+	trackCheckSuccess(isCustom, cmdName, resolved, version)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 

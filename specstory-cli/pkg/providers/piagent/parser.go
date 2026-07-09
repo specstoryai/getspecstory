@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -64,6 +65,13 @@ func readEntries(path string) (*sessionHeader, []rawEntry, error) {
 		}
 		var e rawEntry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
+			continue
+		}
+		// Skip malformed entries missing the envelope fields the tree walk and
+		// exchange grouping rely on; a stray entry with no id can mislead leaf
+		// selection (the last file-order entry is treated as the leaf).
+		if e.Type == "" || e.ID == "" {
+			slog.Debug("pi: skipping entry with empty type or id", "file", path)
 			continue
 		}
 		entries = append(entries, e)
@@ -155,7 +163,9 @@ func messageRole(e rawEntry) string {
 }
 
 // mergeToolResult folds a toolResult entry into the matching agent ToolInfo in
-// the current exchange, keyed by toolCallId == ToolInfo.UseID.
+// the current exchange, keyed by toolCallId == ToolInfo.UseID. It also advances
+// the exchange EndTime to the toolResult's timestamp so downstream stats that
+// read the last exchange's EndTime report the real final-event time.
 func mergeToolResult(current *schema.Exchange, e rawEntry) {
 	if current == nil {
 		return
@@ -170,6 +180,7 @@ func mergeToolResult(current *schema.Exchange, e rawEntry) {
 		if msg.Tool != nil && msg.Tool.UseID == tr.ToolCallID {
 			msg.Tool.Output = map[string]any{"content": content, "is_error": tr.IsError}
 			msg.Timestamp = e.Timestamp
+			current.EndTime = e.Timestamp
 			return
 		}
 	}

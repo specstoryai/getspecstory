@@ -97,10 +97,13 @@ func buildAgentMessages(e rawEntry) []schema.Message {
 
 // buildToolMessage builds an agent Message wrapping a ToolInfo from a toolCall.
 // The parent assistant message's model is passed through so tool messages carry
-// the same model metadata as text/thinking messages.
+// the same model metadata as text/thinking messages. The Message ID is derived
+// from the parent entry id + the toolCall id, so multiple toolCalls in one
+// assistant message get distinct Message IDs (downstream provenance keys use
+// msg.ID as a deterministic component).
 func buildToolMessage(e rawEntry, b contentBlock, am assistantMessage) schema.Message {
 	return schema.Message{
-		ID:        e.ID,
+		ID:        toolMessageID(e.ID, b.ID),
 		Timestamp: e.Timestamp,
 		Role:      schema.RoleAgent,
 		Model:     am.Model,
@@ -111,6 +114,16 @@ func buildToolMessage(e rawEntry, b contentBlock, am assistantMessage) schema.Me
 			Input: b.Args,
 		},
 	}
+}
+
+// toolMessageID builds a unique Message ID for a tool-call message from the
+// parent entry id and the toolCall id. This avoids duplicate Message IDs when a
+// single assistant entry contains multiple toolCall blocks.
+func toolMessageID(entryID, callID string) string {
+	if callID != "" {
+		return entryID + ":" + callID
+	}
+	return entryID
 }
 
 // mapUsage converts a pi usage object to the schema Usage. pi's input/output map
@@ -129,6 +142,8 @@ func mapUsage(u *piUsage) *schema.Usage {
 }
 
 // deriveSlug returns a filename-safe slug from the first user message text.
+// The trimmed text is passed to GenerateFilenameFromUserMessage so slugs do not
+// differ only by leading/trailing whitespace.
 func deriveSlug(data *schema.SessionData) string {
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
@@ -137,7 +152,7 @@ func deriveSlug(data *schema.SessionData) string {
 			}
 			for _, part := range msg.Content {
 				if t := strings.TrimSpace(part.Text); t != "" {
-					return spi.GenerateFilenameFromUserMessage(part.Text)
+					return spi.GenerateFilenameFromUserMessage(t)
 				}
 			}
 		}
@@ -152,9 +167,9 @@ func classifyToolType(name string) string {
 		return schema.ToolTypeRead
 	case "edit", "write":
 		return schema.ToolTypeWrite
-	case "bash":
+	case "bash", "ls":
 		return schema.ToolTypeShell
-	case "grep", "find", "ls", "web_search", "fetch_content":
+	case "grep", "find", "web_search", "fetch_content":
 		return schema.ToolTypeSearch
 	case "until_done_set", "until_done_plan", "until_done_task_update",
 		"until_done_progress", "until_done_complete", "until_done_block",
