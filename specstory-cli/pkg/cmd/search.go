@@ -124,15 +124,19 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 				slog.Debug("search: failed to persist resume prefs", "error", err)
 			}
 
+			// A search hit can be from another project; resume must load the source from its
+			// original cwd, not the current directory. The guard also prefers a local copy when a
+			// cloud-badged hit is actually present on this machine.
+			fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
 			plan := &resumePlan{
 				from:      fromProv,
 				fromID:    rm.result.session.Agent,
 				sessionID: rm.result.session.SessionID,
-				// A search hit can be from another project; resume must load the source from
-				// its original cwd, not the current directory.
-				fromCwd: rm.result.session.OriginCwd,
-				to:      toProv,
-				toID:    rm.result.targetID,
+				fromCwd:   fromCwd,
+				to:        toProv,
+				toID:      rm.result.targetID,
+				fromCloud: fromCloud,
+				projectID: rm.result.session.ProjectID,
 			}
 			return launchResume(plan, cwd, launchOpts)
 		},

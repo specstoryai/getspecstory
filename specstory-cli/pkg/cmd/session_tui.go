@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
@@ -51,9 +52,12 @@ type pendingDelete struct {
 	source    deleteSource
 	agent     string // session target (deleteFromList / deleteFromGlobal)
 	sessionID string
-	projectID string // project target (deleteFromProjects)
+	projectID string // project target (deleteFromProjects); also the cloud project for a cloud session
 	label     string // human label for the confirmation line
 	count     int    // project session count (deleteFromProjects)
+	// isCloud routes the delete to the Cloud API (a permanent, cross-machine delete) instead of a
+	// local soft delete, and switches the confirmation copy to match.
+	isCloud bool
 }
 
 // agentMeta carries an agent's display name + accent color for the list.
@@ -147,6 +151,31 @@ type sessionTUI struct {
 	// disappearing, so a failure would look like a silent no-op without this.
 	statusMsg string
 
+	// Cloud resume: SpecStory Cloud sessions from the user's OTHER machines, blended
+	// into the browser best-effort and local-first. Eligibility (logged-in + Pro) is
+	// checked once, async, off the UI thread; cloudEligible gates fetches; cloudPending drives the
+	// "searching cloud…" indicator; cloudNudge is the footer invitation shown to ineligible users.
+	// agentIDByName reverse-maps a cloud row's display agent name ("Claude Code") back to
+	// the provider id ("claude") that dedup and the resume/reconstruct path key on.
+	cloudChecked  bool
+	cloudEligible bool
+	cloudPending  bool
+	cloudNudge    string
+	// cloudAll holds the active project's cloud sessions SEPARATELY from m.all. They must not live
+	// in m.all: the background index warm and post-delete refresh both do `m.all = ListByProject()`,
+	// which would discard anything merged into it. Instead they're merged with m.all at filter time
+	// (refilterCurrentAgent), so a local re-query can't wipe them.
+	cloudAll      []sessionindex.Session
+	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
+	agentIDByName map[string]string             // agent display name -> provider id
+
+	// Machine filter (the `m` key), modeled on the agent filter: cycle all → "local only" → each
+	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
+	// is just [all] until then. Keyed by stable deviceId; displayed by machineName.
+	machineFilter string         // "" = all; "local" = this machine; else a remote deviceId
+	machineCycle  []machineEntry // the filter ring, rebuilt from cloudAll
+	deviceID      string         // this machine's stable id (for the "local only" match)
+
 	mode         tuiMode
 	chosen       *sessionindex.Session
 	targetCursor int
@@ -197,6 +226,13 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 		projSearch:      pi,
 		globalInput:     gi,
 	}
+	// Reverse map for blending cloud rows: their metadata carries the display agent name, but
+	// dedup and resume key on the provider id.
+	m.agentIDByName = make(map[string]string, len(agents))
+	for id, meta := range agents {
+		m.agentIDByName[meta.name] = id
+	}
+	m.deviceID = cloud.DeviceID()
 	m.rebuildAgentCycle()
 	m.applyFilter()
 
@@ -224,15 +260,17 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 }
 
 func (m sessionTUI) Init() tea.Cmd {
+	// Kick the async cloud-eligibility check once on open (off the UI thread). When it resolves,
+	// Update either starts the first cloud fetch (eligible) or sets the footer nudge.
+	cmds := []tea.Cmd{cloudEligibilityCmd()}
 	// Search starts focused in the all-projects input; kick the blink and any pre-seeded query.
 	if m.globalSearching {
-		cmds := []tea.Cmd{m.globalInput.Focus()}
+		cmds = append(cmds, m.globalInput.Focus())
 		if queryReady(m.globalQuery) {
 			cmds = append(cmds, searchDebounce(m.searchSeq, modeProjects))
 		}
-		return tea.Batch(cmds...)
 	}
-	return nil
+	return tea.Batch(cmds...)
 }
 
 func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -281,6 +319,14 @@ func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+	case cloudEligibilityMsg:
+		return m.applyCloudEligibility(msg)
+	case cloudSessionsMsg:
+		return m.applyCloudSessions(msg)
+	case cloudProjectsMsg:
+		return m.applyCloudProjects(msg)
+	case cloudDeleteResultMsg:
+		return m.applyCloudDeleteResult(msg)
 	case tea.KeyPressMsg:
 		// Any keypress dismisses a lingering status notice (e.g. a failed delete); it has served
 		// its purpose once the user has read it and moved on.
@@ -419,12 +465,14 @@ func (m sessionTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.search.Focus()
 	case "a":
 		return m, m.cycleAgent()
+	case "m":
+		return m, m.cycleMachine()
 	case "v":
 		m.toggleViewMode()
 		return m, m.requestVisibleSnippets(modeList)
 	case "d":
 		if sel := m.selected(); sel != nil {
-			m.pendingDelete = pendingDelete{source: deleteFromList, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
+			m.pendingDelete = pendingDelete{source: deleteFromList, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}
 			m.confirmingDelete = true
 		}
 	}
@@ -453,6 +501,12 @@ func (m sessionTUI) updateDeleteConfirm(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 func (m sessionTUI) performDelete() (tea.Model, tea.Cmd) {
 	m.confirmingDelete = false
 	pd := m.pendingDelete
+
+	// Cloud rows delete from SpecStory Cloud via the API, async so a slow/down server can't freeze
+	// the TUI. The row stays until the delete confirms (applyCloudDeleteResult removes it).
+	if pd.isCloud {
+		return m, cloudDeleteCmd(pd)
+	}
 
 	affected, err := softDeletePending(pd)
 	if err != nil {
@@ -741,12 +795,19 @@ func (m *sessionTUI) rebuildAgentCycle() {
 	for _, s := range m.all {
 		present[s.Agent] = true
 	}
+	// Cloud rows can introduce agents not present locally, so include them in the filter ring.
+	for _, s := range m.cloudAll {
+		present[s.Agent] = true
+	}
 	ids := make([]string, 0, len(present))
 	for id := range present {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
 	m.agentCycle = append([]string{""}, ids...)
+	// The machine ring is derived from the same row set (specifically the cloud rows), so keep it
+	// in lockstep with the agent ring.
+	m.rebuildMachineCycle()
 }
 
 func (m *sessionTUI) cycleAgent() tea.Cmd {
@@ -817,14 +878,24 @@ func (m *sessionTUI) applyFilter() {
 func (m *sessionTUI) refilterCurrentAgent() {
 	searching := queryReady(m.searchQuery)
 	src := m.all
+	// Browse (no active search): blend the active project's cloud sessions with the local ones —
+	// deduped local-preferred and re-sorted by recency. Kept out of m.all so local re-queries
+	// (index warm, post-delete refresh) can't discard them. Search stays local-only for now.
+	if len(m.cloudAll) > 0 {
+		src = mergeCloudRows(m.all, m.cloudAll)
+	}
 	if searching {
 		src = m.searchRaw
 	}
 	out := make([]sessionindex.Session, 0, len(src))
 	for _, s := range src {
-		if m.agentFilter == "" || s.Agent == m.agentFilter {
-			out = append(out, s)
+		if m.agentFilter != "" && s.Agent != m.agentFilter {
+			continue
 		}
+		if !m.machineMatch(s) {
+			continue
+		}
+		out = append(out, s)
 	}
 	m.filtered = out
 	if searching {

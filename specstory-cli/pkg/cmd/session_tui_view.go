@@ -23,7 +23,22 @@ var (
 	styCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
 	stySel    = lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
 	styWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true) // transient error notice
+	styCloud  = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))             // cloud-sourced marker (blue)
 )
+
+// cloudMark is a 2-column gutter marker: a cloud glyph on cloud-sourced rows, blank on local
+// rows. It pads to exactly 2 columns regardless of the glyph's terminal width (a cloud emoji can
+// measure 1 or 2 cells depending on the terminal) so the agent column stays aligned across rows.
+func cloudMark(isCloud bool) string {
+	if !isCloud {
+		return "  "
+	}
+	pad := 2 - lipgloss.Width("☁")
+	if pad < 0 {
+		pad = 0
+	}
+	return styCloud.Render("☁") + strings.Repeat(" ", pad)
+}
 
 func (m sessionTUI) View() tea.View {
 	var content string
@@ -45,6 +60,11 @@ func (m sessionTUI) View() tea.View {
 	// itself never sets one, so it only appears once we're back on a normal view.
 	if m.statusMsg != "" {
 		content += "\n" + styWarn.Render(m.statusMsg)
+	}
+	// The cloud nudge invites ineligible users (logged out / not Pro) to unlock cross-machine
+	// resume. Shown only on the browse/search screens, not over a modal or the target-agent step.
+	if m.cloudNudge != "" && !m.previewing && !m.confirmingDelete && m.mode != modeTarget {
+		content += "\n" + styFaint.Render(m.cloudNudge)
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
@@ -94,12 +114,20 @@ func (m sessionTUI) agentScope() string {
 func (m sessionTUI) renderHeader() string {
 	// Agent filter sits left, right after the project, rather than tucked in the far corner.
 	left := m.headerLeft(m.projectScope()) + styDim.Render("  ·  ") + m.agentScope()
+	// Surface the active machine filter alongside the agent one, matching its "agent: X" form.
+	if ml := m.machineScopeLabel(); ml != "" {
+		left += styDim.Render("  ·  ") + styDim.Render("machine: ") + stySel.Render(ml)
+	}
 	right := ""
 	// Surface a locked-in scoped search the same way the all-projects search does: a labelled
 	// "search: <q>" chip on the left and a match count on the right, so the filter isn't invisible.
 	if q := strings.TrimSpace(m.searchQuery); q != "" && !m.searching {
 		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
 		right = styDim.Render(fmt.Sprintf("%d matches", len(m.filtered)))
+	}
+	// Surface the in-flight cloud fetch when the right corner is otherwise free.
+	if m.cloudPending && right == "" {
+		right = styDim.Render("☁ searching cloud…")
 	}
 	return headerRow(left, right, m.lineWidth())
 }
@@ -152,25 +180,35 @@ func rowLabel(s sessionindex.Session, selected bool, snippet string, titleWidth,
 // shows the highlighted match context instead of the session title.
 func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet string) string {
 	cursor := rowCursor(selected)
+	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
 	agent := m.agentTag(s.Agent)
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
 
 	if m.viewMode == "sparse" {
-		turns := styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
-		label := rowLabel(s, selected, snippet, m.lineWidth()-24, m.lineWidth()-26)
-		head := cursor + agent + "  " + label + "   " + turns
-		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+		// Cloud rows carry no turn count (the lean list omits it), so suppress the column rather
+		// than render a misleading "0 prompts".
+		turns := ""
+		if !s.IsCloud {
+			turns = styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
+		}
+		label := rowLabel(s, selected, snippet, m.lineWidth()-27, m.lineWidth()-29)
+		head := cursor + mark + " " + agent + "  " + label + "   " + turns
+		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
 	}
-	turns := styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
+	// Blank 4-col slot for cloud rows (no local turn count) so the column stays aligned.
+	turns := "    "
+	if !s.IsCloud {
+		turns = styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
+	}
 	// A year-stamped date ("Dec 31 '25") is wider than the 4-col slot; shrink the label by the
 	// overflow so the right-hand turns column can't get pushed off the line and wrap.
 	extra := len(when) - 4
 	if extra < 0 {
 		extra = 0
 	}
-	label := rowLabel(s, selected, snippet, m.lineWidth()-22-extra, m.lineWidth()-24-extra)
-	return cursor + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
+	label := rowLabel(s, selected, snippet, m.lineWidth()-25-extra, m.lineWidth()-27-extra)
+	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
 }
 
 // renderSnippet renders a FTS snippet (matched terms wrapped in the control-char marks)
@@ -239,7 +277,12 @@ func (m sessionTUI) renderFooter() string {
 	if m.inBrowser {
 		scopeKey = "tab/esc back"
 	}
-	keys := []string{"↑↓ move", "r resume", "space preview", "/ search", "a agent", "d delete", scopeKey, "v " + m.viewMode, "q quit"}
+	keys := []string{"↑↓ move", "r resume", "space preview", "/ search", "a agent"}
+	// Only offer the machine filter when there's actually another machine to focus on.
+	if len(m.machineCycle) > 1 {
+		keys = append(keys, "m machine")
+	}
+	keys = append(keys, "d delete", scopeKey, "v "+m.viewMode, "q quit")
 	return styDim.Render(strings.Join(keys, " · "))
 }
 
@@ -272,7 +315,9 @@ func (m sessionTUI) renderTarget() string {
 	for i, a := range m.installed {
 		cursor := "   "
 		label := a.provider.Name()
-		if m.chosen != nil && a.id == m.chosen.Agent {
+		// The "native resume" hint applies only to local sessions. A cloud session has no local
+		// native file, so even the same agent reconstructs — show no extra label there.
+		if m.chosen != nil && a.id == m.chosen.Agent && !m.chosen.IsCloud {
 			label += styFaint.Render(" (same agent — native resume)")
 		}
 		if i == m.targetCursor {
@@ -291,6 +336,9 @@ func (m sessionTUI) renderTarget() string {
 // only be undone by wiping and rebuilding the index.
 func (m sessionTUI) renderDeleteConfirm() string {
 	pd := m.pendingDelete
+	if pd.isCloud {
+		return m.renderCloudDeleteConfirm(pd)
+	}
 	var b strings.Builder
 	b.WriteString(styBold.Render("Remove from the index?"))
 	b.WriteString("\n\n")
@@ -309,6 +357,28 @@ func (m sessionTUI) renderDeleteConfirm() string {
 	b.WriteString(styFaint.Render("won't be re-indexed. To restore it, delete ~/.specstory/sessions.db and run"))
 	b.WriteString("\n")
 	b.WriteString(styFaint.Render("`specstory reindex`."))
+	b.WriteString("\n\n")
+	b.WriteString(styBold.Render("Delete?") + styDim.Render("  y / N"))
+	return b.String()
+}
+
+// renderCloudDeleteConfirm draws the confirmation for deleting a session or project from SpecStory
+// Cloud. Unlike the local soft delete, this is a permanent, cross-machine removal, so the copy says
+// so plainly.
+func (m sessionTUI) renderCloudDeleteConfirm(pd pendingDelete) string {
+	var b strings.Builder
+	b.WriteString(styBold.Render("Delete from SpecStory Cloud?"))
+	b.WriteString("\n\n")
+
+	if pd.source == deleteFromProjects {
+		b.WriteString(styDim.Render("Cloud project: ") + stySel.Render(pd.label) + "\n")
+		fmt.Fprintf(&b, "Deletes this project and all %d of its sessions from SpecStory Cloud.", pd.count)
+	} else {
+		b.WriteString(styDim.Render("Cloud session: ") + stySel.Render(pd.label) + "\n")
+		b.WriteString("Deletes this session from SpecStory Cloud.")
+	}
+	b.WriteString("\n\n")
+	b.WriteString(styWarn.Render("This removes it from the cloud for ALL your machines and can't be undone."))
 	b.WriteString("\n\n")
 	b.WriteString(styBold.Render("Delete?") + styDim.Render("  y / N"))
 	return b.String()

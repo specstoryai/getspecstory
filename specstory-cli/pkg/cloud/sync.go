@@ -29,7 +29,7 @@ const (
 	// CloudSyncTimeout is the maximum time to wait for cloud sync operations to complete.
 	// Raised from 120s when the push began carrying SessionData (in addition to markdown +
 	// rawData); a gzipped body shrinks upload time but the aggregate ceiling still needs
-	// more headroom for large multi-blob sessions (D22).
+	// more headroom for large multi-blob sessions.
 	CloudSyncTimeout = 180 * time.Second // Allow 3 minutes for large sessions to upload
 
 	// MaxConcurrentHTTPRequests limits the total number of concurrent HTTP requests (HEAD + PUT combined)
@@ -66,7 +66,7 @@ type pendingSyncRequest struct {
 	mdPath      string
 	mdContent   string
 	rawData     []byte
-	sessionData string // normalized SessionData JSON (canonical cloud-resume blob, D2)
+	sessionData string // normalized SessionData JSON (canonical cloud-resume blob)
 	agentName   string
 }
 
@@ -89,8 +89,8 @@ type APIRequest struct {
 	Markdown    string `json:"markdown"`
 	RawData     string `json:"rawData"`
 	// SessionData is the normalized schema.SessionData JSON — the canonical cloud-resume
-	// representation the server stores verbatim as a session-data.json blob (D2/D3). It is
-	// added alongside rawData, not a replacement (D4). Omitted when empty so pushes for
+	// representation the server stores verbatim as a session-data.json blob. It is
+	// added alongside rawData, not a replacement. Omitted when empty so pushes for
 	// sessions without SessionData behave exactly as before.
 	SessionData string             `json:"sessionData,omitempty"`
 	Metadata    APIRequestMetadata `json:"metadata"`
@@ -103,7 +103,7 @@ type APIRequestMetadata struct {
 	AgentName     string `json:"agentName"`
 	DeviceID      string `json:"deviceId"`
 	// MachineName is os.Hostname() at sync time — displayed for the machine badge/filter
-	// while sessions group by the stable deviceId (D9). Omitted when unavailable.
+	// while sessions group by the stable deviceId. Omitted when unavailable.
 	MachineName string `json:"machineName,omitempty"`
 }
 
@@ -502,7 +502,7 @@ func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID
 		// Self-heal: the server emits a suffixed "<sessionID>:sessionData" key holding the
 		// SessionData blob's byte size, only when the blob exists. A missing key reads as 0
 		// via Go's zero-value map lookup — which is exactly the re-send signal for legacy
-		// sessions that predate SessionData, backfilling the cloud-resume corpus (D7).
+		// sessions that predate SessionData, backfilling the cloud-resume corpus.
 		serverSessionDataSize := bulkSizes[sessionID+":sessionData"]
 
 		// Sync when markdown grew OR the session has no SessionData blob yet
@@ -604,7 +604,7 @@ func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID
 		}
 
 		// Self-heal: re-send when the server has no SessionData blob for this session yet.
-		// The X-Session-Data-Size header is NULL-coerced-to-0 server-side (D7); a missing or
+		// The X-Session-Data-Size header is NULL-coerced-to-0 server-side; a missing or
 		// zero value (legacy session, or a server that predates the header) triggers a re-send
 		// that backfills the cloud-resume corpus.
 		serverSessionDataSize := 0
@@ -677,6 +677,13 @@ func GetUserAgent() string {
 	return fmt.Sprintf("%s/%s SpecStory, Inc.", ClientName, clientVersion)
 }
 
+// DeviceID returns this machine's stable device id (the same value pushed as metadata.deviceId).
+// The resume browser uses it to tell this machine's cloud rows from other machines' for the
+// machine filter.
+func DeviceID() string {
+	return getDeviceID()
+}
+
 // getDeviceID generates a unique device ID based on MAC address
 func getDeviceID() string {
 	// Return cached value if available
@@ -714,7 +721,7 @@ func getDeviceID() string {
 	return deviceID
 }
 
-// gzipBytes compresses the given bytes with gzip for the cloud sync PUT body (D22).
+// gzipBytes compresses the given bytes with gzip for the cloud sync PUT body.
 func gzipBytes(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
@@ -731,7 +738,7 @@ func gzipBytes(data []byte) ([]byte, error) {
 
 // getMachineName returns the human-readable machine name (os.Hostname) captured once and
 // cached. Unlike the stable deviceId (which sessions group by), this is a display label
-// for the machine badge/filter (D9). Returns "" if the hostname can't be determined, in
+// for the machine badge/filter. Returns "" if the hostname can't be determined, in
 // which case the field is simply omitted from the push.
 func getMachineName() string {
 	if machineName != "" {
@@ -889,7 +896,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 	// Gzip the body: the payload now carries markdown + rawData + SessionData, and transcript
 	// JSON compresses ~5-10x. This shrinks upload time and effectively raises the server's
 	// 50MB Content-Length cap (checked against the compressed size). The server decompresses
-	// when Content-Encoding: gzip is present; requests without the header are unaffected (D22).
+	// when Content-Encoding: gzip is present; requests without the header are unaffected.
 	compressedData, err := gzipBytes(jsonData)
 	if err != nil {
 		slog.Error("Cloud sync error gzipping body", "sessionId", sessionID, "error", err)
@@ -917,7 +924,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 	req.Header.Set("User-Agent", GetUserAgent())
 
 	// Create HTTP client with timeout. Raised from 30s: the gzipped multi-blob body
-	// (markdown + rawData + SessionData) can take longer to upload for large sessions (D22).
+	// (markdown + rawData + SessionData) can take longer to upload for large sessions.
 	client := &http.Client{
 		Timeout: 60 * time.Second,
 	}

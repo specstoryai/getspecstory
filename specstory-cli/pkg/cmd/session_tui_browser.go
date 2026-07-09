@@ -163,14 +163,36 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 		slog.Debug("resume: could not save prefs", "error", err)
 	}
 
+	fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
 	return &resumePlan{
 		from:      fromProv,
 		fromID:    fromID,
 		sessionID: rm.result.session.SessionID,
-		fromCwd:   rm.result.session.OriginCwd,
+		fromCwd:   fromCwd,
 		to:        toProv,
 		toID:      rm.result.targetID,
+		fromCloud: fromCloud,
+		projectID: rm.result.session.ProjectID,
 	}, nil
+}
+
+// resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
+// that is ALSO present locally (e.g. a cloud search hit that local FTS didn't match). When it is,
+// prefer the local copy — an in-place resume is instant, works offline, and doesn't mint a fresh
+// reconstructed session id — over the cloud fetch/reconstruct path. Returns the fromCloud flag and
+// fromCwd for the resume plan. A soft-deleted local row does NOT count (GetSession filters it), so
+// a session you deleted locally still resumes from the cloud. In browse this never fires — dedup
+// already dropped any cloud row with a local twin — but cloud search can surface such a row.
+func resumeSourceForSession(store *sessionindex.Store, s *sessionindex.Session) (fromCloud bool, fromCwd string) {
+	fromCloud = s.IsCloud
+	fromCwd = s.OriginCwd
+	if s.IsCloud {
+		if local, ok, err := store.GetSession(s.Agent, s.SessionID); err == nil && ok {
+			fromCloud = false
+			fromCwd = local.OriginCwd
+		}
+	}
+	return fromCloud, fromCwd
 }
 
 // colorForAgent returns a stable accent color per provider for the list.
@@ -213,6 +235,7 @@ func (m *sessionTUI) enterBrowser() {
 func (m *sessionTUI) gotoHome() {
 	m.projectID, m.projectName = m.homeProjectID, m.homeProjectName
 	m.all = m.homeSessions
+	m.cloudAll = nil // cloud rows are per-project; a fresh fetch repopulates them (fire-on-drill)
 	m.inBrowser = false
 	m.agentFilter, m.searchQuery = "", ""
 	m.search.SetValue("")
@@ -232,6 +255,7 @@ func (m *sessionTUI) drillInto(p sessionindex.ProjectSummary) {
 	m.projectID = p.ProjectID
 	m.projectName = projectDisplayName(p)
 	m.all = sessions
+	m.cloudAll = nil // cloud rows are per-project; a fresh fetch repopulates them (fire-on-drill)
 	m.inBrowser = true
 	m.agentFilter, m.searchQuery = "", ""
 	m.search.SetValue("")
@@ -252,9 +276,11 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		m.gotoHome()
+		return m, m.cloudFetchForActiveCmd()
 	case "tab":
 		if !m.startedInBrowser {
 			m.gotoHome()
+			return m, m.cloudFetchForActiveCmd()
 		}
 	case "up", "k":
 		m.moveProjCursor(-1)
@@ -272,6 +298,7 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
 			m.drillInto(m.projFiltered[m.projCursor])
+			return m, m.cloudFetchForActiveCmd()
 		}
 	case "/":
 		// FTS over sessions across ALL projects (consistent with / in a session list).
@@ -290,6 +317,7 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.pendingDelete = pendingDelete{
 				source:    deleteFromProjects,
 				projectID: p.ProjectID,
+				isCloud:   p.IsCloud,
 				label:     projectDisplayName(p),
 				count:     p.Sessions,
 			}
@@ -320,12 +348,18 @@ func (m sessionTUI) updateProjectSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 }
 
 func (m *sessionTUI) applyProjectFilter() {
+	// Blend cloud-only projects with the local list (deduped, local-preferred, recency-sorted) so a
+	// project worked on only from another machine still shows up to drill into.
+	src := m.projects
+	if len(m.cloudProjects) > 0 {
+		src = mergeCloudProjects(m.projects, m.cloudProjects)
+	}
 	q := strings.ToLower(strings.TrimSpace(m.projSearchQuery))
 	if q == "" {
-		m.projFiltered = m.projects
+		m.projFiltered = src
 	} else {
-		out := make([]sessionindex.ProjectSummary, 0, len(m.projects))
-		for _, p := range m.projects {
+		out := make([]sessionindex.ProjectSummary, 0, len(src))
+		for _, p := range src {
 			if strings.Contains(strings.ToLower(projectDisplayName(p)), q) {
 				out = append(out, p)
 			}
@@ -455,7 +489,7 @@ func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) str
 	}
 	chips := m.agentCountChips(p.AgentCounts)
 	when := relativeTime(p.LastActivity)
-	return cursor + renderName(projectDisplayName(p), selected, 32) + "  " +
+	return cursor + cloudMark(p.IsCloud) + " " + renderName(projectDisplayName(p), selected, 30) + "  " +
 		chips + styDim.Render("  · "+when)
 }
 

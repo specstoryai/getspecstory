@@ -1,5 +1,17 @@
 # Specstory CLI Changelog
 
+## v2.x.0 2026-07-xx
+
+### 📢 Announcements
+
+- [SpecStory Pro](https://specstory.com/pricing) users can now resume agent sessions from other machines using any session that's been synced to their SpecStory Cloud account from any computer. `specstory resume` now searches and browses across all sessions, both those local to the computer and those synced to SpecStory Cloud from other computers.
+- As long as you are logged into SpecStory Cloud (use `specstory login`) then `specstory search` now let's you browse and search agent sessions you've synced to SpecStory Cloud from any other computer, as well as those local to your computer.
+
+### ⚙️ Improvements
+
+- SpecStory CLI operations that use the `~/.specstory/sessions.db` SQLite database (e.g. `specstory reindex`, `specstory search`, `specstory resume`) now self-heal if the `sessions.db` file is removed and but the `sessions.db-wal` and/or `session.db-shm` files remain.
+- More agent sessions from the Cursor CLI provider are now attributed to the correct project in `specstory search` and `specstory resume` and not to an `unknown` project. This is challenging as the Cursor CLI agent session data does not include the project directory, and instead has a one-way hash of the project directory. We know use additional techniques to determine the correct project directory for the session, when it's possible to do so.
+
 ## v2.1.0 2026-07-06
 
 ### ⚙️ Improvements

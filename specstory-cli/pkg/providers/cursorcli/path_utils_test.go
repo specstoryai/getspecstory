@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestGetCursorChatsDir(t *testing.T) {
@@ -265,5 +267,49 @@ func TestHasStoreDB(t *testing.T) {
 				t.Errorf("HasStoreDB() = %v, expected %v", result, tt.expected)
 			}
 		})
+	}
+}
+
+// TestRecoverOriginCwds covers the reindex cwd-recovery: a Cursor session whose project-hash dir
+// matches a known cwd gets that cwd; one whose hash is unknown, or that already has a cwd, or whose
+// NativePath is malformed, is left as-is.
+func TestRecoverOriginCwds(t *testing.T) {
+	const chats = "/home/u/.cursor/chats"
+	known := "/Users/u/projects/alpha"
+	knownHash := ProjectHash(known) // same hashing RecoverOriginCwds uses internally
+	if !isMD5Hex(knownHash) {
+		t.Fatalf("ProjectHash(%q) = %q, not an md5 hex", known, knownHash)
+	}
+
+	np := func(hash, sid string) string { return filepath.Join(chats, hash, sid, "store.db") }
+
+	refs := []spi.GlobalSessionRef{
+		{SessionID: "s1", NativePath: np(knownHash, "s1")},                             // resolvable
+		{SessionID: "s2", NativePath: np("ffffffffffffffffffffffffffffffff", "s2")},    // hash unknown
+		{SessionID: "s3", NativePath: np(knownHash, "s3"), OriginCwd: "/already/here"}, // preset
+		{SessionID: "s4", NativePath: "/weird/store.db"},                               // malformed
+	}
+
+	RecoverOriginCwds(refs, []string{known, "/Users/u/projects/beta"})
+
+	cases := []struct {
+		name, got, want string
+	}{
+		{"resolvable session gets its cwd", refs[0].OriginCwd, known},
+		{"unknown-project session stays empty", refs[1].OriginCwd, ""},
+		{"preset cwd is untouched", refs[2].OriginCwd, "/already/here"},
+		{"malformed path stays empty", refs[3].OriginCwd, ""},
+	}
+	for _, c := range cases {
+		if c.got != c.want {
+			t.Errorf("%s: OriginCwd = %q, want %q", c.name, c.got, c.want)
+		}
+	}
+
+	// No known cwds → nothing changes (nothing to match against).
+	only := []spi.GlobalSessionRef{{SessionID: "x", NativePath: np(knownHash, "x")}}
+	RecoverOriginCwds(only, nil)
+	if only[0].OriginCwd != "" {
+		t.Errorf("with no known cwds, OriginCwd = %q, want empty", only[0].OriginCwd)
 	}
 }

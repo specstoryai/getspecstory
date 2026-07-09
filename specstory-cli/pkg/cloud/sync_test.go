@@ -473,7 +473,7 @@ func TestRequiresSync_WithBulkSizes(t *testing.T) {
 			skipHeadCheck: false,
 			wantNeedsSync: true,
 			wantErr:       false,
-			description:   "Legacy session without a SessionData blob re-syncs to backfill it (D7), even when markdown matches",
+			description:   "Legacy session without a SessionData blob re-syncs to backfill it, even when markdown matches",
 		},
 		{
 			name:          "bulk sizes available, session exists, local larger",
@@ -611,7 +611,7 @@ func TestRequiresSync_BulkSizesEdgeCases(t *testing.T) {
 			serverSize:     7, // matches len("content")
 			hasSessionData: false,
 			wantNeedsSync:  true,
-			description:    "Legacy session with no SessionData blob re-syncs to backfill it (D7)",
+			description:    "Legacy session with no SessionData blob re-syncs to backfill it",
 		},
 		{
 			name:           "non-zero local, zero server",
@@ -640,7 +640,7 @@ func TestRequiresSync_BulkSizesEdgeCases(t *testing.T) {
 			}
 
 			// Set bulk sizes with test session. When the session already has a SessionData
-			// blob, include the suffixed key so the self-heal check (D7) is satisfied.
+			// blob, include the suffixed key so the self-heal check is satisfied.
 			sessionID := "edge-case-session"
 			bulkSizes := map[string]int{sessionID: tt.serverSize}
 			if tt.hasSessionData {

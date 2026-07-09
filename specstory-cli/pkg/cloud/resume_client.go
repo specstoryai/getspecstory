@@ -1,0 +1,211 @@
+package cloud
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"time"
+)
+
+// Cloud-resume client. These methods surface SpecStory Cloud sessions/projects for
+// the blended resume browser and fetch a session's SessionData blob for cross-machine resume.
+// They mirror the request/auth conventions of skillsAPIRequest (Bearer token, User-Agent,
+// {success,data,error} envelope) and are best-effort: callers in the TUI swallow errors and
+// degrade to local-only.
+
+const (
+	// cloudResumeLimit caps how many sessions the cloud contributes, matching local search's
+	// LIMIT 500 by recency so each source offers its 500 newest before merge/dedup.
+	cloudResumeLimit = 500
+
+	// cloudResumeHTTPTimeout bounds the SessionData blob fetch. Blobs are a few MB at most and
+	// resume is interactive/low-frequency, so a normal request timeout is plenty.
+	cloudResumeHTTPTimeout = 30 * time.Second
+
+	// sessionDataMediaType is the Accept value that selects the SessionData blob variant of the
+	// shared GET session route (server-side: SESSION_DATA_MEDIA_TYPE), rather than markdown/JSON.
+	sessionDataMediaType = "application/vnd.specstory.session-data+json"
+)
+
+// CloudSessionMetadata is the subset of a cloud session's metadata the resume browser needs:
+// the agent (display name), and the machine identity for the machine filter.
+type CloudSessionMetadata struct {
+	AgentName   string `json:"agentName"`   // human name, e.g. "Claude Code" (not the provider id)
+	DeviceID    string `json:"deviceId"`    // stable machine id; sessions group/filter by this
+	MachineName string `json:"machineName"` // human machine label, e.g. "Mac-Studio.local"
+}
+
+// CloudSession is a cloud-resumable session summary (server type: SessionSummary). Only the
+// fields the browser + dedup + resume need are decoded. (The server's firstExchangeContent /
+// exchangeCount are intentionally omitted: the ?resumable=true list takes a lean path that never
+// populates them, so decoding them would only carry guaranteed-empty dead weight.)
+type CloudSession struct {
+	ID              string               `json:"id"`        // internal session uuid (cloud-side)
+	ClientID        string               `json:"clientId"`  // native session id (== local session_id)
+	ProjectID       string               `json:"projectId"` // git_id / workspace_id
+	Name            string               `json:"name"`
+	UserTitle       string               `json:"userTitle,omitempty"`
+	MarkdownSize    int                  `json:"markdownSize"`
+	SessionDataSize int                  `json:"sessionDataSize"` // > 0 (list is ?resumable), 0 if absent
+	CreatedAt       string               `json:"createdAt"`
+	UpdatedAt       string               `json:"updatedAt"`
+	Metadata        CloudSessionMetadata `json:"metadata"`
+}
+
+// CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
+// cloud-only projects into the all-projects browser.
+//
+// Field notes, verified against the live GET /api/v1/projects response:
+//   - id IS the project_id (git_id/workspace_id) — handleListProjects remaps `id := projectId`
+//     (its `{ ...workspace, id: projectId }` override wins), and `projectId` itself is absent on
+//     the wire. So dedup-by-project_id keys on ID.
+//   - lastUpdated is the real recency signal (last session activity). The response also carries
+//     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
+//     timestamps — so blended recency sort must use LastUpdated.
+type CloudProject struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Icon         string `json:"icon"`
+	Color        string `json:"color"`
+	LastUpdated  string `json:"lastUpdated"`
+	SessionCount int    `json:"sessionCount"`
+}
+
+// ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
+// the TUI's soft gate + nudge. This is a NETWORK call (fetches entitlement) and MUST run
+// off the UI thread. Interpret the result: !loggedIn → "log in" nudge; loggedIn && !pro →
+// "upgrade" nudge; both true → fetch cloud sessions. An entitlement-fetch failure degrades to
+// not-pro (silent), never blocking local-first.
+func ResumeEligibility() (loggedIn bool, pro bool) {
+	if !IsAuthenticated() {
+		return false, false
+	}
+	ent, err := GetEntitlement()
+	if err != nil || ent == nil {
+		return true, false
+	}
+	return true, ent.Features.Resume
+}
+
+// ListCloudSessions returns the cloud-resumable sessions for a project — those with a
+// SessionData blob (?resumable=true), newest-first, capped at cloudResumeLimit.
+func ListCloudSessions(projectID string) ([]CloudSession, error) {
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Sessions []CloudSession `json:"sessions"`
+		} `json:"data"`
+		Error string `json:"error"`
+	}
+
+	path := fmt.Sprintf(
+		"/api/v1/projects/%s/sessions?resumable=true&limit=%d",
+		url.PathEscape(projectID), cloudResumeLimit,
+	)
+	if err := skillsAPIRequest(http.MethodGet, path, nil, &resp); err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("list cloud sessions failed: %s", resp.Error)
+	}
+	return resp.Data.Sessions, nil
+}
+
+// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+// projects into the all-projects browser.
+func ListCloudProjects() ([]CloudProject, error) {
+	var resp struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Projects []CloudProject `json:"projects"`
+		} `json:"data"`
+		Error string `json:"error"`
+	}
+
+	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects", nil, &resp); err != nil {
+		return nil, err
+	}
+	if !resp.Success {
+		return nil, fmt.Errorf("list cloud projects failed: %s", resp.Error)
+	}
+	return resp.Data.Projects, nil
+}
+
+// DeleteCloudSession permanently deletes a session from SpecStory Cloud (across all the user's
+// machines). Owner-validated server-side.
+func DeleteCloudSession(projectID, sessionID string) error {
+	var resp struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	path := "/api/v1/projects/" + url.PathEscape(projectID) + "/sessions/" + url.PathEscape(sessionID)
+	if err := skillsAPIRequest(http.MethodDelete, path, nil, &resp); err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("delete cloud session failed: %s", resp.Error)
+	}
+	return nil
+}
+
+// DeleteCloudProject permanently deletes a project and all its sessions from SpecStory Cloud.
+// Owner-validated server-side.
+func DeleteCloudProject(projectID string) error {
+	var resp struct {
+		Success bool   `json:"success"`
+		Error   string `json:"error"`
+	}
+	path := "/api/v1/projects/" + url.PathEscape(projectID)
+	if err := skillsAPIRequest(http.MethodDelete, path, nil, &resp); err != nil {
+		return err
+	}
+	if !resp.Success {
+		return fmt.Errorf("delete cloud project failed: %s", resp.Error)
+	}
+	return nil
+}
+
+// FetchSessionData streams a session's SessionData blob and returns the raw JSON bytes.
+// It does NOT unmarshal into schema.SessionData — the resume layer does that (and checks
+// schemaVersion), keeping this package decoupled from the schema package, exactly as the sync
+// push treats SessionData as an opaque string. Uses a custom request (not skillsAPIRequest)
+// because it needs the SessionData Accept header and a raw-bytes body, not JSON decoding.
+func FetchSessionData(projectID, sessionID string) ([]byte, error) {
+	apiURL := GetAPIBaseURL() + "/api/v1/projects/" +
+		url.PathEscape(projectID) + "/sessions/" + url.PathEscape(sessionID)
+
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("creating session-data request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+GetCloudToken())
+	req.Header.Set("Accept", sessionDataMediaType)
+	req.Header.Set("User-Agent", GetUserAgent())
+
+	client := &http.Client{Timeout: cloudResumeHTTPTimeout}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("fetch session data failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading session data response: %w", err)
+	}
+
+	switch {
+	case resp.StatusCode == http.StatusUnauthorized:
+		return nil, &ErrAuthenticationFailed{Message: "not authenticated to SpecStory Cloud"}
+	case resp.StatusCode == http.StatusForbidden:
+		// The requireFeature("resume") gate — the user isn't on a qualifying plan.
+		return nil, fmt.Errorf("resuming cloud sessions requires SpecStory Pro")
+	case resp.StatusCode == http.StatusNotFound:
+		return nil, fmt.Errorf("session data not found in cloud")
+	case resp.StatusCode < 200 || resp.StatusCode >= 300:
+		return nil, fmt.Errorf("fetch session data returned status %d", resp.StatusCode)
+	}
+
+	return body, nil
+}
