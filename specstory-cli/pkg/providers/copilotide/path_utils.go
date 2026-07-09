@@ -7,9 +7,10 @@ import (
 	"runtime"
 )
 
-// GetWorkspaceStoragePath returns the VS Code workspace storage directory path
+// GetWorkspaceStoragePath returns the workspace storage directory path for the given
+// application data directory name ("Code" for VS Code, "Code - Insiders" for Insiders).
 // Returns empty string if the directory doesn't exist
-func GetWorkspaceStoragePath() string {
+func GetWorkspaceStoragePath(dataDirName string) string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ""
@@ -18,11 +19,11 @@ func GetWorkspaceStoragePath() string {
 	var storagePath string
 	switch runtime.GOOS {
 	case "darwin":
-		// macOS: ~/Library/Application Support/Code/User/workspaceStorage/
-		storagePath = filepath.Join(homeDir, "Library", "Application Support", "Code", "User", "workspaceStorage")
+		// macOS: ~/Library/Application Support/<dataDirName>/User/workspaceStorage/
+		storagePath = filepath.Join(homeDir, "Library", "Application Support", dataDirName, "User", "workspaceStorage")
 	case "linux":
-		// Linux: ~/.config/Code/User/workspaceStorage/
-		storagePath = filepath.Join(homeDir, ".config", "Code", "User", "workspaceStorage")
+		// Linux: ~/.config/<dataDirName>/User/workspaceStorage/
+		storagePath = filepath.Join(homeDir, ".config", dataDirName, "User", "workspaceStorage")
 	default:
 		return ""
 	}
@@ -33,6 +34,12 @@ func GetWorkspaceStoragePath() string {
 	}
 
 	return storagePath
+}
+
+// workspaceStoragePath returns the workspace storage directory for this provider's
+// VS Code variant. Returns empty string if the directory doesn't exist.
+func (p *Provider) workspaceStoragePath() string {
+	return GetWorkspaceStoragePath(p.variant.DataDirName)
 }
 
 // GetChatSessionsPath returns the chatSessions directory for a workspace

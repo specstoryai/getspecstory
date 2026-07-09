@@ -19,6 +19,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
@@ -363,7 +364,9 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	if plan.toID == "cursoride" {
 		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
 	}
-	if plan.toID == "copilotide" {
+	// A type check (not an ID comparison) so every Copilot IDE variant — stock
+	// VS Code, Insiders, and any added later — gets the restart note.
+	if _, ok := plan.to.(*copilotide.Provider); ok {
 		// VS Code holds its chat session index in memory and flushes it over ours on
 		// shutdown, so the imported session only shows up after a full restart.
 		// "Developer: Reload Window" is NOT enough — it keeps the main process (and

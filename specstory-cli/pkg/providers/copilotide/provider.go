@@ -13,57 +13,119 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// Provider implements the SPI Provider interface for VS Code Copilot IDE
-type Provider struct{}
+// Variant identifies which VS Code distribution a Provider instance targets.
+// The Copilot chat storage layout is identical between VS Code and VS Code
+// Insiders — only the application identity differs — so a single provider
+// implementation serves both when instantiated with the right variant.
+type Variant struct {
+	ID          string // provider ID used for registration and in generated session data
+	AppName     string // user-facing application label (e.g. "VS Code Insiders")
+	DataDirName string // application data directory name under the OS config root (e.g. "Code - Insiders")
+	MacAppName  string // macOS application name for `open -a`
+	Command     string // CLI launcher expected on PATH (e.g. "code-insiders")
+}
 
-// NewProvider creates a new VS Code Copilot IDE provider instance
-func NewProvider() *Provider {
-	return &Provider{}
+// VSCode and VSCodeInsiders are the two distributions this provider supports.
+var (
+	VSCode = Variant{
+		ID:          "copilotide",
+		AppName:     "VS Code",
+		DataDirName: "Code",
+		MacAppName:  "Visual Studio Code",
+		Command:     "code",
+	}
+
+	VSCodeInsiders = Variant{
+		ID:          "copilotide-insiders",
+		AppName:     "VS Code Insiders",
+		DataDirName: "Code - Insiders",
+		MacAppName:  "Visual Studio Code - Insiders",
+		Command:     "code-insiders",
+	}
+
+	// VSCodium runs Copilot via a sideloaded VSIX (the extension is not on Open
+	// VSX), but the chat session store is VS Code OSS core code, so the storage
+	// layout is identical to stock VS Code.
+	VSCodium = Variant{
+		ID:          "copilotide-vscodium",
+		AppName:     "VSCodium",
+		DataDirName: "VSCodium",
+		MacAppName:  "VSCodium",
+		Command:     "codium",
+	}
+
+	VSCodiumInsiders = Variant{
+		ID:          "copilotide-vscodium-insiders",
+		AppName:     "VSCodium Insiders",
+		DataDirName: "VSCodium - Insiders",
+		MacAppName:  "VSCodium - Insiders",
+		Command:     "codium-insiders",
+	}
+)
+
+// Provider implements the SPI Provider interface for the Copilot chat built
+// into a VS Code distribution (stock VS Code or VS Code Insiders).
+type Provider struct {
+	variant Variant
+
+	// findWorkspaceForReconstruction is the workspace lookup used by the resume
+	// flow. Held as an instance field (not a package var) so each variant
+	// resolves against its own storage and tests can patch it per instance.
+	findWorkspaceForReconstruction func(projectPath string) (*WorkspaceMatch, error)
+}
+
+// NewProvider creates a Copilot IDE provider for the given VS Code variant.
+func NewProvider(variant Variant) *Provider {
+	p := &Provider{variant: variant}
+	p.findWorkspaceForReconstruction = func(projectPath string) (*WorkspaceMatch, error) {
+		return p.findWorkspaceForProject(projectPath, false)
+	}
+	return p
 }
 
 // Name returns the human-readable name of this provider
 func (p *Provider) Name() string {
-	return "VS Code Copilot IDE"
+	return p.variant.AppName + " Copilot IDE"
 }
 
-// Check verifies VS Code workspace storage exists and returns info
+// Check verifies the variant's workspace storage exists and returns info
 func (p *Provider) Check(customCommand string) spi.CheckResult {
-	slog.Debug("Check: Checking VS Code Copilot installation")
+	slog.Debug("Check: Checking Copilot installation", "app", p.variant.AppName)
 
 	// Check for workspace storage directory
-	storagePath := GetWorkspaceStoragePath()
+	storagePath := p.workspaceStoragePath()
 	if storagePath == "" {
 		return spi.CheckResult{
 			Success:      false,
 			Version:      "",
 			Location:     "",
-			ErrorMessage: "VS Code workspace storage directory not found",
+			ErrorMessage: p.variant.AppName + " workspace storage directory not found",
 		}
 	}
 
-	slog.Debug("VS Code Copilot check successful", "storagePath", storagePath)
+	slog.Debug("Copilot check successful", "app", p.variant.AppName, "storagePath", storagePath)
 
 	return spi.CheckResult{
 		Success:      true,
-		Version:      "VS Code Copilot",
+		Version:      p.variant.AppName + " Copilot",
 		Location:     storagePath,
 		ErrorMessage: "",
 	}
 }
 
-// DetectAgent checks if VS Code Copilot has been used in the given project path
+// DetectAgent checks if Copilot has been used in the given project path
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
-	slog.Debug("DetectAgent: Checking for VS Code Copilot activity", "projectPath", projectPath)
+	slog.Debug("DetectAgent: Checking for Copilot activity", "app", p.variant.AppName, "projectPath", projectPath)
 
 	// Try to find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	workspace, err := p.FindWorkspaceForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "projectPath", projectPath, "error", err)
 		if helpOutput {
-			fmt.Println("\n❌ No VS Code Copilot workspace found for this project")
+			fmt.Printf("\n❌ No %s Copilot workspace found for this project\n", p.variant.AppName)
 			fmt.Printf("  • Project path: %s\n", projectPath)
-			fmt.Printf("  • Workspace storage: %s\n", GetWorkspaceStoragePath())
-			fmt.Println("  • VS Code needs to be opened in this directory at least once")
+			fmt.Printf("  • Workspace storage: %s\n", p.workspaceStoragePath())
+			fmt.Printf("  • %s needs to be opened in this directory at least once\n", p.variant.AppName)
 			fmt.Println()
 		}
 		return false
@@ -74,15 +136,15 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	if err != nil || len(sessionFiles) == 0 {
 		slog.Debug("No chat sessions found", "workspace", workspace.Dir, "error", err)
 		if helpOutput {
-			fmt.Println("\n❌ No VS Code Copilot chat sessions found")
+			fmt.Printf("\n❌ No %s Copilot chat sessions found\n", p.variant.AppName)
 			fmt.Printf("  • Workspace: %s\n", workspace.Dir)
-			fmt.Println("  • Create at least one chat session in VS Code Copilot")
+			fmt.Printf("  • Create at least one chat session in %s Copilot\n", p.variant.AppName)
 			fmt.Println()
 		}
 		return false
 	}
 
-	slog.Debug("VS Code Copilot activity detected", "sessionCount", len(sessionFiles))
+	slog.Debug("Copilot activity detected", "app", p.variant.AppName, "sessionCount", len(sessionFiles))
 	return true
 }
 
@@ -91,7 +153,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	slog.Debug("GetAgentChatSession", "projectPath", projectPath, "sessionID", sessionID, "debugRaw", debugRaw)
 
 	// Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	workspace, err := p.FindWorkspaceForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace: %w", err)
 	}
@@ -109,7 +171,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	}
 
 	// Convert to AgentChatSession
-	agentSession := ConvertToSessionData(*session, projectPath, state)
+	agentSession := p.ConvertToSessionData(*session, projectPath, state)
 
 	// Write debug files if requested
 	if debugRaw {
@@ -126,7 +188,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	slog.Debug("GetAgentChatSessions", "projectPath", projectPath, "debugRaw", debugRaw)
 
 	// Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	workspace, err := p.FindWorkspaceForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace: %w", err)
 	}
@@ -164,7 +226,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		}
 
 		// Convert to AgentChatSession
-		session := ConvertToSessionData(*composer, projectPath, state)
+		session := p.ConvertToSessionData(*composer, projectPath, state)
 		sessions = append(sessions, session)
 
 		// Write debug files if requested
@@ -187,11 +249,11 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 
 // ListAgentChatSessions retrieves lightweight metadata for all sessions
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
-	slog.Debug("ListAgentChatSessions: Loading VS Code Copilot session list",
-		"projectPath", projectPath)
+	slog.Debug("ListAgentChatSessions: Loading Copilot session list",
+		"app", p.variant.AppName, "projectPath", projectPath)
 
 	// Step 1: Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	workspace, err := p.FindWorkspaceForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "error", err)
 		return []spi.SessionMetadata{}, nil // Return empty list if no workspace
@@ -240,36 +302,37 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		metadataList = append(metadataList, metadata)
 	}
 
-	slog.Info("Listed VS Code Copilot sessions",
+	slog.Info("Listed Copilot sessions",
+		"app", p.variant.AppName,
 		"totalFiles", len(sessionFiles),
 		"sessionCount", len(metadataList))
 
 	return metadataList, nil
 }
 
-// ExecAgentAndWatch opens VS Code at the project path so the user can continue the
-// session. VS Code Copilot is an IDE, not a CLI, so there is no --resume flag to pass
-// the session ID; the session already lives in the workspace's chat store and is found
-// via the Chat panel. Watching is not possible, so the function returns once the open
-// attempt completes. (Mirrors the Cursor IDE provider's behavior.)
+// ExecAgentAndWatch opens the VS Code variant at the project path so the user can
+// continue the session. VS Code Copilot is an IDE, not a CLI, so there is no --resume
+// flag to pass the session ID; the session already lives in the workspace's chat store
+// and is found via the Chat panel. Watching is not possible, so the function returns
+// once the open attempt completes. (Mirrors the Cursor IDE provider's behavior.)
 func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, _ string, _ bool, _ func(*spi.AgentChatSession)) error {
-	fmt.Fprintln(os.Stderr, "\nSession is ready in VS Code. Open the Chat panel to find it.")
-	if err := openVSCode(projectPath); err != nil {
+	fmt.Fprintf(os.Stderr, "\nSession is ready in %s. Open the Chat panel to find it.\n", p.variant.AppName)
+	if err := p.openApp(projectPath); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error
-		// since the session is already in the store and the user can open VS Code manually.
-		slog.Debug("Could not open VS Code automatically", "error", err)
-		fmt.Fprintf(os.Stderr, "Open VS Code manually in: %s\n", projectPath)
+		// since the session is already in the store and the user can open the IDE manually.
+		slog.Debug("Could not open the IDE automatically", "app", p.variant.AppName, "error", err)
+		fmt.Fprintf(os.Stderr, "Open %s manually in: %s\n", p.variant.AppName, projectPath)
 	}
 	return nil
 }
 
-// openVSCode attempts to launch VS Code at the given project path using the
-// platform-specific mechanism. On macOS this is `open -a "Visual Studio Code"`;
-// on Linux the `code` binary is tried if it is on PATH.
-func openVSCode(projectPath string) error {
-	args := vscodeOpenArgs(projectPath)
+// openApp attempts to launch the VS Code variant at the given project path using the
+// platform-specific mechanism. On macOS this is `open -a <MacAppName>`; on Linux the
+// variant's CLI command is tried if it is on PATH.
+func (p *Provider) openApp(projectPath string) error {
+	args := p.appOpenArgs(projectPath)
 	if len(args) == 0 {
-		return fmt.Errorf("no known way to open VS Code on this platform")
+		return fmt.Errorf("no known way to open %s on this platform", p.variant.AppName)
 	}
 	cmd := execCommand(args[0], args[1:]...)
 	if out, err := cmd.CombinedOutput(); err != nil {
@@ -278,14 +341,14 @@ func openVSCode(projectPath string) error {
 	return nil
 }
 
-// vscodeOpenArgs returns the command + arguments to open VS Code at the given path for
-// the current platform. Returns nil when no mechanism is known.
-func vscodeOpenArgs(projectPath string) []string {
+// appOpenArgs returns the command + arguments to open the VS Code variant at the given
+// path for the current platform. Returns nil when no mechanism is known.
+func (p *Provider) appOpenArgs(projectPath string) []string {
 	switch runtime.GOOS {
 	case "darwin":
-		return []string{"open", "-a", "Visual Studio Code", projectPath}
+		return []string{"open", "-a", p.variant.MacAppName, projectPath}
 	default: // Linux
-		return []string{"code", projectPath}
+		return []string{p.variant.Command, projectPath}
 	}
 }
 
@@ -300,11 +363,11 @@ var execCommand = func(name string, args ...string) *exec.Cmd {
 // workspaces — FindWorkspaceForProject matches both back). NativePath is the session
 // file itself. Lightweight: sessions are read for metadata only, no SessionData parse.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
-	slog.Debug("ListAllAgentChatSessions: enumerating all VS Code Copilot sessions")
+	slog.Debug("ListAllAgentChatSessions: enumerating all Copilot sessions", "app", p.variant.AppName)
 
-	storagePath := GetWorkspaceStoragePath()
+	storagePath := p.workspaceStoragePath()
 	if storagePath == "" {
-		// No workspace storage means VS Code was never used here — nothing to index.
+		// No workspace storage means this VS Code variant was never used here — nothing to index.
 		return []spi.GlobalSessionRef{}, nil
 	}
 
@@ -329,7 +392,7 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 		refs = append(refs, ref)
 	}
 
-	slog.Info("Listed all VS Code Copilot sessions", "count", len(refs))
+	slog.Info("Listed all Copilot sessions", "app", p.variant.AppName, "count", len(refs))
 	return refs, nil
 }
 
@@ -410,13 +473,13 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	slog.Debug("WatchAgent", "projectPath", projectPath, "debugRaw", debugRaw)
 
 	// Find workspace for project
-	workspace, err := FindWorkspaceForProject(projectPath)
+	workspace, err := p.FindWorkspaceForProject(projectPath)
 	if err != nil {
 		return fmt.Errorf("failed to find workspace: %w", err)
 	}
 
 	// Start watching the chatSessions directory
-	return WatchChatSessions(ctx, workspace.Dir, projectPath, debugRaw, sessionCallback)
+	return p.WatchChatSessions(ctx, workspace.Dir, projectPath, debugRaw, sessionCallback)
 }
 
 // extractCopilotIDESessionMetadata extracts lightweight session metadata from a VSCodeComposer

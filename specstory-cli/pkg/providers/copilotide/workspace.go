@@ -28,22 +28,15 @@ type WorkspaceJSON struct {
 
 // FindWorkspaceForProject finds the workspace directory that matches the given project path
 // Returns the workspace match or an error if not found
-func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
-	return findWorkspaceForProject(projectPath, true)
+func (p *Provider) FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+	return p.findWorkspaceForProject(projectPath, true)
 }
 
-// FindWorkspaceForReconstruction finds the workspace a reconstructed session should be
-// written into. Unlike FindWorkspaceForProject it accepts workspaces whose chatSessions
-// directory does not exist yet (the resume flow creates it when writing the session file).
-// Declared as a var so tests can patch the workspace lookup.
-var FindWorkspaceForReconstruction = func(projectPath string) (*WorkspaceMatch, error) {
-	return findWorkspaceForProject(projectPath, false)
-}
-
-// findWorkspaceForProject matches projectPath against every workspace.json in the storage
-// directory. requireChatSessions filters out matches that have never had a chat session —
-// wanted when reading sessions, not when picking a write target for reconstruction.
-func findWorkspaceForProject(projectPath string, requireChatSessions bool) (*WorkspaceMatch, error) {
+// findWorkspaceForProject matches projectPath against every workspace.json in the
+// variant's storage directory. requireChatSessions filters out matches that have never
+// had a chat session — wanted when reading sessions, not when picking a write target
+// for reconstruction (the resume flow creates the chatSessions directory when writing).
+func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*WorkspaceMatch, error) {
 	// Get canonical project path (resolve symlinks, normalize case)
 	absProjectPath, err := filepath.Abs(projectPath)
 	if err != nil {
@@ -71,7 +64,7 @@ func findWorkspaceForProject(projectPath string, requireChatSessions bool) (*Wor
 		"canonicalPath", canonicalProjectPath)
 
 	// Get workspace storage directory
-	workspaceStoragePath := GetWorkspaceStoragePath()
+	workspaceStoragePath := p.workspaceStoragePath()
 	if workspaceStoragePath == "" {
 		return nil, fmt.Errorf("workspace storage directory not found")
 	}

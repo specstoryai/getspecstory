@@ -30,13 +30,12 @@ func createTestWorkspace(t *testing.T) *WorkspaceMatch {
 	return &WorkspaceMatch{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj", Path: "/tmp/proj"}
 }
 
-// patchWorkspace replaces FindWorkspaceForReconstruction for the duration of the test,
-// always returning the provided workspace regardless of the project path argument.
-func patchWorkspace(t *testing.T, ws *WorkspaceMatch) {
-	t.Helper()
-	orig := FindWorkspaceForReconstruction
-	FindWorkspaceForReconstruction = func(_ string) (*WorkspaceMatch, error) { return ws, nil }
-	t.Cleanup(func() { FindWorkspaceForReconstruction = orig })
+// newTestProvider returns a VS Code provider whose reconstruction workspace lookup
+// always resolves to the provided workspace, regardless of the project path argument.
+func newTestProvider(ws *WorkspaceMatch) *Provider {
+	p := NewProvider(VSCode)
+	p.findWorkspaceForReconstruction = func(_ string) (*WorkspaceMatch, error) { return ws, nil }
+	return p
 }
 
 // reconstructSampleData returns a minimal multi-turn SessionData for testing.
@@ -88,9 +87,7 @@ func readIndexEntries(t *testing.T, workspaceDir string) map[string]sessionIndex
 // registered in the workspace index.
 func TestReconstructSession_RoundTrip(t *testing.T) {
 	ws := createTestWorkspace(t)
-	patchWorkspace(t, ws)
-
-	p := NewProvider()
+	p := newTestProvider(ws)
 	rec, err := p.ReconstructSession(reconstructSampleData(), spi.ReconstructOptions{WorkspaceRoot: "/tmp/proj"})
 	if err != nil {
 		t.Fatalf("ReconstructSession: %v", err)
@@ -162,9 +159,7 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 // note) is hosted by a synthetic user request rather than dropped.
 func TestReconstructSession_MigrationNote(t *testing.T) {
 	ws := createTestWorkspace(t)
-	patchWorkspace(t, ws)
-
-	p := NewProvider()
+	p := newTestProvider(ws)
 	note := "Resumed from a Claude Code session via SpecStory."
 	rec, err := p.ReconstructSession(reconstructSampleData(), spi.ReconstructOptions{
 		WorkspaceRoot: "/tmp/proj",
@@ -194,8 +189,7 @@ func TestReconstructSession_MigrationNote(t *testing.T) {
 // TestReconstructSession_Errors verifies the shared guards reject nil and empty sessions.
 func TestReconstructSession_Errors(t *testing.T) {
 	ws := createTestWorkspace(t)
-	patchWorkspace(t, ws)
-	p := NewProvider()
+	p := newTestProvider(ws)
 
 	if _, err := p.ReconstructSession(nil, spi.ReconstructOptions{WorkspaceRoot: "/tmp/proj"}); err == nil {
 		t.Error("nil session data should error")
@@ -264,9 +258,7 @@ func TestWriteSessionIndexEntry_PreservesExisting(t *testing.T) {
 // directory is not required (the caller creates it).
 func TestNativeSessionPath(t *testing.T) {
 	ws := createTestWorkspace(t)
-	patchWorkspace(t, ws)
-
-	p := NewProvider()
+	p := newTestProvider(ws)
 	got, err := p.NativeSessionPath("/tmp/proj", "abc.jsonl")
 	if err != nil {
 		t.Fatalf("NativeSessionPath: %v", err)

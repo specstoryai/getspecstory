@@ -66,9 +66,9 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	if workspaceRoot == "" {
 		return nil, fmt.Errorf("cannot register session in VS Code: no workspace root provided")
 	}
-	workspace, wsErr := FindWorkspaceForReconstruction(workspaceRoot)
+	workspace, wsErr := p.findWorkspaceForReconstruction(workspaceRoot)
 	if wsErr != nil {
-		return nil, fmt.Errorf("cannot register session in VS Code: no workspace found for %q (open the folder in VS Code once first): %w", workspaceRoot, wsErr)
+		return nil, fmt.Errorf("cannot register session in %s: no workspace found for %q (open the folder in %s once first): %w", p.variant.AppName, workspaceRoot, p.variant.AppName, wsErr)
 	}
 
 	newID := uuid.NewString()
@@ -134,11 +134,11 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 
 // NativeSessionPath resolves where a reconstructed session file belongs: the matched
 // workspace's chatSessions directory. The directory may not exist yet — the caller
-// creates it — so the lookup must not require it (FindWorkspaceForReconstruction).
+// creates it — so the lookup must not require it (findWorkspaceForReconstruction).
 func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
-	workspace, err := FindWorkspaceForReconstruction(projectPath)
+	workspace, err := p.findWorkspaceForReconstruction(projectPath)
 	if err != nil {
-		return "", fmt.Errorf("no VS Code workspace found for %q (open the folder in VS Code once first): %w", projectPath, err)
+		return "", fmt.Errorf("no %s workspace found for %q (open the folder in %s once first): %w", p.variant.AppName, projectPath, p.variant.AppName, err)
 	}
 	return filepath.Join(GetChatSessionsPath(workspace.Dir), filename), nil
 }

@@ -10,8 +10,10 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// ConvertToSessionData converts VS Code raw format to CLI's unified schema
-func ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VSCodeStateFile) spi.AgentChatSession {
+// ConvertToSessionData converts VS Code raw format to CLI's unified schema.
+// A Provider method so the generated session data carries the variant's
+// provider identity (VS Code vs VS Code Insiders).
+func (p *Provider) ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VSCodeStateFile) spi.AgentChatSession {
 	// Format timestamps
 	createdAt := FormatTimestamp(composer.CreationDate)
 	updatedAt := FormatTimestamp(composer.LastMessageDate)
@@ -32,8 +34,8 @@ func ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VS
 	sessionData := &schema.SessionData{
 		SchemaVersion: "1.0",
 		Provider: schema.ProviderInfo{
-			ID:      "copilotide",
-			Name:    "VS Code Copilot IDE",
+			ID:      p.variant.ID,
+			Name:    p.Name(),
 			Version: "1.0",
 		},
 		SessionID:     composer.SessionID,

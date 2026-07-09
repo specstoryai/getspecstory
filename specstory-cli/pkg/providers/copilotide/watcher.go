@@ -14,7 +14,7 @@ import (
 )
 
 // WatchChatSessions watches the chatSessions directory for new/modified session files
-func WatchChatSessions(
+func (p *Provider) WatchChatSessions(
 	ctx context.Context,
 	workspaceDir string,
 	projectPath string,
@@ -23,7 +23,8 @@ func WatchChatSessions(
 ) error {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
 
-	slog.Info("Starting VS Code Copilot watcher",
+	slog.Info("Starting Copilot watcher",
+		"app", p.variant.AppName,
 		"workspaceDir", workspaceDir,
 		"chatSessionsPath", chatSessionsPath)
 
@@ -142,7 +143,7 @@ func WatchChatSessions(
 				}
 
 				// Convert to AgentChatSession
-				session := ConvertToSessionData(*composer, projectPath, state)
+				session := p.ConvertToSessionData(*composer, projectPath, state)
 
 				// Write debug files if requested
 				if debugRaw {
