@@ -16,6 +16,8 @@ The SPI defines a standard interface that all agent providers must implement. Th
 | `gemini` | Gemini CLI | `~/.gemini/tmp/<hash>/chats/<session-id>.json` |
 | `pi` | Pi | `~/.pi/agent/sessions/--<encoded-cwd>--/<timestamp>_<uuid>.jsonl` |
 
+> The `pi` provider currently implements sync/list/search/reindex/check/detect; `run`, `watch`, and session reconstruction return descriptive "not yet supported" errors.
+
 ## Quick Start: Implementing a New Provider
 
 To add support for a new AI coding agent:

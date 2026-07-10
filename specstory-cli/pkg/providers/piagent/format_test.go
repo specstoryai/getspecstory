@@ -28,8 +28,11 @@ func parseFields(t *testing.T) *schema.SessionData {
 
 // TestFormatEntries_ControlEntriesSkipped covers the non-message entry types:
 // model_change, thinking_level_change, session_info, label, custom, and
-// custom_message. They must not break the parse and must not produce exchange
-// messages (custom_message content is extension context, not a user turn).
+// custom_message. All six sit on the live leaf path of full_format.jsonl (the
+// compaction there no longer truncates the transcript), so this genuinely
+// exercises the skip logic: they must not break the parse and must not produce
+// exchange messages (custom_message content is extension context, not a user
+// turn).
 func TestFormatEntries_ControlEntriesSkipped(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "full_format.jsonl"))
 	if err != nil {
@@ -71,40 +74,48 @@ func TestFormatEntries_BranchSummaryEntry(t *testing.T) {
 	}
 }
 
-// TestFormatEntries_CompactionDropsPreKept covers the compaction entry's
-// firstKeptEntryId field on full_format.jsonl: firstKeptEntryId=a2, so the
-// common answer (before a2) is dropped and the post-compaction prompt survives.
-func TestFormatEntries_CompactionDropsPreKept(t *testing.T) {
+// TestFormatEntries_CompactionKeepsHistoryAndSummary covers the compaction
+// entry on full_format.jsonl: unlike pi's context building (which drops
+// entries before firstKeptEntryId to fit the LLM window), the transcript keeps
+// the full leaf path AND renders the compaction summary as a marker message.
+func TestFormatEntries_CompactionKeepsHistoryAndSummary(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "full_format.jsonl"))
 	if err != nil {
 		t.Fatalf("ParseSession returned error: %v", err)
 	}
-	var hasCommon, hasPost bool
+	var hasPre, hasPost, hasSummary bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
 			for _, part := range msg.Content {
-				if strings.Contains(part.Text, "common answer") {
-					hasCommon = true
+				if strings.Contains(part.Text, "hello as a plain string") {
+					hasPre = true
 				}
 				if strings.Contains(part.Text, "after compaction prompt") {
 					hasPost = true
 				}
+				if strings.Contains(part.Text, "final compaction") {
+					hasSummary = true
+				}
 			}
 		}
 	}
-	if hasCommon {
-		t.Error("entry before firstKeptEntryId was not dropped by compaction")
+	if !hasPre {
+		t.Error("pre-compaction history was dropped; the full transcript must be preserved")
 	}
 	if !hasPost {
 		t.Error("post-compaction prompt was dropped")
+	}
+	if !hasSummary {
+		t.Error("compaction summary was not rendered as a marker message")
 	}
 }
 
 // TestFormatEntries_RealWorldCompactionAndBashExecution uses a trimmed slice of
 // a real pi session (testdata/real_world.jsonl) to assert the hard-to-synthesize
-// format features: a compaction entry carrying details.readFiles/modifiedFiles +
-// tokensBefore, a bashExecution message role (skipped from exchanges), and that
-// compaction drops the pre-kept user prompt while keeping the post-compaction one.
+// format features: the pre-compaction history is PRESERVED in the transcript,
+// the compaction summary is rendered as a marker, and the bashExecution message
+// role on the live leaf path is skipped (it sits before the compaction entry,
+// which no longer truncates the path — so this skip is genuinely exercised).
 func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "real_world.jsonl"))
 	if err != nil {
@@ -116,7 +127,7 @@ func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
 	if !data.Validate() {
 		t.Error("Validate() returned false for the real-world session")
 	}
-	var hasPreCompaction, hasPostCompaction, hasBashExecContent bool
+	var hasPreCompaction, hasPostCompaction, hasSummary, hasBashExecContent bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
 			for _, part := range msg.Content {
@@ -126,83 +137,97 @@ func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
 				if strings.Contains(part.Text, "summarize it now") {
 					hasPostCompaction = true
 				}
+				if strings.Contains(part.Text, "## Goal") {
+					hasSummary = true
+				}
 				if strings.Contains(part.Text, "total 24") {
 					hasBashExecContent = true
 				}
 			}
 		}
 	}
-	if hasPreCompaction {
-		t.Error("pre-compaction user prompt was not dropped by compaction")
+	if !hasPreCompaction {
+		t.Error("pre-compaction user prompt was dropped; the full transcript must be preserved")
 	}
 	if !hasPostCompaction {
-		t.Error("post-compaction user prompt was dropped by compaction")
+		t.Error("post-compaction user prompt was dropped")
+	}
+	if !hasSummary {
+		t.Error("compaction summary was not rendered as a marker message")
 	}
 	if hasBashExecContent {
 		t.Error("bashExecution content leaked into exchanges (should be skipped)")
 	}
 }
 
-// TestFormatEntries_CompactionHonorsFirstKeptEntryId asserts that when a
-// compaction entry is on the leaf path, entries before firstKeptEntryId are
-// dropped and entries from firstKeptEntryId forward are kept.
-func TestFormatEntries_CompactionHonorsFirstKeptEntryId(t *testing.T) {
+// TestFormatEntries_CompactionPreservesAllEntries asserts that every entry on
+// the leaf path survives a compaction (pre-kept, kept, and post-compaction)
+// and the summary marker is rendered at the compaction point.
+func TestFormatEntries_CompactionPreservesAllEntries(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "compaction.jsonl"))
 	if err != nil {
 		t.Fatalf("ParseSession returned error: %v", err)
 	}
-	var hasDroppedPre, hasKept, hasPost bool
+	var hasPrePrompt, hasPreAnswer, hasSummary, hasPost bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
 			for _, part := range msg.Content {
 				switch {
 				case strings.Contains(part.Text, "first prompt before compaction"):
-					hasDroppedPre = true
+					hasPrePrompt = true
 				case strings.Contains(part.Text, "first answer before compaction"):
-					hasKept = true
+					hasPreAnswer = true
+				case strings.Contains(part.Text, "summarized earlier turns"):
+					hasSummary = true
 				case strings.Contains(part.Text, "after compaction"):
 					hasPost = true
 				}
 			}
 		}
 	}
-	if hasDroppedPre {
-		t.Error("pre-kept user prompt (u1) was not dropped by compaction")
+	if !hasPrePrompt || !hasPreAnswer {
+		t.Errorf("pre-compaction entries dropped (prompt kept=%v, answer kept=%v); the full transcript must be preserved", hasPrePrompt, hasPreAnswer)
 	}
-	if !hasKept {
-		t.Error("kept entry (a1, firstKeptEntryId) was dropped")
+	if !hasSummary {
+		t.Error("compaction summary was not rendered as a marker message")
 	}
 	if !hasPost {
-		t.Error("post-compaction user prompt was dropped by compaction")
+		t.Error("post-compaction user prompt was dropped")
 	}
 }
 
-// TestFormatEntries_CompactionMissingKeptIdDropsPreCompaction asserts the
-// fallback: when firstKeptEntryId is not found in the leaf path, pre-compaction
-// entries are still dropped (kept from the compaction entry forward).
-func TestFormatEntries_CompactionMissingKeptIdDropsPreCompaction(t *testing.T) {
+// TestFormatEntries_CompactionDanglingKeptIdHarmless asserts a compaction whose
+// firstKeptEntryId does not exist on the path parses cleanly: the transcript
+// keeps everything regardless, and the summary marker still renders.
+func TestFormatEntries_CompactionDanglingKeptIdHarmless(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "compaction_missing.jsonl"))
 	if err != nil {
 		t.Fatalf("ParseSession returned error: %v", err)
 	}
-	var hasPre, hasPost bool
+	var hasPre, hasSummary, hasPost bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
 			for _, part := range msg.Content {
-				if strings.Contains(part.Text, "before compaction") {
+				if strings.Contains(part.Text, "prompt before compaction") {
 					hasPre = true
 				}
-				if strings.Contains(part.Text, "after compaction") {
+				if strings.Contains(part.Text, "summarized earlier turns") {
+					hasSummary = true
+				}
+				if strings.Contains(part.Text, "prompt after compaction") {
 					hasPost = true
 				}
 			}
 		}
 	}
-	if hasPre {
-		t.Error("pre-compaction user prompt retained when firstKeptEntryId was missing")
+	if !hasPre {
+		t.Error("pre-compaction user prompt was dropped; the full transcript must be preserved")
+	}
+	if !hasSummary {
+		t.Error("compaction summary was not rendered as a marker message")
 	}
 	if !hasPost {
-		t.Error("post-compaction user prompt was dropped in the missing-kept-id fallback")
+		t.Error("post-compaction user prompt was dropped")
 	}
 }
 
@@ -401,8 +426,11 @@ func TestFormatTree_BranchingLeafSelection(t *testing.T) {
 	}
 }
 
-// TestFormatTree_Version1Legacy covers version 1: a linear entry sequence where
-// the header omits the version field. The parser must still map it.
+// TestFormatTree_Version1Legacy covers a REAL unmigrated v1 file (as written
+// by pre-tree pi versions): the header omits the version field, entries have
+// NO id/parentId (pi's migrateV1ToV2 synthesizes them at load), and compaction
+// uses firstKeptEntryIndex. The parser must synthesize the linear chain and
+// map the full conversation.
 func TestFormatTree_Version1Legacy(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "v1_legacy.jsonl"))
 	if err != nil {
@@ -414,11 +442,43 @@ func TestFormatTree_Version1Legacy(t *testing.T) {
 	if data.Provider.Version != "v1" {
 		t.Errorf("Provider.Version = %q, want v1", data.Provider.Version)
 	}
-	if len(data.Exchanges) == 0 {
-		t.Error("v1 session produced no exchanges")
+	var hasFirst, hasSecond, hasSummary bool
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			for _, part := range msg.Content {
+				if strings.Contains(part.Text, "legacy prompt") {
+					hasFirst = true
+				}
+				if strings.Contains(part.Text, "legacy answer two") {
+					hasSecond = true
+				}
+				if strings.Contains(part.Text, "legacy compaction summary") {
+					hasSummary = true
+				}
+			}
+		}
+	}
+	if !hasFirst || !hasSecond {
+		t.Errorf("v1 conversation dropped (first=%v second=%v); id-less linear entries must be chained", hasFirst, hasSecond)
+	}
+	if !hasSummary {
+		t.Error("v1 compaction summary was not rendered")
 	}
 	if !data.Validate() {
 		t.Error("Validate() returned false for v1 session")
+	}
+
+	// The scan path must also handle id-less v1 files so list/reindex and sync
+	// agree on the session's existence and slug.
+	scan, scanErr := scanPiSession(loadFixture(t, "v1_legacy.jsonl"))
+	if scanErr != nil {
+		t.Fatalf("scanPiSession returned error for v1 file: %v", scanErr)
+	}
+	if scan == nil || !scan.foundUser {
+		t.Fatal("scanPiSession did not find the v1 first user message")
+	}
+	if scan.firstUserMessage != "legacy prompt" {
+		t.Errorf("scan firstUserMessage = %q, want legacy prompt", scan.firstUserMessage)
 	}
 }
 
@@ -464,15 +524,15 @@ func TestFormatTree_ToolCallOnlyAssistantRetainsModelAndUsage(t *testing.T) {
 	}
 }
 
-// TestFormatTree_LatestCompactionWins asserts that when a session has multiple
-// compaction entries on the leaf path, the LATEST compaction's firstKeptEntryId
-// determines the kept context (matching pi's buildContextEntries).
-func TestFormatTree_LatestCompactionWins(t *testing.T) {
+// TestFormatTree_MultipleCompactionsAllRendered asserts that a session with
+// multiple compaction entries keeps the entire history and renders each
+// compaction's summary as its own marker.
+func TestFormatTree_MultipleCompactionsAllRendered(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "multi_compaction.jsonl"))
 	if err != nil {
 		t.Fatalf("ParseSession returned error: %v", err)
 	}
-	var hasA1, hasU2, hasU3 bool
+	var hasA1, hasU2, hasU3, hasFirstSummary, hasSecondSummary bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
 			for _, part := range msg.Content {
@@ -485,17 +545,20 @@ func TestFormatTree_LatestCompactionWins(t *testing.T) {
 				if strings.Contains(part.Text, "prompt three") {
 					hasU3 = true
 				}
+				if strings.Contains(part.Text, "first compaction") {
+					hasFirstSummary = true
+				}
+				if strings.Contains(part.Text, "second compaction") {
+					hasSecondSummary = true
+				}
 			}
 		}
 	}
-	if hasA1 {
-		t.Error("a1 was retained — the oldest compaction won; the latest should have dropped it")
+	if !hasA1 || !hasU2 || !hasU3 {
+		t.Errorf("history dropped across compactions (a1=%v u2=%v u3=%v); the full transcript must be preserved", hasA1, hasU2, hasU3)
 	}
-	if !hasU2 {
-		t.Error("u2 (the latest compaction's firstKeptEntryId) was dropped")
-	}
-	if !hasU3 {
-		t.Error("u3 (post-latest-compaction) was dropped")
+	if !hasFirstSummary || !hasSecondSummary {
+		t.Errorf("compaction summaries missing (first=%v second=%v); each should render as a marker", hasFirstSummary, hasSecondSummary)
 	}
 }
 

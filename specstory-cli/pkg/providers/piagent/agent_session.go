@@ -36,15 +36,17 @@ const (
 
 // rawEntry is the minimal envelope every pi entry shares. The message payload
 // (for type=="message") is kept as raw json.RawMessage so we can decode it per
-// role without fighting a single union struct. Compaction entries carry
-// firstKeptEntryId as a top-level field (no message wrapper).
+// role without fighting a single union struct. Compaction entries carry their
+// summary as a top-level field (no message wrapper), and session_info entries
+// carry the user-visible session name the same way.
 type rawEntry struct {
-	Type             string          `json:"type"`
-	ID               string          `json:"id"`
-	ParentID         *string         `json:"parentId"` // null for the first entry
-	Timestamp        string          `json:"timestamp"`
-	FirstKeptEntryID string          `json:"firstKeptEntryId,omitempty"` // compaction entries only
-	Message          json.RawMessage `json:"message,omitempty"`
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	ParentID  *string         `json:"parentId"` // null for the first entry
+	Timestamp string          `json:"timestamp"`
+	Summary   string          `json:"summary,omitempty"` // compaction entries only
+	Name      string          `json:"name,omitempty"`    // session_info entries only
+	Message   json.RawMessage `json:"message,omitempty"`
 }
 
 // sessionHeader is the first line of a pi session file (no id/parentId).
@@ -89,6 +91,7 @@ type assistantMessage struct {
 type piUsage struct {
 	Input       int64 `json:"input"`
 	Output      int64 `json:"output"`
+	Reasoning   int64 `json:"reasoning"` // thinking-model reasoning tokens
 	CacheRead   int64 `json:"cacheRead"`
 	CacheWrite  int64 `json:"cacheWrite"`
 	TotalTokens int64 `json:"totalTokens"`
@@ -104,10 +107,11 @@ type toolResultMessage struct {
 	IsError    bool            `json:"isError"`
 }
 
-// ParseSession reads a pi JSONL v3 session file and maps its current leaf-path
-// branch into the unified schema.SessionData. It honors compaction entries:
-// when a compaction entry is on the leaf path, entries before firstKeptEntryId
-// are dropped from the conversation (matching pi's buildContextEntries).
+// ParseSession reads a pi JSONL session file (v3 tree or unmigrated v1 linear)
+// and maps its current leaf-path branch into the unified schema.SessionData.
+// The FULL leaf path is kept: compaction only trims pi's LLM context window,
+// not the transcript, so pre-compaction history is preserved and the
+// compaction summary is rendered as a marker message.
 func ParseSession(path string) (*schema.SessionData, error) {
 	header, entries, err := readEntries(path)
 	if err != nil {
@@ -141,6 +145,8 @@ func piProviderVersion(header *sessionHeader) string {
 
 // buildSessionData maps the ordered leaf-path entries into schema.SessionData.
 func buildSessionData(header *sessionHeader, ordered []rawEntry) *schema.SessionData {
+	exchanges := buildExchanges(ordered)
+	enrichToolMessages(exchanges, header.Cwd)
 	return &schema.SessionData{
 		SchemaVersion: "1.0",
 		Provider: schema.ProviderInfo{
@@ -151,14 +157,152 @@ func buildSessionData(header *sessionHeader, ordered []rawEntry) *schema.Session
 		SessionID:     header.ID,
 		CreatedAt:     header.Timestamp,
 		WorkspaceRoot: header.Cwd,
-		Exchanges:     buildExchanges(ordered),
+		Exchanges:     exchanges,
 	}
+}
+
+// enrichToolMessages populates PathHints and Summary/FormattedMarkdown on tool
+// messages after tool results are merged, matching the sibling providers: path
+// hints feed provenance extraction, and the formatted markdown lifts tool
+// rendering out of the generic key/value fallback.
+func enrichToolMessages(exchanges []schema.Exchange, workspaceRoot string) {
+	for i := range exchanges {
+		for j := range exchanges[i].Messages {
+			msg := &exchanges[i].Messages[j]
+			if msg.Tool == nil {
+				continue
+			}
+			msg.PathHints = extractPathHints(msg.Tool.Input, workspaceRoot)
+			summary, markdown := formatToolMarkdown(msg.Tool)
+			if summary != "" {
+				msg.Tool.Summary = &summary
+			}
+			if markdown != "" {
+				msg.Tool.FormattedMarkdown = &markdown
+			}
+		}
+	}
+}
+
+// extractPathHints collects file paths from a pi tool call's arguments (pi
+// tools use "path"; the extra keys cover extension tools) plus paths mentioned
+// in shell commands, normalized and deduped like the sibling providers.
+func extractPathHints(input map[string]any, workspaceRoot string) []string {
+	if input == nil {
+		return nil
+	}
+	var hints []string
+	add := func(p string) {
+		if p == "" {
+			return
+		}
+		n := spi.NormalizePath(p, workspaceRoot)
+		for _, h := range hints {
+			if h == n {
+				return
+			}
+		}
+		hints = append(hints, n)
+	}
+	for _, field := range []string{"path", "file_path", "filePath", "dir", "directory", "target"} {
+		switch v := input[field].(type) {
+		case string:
+			add(v)
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok {
+					add(s)
+				}
+			}
+		}
+	}
+	if command, _ := input["command"].(string); command != "" {
+		for _, sp := range spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot) {
+			add(sp)
+		}
+	}
+	return hints
+}
+
+// formatToolMarkdown builds the pre-formatted markdown (and optional summary)
+// for the pi tools with a natural rendering: single-line bash commands become
+// an inline-code summary, multi-line commands and file writes become fenced
+// blocks, file tools show their path. Tools without a specific format return
+// empty so the CLI's generic fallback (which renders input and output) is
+// used instead. When a specific format is produced, the tool output is
+// appended so the markdown stays self-contained.
+func formatToolMarkdown(tool *schema.ToolInfo) (string, string) {
+	var summary string
+	var b strings.Builder
+	in := tool.Input
+	switch strings.ToLower(tool.Name) {
+	case "bash":
+		cmd, _ := in["command"].(string)
+		if cmd == "" {
+			return "", ""
+		}
+		if strings.Contains(cmd, "\n") {
+			fmt.Fprintf(&b, "```bash\n%s\n```", strings.ReplaceAll(cmd, "```", "\\```"))
+		} else {
+			summary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, cmd)
+		}
+	case "read", "edit", "ls":
+		p, _ := in["path"].(string)
+		if p == "" {
+			return "", ""
+		}
+		fmt.Fprintf(&b, "`%s`", p)
+	case "write":
+		p, _ := in["path"].(string)
+		if p == "" {
+			return "", ""
+		}
+		fmt.Fprintf(&b, "`%s`\n", p)
+		if content, _ := in["content"].(string); content != "" {
+			fmt.Fprintf(&b, "\n```\n%s\n```", strings.ReplaceAll(content, "```", "\\```"))
+		}
+	case "grep", "find":
+		pattern, _ := in["pattern"].(string)
+		if pattern == "" {
+			return "", ""
+		}
+		fmt.Fprintf(&b, "`%s`", pattern)
+	default:
+		return "", ""
+	}
+	appendToolOutput(&b, tool)
+	return summary, strings.TrimSpace(b.String())
+}
+
+// appendToolOutput appends the merged toolResult content as a fenced block
+// (truncated like codexcli) so formatted tools still show their result.
+func appendToolOutput(b *strings.Builder, tool *schema.ToolInfo) {
+	if tool.Output == nil {
+		return
+	}
+	content, _ := tool.Output["content"].(string)
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return
+	}
+	if len(content) > 5000 {
+		content = content[:5000] + "\n... (truncated)"
+	}
+	if b.Len() > 0 {
+		b.WriteString("\n\n")
+	}
+	if isErr, _ := tool.Output["is_error"].(bool); isErr {
+		b.WriteString("Error:\n")
+	}
+	b.WriteString("```\n" + content + "\n```")
 }
 
 // buildExchanges groups ordered entries into schema exchanges. A new user
 // message starts a new exchange; assistant messages append to the current
-// exchange; toolResults merge into the matching ToolInfo. Control entries
-// (model_change, custom, etc.) are skipped from the conversation body.
+// exchange; toolResults merge into the matching ToolInfo; compaction entries
+// become marker messages so trimmed-context sessions stay self-explanatory.
+// Other control entries (model_change, custom, etc.) are skipped from the
+// conversation body.
 func buildExchanges(ordered []rawEntry) []schema.Exchange {
 	var exchanges []schema.Exchange
 	var current *schema.Exchange
@@ -168,6 +312,10 @@ func buildExchanges(ordered []rawEntry) []schema.Exchange {
 		}
 	}
 	for _, e := range ordered {
+		if e.Type == entryCompaction {
+			current = appendCompaction(current, e)
+			continue
+		}
 		if e.Type != entryMessage {
 			continue
 		}
@@ -188,6 +336,30 @@ func buildExchanges(ordered []rawEntry) []schema.Exchange {
 	}
 	commit()
 	return exchanges
+}
+
+// appendCompaction appends a compaction entry's summary to the current exchange
+// as a marker agent message (creating an exchange if none exists yet). The
+// summary is what pi replaced the pre-compaction context with; rendering it
+// keeps the transcript self-explanatory without dropping any history.
+func appendCompaction(current *schema.Exchange, e rawEntry) *schema.Exchange {
+	if strings.TrimSpace(e.Summary) == "" {
+		return current
+	}
+	if current == nil {
+		current = &schema.Exchange{ExchangeID: e.ID, StartTime: e.Timestamp}
+	}
+	current.Messages = append(current.Messages, schema.Message{
+		ID:        e.ID,
+		Timestamp: e.Timestamp,
+		Role:      schema.RoleAgent,
+		Content: []schema.ContentPart{{
+			Type: schema.ContentTypeText,
+			Text: "[Conversation compacted — summary of the earlier context]\n\n" + e.Summary,
+		}},
+	})
+	current.EndTime = e.Timestamp
+	return current
 }
 
 // appendAssistant appends an assistant message to the current exchange, creating
@@ -380,7 +552,8 @@ func buildToolOutput(content string, tr toolResultMessage) map[string]any {
 
 // mapUsage converts a pi usage object to the schema Usage. pi's input/output map
 // to InputTokens/OutputTokens; cacheRead/cacheWrite map to the Claude-style
-// cache fields (pi uses the same semantics).
+// cache fields (pi uses the same semantics); reasoning maps to the same field
+// codexcli uses so telemetry aggregates pi thinking tokens like other providers.
 func mapUsage(u *piUsage) *schema.Usage {
 	if u == nil {
 		return nil
@@ -388,6 +561,7 @@ func mapUsage(u *piUsage) *schema.Usage {
 	return &schema.Usage{
 		InputTokens:              int(u.Input),
 		OutputTokens:             int(u.Output),
+		ReasoningOutputTokens:    int(u.Reasoning),
 		CacheReadInputTokens:     int(u.CacheRead),
 		CacheCreationInputTokens: int(u.CacheWrite),
 	}

@@ -188,6 +188,8 @@ func colorForAgent(id string) color.Color {
 		return lipgloss.Color("214") // orange
 	case "deepseek":
 		return lipgloss.Color("203") // red
+	case "pi":
+		return lipgloss.Color("135") // violet
 	default:
 		return lipgloss.Color("250")
 	}

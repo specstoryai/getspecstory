@@ -111,9 +111,19 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 	// Wait for all watchers to complete (they run until Ctrl+C)
 	wg.Wait()
 
-	// Drain error channel — errors are already logged in the goroutines with full context
+	// Individual watcher failures are already logged in the goroutines with
+	// full context and must not kill the surviving watchers' results. But when
+	// EVERY watcher failed (e.g. `specstory watch <provider>` on a provider
+	// whose watch is unsupported), returning nil would print the watching
+	// banner and then silently exit 0 — surface the failure instead.
+	var failures []error
 	for range len(providers) {
-		<-errChan
+		if err := <-errChan; err != nil {
+			failures = append(failures, err)
+		}
+	}
+	if len(providers) > 0 && len(failures) == len(providers) {
+		return errors.Join(failures...)
 	}
 
 	return nil

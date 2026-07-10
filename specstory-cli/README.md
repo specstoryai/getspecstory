@@ -33,6 +33,8 @@ The following coding agents are supported in the SpecStory CLI:
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/` |
 | [Pi](https://pi.dev)                                      | [piagent](pkg/providers/piagent/)         | JSONL       | `~/.pi/agent/sessions/` |
 
+> **Note:** Pi support currently covers `sync`, `list`, `search`, `reindex`, `check`, and `detect`. `specstory run pi`, `specstory watch pi`, and cross-machine session resume are not yet supported.
+
 ### Agent Provider SPI (Service Provider Interface)
 
 There is also an [Agent SPI (Service Provider Interface)](/pkg/spi/) that allows you to extend the SpecStory CLI with support for new agent providers. Creating a provider to support a new agent, using the Provider SPI is documented [here](./docs/PROVIDER-SPI.md). Pull requests are welcome!

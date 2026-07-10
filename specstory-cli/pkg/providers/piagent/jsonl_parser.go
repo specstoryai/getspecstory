@@ -3,7 +3,6 @@ package piagent
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -22,14 +21,10 @@ const (
 	maxReasonableLineSize = 250 * MB
 )
 
-// errStopRead is a sentinel a visit callback may return to stop iteration early
-// (without error). readLines treats it as a clean stop.
-var errStopRead = errors.New("stop reading")
-
 // readLines reads a pi session file line-by-line via bufio.Reader (unbounded
 // line size, unlike bufio.Scanner) and calls visit for each non-empty trimmed
 // line. Lines exceeding maxReasonableLineSize are refused with an error to
-// prevent OOM. Returning errStopRead from visit stops iteration cleanly.
+// prevent OOM.
 func readLines(path string, visit func(line string) error) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -56,9 +51,6 @@ func readLines(path string, visit func(line string) error) error {
 					lineNum, path, maxReasonableLineSize/MB)
 			}
 			if vErr := visit(trimmed); vErr != nil {
-				if errors.Is(vErr, errStopRead) {
-					return nil
-				}
 				return vErr
 			}
 		}
@@ -87,11 +79,21 @@ func readEntries(path string) (*sessionHeader, []rawEntry, error) {
 		if jErr := json.Unmarshal([]byte(line), &e); jErr != nil {
 			return nil // skip malformed line, keep going
 		}
-		// Skip entries missing the envelope fields the tree walk and exchange
-		// grouping rely on; a stray entry with no id can mislead leaf selection.
-		if e.Type == "" || e.ID == "" {
-			slog.Debug("pi: skipping entry with empty type or id", "file", path)
+		// An entry with no type carries nothing the mapper can use; skip it so
+		// a stray malformed line cannot mislead leaf selection.
+		if e.Type == "" {
+			slog.Debug("pi: skipping entry with empty type", "file", path)
 			return nil
+		}
+		// Unmigrated pi v1 files store a flat linear sequence with no id/parentId
+		// (pi's migrateV1ToV2 synthesizes them at load). Chain such entries to the
+		// previous one so the tree walk sees the same linear path pi would build.
+		if e.ID == "" {
+			e.ID = fmt.Sprintf("legacy-%d", len(entries)+1)
+			if len(entries) > 0 {
+				pid := entries[len(entries)-1].ID
+				e.ParentID = &pid
+			}
 		}
 		entries = append(entries, e)
 		return nil
@@ -102,15 +104,18 @@ func readEntries(path string) (*sessionHeader, []rawEntry, error) {
 	return header, entries, nil
 }
 
-// leafPathEntries walks from the leaf (last entry in file order) to the root,
-// reverses to chronological order, and applies compaction: if a compaction
-// entry is on the path, entries before its firstKeptEntryId are dropped.
+// leafPathEntries walks from the leaf (last entry in file order) to the root
+// and reverses to chronological order. Compaction entries on the path are NOT
+// applied as truncation: pi's buildContextEntries drops pre-compaction entries
+// only to fit the LLM context window, but SpecStory's job is preserving the
+// full transcript, so every entry on the active branch is kept (the compaction
+// summary itself is rendered as a marker by buildExchanges).
 func leafPathEntries(entries []rawEntry) []rawEntry {
 	byID := indexByID(entries)
 	leaf := entries[len(entries)-1]
 	path := walkToRoot(leaf, byID)
 	reverse(path)
-	return applyCompaction(path)
+	return path
 }
 
 // indexByID builds an id -> entry lookup for the tree walk.
@@ -149,49 +154,4 @@ func reverse(s []rawEntry) {
 	for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
 		s[i], s[j] = s[j], s[i]
 	}
-}
-
-// applyCompaction drops entries before the most recent compaction point when
-// one or more compaction entries are on the path. pi's buildContextEntries
-// builds context from the LATEST compaction's firstKeptEntryId forward (each
-// new compaction summarizes prior compactions into itself), so when multiple
-// compactions exist we use the last one in chronological order, not the first.
-// If firstKeptEntryId is missing from the path, we keep from the compaction
-// entry forward so pre-compaction entries are never accidentally retained.
-func applyCompaction(path []rawEntry) []rawEntry {
-	last := -1
-	for i, e := range path {
-		if e.Type == entryCompaction {
-			last = i
-		}
-	}
-	if last < 0 {
-		return path
-	}
-	keptID := compactionFirstKept(path[last])
-	if keptID == "" {
-		return path[last:]
-	}
-	if idx := keepFromIndex(path, keptID); idx >= 0 {
-		return path[idx:]
-	}
-	return path[last:]
-}
-
-// compactionFirstKept returns the firstKeptEntryId of a compaction entry. pi
-// stores this as a top-level field on the entry (not inside a message
-// payload), so it is decoded directly into rawEntry.FirstKeptEntryID.
-func compactionFirstKept(e rawEntry) string {
-	return e.FirstKeptEntryID
-}
-
-// keepFromIndex returns the index of the entry with id==keptID in path, or -1
-// if not found.
-func keepFromIndex(path []rawEntry, keptID string) int {
-	for i, e := range path {
-		if e.ID == keptID {
-			return i
-		}
-	}
-	return -1
 }
