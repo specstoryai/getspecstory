@@ -3,6 +3,7 @@ package piagent
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -129,5 +130,41 @@ func TestScan_UnreadableFileReturnsError(t *testing.T) {
 	_, err := scanPiSession(filepath.Join(t.TempDir(), "does-not-exist.jsonl"))
 	if err == nil {
 		t.Fatal("scanPiSession returned nil error for a missing file")
+	}
+}
+
+// TestParse_LargeLineOverScannerCap proves the reader handles lines larger than
+// bufio.Scanner's 16MB cap (the old Scanner-based reader returned bufio.ErrTooLong
+// and aborted; bufio.Reader.ReadString has no line-size limit). Builds a session
+// whose toolResult content exceeds 16MB and asserts it parses.
+func TestParse_LargeLineOverScannerCap(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "largeline.jsonl")
+	big := strings.Repeat("x", 17*1024*1024) // 17MB > 16MB Scanner cap
+	session := `{"type":"session","version":3,"id":"large-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+` +
+		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"go","timestamp":1783600001000}}
+` +
+		`{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"toolCall","id":"call-1","name":"bash","arguments":{"command":"cat big"}}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+` +
+		`{"type":"message","id":"tr1","parentId":"a1","timestamp":"2026-07-09T10:00:03.000Z","message":{"role":"toolResult","toolCallId":"call-1","toolName":"bash","content":[{"type":"text","text":"` + big + `"}],"isError":false,"timestamp":1783600003000}}
+`
+	if err := os.WriteFile(path, []byte(session), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	data, err := ParseSession(path)
+	if err != nil {
+		t.Fatalf("ParseSession returned error for a >16MB line: %v", err)
+	}
+	var found bool
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			if msg.Tool != nil && msg.Tool.UseID == "call-1" && msg.Tool.Output != nil {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatal("tool result with >16MB content was not parsed")
 	}
 }

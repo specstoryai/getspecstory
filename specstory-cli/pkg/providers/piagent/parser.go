@@ -1,11 +1,9 @@
 package piagent
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -38,46 +36,35 @@ func ParseSession(path string) (*schema.SessionData, error) {
 
 // readEntries parses every line of the session file into a header (line 1) and
 // a list of message/control entries (the rest). Malformed lines are skipped
-// rather than aborting the whole parse.
+// rather than aborting the whole parse. Uses bufio.Reader (via readLines) so
+// arbitrarily large lines parse without the 16MB bufio.Scanner cap.
 func readEntries(path string) (*sessionHeader, []rawEntry, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("pi: opening session %s: %w", path, err)
-	}
-	defer func() { _ = f.Close() }()
-
 	var header *sessionHeader
 	var entries []rawEntry
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
+	err := readLines(path, func(line string) error {
 		if header == nil {
 			h := sessionHeader{}
-			if err := json.Unmarshal([]byte(line), &h); err != nil {
-				return nil, nil, fmt.Errorf("pi: parsing session header: %w", err)
+			if jErr := json.Unmarshal([]byte(line), &h); jErr != nil {
+				return fmt.Errorf("pi: parsing session header: %w", jErr)
 			}
 			header = &h
-			continue
+			return nil
 		}
 		var e rawEntry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			continue
+		if jErr := json.Unmarshal([]byte(line), &e); jErr != nil {
+			return nil // skip malformed line, keep going
 		}
-		// Skip malformed entries missing the envelope fields the tree walk and
-		// exchange grouping rely on; a stray entry with no id can mislead leaf
-		// selection (the last file-order entry is treated as the leaf).
+		// Skip entries missing the envelope fields the tree walk and exchange
+		// grouping rely on; a stray entry with no id can mislead leaf selection.
 		if e.Type == "" || e.ID == "" {
 			slog.Debug("pi: skipping entry with empty type or id", "file", path)
-			continue
+			return nil
 		}
 		entries = append(entries, e)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, nil, fmt.Errorf("pi: reading session %s: %w", path, err)
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
 	}
 	return header, entries, nil
 }

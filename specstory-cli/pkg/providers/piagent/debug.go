@@ -1,12 +1,10 @@
 package piagent
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -43,27 +41,18 @@ func writeNumberedEntries(dir string, entries []json.RawMessage) error {
 }
 
 // readRawEntries returns each non-header line of a session file as a raw JSON
-// value, for debug-raw burst output.
+// value, for debug-raw burst output. Uses bufio.Reader (via readLines) so
+// arbitrarily large lines are captured without the 16MB bufio.Scanner cap.
 func readRawEntries(path string) ([]json.RawMessage, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("pi: opening session %s: %w", path, err)
-	}
-	defer func() { _ = f.Close() }()
 	var out []json.RawMessage
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	first := true
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
+	err := readLines(path, func(line string) error {
 		if first {
-			first = false
-			continue
+			first = false // skip the session header line
+			return nil
 		}
 		out = append(out, json.RawMessage(line))
-	}
-	return out, scanner.Err()
+		return nil
+	})
+	return out, err
 }

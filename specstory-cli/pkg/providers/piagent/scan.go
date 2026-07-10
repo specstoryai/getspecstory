@@ -1,10 +1,7 @@
 package piagent
 
 import (
-	"bufio"
 	"encoding/json"
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -24,59 +21,48 @@ type piSessionScan struct {
 }
 
 // scanPiSession reads minimal data from a pi session file in one bounded pass:
-// the header (session id, timestamp, cwd) and the first user message text.
-// Returns (scan, nil) for a real session, (nil, nil) for a non-session file or
-// a session with no user message, and (nil, err) for genuine read/parse errors
-// so ScanSessionsInParallel logs them during reindex.
+// the header (session id, timestamp, cwd) and the first user message text, then
+// stops. Uses bufio.Reader (via readLines) so arbitrarily large lines parse
+// without the 16MB bufio.Scanner cap. Returns (scan, nil) for a real session,
+// (nil, nil) for a non-session file or a session with no user message, and
+// (nil, err) for genuine read/parse errors so ScanSessionsInParallel logs them.
 func scanPiSession(path string) (*piSessionScan, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("pi: opening session %s: %w", path, err)
-	}
-	defer func() { _ = f.Close() }()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	scan := &piSessionScan{}
-
 	headerRead := false
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
-		}
+	err := readLines(path, func(line string) error {
 		if !headerRead {
 			var h sessionHeader
-			if err := json.Unmarshal([]byte(line), &h); err != nil {
-				return nil, nil // not a pi session (bad first line)
+			if jErr := json.Unmarshal([]byte(line), &h); jErr != nil {
+				return errStopRead // not a pi session (bad first line)
 			}
 			if h.Type != entrySession || h.ID == "" {
-				return nil, nil // not a pi session header
+				return errStopRead // not a pi session header
 			}
 			scan.sessionID = h.ID
 			scan.timestamp = h.Timestamp
 			scan.cwd = h.Cwd
 			headerRead = true
-			continue
+			return nil
 		}
 		var e rawEntry
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			continue
+		if jErr := json.Unmarshal([]byte(line), &e); jErr != nil {
+			return nil // skip malformed line
 		}
 		if e.Type != entryMessage {
-			continue
+			return nil
 		}
 		if msg := firstUserText(e); msg != "" {
 			scan.firstUserMessage = msg
 			scan.foundUser = true
-			break // got what we need; stop reading immediately
+			return errStopRead // got what we need; stop reading
 		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("pi: reading session %s: %w", path, err)
-	}
-	if !scan.foundUser {
-		return nil, nil // no user message → skip (warmup-only / empty)
+	if !headerRead || !scan.foundUser {
+		return nil, nil // non-session file or no user message
 	}
 	return scan, nil
 }
