@@ -136,6 +136,39 @@ func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, err
 	}, nil
 }
 
+// GetAgentChatSessionByPath parses a single pi session directly from its native
+// file path, skipping the by-id discovery search. originCwd is the session's
+// originating working directory (GlobalSessionRef.OriginCwd), passed through
+// as the workspace root for path normalization — matching what
+// GetAgentChatSession receives as projectPath. Implements spi.PathSessionReader
+// so `specstory reindex` uses the O(N) path-keyed fast path instead of the
+// O(N²) by-id lookup.
+func (p *Provider) GetAgentChatSessionByPath(nativePath, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+	data, err := ParseSession(nativePath)
+	if err != nil {
+		return nil, err
+	}
+	if data.WorkspaceRoot == "" && originCwd != "" {
+		data.WorkspaceRoot = originCwd
+	}
+	if debugRaw {
+		if dErr := writeDebugRaw(nativePath, data); dErr != nil {
+			slog.Warn("pi: debug-raw write failed", "error", dErr)
+		}
+	}
+	raw, err := os.ReadFile(nativePath)
+	if err != nil {
+		return nil, fmt.Errorf("pi: reading raw session: %w", err)
+	}
+	return &spi.AgentChatSession{
+		SessionID:   data.SessionID,
+		CreatedAt:   data.CreatedAt,
+		Slug:        deriveSlug(data),
+		SessionData: data,
+		RawData:     string(raw),
+	}, nil
+}
+
 // ListAgentChatSessions returns lightweight metadata for all project sessions,
 // deriving Slug/Name from the first user message via a bounded single-pass scan
 // (no full parse), matching how other providers populate metadata.
@@ -195,4 +228,79 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 		return scanToGlobalRef(s, path), nil
 	}
 	return spi.ScanSessionsInParallel(root, providerID, r, scan)
+}
+
+// piSessionScan holds the minimal fields read from a session file in one bounded
+// pass: identity + first-user-message metadata + originating cwd. The scan
+// stops as soon as it has the first user message, so it does NOT parse the whole
+// session. foundUser is false for sessions with no real user prompt; scanPiSession
+// returns (nil, nil) for those so callers skip them.
+type piSessionScan struct {
+	sessionID        string
+	timestamp        string
+	firstUserMessage string
+	cwd              string
+	foundUser        bool
+}
+
+// scanPiSession reads minimal data from a pi session file in one bounded pass:
+// the header (session id, timestamp, cwd) and the first user message text, then
+// stops. Returns (scan, nil) for a real session, (nil, nil) for a non-session
+// file or a session with no user message, and (nil, err) for genuine read/parse
+// errors so ScanSessionsInParallel logs them during reindex.
+func scanPiSession(path string) (*piSessionScan, error) {
+	scan := &piSessionScan{}
+	headerRead := false
+	err := readLines(path, func(line string) error {
+		if !headerRead {
+			var h sessionHeader
+			if jErr := json.Unmarshal([]byte(line), &h); jErr != nil {
+				return errStopRead // not a pi session (bad first line)
+			}
+			if h.Type != entrySession || h.ID == "" {
+				return errStopRead // not a pi session header
+			}
+			scan.sessionID = h.ID
+			scan.timestamp = h.Timestamp
+			scan.cwd = h.Cwd
+			headerRead = true
+			return nil
+		}
+		var e rawEntry
+		if jErr := json.Unmarshal([]byte(line), &e); jErr != nil {
+			return nil // skip malformed line
+		}
+		if e.Type != entryMessage {
+			return nil
+		}
+		if msg := firstUserText(e); msg != "" {
+			scan.firstUserMessage = msg
+			scan.foundUser = true
+			return errStopRead // got what we need; stop reading
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if !headerRead || !scan.foundUser {
+		return nil, nil // non-session file or no user message
+	}
+	return scan, nil
+}
+
+// scanToGlobalRef builds a GlobalSessionRef from a scan, deriving Slug/Name from
+// the first user message. Returns nil for sessions with no user message.
+func scanToGlobalRef(scan *piSessionScan, path string) *spi.GlobalSessionRef {
+	if !scan.foundUser {
+		return nil
+	}
+	return &spi.GlobalSessionRef{
+		SessionID:  scan.sessionID,
+		CreatedAt:  scan.timestamp,
+		Slug:       spi.GenerateFilenameFromUserMessage(scan.firstUserMessage),
+		Name:       spi.GenerateReadableName(scan.firstUserMessage),
+		NativePath: path,
+		OriginCwd:  scan.cwd,
+	}
 }

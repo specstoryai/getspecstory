@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -96,4 +97,30 @@ func (p *Provider) ReconstructSession(_ *schema.SessionData, _ spi.ReconstructOp
 // NativeSessionPath is out of v1 scope (no native serializer).
 func (p *Provider) NativeSessionPath(_ string, _ string) (string, error) {
 	return "", errors.Join(spi.ErrReconstructionUnsupported, fmt.Errorf(notYetSupport, "NativeSessionPath"))
+}
+
+// trackCheckSuccess emits the standard install-check success analytics event,
+// matching the shape other providers use.
+func trackCheckSuccess(custom bool, commandPath, resolvedPath, version string) {
+	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+		"provider":       providerID,
+		"custom_command": custom,
+		"command_path":   commandPath,
+		"resolved_path":  resolvedPath,
+		"version":        version,
+		"version_flag":   versionFlag,
+	})
+}
+
+// trackCheckFailure emits the standard install-check failure analytics event.
+func trackCheckFailure(custom bool, commandPath, resolvedPath, errorType, message string) {
+	analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+		"provider":       providerID,
+		"custom_command": custom,
+		"command_path":   commandPath,
+		"resolved_path":  resolvedPath,
+		"version_flag":   versionFlag,
+		"error_type":     errorType,
+		"error_message":  message,
+	})
 }
