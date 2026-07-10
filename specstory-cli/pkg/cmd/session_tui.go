@@ -496,6 +496,10 @@ func (m sessionTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "v":
 		m.toggleViewMode()
 		return m, m.requestVisibleSnippets(modeList)
+	case "u":
+		if cmd := m.upgradeCmd(); cmd != nil {
+			return m, cmd
+		}
 	case "d":
 		if sel := m.selected(); sel != nil {
 			m.pendingDelete = pendingDelete{source: deleteFromList, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}

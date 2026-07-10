@@ -311,6 +311,10 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.projSearching = true
 		m.projSearch.SetValue(m.projSearchQuery)
 		return m, m.projSearch.Focus()
+	case "u":
+		if cmd := m.upgradeCmd(); cmd != nil {
+			return m, cmd
+		}
 	case "d":
 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
 			p := m.projFiltered[m.projCursor]
@@ -661,6 +665,10 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		m.toggleViewMode()
 		m.clampGlobalScroll() // toggleViewMode clamps the list; the global list scrolls separately
 		return m, m.requestVisibleSnippets(modeProjects)
+	case "u":
+		if cmd := m.upgradeCmd(); cmd != nil {
+			return m, cmd
+		}
 	case "d":
 		if sel := m.globalSelected(); sel != nil {
 			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}

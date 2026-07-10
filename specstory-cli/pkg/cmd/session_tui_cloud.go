@@ -150,8 +150,29 @@ func (m sessionTUI) machineScopeLabel() string {
 // Pro; the two states get different invitations.
 const (
 	cloudNudgeLogin   = "Log into SpecStory Cloud to search & resume sessions from your other machines"
-	cloudNudgeUpgrade = "Upgrade to Pro to search & resume sessions from your other machines"
+	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to resume sessions from your other computers"
 )
+
+// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+// SPECSTORY_CLOUD_URL), so a dev/staging build opens its own checkout rather than production.
+func checkoutURL() string {
+	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
+}
+
+// upgradeCmd opens the Pro checkout page in the browser, but only while the upgrade nudge is
+// showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+func (m sessionTUI) upgradeCmd() tea.Cmd {
+	if m.cloudNudge != cloudNudgeUpgrade {
+		return nil
+	}
+	url := checkoutURL()
+	return func() tea.Msg {
+		if err := openBrowser(url); err != nil {
+			slog.Debug("cloud resume: failed to open upgrade checkout", "url", url, "error", err)
+		}
+		return nil
+	}
+}
 
 // cloudEligibilityMsg carries the async eligibility result (a network entitlement check).
 type cloudEligibilityMsg struct {
