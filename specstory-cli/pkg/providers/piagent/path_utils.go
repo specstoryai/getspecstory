@@ -31,7 +31,9 @@ func EncodeCwd(cwd string) string {
 
 // ProjectSessionDir returns the absolute path to pi's session subdirectory for
 // the given project, WITHOUT requiring it to exist. Callers (DetectAgent, sync)
-// check existence separately.
+// check existence separately. The path is symlink-resolved before encoding so
+// it matches the directory pi actually wrote to (pi encodes the real cwd); a
+// relative or symlinked projectPath would otherwise produce a different name.
 func ProjectSessionDir(projectPath string) (string, error) {
 	root, err := piSessionsRoot()
 	if err != nil {
@@ -44,7 +46,11 @@ func ProjectSessionDir(projectPath string) (string, error) {
 			return "", fmt.Errorf("pi: cannot get working dir: %w", err)
 		}
 	}
-	return filepath.Join(root, EncodeCwd(cwd)), nil
+	realPath, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		realPath = cwd // fall back to the raw path if resolution fails
+	}
+	return filepath.Join(root, EncodeCwd(realPath)), nil
 }
 
 // SessionFilesInProject lists the *.jsonl files in the project's pi session

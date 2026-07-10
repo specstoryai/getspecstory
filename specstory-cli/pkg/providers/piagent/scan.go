@@ -11,10 +11,10 @@ import (
 )
 
 // piSessionScan holds the minimal fields read from a session file in one bounded
-// pass: identity + first-user-message metadata + originating cwd. It stops
-// reading once it has the first user message, so it does NOT parse the whole
-// session. foundUser is false for sessions with no real user prompt (warmup-only
-// or empty), which are skipped via (nil, nil).
+// pass: identity + first-user-message metadata + originating cwd. The scan
+// stops as soon as it has the first user message, so it does NOT parse the whole
+// session. foundUser is false for sessions with no real user prompt; scanPiSession
+// returns (nil, nil) for those so callers skip them.
 type piSessionScan struct {
 	sessionID        string
 	timestamp        string
@@ -59,9 +59,6 @@ func scanPiSession(path string) (*piSessionScan, error) {
 			headerRead = true
 			continue
 		}
-		if scan.firstUserMessage != "" {
-			break // got what we need; stop reading
-		}
 		var e rawEntry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			continue
@@ -72,13 +69,14 @@ func scanPiSession(path string) (*piSessionScan, error) {
 		if msg := firstUserText(e); msg != "" {
 			scan.firstUserMessage = msg
 			scan.foundUser = true
+			break // got what we need; stop reading immediately
 		}
 	}
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("pi: reading session %s: %w", path, err)
 	}
-	if scan.firstUserMessage != "" {
-		scan.foundUser = true
+	if !scan.foundUser {
+		return nil, nil // no user message → skip (warmup-only / empty)
 	}
 	return scan, nil
 }
