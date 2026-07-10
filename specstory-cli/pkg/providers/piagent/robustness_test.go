@@ -234,6 +234,37 @@ func TestScan_UnreadableFileReturnsError(t *testing.T) {
 	}
 }
 
+// TestScan_CorruptHeaderReturnsError asserts a file whose first line fails to
+// JSON-decode (corrupted/truncated header) surfaces an error so list/reindex
+// log the file instead of silently hiding it — the full parser errors on the
+// same input.
+func TestScan_CorruptHeaderReturnsError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "corrupt.jsonl")
+	if err := os.WriteFile(path, []byte(`{"type":"session","id":"x", TRUNCATED`), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if _, err := scanPiSession(path); err == nil {
+		t.Fatal("scanPiSession returned nil error for a corrupt header")
+	}
+}
+
+// TestScan_EmptyFileSkippedSilently asserts a zero-byte session file (created
+// then abandoned — a benign artifact) is skipped without an error, so reindex
+// does not warn about empties.
+func TestScan_EmptyFileSkippedSilently(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.jsonl")
+	if err := os.WriteFile(path, nil, 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	scan, err := scanPiSession(path)
+	if err != nil {
+		t.Fatalf("scanPiSession returned error for an empty file: %v", err)
+	}
+	if scan != nil {
+		t.Errorf("scanPiSession returned %v for an empty file, want nil", scan)
+	}
+}
+
 // TestScan_SessionInfoNameWinsOverFirstPrompt asserts the display name follows
 // pi's semantics: the LATEST session_info entry in file order wins, and an
 // empty name explicitly clears the title (falling back to the first prompt).

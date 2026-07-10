@@ -235,9 +235,13 @@ func findProjectSession(projectPath, sessionID string) (string, error) {
 
 // readHeader parses only the first JSON value of a session file and returns it
 // only if it is a valid pi session header (type=="session" with a non-empty
-// id). Non-session files return (nil, nil) so callers skip them. The read is
-// capped at 1MB: a real pi header is a few hundred bytes, and the cap keeps a
-// crafted file with a multi-GB first value from being buffered into memory.
+// id). Well-formed non-session files and empty files (created then abandoned,
+// a benign artifact) return (nil, nil) so callers skip them silently. A first
+// line that fails to decode is a corrupted/truncated header and returns an
+// error so list/reindex log it instead of hiding the file — the full parser
+// errors on the same input. The read is capped at 1MB: a real pi header is a
+// few hundred bytes, and the cap keeps a crafted file with a multi-GB first
+// value from being buffered into memory.
 func readHeader(path string) (*sessionHeader, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -247,7 +251,10 @@ func readHeader(path string) (*sessionHeader, error) {
 	dec := json.NewDecoder(io.LimitReader(f, 1*MB))
 	var h sessionHeader
 	if err := dec.Decode(&h); err != nil {
-		return nil, nil
+		if errors.Is(err, io.EOF) {
+			return nil, nil // empty file: nothing to report
+		}
+		return nil, fmt.Errorf("pi: parsing session header of %s: %w", path, err)
 	}
 	if h.Type != entrySession || h.ID == "" {
 		return nil, nil

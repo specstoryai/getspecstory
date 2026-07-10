@@ -2,6 +2,7 @@ package piagent
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,8 +159,12 @@ func flatSessionFiles(root string, candidates []string) ([]string, error) {
 	var files []string
 	for _, f := range all {
 		h, hErr := readHeader(f)
-		if hErr != nil || h == nil {
-			continue // unreadable or not a pi session; skip in listing
+		if hErr != nil {
+			slog.Debug("pi: skipping unreadable session file", "path", f, "error", hErr)
+			continue
+		}
+		if h == nil {
+			continue // not a pi session; skip in listing
 		}
 		for _, c := range candidates {
 			if h.Cwd == c {
