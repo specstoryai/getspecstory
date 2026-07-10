@@ -83,7 +83,7 @@ func buildAgentMessages(e rawEntry) []schema.Message {
 		return append([]schema.Message{head}, messages...)
 	}
 	if len(messages) == 0 {
-		return nil
+		return buildErrorMessage(e, am)
 	}
 	// Tool-call-only assistant message: carry model+usage once on the first
 	// tool message so no metadata is lost and no schema-invalid empty message

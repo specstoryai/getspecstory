@@ -117,6 +117,7 @@ func buildExchanges(ordered []rawEntry) []schema.Exchange {
 			current = &schema.Exchange{
 				ExchangeID: e.ID,
 				StartTime:  e.Timestamp,
+				EndTime:    e.Timestamp,
 				Messages:   []schema.Message{buildUserMessage(e)},
 			}
 		case roleAssistant:

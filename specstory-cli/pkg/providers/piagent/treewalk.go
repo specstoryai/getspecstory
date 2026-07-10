@@ -20,11 +20,15 @@ func indexByID(entries []rawEntry) map[string]rawEntry {
 	return m
 }
 
-// walkToRoot collects entries from the given leaf up to the root (parentId null).
+// walkToRoot collects entries from the given leaf up to the root (parentId
+// null). A visited set guards against parentId cycles in corrupted sessions so
+// the walk terminates instead of looping forever.
 func walkToRoot(leaf rawEntry, byID map[string]rawEntry) []rawEntry {
 	var path []rawEntry
 	cur := leaf
-	for {
+	visited := make(map[string]bool)
+	for !visited[cur.ID] {
+		visited[cur.ID] = true
 		path = append(path, cur)
 		if cur.ParentID == nil {
 			break

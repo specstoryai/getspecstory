@@ -68,13 +68,14 @@ type userMessage struct {
 
 // assistantMessage is a pi assistant-role message.
 type assistantMessage struct {
-	Role       string         `json:"role"`
-	Content    []contentBlock `json:"content"`
-	Provider   string         `json:"provider"`
-	Model      string         `json:"model"`
-	API        string         `json:"api"`
-	StopReason string         `json:"stopReason"`
-	Usage      *piUsage       `json:"usage,omitempty"`
+	Role         string         `json:"role"`
+	Content      []contentBlock `json:"content"`
+	Provider     string         `json:"provider"`
+	Model        string         `json:"model"`
+	API          string         `json:"api"`
+	StopReason   string         `json:"stopReason"`
+	ErrorMessage string         `json:"errorMessage,omitempty"`
+	Usage        *piUsage       `json:"usage,omitempty"`
 }
 
 // piUsage is the token-usage shape on a pi assistant message.

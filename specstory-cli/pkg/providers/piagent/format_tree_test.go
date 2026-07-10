@@ -143,3 +143,30 @@ func TestFormatTree_LatestCompactionWins(t *testing.T) {
 		t.Error("u3 (post-latest-compaction) was dropped")
 	}
 }
+
+// TestFormatTree_UserOnlyExchangeHasEndTime asserts that an exchange containing
+// only a user message (the session ends right after a prompt, no assistant
+// reply) still gets an EndTime from the user message timestamp, so downstream
+// stats that read the last exchange's EndTime report a real session end time.
+func TestFormatTree_UserOnlyExchangeHasEndTime(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "useronly.jsonl")
+	session := `{"type":"session","version":3,"id":"useronly-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+` +
+		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:05.000Z","message":{"role":"user","content":"orphan prompt","timestamp":1783600005000}}
+`
+	if err := os.WriteFile(path, []byte(session), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	data, err := ParseSession(path)
+	if err != nil {
+		t.Fatalf("ParseSession returned error: %v", err)
+	}
+	if len(data.Exchanges) != 1 {
+		t.Fatalf("want 1 exchange, got %d", len(data.Exchanges))
+	}
+	ex := data.Exchanges[0]
+	if ex.EndTime != "2026-07-09T10:00:05.000Z" {
+		t.Errorf("user-only exchange EndTime = %q, want the user message timestamp", ex.EndTime)
+	}
+}
