@@ -24,7 +24,7 @@ const (
 	providerName  = "Pi"
 	defaultCmd    = "pi"
 	versionFlag   = "--version"
-	notYetSupport = "pi: %s not yet supported for the pi provider (v1 ships sync/list/search/reindex only)"
+	notYetSupport = "pi: %s not yet supported for the pi provider (v1 supports sync, list, search, reindex, check, and detect)"
 )
 
 // Provider implements spi.Provider for the pi coding agent.
