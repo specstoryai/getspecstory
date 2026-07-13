@@ -483,7 +483,9 @@ func cursorOpenArgs(projectPath string) []string {
 	switch runtime.GOOS {
 	case "darwin":
 		return []string{"open", "-a", "Cursor", projectPath}
-	default: // Linux
+	default:
+		// Linux and Windows: the `cursor` CLI launcher on PATH. On Windows the
+		// launcher is a .cmd shim, which exec.LookPath resolves via PATHEXT.
 		return []string{"cursor", projectPath}
 	}
 }

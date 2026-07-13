@@ -44,7 +44,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		"id":                        newID,
 		"title":                     title,
 		"sessionTitle":              title,
-		"owner":                     os.Getenv("USER"),
+		"owner":                     currentUsername(),
 		"version":                   2,
 		"cwd":                       cwd,
 		"isSessionTitleManuallySet": false,
@@ -104,4 +104,13 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 		return "", fmt.Errorf("droidcli: cannot resolve session directory for project path")
 	}
 	return filepath.Join(dir, filename), nil
+}
+
+// currentUsername returns the login name for the session_start owner field.
+// USER is empty on Windows, where the equivalent variable is USERNAME.
+func currentUsername() string {
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	return os.Getenv("USERNAME")
 }

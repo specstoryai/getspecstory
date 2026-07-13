@@ -710,3 +710,67 @@ func TestScanWorkspaceDirForComposerPaths_Empty(t *testing.T) {
 		t.Errorf("expected empty result, got %d entries", len(result))
 	}
 }
+
+// TestFileURIParts verifies the VS Code-style URI serialization used for
+// workspaceIdentifier.uri, in particular the Windows drive-letter normalization
+// (lowercase drive, forward-slash URI path, %3A-encoded colon in external).
+func TestFileURIParts(t *testing.T) {
+	tests := []struct {
+		name         string
+		osPath       string
+		wantFSPath   string
+		wantURIPath  string
+		wantExternal string
+	}{
+		{
+			name:         "unix path",
+			osPath:       "/home/user/proj",
+			wantFSPath:   "/home/user/proj",
+			wantURIPath:  "/home/user/proj",
+			wantExternal: "file:///home/user/proj",
+		},
+		{
+			name:         "unix path with space",
+			osPath:       "/home/user/my proj",
+			wantFSPath:   "/home/user/my proj",
+			wantURIPath:  "/home/user/my proj",
+			wantExternal: "file:///home/user/my%20proj",
+		},
+		{
+			name:         "windows path uppercase drive",
+			osPath:       `C:\Users\Admin\proj`,
+			wantFSPath:   `c:\Users\Admin\proj`,
+			wantURIPath:  "/c:/Users/Admin/proj",
+			wantExternal: "file:///c%3A/Users/Admin/proj",
+		},
+		{
+			name:         "windows path lowercase drive",
+			osPath:       `c:\Users\Admin\proj`,
+			wantFSPath:   `c:\Users\Admin\proj`,
+			wantURIPath:  "/c:/Users/Admin/proj",
+			wantExternal: "file:///c%3A/Users/Admin/proj",
+		},
+		{
+			name:         "windows path with space",
+			osPath:       `C:\Users\Admin\my proj`,
+			wantFSPath:   `c:\Users\Admin\my proj`,
+			wantURIPath:  "/c:/Users/Admin/my proj",
+			wantExternal: "file:///c%3A/Users/Admin/my%20proj",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsPath, uriPath, external := fileURIParts(tt.osPath)
+			if fsPath != tt.wantFSPath {
+				t.Errorf("fsPath = %q, want %q", fsPath, tt.wantFSPath)
+			}
+			if uriPath != tt.wantURIPath {
+				t.Errorf("uriPath = %q, want %q", uriPath, tt.wantURIPath)
+			}
+			if external != tt.wantExternal {
+				t.Errorf("external = %q, want %q", external, tt.wantExternal)
+			}
+		})
+	}
+}

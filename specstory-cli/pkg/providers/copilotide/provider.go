@@ -395,7 +395,9 @@ func (p *Provider) appOpenArgs(projectPath string) []string {
 	switch runtime.GOOS {
 	case "darwin":
 		return []string{"open", "-a", p.variant.MacAppName, projectPath}
-	default: // Linux
+	default:
+		// Linux and Windows: the variant's CLI launcher on PATH. On Windows the
+		// launcher is a .cmd shim, which exec.LookPath resolves via PATHEXT.
 		return []string{p.variant.Command, projectPath}
 	}
 }

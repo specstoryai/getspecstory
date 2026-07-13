@@ -479,14 +479,57 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	return &workspace, nil
 }
 
-// pathToFileURI converts an absolute filesystem path to a file:// URI.
-// Cursor stores workspaceIdentifier.uri.external in percent-encoded form (e.g.
-// spaces as %20), so raw string concatenation would produce a URI that doesn't
-// match what Cursor writes for paths containing reserved characters, which can
-// mis-associate reconstructed sessions with their workspace.
-func pathToFileURI(path string) string {
-	u := url.URL{Scheme: "file", Path: path}
-	return u.String()
+// fileURIParts converts an absolute filesystem path into the three related values a
+// VS Code-style serialized URI carries, matching how Cursor itself writes
+// workspaceIdentifier.uri rows so reconstructed sessions byte-match native ones:
+//
+//	fsPath   — the OS path ("c:\Users\x\proj" on Windows, "/home/x/proj" on Unix)
+//	uriPath  — the URI path component ("/c:/Users/x/proj"), forward slashes, decoded
+//	external — the full percent-encoded URI ("file:///c%3A/Users/x/proj")
+//
+// VS Code normalizes drive letters to lowercase and percent-encodes the drive colon in
+// external (Go's URL encoder leaves ':' bare in paths, so it is encoded by hand). A
+// mismatch here can mis-associate reconstructed sessions with their workspace. UNC
+// paths (\\server\share) are not handled — workspace roots are local directories.
+func fileURIParts(osPath string) (fsPath, uriPath, external string) {
+	fsPath = osPath
+	p := osPath
+
+	// Windows-shaped absolute path (leading drive letter): lowercase the drive and
+	// use forward slashes in the URI path, backslashes in fsPath. Detected by shape
+	// rather than runtime.GOOS so the conversion is deterministic and testable anywhere.
+	if len(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/') &&
+		('a' <= p[0]|0x20 && p[0]|0x20 <= 'z') {
+		drive := strings.ToLower(p[:1])
+		fsPath = drive + strings.ReplaceAll(p[1:], "/", `\`)
+		p = "/" + drive + strings.ReplaceAll(p[1:], `\`, "/")
+	}
+	uriPath = p
+
+	u := url.URL{Scheme: "file", Path: p}
+	external = u.String()
+	// Percent-encode the drive colon ("file:///c:/..." -> "file:///c%3A/...") to match
+	// VS Code's serialization.
+	const pfx = "file:///"
+	if len(external) > len(pfx)+1 && external[len(pfx)+1] == ':' {
+		external = external[:len(pfx)+1] + "%3A" + external[len(pfx)+2:]
+	}
+	return fsPath, uriPath, external
+}
+
+// workspaceURIMap builds the serialized VS Code URI object Cursor stores in
+// workspaceIdentifier.uri for a workspace root. Shared by the reconstruction
+// composer writer and the global composer-header writer so both rows carry
+// identical, Cursor-native encoding.
+func workspaceURIMap(workspaceRoot string) map[string]interface{} {
+	fsPath, uriPath, external := fileURIParts(workspaceRoot)
+	return map[string]interface{}{
+		"$mid":     1,
+		"fsPath":   fsPath,
+		"external": external,
+		"path":     uriPath,
+		"scheme":   "file",
+	}
 }
 
 // uriToPath converts a workspace URI to a local file path.

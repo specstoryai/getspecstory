@@ -542,14 +542,8 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		"referencedPlans":           []interface{}{},
 		"trackedGitRepos":           []interface{}{},
 		"workspaceIdentifier": map[string]interface{}{
-			"id": meta.WorkspaceID,
-			"uri": map[string]interface{}{
-				"$mid":     1,
-				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
-				"path":     workspaceRoot,
-				"scheme":   "file",
-			},
+			"id":  meta.WorkspaceID,
+			"uri": workspaceURIMap(workspaceRoot),
 		},
 	}
 
