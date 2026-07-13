@@ -188,11 +188,13 @@ type cloudSessionsMsg struct {
 	err       error
 }
 
-// cloudProjectsMsg carries the completed cloud project list, already converted to project rows
-// (IsCloud=true) with zero-session ghosts filtered out; err set = silent degrade.
+// cloudProjectsMsg carries the completed cloud project list (each carrying its resumable session
+// summaries inline) plus the local per-project session fingerprint set, so the all-projects
+// rollup can dedup cloud vs. local at the session level. err set = silent degrade to local-only.
 type cloudProjectsMsg struct {
-	projects []sessionindex.ProjectSummary
-	err      error
+	projects  []cloud.CloudProject
+	localKeys map[string][]sessionindex.ProjectSessionKey
+	err       error
 }
 
 // cloudEligibilityCmd runs the (networked) eligibility check off the UI thread.
@@ -215,15 +217,23 @@ func cloudFetchCmd(projectID string, agentIDByName map[string]string) tea.Cmd {
 	}
 }
 
-// cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
-// projects into the all-projects browser.
-func cloudProjectsFetchCmd() tea.Cmd {
+// cloudProjectsFetchCmd lists the user's cloud projects (each carrying its resumable session
+// summaries inline) AND the local per-project session fingerprint set off the UI thread, for the
+// all-projects browser's session-level merge. Both reads happen here so the UI thread only
+// stores results.
+func (m sessionTUI) cloudProjectsFetchCmd() tea.Cmd {
 	return func() tea.Msg {
 		cp, err := cloud.ListCloudProjects()
 		if err != nil {
 			return cloudProjectsMsg{err: err}
 		}
-		return cloudProjectsMsg{projects: cloudToProjects(cp)}
+		localKeys, err := m.store.ListAllSessionKeysByProject()
+		if err != nil {
+			slog.Debug("cloud resume: local session-key fetch failed, cloud counts may over-count overlaps",
+				"error", err)
+			localKeys = nil // degrade: merge still works, but overlaps with local won't be subtracted
+		}
+		return cloudProjectsMsg{projects: cp, localKeys: localKeys}
 	}
 }
 
@@ -333,28 +343,6 @@ func (m *sessionTUI) cloudFetchForActiveCmd() tea.Cmd {
 	}
 	m.cloudPending = true
 	return cloudFetchCmd(m.projectID, m.agentIDByName)
-}
-
-// cloudToProjects converts cloud project summaries to project rows for the blended browser. A
-// project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
-// created on first push, its sessions since deleted), in which case last_session is null and its
-// lastUpdated defaults to ~now server-side — it would float to the top of the recency sort as a
-// phantom with nothing to resume.
-func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
-	out := make([]sessionindex.ProjectSummary, 0, len(cs))
-	for _, c := range cs {
-		if c.SessionCount == 0 {
-			continue
-		}
-		out = append(out, sessionindex.ProjectSummary{
-			ProjectID:    c.ID,
-			ProjectName:  c.Name,
-			Sessions:     c.SessionCount,
-			LastActivity: c.LastUpdated,
-			IsCloud:      true,
-		})
-	}
-	return out
 }
 
 // ---- cloud search (global search view) ----
@@ -541,7 +529,7 @@ func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, t
 	m.cloudPending = true
 	cmds := []tea.Cmd{
 		cloudFetchCmd(m.projectID, m.agentIDByName),
-		cloudProjectsFetchCmd(),
+		m.cloudProjectsFetchCmd(),
 	}
 	// Opened straight into search with a pre-seeded query (`specstory search foo`): now that we know
 	// we're eligible, kick the cloud search too (the per-keystroke path only fires on later typing).
@@ -553,14 +541,17 @@ func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, t
 	return m, tea.Batch(cmds...)
 }
 
-// applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
-// project filter so cloud-only projects appear immediately (preserving the highlighted project).
+// applyCloudProjects records the cloud project list (with its inline session summaries) and the local
+// per-project session fingerprint set, then — if the browser is showing — re-applies the project
+// filter so cloud-only projects (and cloud-only sessions in shared projects) appear immediately
+// (preserving the highlighted project).
 func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
 	if msg.err != nil {
 		slog.Debug("cloud resume: list projects failed, showing local only", "error", msg.err)
 		return m, nil
 	}
 	m.cloudProjects = msg.projects
+	m.cloudLocalKeys = msg.localKeys
 	if m.mode == modeProjects {
 		selID := ""
 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
@@ -636,21 +627,129 @@ func sessionUpdatedTime(s sessionindex.Session) time.Time {
 	return time.Time{}
 }
 
-// mergeCloudProjects blends cloud-only projects into the local project list: dedup by project_id
-// with the local rollup preferred (it has the real per-agent chips and resumes offline), then
-// re-sort the union by recency (LastActivity desc). Same shape as mergeCloudRows for sessions.
-func mergeCloudProjects(local, cloudProjects []sessionindex.ProjectSummary) []sessionindex.ProjectSummary {
-	seen := make(map[string]bool, len(local))
-	for _, p := range local {
-		seen[p.ProjectID] = true
-	}
-	merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjects))
-	merged = append(merged, local...)
-	for _, c := range cloudProjects {
-		if seen[c.ProjectID] {
-			continue // local wins
+// mergeCloudProjects blends cloud projects (each carrying its resumable session summaries) into
+// the local project list at the SESSION level: dedup by (agent, session_id) with the LOCAL copy
+// preferred (it resumes offline/instantly), then recompute AgentCounts / Sessions / LastActivity
+// from the union so a shared project's cloud-only sessions still contribute to its chips and date.
+// Cloud-only projects (no local sessions) get IsCloud=true; shared projects keep IsCloud=false but
+// gain cloud-only sessions in their counts. Re-sort the union by recency (LastActivity desc).
+//
+// localKeys may be nil (e.g. the local session-key query failed): the merge degrades to counting
+// ALL cloud sessions in shared projects (over-counting overlaps with local) — logged at fetch time.
+// agentIDByName resolves each cloud session's display agent name to the provider id the chips key on;
+// sessions whose agent can't be resolved are skipped (they can't be resumed here anyway).
+func mergeCloudProjects(local []sessionindex.ProjectSummary, localKeys map[string][]sessionindex.ProjectSessionKey, cloudProjs []cloud.CloudProject, agentIDByName map[string]string) []sessionindex.ProjectSummary {
+	// Index local projects by project_id so shared ones can be augmented in place via the pointer.
+	// Clone each AgentCounts map first so we never mutate the caller's (m.projects) map. We keep an
+	// ordered slice of pointers and dereference into the result AFTER all mutations, so edits to
+	// shared projects via byID are reflected in the output (a value copy taken now would go stale).
+	byID := make(map[string]*sessionindex.ProjectSummary, len(local))
+	ordered := make([]*sessionindex.ProjectSummary, 0, len(local)+len(cloudProjs))
+	for i := range local {
+		p := local[i]
+		counts := make(map[string]int, len(p.AgentCounts))
+		for k, v := range p.AgentCounts {
+			counts[k] = v
 		}
-		merged = append(merged, c)
+		p.AgentCounts = counts
+		ptr := &p
+		byID[p.ProjectID] = ptr
+		ordered = append(ordered, ptr)
+	}
+
+	// Local fingerprint set per project — the dedup boundary (local preferred).
+	localSeen := make(map[string]map[string]bool, len(localKeys))
+	for pid, keys := range localKeys {
+		s := make(map[string]bool, len(keys))
+		for _, k := range keys {
+			s[sessionindex.FingerprintKey(k.Agent, k.SessionID)] = true
+		}
+		localSeen[pid] = s
+	}
+
+	for _, c := range cloudProjs {
+		pid := c.ID
+		// Resolve this project's cloud sessions to (agentID, sessionID, realActivity, syncTime);
+		// skip unknown agents — they can't be reconstructed/resumed here, so counting them would lie.
+		// realActivity is ended_at/started_at (when the session actually happened). syncTime is updated_at
+		// (when it was last PUSHED — reset to ~now() on every sync). syncTime is NOT activity and must not
+		// win the activity max: one re-synced legacy row would otherwise float the whole project to "now".
+		type cloudSess struct {
+			agentID      string
+			sessionID    string
+			realActivity string // firstNonEmpty(ended_at, started_at) — "" if the duration worker never populated them
+			syncTime     string // updated_at — fallback ONLY when no session in the project has real activity
+		}
+		resolved := make([]cloudSess, 0, len(c.Sessions))
+		for _, s := range c.Sessions {
+			agentID, ok := agentIDByName[s.Metadata.AgentName]
+			if !ok {
+				slog.Debug("cloud resume: skipping project session with unknown agent",
+					"agentName", s.Metadata.AgentName, "sessionId", s.ClientID, "projectId", pid)
+				continue
+			}
+			resolved = append(resolved, cloudSess{
+				agentID:      agentID,
+				sessionID:    s.ClientID,
+				realActivity: firstNonEmpty(s.EndedAt, s.StartedAt),
+				syncTime:     s.UpdatedAt,
+			})
+		}
+		if len(resolved) == 0 {
+			continue // no resolvable resumable sessions — don't show an empty cloud project
+		}
+
+		// The activity the project row should show: max of real activity across sessions; if none
+		// have real activity (all legacy / duration-worker-not-run), fall back to the max sync time so
+		// a cloud-only project still sorts somewhere instead of rendering an empty date.
+		maxReal := ""
+		maxSync := ""
+		for _, r := range resolved {
+			maxReal = laterRFC3339(maxReal, r.realActivity)
+			maxSync = laterRFC3339(maxSync, r.syncTime)
+		}
+
+		if existing, ok := byID[pid]; ok {
+			// Shared project: add only the cloud sessions NOT already local (local preferred), so
+			// overlaps don't double-count and cloud-only sessions still contribute. The local rollup's
+			// LastActivity is already real (local updated_at is last-turn/file-mtime, not sync time),
+			// so only advance it when a cloud session's REAL activity is newer — never on syncTime.
+			seen := localSeen[pid]
+			for _, r := range resolved {
+				if seen != nil && seen[sessionindex.FingerprintKey(r.agentID, r.sessionID)] {
+					continue // local wins
+				}
+				existing.AgentCounts[r.agentID]++
+				existing.Sessions++
+			}
+			existing.LastActivity = laterRFC3339(existing.LastActivity, maxReal)
+			continue
+		}
+
+		// Cloud-only project: build a fresh rollup from its cloud sessions. LastActivity prefers
+		// real activity; sync time is the degrade fallback (no real activity known anywhere).
+		ps := sessionindex.ProjectSummary{
+			ProjectID:    pid,
+			ProjectName:  c.Name,
+			Sessions:     len(resolved),
+			AgentCounts:  make(map[string]int),
+			LastActivity: maxReal,
+			IsCloud:      true,
+		}
+		if ps.LastActivity == "" {
+			ps.LastActivity = maxSync
+		}
+		for _, r := range resolved {
+			ps.AgentCounts[r.agentID]++
+		}
+		ptr := &ps
+		byID[pid] = ptr
+		ordered = append(ordered, ptr)
+	}
+
+	merged := make([]sessionindex.ProjectSummary, 0, len(ordered))
+	for _, ptr := range ordered {
+		merged = append(merged, *ptr)
 	}
 	sort.SliceStable(merged, func(i, j int) bool {
 		return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
@@ -665,6 +764,31 @@ func projectActivityTime(p sessionindex.ProjectSummary) time.Time {
 		return t
 	}
 	return time.Time{}
+}
+
+// laterRFC3339 returns the later of two RFC3339 timestamps by PARSED instant, not byte order.
+// The merge compares timestamps from different stores — the local index (provider transcripts,
+// sometimes with non-UTC offsets) and the cloud (Postgres "+00:00" with fractional seconds) —
+// and a string compare across those formats can be wrong by hours. An empty or unparseable
+// value never beats a parseable one; two unparseable values fall back to string order.
+func laterRFC3339(a, b string) string {
+	ta, errA := time.Parse(time.RFC3339, a)
+	tb, errB := time.Parse(time.RFC3339, b)
+	switch {
+	case errA != nil && errB != nil:
+		if b > a {
+			return b
+		}
+		return a
+	case errA != nil:
+		return b
+	case errB != nil:
+		return a
+	case tb.After(ta):
+		return b
+	default:
+		return a
+	}
 }
 
 // cloudDeleteResultMsg carries the outcome of an async cloud delete.
@@ -734,11 +858,11 @@ func (m sessionTUI) applyCloudDeleteResult(msg cloudDeleteResultMsg) (tea.Model,
 	return m, m.requestVisibleSnippets(modeList)
 }
 
-// removeCloudProject returns projects without the given project_id.
-func removeCloudProject(projects []sessionindex.ProjectSummary, projectID string) []sessionindex.ProjectSummary {
-	out := make([]sessionindex.ProjectSummary, 0, len(projects))
+// removeCloudProject returns cloud projects without the given project_id.
+func removeCloudProject(projects []cloud.CloudProject, projectID string) []cloud.CloudProject {
+	out := make([]cloud.CloudProject, 0, len(projects))
 	for _, p := range projects {
-		if p.ProjectID == projectID {
+		if p.ID == projectID {
 			continue
 		}
 		out = append(out, p)

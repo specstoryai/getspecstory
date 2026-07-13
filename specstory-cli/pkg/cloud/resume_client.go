@@ -71,14 +71,22 @@ type CloudSession struct {
 //     the wire. So dedup-by-project_id keys on ID.
 //   - lastUpdated is the real recency signal (last session activity). The response also carries
 //     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
-//     timestamps — so blended recency sort must use LastUpdated.
+//     timestamps — so blended recency sort must use LastUpdated. (Under ?resumable=true the server
+//     now derives lastUpdated from per-session ended_at/started_at, but the CLI's rollup
+//     re-derives activity per session anyway, so this field is informational only.)
+//   - sessions is populated only when the request passes ?resumable=true: metadata summaries of
+//     the project's resumable sessions, inlined in the project object (NOT the SessionData
+//     blobs). Each entry carries agentName/machineName/deviceId + real activity times, which the
+//     CLI groups by project and merges with its local index to produce accurate per-agent chips
+//     and dates. Absent on the web-app's ungated listing.
 type CloudProject struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Icon         string `json:"icon"`
-	Color        string `json:"color"`
-	LastUpdated  string `json:"lastUpdated"`
-	SessionCount int    `json:"sessionCount"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Icon         string         `json:"icon"`
+	Color        string         `json:"color"`
+	LastUpdated  string         `json:"lastUpdated"`
+	SessionCount int            `json:"sessionCount"`
+	Sessions     []CloudSession `json:"sessions"` // populated only with ?resumable=true
 }
 
 // ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
@@ -157,7 +165,10 @@ func SearchCloudSessions(query, projectID string) ([]CloudSearchHit, error) {
 }
 
 // ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
-// projects into the all-projects browser.
+// projects into the all-projects browser. It passes ?resumable=true so each project carries its
+// resumable session summaries inline; the CLI groups those summaries by project and merges with
+// its local index to produce accurate per-agent chips + real activity dates. Projects with no
+// resumable sessions are dropped server-side, so every returned project has Sessions len > 0.
 func ListCloudProjects() ([]CloudProject, error) {
 	var resp struct {
 		Success bool `json:"success"`
@@ -167,7 +178,7 @@ func ListCloudProjects() ([]CloudProject, error) {
 		Error string `json:"error"`
 	}
 
-	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects", nil, &resp); err != nil {
+	if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects?resumable=true", nil, &resp); err != nil {
 		return nil, err
 	}
 	if !resp.Success {

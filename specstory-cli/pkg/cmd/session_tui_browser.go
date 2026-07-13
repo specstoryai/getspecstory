@@ -352,11 +352,12 @@ func (m sessionTUI) updateProjectSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 }
 
 func (m *sessionTUI) applyProjectFilter() {
-	// Blend cloud-only projects with the local list (deduped, local-preferred, recency-sorted) so a
-	// project worked on only from another machine still shows up to drill into.
+	// Blend cloud projects (each carrying its resumable session summaries inline) with the local
+	// list at the session level: dedup local-preferred by (agent, session_id), recompute chips/dates from
+	// the union. A project worked on only from another machine still shows up with real counts.
 	src := m.projects
 	if len(m.cloudProjects) > 0 {
-		src = mergeCloudProjects(m.projects, m.cloudProjects)
+		src = mergeCloudProjects(m.projects, m.cloudLocalKeys, m.cloudProjects, m.agentIDByName)
 	}
 	q := strings.ToLower(strings.TrimSpace(m.projSearchQuery))
 	if q == "" {

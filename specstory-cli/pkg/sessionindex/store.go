@@ -725,6 +725,39 @@ func (s *Store) ListProjects() ([]ProjectSummary, error) {
 	return out, nil
 }
 
+// ProjectSessionKey identifies one local session within a project for the all-projects rollup
+// merge: the (agent, session_id) fingerprint the cloud rows dedup against. No activity time
+// rides along — the local rollup's LastActivity (from ListProjects) already carries it.
+type ProjectSessionKey struct {
+	Agent     string // provider id: claude, codex, …
+	SessionID string // native session id
+}
+
+// ListAllSessionKeysByProject returns every non-deleted local session keyed by project_id, for
+// the all-projects browser's session-level merge with cloud rows. Unlike ListProjects (a
+// rollup), this returns the per-session fingerprint set so the caller can dedup cloud rows against
+// local by (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals /
+// last activity from the union. Used only by the cloud-projects blend; the local-only path keeps
+// using ListProjects (a single grouped query is cheaper than enumerating then rolling up client-side).
+func (s *Store) ListAllSessionKeysByProject() (map[string][]ProjectSessionKey, error) {
+	rows, err := s.db.Query(`SELECT project_id, agent, session_id
+		FROM sessions WHERE deleted = 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string][]ProjectSessionKey)
+	for rows.Next() {
+		var pid, agent, sid string
+		if err := rows.Scan(&pid, &agent, &sid); err != nil {
+			return nil, err
+		}
+		out[pid] = append(out[pid], ProjectSessionKey{Agent: agent, SessionID: sid})
+	}
+	return out, rows.Err()
+}
+
 // SessionBody returns the full-text conversation body for a session (for the preview
 // pane), or "" if the session has no indexed body (e.g. Cursor, metadata-only).
 func (s *Store) SessionBody(agent, sessionID string) (string, error) {

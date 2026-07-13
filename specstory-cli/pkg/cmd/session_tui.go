@@ -170,8 +170,13 @@ type sessionTUI struct {
 	// which would discard anything merged into it. Instead they're merged with m.all at filter time
 	// (refilterCurrentAgent), so a local re-query can't wipe them.
 	cloudAll      []sessionindex.Session
-	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
-	agentIDByName map[string]string             // agent display name -> provider id
+	cloudProjects []cloud.CloudProject // cloud projects, each carrying its resumable session summaries inline; merged into the browser at filter time
+	// cloudLocalKeys is the local per-project session fingerprint set, fetched alongside
+	// cloudProjects so the all-projects rollup can dedup cloud sessions against local by
+	// (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals / last
+	// activity from the union. Nil until the first cloud-projects fetch completes.
+	cloudLocalKeys map[string][]sessionindex.ProjectSessionKey
+	agentIDByName  map[string]string // agent display name -> provider id
 
 	// Machine filter (the `m` key), modeled on the agent filter: cycle all → "local only" → each
 	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
