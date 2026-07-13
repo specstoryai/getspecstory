@@ -34,6 +34,8 @@ Just attempted a `./specstory login` to https://cloud-dev.specstory.com/ and I g
 
 _**Agent (claude-opus-4-8 2026-06-30 16:59:42Z)**_
 
+_**Agent (claude-opus-4-8 2026-06-30 16:59:42Z)**_
+
 Let me look at the login/device-auth client code to see what endpoint and method it's hitting.
 
 _**Agent (claude-opus-4-8 2026-06-30 16:59:46Z)**_
@@ -160,6 +162,8 @@ _**Agent (claude-opus-4-8 2026-06-30 16:59:52Z)**_
 ```
 </details></tool-use>
 
+_**Agent (claude-opus-4-8 2026-06-30 16:59:55Z)**_
+
 _**Agent (claude-opus-4-8 2026-06-30 16:59:56Z)**_
 
 Now let me check what `GetAPIBaseURL()` resolves to, since that's the actual endpoint hit.
@@ -231,6 +235,8 @@ _**Agent (claude-opus-4-8 2026-06-30 17:00:01Z)**_
 665				slog.Debug("Generated device ID from interface", "interface", iface.Name)
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-30 17:00:12Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-30 17:00:13Z)**_
 
@@ -305,6 +311,8 @@ _**Agent (claude-opus-4-8 2026-06-30 17:00:14Z)**_
 199						fmt.Printf("👤 Logged in as: %s\n", username)
 ```
 </details></tool-use>
+
+_**Agent (claude-opus-4-8 2026-06-30 17:00:25Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-30 17:00:37Z)**_
 
