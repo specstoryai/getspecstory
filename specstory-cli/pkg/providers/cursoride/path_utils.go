@@ -101,9 +101,13 @@ func getWindowsCursorWorkspaceStorageInWSL() string {
 	return ""
 }
 
-// GetGlobalDatabasePath finds the Cursor IDE global database
-// Returns the path to state.vscdb in Cursor's globalStorage
-func GetGlobalDatabasePath() (string, error) {
+// GetGlobalDatabasePath finds the Cursor IDE global database.
+// It is a var so tests can replace it with a function that returns a temp path.
+var GetGlobalDatabasePath = getGlobalDatabasePath
+
+// getGlobalDatabasePath is the real implementation; GetGlobalDatabasePath delegates to it.
+// Returns the path to state.vscdb in Cursor's globalStorage.
+func getGlobalDatabasePath() (string, error) {
 	// An explicit --user-data-dir cursoride:<path> override takes precedence over
 	// OS-default discovery. If the override is set but the derived path does not
 	// exist, warn and fall through so a stale override doesn't silently kill the

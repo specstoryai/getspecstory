@@ -25,12 +25,12 @@ type DirectoryFile struct {
 }
 
 // AdaptMessage formats the list_directory tool invocation as markdown
-func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	// Parse raw args to get the directory path
 	var rawArgs ListDirectoryRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse list_directory rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse list_directory rawArgs: %w", err)
 		}
 	}
 
@@ -38,7 +38,7 @@ func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (string,
 	var result ListDirectoryResult
 	if bubble.Result != "" {
 		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
-			return "", fmt.Errorf("failed to parse list_directory result: %w", err)
+			return "", "", fmt.Errorf("failed to parse list_directory result: %w", err)
 		}
 	}
 
@@ -51,21 +51,18 @@ func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (string,
 		workspaceDisplay = fmt.Sprintf("directory %s", relativeWorkspacePath)
 	}
 
-	// Build the markdown message
+	// Build the summary line
 	pluralSuffix := ""
 	if filesLength != 1 {
 		pluralSuffix = "s"
 	}
-
-	message := fmt.Sprintf(`<details>
-<summary>Tool use: **%s** • Listed %s, %d result%s</summary>
-`, bubble.Name, workspaceDisplay, filesLength, pluralSuffix)
+	summary = fmt.Sprintf("Tool use: **%s** • Listed %s, %d result%s", escapeSummaryText(bubble.Name), escapeSummaryText(workspaceDisplay), filesLength, pluralSuffix)
 
 	if filesLength == 0 {
-		message += "\nNo results found"
+		body = "No results found"
 	} else {
 		// Add table header
-		message += "\n| Name |\n|-------|\n"
+		message := "| Name |\n|-------|\n"
 
 		// Add table rows
 		for _, file := range result.Files {
@@ -73,13 +70,13 @@ func (h *ListDirectoryHandler) AdaptMessage(bubble *BubbleConversation) (string,
 			if file.IsDirectory {
 				icon = "📁"
 			}
-			message += fmt.Sprintf("| %s `%s` |\n", icon, file.Name)
+			// Escape the DB-sourced name so pipes/newlines can't break the table
+			message += fmt.Sprintf("| %s `%s` |\n", icon, escapeTableCellValue(file.Name))
 		}
+		body = message
 	}
 
-	message += "\n</details>"
-
-	return message, nil
+	return summary, body, nil
 }
 
 // GetToolType returns the tool type category

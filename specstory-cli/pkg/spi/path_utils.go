@@ -16,12 +16,18 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-// stripMarkdownHeading removes leading markdown heading markers (e.g. "# Title" → "Title").
+// markdownHeadingRe matches a leading Markdown ATX heading marker after outer
+// whitespace has been trimmed: 1-6 '#' characters followed by whitespace. The
+// trailing whitespace requirement is what distinguishes a real heading ("# Title")
+// from hashtag-like text ("#login issue"), which must be left untouched.
+var markdownHeadingRe = regexp.MustCompile(`^#{1,6}\s+`)
+
+// stripMarkdownHeading removes a leading markdown heading marker (e.g. "# Title" → "Title").
 // These are structural formatting, not meaningful slug content.
 func stripMarkdownHeading(message string) string {
 	trimmed := strings.TrimSpace(message)
-	if len(trimmed) > 0 && trimmed[0] == '#' {
-		trimmed = strings.TrimLeft(trimmed, "#")
+	if markdownHeadingRe.MatchString(trimmed) {
+		trimmed = markdownHeadingRe.ReplaceAllString(trimmed, "")
 		trimmed = strings.TrimSpace(trimmed)
 	}
 	return trimmed

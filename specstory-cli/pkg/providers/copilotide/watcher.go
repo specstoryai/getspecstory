@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -13,7 +14,7 @@ import (
 )
 
 // WatchChatSessions watches the chatSessions directory for new/modified session files
-func WatchChatSessions(
+func (p *Provider) WatchChatSessions(
 	ctx context.Context,
 	workspaceDir string,
 	projectPath string,
@@ -22,7 +23,8 @@ func WatchChatSessions(
 ) error {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
 
-	slog.Info("Starting VS Code Copilot watcher",
+	slog.Info("Starting Copilot watcher",
+		"app", p.variant.AppName,
 		"workspaceDir", workspaceDir,
 		"chatSessionsPath", chatSessionsPath)
 
@@ -36,6 +38,11 @@ func WatchChatSessions(
 			slog.Warn("Failed to close watcher", "error", err)
 		}
 	}()
+
+	// Tracks in-flight sessionCallback goroutines so we don't return while a
+	// callback is still writing. Runs before the watcher-close defer (LIFO).
+	var callbackWg sync.WaitGroup
+	defer callbackWg.Wait()
 
 	// Watch the chatSessions directory
 	if err := watcher.Add(chatSessionsPath); err != nil {
@@ -98,16 +105,19 @@ func WatchChatSessions(
 				slog.Debug("Debouncing rapid event", "path", event.Name)
 				continue
 			}
-			lastProcessed[event.Name] = now
 
 			slog.Debug("File event detected", "path", event.Name, "op", event.Op)
 
 			// Load the session file
 			composer, err := LoadSessionFile(event.Name)
 			if err != nil {
+				// Don't record the debounce timestamp on failure: the file was
+				// likely caught mid-write, and the follow-up write event must
+				// not be swallowed by the debounce window or the update is lost.
 				slog.Warn("Failed to load session after event", "path", event.Name, "error", err)
 				continue
 			}
+			lastProcessed[event.Name] = now
 
 			// Check if this is new or updated
 			sessionID := composer.SessionID
@@ -133,7 +143,7 @@ func WatchChatSessions(
 				}
 
 				// Convert to AgentChatSession
-				session := ConvertToSessionData(*composer, projectPath, state)
+				session := p.ConvertToSessionData(*composer, projectPath, state)
 
 				// Write debug files if requested
 				if debugRaw {
@@ -142,9 +152,20 @@ func WatchChatSessions(
 					}
 				}
 
-				// Invoke callback
+				// Invoke callback asynchronously so a panic during processing (e.g.
+				// markdown write or cloud sync) doesn't crash the watcher, and slow
+				// callback I/O doesn't block the fsnotify event loop.
 				slog.Info("Invoking callback for session", "sessionId", sessionID, "slug", session.Slug)
-				sessionCallback(&session)
+				callbackWg.Add(1)
+				go func(s *spi.AgentChatSession) {
+					defer callbackWg.Done()
+					defer func() {
+						if r := recover(); r != nil {
+							slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
+						}
+					}()
+					sessionCallback(s)
+				}(&session)
 			}
 
 		case err, ok := <-watcher.Errors:

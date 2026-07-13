@@ -84,9 +84,24 @@ func (r *Registry) registerAll() {
 	r.providers["cursoride"] = cursorideProvider
 	slog.Debug("Registered provider", "id", "cursoride", "name", cursorideProvider.Name())
 
-	copilotideProvider := copilotide.NewProvider()
-	r.providers["copilotide"] = copilotideProvider
-	slog.Debug("Registered provider", "id", "copilotide", "name", copilotideProvider.Name())
+	// The Copilot IDE provider is variant-driven: one instance per VS Code
+	// distribution, keyed by the variant's own ID so the registry key always
+	// matches the provider ID stamped into generated session data.
+	copilotideProvider := copilotide.NewProvider(copilotide.VSCode)
+	r.providers[copilotide.VSCode.ID] = copilotideProvider
+	slog.Debug("Registered provider", "id", copilotide.VSCode.ID, "name", copilotideProvider.Name())
+
+	copilotideInsidersProvider := copilotide.NewProvider(copilotide.VSCodeInsiders)
+	r.providers[copilotide.VSCodeInsiders.ID] = copilotideInsidersProvider
+	slog.Debug("Registered provider", "id", copilotide.VSCodeInsiders.ID, "name", copilotideInsidersProvider.Name())
+
+	copilotideVSCodiumProvider := copilotide.NewProvider(copilotide.VSCodium)
+	r.providers[copilotide.VSCodium.ID] = copilotideVSCodiumProvider
+	slog.Debug("Registered provider", "id", copilotide.VSCodium.ID, "name", copilotideVSCodiumProvider.Name())
+
+	copilotideVSCodiumInsidersProvider := copilotide.NewProvider(copilotide.VSCodiumInsiders)
+	r.providers[copilotide.VSCodiumInsiders.ID] = copilotideVSCodiumInsidersProvider
+	slog.Debug("Registered provider", "id", copilotide.VSCodiumInsiders.ID, "name", copilotideVSCodiumInsidersProvider.Name())
 
 	deepseekProvider := deepseektui.NewProvider()
 	r.providers["deepseek"] = deepseekProvider

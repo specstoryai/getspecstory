@@ -1,0 +1,437 @@
+package copilotide
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+)
+
+// rawMessages converts JSON literals to the raw response array shape.
+func rawMessages(items ...string) []json.RawMessage {
+	raw := make([]json.RawMessage, len(items))
+	for i, s := range items {
+		raw[i] = json.RawMessage(s)
+	}
+	return raw
+}
+
+func TestExtractTextFromResponseArray(t *testing.T) {
+	tests := []struct {
+		name      string
+		responses []json.RawMessage
+		want      string
+	}{
+		{
+			// The real-world truncation case: markdown fragments split around an
+			// inlineReference file chip, with tool/progress items interleaved.
+			name: "fragments around inline file reference",
+			responses: rawMessages(
+				`{"kind": "mcpServersStarting", "didStartServerIds": []}`,
+				`{"kind": "toolInvocationSerialized", "toolId": "create_file"}`,
+				`{"kind": "textEditGroup", "uri": {"path": "/proj/NEW_README.md"}}`,
+				`{"value": "A new file named ", "supportThemeIcons": false}`,
+				`{"kind": "inlineReference", "inlineReference": {"fsPath": "/proj/NEW_README.md", "path": "/proj/NEW_README.md", "scheme": "file"}}`,
+				`{"value": " has been created with a fresh overview."}`,
+			),
+			want: "A new file named `NEW_README.md` has been created with a fresh overview.",
+		},
+		{
+			name: "symbol reference uses its name",
+			responses: rawMessages(
+				`{"value": "See "}`,
+				`{"kind": "inlineReference", "name": "ParseResponseKind", "inlineReference": {"fsPath": "/proj/parser.go"}}`,
+				`{"value": " for details."}`,
+			),
+			want: "See `ParseResponseKind` for details.",
+		},
+		{
+			name: "single markdown item",
+			responses: rawMessages(
+				`{"value": "Plain answer."}`,
+			),
+			want: "Plain answer.",
+		},
+		{
+			name: "reference without name or path renders nothing",
+			responses: rawMessages(
+				`{"value": "Before"}`,
+				`{"kind": "inlineReference", "inlineReference": {}}`,
+				`{"value": " after"}`,
+			),
+			want: "Before after",
+		},
+		{
+			name:      "no markdown items",
+			responses: rawMessages(`{"kind": "mcpServersStarting"}`),
+			want:      "",
+		},
+		{
+			name:      "empty array",
+			responses: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ExtractTextFromResponseArray(tt.responses); got != tt.want {
+				t.Errorf("ExtractTextFromResponseArray() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestFormatToolMarkdown covers the pre-rendered tool body: input key-value pairs
+// (multiline values fenced, internal keys skipped) and the fenced result.
+func TestFormatToolMarkdown(t *testing.T) {
+	tests := []struct {
+		name     string
+		tool     *schema.ToolInfo
+		contains []string
+		absent   []string
+	}{
+		{
+			// The motivating case: a create_file whose input carries the whole
+			// written file. The content must survive into FormattedMarkdown.
+			name: "input with multiline and scalar values",
+			tool: &schema.ToolInfo{
+				Name: "create_file",
+				Input: map[string]interface{}{
+					"filePath": "/proj/NEW_README.md",
+					"content":  "# Title\n\nBody line.",
+					"_cwd":     "/proj", // internal field, must be skipped
+				},
+			},
+			contains: []string{
+				"**Input:**",
+				"- filePath: `/proj/NEW_README.md`",
+				"- content:\n\n```\n# Title\n\nBody line.\n```",
+			},
+			absent: []string{"_cwd", "**Result:**"},
+		},
+		{
+			name: "result rendered fenced",
+			tool: &schema.ToolInfo{
+				Name:   "run_in_terminal",
+				Input:  map[string]interface{}{"command": "ls"},
+				Output: map[string]interface{}{"result": "file-a\nfile-b"},
+			},
+			contains: []string{"- command: `ls`", "**Result:**\n\n```\nfile-a\nfile-b\n```"},
+		},
+		{
+			// Values containing backtick fences must be wrapped in a longer fence
+			// so they cannot terminate the block early.
+			name: "fence sizing adapts to embedded fences",
+			tool: &schema.ToolInfo{
+				Name:   "create_file",
+				Input:  map[string]interface{}{"content": "# Readme\n\n```sh\nmake build\n```\n"},
+				Output: map[string]interface{}{"result": "before\n````\nfour\n````\nafter"},
+			},
+			contains: []string{
+				"- content:\n\n````\n# Readme\n\n```sh\nmake build\n```\n\n````",
+				"**Result:**\n\n`````\nbefore\n````\nfour\n````\nafter\n`````",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatToolMarkdown(tt.tool)
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Errorf("missing %q in:\n%s", want, got)
+				}
+			}
+			for _, ban := range tt.absent {
+				if strings.Contains(got, ban) {
+					t.Errorf("unexpected %q in:\n%s", ban, got)
+				}
+			}
+		})
+	}
+}
+
+// TestFormatToolMarkdown_Empty verifies a tool with no structured data pre-renders
+// nothing, so ToolInfo.FormattedMarkdown stays nil and downstream fallbacks apply.
+func TestFormatToolMarkdown_Empty(t *testing.T) {
+	if got := FormatToolMarkdown(&schema.ToolInfo{Name: "MysteryTool"}); got != "" {
+		t.Errorf("expected empty markdown for tool without data, got:\n%s", got)
+	}
+}
+
+// TestFormatToolMarkdown_ResultCap verifies oversized results are truncated (inputs
+// are deliberately uncapped).
+func TestFormatToolMarkdown_ResultCap(t *testing.T) {
+	tool := &schema.ToolInfo{
+		Name:   "read_file",
+		Output: map[string]interface{}{"result": strings.Repeat("x", toolResultCap+500)},
+	}
+	got := FormatToolMarkdown(tool)
+	if !strings.Contains(got, "… (output truncated)") {
+		t.Error("oversized result should be marked truncated")
+	}
+	if len(got) > toolResultCap+200 {
+		t.Errorf("result not capped: len=%d", len(got))
+	}
+
+	small := &schema.ToolInfo{Name: "read_file", Output: map[string]interface{}{"result": "short"}}
+	if s := FormatToolMarkdown(small); strings.Contains(s, "truncated") {
+		t.Errorf("small result should not be truncated: %s", s)
+	}
+}
+
+// TestCapRunes verifies rune-safe truncation without materializing []rune:
+// multi-byte characters are never split, and strings whose byte length exceeds
+// the cap but whose rune count doesn't are returned unchanged.
+func TestCapRunes(t *testing.T) {
+	const marker = "\n… (output truncated)"
+	tests := []struct {
+		name string
+		s    string
+		max  int
+		want string
+	}{
+		{"short ascii unchanged", "hello", 10, "hello"},
+		{"ascii truncated", "hello world", 5, "hello" + marker},
+		{"multibyte truncated on rune boundary", strings.Repeat("é", 10), 5, strings.Repeat("é", 5) + marker},
+		{"more bytes than max but fewer runes", "ééé", 4, "ééé"},
+		{"exact rune count unchanged", "héllo", 5, "héllo"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := capRunes(tt.s, tt.max); got != tt.want {
+				t.Errorf("capRunes(%q, %d) = %q, want %q", tt.s, tt.max, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCodeFence(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"no backticks", "plain text", "```"},
+		{"inline code only", "uses `go build` here", "```"},
+		{"double backticks", "``x``", "```"},
+		{"triple backtick fence", "```sh\nls\n```", "````"},
+		{"four backticks", "````\nnested\n````", "`````"},
+		{"empty", "", "```"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := codeFence(tt.value); got != tt.want {
+				t.Errorf("codeFence(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseJSONL verifies the incremental update semantics: kind:1 replaces at a key
+// path (creating intermediate maps), kind:2 appends array deltas (or replaces when the
+// value isn't an array), unknown kinds and malformed lines are skipped, and the final
+// typed composer reflects all accumulated updates.
+func TestParseJSONL(t *testing.T) {
+	lines := []string{
+		`{"kind":0,"v":{"version":3,"sessionId":"s-1","requesterUsername":"user","requests":[{"requestId":"r-1","message":{"text":"first"}}]}}`,
+		// kind:1 replace of a top-level field
+		`{"kind":1,"k":["customTitle"],"v":"My Title"}`,
+		// kind:1 creating an intermediate map that wasn't in the snapshot
+		`{"kind":1,"k":["inputState","inputText"],"v":"draft"}`,
+		// kind:2 array delta: appends to the existing requests
+		`{"kind":2,"k":["requests"],"v":[{"requestId":"r-2","message":{"text":"second"}}]}`,
+		// kind:2 with a non-array value degrades to replace
+		`{"kind":2,"k":["responderUsername"],"v":"GitHub Copilot"}`,
+		// unknown kind and malformed line must both be skipped without failing the parse
+		`{"kind":9,"k":["requests"],"v":"bogus"}`,
+		`not json at all`,
+		// later kind:1 overwrites the earlier value
+		`{"kind":1,"k":["customTitle"],"v":"Final Title"}`,
+	}
+
+	composer, err := parseJSONL([]byte(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatalf("parseJSONL() error = %v", err)
+	}
+
+	if composer.SessionID != "s-1" {
+		t.Errorf("SessionID = %q, want %q", composer.SessionID, "s-1")
+	}
+	if composer.CustomTitle != "Final Title" {
+		t.Errorf("CustomTitle = %q, want %q", composer.CustomTitle, "Final Title")
+	}
+	if len(composer.Requests) != 2 {
+		t.Fatalf("len(Requests) = %d, want 2", len(composer.Requests))
+	}
+	if got := composer.Requests[1].Message.Text; got != "second" {
+		t.Errorf("Requests[1].Message.Text = %q, want %q", got, "second")
+	}
+	if composer.ResponderUsername != "GitHub Copilot" {
+		t.Errorf("ResponderUsername = %q, want %q", composer.ResponderUsername, "GitHub Copilot")
+	}
+}
+
+// TestParseJSONL_ArrayIndexPaths verifies key paths containing numeric array indices,
+// which VS Code uses for the vast majority of updates on real sessions (observed shape:
+// ["requests", <idx>, "<field>"] for kind:1 field updates and kind:2 response-part
+// appends). These were previously dropped because the path was decoded as []string.
+func TestParseJSONL_ArrayIndexPaths(t *testing.T) {
+	lines := []string{
+		`{"kind":0,"v":{"version":3,"sessionId":"s-2","requests":[` +
+			`{"requestId":"r-1","message":{"text":"first"},"response":[{"value":"partial"}]},` +
+			`{"requestId":"r-2","message":{"text":"second"}}]}}`,
+		// kind:1 field update inside an indexed request
+		`{"kind":1,"k":["requests",0,"modelId"],"v":"gpt-5"}`,
+		// kind:1 full replace of an indexed element's response array
+		`{"kind":1,"k":["requests",0,"response"],"v":[{"value":"replaced"}]}`,
+		// kind:2 append of response parts inside an indexed request
+		`{"kind":2,"k":["requests",1,"response"],"v":[{"value":"part one"}]}`,
+		`{"kind":2,"k":["requests",1,"response"],"v":[{"value":"part two"}]}`,
+		// index == length appends a new element
+		`{"kind":1,"k":["requests",2],"v":{"requestId":"r-3","message":{"text":"third"}}}`,
+		// index past the end is rejected and skipped without failing the parse
+		`{"kind":1,"k":["requests",9,"modelId"],"v":"dropped"}`,
+		// string key against an array is rejected and skipped
+		`{"kind":1,"k":["requests","notAnIndex"],"v":"dropped"}`,
+	}
+
+	composer, err := parseJSONL([]byte(strings.Join(lines, "\n")))
+	if err != nil {
+		t.Fatalf("parseJSONL() error = %v", err)
+	}
+
+	if len(composer.Requests) != 3 {
+		t.Fatalf("len(Requests) = %d, want 3", len(composer.Requests))
+	}
+	if got := composer.Requests[0].ModelID; got != "gpt-5" {
+		t.Errorf("Requests[0].ModelID = %q, want %q", got, "gpt-5")
+	}
+	if got := len(composer.Requests[0].Response); got != 1 {
+		t.Errorf("len(Requests[0].Response) = %d, want 1 (replaced, not appended)", got)
+	}
+	if got := len(composer.Requests[1].Response); got != 2 {
+		t.Errorf("len(Requests[1].Response) = %d, want 2 (two appended parts)", got)
+	}
+	if got := composer.Requests[2].Message.Text; got != "third" {
+		t.Errorf("Requests[2].Message.Text = %q, want %q", got, "third")
+	}
+}
+
+// TestGenerateSlug verifies slugs follow the shared spi.GenerateFilenameFromUserMessage
+// convention: punctuation acts as a word separator (not silently dropped), output is
+// bounded regardless of title length, and empty candidates fall through to the next
+// source (custom title -> name -> first request -> "untitled").
+func TestGenerateSlug(t *testing.T) {
+	longTitle := strings.Repeat("verylongword ", 40)
+	tests := []struct {
+		name     string
+		composer VSCodeComposer
+		want     string
+	}{
+		{
+			name:     "punctuation separates words",
+			composer: VSCodeComposer{CustomTitle: "Plan: Replace parser"},
+			want:     "plan-replace-parser",
+		},
+		{
+			name:     "long title is bounded",
+			composer: VSCodeComposer{CustomTitle: longTitle},
+			want:     "verylongword-verylongword-verylongword-verylongword",
+		},
+		{
+			name:     "custom title preferred over name",
+			composer: VSCodeComposer{CustomTitle: "Custom Title", Name: "Other Name"},
+			want:     "custom-title",
+		},
+		{
+			name:     "punctuation-only title falls through to name",
+			composer: VSCodeComposer{CustomTitle: "!!!", Name: "My Session"},
+			want:     "my-session",
+		},
+		{
+			name: "falls back to first request message",
+			composer: VSCodeComposer{Requests: []VSCodeRequestBlock{
+				{Message: VSCodeMessage{Text: "Fix the flaky loader test please"}},
+			}},
+			want: "fix-the-flaky-loader",
+		},
+		{
+			name:     "nothing available",
+			composer: VSCodeComposer{},
+			want:     "untitled",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GenerateSlug(tt.composer); got != tt.want {
+				t.Errorf("GenerateSlug() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestParseResponsesForTools_HiddenToolsKeepSequenceAligned guards the sequence-based
+// matching: metadata's toolCallRounds include hidden tools, so a hidden invocation must
+// consume its sequence slot (without emitting a message) or every later visible tool
+// gets the wrong name/args/results.
+func TestParseResponsesForTools_HiddenToolsKeepSequenceAligned(t *testing.T) {
+	metadata := VSCodeResultMetadata{
+		ToolCallRounds: []VSCodeToolCallRound{
+			{ToolCalls: []VSCodeToolCallInfo{
+				{ID: "call-1", Name: "read_file", Arguments: `{"filePath": "/proj/a.go"}`},
+				{ID: "call-2", Name: "get_errors", Arguments: `{}`},
+				{ID: "call-3", Name: "create_file", Arguments: `{"filePath": "/proj/b.go"}`},
+			}},
+		},
+	}
+	responses := rawMessages(
+		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-1"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-2", "presentation": "hidden"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-3"}`,
+	)
+
+	messages := ParseResponsesForTools(responses, metadata, "model-x")
+
+	if len(messages) != 2 {
+		t.Fatalf("expected 2 visible tool messages, got %d", len(messages))
+	}
+	if got := messages[0].Tool.Name; got != "read_file" {
+		t.Errorf("first visible tool = %q, want %q", got, "read_file")
+	}
+	// Without slot consumption for the hidden call-2, this would misalign to get_errors.
+	if got := messages[1].Tool.Name; got != "create_file" {
+		t.Errorf("second visible tool = %q, want %q", got, "create_file")
+	}
+}
+
+// TestBuildToolInfoFromInvocation_PreRenders verifies the forward pass populates
+// Summary and FormattedMarkdown so tool payloads survive cross-agent resume.
+func TestBuildToolInfoFromInvocation_PreRenders(t *testing.T) {
+	// Real sessions: the invocation carries a VS Code UUID while toolCallResults
+	// is keyed by the OpenAI-style ID from toolCallRounds — they never match.
+	invocation := VSCodeToolInvocationResponse{Kind: "toolInvocationSerialized", ToolCallID: "b4fc9b8c-59db-473d-9f87-16bf9c1bb481"}
+	toolCall := VSCodeToolCallInfo{
+		ID:        "call_abc__vscode-1763114684819",
+		Name:      "create_file",
+		Arguments: `{"filePath": "/proj/a.md", "content": "line one\nline two"}`,
+	}
+	results := map[string]VSCodeToolCallResult{
+		"call_abc__vscode-1763114684819": {Content: []VSCodeToolCallContent{{Value: "created"}}},
+	}
+
+	toolInfo := BuildToolInfoFromInvocation(invocation, toolCall, results)
+	if toolInfo.Summary == nil || *toolInfo.Summary != "Tool use: **create_file**" {
+		t.Errorf("summary = %v", toolInfo.Summary)
+	}
+	if toolInfo.FormattedMarkdown == nil {
+		t.Fatal("expected formatted markdown")
+	}
+	for _, want := range []string{"**Input:**", "line one\nline two", "- filePath: `/proj/a.md`", "**Result:**", "created"} {
+		if !strings.Contains(*toolInfo.FormattedMarkdown, want) {
+			t.Errorf("missing %q in:\n%s", want, *toolInfo.FormattedMarkdown)
+		}
+	}
+}

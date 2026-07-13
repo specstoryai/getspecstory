@@ -34,11 +34,11 @@ type CodeEditResult struct {
 }
 
 // AdaptMessage formats code edit tool invocations as markdown
-func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var params CodeEditParams
 	if bubble.Params != "" {
 		if err := json.Unmarshal([]byte(bubble.Params), &params); err != nil {
-			return "", fmt.Errorf("failed to parse code edit params: %w", err)
+			return "", "", fmt.Errorf("failed to parse code edit params: %w", err)
 		}
 	}
 
@@ -48,15 +48,14 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 		_ = json.Unmarshal([]byte(bubble.Result), &result)
 	}
 
-	var message strings.Builder
-	message.WriteString("\n")
-
 	// Build summary line
 	if params.RelativeWorkspacePath != "" {
-		fmt.Fprintf(&message, "<details><summary>Tool use: **%s** • Edit file: %s</summary>\n\n", bubble.Name, params.RelativeWorkspacePath)
+		summary = fmt.Sprintf("Tool use: **%s** • Edit file: %s", escapeSummaryText(bubble.Name), escapeSummaryText(params.RelativeWorkspacePath))
 	} else {
-		fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+		summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 	}
+
+	var message strings.Builder
 
 	// Add instructions if present
 	if params.Instructions != "" {
@@ -73,15 +72,15 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 		message.WriteString("**Apply failed**\n\n")
 	}
 
-	// Add diff chunks if present
+	// Add diff chunks if present. Diffs carry the edit the agent made, so they are
+	// rendered verbatim and uncapped like other inputs.
 	if result.Diff != nil && len(result.Diff.Chunks) > 0 {
 		for i, chunk := range result.Diff.Chunks {
 			fmt.Fprintf(&message, "**Chunk %d**\n", i+1)
 			fmt.Fprintf(&message, "Lines added: %d, lines removed: %d\n\n", chunk.LinesAdded, chunk.LinesRemoved)
-			message.WriteString("```diff\n")
-			fmt.Fprintf(&message, "@@ -%d,%d +%d,%d @@\n", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines)
-			message.WriteString(escapeCodeBlock(chunk.DiffString))
-			message.WriteString("\n```\n\n")
+			header := fmt.Sprintf("@@ -%d,%d +%d,%d @@", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines)
+			message.WriteString(fencedBlock("diff", header+"\n"+chunk.DiffString))
+			message.WriteString("\n\n")
 		}
 	} else if len(bubble.AdditionalData) > 0 {
 		// Check for codeblock in additionalData (edit_file_v2 format)
@@ -91,13 +90,13 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (string, erro
 				if languageId, hasLang := codeblockData["languageId"].(string); hasLang {
 					lang = languageId
 				}
-				fmt.Fprintf(&message, "```%s\n%s\n```\n\n", lang, content)
+				message.WriteString(fencedBlock(lang, content))
+				message.WriteString("\n\n")
 			}
 		}
 	}
 
-	message.WriteString("</details>\n")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -114,23 +113,22 @@ type DeleteFileRawArgs struct {
 }
 
 // AdaptMessage formats delete_file tool invocations as markdown
-func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *DeleteFileHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs DeleteFileRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse delete_file rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse delete_file rawArgs: %w", err)
 		}
 	}
 
-	var message strings.Builder
-	fmt.Fprintf(&message, "<details><summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+	summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 
+	var message strings.Builder
 	if rawArgs.Explanation != "" {
 		fmt.Fprintf(&message, "Explanation: %s\n\n", rawArgs.Explanation)
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -148,23 +146,23 @@ type ApplyPatchRawArgs struct {
 }
 
 // AdaptMessage formats apply_patch tool invocations as markdown
-func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs ApplyPatchRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse apply_patch rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse apply_patch rawArgs: %w", err)
 		}
 	}
 
-	var message strings.Builder
-	fmt.Fprintf(&message, "<details>\n        <summary>Tool use: **%s** • Apply patch for %s</summary>\n      ", bubble.Name, rawArgs.FilePath)
+	summary = fmt.Sprintf("Tool use: **%s** • Apply patch for %s", escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.FilePath))
 
+	var message strings.Builder
 	if rawArgs.Patch != "" {
-		fmt.Fprintf(&message, "\n\n```diff\n%s\n```\n", escapeCodeBlock(rawArgs.Patch))
+		message.WriteString(fencedBlock("diff", rawArgs.Patch))
+		message.WriteString("\n")
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -196,7 +194,7 @@ type CopilotApplyPatchResult struct {
 }
 
 // AdaptMessage formats copilot apply patch tool invocations as markdown
-func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	var rawArgs CopilotApplyPatchRawArgs
 	if bubble.RawArgs != "" {
 		// Parse rawArgs, but ignore errors (non-fatal, use defaults)
@@ -239,18 +237,24 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 		invocationMsg = fmt.Sprintf("Edit file: %s", filePath)
 	}
 
+	summary = fmt.Sprintf("Tool use: **%s** • %s", escapeSummaryText(bubble.Name), escapeSummaryText(invocationMsg))
+
 	var message strings.Builder
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s** • %s</summary>\n\n", bubble.Name, invocationMsg)
 
 	// Check if operation failed
 	if bubble.Status == "error" && bubble.Error != "" {
+		// Prefer the parsed message, but fall back to the raw error text when
+		// bubble.Error isn't valid JSON or doesn't carry a message — otherwise the
+		// failure is silently hidden with an empty body.
+		errMsg := bubble.Error
 		var errorData struct {
 			Message string `json:"message"`
 		}
-		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil {
-			message.WriteString("**❌ Patch Failed**\n\n")
-			fmt.Fprintf(&message, "%s\n", errorData.Message)
+		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil && errorData.Message != "" {
+			errMsg = errorData.Message
 		}
+		message.WriteString("**❌ Patch Failed**\n\n")
+		fmt.Fprintf(&message, "%s\n", errMsg)
 	} else {
 		// Add the collected content
 		if result.Content != "" && strings.TrimSpace(result.Content) != "" {
@@ -265,7 +269,9 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 				}
 			}
 			language := extensionToLanguage(extension)
-			fmt.Fprintf(&message, "```%s\n%s\n```\n\n", language, result.TextEditContent)
+			// The edit content is what the agent chose to write, so it is not capped.
+			message.WriteString(fencedBlock(language, result.TextEditContent))
+			message.WriteString("\n\n")
 		} else {
 			message.WriteString("_No content to show_\n")
 		}
@@ -276,8 +282,7 @@ func (h *CopilotApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (str
 		}
 	}
 
-	message.WriteString("\n</details>")
-	return message.String(), nil
+	return summary, message.String(), nil
 }
 
 // GetToolType returns the tool type category
@@ -336,14 +341,4 @@ func extensionToLanguage(extension string) string {
 		return extension
 	}
 	return "text"
-}
-
-// escapeCodeBlock escapes special characters for markdown code blocks
-// Matches the TypeScript escapeCodeBlock function
-func escapeCodeBlock(code string) string {
-	code = strings.ReplaceAll(code, "&", "&amp;")
-	code = strings.ReplaceAll(code, "`", "&#96;")
-	code = strings.ReplaceAll(code, "<", "&lt;")
-	code = strings.ReplaceAll(code, ">", "&gt;")
-	return code
 }

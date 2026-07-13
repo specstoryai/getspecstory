@@ -33,12 +33,12 @@ type GlobSearchFile struct {
 }
 
 // AdaptMessage formats the glob_file_search tool invocation as markdown
-func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string, error) {
+func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error) {
 	// Parse raw args to get the glob pattern
 	var rawArgs GlobFileSearchRawArgs
 	if bubble.RawArgs != "" {
 		if err := json.Unmarshal([]byte(bubble.RawArgs), &rawArgs); err != nil {
-			return "", fmt.Errorf("failed to parse glob_file_search rawArgs: %w", err)
+			return "", "", fmt.Errorf("failed to parse glob_file_search rawArgs: %w", err)
 		}
 	}
 
@@ -46,7 +46,7 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 	var result GlobFileSearchResult
 	if bubble.Result != "" {
 		if err := json.Unmarshal([]byte(bubble.Result), &result); err != nil {
-			return "", fmt.Errorf("failed to parse glob_file_search result: %w", err)
+			return "", "", fmt.Errorf("failed to parse glob_file_search result: %w", err)
 		}
 	}
 
@@ -69,8 +69,9 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 				pluralSuffix = "s"
 			}
 
-			// Add directory name
-			messageDetails += fmt.Sprintf("\nDirectory: **%s** (%d file%s)\n", directory.AbsPath, filesCount, pluralSuffix)
+			// Add directory name as a code span, escaped so pipes/backticks/newlines
+			// in the path can't break the surrounding markdown (same as the file rows below).
+			messageDetails += fmt.Sprintf("\nDirectory: **`%s`** (%d file%s)\n", escapeTableCellValue(directory.AbsPath), filesCount, pluralSuffix)
 
 			if len(directory.Files) > 0 {
 				// Add table header
@@ -89,7 +90,8 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 					if displayName == "" {
 						displayName = "Unknown file"
 					}
-					messageDetails += fmt.Sprintf("| `%s` |\n", displayName)
+					// Escape the DB-sourced name so pipes/newlines can't break the table
+					messageDetails += fmt.Sprintf("| `%s` |\n", escapeTableCellValue(displayName))
 				}
 			}
 		}
@@ -105,12 +107,9 @@ func (h *GlobFileSearchHandler) AdaptMessage(bubble *BubbleConversation) (string
 		directoriesPluralSuffix = "directories"
 	}
 
-	message := fmt.Sprintf(`<details>
-<summary>Tool use: **%s** • Searched codebase "%s" • **%d** result%s in **%d** %s</summary>
-%s
-</details>`, bubble.Name, rawArgs.GlobPattern, resultsLength, resultsPluralSuffix, directoriesCount, directoriesPluralSuffix, messageDetails)
+	summary = fmt.Sprintf(`Tool use: **%s** • Searched codebase "%s" • **%d** result%s in **%d** %s`, escapeSummaryText(bubble.Name), escapeSummaryText(rawArgs.GlobPattern), resultsLength, resultsPluralSuffix, directoriesCount, directoriesPluralSuffix)
 
-	return message, nil
+	return summary, messageDetails, nil
 }
 
 // GetToolType returns the tool type category

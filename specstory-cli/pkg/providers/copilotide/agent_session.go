@@ -10,8 +10,10 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// ConvertToSessionData converts VS Code raw format to CLI's unified schema
-func ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VSCodeStateFile) spi.AgentChatSession {
+// ConvertToSessionData converts VS Code raw format to CLI's unified schema.
+// A Provider method so the generated session data carries the variant's
+// provider identity (VS Code vs VS Code Insiders).
+func (p *Provider) ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VSCodeStateFile) spi.AgentChatSession {
 	// Format timestamps
 	createdAt := FormatTimestamp(composer.CreationDate)
 	updatedAt := FormatTimestamp(composer.LastMessageDate)
@@ -32,8 +34,8 @@ func ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VS
 	sessionData := &schema.SessionData{
 		SchemaVersion: "1.0",
 		Provider: schema.ProviderInfo{
-			ID:      "copilotide",
-			Name:    "VS Code Copilot IDE",
+			ID:      p.variant.ID,
+			Name:    p.Name(),
 			Version: "1.0",
 		},
 		SessionID:     composer.SessionID,
@@ -171,11 +173,6 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 				continue
 			}
 
-			// Skip hidden tools (don't increment sequence index for hidden tools)
-			if invocation.Presentation == "hidden" {
-				continue
-			}
-
 			// Match by sequence: get the next tool call from the ordered list
 			if sequenceIndex >= len(toolCallSequence) {
 				slog.Debug("Tool invocation has no matching tool call in sequence",
@@ -187,6 +184,12 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 
 			toolCall := toolCallSequence[sequenceIndex]
 			sequenceIndex++
+
+			// Hidden tools still occupy a slot in metadata's tool call sequence,
+			// so consume the slot above but don't emit a message for them.
+			if invocation.Presentation == "hidden" {
+				continue
+			}
 
 			slog.Debug("Matched tool by sequence",
 				"sequenceIndex", sequenceIndex-1,
@@ -244,9 +247,11 @@ func BuildToolInfoFromInvocation(
 		}
 	}
 
-	// Add output from results map
-	// Note: We still look up results by invocation.ToolCallID since that's the VS Code ID
-	if result, ok := toolResults[invocation.ToolCallID]; ok {
+	// Add output from results map. metadata.toolCallResults is keyed by the
+	// same OpenAI-style IDs as toolCallRounds (verified on real session files),
+	// not by the invocation's VS Code UUID — so look up with the matched
+	// toolCall's ID.
+	if result, ok := toolResults[toolCall.ID]; ok {
 		output := make(map[string]any)
 		if len(result.Content) > 0 {
 			var contentParts []string
@@ -266,6 +271,17 @@ func BuildToolInfoFromInvocation(
 		}
 	}
 
+	// Pre-render Summary/FormattedMarkdown: cross-agent resume flattens tool calls
+	// from these fields only, so without them the tool's payload (e.g. a written
+	// file's content) would collapse to a bare tool name in the resumed session.
+	// The summary matches the markdown generator's default, so archival markdown
+	// keeps its familiar <summary> line.
+	summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
+	toolInfo.Summary = &summary
+	if formatted := FormatToolMarkdown(toolInfo); formatted != "" {
+		toolInfo.FormattedMarkdown = &formatted
+	}
+
 	return toolInfo
 }
 
@@ -283,6 +299,7 @@ func valueToString(value any) string {
 	// If it's an object, marshal to JSON
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
+		slog.Debug("Failed to marshal tool result value", "type", fmt.Sprintf("%T", value), "error", err)
 		return ""
 	}
 	return string(jsonBytes)

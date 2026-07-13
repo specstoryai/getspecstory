@@ -519,3 +519,44 @@ func TestConvertToAgentChatSession(t *testing.T) {
 		})
 	}
 }
+
+func TestIsSyntheticMessage_SlashCommandNoise(t *testing.T) {
+	synthetic := []string{
+		"warmup",
+		"<TEXTBLOCK>real prompt</TEXTBLOCK>",
+		"<command-name>/code-review</command-name>",
+		"  <local-command-stdout>Cancelled</local-command-stdout>",
+		"<local-command-caveat>Caveat: …</local-command-caveat>",
+		"<command-message>today</command-message>",
+		"[Request interrupted by user]",
+		"[Request interrupted by user for tool use]",
+	}
+	for _, c := range synthetic {
+		if !isSyntheticMessage(c) {
+			t.Errorf("expected synthetic: %q", c)
+		}
+	}
+	real := []string{
+		"read @docs/SESSION-PORTABILITY.md task to follow",
+		"fix the bug in the parser",
+		"I have a <command-name> mentioned mid-sentence", // not a prefix → real
+	}
+	for _, c := range real {
+		if isSyntheticMessage(c) {
+			t.Errorf("expected real: %q", c)
+		}
+	}
+}
+
+func TestExtractCommandName(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"<command-name>/code-review</command-name>\n<command-message>code-review</command-message>", "/code-review"},
+		{"<command-message>today</command-message>", "/today"},
+		{"no command here", ""},
+	}
+	for _, c := range cases {
+		if got := extractCommandName(c.in); got != c.want {
+			t.Errorf("extractCommandName(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}

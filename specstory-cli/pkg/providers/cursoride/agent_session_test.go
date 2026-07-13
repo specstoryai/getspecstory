@@ -1,0 +1,346 @@
+package cursoride
+
+import (
+	"strings"
+	"testing"
+)
+
+// TestGenerateSlug covers the slug sanitization fix: generateSlug must route through
+// spi.GenerateFilenameFromUserMessage (via composer name or first user message) so
+// characters like "/" and ":" never end up in a filename-derived slug.
+func TestGenerateSlug(t *testing.T) {
+	tests := []struct {
+		name     string
+		composer *ComposerData
+		want     string
+	}{
+		{
+			name: "composer name with slash is sanitized",
+			composer: &ComposerData{
+				ComposerID: "fallback-id",
+				Name:       "Fix bug in src/utils.go",
+			},
+			want: "fix-bug-in-src", // spi.GenerateFilenameFromUserMessage caps at 4 words
+		},
+		{
+			name: "composer name with colon is sanitized",
+			composer: &ComposerData{
+				ComposerID: "fallback-id",
+				Name:       "Fix: login issue",
+			},
+			want: "fix-login-issue",
+		},
+		{
+			name: "empty composer name falls back to first user message",
+			composer: &ComposerData{
+				ComposerID: "fallback-id",
+				Conversation: []ComposerConversation{
+					{BubbleID: "b1", Type: 1, Text: "How do I fix the auth/login flow?"},
+				},
+			},
+			want: "how-do-i-fix", // spi.GenerateFilenameFromUserMessage caps at 4 words
+		},
+		{
+			name: "punctuation-only composer name falls back to first user message",
+			composer: &ComposerData{
+				ComposerID: "fallback-id",
+				Name:       "...",
+				Conversation: []ComposerConversation{
+					{BubbleID: "b1", Type: 1, Text: "add rate limiting"},
+				},
+			},
+			want: "add-rate-limiting",
+		},
+		{
+			name: "no name and no user message falls back to composer ID",
+			composer: &ComposerData{
+				ComposerID: "abc-123",
+				Conversation: []ComposerConversation{
+					{BubbleID: "b1", Type: 2, Text: "agent-only bubble"},
+				},
+			},
+			want: "abc-123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := generateSlug(tt.composer)
+			if got != tt.want {
+				t.Errorf("generateSlug() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestConvertToAgentChatSession_ToolRendering covers the duplicate tool-use rendering
+// fix and the structured error/cancelled handling: every tool bubble with resolvable,
+// named tool data (including error, cancelled and invalid states) must populate
+// Tool.Summary/FormattedMarkdown and leave Content empty (single render path via
+// Tool), so the shared renderer's generic fallback never runs for this provider.
+// Only bubbles whose tool data can't be resolved (or has no name) fall back to Content.
+func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
+	tests := []struct {
+		name           string
+		toolData       *ToolInvocationData
+		wantToolNonNil bool
+		wantBodyHas    string // substring expected in Tool.FormattedMarkdown, if wantToolNonNil
+		wantContentHas string // substring expected in Content, if wantToolNonNil is false
+	}{
+		{
+			name: "successfully resolved tool populates Tool, not Content",
+			toolData: &ToolInvocationData{
+				Tool:   1,
+				Name:   "run_terminal_cmd",
+				Status: "completed",
+				Params: `{"command":"ls -la"}`,
+			},
+			wantToolNonNil: true,
+		},
+		{
+			name: "cancelled tool is structured with Cancelled body",
+			toolData: &ToolInvocationData{
+				Tool:   1,
+				Name:   "run_terminal_cmd",
+				Status: "cancelled",
+			},
+			wantToolNonNil: true,
+			wantBodyHas:    "Cancelled",
+		},
+		{
+			name: "invalid tool (Tool=0) is structured with error body",
+			toolData: &ToolInvocationData{
+				Tool: 0,
+				Name: "unknown_tool",
+			},
+			wantToolNonNil: true,
+			wantBodyHas:    "An unknown error occurred",
+		},
+		{
+			name: "errored tool is structured with the error message as body",
+			toolData: &ToolInvocationData{
+				Tool:   1,
+				Name:   "run_terminal_cmd",
+				Status: "error",
+				Error:  `{"clientVisibleErrorMessage":"command not found"}`,
+			},
+			wantToolNonNil: true,
+			wantBodyHas:    "command not found",
+		},
+		{
+			name: "tool data without a name falls back to Content, no Tool",
+			toolData: &ToolInvocationData{
+				Tool:   1,
+				Status: "completed",
+			},
+			wantToolNonNil: false,
+			wantContentHas: "<tool-use",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composer := &ComposerData{
+				ComposerID: "verify",
+				Version:    3,
+				Conversation: []ComposerConversation{
+					{BubbleID: "b1", Type: 1, Text: "run it"},
+					{BubbleID: "b2", Type: 2, CapabilityType: 15, ToolFormerData: tt.toolData},
+				},
+			}
+
+			session, err := ConvertToAgentChatSession(composer, "/tmp/proj")
+			if err != nil {
+				t.Fatalf("ConvertToAgentChatSession failed: %v", err)
+			}
+
+			toolMsg := session.SessionData.Exchanges[0].Messages[1]
+
+			if tt.wantToolNonNil {
+				if toolMsg.Tool == nil {
+					t.Fatalf("expected Tool to be set, got nil")
+				}
+				if toolMsg.Tool.FormattedMarkdown == nil || *toolMsg.Tool.FormattedMarkdown == "" {
+					t.Errorf("expected Tool.FormattedMarkdown to be populated")
+				}
+				// Regression check for the nested <details> bug: FormattedMarkdown must be a
+				// body-only fragment. The shared renderer (pkg/session/markdown.go) supplies
+				// its own <details>/<summary> wrapper, so a handler-embedded one produces
+				// nested <details> blocks and a duplicated "Tool use" heading.
+				if toolMsg.Tool.FormattedMarkdown != nil && strings.Contains(*toolMsg.Tool.FormattedMarkdown, "<details>") {
+					t.Errorf("Tool.FormattedMarkdown must not contain its own <details> wrapper, got: %q", *toolMsg.Tool.FormattedMarkdown)
+				}
+				if toolMsg.Tool.Summary == nil || *toolMsg.Tool.Summary == "" {
+					t.Errorf("expected Tool.Summary to be populated")
+				}
+				if toolMsg.Tool.Summary != nil && strings.Contains(*toolMsg.Tool.Summary, "<summary>") {
+					t.Errorf("Tool.Summary must be plain text, not pre-wrapped in <summary> tags, got: %q", *toolMsg.Tool.Summary)
+				}
+				if tt.wantBodyHas != "" && toolMsg.Tool.FormattedMarkdown != nil && !strings.Contains(*toolMsg.Tool.FormattedMarkdown, tt.wantBodyHas) {
+					t.Errorf("expected Tool.FormattedMarkdown to contain %q, got: %q", tt.wantBodyHas, *toolMsg.Tool.FormattedMarkdown)
+				}
+				if len(toolMsg.Content) != 0 {
+					t.Errorf("expected Content to be empty when Tool is set (else markdown.go renders the tool use twice), got: %+v", toolMsg.Content)
+				}
+				return
+			}
+
+			if toolMsg.Tool != nil {
+				t.Errorf("expected Tool to be nil, got: %+v", toolMsg.Tool)
+			}
+			if tt.wantContentHas != "" {
+				if len(toolMsg.Content) == 0 || !strings.Contains(toolMsg.Content[0].Text, tt.wantContentHas) {
+					t.Errorf("expected Content to contain %q, got: %+v", tt.wantContentHas, toolMsg.Content)
+				}
+			}
+		})
+	}
+}
+
+// TestConvertToAgentChatSession_ThinkingParts covers the thinking ContentPart fix:
+// thinking must be emitted as a dedicated part with Type "thinking" (rendered by the
+// shared renderer, like other providers), never embedded as <think> HTML in the text
+// part, and a thinking-only bubble must still produce a message.
+func TestConvertToAgentChatSession_ThinkingParts(t *testing.T) {
+	tests := []struct {
+		name      string
+		bubble    ComposerConversation
+		wantParts []struct{ partType, textHas string }
+	}{
+		{
+			name: "thinking plus text yields a thinking part then a text part",
+			bubble: ComposerConversation{
+				BubbleID: "b2",
+				Type:     2,
+				Text:     "here is the answer",
+				Thinking: &ThinkingData{Text: "let me reason about this"},
+			},
+			wantParts: []struct{ partType, textHas string }{
+				{partType: "thinking", textHas: "let me reason about this"},
+				{partType: "text", textHas: "here is the answer"},
+			},
+		},
+		{
+			name: "thinking-only bubble still produces a message",
+			bubble: ComposerConversation{
+				BubbleID: "b2",
+				Type:     2,
+				Thinking: &ThinkingData{Text: "only thoughts here"},
+			},
+			wantParts: []struct{ partType, textHas string }{
+				{partType: "thinking", textHas: "only thoughts here"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composer := &ComposerData{
+				ComposerID: "think",
+				Version:    3,
+				Conversation: []ComposerConversation{
+					{BubbleID: "b1", Type: 1, Text: "question"},
+					tt.bubble,
+				},
+			}
+
+			session, err := ConvertToAgentChatSession(composer, "/tmp/proj")
+			if err != nil {
+				t.Fatalf("ConvertToAgentChatSession failed: %v", err)
+			}
+
+			msg := session.SessionData.Exchanges[0].Messages[1]
+			if len(msg.Content) != len(tt.wantParts) {
+				t.Fatalf("expected %d content parts, got %d: %+v", len(tt.wantParts), len(msg.Content), msg.Content)
+			}
+			for i, want := range tt.wantParts {
+				if msg.Content[i].Type != want.partType {
+					t.Errorf("part %d: expected type %q, got %q", i, want.partType, msg.Content[i].Type)
+				}
+				if !strings.Contains(msg.Content[i].Text, want.textHas) {
+					t.Errorf("part %d: expected text to contain %q, got %q", i, want.textHas, msg.Content[i].Text)
+				}
+				if strings.Contains(msg.Content[i].Text, "<think>") {
+					t.Errorf("part %d: thinking must not be embedded as <think> HTML, got %q", i, msg.Content[i].Text)
+				}
+			}
+		})
+	}
+}
+
+// TestConvertToAgentChatSession_ExchangeIDs covers the empty-ExchangeID fix: every
+// exchange must get a non-empty, sequential "sessionId:index" ID, even when the
+// conversation's first surviving bubble isn't a user message.
+func TestConvertToAgentChatSession_ExchangeIDs(t *testing.T) {
+	tests := []struct {
+		name         string
+		conversation []ComposerConversation
+		wantIDs      []string
+	}{
+		{
+			name: "normal conversation starting with a user message",
+			conversation: []ComposerConversation{
+				{BubbleID: "b1", Type: 1, Text: "hello"},
+				{BubbleID: "b2", Type: 2, Text: "hi there"},
+				{BubbleID: "b3", Type: 1, Text: "next question"},
+				{BubbleID: "b4", Type: 2, Text: "answer"},
+			},
+			wantIDs: []string{"sess:0", "sess:1"},
+		},
+		{
+			name: "conversation opening with a non-user bubble",
+			conversation: []ComposerConversation{
+				{BubbleID: "b1", Type: 2, Text: "unexpected opening agent message"},
+				{BubbleID: "b2", Type: 1, Text: "fix the bug"},
+				{BubbleID: "b3", Type: 2, Text: "done"},
+			},
+			wantIDs: []string{"sess:0", "sess:1"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			composer := &ComposerData{
+				ComposerID:   "sess",
+				Conversation: tt.conversation,
+			}
+
+			session, err := ConvertToAgentChatSession(composer, "/tmp/proj")
+			if err != nil {
+				t.Fatalf("ConvertToAgentChatSession failed: %v", err)
+			}
+
+			if len(session.SessionData.Exchanges) != len(tt.wantIDs) {
+				t.Fatalf("expected %d exchanges, got %d", len(tt.wantIDs), len(session.SessionData.Exchanges))
+			}
+			for i, want := range tt.wantIDs {
+				got := session.SessionData.Exchanges[i].ExchangeID
+				if got == "" {
+					t.Errorf("exchange[%d] has empty ExchangeID", i)
+				}
+				if got != want {
+					t.Errorf("exchange[%d].ExchangeID = %q, want %q", i, got, want)
+				}
+			}
+		})
+	}
+}
+
+// TestConvertToAgentChatSession_WorkspaceRoot covers the WorkspaceRoot propagation fix:
+// the workspaceRoot argument must be threaded through to SessionData.WorkspaceRoot.
+func TestConvertToAgentChatSession_WorkspaceRoot(t *testing.T) {
+	composer := &ComposerData{
+		ComposerID: "verify",
+		Conversation: []ComposerConversation{
+			{BubbleID: "b1", Type: 1, Text: "hello"},
+		},
+	}
+
+	session, err := ConvertToAgentChatSession(composer, "/Users/bago/code/myproject")
+	if err != nil {
+		t.Fatalf("ConvertToAgentChatSession failed: %v", err)
+	}
+	if session.SessionData.WorkspaceRoot != "/Users/bago/code/myproject" {
+		t.Errorf("WorkspaceRoot = %q, want %q", session.SessionData.WorkspaceRoot, "/Users/bago/code/myproject")
+	}
+}

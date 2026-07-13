@@ -8,12 +8,18 @@ import (
 	"testing"
 )
 
-// resetUserDataDirOverride restores the package-level override after a test mutates it.
+// resetUserDataDirOverride restores the package-level override map after a test mutates it.
 // Tests must defer this — leaking state into sibling tests would silently change their behavior.
 func resetUserDataDirOverride(t *testing.T) {
 	t.Helper()
-	prev := userDataDirOverride
-	t.Cleanup(func() { userDataDirOverride = prev })
+	prev, had := userDataDirOverrides[VSCode.ID]
+	t.Cleanup(func() {
+		if had {
+			userDataDirOverrides[VSCode.ID] = prev
+		} else {
+			delete(userDataDirOverrides, VSCode.ID)
+		}
+	})
 }
 
 // TestUserDataDirOverride_WorkspaceStorage verifies that an override pointing to a
@@ -28,8 +34,8 @@ func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
 		t.Fatalf("Failed to create fake workspaceStorage: %v", err)
 	}
 
-	SetUserDataDirOverride(tmp)
-	got := GetWorkspaceStoragePath()
+	SetUserDataDirOverride(VSCode.ID, tmp)
+	got := GetWorkspaceStoragePath(VSCode)
 	if got != wantPath {
 		t.Errorf("GetWorkspaceStoragePath() = %q, want %q", got, wantPath)
 	}
@@ -45,9 +51,9 @@ func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
 	resetUserDataDirOverride(t)
 
 	override := t.TempDir()
-	SetUserDataDirOverride(override)
+	SetUserDataDirOverride(VSCode.ID, override)
 
-	got := GetWorkspaceStoragePath()
+	got := GetWorkspaceStoragePath(VSCode)
 	// Either the OS default exists (got != "" and not under override) or doesn't
 	// (got == ""). Either way, the override-derived path must not be returned.
 	if got != "" && strings.HasPrefix(got, override) {
@@ -59,10 +65,10 @@ func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
 // empty-override case behaves exactly as before this feature was added.
 func TestUserDataDirOverride_NoOverridePreservesExistingBehavior(t *testing.T) {
 	resetUserDataDirOverride(t)
-	SetUserDataDirOverride("") // explicit clear
+	SetUserDataDirOverride(VSCode.ID, "") // explicit clear
 
 	// Should not panic; result depends on whether VS Code is installed on the host.
-	_ = GetWorkspaceStoragePath()
+	_ = GetWorkspaceStoragePath(VSCode)
 }
 
 func TestUriToPath(t *testing.T) {
@@ -82,6 +88,18 @@ func TestUriToPath(t *testing.T) {
 			name:     "standard Linux file URI with spaces",
 			uri:      "file:///home/user/my%20project",
 			wantPath: "/home/user/my project",
+		},
+		{
+			name:     "unicode decoded",
+			uri:      "file:///Users/me/caf%C3%A9",
+			wantPath: "/Users/me/café",
+		},
+		{
+			// url.Parse decodes exactly once; a second PathUnescape would corrupt
+			// paths containing literal % sequences.
+			name:     "literal percent preserved",
+			uri:      "file:///Users/me/literal%2520pct",
+			wantPath: "/Users/me/literal%20pct",
 		},
 
 		// WSL file://wsl.localhost URIs

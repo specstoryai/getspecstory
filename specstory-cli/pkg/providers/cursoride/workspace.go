@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -125,122 +126,64 @@ func normalizePathForComparison(path string) (string, error) {
 	return canonicalPath, nil
 }
 
-// FindWorkspaceForProject finds the workspace directory that matches the given project path
-// Returns the workspace match or an error if not found
-func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
-	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
-	canonicalProjectPath, err := normalizePathForComparison(projectPath)
+// FindWorkspaceForProject finds the workspace directory that matches the given project path.
+// It is a var so tests can replace it with a stub that returns a temporary workspace.
+var FindWorkspaceForProject = findWorkspaceForProject
+
+// findWorkspaceForProject is the real implementation; FindWorkspaceForProject delegates to it.
+// It picks a single workspace for callers that need exactly one write/watch target (e.g.
+// reconstructing a session into a specific state.vscdb). It delegates to
+// FindAllWorkspacesForProject so it benefits from the same matching methods (direct path,
+// remote basename fallback, .code-workspace folder membership) rather than duplicating
+// a weaker, path-only version of that logic.
+func findWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+	matches, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to normalize project path: %w", err)
+		return nil, err
 	}
 
-	slog.Debug("Searching for workspace matching project",
+	if len(matches) == 1 {
+		return &matches[0], nil
+	}
+
+	// Multiple matches: pick the most recently used workspace (by state.vscdb mtime),
+	// not just the first one in directory-listing order, so a reconstructed session
+	// lands in the workspace instance the user is most likely to actually open next.
+	best := &matches[0]
+	bestModTime := workspaceDBModTime(best)
+	for i := 1; i < len(matches); i++ {
+		if modTime := workspaceDBModTime(&matches[i]); modTime.After(bestModTime) {
+			best = &matches[i]
+			bestModTime = modTime
+		}
+	}
+
+	slog.Debug("Multiple workspaces match project path, using most recently used",
 		"projectPath", projectPath,
-		"canonicalPath", canonicalProjectPath)
+		"matchCount", len(matches),
+		"selectedWorkspaceID", best.ID)
 
-	// Get workspace storage directory
-	workspaceStoragePath, err := GetWorkspaceStoragePath()
+	return best, nil
+}
+
+// workspaceDBModTime returns the modification time of a workspace's state.vscdb, used
+// as a proxy for how recently that workspace was actually used in Cursor IDE. Returns
+// the zero time if the file can't be stat'd, so it loses any tie-break comparison
+// rather than erroring out the whole lookup.
+func workspaceDBModTime(m *WorkspaceMatch) time.Time {
+	info, err := os.Stat(m.DBPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workspace storage path: %w", err)
+		return time.Time{}
 	}
-
-	// Read all workspace directories
-	entries, err := os.ReadDir(workspaceStoragePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read workspace storage directory: %w", err)
-	}
-
-	// Track all workspace directories for potential matches
-	var matches []WorkspaceMatch
-
-	// Check each workspace directory
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		workspaceID := entry.Name()
-		workspacePath := filepath.Join(workspaceStoragePath, workspaceID)
-
-		// Read workspace.json
-		workspaceJSONPath := filepath.Join(workspacePath, "workspace.json")
-		workspaceJSON, err := readWorkspaceJSON(workspaceJSONPath)
-		if err != nil {
-			continue
-		}
-
-		// Get the workspace URI (prefer workspace over folder)
-		workspaceURI := workspaceJSON.Workspace
-		if workspaceURI == "" {
-			workspaceURI = workspaceJSON.Folder
-		}
-
-		if workspaceURI == "" {
-			continue
-		}
-
-		// Convert URI to file path
-		workspaceFilePath, err := uriToPath(workspaceURI)
-		if err != nil {
-			slog.Debug("Skipping workspace directory (invalid URI)",
-				"workspaceID", workspaceID,
-				"uri", workspaceURI,
-				"error", err)
-			continue
-		}
-
-		// Normalize workspace path for comparison (handles Unix paths on Windows, etc.)
-		canonicalWorkspacePath, err := normalizePathForComparison(workspaceFilePath)
-		if err != nil {
-			slog.Debug("Failed to normalize workspace path",
-				"workspaceID", workspaceID,
-				"path", workspaceFilePath,
-				"error", err)
-			canonicalWorkspacePath = workspaceFilePath
-		}
-
-		// Compare paths
-		if canonicalProjectPath == canonicalWorkspacePath {
-			// Check if workspace database exists
-			dbPath := filepath.Join(workspacePath, "state.vscdb")
-			if _, err := os.Stat(dbPath); err != nil {
-				slog.Debug("Workspace match found but database missing",
-					"workspaceID", workspaceID,
-					"dbPath", dbPath)
-				continue
-			}
-
-			matches = append(matches, WorkspaceMatch{
-				ID:     workspaceID,
-				Path:   workspacePath,
-				DBPath: dbPath,
-				URI:    workspaceURI,
-			})
-
-			slog.Info("Found matching workspace",
-				"workspaceID", workspaceID,
-				"projectPath", canonicalProjectPath,
-				"workspaceURI", workspaceURI)
-		}
-	}
-
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("no workspace found for project path: %s", projectPath)
-	}
-
-	if len(matches) > 1 {
-		slog.Info("Multiple workspaces match project path",
-			"projectPath", projectPath,
-			"matchCount", len(matches))
-	}
-
-	return &matches[0], nil
+	return info.ModTime()
 }
 
 // FindAllWorkspacesForProject finds all workspace directories that match the given project path.
 // In WSL, the same project may have multiple workspaces with different URI formats
 // (e.g., file://wsl.localhost/... and vscode-remote://wsl+...).
-// For SSH remotes, matches are based on Git repository identity when available.
+// For SSH remotes and dev containers, where the workspace path lives on a different machine
+// or inside a container and can never equal the local path, matching falls back to comparing
+// the workspace folder basename.
 func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
 	canonicalProjectPath, err := normalizePathForComparison(projectPath)
@@ -248,8 +191,9 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		return nil, fmt.Errorf("failed to normalize project path: %w", err)
 	}
 
-	// Get the project basename for SSH remote matching
-	// SSH remotes have paths on different machines, so we match by repository name
+	// Get the project basename for SSH remote / dev container matching.
+	// Those workspace paths live on a different machine or inside a container, so we
+	// match by repository name instead.
 	projectBasename := filepath.Base(canonicalProjectPath)
 
 	// If the project path is itself a .code-workspace file, pre-collect its folders.
@@ -320,22 +264,23 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// Method 1: Direct path matching (works for local and WSL workspaces)
 		isMatch := canonicalProjectPath == canonicalWorkspacePath
 
-		// Method 2: Basename matching (for SSH remotes)
-		// When direct path comparison fails, fall back to basename matching.
-		// This handles SSH remotes where the workspace path is on a different machine.
-		if !isMatch {
+		// Method 2: Basename matching (SSH remotes and dev containers only).
+		// These workspace paths live on a different machine or inside a container, so direct
+		// path comparison can never succeed and the folder basename is the only usable
+		// signal. The fallback must not apply to local workspaces: two unrelated
+		// projects sharing a directory name (e.g. two different "backend" folders)
+		// would otherwise match and export each other's sessions.
+		if !isMatch && isRemoteURIRequiringBasenameMatch(workspaceURI) {
 			workspaceBasename := filepath.Base(canonicalWorkspacePath)
 
 			if projectBasename == workspaceBasename {
 				isMatch = true
-				if isSSHRemoteURI(workspaceURI) {
-					slog.Info("Matched SSH remote workspace by repository name",
-						"workspaceID", workspaceID,
-						"workspaceURI", workspaceURI,
-						"localPath", canonicalProjectPath,
-						"remotePath", canonicalWorkspacePath,
-						"repoName", projectBasename)
-				}
+				slog.Info("Matched remote workspace by folder basename",
+					"workspaceID", workspaceID,
+					"workspaceURI", workspaceURI,
+					"localPath", canonicalProjectPath,
+					"remotePath", canonicalWorkspacePath,
+					"repoName", projectBasename)
 			}
 		}
 
@@ -344,7 +289,7 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// the workspace file URI rather than the folder URI. Check whether that workspace
 		// file lists our target folder as one of its folders.
 		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, isSSHRemoteURI(workspaceURI)) {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, isRemoteURIRequiringBasenameMatch(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by .code-workspace folder reference",
 					"workspaceID", workspaceID,
@@ -398,9 +343,21 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	return matches, nil
 }
 
-// isSSHRemoteURI checks if a URI is a vscode-remote SSH URI
-func isSSHRemoteURI(uri string) bool {
-	return strings.HasPrefix(uri, "vscode-remote://ssh-remote")
+// isRemoteURIRequiringBasenameMatch checks if a URI is a vscode-remote SSH, tunnel, or
+// dev-container URI. Case-insensitive to stay consistent with parseVSCodeRemoteURI, which
+// accepts uppercase authorities — this check gates basename matching, so a case mismatch
+// would silently drop remote workspaces instead of just changing a log line.
+//
+// SSH, tunnel, and dev-container workspace paths all live outside the local filesystem (a
+// remote machine or a container), so direct path comparison can never succeed for them and
+// the folder basename is the only usable signal. WSL is deliberately excluded: WSL paths are
+// reachable from the host via \\wsl.localhost\... / /mnt/wsl/..., so direct path matching
+// already works there and doesn't need the (weaker, name-collision-prone) basename fallback.
+func isRemoteURIRequiringBasenameMatch(uri string) bool {
+	lower := strings.ToLower(uri)
+	return strings.HasPrefix(lower, "vscode-remote://ssh-remote") ||
+		strings.HasPrefix(lower, "vscode-remote://tunnel") ||
+		strings.HasPrefix(lower, "vscode-remote://dev-container")
 }
 
 // LoadComposerIDsFromAllWorkspaces loads and deduplicates composer IDs from all matching workspaces.
@@ -429,6 +386,84 @@ func LoadComposerIDsFromAllWorkspaces(workspaces []WorkspaceMatch) ([]string, er
 	return allIDs, nil
 }
 
+// ScanAllWorkspaceComposerPaths enumerates every Cursor IDE workspace directory and
+// returns a map of composerID → project path (the OriginCwd for each session).
+// When a composer appears in multiple workspaces (e.g. WSL/SSH setups), the first-seen
+// workspace path is used. Workspaces that cannot be read are silently skipped so a
+// single bad entry does not abort the whole enumeration.
+func ScanAllWorkspaceComposerPaths() (map[string]string, error) {
+	workspaceStoragePath, err := GetWorkspaceStoragePath()
+	if err != nil {
+		// No workspace storage directory means Cursor IDE has never been opened.
+		slog.Debug("Workspace storage not found, no Cursor IDE sessions", "error", err)
+		return map[string]string{}, nil
+	}
+	return scanWorkspaceDirForComposerPaths(workspaceStoragePath)
+}
+
+// scanWorkspaceDirForComposerPaths does the actual directory walk for
+// ScanAllWorkspaceComposerPaths. It is a separate function so tests can call it
+// directly with a temp directory rather than relying on the live Cursor installation.
+func scanWorkspaceDirForComposerPaths(workspaceStoragePath string) (map[string]string, error) {
+	entries, err := os.ReadDir(workspaceStoragePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read workspace storage: %w", err)
+	}
+
+	composerToPath := make(map[string]string)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		workspacePath := filepath.Join(workspaceStoragePath, entry.Name())
+		dbPath := filepath.Join(workspacePath, "state.vscdb")
+		if _, statErr := os.Stat(dbPath); statErr != nil {
+			continue // workspace directory has no database yet
+		}
+
+		workspaceJSON, jsonErr := readWorkspaceJSON(filepath.Join(workspacePath, "workspace.json"))
+		if jsonErr != nil {
+			slog.Debug("Skipping workspace (no valid workspace.json)",
+				"workspace", entry.Name(), "error", jsonErr)
+			continue
+		}
+
+		workspaceURI := workspaceJSON.Workspace
+		if workspaceURI == "" {
+			workspaceURI = workspaceJSON.Folder
+		}
+		if workspaceURI == "" {
+			continue
+		}
+
+		projectPath, uriErr := uriToPath(workspaceURI)
+		if uriErr != nil {
+			slog.Debug("Skipping workspace (unresolvable URI)",
+				"workspace", entry.Name(), "uri", workspaceURI, "error", uriErr)
+			continue
+		}
+
+		composerIDs, idsErr := LoadWorkspaceComposerIDs(dbPath)
+		if idsErr != nil {
+			slog.Warn("Failed to load composer IDs from workspace",
+				"workspace", entry.Name(), "error", idsErr)
+			continue
+		}
+
+		for _, id := range composerIDs {
+			if _, exists := composerToPath[id]; !exists {
+				// First-seen workspace path wins; a composer scoped to multiple workspaces
+				// (WSL/SSH setups) is attributed to whichever workspace is encountered first.
+				composerToPath[id] = projectPath
+			}
+		}
+	}
+
+	slog.Debug("Scanned all workspaces for composer paths", "composerCount", len(composerToPath))
+	return composerToPath, nil
+}
+
 // readWorkspaceJSON reads and parses a workspace.json file
 func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	data, err := os.ReadFile(path)
@@ -444,10 +479,21 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	return &workspace, nil
 }
 
+// pathToFileURI converts an absolute filesystem path to a file:// URI.
+// Cursor stores workspaceIdentifier.uri.external in percent-encoded form (e.g.
+// spaces as %20), so raw string concatenation would produce a URI that doesn't
+// match what Cursor writes for paths containing reserved characters, which can
+// mis-associate reconstructed sessions with their workspace.
+func pathToFileURI(path string) string {
+	u := url.URL{Scheme: "file", Path: path}
+	return u.String()
+}
+
 // uriToPath converts a workspace URI to a local file path.
 // Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
 // vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL,
-// and vscode-remote://ssh-remote+config/path URIs for SSH remotes.
+// vscode-remote://ssh-remote+config/path URIs for SSH remotes, and
+// vscode-remote://tunnel+host/path URIs for remote tunnels.
 func uriToPath(uri string) (string, error) {
 	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
 	// rejects percent-encoded characters like %2B in the host component
@@ -504,8 +550,9 @@ func uriToPath(uri string) (string, error) {
 }
 
 // collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
-// normalized paths of all listed folders. Relative paths are resolved against the
-// workspace file's directory.
+// canonicalized paths of every folder it lists. Used when the project path passed
+// in is itself a .code-workspace file, so workspace entries opened directly from
+// one of its folders can also be matched (Method 4 in FindAllWorkspacesForProject).
 func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	data, err := os.ReadFile(workspaceFilePath)
 	if err != nil {
@@ -550,12 +597,14 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 	return folders
 }
 
-// codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
-// .code-workspace file at workspaceFilePath.
-// isRemote should be true when workspaceFilePath was decoded from a vscode-remote://ssh-remote+...
-// URI. In that case, if the file cannot be read (it lives on the remote host), we fall back to
-// treating the workspace file's parent directory as the project root. This is safe for single-root
-// SSH workspaces, and it is gated on isRemote to avoid false positives from deleted local files.
+// codeWorkspaceContainsFolder checks whether any folder entry in a .code-workspace
+// JSON file resolves to canonicalFolder. This is used to find workspaces that were
+// opened via a .code-workspace file referencing the target folder.
+// isRemote should be true when workspaceFilePath was decoded from a vscode-remote://
+// URI. In that case, if the file cannot be read (it lives on the remote host), we fall
+// back to treating the workspace file's parent directory as the project root. This is
+// safe for single-root remote workspaces, and it is gated on isRemote to avoid false
+// positives from deleted local files.
 func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
 	folders := collectCodeWorkspaceFolders(workspaceFilePath)
 	if len(folders) == 0 && isRemote {
@@ -563,8 +612,8 @@ func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRe
 		// Fall back to treating its parent directory as the project root.
 		return filepath.Dir(workspaceFilePath) == canonicalFolder
 	}
-	for _, f := range folders {
-		if f == canonicalFolder {
+	for _, folder := range folders {
+		if folder == canonicalFolder {
 			return true
 		}
 	}
@@ -572,9 +621,10 @@ func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRe
 }
 
 // parseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI.
-// Handles two types of remote URIs:
+// Handles three types of remote URIs:
 // 1. WSL: vscode-remote://wsl%2B{distro}/{path} - path is the WSL filesystem path
 // 2. SSH: vscode-remote://ssh-remote%2B{config-hex}/{path} - path is the remote filesystem path
+// 3. Tunnel: vscode-remote://tunnel%2B{host}/{path} - path is the remote filesystem path
 // Go's url.Parse rejects %2B in the host component, so we parse manually.
 func parseVSCodeRemoteURI(uri string) (string, error) {
 	// Strip scheme prefix: "vscode-remote://"
@@ -603,6 +653,8 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 		!strings.EqualFold(decodedHost, "wsl") &&
 		!strings.HasPrefix(hostLower, "ssh-remote+") &&
 		!strings.EqualFold(decodedHost, "ssh-remote") &&
+		!strings.HasPrefix(hostLower, "tunnel+") &&
+		!strings.EqualFold(decodedHost, "tunnel") &&
 		!strings.HasPrefix(hostLower, "dev-container+") &&
 		!strings.EqualFold(decodedHost, "dev-container") {
 		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
@@ -618,6 +670,8 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 	switch {
 	case strings.HasPrefix(hostLower, "ssh-remote"):
 		slog.Debug("Converted vscode-remote SSH URI to path", "uri", uri, "path", path)
+	case strings.HasPrefix(hostLower, "tunnel"):
+		slog.Debug("Converted vscode-remote tunnel URI to path", "uri", uri, "path", path)
 	case strings.HasPrefix(hostLower, "dev-container"):
 		slog.Debug("Converted vscode-remote dev container URI to path", "uri", uri, "path", path)
 	default:

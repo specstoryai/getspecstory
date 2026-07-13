@@ -8,6 +8,49 @@ import (
 	"regexp"
 )
 
+// projectDirNameRegex matches any character that is not alphanumeric or a dash.
+// Claude Code replaces each such character with a dash to map a working directory
+// to a project folder name under ~/.claude/projects.
+var projectDirNameRegex = regexp.MustCompile(`[^a-zA-Z0-9-]`)
+
+// encodeProjectDirName converts a real (symlink-resolved) path into Claude Code's
+// project directory name: non-alphanumeric/dash characters become dashes.
+// On Unix: "/Users/sean/app" -> "-Users-sean-app".
+// On Windows: "C:\Users\Admin\code\app" -> "C--Users-Admin-code-app" (no leading
+// dash — Claude Code does not add one on Windows).
+func encodeProjectDirName(realPath string) string {
+	return projectDirNameRegex.ReplaceAllString(realPath, "-")
+}
+
+// resolveClaudeProjectDir returns ~/.claude/projects/<encoded> for the given
+// project path, resolving symlinks, WITHOUT requiring the directory to exist.
+// Used when writing a reconstructed session into the store (the caller creates
+// the directory). Distinct from GetClaudeCodeProjectDir, which requires the
+// projects directory to already exist.
+func resolveClaudeProjectDir(projectPath string) (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %v", err)
+	}
+
+	cwd := projectPath
+	if cwd == "" {
+		cwd, err = os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("failed to get current working directory: %v", err)
+		}
+	}
+
+	// Resolve symlinks to match Claude Code's behavior; fall back to the raw path
+	// if resolution fails (e.g., a path component does not exist yet).
+	realPath, err := filepath.EvalSymlinks(cwd)
+	if err != nil {
+		realPath = cwd
+	}
+
+	return filepath.Join(homeDir, ".claude", "projects", encodeProjectDirName(realPath)), nil
+}
+
 // GetClaudeCodeProjectsDir returns the path to the Claude Code projects directory
 func GetClaudeCodeProjectsDir() (string, error) {
 	// Get user's home directory
@@ -65,12 +108,10 @@ func GetClaudeCodeProjectDir(projectPath string) (string, error) {
 			"resolved", realPath)
 	}
 
-	// Convert path to project directory format using regex
-	// Replace anything that's not alphanumeric or dash with a dash (matching Claude Code's behavior)
+	// Convert path to project directory format (matching Claude Code's behavior).
 	// On Unix: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
 	// On Windows: "C:\Users\Admin\code\app" becomes "C--Users-Admin-code-app"
-	reg := regexp.MustCompile(`[^a-zA-Z0-9-]`)
-	projectDirName := reg.ReplaceAllString(realPath, "-")
+	projectDirName := encodeProjectDirName(realPath)
 
 	// Log the transformation for debugging path issues
 	slog.Debug("GetClaudeCodeProjectDir: Transformed working directory to project name",

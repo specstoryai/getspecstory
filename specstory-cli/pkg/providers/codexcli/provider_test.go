@@ -248,12 +248,35 @@ func TestNormalizeCodexPath(t *testing.T) {
 }
 
 func TestCodexSessionsRoot(t *testing.T) {
-	homeDir := "/Users/testuser"
-	want := filepath.Join(homeDir, ".codex", "sessions")
-	got := codexSessionsRoot(homeDir)
+	tests := []struct {
+		name      string
+		codexHome string // "" means CODEX_HOME is neutralized so the default path is exercised
+		homeDir   string
+		want      string
+	}{
+		{
+			name:    "default uses home/.codex",
+			homeDir: "/Users/testuser",
+			want:    filepath.Join("/Users/testuser", ".codex", "sessions"),
+		},
+		{
+			name:      "CODEX_HOME overrides home",
+			codexHome: "/tmp/custom-codex",
+			homeDir:   "/ignored",
+			want:      filepath.Join("/tmp/custom-codex", "sessions"),
+		},
+	}
 
-	if got != want {
-		t.Errorf("codexSessionsRoot() = %q, want %q", got, want)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Always set the env so an inherited CODEX_HOME can't make the
+			// default case non-hermetic; "" exercises the fall-through.
+			t.Setenv("CODEX_HOME", tt.codexHome)
+
+			if got := codexSessionsRoot(tt.homeDir); got != tt.want {
+				t.Errorf("codexSessionsRoot() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

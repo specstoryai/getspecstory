@@ -13,18 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
-          go-version: '1.26.0'
+          go-version: '1.26.4'
           cache-dependency-path: specstory-cli/go.sum
       - name: Extract version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#specstory-cli/}" >> $GITHUB_OUTPUT
 
-      - uses: goreleaser/goreleaser-action@v6
+      - uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
           args: release --clean --skip=validate
@@ -103,7 +103,7 @@ jobs:
     environment: production
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Extract version from tag
         id: version
@@ -127,7 +127,7 @@ jobs:
           echo "linux_x86_64=$(shasum -a 256 dist/SpecStoryCLI_Linux_x86_64.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Checkout homebrew-tap
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: specstoryai/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}

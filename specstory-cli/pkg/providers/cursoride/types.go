@@ -14,9 +14,21 @@ type ComposerData struct {
 	LastUpdatedAt               int64                        `json:"lastUpdatedAt,omitempty"`
 }
 
-// ComposerConversationHeader represents a conversation header (used when full conversation isn't loaded)
+// ComposerConversationHeader represents a conversation header (used when full conversation isn't loaded).
+// Cursor uses grouping.isRenderable to decide whether to render a bubble; entries without it are skipped.
 type ComposerConversationHeader struct {
-	BubbleID string `json:"bubbleId"`
+	BubbleID          string          `json:"bubbleId"`
+	Type              int             `json:"type,omitempty"`
+	Grouping          *BubbleGrouping `json:"grouping,omitempty"`
+	ContentHeightHint int             `json:"contentHeightHint,omitempty"`
+	CreatedAt         string          `json:"createdAt,omitempty"`
+}
+
+// BubbleGrouping holds the rendering hints Cursor stores on each conversation header.
+// isRenderable must be true for the bubble to be displayed in the conversation view.
+type BubbleGrouping struct {
+	IsRenderable bool `json:"isRenderable"`
+	HasText      bool `json:"hasText,omitempty"`
 }
 
 // ComposerConversation represents a single message/bubble in a conversation

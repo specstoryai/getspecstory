@@ -85,11 +85,12 @@ func ApplyUserDataDirOverrides(entries []string) {
 		case "cursoride":
 			cursoride.SetUserDataDirOverride(path)
 			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
-		case "copilotide":
-			copilotide.SetUserDataDirOverride(path)
+		case copilotide.VSCode.ID, copilotide.VSCodeInsiders.ID, copilotide.VSCodium.ID, copilotide.VSCodiumInsiders.ID:
+			copilotide.SetUserDataDirOverride(id, path)
 			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
 		default:
-			slog.Warn("ignoring --user-data-dir entry: unknown provider ID (supported: cursoride, copilotide)",
+			slog.Warn("ignoring --user-data-dir entry: unknown provider ID "+
+				"(supported: cursoride, copilotide, copilotide-insiders, copilotide-vscodium, copilotide-vscodium-insiders)",
 				"providerId", id)
 		}
 	}

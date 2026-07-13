@@ -154,15 +154,16 @@ func WriteDebugFiles(composer *VSCodeComposer, sessionID string) error {
 // First line (kind: 0) contains initial state in "v" field
 // Subsequent lines (kind: 1) contain updates with key path in "k" and value in "v"
 func parseJSONL(data []byte) (VSCodeComposer, error) {
-	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	if len(lines) == 0 {
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
 		return VSCodeComposer{}, fmt.Errorf("empty JSONL file")
 	}
+	lines := strings.Split(trimmed, "\n")
 
 	// Parse first line - should be kind:0 with initial state
 	var firstLine struct {
-		Kind int            `json:"kind"`
-		V    VSCodeComposer `json:"v"`
+		Kind int             `json:"kind"`
+		V    json.RawMessage `json:"v"`
 	}
 
 	if err := json.Unmarshal([]byte(lines[0]), &firstLine); err != nil {
@@ -173,7 +174,13 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		return VSCodeComposer{}, fmt.Errorf("expected kind:0 in first line, got kind:%d", firstLine.Kind)
 	}
 
-	composer := firstLine.V
+	// Keep the session in map form while applying updates so each line mutates
+	// in place; converting the whole composer to a map and back per update line
+	// is O(session size) per line and dominates load time on long sessions.
+	var composerMap map[string]any
+	if err := json.Unmarshal(firstLine.V, &composerMap); err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to parse initial state in first JSONL line: %w", err)
+	}
 
 	// Apply subsequent updates.
 	// kind:1 = incremental key-path update (small field changes, e.g. customTitle)
@@ -181,9 +188,9 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 	// VS Code Copilot introduced kind:2 to split large payloads from the initial kind:0 snapshot.
 	for i := 1; i < len(lines); i++ {
 		var update struct {
-			Kind int      `json:"kind"`
-			K    []string `json:"k"` // Key path
-			V    any      `json:"v"` // Value
+			Kind int   `json:"kind"`
+			K    []any `json:"k"` // Key path: string map keys and/or numeric array indices, e.g. ["requests", 3, "response"]
+			V    any   `json:"v"` // Value
 		}
 
 		if err := json.Unmarshal([]byte(lines[i]), &update); err != nil {
@@ -195,7 +202,7 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		case 1:
 			if len(update.K) > 0 {
 				// Replace the value at the key path
-				if err := applyUpdate(&composer, update.K, update.V); err != nil {
+				if err := applyUpdate(composerMap, update.K, update.V); err != nil {
 					slog.Warn("Failed to apply JSONL update", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
 				}
 			}
@@ -204,7 +211,7 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 				// Append items to the array at the key path.
 				// VS Code writes one kind:2 per user turn, each containing only the new
 				// request(s) for that turn — not the full history — so we must accumulate.
-				if err := appendUpdate(&composer, update.K, update.V); err != nil {
+				if err := appendUpdate(composerMap, update.K, update.V); err != nil {
 					slog.Warn("Failed to apply JSONL append", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
 				}
 			}
@@ -214,108 +221,137 @@ func parseJSONL(data []byte) (VSCodeComposer, error) {
 		}
 	}
 
+	// Decode the fully-updated map into the typed composer once
+	finalData, err := json.Marshal(composerMap)
+	if err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to marshal updated session: %w", err)
+	}
+
+	var composer VSCodeComposer
+	if err := json.Unmarshal(finalData, &composer); err != nil {
+		return VSCodeComposer{}, fmt.Errorf("failed to parse updated session: %w", err)
+	}
+
 	return composer, nil
 }
 
-// appendUpdate appends items to an array at a specific key path in the composer.
+// pathIndex converts a numeric key path segment (JSON numbers decode as float64)
+// to an integer array index.
+func pathIndex(seg any) (int, bool) {
+	f, ok := seg.(float64)
+	if !ok || f != float64(int(f)) || f < 0 {
+		return 0, false
+	}
+	return int(f), true
+}
+
+// setAtPath sets value at keyPath inside container, where string segments index
+// maps (created when missing) and numeric segments index arrays (an index equal
+// to the array length appends). It returns the possibly-new container because
+// growing a slice reallocates it, so callers must store the result back.
+func setAtPath(container any, keyPath []any, value any) (any, error) {
+	if len(keyPath) == 0 {
+		return value, nil
+	}
+
+	switch seg := keyPath[0].(type) {
+	case string:
+		m, ok := container.(map[string]any)
+		if !ok {
+			if container != nil {
+				return nil, fmt.Errorf("cannot set key %q on non-object value of type %T", seg, container)
+			}
+			m = make(map[string]any)
+		}
+		child, err := setAtPath(m[seg], keyPath[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		m[seg] = child
+		return m, nil
+
+	case float64:
+		idx, ok := pathIndex(seg)
+		if !ok {
+			return nil, fmt.Errorf("invalid array index in key path: %v", seg)
+		}
+		s, isSlice := container.([]any)
+		if !isSlice {
+			if container != nil {
+				return nil, fmt.Errorf("cannot index into non-array value of type %T", container)
+			}
+			s = []any{}
+		}
+		if idx > len(s) {
+			return nil, fmt.Errorf("array index %d out of range (length %d)", idx, len(s))
+		}
+		if idx == len(s) {
+			s = append(s, nil)
+		}
+		child, err := setAtPath(s[idx], keyPath[1:], value)
+		if err != nil {
+			return nil, err
+		}
+		s[idx] = child
+		return s, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported key path segment of type %T: %v", seg, seg)
+	}
+}
+
+// getAtPath reads the value at keyPath inside container without modifying it.
+// Returns nil when any segment is missing or of the wrong shape.
+func getAtPath(container any, keyPath []any) any {
+	current := container
+	for _, seg := range keyPath {
+		switch key := seg.(type) {
+		case string:
+			m, ok := current.(map[string]any)
+			if !ok {
+				return nil
+			}
+			current = m[key]
+		case float64:
+			idx, ok := pathIndex(key)
+			if !ok {
+				return nil
+			}
+			s, isSlice := current.([]any)
+			if !isSlice || idx >= len(s) {
+				return nil
+			}
+			current = s[idx]
+		default:
+			return nil
+		}
+	}
+	return current
+}
+
+// appendUpdate appends items to the array at a specific key path in the map-form session.
 // Used for kind:2 lines where VS Code writes only the newly added items (e.g. a single
-// new request per turn) rather than the full array, so each write must be accumulated.
+// new request per turn, or new response parts within a request) rather than the full
+// array, so each write must be accumulated.
 // Falls back to replace semantics when the target or incoming value is not an array.
-func appendUpdate(composer *VSCodeComposer, keyPath []string, value any) error {
+func appendUpdate(composerMap map[string]any, keyPath []any, value any) error {
 	newItems, isArray := value.([]any)
 	if !isArray {
 		// Not an array delta — treat as a plain replace
-		return applyUpdate(composer, keyPath, value)
-	}
-
-	// Convert composer to map so we can read and update the existing slice dynamically
-	composerData, err := json.Marshal(composer)
-	if err != nil {
-		return fmt.Errorf("failed to marshal composer: %w", err)
-	}
-
-	var composerMap map[string]any
-	if err := json.Unmarshal(composerData, &composerMap); err != nil {
-		return fmt.Errorf("failed to unmarshal composer to map: %w", err)
-	}
-
-	// Navigate to the parent of the target key
-	current := composerMap
-	for i := 0; i < len(keyPath)-1; i++ {
-		key := keyPath[i]
-		if _, exists := current[key]; !exists {
-			current[key] = make(map[string]any)
-		}
-		if nextMap, ok := current[key].(map[string]any); ok {
-			current = nextMap
-		} else {
-			return fmt.Errorf("cannot navigate through non-map value at key: %s", key)
-		}
+		return applyUpdate(composerMap, keyPath, value)
 	}
 
 	// Append the new items to whatever is already there; fall back to replace if needed
-	lastKey := keyPath[len(keyPath)-1]
-	if existing, ok := current[lastKey].([]any); ok {
-		current[lastKey] = append(existing, newItems...)
-	} else {
-		current[lastKey] = newItems
+	if existing, ok := getAtPath(composerMap, keyPath).([]any); ok {
+		newItems = append(existing, newItems...)
 	}
-
-	// Convert back to VSCodeComposer
-	updatedData, err := json.Marshal(composerMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated map: %w", err)
-	}
-
-	if err := json.Unmarshal(updatedData, composer); err != nil {
-		return fmt.Errorf("failed to unmarshal updated composer: %w", err)
-	}
-
-	return nil
+	return applyUpdate(composerMap, keyPath, newItems)
 }
 
-// applyUpdate applies an update to a composer at a specific key path
-// keyPath is an array of keys representing the path (e.g., ["inputState", "inputText"])
-func applyUpdate(composer *VSCodeComposer, keyPath []string, value any) error {
-	// Convert composer to map for dynamic updates
-	composerData, err := json.Marshal(composer)
-	if err != nil {
-		return fmt.Errorf("failed to marshal composer: %w", err)
-	}
-
-	var composerMap map[string]any
-	if err := json.Unmarshal(composerData, &composerMap); err != nil {
-		return fmt.Errorf("failed to unmarshal composer to map: %w", err)
-	}
-
-	// Navigate to the parent of the target key
-	current := composerMap
-	for i := 0; i < len(keyPath)-1; i++ {
-		key := keyPath[i]
-		if _, exists := current[key]; !exists {
-			// Create intermediate maps as needed
-			current[key] = make(map[string]any)
-		}
-		if nextMap, ok := current[key].(map[string]any); ok {
-			current = nextMap
-		} else {
-			return fmt.Errorf("cannot navigate through non-map value at key: %s", key)
-		}
-	}
-
-	// Set the value at the final key
-	lastKey := keyPath[len(keyPath)-1]
-	current[lastKey] = value
-
-	// Convert back to VSCodeComposer
-	updatedData, err := json.Marshal(composerMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal updated map: %w", err)
-	}
-
-	if err := json.Unmarshal(updatedData, composer); err != nil {
-		return fmt.Errorf("failed to unmarshal updated composer: %w", err)
-	}
-
-	return nil
+// applyUpdate sets value at a specific key path in the map-form session.
+// keyPath mixes string map keys and numeric array indices
+// (e.g., ["requests", 3, "response"]).
+func applyUpdate(composerMap map[string]any, keyPath []any, value any) error {
+	_, err := setAtPath(composerMap, keyPath, value)
+	return err
 }

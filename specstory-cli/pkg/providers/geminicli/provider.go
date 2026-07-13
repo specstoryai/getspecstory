@@ -416,3 +416,59 @@ func extractGeminiSessionMetadata(session *GeminiSession) *spi.SessionMetadata {
 		Name:      name,
 	}
 }
+
+// ListAllAgentChatSessions enumerates every session in this provider's native store,
+// regardless of project. See docs/SESSIONS-DB.md.
+//
+// Gemini associates a tmp directory (~/.gemini/tmp/<hash>/) with a project via a
+// .project_root marker file holding the project path, which is the originating cwd
+// for every session in that directory.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	tmpDir, err := GetGeminiTmpDir()
+	if err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []spi.GlobalSessionRef{}, nil
+		}
+		return nil, fmt.Errorf("failed to read Gemini tmp directory: %w", err)
+	}
+
+	var refs []spi.GlobalSessionRef
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		dir := filepath.Join(tmpDir, entry.Name())
+
+		// The .project_root marker holds the project path — the originating cwd shared
+		// by every session in this tmp directory.
+		var cwd string
+		if content, err := os.ReadFile(filepath.Join(dir, ".project_root")); err == nil {
+			cwd = strings.TrimSpace(string(content))
+		}
+
+		sessions, err := FindSessions(dir)
+		if err != nil {
+			slog.Debug("reindex: failed to find gemini sessions", "dir", dir, "error", err)
+			continue
+		}
+		for _, session := range sessions {
+			metadata := extractGeminiSessionMetadata(session)
+			if metadata == nil {
+				continue // empty session
+			}
+			refs = append(refs, spi.GlobalSessionRef{
+				SessionID:  metadata.SessionID,
+				CreatedAt:  metadata.CreatedAt,
+				Slug:       metadata.Slug,
+				Name:       metadata.Name,
+				NativePath: session.FilePath,
+				OriginCwd:  cwd,
+			})
+		}
+	}
+	return refs, nil
+}

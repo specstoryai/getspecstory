@@ -3,6 +3,7 @@ package cursoride
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 )
@@ -24,9 +25,12 @@ const (
 // ToolHandler is the interface for all tool handlers
 // Each handler knows how to format the markdown output for a specific tool
 type ToolHandler interface {
-	// AdaptMessage formats the tool invocation as markdown
-	// Returns the formatted markdown text
-	AdaptMessage(bubble *BubbleConversation) (string, error)
+	// AdaptMessage formats the tool invocation, returning a one-line summary
+	// (rendered inside <summary>...</summary> by the caller) and a body-only
+	// markdown fragment (rendered inside <details>...</details> by the caller).
+	// Handlers must not include the <details>/<summary> wrapper themselves —
+	// callers own it, so it's only added once (see FormatToolContent).
+	AdaptMessage(bubble *BubbleConversation) (summary string, body string, err error)
 
 	// GetToolType returns the tool type category
 	GetToolType() ToolType
@@ -112,8 +116,43 @@ func (r *ToolRegistry) GetHandler(toolName string) ToolHandler {
 	return r.handlers[toolName]
 }
 
-// FormatToolInvocation formats a tool invocation as markdown
-// This is the main entry point for processing tool invocations
+// FormatToolContent resolves the handler for a tool invocation (or falls back to the
+// catch-all formatter for unregistered tools) and returns its one-line summary and
+// body-only markdown, without any <details>/<summary> or <tool-use> wrapper. Split out
+// from FormatToolInvocation so callers that embed the content elsewhere (e.g.
+// schema.ToolInfo, which the shared markdown renderer wraps itself) don't end up with
+// a nested <details> block and a duplicated "Tool use" heading.
+// Callers are responsible for the error/cancelled/invalid-tool special cases handled by
+// FormatToolInvocation — this only covers the "normal" handler-resolution path.
+func FormatToolContent(bubble *BubbleConversation, registry *ToolRegistry) (summary string, body string, toolType ToolType) {
+	handler := registry.GetHandler(bubble.Name)
+	if handler != nil {
+		// Use the registered handler
+		toolType = handler.GetToolType()
+		var err error
+		summary, body, err = handler.AdaptMessage(bubble)
+		if err != nil {
+			slog.Warn("Error adapting tool message, using fallback",
+				"toolName", bubble.Name,
+				"error", err)
+			// Fallback to catch-all handler
+			toolType = ToolTypeUnknown
+			summary, body = formatCatchAll(bubble)
+		}
+	} else {
+		// Unknown tool - use catch-all handler
+		slog.Debug("Unknown tool, using catch-all handler",
+			"toolName", bubble.Name)
+		toolType = ToolTypeUnknown
+		summary, body = formatCatchAll(bubble)
+	}
+	return summary, body, toolType
+}
+
+// FormatToolInvocation formats a tool invocation as a complete markdown block,
+// including the outer <tool-use> and <details>/<summary> wrapper. This is the fallback
+// path used when a tool invocation can't be resolved into a structured schema.ToolInfo
+// (see resolveToolInfo in agent_session.go) and needs to be embedded directly in Content.
 func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) string {
 	// Handle invalid tool (tool = 0)
 	if bubble.Tool == 0 {
@@ -130,37 +169,27 @@ func FormatToolInvocation(bubble *BubbleConversation, registry *ToolRegistry) st
 		return "Cancelled"
 	}
 
-	// Get the handler for this tool name
-	handler := registry.GetHandler(bubble.Name)
-	var toolType ToolType
-	var content string
-
-	if handler != nil {
-		// Use the registered handler
-		toolType = handler.GetToolType()
-		var err error
-		content, err = handler.AdaptMessage(bubble)
-		if err != nil {
-			slog.Warn("Error adapting tool message, using fallback",
-				"toolName", bubble.Name,
-				"error", err)
-			// Fallback to catch-all handler
-			toolType = ToolTypeUnknown
-			content = formatCatchAll(bubble)
-		}
-	} else {
-		// Unknown tool - use catch-all handler
-		slog.Debug("Unknown tool, using catch-all handler",
-			"toolName", bubble.Name)
-		toolType = ToolTypeUnknown
-		content = formatCatchAll(bubble)
-	}
+	summary, body, toolType := FormatToolContent(bubble, registry)
 
 	// Wrap in tool-use HTML tag
 	// Format: <tool-use data-tool-type="read" data-tool-name="read_file">
+	// bubble.Name comes from the Cursor DB, so escape it to keep a malformed or
+	// malicious name (quotes, angle brackets) from breaking out of the attribute.
 	return fmt.Sprintf(`<tool-use data-tool-type="%s" data-tool-name="%s">
+<details>
+<summary>%s</summary>
+
 %s
-</tool-use>`, toolType, bubble.Name, content)
+</details>
+</tool-use>`, toolType, escapeSummaryText(bubble.Name), summary, body)
+}
+
+// escapeSummaryText escapes DB-sourced strings (tool names, queries, file paths)
+// before they are interpolated into HTML contexts like <summary> lines or tag
+// attributes. These values come from Cursor's database, so a malformed string
+// containing <, >, & or quotes would otherwise break the generated markup.
+func escapeSummaryText(s string) string {
+	return html.EscapeString(s)
 }
 
 // formatToolError formats a tool error message
@@ -181,11 +210,12 @@ func formatToolError(bubble *BubbleConversation) string {
 
 // formatCatchAll is the fallback formatter for unknown tools
 // Matches the TypeScript CatchAllBubbleHandler format
-func formatCatchAll(bubble *BubbleConversation) string {
-	var message strings.Builder
+func formatCatchAll(bubble *BubbleConversation) (summary string, body string) {
+	// Summary is just the tool name, no params. Escape the DB-sourced name so it
+	// can't inject markup into the <summary> element.
+	summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 
-	// Start with summary line (just tool name, no params)
-	fmt.Fprintf(&message, "<details>\n<summary>Tool use: **%s**</summary>\n\n", bubble.Name)
+	var message strings.Builder
 
 	// Parse params
 	var params map[string]interface{}
@@ -197,16 +227,17 @@ func formatCatchAll(bubble *BubbleConversation) string {
 		}
 	}
 
-	// Add parameters section (outside summary, inside details)
+	// Add parameters section (outside summary, inside details).
+	// Parameters and additional data are inputs, so they are not capped.
 	if len(params) > 0 {
 		message.WriteString("\nParameters:\n\n")
-		message.WriteString(formatEscapeJSONBlock(params))
+		message.WriteString(formatJSONBlock(params, 0))
 	}
 
 	// Add additional data section
 	if len(bubble.AdditionalData) > 0 {
 		message.WriteString("Additional data:\n\n")
-		message.WriteString(formatEscapeJSONBlock(bubble.AdditionalData))
+		message.WriteString(formatJSONBlock(bubble.AdditionalData, 0))
 	}
 
 	// Parse and add result section
@@ -219,7 +250,7 @@ func formatCatchAll(bubble *BubbleConversation) string {
 		}
 		if len(result) > 0 {
 			message.WriteString("Result:\n\n")
-			message.WriteString(formatEscapeJSONBlock(result))
+			message.WriteString(formatJSONBlock(result, toolResultCap))
 		}
 	}
 
@@ -237,29 +268,79 @@ func formatCatchAll(bubble *BubbleConversation) string {
 	if bubble.Error != "" {
 		message.WriteString("Error:\n\n")
 		errorData := map[string]interface{}{"error": bubble.Error}
-		message.WriteString(formatEscapeJSONBlock(errorData))
+		message.WriteString(formatJSONBlock(errorData, 0))
 	}
 
-	message.WriteString("\n</details>")
-
-	return message.String()
+	return summary, message.String()
 }
 
-// formatEscapeJSONBlock formats JSON with escaped special characters
-// Matches the TypeScript formatEscapeJsonBlock function
-func formatEscapeJSONBlock(data map[string]interface{}) string {
-	// Marshal JSON with indentation
-	jsonBytes, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("```json\n%v\n```\n", data)
+// formatJSONBlock renders data as an indented JSON code block, truncated to at most
+// maxRunes when positive (<= 0 means no cap). Content is kept verbatim (fencedBlock
+// sizes the fence around any backticks) so resumed sessions carry real JSON instead
+// of HTML entities.
+func formatJSONBlock(data map[string]interface{}, maxRunes int) string {
+	var jsonStr string
+	if jsonBytes, err := json.MarshalIndent(data, "", "  "); err != nil {
+		jsonStr = fmt.Sprintf("%v", data)
+	} else {
+		jsonStr = string(jsonBytes)
 	}
+	if maxRunes > 0 {
+		jsonStr = capRunes(jsonStr, maxRunes)
+	}
+	return fencedBlock("json", jsonStr) + "\n"
+}
 
-	// Escape special characters (backticks, <, >, &)
-	jsonStr := string(jsonBytes)
-	jsonStr = strings.ReplaceAll(jsonStr, "&", "&amp;")
-	jsonStr = strings.ReplaceAll(jsonStr, "`", "&#96;")
-	jsonStr = strings.ReplaceAll(jsonStr, "<", "&lt;")
-	jsonStr = strings.ReplaceAll(jsonStr, ">", "&gt;")
+// toolResultCap bounds how much tool output is rendered into the markdown body.
+// Inputs are not capped — they carry what the agent chose to do (e.g. a patch or
+// edit content) — but results (command output, tool result payloads) can be
+// arbitrarily large and matter less once the agent has already responded to them.
+const toolResultCap = 2000
 
-	return fmt.Sprintf("```json\n%s\n```\n", jsonStr)
+// fencedBlock wraps content in a code fence with an optional language tag, keeping
+// the content verbatim. codeFence sizes the fence so embedded backtick runs can't
+// terminate the block early.
+func fencedBlock(lang, content string) string {
+	fence := codeFence(content)
+	return fmt.Sprintf("%s%s\n%s\n%s", fence, lang, content, fence)
+}
+
+// codeFence returns a backtick fence long enough to safely wrap s: one backtick more
+// than the longest backtick run inside it (a value containing ``` would otherwise
+// terminate a plain three-backtick fence early), never shorter than the standard three.
+func codeFence(s string) string {
+	longest, run := 0, 0
+	for _, r := range s {
+		if r == '`' {
+			run++
+			if run > longest {
+				longest = run
+			}
+		} else {
+			run = 0
+		}
+	}
+	size := longest + 1
+	if size < 3 {
+		size = 3
+	}
+	return strings.Repeat("`", size)
+}
+
+// capRunes truncates s to at most max runes, marking the cut. Rune-based so a cap
+// never splits a multi-byte character. Scans rune boundaries instead of converting
+// to []rune, which would allocate O(len(s)) for exactly the oversized tool results
+// this cap protects against.
+func capRunes(s string, max int) string {
+	if len(s) <= max {
+		return s // fast path: byte length bounds rune length
+	}
+	count := 0
+	for i := range s {
+		if count == max {
+			return s[:i] + "\n… (output truncated)"
+		}
+		count++
+	}
+	return s // more bytes than max but fewer runes (multi-byte characters)
 }

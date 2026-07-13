@@ -133,7 +133,15 @@ func normalizePathForComparison(path string) (string, error) {
 
 // FindWorkspaceForProject finds the workspace directory that matches the given project path
 // Returns the workspace match or an error if not found
-func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+func (p *Provider) FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+	return p.findWorkspaceForProject(projectPath, true)
+}
+
+// findWorkspaceForProject matches projectPath against every workspace.json in the
+// variant's storage directory. requireChatSessions filters out matches that have never
+// had a chat session — wanted when reading sessions, not when picking a write target
+// for reconstruction (the resume flow creates the chatSessions directory when writing).
+func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*WorkspaceMatch, error) {
 	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
 	canonicalProjectPath, err := normalizePathForComparison(projectPath)
 	if err != nil {
@@ -153,7 +161,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		"canonicalPath", canonicalProjectPath)
 
 	// Get workspace storage directory
-	workspaceStoragePath := GetWorkspaceStoragePath()
+	workspaceStoragePath := p.workspaceStoragePath()
 	if workspaceStoragePath == "" {
 		return nil, fmt.Errorf("workspace storage directory not found")
 	}
@@ -251,9 +259,10 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		}
 
 		if isMatch {
-			// Check if chatSessions directory exists
+			// Check if chatSessions directory exists (skipped for reconstruction targets,
+			// where the directory is created on first write)
 			chatSessionsPath := GetChatSessionsPath(workspaceDir)
-			if _, err := os.Stat(chatSessionsPath); err != nil {
+			if _, err := os.Stat(chatSessionsPath); err != nil && requireChatSessions {
 				slog.Debug("Workspace match found but chatSessions directory missing",
 					"workspaceID", workspaceID,
 					"chatSessionsPath", chatSessionsPath)
@@ -275,7 +284,7 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 	}
 
 	if len(matches) == 0 {
-		return nil, fmt.Errorf("no workspace found for project path: %s", projectPath)
+		return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, workspaceStoragePath)
 	}
 
 	// If multiple matches, return the newest one (based on state.vscdb modification time)
@@ -289,11 +298,12 @@ func FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 	return &matches[0], nil
 }
 
-// FindAllWorkspacesForProject finds all workspace directories that match the given project path.
+// FindAllWorkspacesForProject finds all workspace directories in this provider's
+// variant storage that match the given project path.
 // In WSL, the same project may have multiple workspaces with different URI formats
 // (e.g., file://wsl.localhost/... and vscode-remote://wsl+...).
 // For SSH remotes, matches are based on repository basename when available.
-func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
+func (p *Provider) FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 	// Normalize project path for comparison (handles Windows WSL paths, Unix paths on Windows, etc.)
 	canonicalProjectPath, err := normalizePathForComparison(projectPath)
 	if err != nil {
@@ -318,7 +328,7 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		"projectBasename", projectBasename)
 
 	// Get workspace storage directory
-	workspaceStoragePath := GetWorkspaceStoragePath()
+	workspaceStoragePath := p.workspaceStoragePath()
 	if workspaceStoragePath == "" {
 		return nil, fmt.Errorf("workspace storage directory not found")
 	}
@@ -594,12 +604,10 @@ func uriToPath(uri string) (string, error) {
 		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsedURI.Scheme, uri)
 	}
 
-	// Get the path from the URI and decode it
-	// This converts %3A to : and other URL-encoded characters
-	path, err := url.PathUnescape(parsedURI.Path)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode URI path: %w", err)
-	}
+	// url.Parse already percent-decodes into Path (e.g. %20 -> space), so no
+	// extra PathUnescape is needed — unescaping again would corrupt paths
+	// containing literal % sequences.
+	path := parsedURI.Path
 
 	// Handle WSL file:// URIs (e.g., file://wsl.localhost/Ubuntu/home/user/project)
 	// Host is "wsl.localhost" and path starts with /{DistroName}/...
