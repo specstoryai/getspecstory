@@ -150,7 +150,7 @@ func (m sessionTUI) machineScopeLabel() string {
 // Pro; the two states get different invitations.
 const (
 	cloudNudgeLogin   = "Log into SpecStory Cloud to search & resume sessions from your other machines"
-	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to resume sessions from your other computers"
+	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to search and resume sessions from your other computers"
 )
 
 // checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /

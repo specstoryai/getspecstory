@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
@@ -47,8 +49,16 @@ non-interactive subcommand with '--json' for scripting and front-end integration
 		Long:  longDesc,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := ensureSkillsAccess(); err != nil {
+			loggedIn, entitled, err := skillsAccess()
+			if err != nil {
 				return err
+			}
+			if !loggedIn {
+				return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+			}
+			// Not Pro: offer an upgrade instead of a bare error, mirroring the resume TUI's `u` hotkey.
+			if !entitled {
+				return promptSkillsUpgrade()
 			}
 			analytics.TrackEvent(analytics.EventSkillsActivated, nil)
 
@@ -85,26 +95,84 @@ non-interactive subcommand with '--json' for scripting and front-end integration
 
 // ---- access gating ----
 
-// ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
-// It is the single gate for both the TUI and the subcommands. The server also enforces the
-// entitlement, so this is a fast, friendly client-side check, not the security boundary.
-func ensureSkillsAccess() error {
+// skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
+// whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
+// gate (ensureSkillsAccess, used by the subcommands) and the interactive upgrade prompt, so the two
+// never disagree about who's allowed in.
+func skillsAccess() (loggedIn, entitled bool, err error) {
 	if !cloud.IsAuthenticated() {
-		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+		return false, false, nil
 	}
 	ent, err := cloud.GetEntitlement()
 	if err != nil {
-		return fmt.Errorf("checking your plan: %w", err)
+		return true, false, fmt.Errorf("checking your plan: %w", err)
 	}
-	if !ent.Features.Skills {
-		plan := ent.Plan
-		if plan == "" {
-			plan = "free"
-		}
+	return true, ent.Features.Skills, nil
+}
+
+// ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+// It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+// so this is a fast, friendly client-side check, not the security boundary. (The interactive
+// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
+func ensureSkillsAccess() error {
+	loggedIn, entitled, err := skillsAccess()
+	if err != nil {
+		return err
+	}
+	if !loggedIn {
+		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+	}
+	if !entitled {
 		return utils.ValidationError{Message: fmt.Sprintf(
-			"skills require a Pro plan (your plan: %s). Upgrade at https://cloud.specstory.com to enable skills.", plan)}
+			"skills require a Pro plan. Upgrade at %s to enable skills.", cloud.GetAPIBaseURL())}
 	}
 	return nil
+}
+
+// promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+// single keypress: 'u' opens the checkout page, anything else quits. It reuses the resume TUI's
+// checkout URL (checkoutURL, honouring the active cloud base), so the two upgrade paths land in the
+// same place. Returns nil in every case — declining to upgrade isn't an error.
+func promptSkillsUpgrade() error {
+	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+	fmt.Println()
+	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+	fmt.Println()
+	fmt.Print("  Press u to upgrade, or any other key to quit: ")
+
+	key, err := readSingleKey()
+	fmt.Println()
+	if err != nil {
+		slog.Debug("skills upgrade prompt: failed to read key", "error", err)
+		return nil // a read failure is treated as "quit" — nothing is lost either way
+	}
+	if key == 'u' || key == 'U' {
+		url := checkoutURL()
+		if err := openBrowser(url); err != nil {
+			fmt.Printf("  Couldn't open your browser automatically. Visit:\n  %s\n", url)
+		}
+	}
+	return nil
+}
+
+// readSingleKey reads one keypress from stdin without waiting for Enter. On a real terminal it flips
+// to raw mode for the single read and restores the prior state immediately after; when stdin isn't a
+// terminal (piped/tested) it falls back to a byte read so the prompt still works non-interactively.
+func readSingleKey() (byte, error) {
+	fd := int(os.Stdin.Fd())
+	if !term.IsTerminal(fd) {
+		return bufio.NewReader(os.Stdin).ReadByte()
+	}
+	oldState, err := term.MakeRaw(fd)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = term.Restore(fd, oldState) }()
+	buf := make([]byte, 1)
+	if _, err := os.Stdin.Read(buf); err != nil {
+		return 0, err
+	}
+	return buf[0], nil
 }
 
 // ---- non-interactive subcommands (the machine-readable / front-end surface) ----
