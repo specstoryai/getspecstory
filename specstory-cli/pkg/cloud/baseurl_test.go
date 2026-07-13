@@ -33,4 +33,17 @@ func TestGetAPIBaseURL_Precedence(t *testing.T) {
 	if got := GetAPIBaseURL(); got != DefaultAPIBaseURL {
 		t.Errorf("whitespace env: got %q, want default", got)
 	}
+
+	// 5. Trailing slash on the env var is stripped so callers can append "/api/v1/..."
+	// without producing a double slash (http://host:5173//api/v1/...).
+	t.Setenv(EnvCloudURL, "http://localhost:5173/")
+	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
+		t.Errorf("trailing slash env: got %q, want %q", got, "http://localhost:5173")
+	}
+
+	// 6. SetAPIBaseURL (the --cloud-url flag path) also strips a trailing slash.
+	SetAPIBaseURL("http://localhost:5173/")
+	if got := GetAPIBaseURL(); got != "http://localhost:5173" {
+		t.Errorf("trailing slash flag: got %q, want %q", got, "http://localhost:5173")
+	}
 }

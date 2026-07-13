@@ -649,9 +649,11 @@ func GetClientVersion() string {
 	return clientVersion
 }
 
-// SetAPIBaseURL sets the base URL for API requests
+// SetAPIBaseURL sets the base URL for API requests. A trailing slash is stripped so
+// that callers can concatenate GetAPIBaseURL() + "/api/v1/..." without producing a
+// double slash (e.g. http://localhost:5173//api/v1/...).
 func SetAPIBaseURL(url string) {
-	apiBaseURL = url
+	apiBaseURL = strings.TrimRight(url, "/")
 }
 
 // DefaultAPIBaseURL is the production cloud API base URL used when neither the --cloud-url
@@ -672,7 +674,7 @@ func GetAPIBaseURL() string {
 		return apiBaseURL // explicit --cloud-url flag wins
 	}
 	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
-		return env
+		return strings.TrimRight(env, "/") // trim trailing slash so callers can append "/api/v1/..."
 	}
 	return DefaultAPIBaseURL
 }
