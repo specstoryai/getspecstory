@@ -183,7 +183,8 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 // agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
 // conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
 // the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
-// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
+// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)
+// can build it without constructing a picker.
 func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
 	out := make(map[string]string)
 	for _, id := range registry.ListIDs() {

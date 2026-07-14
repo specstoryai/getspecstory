@@ -55,6 +55,12 @@ type resumePlan struct {
 	// from (the source session's project_id).
 	fromCloud bool
 	projectID string
+
+	// via records how the session was chosen, so EventResumeActivated can attribute the resume to
+	// its entry point: "picker" (the `resume` TUI), "search" (the `search` TUI's `r` action), or
+	// "session_uri" (`resume --session <uri>`, the web-copy funnel). Empty for older callers reads
+	// as "picker" at the analytics site.
+	via string
 }
 
 // agentChoice pairs a registry ID with its provider.
@@ -76,7 +82,7 @@ Pass an agent to set the resume target up front, e.g. 'specstory resume codex' â
 
 Pass --session <uri> to resume a specific session without first browsing: specstory:// URI (i.e. specstory://...), a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
 
-Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
+Resuming SpecStory Cloud sessions (from your other machines) requires an active SpecStory Cloud login + SpecStory Pro.`
 
 	resumeCmd := &cobra.Command{
 		Use:   "resume [agent]",
@@ -264,10 +270,16 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	}
 
 	analytics.SetAgentProviders([]string{plan.to.Name()})
+	via := plan.via
+	if via == "" {
+		via = "picker"
+	}
 	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
 		"from_provider": plan.fromID,
 		"to_provider":   plan.toID,
 		"cross_agent":   plan.fromID != plan.toID,
+		"via":           via,
+		"from_cloud":    plan.fromCloud,
 	})
 
 	resumeSessionID, err := prepareResumeTarget(plan, cwd, os.Stdout)
