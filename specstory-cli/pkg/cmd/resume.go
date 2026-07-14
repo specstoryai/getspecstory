@@ -133,7 +133,7 @@ Resuming SpecStory Cloud sessions (from your other machines) require an active S
 			// to the resolved session (skipping the browse step).
 			sessionArg, _ := cmd.Flags().GetString("session")
 			if sessionArg != "" {
-				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
+				resolved, rerr := resolveSessionURI(sessionArg, store, agentIDByNameFromRegistry(registry))
 				if rerr != nil {
 					return rerr
 				}

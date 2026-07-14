@@ -144,7 +144,6 @@ func pathSegments(s string) []string {
 func resolveSessionURI(
 	raw string,
 	store *sessionindex.Store,
-	homeProjectID string,
 	agentIDByName map[string]string,
 ) (*sessionindex.Session, error) {
 	uri, err := parseSessionURI(raw)
@@ -152,8 +151,20 @@ func resolveSessionURI(
 		return nil, err
 	}
 
+	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
+	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
+	// exists locally should resume offline without tripping the host-mismatch guard. The check
+	// only needs to gate the cloud call below (the token never goes to the permalink's host);
+	// a local hit makes no cloud call at all.
+	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
+		return nil, fmt.Errorf("looking up session locally: %w", lerr)
+	} else if ok {
+		return &local, nil
+	}
+
 	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
-	// permalink's host. If it differs from the configured cloud host, refuse and point at
+	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
+	// refuse if the permalink's host differs from the configured cloud host and point at
 	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
 	if uri.host != "" {
 		configured := cloud.GetAPIBaseURL()
@@ -162,13 +173,6 @@ func resolveSessionURI(
 				"This link points at %s, but the CLI is configured for %s. Pass --cloud-url %s if this is intentional.",
 				uri.host, configured, uri.host)}
 		}
-	}
-
-	// (1) Local-first: a session present on this machine resumes in place, offline.
-	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
-		return nil, fmt.Errorf("looking up session locally: %w", lerr)
-	} else if ok {
-		return &local, nil
 	}
 
 	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
@@ -181,24 +185,34 @@ func resolveSessionURI(
 		projectID string
 	)
 	if uri.projectID != "" {
+		// Direct form: recover the session summary from the named project. The per-project list
+		// is capped at 500 (cloudResumeLimit), so a resumable session older than the project's
+		// newest 500 misses it — fall back to the uncapped all-projects listing (D25 embeds every
+		// resumable session) on a miss, accepting only a match in the named project.
 		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
 		if err != nil {
 			return nil, mapCloudResumeErr(err)
 		}
 		projectID = uri.projectID
-	} else {
-		// Bare UUID: try the current project first, then discover across all projects.
-		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
-		if err != nil {
-			return nil, mapCloudResumeErr(err)
-		}
-		if cs != nil {
-			projectID = homeProjectID
-		} else {
+		if cs == nil {
 			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
 			if err != nil {
 				return nil, mapCloudResumeErr(err)
 			}
+			// The URI's project is authoritative for the direct form. A match in a different
+			// project (a near-impossible UUID collision, or a stale/wrong URI) means the session
+			// isn't in the named project — treat as not found.
+			if cs != nil && projectID != uri.projectID {
+				cs = nil
+			}
+		}
+	} else {
+		// Bare UUID: the all-projects ?resumable=true listing embeds every resumable session
+		// uncapped (D25), including the current project's, so a dedicated current-project probe
+		// is redundant — scan all projects directly to discover the owning project.
+		cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
+		if err != nil {
+			return nil, mapCloudResumeErr(err)
 		}
 	}
 
@@ -223,8 +237,9 @@ func resolveSessionURI(
 }
 
 // findCloudSessionInProject lists a project's resumable cloud sessions and returns the one whose
-// native session id (clientId) matches, or nil if none. The per-project list is capped at 500 by
-// the server, so this is a cheap linear scan over the same summaries the browse picker uses.
+// native session id (clientId) matches, or nil if none. NOTE: the per-project list is capped at
+// cloudResumeLimit (500) by the server, so a resumable session older than the project's newest 500
+// misses it — callers that must not miss should fall back to findCloudSessionAnywhere (uncapped).
 func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession, error) {
 	if projectID == "" {
 		return nil, nil
