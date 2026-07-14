@@ -88,7 +88,7 @@ SpecStory Cloud mines your synced sessions into reusable skills. The `skills` co
 # Interactive browser with two tabs (press `tab` to switch):
 #   • Library — preview skills, approve/reject those awaiting review, install ready
 #     ones, and uninstall/reinstall installed ones.
-#   • Run Activity — see past runs, kick one off (`n`), and watch it live.
+#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
 specstory skills
 ```
 
@@ -108,13 +108,13 @@ specstory skills reject <name> --note "..."  # reject one
 specstory skills install <name>              # install for all detected agents (global)
 specstory skills install <name> --project --agents claude-code,codex
 specstory skills uninstall <name>            # remove files, links, and lock entry
-specstory skills reinstall <name>            # refresh to the current cloud version
+specstory skills install <name>              # reinstall an installed skill to refresh it
 specstory skills status --json               # locally installed skills (no login needed)
 specstory skills run                         # mine your sessions for new skills
 specstory skills runs --json                 # recent runs and their status
 ```
 
-To generate new skills, kick off a run (`specstory skills run`, or press `n` in the browser to
+To generate new skills, kick off a run (`specstory skills run`, or press `m` in the browser to
 watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
 
 ### Targeting a non-production cloud

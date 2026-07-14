@@ -31,7 +31,7 @@ import (
 // front end (e.g. the VS Code extension) can drive identical behavior by shelling out.
 //
 // Running `specstory skills` with no subcommand opens the TUI; the subcommands (list, show,
-// install, uninstall, reinstall, approve, reject, status) are the machine-readable surface.
+// install, uninstall, approve, reject, status) are the machine-readable surface.
 func CreateSkillsCommand(cloudURL *string) *cobra.Command {
 	longDesc := `Browse, approve, and install skills generated from your coding sessions.
 
@@ -82,7 +82,6 @@ non-interactive subcommand with '--json' for scripting and front-end integration
 		newSkillsShowCmd(),
 		newSkillsInstallCmd(),
 		newSkillsUninstallCmd(),
-		newSkillsReinstallCmd(),
 		newSkillsApproveCmd(),
 		newSkillsRejectCmd(),
 		newSkillsStatusCmd(),
@@ -232,7 +231,7 @@ func newSkillsInstallCmd() *cobra.Command {
 	var agents []string
 	cmd := &cobra.Command{
 		Use:   "install <name>",
-		Short: "Install a ready skill into your agents",
+		Short: "Install a skill, or reinstall it to refresh an installed copy",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := ensureSkillsAccess(); err != nil {
@@ -242,7 +241,10 @@ func newSkillsInstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			report, err := skills.NewEngine(mustGetwd()).Install(args[0], opts)
+			// Reinstall delegates to Install when the skill isn't installed yet, and reuses
+			// the prior scope/agents when it is (unless --global/--project is explicit).
+			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
+			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
 			if err != nil {
 				return err
 			}
@@ -250,40 +252,6 @@ func newSkillsInstallCmd() *cobra.Command {
 				"scope": report.Scope, "agents": len(report.Agents),
 			})
 			_ = config.SaveSkillsPrefs("", report.Scope)
-			if jsonOut {
-				return printJSON(cmd.OutOrStdout(), report)
-			}
-			renderInstallReport(cmd.OutOrStdout(), report)
-			return nil
-		},
-	}
-	addInstallFlags(cmd, &jsonOut, &global, &project, &agents)
-	return cmd
-}
-
-func newSkillsReinstallCmd() *cobra.Command {
-	var jsonOut, global, project bool
-	var agents []string
-	cmd := &cobra.Command{
-		Use:   "reinstall <name>",
-		Short: "Reinstall a skill, refreshing it to the current cloud version",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := ensureSkillsAccess(); err != nil {
-				return err
-			}
-			opts, err := installOptionsFromFlags(global, project, agents)
-			if err != nil {
-				return err
-			}
-			scopeExplicit := cmd.Flags().Changed("global") || cmd.Flags().Changed("project")
-			report, err := skills.NewEngine(mustGetwd()).Reinstall(args[0], opts, scopeExplicit)
-			if err != nil {
-				return err
-			}
-			analytics.TrackEvent(analytics.EventSkillsInstalled, analytics.Properties{
-				"scope": report.Scope, "agents": len(report.Agents), "reinstall": true,
-			})
 			if jsonOut {
 				return printJSON(cmd.OutOrStdout(), report)
 			}
@@ -490,7 +458,7 @@ func newSkillsAgentsCmd() *cobra.Command {
 				if a.Detected {
 					mark = "✓"
 				}
-				fprintf(cmd.OutOrStdout(), "%s %-16s %s\n", mark, a.Name, a.DisplayName)
+				fprintf(cmd.OutOrStdout(), "%s %s\n", mark, a.DisplayName)
 			}
 			return nil
 		},
@@ -622,6 +590,10 @@ type skillsTUI struct {
 	// tab is the active top-level view (library or runs).
 	tab skillsTab
 
+	// loadedOnce marks that the initial library fetch has completed, so we only
+	// auto-redirect to the Runs tab on the very first load (not on later refreshes).
+	loadedOnce bool
+
 	// runs-tab state. The runs list is loaded lazily on first switch to the tab and
 	// live-refreshed (runsPolling) while any run is in progress — mirroring the web
 	// Activity panel. runID marks a run we just triggered so the cursor can land on it.
@@ -736,7 +708,17 @@ func (m skillsTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.spinning = false
 		return m, nil
 	case skillsLoadedMsg:
-		return m.applyLoaded(msg), nil
+		m = m.applyLoaded(msg)
+		// On the first load, if the library is empty, land on the Runs tab so the user
+		// sees how to kick off mining instead of an empty library. Later refreshes
+		// (after dismissing skills, post-run, etc.) never jump the tab.
+		if !m.loadedOnce {
+			m.loadedOnce = true
+			if m.tab == tabLibrary && len(m.all) == 0 {
+				return m.switchTab(tabRuns)
+			}
+		}
+		return m, nil
 	case actionResultMsg:
 		return m.applyActionResult(msg)
 	case runTriggeredMsg:
@@ -843,9 +825,9 @@ func (m skillsTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c", "esc":
 		return m, tea.Quit
-	case "up", "k":
+	case "up":
 		m.moveSkillCursor(-1)
-	case "down", "j":
+	case "down":
 		m.moveSkillCursor(1)
 	case "pgup":
 		m.moveSkillCursor(-m.skillsListHeight())
@@ -869,17 +851,15 @@ func (m skillsTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.viewMode = "sparse"
 		}
-	case "K": // approve (review rows)
+	case "k": // keep/approve (review rows)
 		return m.startApprove()
-	case "X": // reject (review rows)
+	case "x": // dismiss/reject (review rows)
 		return m.startReject()
-	case "i": // install (ready rows)
+	case "i": // install (or reinstall if already installed)
 		return m.startInstall()
 	case "u": // uninstall (locally installed)
 		return m.startUninstall()
-	case "R": // reinstall (locally installed)
-		return m.startReinstall()
-	case "n": // new run (mine sessions for skills)
+	case "m": // mine sessions for skills (start a new run)
 		return m.startRun()
 	case "tab", "right", "l":
 		return m.switchTab(tabRuns)
@@ -909,11 +889,11 @@ func (m skillsTUI) updateInstall(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "ctrl+c":
 		return m, tea.Quit
-	case "up", "k":
+	case "up":
 		if m.installCursor > 0 {
 			m.installCursor--
 		}
-	case "down", "j":
+	case "down":
 		if m.installCursor < len(m.detected) {
 			m.installCursor++
 		}
@@ -1011,6 +991,11 @@ func (m skillsTUI) startInstall() (tea.Model, tea.Cmd) {
 	if sel.State == cloud.SkillStateReview {
 		m.status = "Approve this skill before installing it."
 		return m, nil
+	}
+	// Already installed -> reinstall (refresh to current cloud version, reusing the prior
+	// scope and agent set). Otherwise open the install picker.
+	if sel.LocallyInstalled {
+		return m.startReinstall()
 	}
 	m.pendingInstall = sel
 	m.installGlobal = m.defaultLocation != "project"
@@ -1126,9 +1111,9 @@ func (m skillsTUI) updateRuns(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "tab", "left", "h":
 		return m.switchTab(tabLibrary)
-	case "up", "k":
+	case "up":
 		moveCursorWithin(&m.runsCursor, &m.runsTop, -1, len(m.runs), m.runsListHeight())
-	case "down", "j":
+	case "down":
 		moveCursorWithin(&m.runsCursor, &m.runsTop, 1, len(m.runs), m.runsListHeight())
 	case "pgup":
 		moveCursorWithin(&m.runsCursor, &m.runsTop, -m.runsListHeight(), len(m.runs), m.runsListHeight())
@@ -1143,7 +1128,7 @@ func (m skillsTUI) updateRuns(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if r := m.selectedRun(); r != nil {
 			return m.openRunDetail(r)
 		}
-	case "n":
+	case "m":
 		return m.startRun()
 	case "r":
 		// Manual refresh of the runs list.
@@ -1399,7 +1384,7 @@ func installInfoBlock(s *skills.SkillView) string {
 	line := stySel.Render("● installed") + styDim.Render(fmt.Sprintf("  %s · %s", s.InstalledScope, agents))
 	if s.Drift {
 		line += "\n" + lipgloss.NewStyle().Foreground(lipgloss.Color("214")).
-			Render("↑ update available — close this preview and press R to reinstall")
+			Render("↑ update available — close this preview and press i to reinstall")
 	}
 	return line
 }
@@ -1513,7 +1498,7 @@ func (m skillsTUI) renderSkillRows() string {
 		return styFaint.Render("  " + m.spinner.View() + " Loading skills…")
 	}
 	if len(m.all) == 0 {
-		return styFaint.Render("  No skills generated yet. Keep coding with SpecStory syncing your sessions — skills will appear here.")
+		return styFaint.Render("  No generated skills yet. Skills will appear here once generated.")
 	}
 	if len(m.filtered) == 0 {
 		return styFaint.Render("  No skills match this filter.")
@@ -1534,7 +1519,7 @@ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 	cursor := rowCursor(selected)
 	state := skillStateBadge(v.State)
 	// The install marker doubles as a drift indicator: ✓ installed, ↑ installed-but-an-update
-	// is available (reinstall with R). Shown in both view modes.
+	// is available (reinstall with i). Shown in both view modes.
 	installed := "  "
 	switch {
 	case v.LocallyInstalled && v.Drift:
@@ -1559,7 +1544,7 @@ func (m skillsTUI) skillRow(v skills.SkillView, selected bool) string {
 }
 
 func (m skillsTUI) renderSkillFooter() string {
-	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "K keep", "X dismiss", "u uninstall", "R reinstall", "tab runs", "q quit"}
+	keys := []string{"↑↓ move", "space preview", "a filter", "i install", "k keep", "x dismiss", "u uninstall", "tab runs", "q quit"}
 	return styDim.Render(strings.Join(keys, " · "))
 }
 
@@ -1665,7 +1650,7 @@ func (m skillsTUI) renderRunsList() string {
 		b.WriteString(styFaint.Render(status))
 		b.WriteString("\n")
 	}
-	keys := []string{"↑↓ move", "enter details", "n run", "r refresh", "tab library", "q quit"}
+	keys := []string{"↑↓ move", "enter details", "m mine skills", "r refresh", "tab library", "q quit"}
 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
 	return b.String()
 }
@@ -1675,7 +1660,7 @@ func (m skillsTUI) renderRunRows() string {
 		return styFaint.Render("  " + m.spinner.View() + " Loading runs…")
 	}
 	if len(m.runs) == 0 {
-		return styFaint.Render("  No runs yet. Press 'n' to mine your sessions for skills.")
+		return styFaint.Render("  No runs yet. Press 'm' to mine your sessions for skills.")
 	}
 	h := m.runsListHeight()
 	end := min(m.runsTop+h, len(m.runs))

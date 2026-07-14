@@ -30,6 +30,9 @@ type Agent struct {
 	GlobalDir string
 	// ConfigDir is the absolute path whose existence means the agent is installed on this machine.
 	ConfigDir string
+	// ConfigDirFallback is an optional legacy config dir also treated as "installed" when
+	// ConfigDir is absent (e.g. an agent renamed its config directory). Empty disables it.
+	ConfigDirFallback string
 }
 
 // Universal reports whether the agent reads the canonical ".agents/skills" store directly.
@@ -39,9 +42,13 @@ func (a Agent) Universal() bool {
 	return a.ProjectDir == filepath.Join(agentsDirName, skillsSubdir)
 }
 
-// Detected reports whether this agent appears installed (its config dir exists).
+// Detected reports whether this agent appears installed (its config dir exists, or its
+// legacy fallback does when the agent renamed its config directory).
 func (a Agent) Detected() bool {
-	return a.ConfigDir != "" && dirExists(a.ConfigDir)
+	if a.ConfigDir != "" && dirExists(a.ConfigDir) {
+		return true
+	}
+	return a.ConfigDirFallback != "" && dirExists(a.ConfigDirFallback)
 }
 
 const (
@@ -94,6 +101,9 @@ func buildRegistry(p hostPaths) []Agent {
 			GlobalDir: filepath.Join(p.codexHome, "skills"), ConfigDir: p.codexHome},
 		{Name: "cursor", DisplayName: "Cursor", ProjectDir: canonicalRel,
 			GlobalDir: filepath.Join(p.home, ".cursor", "skills"), ConfigDir: filepath.Join(p.home, ".cursor")},
+		{Name: "deepseek", DisplayName: "DeepSeek TUI", ProjectDir: canonicalRel,
+			GlobalDir: filepath.Join(p.home, ".codewhale", "skills"),
+			ConfigDir: filepath.Join(p.home, ".codewhale"), ConfigDirFallback: filepath.Join(p.home, ".deepseek")},
 		{Name: "droid", DisplayName: "Droid", ProjectDir: filepath.Join(".factory", "skills"),
 			GlobalDir: filepath.Join(p.home, ".factory", "skills"), ConfigDir: filepath.Join(p.home, ".factory")},
 		{Name: "gemini", DisplayName: "Gemini CLI", ProjectDir: filepath.Join(".gemini", "skills"),
