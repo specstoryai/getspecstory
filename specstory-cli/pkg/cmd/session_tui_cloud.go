@@ -153,22 +153,23 @@ const (
 	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to search and resume sessions from your other computers"
 )
 
-// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
-// SPECSTORY_CLOUD_URL), so a dev/staging build opens its own checkout rather than production.
-func checkoutURL() string {
-	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
+// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
+// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
+// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
+func upgradeURL() string {
+	return cloud.GetAPIBaseURL() + "/resume"
 }
 
-// upgradeCmd opens the Pro checkout page in the browser, but only while the upgrade nudge is
+// upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
 // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
 func (m sessionTUI) upgradeCmd() tea.Cmd {
 	if m.cloudNudge != cloudNudgeUpgrade {
 		return nil
 	}
-	url := checkoutURL()
+	url := upgradeURL()
 	return func() tea.Msg {
 		if err := openBrowser(url); err != nil {
-			slog.Debug("cloud resume: failed to open upgrade checkout", "url", url, "error", err)
+			slog.Debug("cloud resume: failed to open upgrade page", "url", url, "error", err)
 		}
 		return nil
 	}

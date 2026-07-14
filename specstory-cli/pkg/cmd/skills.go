@@ -90,6 +90,20 @@ Requires an active SpecStory Cloud login and a Pro plan. Every action is also av
 
 // ---- access gating ----
 
+// skillsUpgradeURL is the page the skills upgrade flow opens — the SpecStory Cloud /skills
+// hub. Honours --cloud-url / SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /skills
+// rather than production. Used by both the interactive `skills` `u` prompt and the non-
+// interactive subcommands' upgrade error, so the two always land in the same place.
+func skillsUpgradeURL() string {
+	return cloud.GetAPIBaseURL() + "/skills"
+}
+
+// skillsProMessage is the single SpecStory Pro upsell message for skills, shown to a logged-in
+// user whose plan doesn't include them. Both the interactive `skills` command (via
+// promptSkillsUpgrade) and the non-interactive subcommands (via ensureSkillsAccess) surface this
+// exact text, so a user hitting the gate from any entry point sees the same response.
+const skillsProMessage = "skills require a SpecStory Pro plan. Open %s to upgrade and enable skills."
+
 // skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
 // whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
 // gate (ensureSkillsAccess, used by the subcommands) and the interactive upgrade prompt, so the two
@@ -109,6 +123,13 @@ func skillsAccess() (loggedIn, entitled bool, err error) {
 // It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
 // so this is a fast, friendly client-side check, not the security boundary. (The interactive
 // `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
+//
+// The not-Pro case mirrors the interactive `skills` command's experience when stdin is a
+// terminal: promptSkillsUpgrade prints the shared skillsProMessage and offers the `u`-to-upgrade
+// hotkey, so a user hitting the gate from `specstory skills run` (or any subcommand) in a real
+// terminal sees the same affordance as from `specstory skills` — not a bare capitalized ERROR.
+// When stdin isn't a terminal (piped / --json / CI), it returns the not-Pro message as an error
+// instead, so scripts and front-ends get a machine-readable failure rather than a hung prompt.
 func ensureSkillsAccess() error {
 	loggedIn, entitled, err := skillsAccess()
 	if err != nil {
@@ -117,21 +138,29 @@ func ensureSkillsAccess() error {
 	if !loggedIn {
 		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
 	}
-	if !entitled {
-		return utils.ValidationError{Message: fmt.Sprintf(
-			"skills require a Pro plan. Upgrade at %s to enable skills.", cloud.GetAPIBaseURL())}
+	if entitled {
+		return nil
 	}
-	return nil
+	// Not Pro. Offer the interactive upgrade prompt in a real terminal (same experience as
+	// `specstory skills`); otherwise surface the shared message as an error for non-interactive
+	// callers (--json, piped stdin, CI).
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return promptSkillsUpgrade()
+	}
+	return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
 }
 
 // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
-// single keypress: 'u' opens the checkout page, anything else quits. It reuses the resume TUI's
-// checkout URL (checkoutURL, honouring the active cloud base), so the two upgrade paths land in the
-// same place. Returns nil in every case — declining to upgrade isn't an error.
+// single keypress: 'u' opens the /skills page, anything else quits. It prints the same
+// skillsProMessage the non-interactive subcommands return (so the gate reads identically from
+// any entry point), then layers the interactive `u`-to-upgrade affordance on top. Returns nil
+// in every case — declining to upgrade isn't an error.
 func promptSkillsUpgrade() error {
 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+	url := skillsUpgradeURL()
 	fmt.Println()
 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
 	fmt.Println()
 	fmt.Print("  Press u to upgrade, or any other key to quit: ")
 
@@ -142,7 +171,6 @@ func promptSkillsUpgrade() error {
 		return nil // a read failure is treated as "quit" — nothing is lost either way
 	}
 	if key == 'u' || key == 'U' {
-		url := checkoutURL()
 		if err := openBrowser(url); err != nil {
 			fmt.Printf("  Couldn't open your browser automatically. Visit:\n  %s\n", url)
 		}
