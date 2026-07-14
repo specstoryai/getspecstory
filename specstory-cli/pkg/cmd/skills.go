@@ -35,13 +35,9 @@ import (
 func CreateSkillsCommand(cloudURL *string) *cobra.Command {
 	longDesc := `Browse, approve, and install skills generated from your coding sessions.
 
-SpecStory Cloud mines your synced sessions into reusable skills. 'skills' opens an
-interactive browser to preview them, approve or reject the ones awaiting review, and install
-the ready ones into your coding agents (Claude Code, Codex, Cursor, and more) — installed
-skills can be uninstalled or reinstalled at any time.
+SpecStory Cloud mines your synced sessions into reusable skills. 'skills' opens an interactive browser to preview them, approve or reject the ones awaiting review, and install the ready ones into your coding agents (Claude Code, Codex, Cursor, and more) — installed skills can be uninstalled or reinstalled at any time.
 
-Requires a SpecStory Cloud login and a Pro plan. Every action is also available as a
-non-interactive subcommand with '--json' for scripting and front-end integration.`
+Requires an active SpecStory Cloud login and a Pro plan. Every action is also available as a non-interactive subcommand with '--json' for scripting and front-end integration.`
 
 	skillsCmd := &cobra.Command{
 		Use:   "skills",

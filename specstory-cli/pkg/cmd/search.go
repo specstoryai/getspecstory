@@ -26,9 +26,7 @@ func CreateSearchCommand(cloudURL *string, localTimeZone bool, debugDir string) 
 		Short: "Search and read your past coding-agent sessions",
 		Long: `Full-text search across every session SpecStory has indexed, then read the match.
 
-'search' opens an interactive search of your session history. Type to search, press space to
-preview a session (rendered for the terminal), and press 'r' to resume it in an agent. Anything
-after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
+'search' opens an interactive search of your session history. Type to search, press space to preview a session (rendered for the terminal), and press 'r' to resume it in an agent. Anything after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			registry := factory.GetRegistry()

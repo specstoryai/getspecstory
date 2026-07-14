@@ -219,6 +219,12 @@ type sessionTUIOpts struct {
 	viewMode      string // "dense" | "sparse"
 	initialQuery  string // search: pre-seed the all-projects query
 	startInSearch bool   // search: open in the all-projects FTS with the input focused
+
+	// pinnedSession is a session resolved by `resume --session <uri>` (no preset agent). When
+	// set, the TUI opens straight at the target picker (modeTarget) with this session pinned as
+	// chosen — skipping the browse step — so the user only picks which agent to resume into. The
+	// default target highlight (last-resumed, else the session's own agent) still applies.
+	pinnedSession *sessionindex.Session
 }
 
 func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projectID, projectName string,
@@ -262,6 +268,14 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 	m.applyFilter()
 
 	switch {
+	case opts.pinnedSession != nil:
+		// `resume --session <uri>` (no preset agent): open at the target picker pinned to the
+		// resolved session, skipping the browse step. Takes precedence over the empty-project
+		// browser fallback and the search entry — a pinned session is the whole point of the
+		// invocation. esc at the target picker drops into the browse list (the escape hatch).
+		m.chosen = opts.pinnedSession
+		m.mode = modeTarget
+		m.targetCursor = m.defaultTargetIndex()
 	case opts.startInSearch:
 		// `search`: land directly in the all-projects FTS, input focused (so the user types
 		// immediately, exactly like before). Init fires the pre-seeded query, if any. The

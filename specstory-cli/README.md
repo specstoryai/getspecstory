@@ -80,6 +80,58 @@ With a specific session UUID:
 specstory sync -s <session-uuid>
 ```
 
+### Resume & Search
+
+SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
+a past session — in the same agent or a different one — without re-reading the transcript. Two
+commands share the same interactive picker:
+
+```zsh
+# Open a picker of the current project's sessions across all agents. Pick one, choose which
+# installed agent to continue it in, and go. `tab` switches to the all-projects browser.
+specstory resume
+
+# Pre-select the target agent — the picker then skips the target step and resumes straight
+# into that agent.
+specstory resume codex
+
+# Full-text search across every indexed session, then read or resume a match. Anything after
+# the command pre-seeds the query.
+specstory search
+specstory search max cpu
+```
+
+Inside the picker: `↑↓` move, `r` resumes, `space` previews (glamour-rendered), `/` searches,
+`a` cycles the agent filter, `v` toggles dense/sparse, and `d` soft-deletes (hides from the
+picker; native files on disk are untouched). See `docs/RESUME-TUI.md` and
+`docs/SESSION-SEARCH.md` for the full keymap.
+
+#### Resume a specific session directly (`--session`)
+
+Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
+without one the target-agent picker opens pinned to that session.
+
+```zsh
+# Canonical form (what the SpecStory Cloud web app's Resume button copies):
+specstory resume --session specstory://projects/{projectId}/sessions/{sessionId}
+
+# A cloud permalink pasted straight from a browser URL bar:
+specstory resume --session https://cloud.specstory.com/projects/{projectId}/sessions/{sessionId}
+
+# Shorthand — a bare session UUID, resolved local-first then cloud:
+specstory resume --session 550e8400-e29b-41d4-a716-446655440000
+
+# Fully non-interactive: pin both the session and the target agent.
+specstory resume claude --session specstory://projects/{projectId}/sessions/{sessionId}
+```
+
+A session that exists on this machine resumes in place (offline, instant) even when the URI
+came from the cloud. A session from another machine is fetched from SpecStory Cloud and
+reconstructed into the target agent — that path requires a SpecStory Cloud login
+(`specstory login`) and a Pro plan. A pasted permalink only contributes IDs; the CLI never
+sends your token to the permalink's host — if it differs from your configured cloud, pass
+`--cloud-url` to match (see [Targeting a non-production cloud](#targeting-a-non-production-cloud)).
+
 ### Skills
 
 SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.

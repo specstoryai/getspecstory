@@ -59,10 +59,7 @@ func CreateReindexCommand() *cobra.Command {
 		Short: "Rebuild the restore index of all known agent sessions",
 		Long: `Rebuild the restore index used by 'specstory resume'.
 
-'reindex' enumerates every session across all installed agents and projects and writes a
-searchable index to ~/.specstory/sessions.db. It is incremental: a session whose native
-file is unchanged since it was last indexed is skipped, so re-runs are fast. Use --force to
-re-index everything regardless. The index is a derived cache: it is safe to delete.`,
+'reindex' enumerates every session across all installed agents and projects and writes a searchable index to ~/.specstory/sessions.db. It is incremental: a session whose native file is unchanged since it was last indexed is skipped, so re-runs are fast. Use --force to re-index everything regardless. The index is a derived cache: it is safe to delete.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			force, _ := cmd.Flags().GetBool("force")

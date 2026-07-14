@@ -70,14 +70,13 @@ type agentChoice struct {
 func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
 	longDesc := `Resume a past coding-agent session — in the same agent, or a different one.
 
-'resume' opens an interactive picker of the sessions in the current project across all
-agents. Press tab to switch projects. Pick a session, then choose which installed agent
-to continue it in, and go. Resuming into a different agent reconstructs the conversation
-into that agent's native format first.
+'resume' opens an interactive picker of the sessions in the current project across all agents. Press tab to switch projects. Pick a session, then choose which installed agent to continue it in, and go. Resuming into a different agent reconstructs the conversation into that agent's native format first.
 
-Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
-then skips the target-selection step and resumes straight into that agent. The agent must be
-a known, installed provider, or the command errors.`
+Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker then skips the target-selection step and resumes straight into that agent. The agent must be a known, installed provider, or the command errors.
+
+Pass --session <uri> to resume a specific session without first browsing: specstory:// URI (i.e. specstory://...), a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
+
+Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
 
 	resumeCmd := &cobra.Command{
 		Use:   "resume [agent]",
@@ -128,7 +127,37 @@ a known, installed provider, or the command errors.`
 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
 			}
 
-			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)
+			// --session <uri>: direct session addressing (Chunk 5, D28–D36). The URI resolves to
+			// the same session identity the picker would produce. With a preset agent the resume is
+			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
+			// to the resolved session (skipping the browse step).
+			sessionArg, _ := cmd.Flags().GetString("session")
+			if sessionArg != "" {
+				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
+				if rerr != nil {
+					return rerr
+				}
+				if presetTarget != "" {
+					// `resume <agent> --session <uri>`: build the plan directly and launch — no TUI.
+					plan, perr := resumePlanFromSession(registry, store, resolved, presetTarget)
+					if perr != nil {
+						return perr
+					}
+					return launchResume(plan, cwd, launchOpts)
+				}
+				// `resume --session <uri>`: open the TUI in modeTarget with the session pinned. A nil
+				// plan means the user backed out (esc) — not an error.
+				plan, perr := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, resolved)
+				if perr != nil {
+					return perr
+				}
+				if plan == nil {
+					return nil
+				}
+				return launchResume(plan, cwd, launchOpts)
+			}
+
+			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, nil)
 			if err != nil {
 				return err
 			}
@@ -142,6 +171,9 @@ a known, installed provider, or the command errors.`
 	}
 
 	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
+	// --session is registered on `resume` only (D28), deliberately NOT in registerResumeLaunchFlags
+	// so `search` is untouched.
+	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
 	return resumeCmd
 }
 

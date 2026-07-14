@@ -74,16 +74,19 @@ func startIndexWarm(p *tea.Program, projectID string, builtFresh bool) context.C
 // selectResumeViaTUI runs the picker for the current project and returns the chosen
 // resume plan (or nil if the user cancelled). On a successful selection it persists the
 // view-mode and target-agent preferences to the user config.
-func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool) (*resumePlan, error) {
+func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool, pinned *sessionindex.Session) (*resumePlan, error) {
 	sessions, err := store.ListByProject(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("loading sessions: %w", err)
 	}
 	// An empty current project is fine — the picker opens in the all-projects browser.
-	// Only bail when the whole index is empty (nothing to resume anywhere).
-	if total, _ := store.Count(); total == 0 {
-		fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
-		return nil, nil
+	// Only bail when the whole index is empty (nothing to resume anywhere). A pinned session
+	// (--session) is itself something to resume, so skip the bail even on an empty index.
+	if pinned == nil {
+		if total, _ := store.Count(); total == 0 {
+			fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
+			return nil, nil
+		}
 	}
 
 	agents := map[string]agentMeta{}
@@ -129,10 +132,11 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 	}
 
 	model := newSessionTUI(store, registry, projectID, projectName, sessions, agents, installed, sessionTUIOpts{
-		title:     "SpecStory Resume",
-		presetTo:  presetTo,
-		lastAgent: lastAgent,
-		viewMode:  viewMode,
+		title:         "SpecStory Resume",
+		presetTo:      presetTo,
+		lastAgent:     lastAgent,
+		viewMode:      viewMode,
+		pinnedSession: pinned,
 	})
 	p := tea.NewProgram(model)
 	cancelWarm := startIndexWarm(p, projectID, builtFresh)
@@ -173,6 +177,53 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 		toID:      rm.result.targetID,
 		fromCloud: fromCloud,
 		projectID: rm.result.session.ProjectID,
+	}, nil
+}
+
+// agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
+// conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
+// the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
+// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
+func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
+	out := make(map[string]string)
+	for _, id := range registry.ListIDs() {
+		prov, err := registry.Get(id)
+		if err != nil {
+			continue
+		}
+		out[prov.Name()] = id
+	}
+	return out
+}
+
+// resumePlanFromSession builds a resumePlan for a directly-resolved session (the --session path
+// with a preset agent), reusing the same selection-time guard and plan shape as the TUI tail.
+// targetID is the preset agent; it must be a known, INSTALLED provider to resume into (mirroring
+// selectResumeViaTUI's installed check, which the non-interactive path can't inherit).
+func resumePlanFromSession(registry *factory.Registry, store *sessionindex.Store, s *sessionindex.Session, targetID string) (*resumePlan, error) {
+	fromProv, err := registry.Get(s.Agent)
+	if err != nil {
+		return nil, fmt.Errorf("unknown source agent %q: %w", s.Agent, err)
+	}
+	toProv, err := registry.Get(targetID)
+	if err != nil {
+		return nil, utils.ValidationError{Message: fmt.Sprintf(
+			"unknown agent %q. Valid agents: %s", targetID, registry.GetProviderList())}
+	}
+	if !toProv.Check("").Success {
+		return nil, utils.ValidationError{Message: fmt.Sprintf(
+			"agent %q is not installed, so it can't be a resume target.", targetID)}
+	}
+	fromCloud, fromCwd := resumeSourceForSession(store, s)
+	return &resumePlan{
+		from:      fromProv,
+		fromID:    s.Agent,
+		sessionID: s.SessionID,
+		fromCwd:   fromCwd,
+		to:        toProv,
+		toID:      targetID,
+		fromCloud: fromCloud,
+		projectID: s.ProjectID,
 	}, nil
 }
 
