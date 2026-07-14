@@ -378,3 +378,22 @@ Two facts make this cheap. First, the web permalink (`https://cloud-dev.specstor
   - A hand-pasted cloud-dev permalink against a default-configured CLI → host-mismatch error with the `--cloud-url` hint; the web-copied cloud-dev command (D36's appended `--cloud-url`) → works.
   - Not logged in / not Pro → the D31 actionable error texts, non-zero exit.
   - Web: button renders only for owners with the flag, between download and delete; a legacy session (`sessionDataSize` null/0) shows the disabled tooltip; entitled click opens the dialog with the command already on the clipboard and copy-again working; non-entitled click lands on `/resume`; on cloud-dev the copied command carries `--cloud-url`.
+
+### Chunk 6 — Uncap cloud reads (D21 revision)
+
+v1 capped every cloud read at 500 (old D21) to mirror local search. Chunk 5's URI resolution exposed the flaw — an exact lookup must never miss, and worked around the cap with a fallback scan — and the investigation surfaced a deeper latent defect: the "deliberately no limit" all-projects listing (D25) was **silently truncated at the PostgREST Max Rows setting** (~1000 by default) because unpaged Supabase queries clamp there, so the Chunk 4 rollup's counts were already wrong past ~1000 resumable sessions. This chunk makes "uncapped" true everywhere it's claimed: cloud browse, cloud search, URI resolution, and the all-projects rollup all see the complete resumable set (revised D21, amended D25). Local search's `LIMIT 500` stays — it bounds a results view, not data availability.
+
+#### Work items
+
+- **Server (`specstory-sync`):**
+  - Page `resumableSessionsQuery`'s consumers via `.range()` loops until a short page: `listResumableSessionsForWorkspace` (the `?resumable=true` per-project list — return the complete set regardless of the `limit` param) and `listWorkspacesWithResumableSessions` (the all-projects listing, fixing the latent D25 truncation).
+  - Uncap the aligned search (`POST /api/v1/search/resume`) the same way; keep the `ts_headline` watch item (D21) in mind.
+  - The web app's ungated paths (`limit` default 200) are untouched.
+- **CLI (`specstory-cli`):**
+  - Delete `cloudResumeLimit` (`resume_client.go:18`); `ListCloudSessions` stops sending `limit`.
+  - Simplify `resolveSessionURI`: the direct-form fallback-to-anywhere branch (added purely to dodge the cap) becomes dead — a miss in the named project's now-complete list is genuinely not-found. Update `findCloudSessionInProject`'s cap comment.
+- **Ordering constraint:** the server change deploys **before** the CLI drops its `limit` param — against an old server, a limit-less request falls back to the default 200, which is *worse* than today's 500.
+- **Validation:**
+  - A project with >1000 resumable sessions: browse lists all of them; the all-projects rollup counts exactly; a `--session` URI naming the oldest resolves with no fallback.
+  - Search on a large corpus returns all matches; note latency (the `ts_headline` watch item).
+  - Web app list/search behavior unchanged (default-200 path untouched).

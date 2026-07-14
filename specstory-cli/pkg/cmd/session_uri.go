@@ -12,17 +12,18 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
-// Direct session addressing for `specstory resume --session <uri>` (Chunk 5, D28–D36).
+// Direct session addressing for `specstory resume --session <uri>`.
 //
 // A session can be chosen interactively in the TUI, or now directly via a session URI. The
 // driving use case is the Cloud web app's Resume button, which copies a paste-able command
 // carrying exactly the two IDs the cloud API needs (project_id + native session id). The URI
-// resolves to the same session identity the picker would produce — including D13's
-// local-preferred selection-time guard — and feeds the identical resumePlan → launchResume
-// machinery, so there is no parallel resume implementation.
+// resolves to the same session identity the picker would produce — including the
+// local-preferred guard: a session that also exists locally resumes in place — and feeds the
+// identical resumePlan → launchResume machinery, so there is no parallel resume implementation.
 
 // sessionURI is a parsed --session argument: a project id + native session id, plus (for
-// pasted web permalinks only) the origin the link points at so D30's host check can run.
+// pasted web permalinks only) the origin the link points at so resolveSessionURI can refuse
+// a host that differs from the configured cloud.
 // projectID is empty for the bare-UUID form (resolved local-first, then cloud-discovered).
 type sessionURI struct {
 	projectID string // "" for a bare session UUID
@@ -38,10 +39,10 @@ var (
 	sessionIDRe = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 )
 
-// parseSessionURI parses the three accepted --session forms (D29):
+// parseSessionURI parses the three accepted --session forms:
 //
 //  1. specstory://projects/{projectID}/sessions/{sessionID} — the canonical, host-free form the
-//     web app copies (D36). url.Parse puts "projects" in Host for a custom scheme, so host+path
+//     web app copies. url.Parse puts "projects" in Host for a custom scheme, so host+path
 //     are rejoined before matching.
 //  2. https://{host}/projects/{projectID}/sessions/{sessionID} — a pasted browser permalink.
 //     Trailing slashes are tolerated and any path segments after the session id (e.g.
@@ -128,12 +129,13 @@ func pathSegments(s string) []string {
 }
 
 // resolveSessionURI resolves a --session argument to a sessionindex.Session ready for resume,
-// applying D31's resolution order and D30's host check:
+// applying the local-first resolution order and the permalink host check:
 //
 //  1. Local index first: look the session id up across all agents. A hit means an in-place
-//     local resume using the row's agent/origin_cwd — exactly like D13's guard. This also makes
+//     local resume using the row's agent/origin_cwd — the same local-preferred rule the TUI
+//     applies when a cloud-badged row is selected. This also makes
 //     a pasted CLOUD permalink resume locally (offline) when the session exists on this machine.
-//  2. Else cloud, gated by D10 eligibility surfaced as actionable errors: not logged in → the
+//  2. Else cloud, gated by eligibility (login + Pro) surfaced as actionable errors: not logged in → the
 //     login message; a 403 → the "requires SpecStory Pro" mapping. With a project id in hand,
 //     the session summary is fetched directly; a bare UUID discovers the owning project via the
 //     current project's cloud list, then the all-projects ?resumable=true listing.
@@ -152,7 +154,7 @@ func resolveSessionURI(
 	}
 
 	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
-	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
+	// BEFORE the host-mismatch check on purpose — a pasted cloud-dev permalink for a session that
 	// exists locally should resume offline without tripping the host-mismatch guard. The check
 	// only needs to gate the cloud call below (the token never goes to the permalink's host);
 	// a local hit makes no cloud call at all.
@@ -162,7 +164,7 @@ func resolveSessionURI(
 		return &local, nil
 	}
 
-	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
+	// A pasted permalink contributes IDs only — the Bearer token never goes to the
 	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
 	// refuse if the permalink's host differs from the configured cloud host and point at
 	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
@@ -187,8 +189,8 @@ func resolveSessionURI(
 	if uri.projectID != "" {
 		// Direct form: recover the session summary from the named project. The per-project list
 		// is capped at 500 (cloudResumeLimit), so a resumable session older than the project's
-		// newest 500 misses it — fall back to the uncapped all-projects listing (D25 embeds every
-		// resumable session) on a miss, accepting only a match in the named project.
+		// newest 500 misses it — fall back to the uncapped all-projects listing (which embeds
+		// every resumable session) on a miss, accepting only a match in the named project.
 		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
 		if err != nil {
 			return nil, mapCloudResumeErr(err)
@@ -208,7 +210,7 @@ func resolveSessionURI(
 		}
 	} else {
 		// Bare UUID: the all-projects ?resumable=true listing embeds every resumable session
-		// uncapped (D25), including the current project's, so a dedicated current-project probe
+		// uncapped, including the current project's, so a dedicated current-project probe
 		// is redundant — scan all projects directly to discover the owning project.
 		cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
 		if err != nil {
@@ -252,7 +254,7 @@ func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession
 }
 
 // findCloudSessionAnywhere discovers the owning project for a bare session id via the all-projects
-// ?resumable=true listing (D24 embeds every resumable session in one request). Returns the
+// ?resumable=true listing (it embeds every resumable session in one request). Returns the
 // matching summary and its project id, or (nil, "", nil) when the id isn't in any project.
 func findCloudSessionAnywhere(sessionID string) (*cloud.CloudSession, string, error) {
 	projects, err := cloud.ListCloudProjects()
@@ -284,7 +286,7 @@ func cloudSessionByID(cs []cloud.CloudSession, id string) *cloud.CloudSession {
 }
 
 // mapCloudResumeErr converts cloud API errors from the resolution path into the actionable,
-// D31-worded messages a non-TUI caller prints. A 401 (expired/missing token) → the login nudge;
+// actionable messages a non-TUI caller prints. A 401 (expired/missing token) → the login nudge;
 // a 403 / "upgrade_required" → the Pro message (mirroring FetchSessionData's mapping); anything
 // else passes through unwrapped so genuine network/server failures still read clearly.
 func mapCloudResumeErr(err error) error {

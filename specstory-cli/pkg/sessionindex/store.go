@@ -656,7 +656,7 @@ func (s *Store) GetSession(agent, sessionID string) (Session, bool, error) {
 
 // GetSessionByID looks up a LIVE indexed session by its native session id across ALL agents
 // (deleted = 0), most-recent-first. Used by `specstory resume --session <uuid>` to resolve a
-// bare session id locally (D31's local-first guard) without knowing the agent up front. A
+// bare session id locally (before any cloud lookup) without knowing the agent up front. A
 // native session id is a provider-generated UUID and reconstruction mints a fresh one, so two
 // agents sharing an id is near-impossible — but if it happens, the most recent row wins.
 func (s *Store) GetSessionByID(sessionID string) (Session, bool, error) {

@@ -4,10 +4,10 @@ import (
 	"testing"
 )
 
-// TestParseSessionURI exercises the three accepted --session forms (D29): the canonical
+// TestParseSessionURI exercises the three accepted --session forms: the canonical
 // specstory:// URI, a pasted web permalink, and a bare session UUID — plus the shape
 // validation, trailing-slash / /chats/… tolerance, case-insensitivity, and the host
-// extraction the D30 check depends on.
+// extraction the host-mismatch check depends on.
 func TestParseSessionURI(t *testing.T) {
 	const (
 		validPID = "abcd-1234-efab-5678"
@@ -21,7 +21,7 @@ func TestParseSessionURI(t *testing.T) {
 		wantSID  string
 		wantHost string
 	}{
-		// Canonical specstory:// form (host-free → no D30 check).
+		// Canonical specstory:// form (host-free → no host check).
 		{
 			name:    "specstory canonical",
 			raw:     "specstory://projects/" + validPID + "/sessions/" + validSID,
@@ -32,7 +32,7 @@ func TestParseSessionURI(t *testing.T) {
 			raw:     "specstory://projects/ABCD-1234-EFAB-5678/sessions/550E8400-E29B-41D4-A716-446655440000",
 			wantPID: validPID, wantSID: validSID,
 		},
-		// Web permalink form — host is captured for the D30 check.
+		// Web permalink form — host is captured for the host-mismatch check.
 		{
 			name:    "https permalink",
 			raw:     "https://cloud.specstory.com/projects/" + validPID + "/sessions/" + validSID,

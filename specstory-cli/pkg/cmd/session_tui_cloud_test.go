@@ -203,7 +203,7 @@ func TestMergeCloudProjects_DoesNotMutateLocal(t *testing.T) {
 }
 
 // TestMergeCloudProjects_SyncTimeDoesNotPoisonActivity is the regression test for the "now" date
-// bug (Chunk 4): a cloud-only project whose newest real activity is mid-June but which has a
+// bug in the projects rollup: a cloud-only project whose newest real activity is mid-June but which has a
 // legacy/re-synced session with no ended_at/started_at (only updated_at = sync time = today) must
 // show the mid-June date, NOT today. updated_at is the cloud record's sync timestamp (reset to
 // ~now() on every push), so it must never win the activity max when any session has real activity.

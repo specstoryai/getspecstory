@@ -133,7 +133,7 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
 			}
 
-			// --session <uri>: direct session addressing (Chunk 5, D28–D36). The URI resolves to
+			// --session <uri>: direct session addressing. The URI resolves to
 			// the same session identity the picker would produce. With a preset agent the resume is
 			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
 			// to the resolved session (skipping the browse step).
@@ -177,7 +177,7 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 	}
 
 	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
-	// --session is registered on `resume` only (D28), deliberately NOT in registerResumeLaunchFlags
+	// --session is registered on `resume` only — deliberately NOT in registerResumeLaunchFlags,
 	// so `search` is untouched.
 	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
 	return resumeCmd
