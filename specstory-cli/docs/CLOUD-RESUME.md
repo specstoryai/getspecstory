@@ -2,7 +2,7 @@
 
 Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
 
-> Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (six development chunks). Chunks 1–4 implemented; Chunk 5 (resume by session URI) implemented (CLI + web); Chunk 6 (uncap cloud reads, D21 revision) designed.
+> Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (six development chunks). Chunks 1–4 implemented; Chunk 5 (resume by session URI) implemented (CLI + web); Chunk 6 (uncap cloud reads, D21 revision) implemented — **deploy the server before shipping the CLI** (a limit-less request against an old server degrades to its default 200).
 
 ## Goal
 

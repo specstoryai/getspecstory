@@ -15,10 +15,6 @@ import (
 // degrade to local-only.
 
 const (
-	// cloudResumeLimit caps how many sessions the cloud contributes, matching local search's
-	// LIMIT 500 by recency so each source offers its 500 newest before merge/dedup.
-	cloudResumeLimit = 500
-
 	// cloudResumeHTTPTimeout bounds the SessionData blob fetch. Blobs are a few MB at most and
 	// resume is interactive/low-frequency, so a normal request timeout is plenty.
 	cloudResumeHTTPTimeout = 30 * time.Second
@@ -106,7 +102,9 @@ func ResumeEligibility() (loggedIn bool, pro bool) {
 }
 
 // ListCloudSessions returns the cloud-resumable sessions for a project — those with a
-// SessionData blob (?resumable=true), newest-first, capped at cloudResumeLimit.
+// SessionData blob (?resumable=true), newest-first. The server returns the complete set
+// (paged internally on its side), so no limit is sent and a session missing from the
+// result genuinely isn't resumable in that project.
 func ListCloudSessions(projectID string) ([]CloudSession, error) {
 	var resp struct {
 		Success bool `json:"success"`
@@ -117,8 +115,8 @@ func ListCloudSessions(projectID string) ([]CloudSession, error) {
 	}
 
 	path := fmt.Sprintf(
-		"/api/v1/projects/%s/sessions?resumable=true&limit=%d",
-		url.PathEscape(projectID), cloudResumeLimit,
+		"/api/v1/projects/%s/sessions?resumable=true",
+		url.PathEscape(projectID),
 	)
 	if err := skillsAPIRequest(http.MethodGet, path, nil, &resp); err != nil {
 		return nil, err
@@ -137,8 +135,8 @@ type CloudSearchHit struct {
 	Snippet string `json:"snippet"`
 }
 
-// SearchCloudSessions runs the aligned cloud-resume search for a query and returns the matching
-// resumable sessions (newest first, server-capped at 500), each with a highlighted snippet. The
+// SearchCloudSessions runs the aligned cloud-resume search for a query and returns every
+// matching resumable session (newest first, uncapped), each with a highlighted snippet. The
 // server mirrors local search semantics, so results blend with local hits coherently.
 func SearchCloudSessions(query, projectID string) ([]CloudSearchHit, error) {
 	var resp struct {

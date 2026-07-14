@@ -199,30 +199,14 @@ func resolveSessionURI(
 		projectID string
 	)
 	if uri.projectID != "" {
-		// Direct form: recover the session summary from the named project. The per-project list
-		// is capped at 500 (cloudResumeLimit), so a resumable session older than the project's
-		// newest 500 misses it — fall back to the uncapped all-projects listing (which embeds
-		// every resumable session) on a miss, accepting only a match in the named project.
+		// Direct form: recover the session summary from the named project's list. The server
+		// returns the project's complete resumable set, so a miss here is genuinely not-found —
+		// no fallback scan needed.
 		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
 		if err != nil {
 			return nil, mapCloudResumeErr(err)
 		}
 		projectID = uri.projectID
-		if cs == nil {
-			slog.Debug("session not in named project's list, scanning all projects", "project", uri.projectID)
-			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
-			if err != nil {
-				return nil, mapCloudResumeErr(err)
-			}
-			// The URI's project is authoritative for the direct form. A match in a different
-			// project (a near-impossible UUID collision, or a stale/wrong URI) means the session
-			// isn't in the named project — treat as not found.
-			if cs != nil && projectID != uri.projectID {
-				slog.Debug("session found in a different project than the URI names, treating as not found",
-					"uriProject", uri.projectID, "foundProject", projectID)
-				cs = nil
-			}
-		}
 	} else {
 		// Bare UUID: the all-projects ?resumable=true listing embeds every resumable session
 		// uncapped, including the current project's, so a dedicated current-project probe
@@ -256,9 +240,8 @@ func resolveSessionURI(
 }
 
 // findCloudSessionInProject lists a project's resumable cloud sessions and returns the one whose
-// native session id (clientId) matches, or nil if none. NOTE: the per-project list is capped at
-// cloudResumeLimit (500) by the server, so a resumable session older than the project's newest 500
-// misses it — callers that must not miss should fall back to findCloudSessionAnywhere (uncapped).
+// native session id (clientId) matches, or nil if none. The server returns the project's complete
+// resumable set, so a nil here means the session isn't resumable in that project.
 func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession, error) {
 	if projectID == "" {
 		return nil, nil
