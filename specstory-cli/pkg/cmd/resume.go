@@ -22,6 +22,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -80,7 +81,7 @@ func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) 
 
 Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker then skips the target-selection step and resumes straight into that agent. The agent must be a known, installed provider, or the command errors.
 
-Pass --session <uri> to resume a specific session without first browsing: specstory:// URI (i.e. specstory://...), a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
+Pass --session <uri> to resume a specific session without first browsing: a specstory:// URI, a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
 
 Resuming SpecStory Cloud sessions (from your other machines) requires an active SpecStory Cloud login + SpecStory Pro.`
 
@@ -133,10 +134,11 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
 			}
 
-			// --session <uri>: direct session addressing. The URI resolves to
-			// the same session identity the picker would produce. With a preset agent the resume is
-			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
-			// to the resolved session (skipping the browse step).
+			// --session <uri>: direct session addressing. The URI resolves to the same session
+			// identity the picker would produce. With a preset agent the resume is fully
+			// non-interactive (no TUI); without one the resolved session is pinned and the shared
+			// picker tail below opens the TUI at the target-selection step.
+			var pinned *sessionindex.Session
 			sessionArg, _ := cmd.Flags().GetString("session")
 			if sessionArg != "" {
 				resolved, rerr := resolveSessionURI(sessionArg, store, agentIDByNameFromRegistry(registry))
@@ -151,19 +153,10 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 					}
 					return launchResume(plan, cwd, launchOpts)
 				}
-				// `resume --session <uri>`: open the TUI in modeTarget with the session pinned. A nil
-				// plan means the user backed out (esc) — not an error.
-				plan, perr := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, resolved)
-				if perr != nil {
-					return perr
-				}
-				if plan == nil {
-					return nil
-				}
-				return launchResume(plan, cwd, launchOpts)
+				pinned = resolved
 			}
 
-			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, nil)
+			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, pinned)
 			if err != nil {
 				return err
 			}

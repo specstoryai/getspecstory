@@ -273,9 +273,7 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 		// resolved session, skipping the browse step. Takes precedence over the empty-project
 		// browser fallback and the search entry — a pinned session is the whole point of the
 		// invocation. esc at the target picker drops into the browse list (the escape hatch).
-		m.chosen = opts.pinnedSession
-		m.mode = modeTarget
-		m.targetCursor = m.defaultTargetIndex()
+		m = m.enterTargetPicker(opts.pinnedSession)
 	case opts.startInSearch:
 		// `search`: land directly in the all-projects FTS, input focused (so the user types
 		// immediately, exactly like before). Init fires the pre-seeded query, if any. The
@@ -1008,9 +1006,17 @@ func (m sessionTUI) beginResume(sess *sessionindex.Session) (tea.Model, tea.Cmd)
 		m.result = sessionTUIResult{session: sess, targetID: m.presetTo}
 		return m, tea.Quit
 	}
+	return m.enterTargetPicker(sess), nil
+}
+
+// enterTargetPicker pins sess as the chosen session and opens the target-selection step, with
+// the highlight on the last-resumed agent (else the session's own agent). Shared by the
+// picker's selection flow (beginResume) and the --session pinned entry, so the two can't drift.
+func (m sessionTUI) enterTargetPicker(sess *sessionindex.Session) sessionTUI {
+	m.chosen = sess
 	m.mode = modeTarget
 	m.targetCursor = m.defaultTargetIndex()
-	return m, nil
+	return m
 }
 
 func (m sessionTUI) defaultTargetIndex() int {

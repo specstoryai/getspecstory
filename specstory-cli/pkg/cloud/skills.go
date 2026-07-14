@@ -264,6 +264,18 @@ func SetInstallState(name, state string) error {
 	return nil
 }
 
+// APIError is a non-2xx response from the cloud API. It carries the HTTP status code so
+// callers can branch on the failure class (e.g. 403 = plan gating) instead of string-matching
+// server error text, which would silently break the moment the server rewords a message.
+// Message is the server's own error string when the response envelope carried one, else a
+// generic method/path/status line — either way it reads as the user-facing error.
+type APIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *APIError) Error() string { return e.Message }
+
 // skillsAPIRequest performs an authenticated JSON request to the cloud skills surface and
 // decodes the response into out. It centralizes the auth header, envelope handling, and
 // 401 -> ErrAuthenticationFailed mapping shared by every skills call (the rest of the
@@ -313,14 +325,17 @@ func skillsAPIRequest(method, path string, reqBody any, out any) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		slog.Debug("skills API non-2xx", "path", path, "status", resp.StatusCode, "body", string(respBody))
 		// Surface the server's own error message when present ({success:false, error:"..."}),
-		// so 403 upgrade_required / 409 already-in-progress read clearly to the user.
+		// so 403 upgrade_required / 409 already-in-progress read clearly to the user. The
+		// status code rides along in the typed error so callers can branch on the failure
+		// class (e.g. 403 = plan gating) without matching on the message text.
 		var envelope struct {
 			Error string `json:"error"`
 		}
+		msg := fmt.Sprintf("%s %s returned status %d", method, path, resp.StatusCode)
 		if json.Unmarshal(respBody, &envelope) == nil && envelope.Error != "" {
-			return fmt.Errorf("%s", envelope.Error)
+			msg = envelope.Error
 		}
-		return fmt.Errorf("%s %s returned status %d", method, path, resp.StatusCode)
+		return &APIError{StatusCode: resp.StatusCode, Message: msg}
 	}
 
 	if out != nil {

@@ -255,7 +255,7 @@ func FetchSessionData(projectID, sessionID string) ([]byte, error) {
 		return nil, &ErrAuthenticationFailed{Message: "not authenticated to SpecStory Cloud"}
 	case resp.StatusCode == http.StatusForbidden:
 		// The requireFeature("resume") gate — the user isn't on a qualifying plan.
-		return nil, fmt.Errorf("resuming cloud sessions requires SpecStory Pro")
+		return nil, &APIError{StatusCode: resp.StatusCode, Message: "Resuming cloud sessions requires SpecStory Pro."}
 	case resp.StatusCode == http.StatusNotFound:
 		return nil, fmt.Errorf("session data not found in cloud")
 	case resp.StatusCode < 200 || resp.StatusCode >= 300:

@@ -57,6 +57,21 @@ func TestParseSessionURI(t *testing.T) {
 			wantPID: validPID, wantSID: validSID,
 			wantHost: "https://cloud.specstory.com",
 		},
+		{
+			// The custom scheme takes a different parse path (host+path rejoin), so the tail
+			// tolerance is pinned for it separately from the https form above.
+			name:    "specstory with chats tail",
+			raw:     "specstory://projects/" + validPID + "/sessions/" + validSID + "/chats/abc-123",
+			wantPID: validPID, wantSID: validSID,
+		},
+		{
+			// A query string must not leak into the path segments (url.Parse separates RawQuery,
+			// but nothing else pins that).
+			name:    "https permalink with query string",
+			raw:     "https://cloud.specstory.com/projects/" + validPID + "/sessions/" + validSID + "?utm_source=share",
+			wantPID: validPID, wantSID: validSID,
+			wantHost: "https://cloud.specstory.com",
+		},
 		// Bare session UUID shorthand (resolves local-first then cloud); no project id, no host.
 		{
 			name:    "bare uuid",

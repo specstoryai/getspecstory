@@ -3,6 +3,8 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -152,6 +154,14 @@ func resolveSessionURI(
 	if err != nil {
 		return nil, err
 	}
+	form := "uuid"
+	switch {
+	case uri.host != "":
+		form = "permalink"
+	case uri.projectID != "":
+		form = "specstory"
+	}
+	slog.Debug("resolving session URI", "form", form, "project", uri.projectID, "session", shortID(uri.sessionID))
 
 	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
 	// BEFORE the host-mismatch check on purpose — a pasted cloud-dev permalink for a session that
@@ -161,8 +171,10 @@ func resolveSessionURI(
 	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
 		return nil, fmt.Errorf("looking up session locally: %w", lerr)
 	} else if ok {
+		slog.Debug("session URI resolved in local index", "agent", local.Agent, "project", local.ProjectID)
 		return &local, nil
 	}
+	slog.Debug("session not in local index, checking SpecStory Cloud", "session", shortID(uri.sessionID))
 
 	// A pasted permalink contributes IDs only — the Bearer token never goes to the
 	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
@@ -197,6 +209,7 @@ func resolveSessionURI(
 		}
 		projectID = uri.projectID
 		if cs == nil {
+			slog.Debug("session not in named project's list, scanning all projects", "project", uri.projectID)
 			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
 			if err != nil {
 				return nil, mapCloudResumeErr(err)
@@ -205,6 +218,8 @@ func resolveSessionURI(
 			// project (a near-impossible UUID collision, or a stale/wrong URI) means the session
 			// isn't in the named project — treat as not found.
 			if cs != nil && projectID != uri.projectID {
+				slog.Debug("session found in a different project than the URI names, treating as not found",
+					"uriProject", uri.projectID, "foundProject", projectID)
 				cs = nil
 			}
 		}
@@ -219,8 +234,9 @@ func resolveSessionURI(
 	}
 
 	if cs == nil {
+		slog.Debug("session URI not found locally or in cloud", "session", shortID(uri.sessionID))
 		return nil, utils.ValidationError{Message: fmt.Sprintf(
-			"session %s not found locally or in SpecStory Cloud", shortID(uri.sessionID))}
+			"Resumable session %s not found locally or in SpecStory Cloud", shortID(uri.sessionID))}
 	}
 
 	// Convert the cloud summary to an index row (resolves the agent from its display name).
@@ -235,6 +251,7 @@ func resolveSessionURI(
 	if projectID != "" {
 		s.ProjectID = projectID
 	}
+	slog.Debug("session URI resolved from cloud", "agent", s.Agent, "project", s.ProjectID)
 	return &s, nil
 }
 
@@ -285,10 +302,11 @@ func cloudSessionByID(cs []cloud.CloudSession, id string) *cloud.CloudSession {
 	return nil
 }
 
-// mapCloudResumeErr converts cloud API errors from the resolution path into the actionable,
-// actionable messages a non-TUI caller prints. A 401 (expired/missing token) → the login nudge;
-// a 403 / "upgrade_required" → the Pro message (mirroring FetchSessionData's mapping); anything
-// else passes through unwrapped so genuine network/server failures still read clearly.
+// mapCloudResumeErr converts cloud API errors from the resolution path into the actionable
+// messages a non-TUI caller prints. A 401 (expired/missing token) → the login nudge; a 403
+// (the server's plan gate) → the Pro message, matched on the HTTP status so a server-side
+// rewording of the error text can't silently break the mapping; anything else passes through
+// unwrapped so genuine network/server failures still read clearly.
 func mapCloudResumeErr(err error) error {
 	if err == nil {
 		return nil
@@ -297,7 +315,8 @@ func mapCloudResumeErr(err error) error {
 	if errors.As(err, &authErr) {
 		return utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
 	}
-	if strings.Contains(err.Error(), "upgrade_required") {
+	var apiErr *cloud.APIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusForbidden {
 		return utils.ValidationError{Message: "Resuming cloud sessions requires SpecStory Pro."}
 	}
 	return err
