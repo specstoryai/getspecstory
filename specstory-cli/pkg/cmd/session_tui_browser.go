@@ -295,7 +295,9 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "end", "G":
 		m.projCursor = len(m.projFiltered) - 1
 		m.clampProjScroll()
-	case "enter":
+	// Space is silently aliased to enter so either key opens a project (the hint only
+	// advertises ↵, matching the session list's space-for-preview convention).
+	case "enter", " ", "space":
 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
 			m.drillInto(m.projFiltered[m.projCursor])
 			return m, m.cloudFetchForActiveCmd()
@@ -654,7 +656,9 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		if sel := m.globalSelected(); sel != nil {
 			return m.beginResume(sel)
 		}
-	case " ", "space":
+	// Enter is silently aliased to space so either key previews a hit (the hint only
+	// advertises space). Mirrors the session list's preview binding.
+	case " ", "space", "enter":
 		if sel := m.globalSelected(); sel != nil {
 			return m.openPreview(sel)
 		}

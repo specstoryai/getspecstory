@@ -481,12 +481,14 @@ func (m sessionTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.clampScroll()
 		return m, m.requestVisibleSnippets(modeList)
 	case "r":
-		// Resume the highlighted session (enter is deliberately a no-op here, so a stray
-		// return can't accidentally launch an agent).
+		// Resume the highlighted session. Enter is NOT a resume trigger (a stray return
+		// shouldn't launch an agent); it previews, aliased to space below.
 		if sel := m.selected(); sel != nil {
 			return m.beginResume(sel)
 		}
-	case " ", "space":
+	// Enter is silently aliased to space so either key previews (the hint only advertises
+	// space). 'r' remains the sole resume trigger.
+	case " ", "space", "enter":
 		if sel := m.selected(); sel != nil {
 			return m.openPreview(sel)
 		}
