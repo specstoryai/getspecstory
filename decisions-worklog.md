@@ -424,6 +424,80 @@ CANDIDATE signal. The probe is good enough to scaffold from.
 (issue 2 from the arc test). Precision is now 89%, entity set is clean,
 template-match carries recall. Ready to scaffold.
 
+### 2026-07-13 — file-based arc linking (the Workthreads arc now forms)
+
+**The problem.** After scaffolding, the Workthreads `[proposed]` (chat) and
+`[chosen]` (commit) were in SEPARATE arcs because neither had a fingerprinted
+entity. The arc test predicted this: entity clustering alone doesn't link all
+arcs; the `files` field is the missing linker.
+
+**Two issues to solve.**
+1. Candidates have files (from the beats table), but SEEDS often have empty
+   files — the `git commit` beat is separate from the `git add` beat that
+   captured the files. So commit seeds have no files to cluster on.
+2. Need a second clustering key (files) alongside entities, with its own
+   ubiquity cap (package.json, etc. would chain everything).
+
+**The fix in `arcs.mjs`.**
+1. **File inheritance for seeds.** A seed beat with empty files inherits files
+   from nearby beats in the same session (ord +/- 3). The `git add` that
+   staged the files is usually within a few beats of the `git commit`.
+2. **Dual clustering key.** Union-find on shared entity OR shared file (per
+   project). Entity ubiquity cap = 15; file ubiquity cap = 10; noise-files
+   denylist (package.json, tsconfig.json, readme.md, claude.md, .gitignore,
+   go.mod, go.sum, package-lock.json).
+3. **Arc label.** Prefer a non-ubiquitous entity; fall back to the most common
+   non-noise file basename; else (unnamed).
+
+**Result.** Arc count dropped 7987 -> 5003 (file linking merged singletons).
+The Workthreads arc (id 51270) now has **18 beats** with the full process:
+```
+[chosen] Add /team (Loop) product page; wire Loop into /pricing
+[provisional] on /pricing we need a Learn more link... for now
+[proposed] we're going to use the terminology "Workthreads" instead of "Loops"
+[chosen] Rename "Loops" to "Workthreads" across product pages
+[chosen] Complete Loops->Workthreads rename (mockup + page copy)
+[provisional] put a big CTA "Find your perfect plan" as placeholder for now
+[proposed] remove the "Coming Soon" from all sections
+[chosen] Pricing matrix: add Knowledge base section; rename groups; tidy rows
+... (+ 10 more beats, including a reversed and more chosen)
+```
+The chat proposal and the commit choice are now in ONE arc, linked via
+`./app/team/LoopMockup.tsx`. **File-based arc linking works.**
+
+**The over-linking tradeoff (noted, not fixed yet).** The 18-beat Workthreads
+arc also pulled in the localstorage decision and the Coming Soon removal,
+because they share files in the same session. That's the classic clustering
+tradeoff: file linking merges related arcs but also merges unrelated ones
+touching the same files. Two ways to tighten later: (a) scope file clustering
+within a session window (beats close in time, not across the whole project),
+(b) let the agent pass split over-linked arcs by reading the evidence. The
+latter is the two-pass design doing its job — the engine over-links (high
+recall), the agent splits (precision).
+
+**Remaining single-beat (unnamed) arcs.** Many candidates have no entity and no
+files (e.g. "let's make the interview"). These stay as singleton arcs. The agent
+pass would merge them into the right arc by reading context, or drop them as
+non-decisions. This is expected at the engine stage — the engine's job is
+recall, not tidy arcs.
+
+**Numbers after file linking.**
+```
+arcs: 5003 (down from 7987 — file linking merged singletons)
+  in-formation: 3960
+  decided:       662
+  changed:       226
+  abandoned:     155
+```
+The decided count dropped 1818 -> 662 because many commit-only "arcs" that were
+decided-by-virtue-of-being-a-commit now merge into larger arcs (some of which
+become "changed" because they have multiple chosen beats). More honest.
+
+**Next.** Tests over fixtures encoding full process arcs, then SKILL.md (the
+agent contract for the precision pass). The over-linking and the (unnamed)
+singletons are agent-pass problems, not engine problems — the engine has done
+its job (recall + linking); precision is the agent's.
+
 ### 2026-07-13 — scaffolding decisions2/ (for real)
 
 **Built the full skill structure** and ran it end-to-end against the real corpus

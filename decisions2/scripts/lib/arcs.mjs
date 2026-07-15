@@ -26,44 +26,85 @@ function makeDSU(n) {
 // Returns { arcs: N, byState: {...} }
 export function buildArcs(db) {
   // gather all beats: candidates (chat) + seeds (commits, as chosen beats)
+  // load each beat's files from the beats table (candidates have beat_id; seeds have beat_id)
+  const fileByBeat = new Map()
+  for (const r of db.prepare('SELECT id, session_id, ord, files FROM beats').all()) {
+    fileByBeat.set(r.id, { sid: r.session_id, ord: r.ord, files: (r.files || '').split(',').filter(Boolean) })
+  }
+
   const beats = []
-  for (const c of db.prepare('SELECT id, session_id, ord, line, project, date, role, entity, quote, signals, evidence FROM candidates').all()) {
-    beats.push({ ...c, kind: 'candidate', role: c.role || 'proposed' })
+  for (const c of db.prepare('SELECT id, beat_id, session_id, ord, line, project, date, role, entity, quote, signals, evidence FROM candidates').all()) {
+    const fb = fileByBeat.get(c.beat_id)
+    beats.push({ ...c, kind: 'candidate', role: c.role || 'proposed', files: fb?.files || [] })
   }
   for (const s of db.prepare('SELECT beat_id, session_id, line, project, date, message, entity, evidence FROM seeds').all()) {
-    // detect revert commits
     const isRevert = /^revert/i.test(s.message) || /\brevert\b/i.test(s.message)
+    // seeds: inherit files from the seed's own beat, OR from nearby beats in the same session
+    // (commit beats often have empty files because git add was a separate beat)
+    let files = fileByBeat.get(s.beat_id)?.files || []
+    if (!files.length) {
+      // look at beats within ord +/- 3 in the same session for non-empty files
+      const fb = fileByBeat.get(s.beat_id)
+      if (fb) {
+        for (const [bid, info] of fileByBeat) {
+          if (info.sid === fb.sid && Math.abs(info.ord - fb.ord) <= 3 && info.files.length) {
+            files = [...new Set([...files, ...info.files])]
+          }
+        }
+      }
+    }
     beats.push({
-      id: null, session_id: s.session_id, ord: 9999, line: s.line, project: s.project, date: s.date,
+      id: null, beat_id: s.beat_id, session_id: s.session_id, ord: 9999, line: s.line, project: s.project, date: s.date,
       role: isRevert ? 'reversed' : 'chosen', entity: s.entity,
-      quote: clip(s.message), signals: '["commit"]', evidence: s.evidence, kind: 'seed',
+      quote: clip(s.message), signals: '["commit"]', evidence: s.evidence, kind: 'seed', files,
     })
   }
 
-  // sort by project, date, session, ord (seeds sort by line within their session)
+  // sort by project, date, session, line
   beats.sort((a, b) => a.project.localeCompare(b.project) || a.date.localeCompare(b.date) ||
     a.session_id.localeCompare(b.session_id) || (a.line - b.line))
 
-  // cluster by shared entity, per project. Entity-less beats form singleton arcs.
-  const ENTITY_MAX = 5  // ubiquity cap for clustering (different from fingerprint cap)
-  const entityBeats = new Map()
-  for (const b of beats) {
-    if (!b.entity) continue
-    const k = b.project + '\t' + b.entity.toLowerCase()
-    if (!entityBeats.has(k)) entityBeats.set(k, [])
-    entityBeats.get(k).push(b)
-  }
-  const ubiquitous = new Set()
-  for (const [k, arr] of entityBeats) if (arr.length > ENTITY_MAX * 3) ubiquitous.add(k)  // too many → probably generic
+  // ── ubiquity caps ──
+  const ENTITY_MAX = 15   // entity in >15 arcs → too generic to cluster on
+  const FILE_MAX = 10     // file in >10 arcs → too generic (package.json, etc.)
+  const NOISE_FILES = new Set(['package.json', 'package-lock.json', 'tsconfig.json', 'readme.md', 'claude.md', '.gitignore', 'go.mod', 'go.sum'])
 
+  const entityBeats = new Map(), fileBeats = new Map()
+  for (const b of beats) {
+    if (b.entity) {
+      const k = b.project + '\t' + b.entity.toLowerCase()
+      ;(entityBeats.get(k) || entityBeats.set(k, []).get(k)).push(b)
+    }
+    for (const f of b.files) {
+      const fn = f.split('/').pop().toLowerCase()
+      if (NOISE_FILES.has(fn)) continue
+      const k = b.project + '\t' + f.toLowerCase()
+      ;(fileBeats.get(k) || fileBeats.set(k, []).get(k)).push(b)
+    }
+  }
+  const ubiqEntity = new Set(), ubiqFile = new Set()
+  for (const [k, arr] of entityBeats) if (arr.length > ENTITY_MAX) ubiqEntity.add(k)
+  for (const [k, arr] of fileBeats) if (arr.length > FILE_MAX) ubiqFile.add(k)
+
+  // ── cluster by shared entity OR shared file (union-find) ──
   const dsu = makeDSU(beats.length)
-  const owner = new Map()
+  const entityOwner = new Map(), fileOwner = new Map()
   beats.forEach((b, i) => {
-    if (!b.entity) return
-    const k = b.project + '\t' + b.entity.toLowerCase()
-    if (ubiquitous.has(k)) return
-    if (owner.has(k)) dsu.union(i, owner.get(k))
-    else owner.set(k, i)
+    if (b.entity) {
+      const k = b.project + '\t' + b.entity.toLowerCase()
+      if (!ubiqEntity.has(k)) {
+        if (entityOwner.has(k)) dsu.union(i, entityOwner.get(k))
+        else entityOwner.set(k, i)
+      }
+    }
+    for (const f of b.files) {
+      const fn = f.split('/').pop().toLowerCase()
+      if (NOISE_FILES.has(fn)) continue
+      const k = b.project + '\t' + f.toLowerCase()
+      if (ubiqFile.has(k)) continue
+      if (fileOwner.has(k)) dsu.union(i, fileOwner.get(k))
+      else fileOwner.set(k, i)
+    }
   })
 
   const clusters = new Map()
@@ -81,7 +122,28 @@ export function buildArcs(db) {
 
   for (const members of clusters.values()) {
     members.sort((a, b) => a.date.localeCompare(b.date) || a.line - b.line)
-    const entity = members.find(m => m.entity)?.entity || '(unnamed)'
+    // arc label: prefer a non-ubiquitous entity; fall back to a non-noise file; else (unnamed)
+    let label = '(unnamed)'
+    for (const m of members) {
+      if (m.entity) {
+        const k = m.project + '\t' + m.entity.toLowerCase()
+        if (!ubiqEntity.has(k)) { label = m.entity; break }
+      }
+    }
+    if (label === '(unnamed)') {
+      // use the most common non-noise file across members
+      const fileCounts = new Map()
+      for (const m of members) for (const f of m.files) {
+        const fn = f.split('/').pop().toLowerCase()
+        if (NOISE_FILES.has(fn)) continue
+        const k = m.project + '\t' + f.toLowerCase()
+        if (ubiqFile.has(k)) continue
+        fileCounts.set(f, (fileCounts.get(f) || 0) + 1)
+      }
+      const top = [...fileCounts.entries()].sort((a, b) => b[1] - a[1])[0]
+      if (top) label = top[0].split('/').pop()
+    }
+    const entity = label
     const project = members[0].project
     const firstDate = members[0].date
     const lastDate = members[members.length - 1].date
