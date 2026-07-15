@@ -33,6 +33,12 @@ const (
 	EventCloudSyncComplete      = "ext_cloudsync_complete"       // Tracks cloud sync completion with statistics
 	EventSyncStatsComplete      = "ext_sync_stats_complete"      // Tracks when --only-stats sync completes
 	EventListSessions           = "ext_list_sessions"            // Tracks when users list sessions with the list command
+	EventSkillsActivated        = "ext_skills_activated"         // Tracks when the `skills` command is started
+	EventSkillsInstalled        = "ext_skills_installed"         // Tracks when a cloud skill is installed locally
+	EventSkillsUninstalled      = "ext_skills_uninstalled"       // Tracks when a cloud skill is uninstalled
+	EventSkillsApproved         = "ext_skills_approved"          // Tracks when a review-state skill is approved
+	EventSkillsRejected         = "ext_skills_rejected"          // Tracks when a review-state skill is rejected
+	EventSkillsRunTriggered     = "ext_skills_run_triggered"     // Tracks when a new lore mining run is started
 	EventSessionDeleted         = "ext_session_deleted"          // Tracks when a user soft-deletes a session or project from the resume/search TUI
 )
 

@@ -2,6 +2,8 @@ package spi
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -26,6 +28,24 @@ type AgentChatSession struct {
 	Slug        string              // Stable human-readable but file name safe slug, often derived from first user message
 	SessionData *schema.SessionData // Structured session data in unified format
 	RawData     string              // Raw session data (e.g., JSON blobs for Cursor CLI, JSONL for Claude Code and Codex CLI, etc.)
+}
+
+// SessionDataJSON marshals the session's normalized SessionData to a JSON string for
+// cloud sync. SessionData is the canonical cloud-resume representation (the cloud
+// stores and serves it verbatim), so it is pushed alongside the existing markdown and
+// rawData. Returns "" (and logs) when there is no SessionData or marshaling fails, so
+// callers can pass the result straight through — an empty payload simply means "no
+// cloud-resumable blob for this session" and the server leaves session_data_size NULL.
+func (s *AgentChatSession) SessionDataJSON() string {
+	if s == nil || s.SessionData == nil {
+		return ""
+	}
+	data, err := json.Marshal(s.SessionData)
+	if err != nil {
+		slog.Warn("Failed to marshal SessionData for cloud sync", "sessionId", s.SessionID, "error", err)
+		return ""
+	}
+	return string(data)
 }
 
 // SessionMetadata contains lightweight metadata about a session without full content

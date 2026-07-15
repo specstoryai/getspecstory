@@ -27,12 +27,13 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:18:26Z)**_
 
 I'll research how cloud syncing and the HEAD request work in the codebase.
 
-_**Agent (claude-opus-4-5-20251101 2026-01-16 22:18:30Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:29Z)**_
 
 <tool-use data-tool-type="generic" data-tool-name="Task"><details>
 <summary>Tool use: **Task**</summary>
 Research cloud sync HEAD request
-```
+
+```text
 Now I have all the information I need. Let me create a comprehensive research report:
 
 ## Cloud Sync Research Report
@@ -332,14 +333,15 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:31Z)**_
 
 I'll help you research how cloud syncing works in this codebase. Let me start by exploring the structure and finding the relevant files.
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:32Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Find Go source files in the project
 
 `find /Users/sean/Source/SpecStory/getspecstory -type f -name "*.go" | head -20`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/markdown/markdown.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/provider.go
@@ -363,14 +365,15 @@ Find Go source files in the project
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:32Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 List main directory structure
 
 `ls -la /Users/sean/Source/SpecStory/getspecstory`
-```
+
+```text
 total 72
 drwxr-xr-x  16 sean  staff   512 Jan 16 16:56 .
 drwxr-xr-x  38 sean  staff  1216 Jan 16 16:38 ..
@@ -395,12 +398,13 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:34Z)**_
 
 Now let me search for cloud sync related code, specifically looking for HEAD requests and sync-related logic:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:35Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:36Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `cloud.*sync|HEAD.*request|sync.*HEAD`
-```
+
+```text
 Found 8 files
 specstory-cli/pkg/providers/codexcli/provider.go
 specstory-cli/pkg/providers/claudecode/provider.go
@@ -413,12 +417,13 @@ specstory-cli/pkg/analytics/events.go
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:35Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:36Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `specstory sync|specstory run`
-```
+
+```text
 Found 4 files
 specstory-cli/pkg/providers/cursorcli/provider.go
 specstory-cli/pkg/providers/codexcli/provider.go
@@ -432,7 +437,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:36Z)**_
 <tool-use data-tool-type="search" data-tool-name="Glob"><details>
 <summary>Tool use: **Glob**</summary>
  path `./` pattern `**/sync*.go`
-```
+
+```text
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync_throttle_test.go
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cloud/sync.go
@@ -443,12 +449,13 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:37Z)**_
 
 Great! I found the sync related files. Let me read the main sync.go file and look for HEAD requests and size comparison logic:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:38Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:39Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/pkg/cloud/sync.go`
-```
+
+```text
      1→package cloud
      2→
      3→import (
@@ -1654,12 +1661,13 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:38Z)**_
 ```
 </details></tool-use>
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:38Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:39Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli/pkg/cloud` pattern `http\.(Head|GET|POST)|Method.*HEAD|\"HEAD\"`
-```
+
+```text
 specstory-cli/pkg/cloud/sync.go:508:	release := syncMgr.acquireHTTPSemaphore(sessionID, "HEAD")
 specstory-cli/pkg/cloud/sync.go:513:	req, err := http.NewRequest("HEAD", apiURL, nil)
 ```
@@ -1670,7 +1678,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:39Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
      1→package main
      2→
      3→import (
@@ -3624,12 +3633,13 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:42Z)**_
 
 Now let me search for more details about how the sync and run commands work together:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:43Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:44Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli` pattern `isAutosaveMode|SyncSessionToCloud`
-```
+
+```text
 specstory-cli/pkg/cloud/sync.go:1037:// SyncSessionToCloud asynchronously syncs a session to the cloud
 specstory-cli/pkg/cloud/sync.go:1038:// When isAutosaveMode is true (run command), syncs are debounced and skip HEAD checks for efficiency
 specstory-cli/pkg/cloud/sync.go:1039:// When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
@@ -3647,7 +3657,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:44Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli/pkg/cloud/sync.go` pattern `debouncedSync|performSync`
-```
+
+```text
 691:// performSync executes the actual sync operation (HEAD check + PUT request)
 692:func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, agentName string, skipHeadCheck bool) {
 703:	// Only count each unique session once, even if performSync is called multiple times
@@ -3665,12 +3676,13 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:46Z)**_
 
 Perfect! Now let me get more details on the HEAD request section and size comparison logic:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:46Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/pkg/cloud/sync.go`
-```
+
+```text
    458→// requiresSync checks if a session needs to be synced to the cloud
    459→// Returns true if sync is needed, false if already up-to-date
    460→func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID string, skipHeadCheck bool) (bool, error) {
@@ -3819,7 +3831,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:47Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli/pkg/cloud/sync.go` pattern `X-Markdown-Size|serverSize|localSize`
-```
+
+```text
 469:	localSize := len(mdContent)
 478:		serverSize, exists := bulkSizes[sessionID]
 483:				"localSize", localSize)
@@ -3847,12 +3860,13 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:50Z)**_
 
 Excellent! Now let me check the processSingleSession function to see how autosave mode is determined:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:51Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:52Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
    677→// processSingleSession writes markdown and triggers cloud sync for a single session
    678→// isAutosave indicates if this is being called from the run command (true) or sync command (false)
    679→// debugRaw enables schema validation (only run in debug mode to avoid overhead)
@@ -3981,7 +3995,8 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:52Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
    458→			sessionCallback := func(session *spi.AgentChatSession) {
    459→				if session == nil {
    460→					return
@@ -4019,14 +4034,15 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:54Z)**_
 
 Perfect! Now let me create a comprehensive summary with all the findings. Let me also verify the exact flow paths:
 
-_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:54Z)**_
+_**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-16 22:18:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Check git history for context on cloud sync changes
 
 `git log --oneline -20 | head -10`
-```
+
+```text
 d8d653b SpecStory history for repo update.
 f3a0bef Update the specstory-cli pkg for the new OSS repo structure.
 f64a7f7 Update goreleaser version in GH action.
@@ -4352,12 +4368,13 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:39Z)**_
 
 The research reveals important details. Let me dig deeper into one specific aspect - what happens at the **end** of a `specstory run` command (not during the debounced real-time syncs).
 
-_**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:40Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:41Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli` pattern `specstory run.*sync|final.*sync|end.*sync|cleanup.*sync`
-```
+
+```text
 Found 8 files
 specstory-cli/changelog.md
 specstory-cli/README.md
@@ -4375,7 +4392,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:41Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
    450→			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
    451→
    452→			// This callback pattern enables real-time processing of agent sessions
@@ -4491,12 +4509,13 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:45Z)**_
 
 Let me look at what happens when `specstory run` ends - specifically if there's a final sync after the agent execution completes.
 
-_**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:46Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:47Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli` pattern `ExecAgentAndWatch|FinalSync|flush|pending.*sync|wait.*sync`
-```
+
+```text
 Found 11 files
 specstory-cli/pkg/spi/provider.go
 specstory-cli/pkg/providers/geminicli/provider.go
@@ -4517,7 +4536,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:47Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/pkg/cloud/sync.go`
-```
+
+```text
    880→// debouncedSync implements debouncing logic for a session
    881→// Always skips HEAD check since we know content just changed in autosave mode
    882→func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, agentName string) {
@@ -4750,7 +4770,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:19:57Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/pkg/cloud/sync.go`
-```
+
+```text
    680→		globalSyncManager.silent = silent
    681→	}
    682→}
@@ -4925,7 +4946,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:02Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/pkg/cloud/sync.go`
-```
+
+```text
    455→		"sessionCount", sessionCount)
    456→}
    457→
@@ -5008,12 +5030,13 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:15Z)**_
 
 Let me check if there's any additional sync happening after the agent execution ends.
 
-_**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:15Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:16Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
    478→			// Execute the agent and watch for updates
    479→			slog.Info("Starting agent execution and monitoring", "provider", provider.Name())
    480→			err = provider.ExecAgentAndWatch(cwd, customCmd, resumeSessionID, debugRaw, sessionCallback)
@@ -5072,7 +5095,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:16Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli` pattern `WaitForPendingSyncs|ShutdownCloudSync|processSingleSession|FlushAll`
-```
+
+```text
 specstory-cli/docs/CLOUD-DEBOUNCE.md:18:2. `processSingleSession()` writes markdown locally
 specstory-cli/main.go:466:				err := processSingleSession(session, provider, config, false, true, debugRaw)
 specstory-cli/main.go:620:		return processSingleSession(session, provider, config, true, false, debugRaw)
@@ -5095,7 +5119,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:21Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli/pkg/cloud/sync.go` pattern `Shutdown|flushAllPending|Wait.*Sync`
-```
+
+```text
 996:// flushAllPending flushes all pending debounced syncs (called on shutdown)
 997:func (syncMgr *SyncManager) flushAllPending() {
 1092:// Shutdown waits for all cloud sync operations to complete with a timeout and returns statistics
@@ -5110,12 +5135,13 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:24Z)**_
 Let me read the `Shutdown` function to understand what happens at shutdown.
 </details></think>
 
-_**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:25Z)**_
+_**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:26Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/pkg/cloud/sync.go`
-```
+
+```text
   1088→	stats.calculateTimedOut()
   1089→	return stats
   1090→}
@@ -5212,7 +5238,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:30Z)**_
 <tool-use data-tool-type="search" data-tool-name="Grep"><details>
 <summary>Tool use: **Grep**</summary>
  path `./specstory-cli` pattern `cloud\.Shutdown|Shutdown\(`
-```
+
+```text
 specstory-cli/pkg/cloud/sync.go:1093:func Shutdown(timeout time.Duration) *CloudSyncStats {
 specstory-cli/main.go:1842:			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
 specstory-cli/main.go:1847:		cloudStats := cloud.Shutdown(cloud.CloudSyncTimeout)
@@ -5235,7 +5262,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:34Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/main.go`
-```
+
+```text
   1835→	utils.CheckForUpdates(version, noVersionCheck, silent)
   1836→
   1837→	// Ensure proper cleanup and logging on exit
@@ -5387,7 +5415,8 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:20:46Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./specstory-cli/docs/CLOUD-DEBOUNCE.md`
-```
+
+```text
      1→# Cloud Sync Debouncing Implementation Plan
      2→
      3→## Summary

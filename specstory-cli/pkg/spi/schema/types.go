@@ -27,6 +27,11 @@ const (
 	ToolTypeUnknown = "unknown"
 )
 
+// CurrentSchemaVersion is the SessionData schema version this CLI produces and understands.
+// Cloud resume compares a fetched blob's SchemaVersion against this: a newer blob (produced by
+// a newer CLI on another machine) is refused rather than mis-reconstructed.
+const CurrentSchemaVersion = "1.0"
+
 // SessionData is the unified data format for sessions from all terminal coding agent providers
 type SessionData struct {
 	SchemaVersion string       `json:"schemaVersion"`
@@ -150,8 +155,8 @@ func (s *SessionData) Validate() bool {
 	valid := true
 
 	// Check schema version
-	if s.SchemaVersion != "1.0" {
-		slog.Warn("schema validation: schemaVersion must be '1.0'", "got", s.SchemaVersion)
+	if s.SchemaVersion != CurrentSchemaVersion {
+		slog.Warn("schema validation: schemaVersion must be '"+CurrentSchemaVersion+"'", "got", s.SchemaVersion)
 		valid = false
 	}
 

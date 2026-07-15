@@ -17,7 +17,7 @@ import (
 	"sort"
 	"strings"
 
-	_ "modernc.org/sqlite" // SQLite driver (pure Go), same as pkg/provenance
+	sqlite "modernc.org/sqlite" // SQLite driver (pure Go), same as pkg/provenance; named for *sqlite.Error
 )
 
 // Connection-pool sizing. Writes (reindex) must serialize on a single connection to
@@ -75,6 +75,13 @@ type Session struct {
 	// looking up and deleting a prior FTS row before insert. Leave false when unsure — the
 	// lookup-and-delete is then kept, which is always correct (a missing prior row is a no-op).
 	IsNew bool
+
+	// The following fields are TUI/cloud-only — NOT persisted to sessions.db (the DB
+	// scan/upsert never references them). They are populated only on cloud-sourced rows
+	// blended into the resume browser. Local rows leave them zero-valued.
+	IsCloud     bool   // true = this row came from SpecStory Cloud, not the local index
+	DeviceID    string // cloud metadata.deviceId — stable machine id for the machine filter
+	MachineName string // cloud metadata.machineName — human machine label for the machine filter
 }
 
 // Fingerprint identifies an indexed session's freshness: the native file's size and
@@ -123,6 +130,27 @@ func openWith(path string, maxConns int) (*Store, error) {
 		return nil, fmt.Errorf("creating database directory: %w", err)
 	}
 
+	s, err := openStore(path, maxConns)
+	if err == nil {
+		return s, nil
+	}
+
+	// A disk-I/O error opening the index almost always means STALE WAL sidecars: the main
+	// sessions.db was deleted or replaced while sessions.db-wal / sessions.db-shm were left behind,
+	// so SQLite fails trying to recover a WAL that no longer matches the file (e.g. a short read,
+	// SQLITE_IOERR_SHORT_READ / 522). The sidecars are ephemeral and sessions.db is a derived cache
+	// (rebuilt by reindex), so clearing the sidecars and retrying once is safe and never loses real
+	// data — it just avoids a hard failure that forces the user to hunt down the sidecar files.
+	if isDiskIOError(err) {
+		slog.Warn("sessions.db open failed with disk I/O error; clearing stale WAL sidecars and retrying", "error", err)
+		removeWALSidecars(path)
+		return openStore(path, maxConns)
+	}
+	return nil, err
+}
+
+// openStore opens sessions.db with the connection pragmas and ensures the schema exists.
+func openStore(path string, maxConns int) (*Store, error) {
 	dsn := "file:" + filepath.ToSlash(path) + "?_pragma=" + strings.Join(connectionPragmas, "&_pragma=")
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -138,6 +166,28 @@ func openWith(path string, maxConns int) (*Store, error) {
 		return nil, fmt.Errorf("ensuring schema: %w", err)
 	}
 	return s, nil
+}
+
+// isDiskIOError reports whether err is (or wraps) a SQLite disk-I/O error — the SQLITE_IOERR
+// family (primary result code 10), which includes extended codes like SQLITE_IOERR_SHORT_READ
+// (522) that a stale WAL sidecar produces.
+func isDiskIOError(err error) bool {
+	const sqliteIOErr = 10 // SQLITE_IOERR primary code; extended codes are 10 | (n<<8)
+	var sqliteErr *sqlite.Error
+	if errors.As(err, &sqliteErr) {
+		return sqliteErr.Code()&0xFF == sqliteIOErr
+	}
+	return false
+}
+
+// removeWALSidecars deletes sessions.db's WAL/shm sidecar files. Best-effort: a missing file is
+// fine, and any other removal error is logged but not fatal (the retry open will surface it).
+func removeWALSidecars(path string) {
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := os.Remove(path + suffix); err != nil && !os.IsNotExist(err) {
+			slog.Warn("failed to remove WAL sidecar", "path", path+suffix, "error", err)
+		}
+	}
 }
 
 // Close closes the database connection.
@@ -559,6 +609,75 @@ func (s *Store) UnattributedCount(unknownID string) (int, error) {
 	return n, err
 }
 
+// KnownCwds returns the distinct non-empty origin_cwd values across all live indexed sessions —
+// every working directory the index has ever learned, including those captured in real time by
+// run/watch/sync. reindex's Cursor cwd-recovery seeds its md5(cwd)→cwd map with these (read before
+// it upserts) so a Cursor session keeps the project attribution the live path recorded, instead of
+// having reindex re-derive it from a cwd-less global enumeration and clobber it to "unknown".
+func (s *Store) KnownCwds() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT origin_cwd FROM sessions WHERE origin_cwd != '' AND deleted = 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var cwds []string
+	for rows.Next() {
+		var cwd string
+		if err := rows.Scan(&cwd); err != nil {
+			return nil, err
+		}
+		cwds = append(cwds, cwd)
+	}
+	return cwds, rows.Err()
+}
+
+// GetSession returns the LIVE indexed session for (agent, sessionID), or ok=false when there is
+// no such row — never indexed, OR soft-deleted (deleted = 0 is required, unlike Exists). Body is
+// not populated. Used by resume's selection-time guard to prefer an in-place local resume over a
+// cloud fetch when a cloud-badged session is actually present on this machine.
+func (s *Store) GetSession(agent, sessionID string) (Session, bool, error) {
+	rows, err := s.db.Query(`SELECT `+sessionColumns+`
+		FROM sessions WHERE agent = ? AND session_id = ? AND deleted = 0`, agent, sessionID)
+	if err != nil {
+		return Session{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	sessions, err := scanSessions(rows)
+	if err != nil {
+		return Session{}, false, err
+	}
+	if len(sessions) == 0 {
+		return Session{}, false, nil
+	}
+	return sessions[0], true, nil
+}
+
+// GetSessionByID looks up a LIVE indexed session by its native session id across ALL agents
+// (deleted = 0), most-recent-first. Used by `specstory resume --session <uuid>` to resolve a
+// bare session id locally (before any cloud lookup) without knowing the agent up front. A
+// native session id is a provider-generated UUID and reconstruction mints a fresh one, so two
+// agents sharing an id is near-impossible — but if it happens, the most recent row wins.
+func (s *Store) GetSessionByID(sessionID string) (Session, bool, error) {
+	rows, err := s.db.Query(`SELECT `+sessionColumns+`
+		FROM sessions WHERE session_id = ? AND deleted = 0
+		ORDER BY updated_at DESC, created_at DESC LIMIT 1`, sessionID)
+	if err != nil {
+		return Session{}, false, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	sessions, err := scanSessions(rows)
+	if err != nil {
+		return Session{}, false, err
+	}
+	if len(sessions) == 0 {
+		return Session{}, false, nil
+	}
+	return sessions[0], true, nil
+}
+
 // ListByProject returns a project's sessions, newest activity first. Body is not
 // populated (it lives only in the FTS index). Used by the `specstory resume` picker.
 func (s *Store) ListByProject(projectID string) ([]Session, error) {
@@ -578,6 +697,12 @@ type ProjectSummary struct {
 	Sessions     int            // total sessions in the project
 	LastActivity string         // most recent updated_at across the project
 	AgentCounts  map[string]int // sessions per agent (claude, codex, …)
+
+	// IsCloud marks a project that exists only in SpecStory Cloud (from another machine, never
+	// worked on locally). Set only on cloud-blended rows in the all-projects browser; local
+	// rollups leave it false. AgentCounts is nil for these (the cloud list has no per-agent
+	// breakdown).
+	IsCloud bool
 }
 
 // ListProjects returns one rolled-up summary per project, most recently active first.
@@ -622,6 +747,39 @@ func (s *Store) ListProjects() ([]ProjectSummary, error) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].LastActivity > out[j].LastActivity })
 	return out, nil
+}
+
+// ProjectSessionKey identifies one local session within a project for the all-projects rollup
+// merge: the (agent, session_id) fingerprint the cloud rows dedup against. No activity time
+// rides along — the local rollup's LastActivity (from ListProjects) already carries it.
+type ProjectSessionKey struct {
+	Agent     string // provider id: claude, codex, …
+	SessionID string // native session id
+}
+
+// ListAllSessionKeysByProject returns every non-deleted local session keyed by project_id, for
+// the all-projects browser's session-level merge with cloud rows. Unlike ListProjects (a
+// rollup), this returns the per-session fingerprint set so the caller can dedup cloud rows against
+// local by (agent, session_id) — local preferred — and recompute accurate per-agent chips / totals /
+// last activity from the union. Used only by the cloud-projects blend; the local-only path keeps
+// using ListProjects (a single grouped query is cheaper than enumerating then rolling up client-side).
+func (s *Store) ListAllSessionKeysByProject() (map[string][]ProjectSessionKey, error) {
+	rows, err := s.db.Query(`SELECT project_id, agent, session_id
+		FROM sessions WHERE deleted = 0`)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make(map[string][]ProjectSessionKey)
+	for rows.Next() {
+		var pid, agent, sid string
+		if err := rows.Scan(&pid, &agent, &sid); err != nil {
+			return nil, err
+		}
+		out[pid] = append(out[pid], ProjectSessionKey{Agent: agent, SessionID: sid})
+	}
+	return out, rows.Err()
 }
 
 // SessionBody returns the full-text conversation body for a session (for the preview
