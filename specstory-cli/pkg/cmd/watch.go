@@ -65,6 +65,7 @@ specstory watch --output-dir ~/my-sessions`
 	longDesc := `Watch for coding agent activity in the current directory and auto-save markdown files.
 
 Unlike 'run', this command does not launch a coding agent - it only monitors for agent activity.
+
 Use this when you want to run the agent separately, but still want auto-saved markdown files.
 
 By default, 'watch' is for activity from all registered agent providers. Specify a specific agent ID to watch for activity from only that agent.`

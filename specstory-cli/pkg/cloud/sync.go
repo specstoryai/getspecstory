@@ -2,6 +2,7 @@ package cloud
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -13,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,8 +26,11 @@ const (
 	// ClientName is the name of this client for API identification
 	ClientName = "specstory-cli"
 
-	// CloudSyncTimeout is the maximum time to wait for cloud sync operations to complete
-	CloudSyncTimeout = 120 * time.Second // Allow 2 minutes for large sessions to upload
+	// CloudSyncTimeout is the maximum time to wait for cloud sync operations to complete.
+	// Raised from 120s when the push began carrying SessionData (in addition to markdown +
+	// rawData); a gzipped body shrinks upload time but the aggregate ceiling still needs
+	// more headroom for large multi-blob sessions.
+	CloudSyncTimeout = 180 * time.Second // Allow 3 minutes for large sessions to upload
 
 	// MaxConcurrentHTTPRequests limits the total number of concurrent HTTP requests (HEAD + PUT combined)
 	MaxConcurrentHTTPRequests = 10
@@ -57,11 +62,13 @@ type SyncSession struct {
 // pendingSyncRequest holds a queued sync request during debounce period
 // Debounced syncs always skip HEAD check since we know content just changed
 type pendingSyncRequest struct {
-	sessionID string
-	mdPath    string
-	mdContent string
-	rawData   []byte
-	agentName string
+	sessionID   string
+	mdPath      string
+	mdContent   string
+	rawData     []byte
+	sessionData string // normalized SessionData JSON (canonical cloud-resume blob)
+	agentName   string
+	title       string // readable session title (first user message), for metadata.title
 }
 
 // BulkSizesResponse represents the API response for bulk session sizes
@@ -77,11 +84,16 @@ type BulkSizesResponseData struct {
 
 // APIRequest represents the JSON payload for the cloud sync API
 type APIRequest struct {
-	ProjectID   string             `json:"projectId"`
-	ProjectName string             `json:"projectName"`
-	Name        string             `json:"name"`
-	Markdown    string             `json:"markdown"`
-	RawData     string             `json:"rawData"`
+	ProjectID   string `json:"projectId"`
+	ProjectName string `json:"projectName"`
+	Name        string `json:"name"`
+	Markdown    string `json:"markdown"`
+	RawData     string `json:"rawData"`
+	// SessionData is the normalized schema.SessionData JSON — the canonical cloud-resume
+	// representation the server stores verbatim as a session-data.json blob. It is
+	// added alongside rawData, not a replacement. Omitted when empty so pushes for
+	// sessions without SessionData behave exactly as before.
+	SessionData string             `json:"sessionData,omitempty"`
 	Metadata    APIRequestMetadata `json:"metadata"`
 }
 
@@ -91,6 +103,13 @@ type APIRequestMetadata struct {
 	ClientVersion string `json:"clientVersion"`
 	AgentName     string `json:"agentName"`
 	DeviceID      string `json:"deviceId"`
+	// MachineName is os.Hostname() at sync time — displayed for the machine badge/filter
+	// while sessions group by the stable deviceId. Omitted when unavailable.
+	MachineName string `json:"machineName,omitempty"`
+	// Title is the readable session title (first user message via GenerateReadableName, capped at
+	// ~100 chars) so a cloud row shows the same prompt title a local row does, instead of the
+	// filename. Omitted when there is no user message to derive it from.
+	Title string `json:"title,omitempty"`
 }
 
 // ProjectData represents the structure of the .specstory/.project.json file
@@ -159,6 +178,7 @@ var (
 	globalSyncManager *SyncManager
 	syncManagerMutex  sync.RWMutex
 	deviceID          string         // Cached device ID
+	machineName       string         // Cached machine name (os.Hostname)
 	clientVersion     string = "dev" // Will be set from main
 	apiBaseURL        string         // Base URL for API calls
 	specstoryDir      string         // Path to .specstory dir; set via SetSpecstoryDir after config is resolved
@@ -485,18 +505,26 @@ func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID
 			return true, nil
 		}
 
-		// Compare sizes
-		needsSync := localSize > serverSize
+		// Self-heal: the server emits a suffixed "<sessionID>:sessionData" key holding the
+		// SessionData blob's byte size, only when the blob exists. A missing key reads as 0
+		// via Go's zero-value map lookup — which is exactly the re-send signal for legacy
+		// sessions that predate SessionData, backfilling the cloud-resume corpus.
+		serverSessionDataSize := bulkSizes[sessionID+":sessionData"]
+
+		// Sync when markdown grew OR the session has no SessionData blob yet
+		needsSync := localSize > serverSize || serverSessionDataSize == 0
 		if needsSync {
-			slog.Debug("Using preloaded size for sync check: local is larger",
+			slog.Debug("Using preloaded size for sync check: local is larger or no SessionData blob",
 				"sessionId", sessionID,
 				"localSize", localSize,
-				"serverSize", serverSize)
+				"serverSize", serverSize,
+				"serverSessionDataSize", serverSessionDataSize)
 		} else {
 			slog.Info("Session already up-to-date on server (using preloaded sizes), skipping sync",
 				"sessionId", sessionID,
 				"localSize", localSize,
-				"serverSize", serverSize)
+				"serverSize", serverSize,
+				"serverSessionDataSize", serverSessionDataSize)
 		}
 		return needsSync, nil
 	}
@@ -581,10 +609,27 @@ func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID
 			return true, nil
 		}
 
+		// Self-heal: re-send when the server has no SessionData blob for this session yet.
+		// The X-Session-Data-Size header is NULL-coerced-to-0 server-side; a missing or
+		// zero value (legacy session, or a server that predates the header) triggers a re-send
+		// that backfills the cloud-resume corpus.
+		serverSessionDataSize := 0
+		if v := resp.Header.Get("X-Session-Data-Size"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				serverSessionDataSize = n
+			}
+		}
+		if serverSessionDataSize == 0 {
+			slog.Debug("Server has no SessionData blob, will sync to backfill",
+				"sessionId", sessionID)
+			return true, nil
+		}
+
 		slog.Info("Session already up-to-date on server, skipping sync",
 			"sessionId", sessionID,
 			"localSize", localSize,
-			"serverSize", serverSize)
+			"serverSize", serverSize,
+			"serverSessionDataSize", serverSessionDataSize)
 		return false, nil
 	}
 
@@ -605,17 +650,34 @@ func GetClientVersion() string {
 	return clientVersion
 }
 
-// SetAPIBaseURL sets the base URL for API requests
+// SetAPIBaseURL sets the base URL for API requests. A trailing slash is stripped so
+// that callers can concatenate GetAPIBaseURL() + "/api/v1/..." without producing a
+// double slash (e.g. http://localhost:5173//api/v1/...).
 func SetAPIBaseURL(url string) {
-	apiBaseURL = url
+	apiBaseURL = strings.TrimRight(url, "/")
 }
 
-// GetAPIBaseURL returns the base URL for API requests
+// DefaultAPIBaseURL is the production cloud API base URL used when neither the --cloud-url
+// flag nor the SPECSTORY_CLOUD_URL env var is set.
+const DefaultAPIBaseURL = "https://cloud.specstory.com"
+
+// EnvCloudURL overrides the default cloud API base URL for the whole CLI. The --cloud-url
+// flag still takes precedence over it; this is the per-shell convenience for pointing at a
+// dev/staging cloud without passing the flag on every command.
+const EnvCloudURL = "SPECSTORY_CLOUD_URL"
+
+// GetAPIBaseURL returns the base URL for API requests. Precedence, highest first:
+//  1. the --cloud-url flag (set via SetAPIBaseURL)
+//  2. the SPECSTORY_CLOUD_URL environment variable
+//  3. the production default
 func GetAPIBaseURL() string {
-	if apiBaseURL == "" {
-		return "https://cloud.specstory.com" // Default API base URL
+	if apiBaseURL != "" {
+		return apiBaseURL // explicit --cloud-url flag wins
 	}
-	return apiBaseURL
+	if env := strings.TrimSpace(os.Getenv(EnvCloudURL)); env != "" {
+		return strings.TrimRight(env, "/") // trim trailing slash so callers can append "/api/v1/..."
+	}
+	return DefaultAPIBaseURL
 }
 
 // SetSpecstoryDir sets the directory where .project.json lives.
@@ -628,6 +690,13 @@ func SetSpecstoryDir(dir string) {
 // GetUserAgent returns the User-Agent string for API requests
 func GetUserAgent() string {
 	return fmt.Sprintf("%s/%s SpecStory, Inc.", ClientName, clientVersion)
+}
+
+// DeviceID returns this machine's stable device id (the same value pushed as metadata.deviceId).
+// The resume browser uses it to tell this machine's cloud rows from other machines' for the
+// machine filter.
+func DeviceID() string {
+	return getDeviceID()
 }
 
 // getDeviceID generates a unique device ID based on MAC address
@@ -667,6 +736,38 @@ func getDeviceID() string {
 	return deviceID
 }
 
+// gzipBytes compresses the given bytes with gzip for the cloud sync PUT body.
+func gzipBytes(data []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	if _, err := gz.Write(data); err != nil {
+		_ = gz.Close()
+		return nil, fmt.Errorf("failed to gzip body: %w", err)
+	}
+	// Close flushes remaining data and writes the gzip footer; must happen before reading buf.
+	if err := gz.Close(); err != nil {
+		return nil, fmt.Errorf("failed to finalize gzip body: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// getMachineName returns the human-readable machine name (os.Hostname) captured once and
+// cached. Unlike the stable deviceId (which sessions group by), this is a display label
+// for the machine badge/filter. Returns "" if the hostname can't be determined, in
+// which case the field is simply omitted from the push.
+func getMachineName() string {
+	if machineName != "" {
+		return machineName
+	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		slog.Warn("Failed to get hostname for machine name", "error", err)
+		return ""
+	}
+	machineName = hostname
+	return machineName
+}
+
 // InitSyncManager initializes the global sync manager
 func InitSyncManager(enabled bool) {
 	syncManagerMutex.Lock()
@@ -697,7 +798,7 @@ func GetSyncManager() *SyncManager {
 }
 
 // performSync executes the actual sync operation (HEAD check + PUT request)
-func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, agentName string, skipHeadCheck bool) {
+func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, skipHeadCheck bool) {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Log the sync attempt
@@ -788,6 +889,8 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 		ClientVersion: clientVersion,
 		AgentName:     agentName, // Use the passed-in agent name
 		DeviceID:      getDeviceID(),
+		MachineName:   getMachineName(),
+		Title:         title,
 	}
 	apiReq := APIRequest{
 		ProjectID:   projectID,
@@ -795,6 +898,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 		Name:        name,
 		Markdown:    syncData.MDContent,
 		RawData:     string(syncData.JSONLContent),
+		SessionData: sessionData,
 		Metadata:    metadata,
 	}
 
@@ -805,13 +909,23 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 		return
 	}
 
+	// Gzip the body: the payload now carries markdown + rawData + SessionData, and transcript
+	// JSON compresses ~5-10x. This shrinks upload time and effectively raises the server's
+	// 50MB Content-Length cap (checked against the compressed size). The server decompresses
+	// when Content-Encoding: gzip is present; requests without the header are unaffected.
+	compressedData, err := gzipBytes(jsonData)
+	if err != nil {
+		slog.Error("Cloud sync error gzipping body", "sessionId", sessionID, "error", err)
+		return
+	}
+
 	// Acquire semaphore for PUT request (blocks until available)
 	release := syncMgr.acquireHTTPSemaphore(sessionID, "PUT")
 	defer release()
 
 	// Make HTTP request
 	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/" + sessionID
-	req, err := http.NewRequest("PUT", apiURL, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest("PUT", apiURL, bytes.NewBuffer(compressedData))
 	if err != nil {
 		slog.Error("Cloud sync error creating request", "sessionId", sessionID, "error", err)
 		return
@@ -821,12 +935,14 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 	cloudToken := GetCloudToken()
 	req.Header.Set("Authorization", "Bearer "+cloudToken)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", GetUserAgent())
 
-	// Create HTTP client with timeout
+	// Create HTTP client with timeout. Raised from 30s: the gzipped multi-blob body
+	// (markdown + rawData + SessionData) can take longer to upload for large sessions.
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: 60 * time.Second,
 	}
 
 	slog.Debug("Cloud sync making API call",
@@ -838,6 +954,8 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 		"metadata", metadata,
 		"jsonlSize", len(syncData.JSONLContent),
 		"mdSize", len(syncData.MDContent),
+		"sessionDataSize", len(sessionData),
+		"compressedSize", len(compressedData),
 		"deviceId", getDeviceID())
 
 	// Make the request
@@ -887,7 +1005,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 
 // debouncedSync implements debouncing logic for a session
 // Always skips HEAD check since we know content just changed in autosave mode
-func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, agentName string) {
+func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string) {
 	// Get or create debounce state for this session
 	stateInterface, _ := syncMgr.debounceSessions.LoadOrStore(sessionID, &sessionDebounceState{})
 	state := stateInterface.(*sessionDebounceState)
@@ -918,7 +1036,7 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 				syncMgr.wg.Done()
 				atomic.AddInt32(&syncMgr.syncCount, -1)
 			}()
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, agentName, true)
+			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, true)
 		}()
 
 		// Log with timeSinceLastSync only if meaningful (not after cleanup)
@@ -935,11 +1053,13 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 
 	// Within debounce window - queue or replace pending request
 	state.pending = &pendingSyncRequest{
-		sessionID: sessionID,
-		mdPath:    mdPath,
-		mdContent: mdContent,
-		rawData:   rawData,
-		agentName: agentName,
+		sessionID:   sessionID,
+		mdPath:      mdPath,
+		mdContent:   mdContent,
+		rawData:     rawData,
+		sessionData: sessionData,
+		agentName:   agentName,
+		title:       title,
 	}
 
 	// Set timer if not already set
@@ -994,7 +1114,7 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 			syncMgr.wg.Done()
 			atomic.AddInt32(&syncMgr.syncCount, -1)
 		}()
-		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.agentName, true)
+		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, true)
 	}()
 
 	slog.Debug("Flushed pending sync after debounce, cleaned up session state",
@@ -1031,7 +1151,7 @@ func (syncMgr *SyncManager) flushAllPending() {
 					syncMgr.wg.Done()
 					atomic.AddInt32(&syncMgr.syncCount, -1)
 				}()
-				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.agentName, true)
+				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, true)
 			}()
 
 			slog.Info("Flushing pending sync on shutdown",
@@ -1045,7 +1165,7 @@ func (syncMgr *SyncManager) flushAllPending() {
 // SyncSessionToCloud asynchronously syncs a session to the cloud
 // When isAutosaveMode is true (run command), syncs are debounced and skip HEAD checks for efficiency
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
-func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, agentName string, isAutosaveMode bool) {
+func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionData string, agentName string, title string, isAutosaveMode bool) {
 	syncManagerMutex.RLock()
 	syncMgr := globalSyncManager
 	syncManagerMutex.RUnlock()
@@ -1068,7 +1188,7 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 	// Route to debounced or immediate sync based on mode
 	if isAutosaveMode {
 		// Autosave mode: debounce syncs and skip HEAD checks
-		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, agentName)
+		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title)
 	} else {
 		// Manual sync mode: immediate sync with HEAD check
 		syncMgr.wg.Add(1)
@@ -1078,7 +1198,7 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 				syncMgr.wg.Done()
 				atomic.AddInt32(&syncMgr.syncCount, -1)
 			}()
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, agentName, false)
+			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, false)
 		}()
 	}
 }

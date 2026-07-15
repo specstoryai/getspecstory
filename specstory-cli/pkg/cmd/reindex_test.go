@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -336,5 +337,43 @@ func TestProcessWorkReturnsOnWriteError(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("processWork deadlocked on write error instead of returning it")
+	}
+}
+
+// TestRecoverCursorCwds_SeedsFromIndex proves the clobber-prevention: a cwd the index already knows
+// (as the live run/watch/sync path records) is reused to attribute a Cursor session, even when NO
+// other provider is enumerated for that project — so reindex doesn't reset a live-captured cwd to
+// empty.
+func TestRecoverCursorCwds_SeedsFromIndex(t *testing.T) {
+	store, err := sessionindex.Open(filepath.Join(t.TempDir(), "sessions.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	// A cwd for a project that has NO on-disk other-provider session in the enumeration below —
+	// it lives ONLY in the index (as if the live path recorded it earlier).
+	cwd := "/Users/x/only-cursor-project"
+	if err := store.Upsert(sessionindex.Session{
+		ProjectID: "p1", Agent: "claude", SessionID: "seed", OriginCwd: cwd,
+		CreatedAt: "2026-01-01T00:00:00Z", UpdatedAt: "2026-01-01T00:00:00Z",
+	}); err != nil {
+		t.Fatalf("seed upsert: %v", err)
+	}
+
+	cursorRef := spi.GlobalSessionRef{
+		SessionID:  "c1",
+		NativePath: filepath.Join("/home/.cursor/chats", cursorcli.ProjectHash(cwd), "c1", "store.db"),
+	}
+	ids := []string{"claude", "cursor"}
+	perProvider := [][]spi.GlobalSessionRef{
+		{},          // claude: nothing enumerated on disk
+		{cursorRef}, // cursor: no OriginCwd of its own
+	}
+
+	recoverCursorCwds(ids, perProvider, store)
+
+	if got := perProvider[1][0].OriginCwd; got != cwd {
+		t.Errorf("cursor OriginCwd = %q, want %q (recovered from the index-seeded cwd)", got, cwd)
 	}
 }

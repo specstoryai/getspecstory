@@ -1053,7 +1053,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			// Trigger cloud sync with provider-specific data
 			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
 			// In only-cloud-sync mode: always sync
-			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), provider.Name(), false)
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), false)
 		}()
 
 		// Print progress with [n/m] format
@@ -1514,6 +1514,7 @@ func main() {
 	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, localTimeZone, debugDir)
 	reindexCmd := cmdpkg.CreateReindexCommand()
 	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, localTimeZone, debugDir)
+	skillsCmd := cmdpkg.CreateSkillsCommand(&cloudURL)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()
 	checkCmd := cmdpkg.CreateCheckCommand()
@@ -1537,6 +1538,7 @@ func main() {
 	rootCmd.AddCommand(resumeCmd)
 	rootCmd.AddCommand(reindexCmd)
 	rootCmd.AddCommand(searchCmd)
+	rootCmd.AddCommand(skillsCmd)
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
