@@ -279,6 +279,221 @@ func TestFindWorkspaceForProject(t *testing.T) {
 	}
 }
 
+// writeSessionFile writes a minimal non-empty chat session (one request) into the
+// workspace's chatSessions directory. The title distinguishes copies of the same
+// session ID across workspaces, so tests can verify which workspace's copy won
+// deduplication (RawData round-trips customTitle).
+func writeSessionFile(t *testing.T, workspaceDir, sessionID, title string) {
+	t.Helper()
+
+	content := `{"sessionId":"` + sessionID + `","customTitle":"` + title + `",` +
+		`"creationDate":1700000000000,"lastMessageDate":1700000001000,` +
+		`"requests":[{"requestId":"r1","timestamp":1700000000500,"message":{"text":"hello"}}]}`
+	path := filepath.Join(workspaceDir, "chatSessions", sessionID+".json")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write session file: %v", err)
+	}
+}
+
+// setupTwoMatchingWorkspaces builds a project that matches two workspace entries —
+// the multi-workspace situation this package's read paths must aggregate across —
+// and returns the project path plus both workspace dirs. ws-newer has the newer
+// state.vscdb, so it sorts first.
+func setupTwoMatchingWorkspaces(t *testing.T) (projectPath, olderDir, newerDir string) {
+	t.Helper()
+
+	storage := setupWorkspaceStorage(t)
+	projectPath = canonicalTempDir(t)
+	olderDir = addWorkspaceEntry(t, storage, "ws-older", `{"folder":"file://`+projectPath+`"}`, true)
+	newerDir = addWorkspaceEntry(t, storage, "ws-newer", `{"folder":"file://`+projectPath+`"}`, true)
+	writeStateDB(t, olderDir, time.Now().Add(-48*time.Hour))
+	writeStateDB(t, newerDir, time.Now().Add(-1*time.Hour))
+	return projectPath, olderDir, newerDir
+}
+
+// TestFindWorkspacesForProject verifies the plural lookup returns every matching
+// workspace, sorted newest-first by state.vscdb mtime.
+func TestFindWorkspacesForProject(t *testing.T) {
+	tests := []struct {
+		name string
+		// setup builds the fixtures and returns the projectPath to search for.
+		setup           func(t *testing.T) string
+		wantIDs         []string // expected match IDs in expected order
+		wantErrContains string
+	}{
+		{
+			name: "all matches returned newest-first",
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				project := canonicalTempDir(t)
+				other := canonicalTempDir(t)
+				oldDir := addWorkspaceEntry(t, storage, "ws-old", `{"folder":"file://`+project+`"}`, true)
+				newDir := addWorkspaceEntry(t, storage, "ws-new", `{"folder":"file://`+project+`"}`, true)
+				addWorkspaceEntry(t, storage, "ws-unrelated", `{"folder":"file://`+other+`"}`, true)
+				writeStateDB(t, oldDir, time.Now().Add(-48*time.Hour))
+				writeStateDB(t, newDir, time.Now().Add(-1*time.Hour))
+				return project
+			},
+			wantIDs: []string{"ws-new", "ws-old"},
+		},
+		{
+			name: "match without state.vscdb sorts last",
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				project := canonicalTempDir(t)
+				// ReadDir returns ws-no-db before ws-with-db (alphabetical), so only
+				// the mtime sort can put ws-with-db first.
+				addWorkspaceEntry(t, storage, "ws-no-db", `{"folder":"file://`+project+`"}`, true)
+				withDB := addWorkspaceEntry(t, storage, "ws-with-db", `{"folder":"file://`+project+`"}`, true)
+				writeStateDB(t, withDB, time.Now().Add(-1*time.Hour))
+				return project
+			},
+			wantIDs: []string{"ws-with-db", "ws-no-db"},
+		},
+		{
+			name: "no matching workspace",
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				other := canonicalTempDir(t)
+				addWorkspaceEntry(t, storage, "ws-other", `{"folder":"file://`+other+`"}`, true)
+				return canonicalTempDir(t)
+			},
+			wantErrContains: "no workspace found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			projectPath := tt.setup(t)
+			p := NewProvider(VSCode)
+
+			matches, err := p.FindWorkspacesForProject(projectPath)
+
+			if tt.wantErrContains != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got %d matches", tt.wantErrContains, len(matches))
+				}
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Errorf("error = %q, want it to contain %q", err.Error(), tt.wantErrContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(matches) != len(tt.wantIDs) {
+				t.Fatalf("got %d matches, want %d: %+v", len(matches), len(tt.wantIDs), matches)
+			}
+			for i, wantID := range tt.wantIDs {
+				if matches[i].ID != wantID {
+					t.Errorf("matches[%d].ID = %q, want %q", i, matches[i].ID, wantID)
+				}
+			}
+		})
+	}
+}
+
+// TestGetAgentChatSession_SessionInOlderWorkspace reproduces the multi-workspace bug:
+// a session that lives only in the OLDER of two matching workspaces must still be
+// found, instead of erroring "session not found" because the newest workspace won.
+func TestGetAgentChatSession_SessionInOlderWorkspace(t *testing.T) {
+	projectPath, olderDir, _ := setupTwoMatchingWorkspaces(t)
+
+	const sessionID = "9bf61b07-aaaa-bbbb-cccc-000000000001"
+	writeSessionFile(t, olderDir, sessionID, "only-in-older")
+
+	p := NewProvider(VSCode)
+	session, err := p.GetAgentChatSession(projectPath, sessionID, false)
+	if err != nil {
+		t.Fatalf("GetAgentChatSession: %v", err)
+	}
+	if session.SessionID != sessionID {
+		t.Errorf("SessionID = %q, want %q", session.SessionID, sessionID)
+	}
+
+	// A session in no matching workspace must still error only after all are probed.
+	if _, err := p.GetAgentChatSession(projectPath, "does-not-exist", false); err == nil {
+		t.Error("expected error for unknown session ID, got nil")
+	} else if !strings.Contains(err.Error(), "session not found") {
+		t.Errorf("error = %q, want it to contain %q", err.Error(), "session not found")
+	}
+}
+
+// TestGetAgentChatSessions_AggregatesAcrossWorkspaces verifies sessions from every
+// matching workspace are returned, and a session ID present in both workspaces is
+// deduplicated with the newest workspace's copy winning.
+func TestGetAgentChatSessions_AggregatesAcrossWorkspaces(t *testing.T) {
+	projectPath, olderDir, newerDir := setupTwoMatchingWorkspaces(t)
+
+	writeSessionFile(t, olderDir, "session-a", "only-in-older")
+	writeSessionFile(t, olderDir, "session-b", "b-older-copy")
+	writeSessionFile(t, newerDir, "session-b", "b-newer-copy")
+	writeSessionFile(t, newerDir, "session-c", "only-in-newer")
+
+	p := NewProvider(VSCode)
+	sessions, err := p.GetAgentChatSessions(projectPath, false, nil)
+	if err != nil {
+		t.Fatalf("GetAgentChatSessions: %v", err)
+	}
+
+	byID := make(map[string]string) // sessionID -> RawData
+	for _, s := range sessions {
+		if _, dup := byID[s.SessionID]; dup {
+			t.Errorf("duplicate session ID in results: %q", s.SessionID)
+		}
+		byID[s.SessionID] = s.RawData
+	}
+
+	if len(sessions) != 3 {
+		t.Fatalf("got %d sessions, want 3 (IDs: %v)", len(sessions), byID)
+	}
+	for _, id := range []string{"session-a", "session-b", "session-c"} {
+		if _, ok := byID[id]; !ok {
+			t.Errorf("missing session %q in results", id)
+		}
+	}
+
+	// The duplicated session must come from the newest workspace.
+	if raw := byID["session-b"]; !strings.Contains(raw, "b-newer-copy") {
+		t.Errorf("session-b should come from the newest workspace, RawData = %s", raw)
+	}
+}
+
+// TestListAgentChatSessions_AggregatesAcrossWorkspaces verifies the lightweight list
+// aggregates across matching workspaces with the same dedup rule as the full read.
+func TestListAgentChatSessions_AggregatesAcrossWorkspaces(t *testing.T) {
+	projectPath, olderDir, newerDir := setupTwoMatchingWorkspaces(t)
+
+	writeSessionFile(t, olderDir, "session-a", "only-in-older")
+	writeSessionFile(t, olderDir, "session-b", "b-older-copy")
+	writeSessionFile(t, newerDir, "session-b", "b-newer-copy")
+	writeSessionFile(t, newerDir, "session-c", "only-in-newer")
+
+	p := NewProvider(VSCode)
+	metadataList, err := p.ListAgentChatSessions(projectPath)
+	if err != nil {
+		t.Fatalf("ListAgentChatSessions: %v", err)
+	}
+
+	ids := make(map[string]bool)
+	for _, m := range metadataList {
+		if ids[m.SessionID] {
+			t.Errorf("duplicate session ID in list: %q", m.SessionID)
+		}
+		ids[m.SessionID] = true
+	}
+
+	if len(metadataList) != 3 {
+		t.Fatalf("got %d sessions, want 3 (IDs: %v)", len(metadataList), ids)
+	}
+	for _, id := range []string{"session-a", "session-b", "session-c"} {
+		if !ids[id] {
+			t.Errorf("missing session %q in list", id)
+		}
+	}
+}
+
 func TestCollectCodeWorkspaceFolders(t *testing.T) {
 	base := canonicalTempDir(t)
 	relProject := filepath.Join(base, "rel-project")

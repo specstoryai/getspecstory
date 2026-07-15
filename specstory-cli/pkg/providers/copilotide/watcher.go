@@ -13,20 +13,25 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// WatchChatSessions watches the chatSessions directory for new/modified session files
+// WatchChatSessions watches the chatSessions directory of every given workspace for
+// new/modified session files. A project can match several workspace entries (opened
+// directly as a folder and via .code-workspace files), and a session update can land
+// in any of them, so a single fsnotify watcher is attached to all their directories.
+//
+// Limitation: workspaceDirs comes from the matcher with requireChatSessions=true, so a
+// matching workspace whose chatSessions directory does not exist yet is not included
+// and won't be picked up until the watch restarts — watching for the directory's
+// creation would require a parent-directory watch that this watcher doesn't have.
 func (p *Provider) WatchChatSessions(
 	ctx context.Context,
-	workspaceDir string,
+	workspaceDirs []string,
 	projectPath string,
 	debugRaw bool,
 	sessionCallback func(*spi.AgentChatSession),
 ) error {
-	chatSessionsPath := GetChatSessionsPath(workspaceDir)
-
 	slog.Info("Starting Copilot watcher",
 		"app", p.variant.AppName,
-		"workspaceDir", workspaceDir,
-		"chatSessionsPath", chatSessionsPath)
+		"workspaceCount", len(workspaceDirs))
 
 	// Create fsnotify watcher
 	watcher, err := fsnotify.NewWatcher()
@@ -44,12 +49,23 @@ func (p *Provider) WatchChatSessions(
 	var callbackWg sync.WaitGroup
 	defer callbackWg.Wait()
 
-	// Watch the chatSessions directory
-	if err := watcher.Add(chatSessionsPath); err != nil {
-		return fmt.Errorf("failed to watch directory: %w", err)
+	// Watch the chatSessions directory of every matching workspace. A failure to add
+	// one directory (e.g. deleted since matching) must not silence the others, so it
+	// only degrades to a warning; the watch fails outright only when nothing is watched.
+	watchedCount := 0
+	for _, workspaceDir := range workspaceDirs {
+		chatSessionsPath := GetChatSessionsPath(workspaceDir)
+		if err := watcher.Add(chatSessionsPath); err != nil {
+			slog.Warn("Failed to watch chatSessions directory",
+				"path", chatSessionsPath, "error", err)
+			continue
+		}
+		watchedCount++
+		slog.Info("Watching chatSessions directory", "path", chatSessionsPath)
 	}
-
-	slog.Info("Watching chatSessions directory", "path", chatSessionsPath)
+	if watchedCount == 0 {
+		return fmt.Errorf("failed to watch any chatSessions directory (%d candidates)", len(workspaceDirs))
+	}
 
 	// Track known sessions and their modification times
 	knownSessions := make(map[string]int64)
@@ -58,11 +74,16 @@ func (p *Provider) WatchChatSessions(
 	lastProcessed := make(map[string]time.Time)
 	debounceWindow := 500 * time.Millisecond
 
-	// Process existing sessions first
-	existingSessions, err := LoadAllSessionFiles(workspaceDir)
-	if err != nil {
-		slog.Warn("Failed to load existing sessions", "error", err)
-	} else {
+	// Process existing sessions first, across all watched workspaces. knownSessions is
+	// keyed by session ID, so a session present in several workspaces is tracked once
+	// with the newest LastMessageDate seen — later events only fire the callback when
+	// they carry something newer.
+	for _, workspaceDir := range workspaceDirs {
+		existingSessions, err := LoadAllSessionFiles(workspaceDir)
+		if err != nil {
+			slog.Warn("Failed to load existing sessions", "workspace", workspaceDir, "error", err)
+			continue
+		}
 		for _, sessionPath := range existingSessions {
 			composer, err := LoadSessionFile(sessionPath)
 			if err != nil {
@@ -70,8 +91,10 @@ func (p *Provider) WatchChatSessions(
 				continue
 			}
 
-			// Track as known
-			knownSessions[composer.SessionID] = composer.LastMessageDate
+			// Track as known, keeping the newest LastMessageDate across workspaces
+			if known, exists := knownSessions[composer.SessionID]; !exists || composer.LastMessageDate > known {
+				knownSessions[composer.SessionID] = composer.LastMessageDate
+			}
 
 			slog.Debug("Tracked existing session", "sessionId", composer.SessionID)
 		}
@@ -136,8 +159,11 @@ func (p *Provider) WatchChatSessions(
 					slog.Info("Session updated", "sessionId", sessionID, "name", composer.Name)
 				}
 
-				// Load state file (optional)
-				state, err := LoadStateFile(workspaceDir, sessionID)
+				// Load state file (optional) from the workspace the event came from.
+				// The event path is <workspaceDir>/chatSessions/<file>, so the owning
+				// workspace directory is two levels up from the changed file.
+				eventWorkspaceDir := filepath.Dir(filepath.Dir(event.Name))
+				state, err := LoadStateFile(eventWorkspaceDir, sessionID)
 				if err != nil {
 					slog.Warn("Failed to load state file", "sessionId", sessionID, "error", err)
 				}

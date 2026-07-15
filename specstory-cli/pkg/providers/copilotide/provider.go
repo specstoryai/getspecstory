@@ -115,8 +115,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	slog.Debug("DetectAgent: Checking for Copilot activity", "app", p.variant.AppName, "projectPath", projectPath)
 
-	// Try to find workspace for project
-	workspace, err := p.FindWorkspaceForProject(projectPath)
+	// Try to find all workspaces matching the project. A project can match several
+	// workspace entries (opened directly as a folder AND listed in .code-workspace
+	// files), and sessions may live in any of them.
+	workspaces, err := p.FindWorkspacesForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "projectPath", projectPath, "error", err)
 		if helpOutput {
@@ -129,41 +131,71 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		return false
 	}
 
-	// Check if workspace has any chat sessions
-	sessionFiles, err := LoadAllSessionFiles(workspace.Dir)
-	if err != nil || len(sessionFiles) == 0 {
-		slog.Debug("No chat sessions found", "workspace", workspace.Dir, "error", err)
-		if helpOutput {
-			fmt.Printf("\n❌ No %s Copilot chat sessions found\n", p.variant.AppName)
-			fmt.Printf("  • Workspace: %s\n", workspace.Dir)
-			fmt.Printf("  • Create at least one chat session in %s Copilot\n", p.variant.AppName)
-			fmt.Println()
+	// Any matching workspace with at least one chat session counts as activity.
+	for _, workspace := range workspaces {
+		sessionFiles, err := LoadAllSessionFiles(workspace.Dir)
+		if err != nil || len(sessionFiles) == 0 {
+			slog.Debug("No chat sessions found", "workspace", workspace.Dir, "error", err)
+			continue
 		}
-		return false
+		slog.Debug("Copilot activity detected",
+			"app", p.variant.AppName,
+			"workspace", workspace.Dir,
+			"sessionCount", len(sessionFiles))
+		return true
 	}
 
-	slog.Debug("Copilot activity detected", "app", p.variant.AppName, "sessionCount", len(sessionFiles))
-	return true
+	slog.Debug("No chat sessions found in any matching workspace",
+		"projectPath", projectPath, "workspaceCount", len(workspaces))
+	if helpOutput {
+		fmt.Printf("\n❌ No %s Copilot chat sessions found\n", p.variant.AppName)
+		for _, workspace := range workspaces {
+			fmt.Printf("  • Workspace: %s\n", workspace.Dir)
+		}
+		fmt.Printf("  • Create at least one chat session in %s Copilot\n", p.variant.AppName)
+		fmt.Println()
+	}
+	return false
 }
 
 // GetAgentChatSession retrieves a single chat session by ID
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	slog.Debug("GetAgentChatSession", "projectPath", projectPath, "sessionID", sessionID, "debugRaw", debugRaw)
 
-	// Find workspace for project
-	workspace, err := p.FindWorkspaceForProject(projectPath)
+	// Find all workspaces matching the project. The session may live in any of them
+	// (e.g. the project was opened both directly and via a .code-workspace file, and
+	// the session belongs to a workspace that is not the most recently used one).
+	workspaces, err := p.FindWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace: %w", err)
 	}
 
-	// Load specific session
-	session, err := LoadSessionByID(workspace.Dir, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load session: %w", err)
+	// Probe each matching workspace newest-first until the session is found. Only a
+	// missing session file means "try the next workspace"; any other error (e.g. a
+	// corrupt file) is a real failure and is surfaced immediately.
+	var session *VSCodeComposer
+	var workspaceDir string
+	for _, workspace := range workspaces {
+		loaded, loadErr := LoadSessionByID(workspace.Dir, sessionID)
+		if loadErr != nil {
+			if errors.Is(loadErr, ErrSessionNotFound) {
+				slog.Debug("Session not in workspace, trying next match",
+					"sessionId", sessionID, "workspace", workspace.Dir)
+				continue
+			}
+			return nil, fmt.Errorf("failed to load session: %w", loadErr)
+		}
+		session = loaded
+		workspaceDir = workspace.Dir
+		break
+	}
+	if session == nil {
+		return nil, fmt.Errorf("failed to load session: %w: %s (searched %d matching workspaces)",
+			ErrSessionNotFound, sessionID, len(workspaces))
 	}
 
-	// Load state file (optional)
-	state, err := LoadStateFile(workspace.Dir, sessionID)
+	// Load state file (optional) from the same workspace the session was found in
+	state, err := LoadStateFile(workspaceDir, sessionID)
 	if err != nil {
 		slog.Warn("Failed to load state file", "sessionId", sessionID, "error", err)
 	}
@@ -181,18 +213,79 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	return &agentSession, nil
 }
 
-// GetAgentChatSessions retrieves all chat sessions for the given project path
+// sessionFileRef pairs a session file with the workspace it came from, so per-session
+// state files can be resolved against the right workspace's chatEditingSessions.
+type sessionFileRef struct {
+	path         string
+	workspaceDir string
+}
+
+// collectProjectSessionFiles gathers session files across all matching workspaces,
+// iterated newest-first. Deduplication: within a workspace the .jsonl file is preferred
+// over the .json file for the same session (matching LoadSessionByID); across workspaces
+// the first-seen — i.e. newest — workspace wins for a session ID present in several.
+// Per-workspace enumeration failures are logged and skipped so one bad workspace doesn't
+// hide sessions in the others; an error is returned only when every workspace failed.
+func collectProjectSessionFiles(workspaces []WorkspaceMatch) ([]sessionFileRef, error) {
+	seen := make(map[string]bool)
+	var refs []sessionFileRef
+	var firstErr error
+	enumerated := false
+
+	for _, workspace := range workspaces {
+		files, err := LoadAllSessionFiles(workspace.Dir)
+		if err != nil {
+			slog.Warn("Failed to load session files from workspace",
+				"workspace", workspace.Dir, "error", err)
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		enumerated = true
+
+		// Pick one file per session ID within this workspace, preferring .jsonl.
+		byID := make(map[string]string, len(files))
+		for _, file := range files {
+			id := GetSessionIDFromPath(file)
+			if existing, ok := byID[id]; ok &&
+				(strings.HasSuffix(existing, ".jsonl") || !strings.HasSuffix(file, ".jsonl")) {
+				continue
+			}
+			byID[id] = file
+		}
+
+		// Iterate the file list (not byID) so output keeps deterministic filename order.
+		for _, file := range files {
+			id := GetSessionIDFromPath(file)
+			if byID[id] != file || seen[id] {
+				continue
+			}
+			seen[id] = true
+			refs = append(refs, sessionFileRef{path: file, workspaceDir: workspace.Dir})
+		}
+	}
+
+	if !enumerated && firstErr != nil {
+		return nil, firstErr
+	}
+	return refs, nil
+}
+
+// GetAgentChatSessions retrieves all chat sessions for the given project path,
+// aggregated across every matching workspace (a project can match several — opened
+// directly as a folder and via .code-workspace files).
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	slog.Debug("GetAgentChatSessions", "projectPath", projectPath, "debugRaw", debugRaw)
 
-	// Find workspace for project
-	workspace, err := p.FindWorkspaceForProject(projectPath)
+	// Find all workspaces matching the project
+	workspaces, err := p.FindWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace: %w", err)
 	}
 
-	// Load all session files
-	sessionFiles, err := LoadAllSessionFiles(workspace.Dir)
+	// Load session files from all matching workspaces (deduplicated, newest workspace wins)
+	sessionFiles, err := collectProjectSessionFiles(workspaces)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load session files: %w", err)
 	}
@@ -201,15 +294,15 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	processedCount := 0
 	totalCount := len(sessionFiles)
 
-	for _, sessionFile := range sessionFiles {
-		composer, err := LoadSessionFile(sessionFile)
+	for _, ref := range sessionFiles {
+		composer, err := LoadSessionFile(ref.path)
 		if err != nil {
-			slog.Warn("Failed to load session", "file", sessionFile, "error", err)
+			slog.Warn("Failed to load session", "file", ref.path, "error", err)
 			continue
 		}
 
-		// Load state file (optional)
-		state, err := LoadStateFile(workspace.Dir, composer.SessionID)
+		// Load state file (optional) from the workspace the session file came from
+		state, err := LoadStateFile(ref.workspaceDir, composer.SessionID)
 		if err != nil {
 			slog.Warn("Failed to load state file", "sessionId", composer.SessionID, "error", err)
 		}
@@ -250,17 +343,18 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	slog.Debug("ListAgentChatSessions: Loading Copilot session list",
 		"app", p.variant.AppName, "projectPath", projectPath)
 
-	// Step 1: Find workspace for project
-	workspace, err := p.FindWorkspaceForProject(projectPath)
+	// Step 1: Find all workspaces matching the project (sessions may live in any of them)
+	workspaces, err := p.FindWorkspacesForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "error", err)
 		return []spi.SessionMetadata{}, nil // Return empty list if no workspace
 	}
 
-	slog.Debug("Found workspace for project", "workspaceDir", workspace.Dir)
+	slog.Debug("Found workspaces for project", "workspaceCount", len(workspaces))
 
-	// Step 2: Load all session files
-	sessionFiles, err := LoadAllSessionFiles(workspace.Dir)
+	// Step 2: Load session files from all matching workspaces (deduplicated,
+	// newest workspace wins for a session ID present in several)
+	sessionFiles, err := collectProjectSessionFiles(workspaces)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load session files: %w", err)
 	}
@@ -274,15 +368,15 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 
 	// Step 3: Extract metadata for each session
 	metadataList := make([]spi.SessionMetadata, 0, len(sessionFiles))
-	for _, sessionFile := range sessionFiles {
-		composer, err := LoadSessionFile(sessionFile)
+	for _, ref := range sessionFiles {
+		composer, err := LoadSessionFile(ref.path)
 		if err != nil {
-			slog.Warn("Failed to load session file", "file", sessionFile, "error", err)
+			slog.Warn("Failed to load session file", "file", ref.path, "error", err)
 			continue
 		}
 
-		// Load state file to check for editing operations
-		state, err := LoadStateFile(workspace.Dir, composer.SessionID)
+		// Load state file (from the owning workspace) to check for editing operations
+		state, err := LoadStateFile(ref.workspaceDir, composer.SessionID)
 		if err != nil {
 			slog.Warn("Failed to load state file", "sessionId", composer.SessionID, "error", err)
 		}
@@ -493,18 +587,25 @@ func collectWorkspaceSessionRefs(workspaceDir string, refByID map[string]spi.Glo
 	}
 }
 
-// WatchAgent watches for new/updated chat sessions
+// WatchAgent watches for new/updated chat sessions across ALL workspaces matching the
+// project, so activity in any of them (folder-opened or .code-workspace-opened windows)
+// is picked up, not just the most recently used one.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Debug("WatchAgent", "projectPath", projectPath, "debugRaw", debugRaw)
 
-	// Find workspace for project
-	workspace, err := p.FindWorkspaceForProject(projectPath)
+	// Find all workspaces matching the project
+	workspaces, err := p.FindWorkspacesForProject(projectPath)
 	if err != nil {
 		return fmt.Errorf("failed to find workspace: %w", err)
 	}
 
-	// Start watching the chatSessions directory
-	return p.WatchChatSessions(ctx, workspace.Dir, projectPath, debugRaw, sessionCallback)
+	workspaceDirs := make([]string, len(workspaces))
+	for i, workspace := range workspaces {
+		workspaceDirs[i] = workspace.Dir
+	}
+
+	// Start watching the chatSessions directory of every matching workspace
+	return p.WatchChatSessions(ctx, workspaceDirs, projectPath, debugRaw, sessionCallback)
 }
 
 // extractCopilotIDESessionMetadata extracts lightweight session metadata from a VSCodeComposer

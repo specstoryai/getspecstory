@@ -2,12 +2,19 @@ package copilotide
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 )
+
+// ErrSessionNotFound reports that no session file exists for the requested ID in a
+// workspace. It is a sentinel so callers probing multiple matching workspaces can
+// distinguish "not in this workspace, try the next" from a real load failure that
+// should be surfaced immediately.
+var ErrSessionNotFound = errors.New("session not found")
 
 // LoadAllSessionFiles returns paths to all session JSON files in the workspace
 func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
@@ -89,7 +96,7 @@ func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
 	} else if _, err := os.Stat(jsonPath); err == nil {
 		sessionPath = jsonPath
 	} else {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+		return nil, fmt.Errorf("%w: %s", ErrSessionNotFound, sessionID)
 	}
 
 	return LoadSessionFile(sessionPath)
