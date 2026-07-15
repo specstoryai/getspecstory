@@ -76,8 +76,10 @@ function typeOf(msg, conv) {
 }
 
 // Exported: run Pass 1 over the corpus, populate the seeds table.
+// Idempotent: clears the seeds table first.
 // Returns { seeds: N, byProject: {...} }
 export function extractSeeds(db) {
+  db.prepare('DELETE FROM seeds').run()
   const rows = db.prepare(`
     SELECT c.beat_id beat_id, c.line line, c.raw raw,
            s.id sid, s.path path, s.date date, s.project_name project, s.author author

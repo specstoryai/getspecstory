@@ -62,8 +62,10 @@ function roleOf(signals, text) {
 }
 
 // Exported: run Pass 3 over all beats, populate the candidates table.
+// Idempotent: clears the candidates table first.
 // Returns { candidates: N, byRole: {...} }
 export function expand(db) {
+  db.prepare('DELETE FROM candidates').run()
   // load fingerprints per project
   const projects = db.prepare("SELECT DISTINCT project FROM fingerprints").all().map(r => r.project)
   const fps = new Map()

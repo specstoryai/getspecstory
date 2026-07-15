@@ -424,6 +424,76 @@ CANDIDATE signal. The probe is good enough to scaffold from.
 (issue 2 from the arc test). Precision is now 89%, entity set is clean,
 template-match carries recall. Ready to scaffold.
 
+### 2026-07-13 — tests + SKILL.md (the skill is now installable)
+
+**Tests.** 11 `node --test` tests over a fixture (`decisions2-alpha`) encoding a
+full process arc:
+- EventStore: deliberation (Postgres or SQLite?) → proposed (go with Postgres)
+  → chosen (commit) → reversed (switch to SQLite) → chosen (commit) = an arc
+  with state=changed, 2 chosen beats, 1 reversal.
+- AuthClient: provisional "for now" with no commit = in-formation arc.
+- SettingsPanel: deliberation question with no commit = in-formation arc.
+
+Tests cover all four passes: seed extraction (commit messages + entities +
+verbs), fingerprint building (entity in the set), expand (role assignment:
+proposed/deliberated/reversed/provisional), and arcs (state=changed for
+EventStore, state=in-formation for AuthClient + SettingsPanel, plus a
+determinism test that re-running the pipeline produces identical arcs).
+
+**Two bugs found by writing tests (the measure-first discipline, again):**
+1. **Non-idempotent passes.** `extractSeeds` and `expand` didn't clear their
+   tables before inserting, so re-running doubled the candidates. The
+determinism test caught it immediately (second run had 2x the beats). Fixed by
+   adding `DELETE FROM ...` at the start of each pass. This is the same lesson
+   as the scaffolding bug #2 (idempotency is a DoD), now enforced by a test.
+2. **Verb extraction test was wrong.** I expected `feat`/`refactor` as the verb,
+   but the verb is extracted from the BODY after the conv prefix ("use Postgres"
+   → verb "use"). The test was testing my wrong mental model of the code.
+   Writing the test caught the mismatch. Lesson: tests don't just catch bugs —
+   they catch misunderstandings between the spec-in-your-head and the code.
+
+**SKILL.md.** The agent contract for the precision pass. The key sections:
+- **Why "decision as process"** — the deliberation, rejected alternatives,
+  provisional deferrals, and reversals are the WHY that evaporates. The engine
+  surfaces the full arc; the agent writes it up.
+- **The precision pass** — five jobs for the agent: drop non-decisions, resolve
+  referents (Read the evidence file), name entities, split over-linked arcs
+  (file clustering can merge unrelated decisions), classify question-form beats
+  (genuine open vs. decision-in-formation vs. softened choice — the three states
+  from the definition discussion).
+- **The report format** — per-project, per-state (Decided / Changed / In
+  formation / Abandoned), with insights (churn, debt, re-litigated).
+- **Status: experimental.** Explicitly marked; the engine's recall and arc
+  linking have been measured, the precision pass and report format are still
+  being refined.
+
+**README.md + install.sh.** The skill is now installable via `./install.sh`
+(symlinks into `~/.agents/skills/decisions2` and `~/.claude/skills/decisions2`).
+
+**The skill structure is now complete:**
+```
+decisions2/
+  README.md, SKILL.md, package.json, install.sh
+  scripts/
+    decisions2.mjs              # CLI
+    lib/{db,indexer,commit_seed,fingerprint,expand,arcs}.mjs
+    commit_seed.mjs, expand_probe.mjs, arc_test.mjs  # the probes (kept)
+  tests/decisions2.test.mjs     # 11 tests, all green
+  fixtures/decisions2-alpha/.specstory/history/  # 4 transcripts, full arc
+```
+
+**Blog fodder from this step.** The two test-caught bugs reinforce a point from
+the essay that I hadn't connected before: **tests are a DoD technology, but they
+test the engine's contract with itself, not the skill's contract with the
+user.** The determinism test caught the idempotency bug (engine contract); the
+verb test caught my mental-model mismatch (spec-vs-code). Neither test tells
+you whether the REPORT is good — that's the qualitative DoD the agent pass
+owns. The 11-green-tests are a real rung on the ladder (the engine is
+self-consistent and deterministic) but they are NOT the top rung (the report
+actually captures the real decisions). The top rung is still the human/agent
+judgement at the DoD boundary, exactly as the essay argues. **The tests buy
+you the right to trust the engine, not the right to trust the report.**
+
 ### 2026-07-13 — file-based arc linking (the Workthreads arc now forms)
 
 **The problem.** After scaffolding, the Workthreads `[proposed]` (chat) and
