@@ -80,6 +80,110 @@ With a specific session UUID:
 specstory sync -s <session-uuid>
 ```
 
+### Resume & Search
+
+SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
+a past session — in the same agent or a different one — without re-reading the transcript. Two
+commands share the same interactive picker:
+
+```zsh
+# Open a picker of the current project's sessions across all agents. Pick one, choose which
+# installed agent to continue it in, and go. `tab` switches to the all-projects browser.
+specstory resume
+
+# Pre-select the target agent — the picker then skips the target step and resumes straight
+# into that agent.
+specstory resume codex
+
+# Full-text search across every indexed session, then read or resume a match. Anything after
+# the command pre-seeds the query.
+specstory search
+specstory search max cpu
+```
+
+Inside the picker: `↑↓` move, `r` resumes, `space` previews (glamour-rendered), `/` searches,
+`a` cycles the agent filter, `v` toggles dense/sparse, and `d` soft-deletes (hides from the
+picker; native files on disk are untouched). See `docs/RESUME-TUI.md` and
+`docs/SESSION-SEARCH.md` for the full keymap.
+
+#### Resume a specific session directly (`--session`)
+
+Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
+without one the target-agent picker opens pinned to that session.
+
+```zsh
+# Canonical form (what the SpecStory Cloud web app's Resume button copies):
+specstory resume --session specstory://projects/{projectId}/sessions/{sessionId}
+
+# A cloud permalink pasted straight from a browser URL bar:
+specstory resume --session https://cloud.specstory.com/projects/{projectId}/sessions/{sessionId}
+
+# Shorthand — a bare session UUID, resolved local-first then cloud:
+specstory resume --session 550e8400-e29b-41d4-a716-446655440000
+
+# Fully non-interactive: pin both the session and the target agent.
+specstory resume claude --session specstory://projects/{projectId}/sessions/{sessionId}
+```
+
+A session that exists on this machine resumes in place (offline, instant) even when the URI
+came from the cloud. A session from another machine is fetched from SpecStory Cloud and
+reconstructed into the target agent — that path requires a SpecStory Cloud login
+(`specstory login`) and a Pro plan. A pasted permalink only contributes IDs; the CLI never
+sends your token to the permalink's host — if it differs from your configured cloud, pass
+`--cloud-url` to match (see [Targeting a non-production cloud](#targeting-a-non-production-cloud)).
+
+### Skills
+
+SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
+
+```zsh
+# Interactive browser with two tabs (press `tab` to switch):
+#   • Library — preview skills, approve/reject those awaiting review, install ready
+#     ones, and uninstall/reinstall installed ones.
+#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
+specstory skills
+```
+
+Skills install using the same layout as the public `npx skills` CLI: a canonical
+`~/.agents/skills/<name>` store, symlinked into each detected agent's skills directory
+(Claude Code, Codex, Cursor, and more), tracked in the shared `~/.agents/.skill-lock.json`.
+Installs default to global; pass `--project` to install into the current repo instead.
+
+Every action is also a non-interactive subcommand with `--json`, so a front end (e.g. the
+VS Code extension) can drive the same engine:
+
+```zsh
+specstory skills list --json                 # browse the library + local install state
+specstory skills show <name>                 # print a skill's SKILL.md
+specstory skills approve <name>              # approve a skill awaiting review
+specstory skills reject <name> --note "..."  # reject one
+specstory skills install <name>              # install for all detected agents (global)
+specstory skills install <name> --project --agents claude-code,codex
+specstory skills uninstall <name>            # remove files, links, and lock entry
+specstory skills install <name>              # reinstall an installed skill to refresh it
+specstory skills status --json               # locally installed skills (no login needed)
+specstory skills run                         # mine your sessions for new skills
+specstory skills runs --json                 # recent runs and their status
+```
+
+To generate new skills, kick off a run (`specstory skills run`, or press `m` in the browser to
+watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
+
+### Targeting a non-production cloud
+
+By default the CLI talks to `https://cloud.specstory.com`. To point every command at a
+dev/staging cloud without passing `--cloud-url` each time, set an environment variable:
+
+```zsh
+export SPECSTORY_CLOUD_URL=https://cloud-dev.specstory.com
+specstory login   # authenticate against that cloud
+specstory skills  # ...and everything else now uses it
+```
+
+Resolution order is `--cloud-url` flag → `SPECSTORY_CLOUD_URL` → production default, so a
+one-off `--cloud-url` still wins for a single command. `login` prints the target host when it
+isn't production, so you always know which cloud you're authenticating against.
+
 ## Configuration File
 
 SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:

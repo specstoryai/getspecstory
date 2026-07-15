@@ -41,7 +41,7 @@ func WatchAgents(ctx context.Context, projectPath string, debugRaw bool, session
 func WatchProviders(ctx context.Context, projectPath string, providers map[string]spi.Provider, debugRaw bool, sessionCallback func(providerID string, session *spi.AgentChatSession)) error {
 	slog.Info("WatchProviders: Starting multi-provider watch", "projectPath", projectPath, "providerCount", len(providers), "debugRaw", debugRaw)
 
-	// Track a per-session content fingerprint to suppress duplicate callbacks.
+	// Track a per-provider, per-session content fingerprint to suppress duplicate callbacks.
 	// Providers fire callbacks on every session-file change, but not all changes
 	// produce new content in the parsed SessionData (e.g. UI metadata updates).
 	// The message count alone is not enough: patch-log providers (e.g. VS Code
@@ -68,9 +68,14 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 
 				fingerprint := fingerprintSession(session)
 
+				// Key by provider as well as session: the map is shared across all
+				// provider goroutines, and without the scope two providers emitting
+				// the same session ID would suppress each other's callbacks.
+				dedupKey := providerID + "/" + session.SessionID
+
 				// Skip if the parsed content hasn't changed for this session
 				mu.Lock()
-				prev, seen := lastFingerprint[session.SessionID]
+				prev, seen := lastFingerprint[dedupKey]
 				if seen && prev == fingerprint {
 					mu.Unlock()
 					slog.Debug("WatchProviders: Skipping duplicate callback",
@@ -80,7 +85,7 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 						"contentBytes", fingerprint.contentBytes)
 					return
 				}
-				lastFingerprint[session.SessionID] = fingerprint
+				lastFingerprint[dedupKey] = fingerprint
 				mu.Unlock()
 
 				slog.Debug("WatchProviders: Provider callback fired",
@@ -123,7 +128,7 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 // deduplication. Comparable by value.
 type sessionFingerprint struct {
 	messages     int // total messages across all exchanges
-	contentBytes int // total bytes of message text and pre-rendered tool markdown
+	contentBytes int // total bytes of message text, tool summaries, and pre-rendered tool markdown
 }
 
 // fingerprintSession computes the dedup fingerprint for a session. Content size
@@ -137,8 +142,16 @@ func fingerprintSession(session *spi.AgentChatSession) sessionFingerprint {
 			for _, part := range msg.Content {
 				fp.contentBytes += len(part.Text)
 			}
-			if msg.Tool != nil && msg.Tool.FormattedMarkdown != nil {
-				fp.contentBytes += len(*msg.Tool.FormattedMarkdown)
+			if msg.Tool != nil {
+				// The summary is rendered content too (markdown <summary> tag), and a
+				// provider can update it alone — e.g. when a running tool completes —
+				// without growing any message text or formatted markdown.
+				if msg.Tool.Summary != nil {
+					fp.contentBytes += len(*msg.Tool.Summary)
+				}
+				if msg.Tool.FormattedMarkdown != nil {
+					fp.contentBytes += len(*msg.Tool.FormattedMarkdown)
+				}
 			}
 		}
 	}

@@ -59,6 +59,18 @@ func TestFingerprintSession(t *testing.T) {
 		}
 	})
 
+	t.Run("tool summary change alone changes fingerprint", func(t *testing.T) {
+		// A provider can update just the summary — e.g. a running tool completing —
+		// without touching message text or formatted markdown.
+		running, done := "Running `go test`...", "Ran `go test` (ok)"
+		withSummary := func(s string) *spi.AgentChatSession {
+			return sessionWith(schema.Message{Role: "agent", Tool: &schema.ToolInfo{Name: "shell", Summary: &s}})
+		}
+		if fingerprintSession(withSummary(running)) == fingerprintSession(withSummary(done)) {
+			t.Error("expected fingerprint to change when tool summary changes")
+		}
+	})
+
 	t.Run("metadata-only differences keep fingerprint equal", func(t *testing.T) {
 		// Non-content fields (timestamps, models, usage) must not affect the
 		// fingerprint, or every UI metadata patch would defeat the dedup.

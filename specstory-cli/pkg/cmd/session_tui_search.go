@@ -166,42 +166,23 @@ func (m sessionTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cm
 // applySearchResults installs async FTS results into the matching list (scoped or global).
 func (m *sessionTUI) applySearchResults(kind tuiMode, sessions []sessionindex.Session) {
 	if kind == modeProjects {
+		// Local snippets are re-fetched lazily for visible rows; cloud snippets live separately in
+		// globalCloudSnippets and survive a local re-query.
 		m.globalSnippets = map[string]string{}
-		var out []sessionindex.Session
-		for _, s := range sessions {
-			if m.agentFilter == "" || s.Agent == m.agentFilter {
-				out = append(out, s)
-			}
-		}
-		m.globalResults = out
-		if m.globalCursor > len(m.globalResults)-1 {
-			m.globalCursor = len(m.globalResults) - 1
-		}
-		if m.globalCursor < 0 {
-			m.globalCursor = 0
-		}
+		// Hold the raw local hits separately from the cloud hits; rebuildGlobalResults merges them
+		// (dedup local-preferred, recency-sorted) and applies the agent + machine filters.
+		m.globalLocal = sessions
+		m.rebuildGlobalResults()
+		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
 		m.globalTop = 0
 		return
 	}
 
-	// Cache the raw results so a subsequent agent cycle re-filters them in memory (no re-query).
+	// Cache the raw local hits; refilterCurrentAgent merges in any cloud search hits (listCloud) and
+	// applies the agent + machine filters. Keeping cloud rows out of searchRaw lets this per-keystroke
+	// local result refresh without discarding them.
 	m.searchRaw = sessions
-	var out []sessionindex.Session
-	for _, s := range sessions {
-		if m.agentFilter == "" || s.Agent == m.agentFilter {
-			out = append(out, s)
-		}
-	}
-	m.filtered = out
-	m.filteredSnippets = map[string]string{}
-	if m.cursor > len(m.filtered)-1 {
-		m.cursor = len(m.filtered) - 1
-	}
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	m.top = 0
-	m.clampScroll()
+	m.refilterCurrentAgent()
 }
 
 func (m *sessionTUI) requestVisibleSnippets(kind tuiMode) tea.Cmd {

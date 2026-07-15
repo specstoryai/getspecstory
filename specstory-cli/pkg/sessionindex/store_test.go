@@ -459,3 +459,33 @@ func mustSoftDeleteSession(t *testing.T, s *Store, agent, sessionID string) {
 		t.Fatalf("SoftDeleteSession(%s, %s): %v", agent, sessionID, err)
 	}
 }
+
+// TestGetSessionByID_MostRecentLiveRowWins pins the cross-agent lookup's two rules: a
+// soft-deleted row never resolves, and if two agents ever share a session id (near-impossible
+// — providers mint UUIDs and reconstruction mints fresh ones), the most recently updated live
+// row wins.
+func TestGetSessionByID_MostRecentLiveRowWins(t *testing.T) {
+	s := openTemp(t)
+
+	older := newSession("claude", "dup-id", "proj-a", "older", "body one")
+	older.UpdatedAt = "2026-06-18T09:00:00Z"
+	newer := newSession("codex", "dup-id", "proj-b", "newer", "body two")
+	newer.UpdatedAt = "2026-06-18T11:00:00Z"
+	tombstoned := newSession("gemini", "gone-id", "proj-a", "deleted", "body three")
+	if err := s.UpsertBatch([]Session{older, newer, tombstoned}); err != nil {
+		t.Fatalf("UpsertBatch: %v", err)
+	}
+	mustSoftDeleteSession(t, s, "gemini", "gone-id")
+
+	got, ok, err := s.GetSessionByID("dup-id")
+	if err != nil || !ok {
+		t.Fatalf("GetSessionByID(dup-id) ok=%v err=%v; want a hit", ok, err)
+	}
+	if got.Agent != "codex" {
+		t.Errorf("agent = %q; want codex (most recent updated_at wins the collision)", got.Agent)
+	}
+
+	if _, ok, err := s.GetSessionByID("gone-id"); err != nil || ok {
+		t.Errorf("GetSessionByID(gone-id) ok=%v err=%v; want a miss (soft-deleted)", ok, err)
+	}
+}
