@@ -228,7 +228,7 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	// In only-cloud-sync mode: always sync (no file to check for identical content)
 	// In normal mode: skip sync only if identical content AND in autosave mode
 	if opts.OnlyCloudSync || !identicalContent || !opts.IsAutosave {
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionData.Provider.Name, opts.IsAutosave)
+		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.IsAutosave)
 	}
 
 	if opts.ShowOutput && !log.IsSilent() {

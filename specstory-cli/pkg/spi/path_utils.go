@@ -139,6 +139,41 @@ func GenerateReadableName(message string) string {
 	return truncated + "..."
 }
 
+// ReadableTitleFromSessionData derives the same human-readable title a local row shows — the first
+// user message run through GenerateReadableName (XML-stripped, whitespace-normalized, capped at 100
+// chars). Used at cloud-sync time so a cloud row can display a prompt title identical to its local
+// counterpart. Because it runs through GenerateReadableName, the stored value stays tiny even when
+// the first message is enormous (e.g. a pasted log dump). Empty when there is no user message.
+func ReadableTitleFromSessionData(data *schema.SessionData) string {
+	return GenerateReadableName(firstUserMessageText(data))
+}
+
+// firstUserMessageText returns the concatenated text content of the first user-role message in the
+// session — the prompt that opens the conversation. Skips a user message that carries no text (e.g.
+// a tool result) and moves to the next. Empty when none is found.
+func firstUserMessageText(data *schema.SessionData) string {
+	if data == nil {
+		return ""
+	}
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			if msg.Role != schema.RoleUser {
+				continue
+			}
+			var b strings.Builder
+			for _, part := range msg.Content {
+				if part.Type == "text" {
+					b.WriteString(part.Text)
+				}
+			}
+			if text := strings.TrimSpace(b.String()); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
 // appendRemainingParts appends the remaining path components from parts[startIdx:] to the
 // result path, skipping any empty components. This is used when we can't canonicalize the
 // rest of the path (e.g., directory doesn't exist or can't be read).

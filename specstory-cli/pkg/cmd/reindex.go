@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
@@ -43,7 +44,10 @@ const (
 	//      session's body and its freshness fingerprint now derive from the same file
 	//   6: populate sessions.fts_rowid (the O(1) link to each session's FTS row) — existing
 	//      rows have it NULL until re-parsed, so bump to repopulate the whole index once
-	reindexVersion = 6
+	//   7: recover Cursor session cwds (match their project-hash dir against other providers'
+	//      cwds) so Cursor sessions bucket under their real project instead of "unknown" —
+	//      existing Cursor rows stay "unknown" until re-parsed, so bump to re-bucket them
+	reindexVersion = 7
 )
 
 // CreateReindexCommand builds the `specstory reindex` command: a full, from-scratch
@@ -55,10 +59,7 @@ func CreateReindexCommand() *cobra.Command {
 		Short: "Rebuild the restore index of all known agent sessions",
 		Long: `Rebuild the restore index used by 'specstory resume'.
 
-'reindex' enumerates every session across all installed agents and projects and writes a
-searchable index to ~/.specstory/sessions.db. It is incremental: a session whose native
-file is unchanged since it was last indexed is skipped, so re-runs are fast. Use --force to
-re-index everything regardless. The index is a derived cache: it is safe to delete.`,
+'reindex' enumerates every session across all installed agents and projects and writes a searchable index to ~/.specstory/sessions.db. It is incremental: a session whose native file is unchanged since it was last indexed is skipped, so re-runs are fast. Use --force to re-index everything regardless. The index is a derived cache: it is safe to delete.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			force, _ := cmd.Flags().GetBool("force")
@@ -101,6 +102,7 @@ func runReindex(force bool) error {
 
 	// ---- Phase 1: enumerate every provider concurrently, then dedup ----
 	ids, provs, perProvider := enumerateAll(registry, true)
+	recoverCursorCwds(ids, perProvider, store) // resolve Cursor cwds (index + other providers)
 
 	// Existing fingerprints, so unchanged sessions can be skipped (the incremental path).
 	fingerprints := map[string]sessionindex.Fingerprint{}
@@ -194,6 +196,61 @@ func enumerateAll(registry *factory.Registry, visible bool) (ids []string, provs
 	}
 	ewg.Wait()
 	return ids, provs, perProvider
+}
+
+// cursorProviderID is the registry key for the Cursor provider (see factory.NewRegistry).
+const cursorProviderID = "cursor"
+
+// recoverCursorCwds fills in OriginCwd for Cursor sessions, which record no cwd of their own, by
+// matching each session's project-hash directory against known cwds. It runs right after
+// enumerateAll's barrier — so every non-Cursor cwd is already known — and before project resolution
+// and any upsert, which lets a Cursor session bucket under its real project instead of "unknown".
+// The cwd pool is two sources: (1) every cwd already in the index (KnownCwds), including those the
+// live path — run/watch/sync — recorded for Cursor itself, so reindex doesn't clobber a
+// live-captured cwd back to empty; and (2) every other provider's freshly-enumerated cwd. A Cursor
+// session in a project with no cwd in either pool stays unresolved. Mutates the Cursor refs in
+// perProvider in place.
+func recoverCursorCwds(ids []string, perProvider [][]spi.GlobalSessionRef, store *sessionindex.Store) {
+	seen := map[string]struct{}{}
+	var knownCwds []string
+	add := func(cwd string) {
+		if cwd == "" {
+			return
+		}
+		if _, dup := seen[cwd]; dup {
+			return // many sessions share a cwd; hash each distinct one once
+		}
+		seen[cwd] = struct{}{}
+		knownCwds = append(knownCwds, cwd)
+	}
+
+	// (1) cwds the index already knows — read before any upsert so a Cursor row's own live-captured
+	// cwd is still present to re-match.
+	if store != nil {
+		if dbCwds, err := store.KnownCwds(); err != nil {
+			slog.Debug("reindex: could not load known cwds for cursor recovery", "error", err)
+		} else {
+			for _, cwd := range dbCwds {
+				add(cwd)
+			}
+		}
+	}
+
+	// (2) every other provider's freshly-enumerated cwd.
+	cursorIdx := -1
+	for i, id := range ids {
+		if id == cursorProviderID {
+			cursorIdx = i
+			continue
+		}
+		for _, ref := range perProvider[i] {
+			add(ref.OriginCwd)
+		}
+	}
+	if cursorIdx < 0 {
+		return
+	}
+	cursorcli.RecoverOriginCwds(perProvider[cursorIdx], knownCwds)
 }
 
 // enumerateOne enumerates a single provider's sessions, preferring the progress-reporting path
@@ -389,6 +446,7 @@ func warmIndexInBackground(ctx context.Context, dbPath, currentProjectID string,
 
 	registry := factory.GetRegistry()
 	ids, provs, perProvider := enumerateAll(registry, false)
+	recoverCursorCwds(ids, perProvider, store) // resolve Cursor cwds (index + other providers)
 	if ctx.Err() != nil {
 		return
 	}
