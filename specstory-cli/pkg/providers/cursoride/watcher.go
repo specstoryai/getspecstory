@@ -193,7 +193,7 @@ func (w *CursorIDEWatcher) Start() error {
 // the worst case is that the first check re-emits existing sessions, which is the exact
 // behavior this seeding exists to avoid, not a correctness problem.
 func (w *CursorIDEWatcher) seedKnownComposers() {
-	composerIDs, err := LoadComposerIDsFromAllWorkspaces(w.workspaces)
+	composerIDs, err := FindProjectComposerIDs(w.globalDbPath, w.projectPath, w.workspaces)
 	if err != nil || len(composerIDs) == 0 {
 		return
 	}
@@ -447,15 +447,17 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 	w.lastCheck = time.Now()
 	w.mu.Unlock()
 
-	// Load composer IDs from all matching workspace databases
-	composerIDs, err := LoadComposerIDsFromAllWorkspaces(w.workspaces)
+	// Load the project's composer IDs from both association sources: workspace-DB
+	// references (older Cursor) and the workspaceIdentifier embedded in global
+	// composerData rows (the only live source in Cursor >= 3.12).
+	composerIDs, err := FindProjectComposerIDs(w.globalDbPath, w.projectPath, w.workspaces)
 	if err != nil {
-		slog.Error("Failed to load workspace composer IDs", "error", err)
+		slog.Error("Failed to load project composer IDs", "error", err)
 		return
 	}
 
 	if len(composerIDs) == 0 {
-		slog.Debug("No composers found in workspace")
+		slog.Debug("No composers found for project")
 		return
 	}
 

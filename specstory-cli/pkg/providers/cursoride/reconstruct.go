@@ -93,11 +93,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	// omitting them causes the session to be invisible in the UI even if the data is present.
 
 	composerMap := map[string]interface{}{
-		// Identity. _v pins the composer schema version this record claims (16, as
-		// observed in real Cursor 3.x databases). If a future Cursor bumps its schema
-		// it will either migrate this record on load or silently stop showing it —
-		// in the latter case this literal needs re-syncing against a current database.
-		"_v":         16,
+		// Identity. _v pins the composer schema version this record claims (17, as
+		// observed in sessions written by Cursor 3.12). If a future Cursor bumps its
+		// schema it will either migrate this record on load or silently stop showing
+		// it — in the latter case this literal needs re-syncing against a current
+		// database.
+		"_v":         17,
 		"composerId": newID,
 		"name":       spi.ResumedSessionTitle(data.Slug),
 		// Visibility-critical fields: Cursor hides sessions where these are absent or wrong.

@@ -12,6 +12,23 @@ type ComposerData struct {
 	ModelConfig                 *ModelConfig                 `json:"modelConfig,omitempty"`
 	CreatedAt                   int64                        `json:"createdAt"`
 	LastUpdatedAt               int64                        `json:"lastUpdatedAt,omitempty"`
+	WorkspaceIdentifier         *ComposerWorkspaceIdentifier `json:"workspaceIdentifier,omitempty"`
+}
+
+// ComposerWorkspaceIdentifier is the workspace association Cursor (>= 3.12) embeds in
+// each composerData row. It is the only LIVE project association in those versions:
+// the workspace-DB keys (composer.composerData, workbench.panel.*) are no longer
+// written per conversation, and the global composer.composerHeaders key is flushed
+// lazily — often not until Cursor exits — so neither can identify a session that was
+// just created.
+type ComposerWorkspaceIdentifier struct {
+	ID  string                `json:"id"`            // workspace storage directory hash
+	URI *ComposerWorkspaceURI `json:"uri,omitempty"` // folder the workspace was opened on
+}
+
+// ComposerWorkspaceURI carries the filesystem location of a workspaceIdentifier.
+type ComposerWorkspaceURI struct {
+	FsPath string `json:"fsPath,omitempty"`
 }
 
 // ComposerConversationHeader represents a conversation header (used when full conversation isn't loaded).
