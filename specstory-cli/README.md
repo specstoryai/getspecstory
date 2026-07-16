@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding coversations from terminal coding agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, etc.).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI) as well as the Cursor IDE.
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -23,14 +23,17 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 The following coding agents are supported in the SpecStory CLI:
 
-| Agent                                                     | Provider                                  | Data Format | Source Location         |
-|-----------------------------------------------------------|-------------------------------------------|-------------|-------------------------|
-| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)   | JSONL       | `~/.claude/projects/`   |
-| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)       | JSONL       | `~/.codex/sessions/`    |
-| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)     | SQLite      | `~/.cursor/chats/`      |
-| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`  |
-| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)     | JSON        | `~/.gemini/tmp/`        |
-| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/` |
+| Agent                                                     | Provider                                  | Data Format | Source Location              |
+|-----------------------------------------------------------|-------------------------------------------|-------------|------------------------------|
+| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)   | JSONL       | `~/.claude/projects/`        |
+| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)       | JSONL       | `~/.codex/sessions/`         |
+| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)     | SQLite      | `~/.cursor/chats/`           |
+| [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)     | SQLite      | `Cursor/User/globalStorage/` |
+| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`       |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)     | JSON        | `~/.gemini/tmp/`             |
+| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/`      |
+
+Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage.
 
 ### Agent Provider SPI (Service Provider Interface)
 
@@ -515,7 +518,7 @@ go list -m -u all
 
 ### Debug Raw Mode
 
-The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI).
+The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Cursor IDE, Codex CLI, Gemini CLI, Droid CLI).
 
 When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
 
@@ -552,10 +555,11 @@ Sync specific session with debug output:
     ├── 2.json      # Cursor CLI: based on rowid
     ├── 3.json
     └── ...
+    └── raw-composer.json # Cursor IDE: the full raw composer record for the session
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid.
+Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE, a single `raw-composer.json` file holds the complete composer record instead of numbered per-record files.
 
 **Example:**
 

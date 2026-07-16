@@ -272,7 +272,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	}
 	totalSessions := len(validSessionIDs)
 
-	// Collect sessions with progress reporting.  Use the already-resolved hashDir to
+	// Collect sessions with progress reporting. Use the already-resolved hashDir to
 	// avoid a redundant hash computation for every individual session.
 	var sessions []spi.AgentChatSession
 	for i, sessionID := range validSessionIDs {
@@ -300,7 +300,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	return p.readAgentChatSession(hashDir, projectPath, sessionID, debugRaw)
 }
 
-// readAgentChatSession reads a single session from a known hash directory.  It is the
+// readAgentChatSession reads a single session from a known hash directory. It is the
 // shared implementation used by both GetAgentChatSession and GetAgentChatSessions so
 // that the potentially-expensive workspace scan in GetProjectHashDir is only done once
 // per bulk operation rather than once per session.

@@ -13,24 +13,33 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
+// defaultCheckInterval is the safety-net polling interval used when the caller doesn't
+// specify one. File events normally trigger checks long before it elapses; the poll only
+// catches changes fsnotify missed.
+const defaultCheckInterval = 2 * time.Minute
+
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
-	projectPath       string
-	workspaces        []WorkspaceMatch // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
-	globalDbPath      string
-	debugRaw          bool
-	sessionCallback   func(*spi.AgentChatSession)
-	ctx               context.Context
-	cancel            context.CancelFunc
-	wg                sync.WaitGroup
-	callbackWg        sync.WaitGroup // Tracks in-flight sessionCallback goroutines
-	mu                sync.RWMutex
-	lastCheck         time.Time
-	knownComposers    map[string]int64 // composerID -> lastUpdatedAt
-	checkInterval     time.Duration    // How often to check DB if no file events (default: 2 minutes)
-	throttleDuration  time.Duration    // Minimum time between checks (default: 10 seconds)
-	lastThrottledCall time.Time        // Track last throttled call
-	pendingCheck      bool             // Whether a check is pending after throttle
+	projectPath     string
+	workspaces      []WorkspaceMatch // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
+	globalDbPath    string
+	debugRaw        bool
+	sessionCallback func(*spi.AgentChatSession)
+	ctx             context.Context
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup
+	callbackWg      sync.WaitGroup // Tracks in-flight sessionCallback goroutines
+	mu              sync.RWMutex
+	lastCheck       time.Time
+	// knownComposers is the per-composer change watermark (composerID -> lastUpdatedAt).
+	// Seeded in Start() with the sessions that already exist so startup doesn't re-emit
+	// every historical session; only timestamps that advance past the seeded (or last
+	// processed) value trigger the callback.
+	knownComposers    map[string]int64
+	checkInterval     time.Duration // How often to check DB if no file events (default: 2 minutes)
+	throttleDuration  time.Duration // Minimum time between checks (default: 10 seconds)
+	lastThrottledCall time.Time     // Track last throttled call
+	pendingCheck      bool          // Whether a check is pending after throttle
 	fsWatcher         *fsnotify.Watcher
 	// watchedDBPaths lists the database paths whose parent directories are being
 	// watched, so handleFileEvents can filter directory events down to the db files
@@ -90,7 +99,7 @@ func NewCursorIDEWatcher(
 
 	// Set default check interval if not provided
 	if checkInterval == 0 {
-		checkInterval = 2 * time.Minute
+		checkInterval = defaultCheckInterval
 	}
 
 	return &CursorIDEWatcher{
@@ -140,6 +149,12 @@ func (w *CursorIDEWatcher) Start() error {
 		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
 	}
 
+	// Seed knownComposers with the sessions that already exist so startup doesn't
+	// re-emit every historical session — matching the other providers' watchers
+	// (e.g. Cursor CLI's SetInitialState). Sessions updated after this point still
+	// process because their lastUpdatedAt advances past the seeded watermark.
+	w.seedKnownComposers()
+
 	// Set up file watching on all matching workspace databases
 	for _, ws := range w.workspaces {
 		if err := w.watchDatabaseFiles(ws.DBPath); err != nil {
@@ -172,6 +187,40 @@ func (w *CursorIDEWatcher) Start() error {
 	return nil
 }
 
+// seedKnownComposers records the current lastUpdatedAt of every composer already in the
+// project's workspaces, without firing callbacks. Uses the lightweight loader (composer
+// rows only, no bubbles) since only the timestamps are needed. Failures are non-fatal:
+// the worst case is that the first check re-emits existing sessions, which is the exact
+// behavior this seeding exists to avoid, not a correctness problem.
+func (w *CursorIDEWatcher) seedKnownComposers() {
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(w.workspaces)
+	if err != nil || len(composerIDs) == 0 {
+		return
+	}
+	composers, err := LoadAllComposerDataLightweight(w.globalDbPath)
+	if err != nil {
+		slog.Warn("Failed to seed existing sessions; first check may re-emit them", "error", err)
+		return
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	seeded := 0
+	for _, composerID := range composerIDs {
+		composer, exists := composers[composerID]
+		if !exists {
+			continue
+		}
+		timestamp := composer.LastUpdatedAt
+		if timestamp == 0 {
+			timestamp = composer.CreatedAt
+		}
+		w.knownComposers[composerID] = timestamp
+		seeded++
+	}
+	slog.Debug("Seeded existing sessions as known", "count", seeded)
+}
+
 // Stop gracefully stops the watcher
 func (w *CursorIDEWatcher) Stop() {
 	slog.Info("Stopping Cursor IDE watcher")
@@ -193,8 +242,13 @@ func (w *CursorIDEWatcher) Stop() {
 		}
 	}
 
-	// Cancel context and wait for goroutines
+	// Cancel under w.mu, then wait. Every check-spawning wg.Add happens under this
+	// lock (triggerCheck/executePendingCheck), so once cancel lands no trigger can
+	// pass the ctx check and Add after Wait has started — Add-concurrent-with-Wait
+	// on a drained WaitGroup is a documented misuse.
+	w.mu.Lock()
 	w.cancel()
+	w.mu.Unlock()
 	w.wg.Wait()
 
 	// Wait for any pending callback goroutines to complete
@@ -294,6 +348,13 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	// Shutdown guard: Stop() cancels the context under this same lock, so a trigger
+	// arriving after cancellation must not wg.Add (Stop may already be in wg.Wait).
+	// This covers the throttle branch below; runCheckAsync re-checks for its own path.
+	if w.ctx.Err() != nil {
+		return
+	}
+
 	now := time.Now()
 	timeSinceLastCall := now.Sub(w.lastThrottledCall)
 
@@ -332,6 +393,8 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 // runCheckAsync runs checkForChanges in a new goroutine tracked by w.wg, so Stop()'s
 // w.wg.Wait() actually waits for it instead of returning while it's still running.
 // It's a no-op if the watcher's context is already cancelled.
+// Must be called with w.mu held: Stop() cancels the context under the same lock, which
+// is what makes the ctx check and wg.Add here atomic with respect to shutdown.
 func (w *CursorIDEWatcher) runCheckAsync(trigger string) {
 	if w.ctx.Err() != nil {
 		return
@@ -450,7 +513,9 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 			// re-process this session once all bubbles are available.
 			if len(composer.FullConversationHeadersOnly) > 0 &&
 				len(composer.Conversation) < len(composer.FullConversationHeadersOnly) {
-				slog.Warn("Incomplete composer data (bubble records not yet committed), will retry on next check",
+				// Debug, not Warn: this is expected, transient state while Cursor is
+				// mid-write, and it fires routinely during normal streaming.
+				slog.Debug("Incomplete composer data (bubble records not yet committed), will retry on next check",
 					"composerID", composerID,
 					"expectedBubbles", len(composer.FullConversationHeadersOnly),
 					"loadedBubbles", len(composer.Conversation))
@@ -478,14 +543,16 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 					if !alreadyPending {
 						w.pendingIncomplete[composerID] = time.Now()
 						w.mu.Unlock()
-						slog.Warn("Last bubble is a user message (agent not yet responded), will retry on next check",
+						// Debug, not Warn: waiting for the agent reply is the normal
+						// state while the user's request is in flight.
+						slog.Debug("Last bubble is a user message (agent not yet responded), will retry on next check",
 							"composerID", composerID,
 							"lastBubbleID", lastBubble.BubbleID)
 						continue
 					}
 					if time.Since(firstSeen) < w.incompleteTimeout {
 						w.mu.Unlock()
-						slog.Warn("Still waiting for agent response, will retry on next check",
+						slog.Debug("Still waiting for agent response, will retry on next check",
 							"composerID", composerID,
 							"waited", time.Since(firstSeen))
 						continue

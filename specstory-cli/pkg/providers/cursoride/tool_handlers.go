@@ -71,11 +71,6 @@ func NewToolRegistry() *ToolRegistry {
 	applyPatchHandler := &ApplyPatchHandler{}
 	registry.Register("apply_patch", applyPatchHandler)
 
-	// Register copilot handlers
-	copilotApplyPatchHandler := &CopilotApplyPatchHandler{}
-	registry.Register("copilot_applyPatch", copilotApplyPatchHandler)
-	registry.Register("copilot_insertEdit", copilotApplyPatchHandler)
-
 	// Register shell/terminal command handlers
 	shellCommandHandler := &ShellCommandHandler{}
 	registry.Register("run_terminal_cmd", shellCommandHandler)

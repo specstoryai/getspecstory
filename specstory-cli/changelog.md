@@ -1,5 +1,9 @@
 # Specstory CLI Changelog
 
+## v2.3.0 2026-07-16
+
+- The SpecStory CLI now supports the [Cursor IDE](https://cursor.com/product) (i.e. `cursoride`) for sessions created from Cursor version 3 or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), [Gemini CLI](https://github.com/google-gemini/gemini-cli), Factory's [Droid CLI](https://factory.ai/product/cli), and [DeepSeek TUI](https://github.com/Hmbown/CodeWhale)
+
 ## v2.2.0 2026-07-14
 
 ### 📢 Announcements

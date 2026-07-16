@@ -3,6 +3,7 @@ package cursoride
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -82,27 +83,23 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (summary string, 
 	var resultsLength int
 	var messageDetails string
 
-	if result.Success != nil && result.Success.WorkspaceResults != nil {
-		// Get the first (and typically only) workspace result
-		for _, workspaceResult := range result.Success.WorkspaceResults {
-			if workspaceResult.Content != nil {
-				// Content mode: show matches in a table
-				resultsLength = workspaceResult.Content.TotalMatchedLines
-				if resultsLength == 0 {
-					messageDetails = "\n_No matches found_"
-				} else {
-					messageDetails = h.formatContentResults(workspaceResult.Content)
-				}
-			} else if workspaceResult.Files != nil {
-				// Files mode: show file names in a table
-				resultsLength = workspaceResult.Files.TotalFiles
-				if resultsLength == 0 {
-					messageDetails = "\n_No matches found_"
-				} else {
-					messageDetails = h.formatFilesResults(workspaceResult.Files)
-				}
+	if workspaceResult := firstWorkspaceResult(result.Success); workspaceResult != nil {
+		if workspaceResult.Content != nil {
+			// Content mode: show matches in a table
+			resultsLength = workspaceResult.Content.TotalMatchedLines
+			if resultsLength == 0 {
+				messageDetails = "\n_No matches found_"
+			} else {
+				messageDetails = h.formatContentResults(workspaceResult.Content)
 			}
-			break // Only process the first workspace
+		} else if workspaceResult.Files != nil {
+			// Files mode: show file names in a table
+			resultsLength = workspaceResult.Files.TotalFiles
+			if resultsLength == 0 {
+				messageDetails = "\n_No matches found_"
+			} else {
+				messageDetails = h.formatFilesResults(workspaceResult.Files)
+			}
 		}
 	} else {
 		messageDetails = "\n_No matches found_"
@@ -133,6 +130,22 @@ func (h *GrepHandler) AdaptMessage(bubble *BubbleConversation) (summary string, 
 	fmt.Fprintf(&message, "\n%s\n", messageDetails)
 
 	return summary, message.String(), nil
+}
+
+// firstWorkspaceResult picks the single workspace result to render. Only one workspace's
+// results are shown (multi-root workspaces are rare), and taking the lexicographically
+// smallest key keeps the choice deterministic — Go randomizes map iteration order, so
+// ranging over the map would render a different workspace on different runs.
+func firstWorkspaceResult(success *GrepSuccess) *GrepWorkspaceResult {
+	if success == nil || len(success.WorkspaceResults) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(success.WorkspaceResults))
+	for key := range success.WorkspaceResults {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return success.WorkspaceResults[keys[0]]
 }
 
 // formatContentResults formats content matches as a markdown table

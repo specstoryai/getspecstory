@@ -93,7 +93,10 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	// omitting them causes the session to be invisible in the UI even if the data is present.
 
 	composerMap := map[string]interface{}{
-		// Identity
+		// Identity. _v pins the composer schema version this record claims (16, as
+		// observed in real Cursor 3.x databases). If a future Cursor bumps its schema
+		// it will either migrate this record on load or silently stop showing it —
+		// in the latter case this literal needs re-syncing against a current database.
 		"_v":         16,
 		"composerId": newID,
 		"name":       spi.ResumedSessionTitle(data.Slug),
@@ -170,11 +173,14 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		"isContinuationInProgress":      false,
 		"stopHookLoopCount":             0,
 		"trackedGitRepos":               []interface{}{},
-		"isNAL":                         true,
-		"agentBackend":                  "cursor-agent",
-		"planModeSuggestionUsed":        false,
-		"debugModeSuggestionUsed":       false,
-		"queueItems":                    []interface{}{},
+		// isNAL and agentBackend mirror what Cursor 3 writes for its own new agent
+		// sessions (values observed in real state.vscdb records); Cursor's loader
+		// expects them on agent-mode composers.
+		"isNAL":                   true,
+		"agentBackend":            "cursor-agent",
+		"planModeSuggestionUsed":  false,
+		"debugModeSuggestionUsed": false,
+		"queueItems":              []interface{}{},
 	}
 	composerJSON, err := json.Marshal(composerMap)
 	if err != nil {

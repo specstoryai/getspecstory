@@ -76,8 +76,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	})
 
 	return spi.CheckResult{
-		Success:      true,
-		Version:      "Cursor IDE",
+		Success: true,
+		// Cursor IDE's version isn't discoverable from its database, so no version
+		// is reported rather than a placeholder that isn't actually a version.
+		Version:      "",
 		Location:     globalDbPath,
 		ErrorMessage: "",
 	}
@@ -134,14 +136,46 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return true
 }
 
+// loadComposersForWorkspaces loads the full composer records referenced by the given
+// workspaces from the global database. It is the shared preamble of the bulk session
+// readers (GetAgentChatSessions, ListAgentChatSessions), which differ only in how they
+// treat a missing workspace and what they convert the composers into. Returns an empty
+// map (not an error) when the workspaces reference no composers.
+func loadComposersForWorkspaces(workspaces []WorkspaceMatch) (map[string]*ComposerData, error) {
+	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer IDs from workspaces: %w", err)
+	}
+
+	slog.Debug("Loaded composer IDs from workspaces", "count", len(composerIDs))
+
+	if len(composerIDs) == 0 {
+		slog.Debug("No composers found in any matching workspace")
+		return map[string]*ComposerData{}, nil
+	}
+
+	globalDbPath, err := GetGlobalDatabasePath()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get global database path: %w", err)
+	}
+
+	composers, err := LoadComposerDataBatch(globalDbPath, composerIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load composer data: %w", err)
+	}
+
+	slog.Debug("Loaded composers from global database", "count", len(composers))
+	return composers, nil
+}
+
 // GetAgentChatSessions retrieves all chat sessions for the given project path
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	slog.Info("GetAgentChatSessions: Loading Cursor IDE sessions",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
-	// Step 1: Find all workspaces matching the project path (a project can match more
-	// than one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	// Find all workspaces matching the project path (a project can match more than
+	// one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
 	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find workspace for project: %w", err)
@@ -151,45 +185,34 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		"workspaceCount", len(workspaces),
 		"projectPath", projectPath)
 
-	// Step 2: Load composer IDs from all matching workspace databases
-	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
+	composers, err := loadComposersForWorkspaces(workspaces)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load composer IDs from workspaces: %w", err)
+		return nil, err
 	}
-
-	slog.Info("Loaded composer IDs from workspaces",
-		"count", len(composerIDs))
-
-	if len(composerIDs) == 0 {
-		slog.Info("No composers found in any matching workspace")
+	if len(composers) == 0 {
 		return []spi.AgentChatSession{}, nil
 	}
 
-	// Step 3: Get global database path
-	globalDbPath, err := GetGlobalDatabasePath()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get global database path: %w", err)
-	}
-
-	// Step 4: Load composer data from global database
-	composers, err := LoadComposerDataBatch(globalDbPath, composerIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load composer data: %w", err)
-	}
-
-	slog.Debug("Loaded composers from global database",
-		"count", len(composers))
-
-	// Step 5: Convert to AgentChatSessions
+	// Convert to AgentChatSessions
 	sessions := make([]spi.AgentChatSession, 0, len(composers))
 	processedCount := 0
 	totalCount := len(composers)
+
+	// Progress counts every composer examined — including skipped/failed ones — so
+	// the progress bar always reaches totalCount instead of stalling short of it.
+	reportProgress := func() {
+		processedCount++
+		if progress != nil {
+			progress(processedCount, totalCount)
+		}
+	}
 
 	for composerID, composer := range composers {
 		// Skip empty conversations
 		if len(composer.Conversation) == 0 {
 			slog.Debug("Skipping composer with no conversation",
 				"composerID", composerID)
+			reportProgress()
 			continue
 		}
 
@@ -198,6 +221,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 			slog.Warn("Failed to convert composer to session",
 				"composerID", composerID,
 				"error", err)
+			reportProgress()
 			continue
 		}
 
@@ -212,12 +236,7 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		}
 
 		sessions = append(sessions, *session)
-
-		// Report progress
-		processedCount++
-		if progress != nil {
-			progress(processedCount, totalCount)
-		}
+		reportProgress()
 	}
 
 	slog.Info("Converted sessions",
@@ -227,7 +246,10 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	return sessions, nil
 }
 
-// GetAgentChatSession retrieves a single chat session by ID for the given project path
+// GetAgentChatSession retrieves a single chat session by ID for the given project path.
+// It deliberately doesn't share loadComposersForWorkspaces with the bulk readers: after
+// the membership check it loads only the one requested composer (and its bubbles), not
+// every composer in the project.
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	slog.Debug("GetAgentChatSession: Loading single session",
 		"projectPath", projectPath,
@@ -324,8 +346,8 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	slog.Debug("ListAgentChatSessions: Loading Cursor IDE session list",
 		"projectPath", projectPath)
 
-	// Step 1: Find all workspaces matching the project path (a project can match more
-	// than one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
+	// Find all workspaces matching the project path (a project can match more than
+	// one workspace entry — e.g. opened via .code-workspace, over SSH, or from WSL).
 	workspaces, err := FindAllWorkspacesForProject(projectPath)
 	if err != nil {
 		slog.Debug("No workspace found for project", "error", err)
@@ -336,34 +358,15 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		"workspaceCount", len(workspaces),
 		"projectPath", projectPath)
 
-	// Step 2: Load composer IDs from all matching workspace databases
-	composerIDs, err := LoadComposerIDsFromAllWorkspaces(workspaces)
+	composers, err := loadComposersForWorkspaces(workspaces)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load composer IDs from workspaces: %w", err)
+		return nil, err
 	}
-
-	slog.Debug("Loaded composer IDs from workspaces", "count", len(composerIDs))
-
-	if len(composerIDs) == 0 {
-		slog.Debug("No composers found in any matching workspace")
+	if len(composers) == 0 {
 		return []spi.SessionMetadata{}, nil
 	}
 
-	// Step 3: Get global database path
-	globalDbPath, err := GetGlobalDatabasePath()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get global database path: %w", err)
-	}
-
-	// Step 4: Load composer data from global database
-	composers, err := LoadComposerDataBatch(globalDbPath, composerIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load composer data: %w", err)
-	}
-
-	slog.Debug("Loaded composers from global database", "count", len(composers))
-
-	// Step 5: Extract metadata for each composer
+	// Extract metadata for each composer
 	metadataList := make([]spi.SessionMetadata, 0, len(composers))
 	for composerID, composer := range composers {
 		// Skip empty conversations
@@ -426,9 +429,11 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 			continue
 		}
 
+		// Local time, not UTC, so the same session gets an identical CreatedAt string
+		// here and in extractCursorIDESessionMetadata/ConvertToAgentChatSession.
 		var createdAt string
 		if composer.CreatedAt > 0 {
-			t := time.Unix(composer.CreatedAt/1000, (composer.CreatedAt%1000)*1000000).UTC()
+			t := time.Unix(composer.CreatedAt/1000, (composer.CreatedAt%1000)*1000000)
 			createdAt = t.Format(time.RFC3339)
 		}
 
@@ -470,7 +475,7 @@ func openCursorIDE(projectPath string) error {
 	if len(args) == 0 {
 		return fmt.Errorf("no known way to open Cursor IDE on this platform")
 	}
-	cmd := execCommand(args[0], args[1:]...)
+	cmd := exec.Command(args[0], args[1:]...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("%w: %s", err, string(out))
 	}
@@ -488,22 +493,14 @@ func cursorOpenArgs(projectPath string) []string {
 	}
 }
 
-// execCommand is a thin wrapper around exec.Command to allow test patching if needed.
-var execCommand = func(name string, args ...string) *exec.Cmd {
-	return exec.Command(name, args...)
-}
-
 // WatchAgent watches for Cursor IDE activity and calls the callback with AgentChatSession
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("WatchAgent: Starting Cursor IDE activity monitoring",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
-	// Check interval for polling the database
-	checkInterval := 2 * time.Minute
-
 	// Create and start watcher
-	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, checkInterval)
+	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, defaultCheckInterval)
 	if err != nil {
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
@@ -574,20 +571,15 @@ func extractCursorIDESessionMetadata(composer *ComposerData) spi.SessionMetadata
 	}
 }
 
-// generateCursorIDESessionName creates a human-readable session name from composer data
+// generateCursorIDESessionName creates a human-readable session name from composer data,
+// taking the first candidate text (composer name, then first user message) that survives
+// the readable-name transform. Falls back to empty (shouldn't happen with non-empty
+// conversations).
 func generateCursorIDESessionName(composer *ComposerData) string {
-	// Prefer composer name if available (it's already human-readable)
-	if composer.Name != "" {
-		return spi.GenerateReadableName(composer.Name)
-	}
-
-	// Otherwise, use first user message
-	for _, bubble := range composer.Conversation {
-		if bubble.Type == 1 && bubble.Text != "" {
-			return spi.GenerateReadableName(bubble.Text)
+	for _, text := range composerNameCandidates(composer) {
+		if name := spi.GenerateReadableName(text); name != "" {
+			return name
 		}
 	}
-
-	// Fallback to empty string (shouldn't happen with non-empty conversations)
 	return ""
 }

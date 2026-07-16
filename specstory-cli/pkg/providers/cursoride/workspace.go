@@ -637,15 +637,17 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 
 	hostLower := strings.ToLower(decodedHost)
 
-	// Check if it's a supported remote type
-	if !strings.HasPrefix(hostLower, "wsl+") &&
-		!strings.EqualFold(decodedHost, "wsl") &&
-		!strings.HasPrefix(hostLower, "ssh-remote+") &&
-		!strings.EqualFold(decodedHost, "ssh-remote") &&
-		!strings.HasPrefix(hostLower, "tunnel+") &&
-		!strings.EqualFold(decodedHost, "tunnel") &&
-		!strings.HasPrefix(hostLower, "dev-container+") &&
-		!strings.EqualFold(decodedHost, "dev-container") {
+	// Check if it's a supported remote type: each host is either bare ("wsl") or
+	// carries a "+{config}" suffix ("wsl+ubuntu", "ssh-remote+{config-hex}").
+	supportedHosts := []string{"wsl", "ssh-remote", "tunnel", "dev-container"}
+	supported := false
+	for _, host := range supportedHosts {
+		if hostLower == host || strings.HasPrefix(hostLower, host+"+") {
+			supported = true
+			break
+		}
+	}
+	if !supported {
 		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
 	}
 
