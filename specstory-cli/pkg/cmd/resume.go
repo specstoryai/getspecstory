@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -9,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -20,8 +22,10 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -45,6 +49,19 @@ type resumePlan struct {
 	fromCwd string
 	to      spi.Provider
 	toID    string
+
+	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
+	// local index. It has no local native file, so resume always fetches its SessionData from the
+	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
+	// from (the source session's project_id).
+	fromCloud bool
+	projectID string
+
+	// via records how the session was chosen, so EventResumeActivated can attribute the resume to
+	// its entry point: "picker" (the `resume` TUI), "search" (the `search` TUI's `r` action), or
+	// "session_uri" (`resume --session <uri>`, the web-copy funnel). Empty for older callers reads
+	// as "picker" at the analytics site.
+	via string
 }
 
 // agentChoice pairs a registry ID with its provider.
@@ -60,17 +77,17 @@ type agentChoice struct {
 func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
 	longDesc := `Resume a past coding-agent session — in the same agent, or a different one.
 
-'resume' opens an interactive picker of the sessions in the current project across all
-agents. Pick one, choose which installed agent to continue it in, and go. Resuming into a
-different agent reconstructs the conversation into that agent's native format first.
+'resume' opens an interactive picker of the sessions in the current project across all agents. Press tab to switch projects. Pick a session, then choose which installed agent to continue it in, and go. Resuming into a different agent reconstructs the conversation into that agent's native format first.
 
-Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
-then skips the target-selection step and resumes straight into that agent. The agent must be
-a known, installed provider, or the command errors.`
+Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker then skips the target-selection step and resumes straight into that agent. The agent must be a known, installed provider, or the command errors.
+
+Pass --session <uri> to resume a specific session without first browsing: a specstory:// URI, a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
+
+Resuming SpecStory Cloud sessions (from your other machines) requires an active SpecStory Cloud login + SpecStory Pro.`
 
 	resumeCmd := &cobra.Command{
 		Use:   "resume [agent]",
-		Short: "Resume a past session, optionally in a different agent",
+		Short: "Resume a past session, optionally in a different project or agent",
 		Long:  longDesc,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -117,7 +134,29 @@ a known, installed provider, or the command errors.`
 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
 			}
 
-			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)
+			// --session <uri>: direct session addressing. The URI resolves to the same session
+			// identity the picker would produce. With a preset agent the resume is fully
+			// non-interactive (no TUI); without one the resolved session is pinned and the shared
+			// picker tail below opens the TUI at the target-selection step.
+			var pinned *sessionindex.Session
+			sessionArg, _ := cmd.Flags().GetString("session")
+			if sessionArg != "" {
+				resolved, rerr := resolveSessionURI(sessionArg, store, agentIDByNameFromRegistry(registry))
+				if rerr != nil {
+					return rerr
+				}
+				if presetTarget != "" {
+					// `resume <agent> --session <uri>`: build the plan directly and launch — no TUI.
+					plan, perr := resumePlanFromSession(registry, store, resolved, presetTarget)
+					if perr != nil {
+						return perr
+					}
+					return launchResume(plan, cwd, launchOpts)
+				}
+				pinned = resolved
+			}
+
+			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, pinned)
 			if err != nil {
 				return err
 			}
@@ -131,6 +170,9 @@ a known, installed provider, or the command errors.`
 	}
 
 	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
+	// --session is registered on `resume` only — deliberately NOT in registerResumeLaunchFlags,
+	// so `search` is untouched.
+	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
 	return resumeCmd
 }
 
@@ -221,10 +263,16 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	}
 
 	analytics.SetAgentProviders([]string{plan.to.Name()})
+	via := plan.via
+	if via == "" {
+		via = "picker"
+	}
 	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
 		"from_provider": plan.fromID,
 		"to_provider":   plan.toID,
 		"cross_agent":   plan.fromID != plan.toID,
+		"via":           via,
+		"from_cloud":    plan.fromCloud,
 	})
 
 	resumeSessionID, err := prepareResumeTarget(plan, cwd, os.Stdout)
@@ -285,6 +333,13 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 // Same-agent resume reuses the existing session; cross-agent reconstructs the
 // source SessionData into the target's native store and returns the fresh ID.
 func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, error) {
+	// Cloud-sourced session: there is no local native file to resume in place, so always fetch its
+	// SessionData from the cloud and reconstruct into the target — even when source and target agent
+	// are the same.
+	if plan.fromCloud {
+		return prepareCloudResumeTarget(plan, cwd, out)
+	}
+
 	// Same agent: native resume on the existing session, no transform.
 	if plan.fromID == plan.toID {
 		fprintf(out, "\nResuming %s session %s in place...\n", plan.from.Name(), shortID(plan.sessionID))
@@ -298,6 +353,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 			"from_agent": plan.fromID,
 			"to_agent":   plan.toID,
 			"outcome":    outcome,
+			"source":     "local",
 		})
 	}
 	slog.Info("resume: reconstructing cross-agent session",
@@ -321,10 +377,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 
 	note := fmt.Sprintf("Resumed from a %s session via SpecStory.", plan.from.Name())
-	rec, err := plan.to.ReconstructSession(fromSession.SessionData, spi.ReconstructOptions{
-		WorkspaceRoot: cwd,
-		MigrationNote: note,
-	})
+	rec, err := materializeReconstructed(plan, cwd, fromSession.SessionData, note)
 	if err != nil {
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
@@ -336,26 +389,123 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 		track("error")
 		return "", fmt.Errorf("failed to reconstruct session for %s: %w", plan.to.Name(), err)
 	}
+	track("success")
+	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
+	return rec.SessionID, nil
+}
+
+// prepareCloudResumeTarget resumes a session that lives only in SpecStory Cloud: fetch its
+// SessionData, refuse a schema newer than this CLI understands, then reconstruct into the target
+// agent's native store (always — there is no local file to resume in place). Returns the fresh
+// native session ID, just like the cross-agent path.
+func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, error) {
+	track := func(outcome string) {
+		analytics.TrackEvent(analytics.EventResumeReconstructed, analytics.Properties{
+			"from_agent": plan.fromID,
+			"to_agent":   plan.toID,
+			"outcome":    outcome,
+			"source":     "cloud",
+		})
+	}
+
+	fprintf(out, "\nFetching %s session %s from SpecStory Cloud...\n", plan.from.Name(), shortID(plan.sessionID))
+	raw, err := cloud.FetchSessionData(plan.projectID, plan.sessionID)
+	if err != nil {
+		track("error")
+		return "", fmt.Errorf("failed to fetch session from cloud: %w", err)
+	}
+
+	var data schema.SessionData
+	if err := json.Unmarshal(raw, &data); err != nil {
+		track("error")
+		return "", fmt.Errorf("failed to parse cloud session data: %w", err)
+	}
+
+	// Refuse a blob produced by a newer CLI schema than this build understands — reconstructing it
+	// could silently drop or mangle fields this version doesn't know about.
+	if schemaVersionNewer(data.SchemaVersion, schema.CurrentSchemaVersion) {
+		track("schema_too_new")
+		return "", utils.ValidationError{Message: "Resuming this session requires an updated SpecStory CLI."}
+	}
+
+	note := fmt.Sprintf("Resumed from a %s session on another machine via SpecStory.", plan.from.Name())
+	rec, err := materializeReconstructed(plan, cwd, &data, note)
+	if err != nil {
+		if errors.Is(err, spi.ErrReconstructionUnsupported) {
+			track("unsupported")
+			return "", utils.ValidationError{Message: fmt.Sprintf(
+				"%s can't yet be a resume target. Choose Claude Code or Codex CLI.", plan.to.Name())}
+		}
+		slog.Warn("resume: cloud reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
+		track("error")
+		return "", fmt.Errorf("failed to reconstruct cloud session for %s: %w", plan.to.Name(), err)
+	}
+	track("success")
+	fprintf(out, "Reconstructed cloud %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
+	return rec.SessionID, nil
+}
+
+// materializeReconstructed reconstructs data into plan.to's native store under cwd, durably writes
+// the native file, and waits for it to become readable, returning the fresh session. Shared by the
+// cross-agent and cloud resume paths (both reconstruct from a SessionData already in hand). A
+// spi.ErrReconstructionUnsupported from the provider is returned unwrapped so callers can detect it.
+func materializeReconstructed(plan *resumePlan, cwd string, data *schema.SessionData, note string) (*spi.ReconstructedSession, error) {
+	rec, err := plan.to.ReconstructSession(data, spi.ReconstructOptions{
+		WorkspaceRoot: cwd,
+		MigrationNote: note,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	path, err := plan.to.NativeSessionPath(cwd, rec.Filename)
 	if err != nil {
-		return "", fmt.Errorf("failed to resolve target session path: %w", err)
+		return nil, fmt.Errorf("failed to resolve target session path: %w", err)
 	}
 	if err := writeReconstructedSession(path, rec.Content); err != nil {
-		return "", err
+		return nil, err
 	}
 	// The agent runs in a separate process and resolves the session by reading this file the
 	// instant it starts. On a filesystem without strong close-to-open coherence the freshly
 	// written file can lag, so confirm it is actually readable before handing the agent a
 	// --resume it would otherwise reject as "session not found".
 	if err := waitForSessionFileVisible(path, sessionFileVisibleTimeout); err != nil {
-		return "", fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
+		return nil, fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
 	}
 
 	slog.Info("resume: wrote reconstructed session", "path", path, "newID", rec.SessionID)
-	track("success")
-	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	return rec.SessionID, nil
+	return rec, nil
+}
+
+// schemaVersionNewer reports whether SessionData version v is newer than this CLI's supported
+// version (dotted numeric, e.g. "1.0" vs "1.1"). Unparseable components compare as 0, so a
+// malformed version is treated as not-newer and allowed through rather than blocking resume.
+func schemaVersionNewer(v, current string) bool {
+	return compareSchemaVersion(v, current) > 0
+}
+
+func compareSchemaVersion(a, b string) int {
+	as, bs := strings.Split(a, "."), strings.Split(b, ".")
+	n := len(as)
+	if len(bs) > n {
+		n = len(bs)
+	}
+	for i := 0; i < n; i++ {
+		av, bv := 0, 0
+		if i < len(as) {
+			av, _ = strconv.Atoi(strings.TrimSpace(as[i]))
+		}
+		if i < len(bs) {
+			bv, _ = strconv.Atoi(strings.TrimSpace(bs[i]))
+		}
+		if av != bv {
+			if av > bv {
+				return 1
+			}
+			return -1
+		}
+	}
+	return 0
 }
 
 // shortID abbreviates a session ID for display.

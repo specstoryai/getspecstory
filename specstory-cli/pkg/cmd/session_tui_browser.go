@@ -74,16 +74,19 @@ func startIndexWarm(p *tea.Program, projectID string, builtFresh bool) context.C
 // selectResumeViaTUI runs the picker for the current project and returns the chosen
 // resume plan (or nil if the user cancelled). On a successful selection it persists the
 // view-mode and target-agent preferences to the user config.
-func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool) (*resumePlan, error) {
+func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool, pinned *sessionindex.Session) (*resumePlan, error) {
 	sessions, err := store.ListByProject(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("loading sessions: %w", err)
 	}
 	// An empty current project is fine — the picker opens in the all-projects browser.
-	// Only bail when the whole index is empty (nothing to resume anywhere).
-	if total, _ := store.Count(); total == 0 {
-		fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
-		return nil, nil
+	// Only bail when the whole index is empty (nothing to resume anywhere). A pinned session
+	// (--session) is itself something to resume, so skip the bail even on an empty index.
+	if pinned == nil {
+		if total, _ := store.Count(); total == 0 {
+			fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
+			return nil, nil
+		}
 	}
 
 	agents := map[string]agentMeta{}
@@ -129,10 +132,11 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 	}
 
 	model := newSessionTUI(store, registry, projectID, projectName, sessions, agents, installed, sessionTUIOpts{
-		title:     "SpecStory Resume",
-		presetTo:  presetTo,
-		lastAgent: lastAgent,
-		viewMode:  viewMode,
+		title:         "SpecStory Resume",
+		presetTo:      presetTo,
+		lastAgent:     lastAgent,
+		viewMode:      viewMode,
+		pinnedSession: pinned,
 	})
 	p := tea.NewProgram(model)
 	cancelWarm := startIndexWarm(p, projectID, builtFresh)
@@ -163,14 +167,84 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 		slog.Debug("resume: could not save prefs", "error", err)
 	}
 
+	fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
 	return &resumePlan{
 		from:      fromProv,
 		fromID:    fromID,
 		sessionID: rm.result.session.SessionID,
-		fromCwd:   rm.result.session.OriginCwd,
+		fromCwd:   fromCwd,
 		to:        toProv,
 		toID:      rm.result.targetID,
+		fromCloud: fromCloud,
+		projectID: rm.result.session.ProjectID,
 	}, nil
+}
+
+// agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
+// conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
+// the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
+// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)
+// can build it without constructing a picker.
+func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
+	out := make(map[string]string)
+	for _, id := range registry.ListIDs() {
+		prov, err := registry.Get(id)
+		if err != nil {
+			continue
+		}
+		out[prov.Name()] = id
+	}
+	return out
+}
+
+// resumePlanFromSession builds a resumePlan for a directly-resolved session (the --session path
+// with a preset agent), reusing the same selection-time guard and plan shape as the TUI tail.
+// targetID is the preset agent; it must be a known, INSTALLED provider to resume into (mirroring
+// selectResumeViaTUI's installed check, which the non-interactive path can't inherit).
+func resumePlanFromSession(registry *factory.Registry, store *sessionindex.Store, s *sessionindex.Session, targetID string) (*resumePlan, error) {
+	fromProv, err := registry.Get(s.Agent)
+	if err != nil {
+		return nil, fmt.Errorf("unknown source agent %q: %w", s.Agent, err)
+	}
+	toProv, err := registry.Get(targetID)
+	if err != nil {
+		return nil, utils.ValidationError{Message: fmt.Sprintf(
+			"unknown agent %q. Valid agents: %s", targetID, registry.GetProviderList())}
+	}
+	if !toProv.Check("").Success {
+		return nil, utils.ValidationError{Message: fmt.Sprintf(
+			"agent %q is not installed, so it can't be a resume target.", targetID)}
+	}
+	fromCloud, fromCwd := resumeSourceForSession(store, s)
+	return &resumePlan{
+		from:      fromProv,
+		fromID:    s.Agent,
+		sessionID: s.SessionID,
+		fromCwd:   fromCwd,
+		to:        toProv,
+		toID:      targetID,
+		fromCloud: fromCloud,
+		projectID: s.ProjectID,
+	}, nil
+}
+
+// resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
+// that is ALSO present locally (e.g. a cloud search hit that local FTS didn't match). When it is,
+// prefer the local copy — an in-place resume is instant, works offline, and doesn't mint a fresh
+// reconstructed session id — over the cloud fetch/reconstruct path. Returns the fromCloud flag and
+// fromCwd for the resume plan. A soft-deleted local row does NOT count (GetSession filters it), so
+// a session you deleted locally still resumes from the cloud. In browse this never fires — dedup
+// already dropped any cloud row with a local twin — but cloud search can surface such a row.
+func resumeSourceForSession(store *sessionindex.Store, s *sessionindex.Session) (fromCloud bool, fromCwd string) {
+	fromCloud = s.IsCloud
+	fromCwd = s.OriginCwd
+	if s.IsCloud {
+		if local, ok, err := store.GetSession(s.Agent, s.SessionID); err == nil && ok {
+			fromCloud = false
+			fromCwd = local.OriginCwd
+		}
+	}
+	return fromCloud, fromCwd
 }
 
 // colorForAgent returns a stable accent color per provider for the list.
@@ -215,6 +289,7 @@ func (m *sessionTUI) enterBrowser() {
 func (m *sessionTUI) gotoHome() {
 	m.projectID, m.projectName = m.homeProjectID, m.homeProjectName
 	m.all = m.homeSessions
+	m.cloudAll = nil // cloud rows are per-project; a fresh fetch repopulates them (fire-on-drill)
 	m.inBrowser = false
 	m.agentFilter, m.searchQuery = "", ""
 	m.search.SetValue("")
@@ -234,6 +309,7 @@ func (m *sessionTUI) drillInto(p sessionindex.ProjectSummary) {
 	m.projectID = p.ProjectID
 	m.projectName = projectDisplayName(p)
 	m.all = sessions
+	m.cloudAll = nil // cloud rows are per-project; a fresh fetch repopulates them (fire-on-drill)
 	m.inBrowser = true
 	m.agentFilter, m.searchQuery = "", ""
 	m.search.SetValue("")
@@ -254,9 +330,11 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		m.gotoHome()
+		return m, m.cloudFetchForActiveCmd()
 	case "tab":
 		if !m.startedInBrowser {
 			m.gotoHome()
+			return m, m.cloudFetchForActiveCmd()
 		}
 	case "up", "k":
 		m.moveProjCursor(-1)
@@ -271,9 +349,12 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case "end", "G":
 		m.projCursor = len(m.projFiltered) - 1
 		m.clampProjScroll()
-	case "enter":
+	// Space is silently aliased to enter so either key opens a project (the hint only
+	// advertises ↵, matching the session list's space-for-preview convention).
+	case "enter", " ", "space":
 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
 			m.drillInto(m.projFiltered[m.projCursor])
+			return m, m.cloudFetchForActiveCmd()
 		}
 	case "/":
 		// FTS over sessions across ALL projects (consistent with / in a session list).
@@ -286,12 +367,17 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.projSearching = true
 		m.projSearch.SetValue(m.projSearchQuery)
 		return m, m.projSearch.Focus()
+	case "u":
+		if cmd := m.upgradeCmd(); cmd != nil {
+			return m, cmd
+		}
 	case "d":
 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
 			p := m.projFiltered[m.projCursor]
 			m.pendingDelete = pendingDelete{
 				source:    deleteFromProjects,
 				projectID: p.ProjectID,
+				isCloud:   p.IsCloud,
 				label:     projectDisplayName(p),
 				count:     p.Sessions,
 			}
@@ -322,12 +408,19 @@ func (m sessionTUI) updateProjectSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 }
 
 func (m *sessionTUI) applyProjectFilter() {
+	// Blend cloud projects (each carrying its resumable session summaries inline) with the local
+	// list at the session level: dedup local-preferred by (agent, session_id), recompute chips/dates from
+	// the union. A project worked on only from another machine still shows up with real counts.
+	src := m.projects
+	if len(m.cloudProjects) > 0 {
+		src = mergeCloudProjects(m.projects, m.cloudLocalKeys, m.cloudProjects, m.agentIDByName)
+	}
 	q := strings.ToLower(strings.TrimSpace(m.projSearchQuery))
 	if q == "" {
-		m.projFiltered = m.projects
+		m.projFiltered = src
 	} else {
-		out := make([]sessionindex.ProjectSummary, 0, len(m.projects))
-		for _, p := range m.projects {
+		out := make([]sessionindex.ProjectSummary, 0, len(src))
+		for _, p := range src {
 			if strings.Contains(strings.ToLower(projectDisplayName(p)), q) {
 				out = append(out, p)
 			}
@@ -457,7 +550,7 @@ func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) str
 	}
 	chips := m.agentCountChips(p.AgentCounts)
 	when := relativeTime(p.LastActivity)
-	return cursor + renderName(projectDisplayName(p), selected, 32) + "  " +
+	return cursor + cloudMark(p.IsCloud) + " " + renderName(projectDisplayName(p), selected, 30) + "  " +
 		chips + styDim.Render("  · "+when)
 }
 
@@ -550,14 +643,28 @@ func (m sessionTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
 	m.globalInput, cmd = m.globalInput.Update(msg)
 	m.globalQuery = m.globalInput.Value()
 	m.searchSeq++
+	m.cloudSearchSeq++ // supersede any in-flight cloud search too
+	// The current cloud hits are for the PREVIOUS query — drop them so the fresh local result
+	// doesn't merge stale cloud rows. The new fire-on-pause cloud search refills them on a pause.
+	m.globalCloud = nil
+	m.globalCloudSnippets = nil
 	if !queryReady(m.globalQuery) {
 		// Too short to search the whole corpus: no results until the 2nd character.
 		m.globalResults = nil
 		m.globalSnippets = nil
+		m.globalLocal = nil
+		m.globalCloud = nil
+		m.globalCloudSnippets = nil
+		m.cloudSearchPending = false
 		m.snippetSeq++
 		return m, cmd
 	}
-	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeProjects))
+	cmds := []tea.Cmd{cmd, searchDebounce(m.searchSeq, modeProjects)}
+	// Cloud search fires on its own slower fire-on-pause debounce, only when eligible.
+	if m.cloudEligible {
+		cmds = append(cmds, cloudSearchDebounce(m.cloudSearchSeq, modeProjects))
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
@@ -603,19 +710,27 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
 		if sel := m.globalSelected(); sel != nil {
 			return m.beginResume(sel)
 		}
-	case " ", "space":
+	// Enter is silently aliased to space so either key previews a hit (the hint only
+	// advertises space). Mirrors the session list's preview binding.
+	case " ", "space", "enter":
 		if sel := m.globalSelected(); sel != nil {
 			return m.openPreview(sel)
 		}
 	case "a":
 		return m, m.cycleAgent()
+	case "m":
+		return m, m.cycleMachine()
 	case "v":
 		m.toggleViewMode()
 		m.clampGlobalScroll() // toggleViewMode clamps the list; the global list scrolls separately
 		return m, m.requestVisibleSnippets(modeProjects)
+	case "u":
+		if cmd := m.upgradeCmd(); cmd != nil {
+			return m, cmd
+		}
 	case "d":
 		if sel := m.globalSelected(); sel != nil {
-			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
+			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}
 			m.confirmingDelete = true
 		}
 	}
@@ -649,13 +764,23 @@ func (m *sessionTUI) toggleGlobalScope() tea.Cmd {
 	}
 	m.globalCursor, m.globalTop = 0, 0
 	m.searchSeq++
+	m.cloudSearchSeq++
+	// Scope changed, so the current cloud hits are for the old scope — drop them and let the fresh
+	// cloud search (now scoped server-side to globalScopeID) refill on a pause.
+	m.globalCloud = nil
+	m.globalCloudSnippets = nil
 	if !queryReady(m.globalQuery) {
 		m.globalResults = nil
 		m.globalSnippets = nil
+		m.cloudSearchPending = false
 		m.snippetSeq++
 		return nil
 	}
-	return searchDebounce(m.searchSeq, modeProjects)
+	cmds := []tea.Cmd{searchDebounce(m.searchSeq, modeProjects)}
+	if m.cloudEligible {
+		cmds = append(cmds, cloudSearchDebounce(m.cloudSearchSeq, modeProjects))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *sessionTUI) exitGlobal() {
@@ -667,6 +792,11 @@ func (m *sessionTUI) exitGlobal() {
 	m.globalScopeID, m.globalScopeName = "", "" // re-enter search at all-projects scope
 	m.globalResults = nil
 	m.globalSnippets = nil
+	m.globalLocal = nil
+	m.globalCloud = nil
+	m.globalCloudSnippets = nil
+	m.cloudSearchSeq++ // supersede any in-flight cloud search
+	m.cloudSearchPending = false
 	m.snippetSeq++
 	m.globalCursor, m.globalTop = 0, 0
 }
@@ -700,12 +830,19 @@ func (m sessionTUI) renderGlobalResults() string {
 		scope = styDim.Render("project: ") + stySel.Render(m.globalScopeName)
 	}
 	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
+	if ml := m.machineScopeLabel(); ml != "" {
+		left += styDim.Render("  ·  ") + styDim.Render("machine: ") + stySel.Render(ml)
+	}
 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
 		// Label the locked-in query "search: <q>" so it reads as a filter, mirroring the
 		// "agent: <name>" / "project: <name>" labels rather than a bare unexplained word.
 		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
 	}
-	right := styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
+	right := ""
+	if m.cloudSearchPending {
+		right = styDim.Render("☁ searching cloud…  ·  ")
+	}
+	right += styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
 	b.WriteString(headerRow(left, right, m.lineWidth()) + "\n")
 	b.WriteString(strings.Repeat("─", m.lineWidth()) + "\n")
 
@@ -723,7 +860,11 @@ func (m sessionTUI) renderGlobalResults() string {
 		end := min(m.globalTop+h, len(m.globalResults))
 		for i := m.globalTop; i < end; i++ {
 			s := m.globalResults[i]
-			snip := m.globalSnippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]
+			key := sessionindex.FingerprintKey(s.Agent, s.SessionID)
+			snip := m.globalSnippets[key]
+			if snip == "" {
+				snip = m.globalCloudSnippets[key] // cloud hits carry their snippet from the server
+			}
 			b.WriteString(m.globalRow(s, i == m.globalCursor, snip))
 			if i < end-1 {
 				b.WriteString("\n")
@@ -756,7 +897,11 @@ func (m sessionTUI) renderGlobalResults() string {
 		b.WriteString(m.globalInput.View() + "    " + styFaint.Render(inputHint))
 		return b.String()
 	}
-	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "d delete", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
+	keys := []string{"↑↓ move", "r resume", "space preview", "a agent"}
+	if len(m.machineCycle) > 1 {
+		keys = append(keys, "m machine")
+	}
+	keys = append(keys, "d delete", "v "+m.viewMode, "/ edit search", scopeKey, escHint, "q quit")
 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
 	return b.String()
 }
@@ -765,19 +910,20 @@ func (m sessionTUI) renderGlobalResults() string {
 // snippet. Honors the dense/sparse view mode, matching the project session list.
 func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet string) string {
 	cursor := rowCursor(selected)
+	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
 	agent := m.agentTag(s.Agent)
 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
 
 	if m.viewMode == "sparse" {
-		label := rowLabel(s, selected, snippet, m.lineWidth()-30, m.lineWidth()-32)
-		head := cursor + agent + "  " + styFaint.Render(proj) + "  " + label
-		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+		label := rowLabel(s, selected, snippet, m.lineWidth()-33, m.lineWidth()-35)
+		head := cursor + mark + " " + agent + "  " + styFaint.Render(proj) + "  " + label
+		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
 	}
 
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
-	label := rowLabel(s, selected, snippet, m.lineWidth()-46, m.lineWidth()-48)
-	return cursor + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
+	label := rowLabel(s, selected, snippet, m.lineWidth()-49, m.lineWidth()-51)
+	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
 }
 
 func sessionProject(s sessionindex.Session) string {
