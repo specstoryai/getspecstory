@@ -375,7 +375,26 @@ func isRemoteURIRequiringBasenameMatch(uri string) bool {
 // local path), or when its fsPath resolves to the project path (covers workspace
 // entries created after the caller resolved its workspace list — Cursor mints a fresh
 // entry per literal path spelling, e.g. `~/source/...` vs `~/Source/...`).
+// The full-DB lightweight scan this requires is deliberate: it is the only way to see
+// the embedded workspaceIdentifier, and at watch cadence (>= 10s between checks) the
+// cost of parsing the composer rows is acceptable. Callers that already hold the
+// scanned map should use projectComposerIDs directly instead of scanning again.
 func FindProjectComposerIDs(globalDbPath, projectPath string, workspaces []WorkspaceMatch) ([]string, error) {
+	composers, err := LoadAllComposerDataLightweight(globalDbPath)
+	if err != nil {
+		// The workspace-DB IDs may still be usable (older Cursor versions), so degrade
+		// to source 1 rather than failing the whole lookup.
+		slog.Warn("Failed to load global composer data for workspaceIdentifier matching", "error", err)
+		composers = nil
+	}
+	return projectComposerIDs(composers, projectPath, workspaces)
+}
+
+// projectComposerIDs is the load-free core of FindProjectComposerIDs: it matches an
+// already-scanned composer map against the project. Split out so callers that need the
+// scanned map for their own purposes too (e.g. the watcher's seeding, which also reads
+// the timestamps) don't scan the global database twice.
+func projectComposerIDs(composers map[string]*ComposerData, projectPath string, workspaces []WorkspaceMatch) ([]string, error) {
 	ids, err := LoadComposerIDsFromAllWorkspaces(workspaces)
 	if err != nil {
 		return nil, err
@@ -383,14 +402,6 @@ func FindProjectComposerIDs(globalDbPath, projectPath string, workspaces []Works
 	seen := make(map[string]bool, len(ids))
 	for _, id := range ids {
 		seen[id] = true
-	}
-
-	composers, err := LoadAllComposerDataLightweight(globalDbPath)
-	if err != nil {
-		// The workspace-DB IDs may still be usable (older Cursor versions), so degrade
-		// to source 1 rather than failing the whole lookup.
-		slog.Warn("Failed to load global composer data for workspaceIdentifier matching", "error", err)
-		return ids, nil
 	}
 
 	canonicalProject, err := normalizePathForComparison(projectPath)

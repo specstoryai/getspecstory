@@ -193,13 +193,15 @@ func (w *CursorIDEWatcher) Start() error {
 // the worst case is that the first check re-emits existing sessions, which is the exact
 // behavior this seeding exists to avoid, not a correctness problem.
 func (w *CursorIDEWatcher) seedKnownComposers() {
-	composerIDs, err := FindProjectComposerIDs(w.globalDbPath, w.projectPath, w.workspaces)
-	if err != nil || len(composerIDs) == 0 {
-		return
-	}
+	// One lightweight scan serves both needs here: discovery (via projectComposerIDs)
+	// and the per-composer timestamps read below.
 	composers, err := LoadAllComposerDataLightweight(w.globalDbPath)
 	if err != nil {
 		slog.Warn("Failed to seed existing sessions; first check may re-emit them", "error", err)
+		return
+	}
+	composerIDs, err := projectComposerIDs(composers, w.projectPath, w.workspaces)
+	if err != nil || len(composerIDs) == 0 {
 		return
 	}
 
