@@ -464,7 +464,7 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 // note only makes sense in that case, not on a plain `specstory run cursoride`.
 func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if resumeSessionID != "" {
-		fmt.Fprintln(os.Stderr, "\nSession is ready in Cursor IDE. Open the composer panel to find it.")
+		fmt.Fprintln(os.Stderr, "\nSession is ready in the Cursor IDE. Open the Agents panel to find it.")
 	}
 	if err := openCursorIDE(projectPath); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error

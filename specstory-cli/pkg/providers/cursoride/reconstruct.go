@@ -212,11 +212,15 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		LastUpdatedAt: nowMs + int64(len(turns))*1000,
 		WorkspaceID:   workspace.ID,
 	}
-	// Write to the global composer.composerHeaders (ItemTable) — the authoritative source that
-	// composerDataService.allComposersData.allComposers is loaded from on startup.
-	// Sessions absent from this key are invisible in the sidebar regardless of other indexes.
+	// Write to the global composer.composerHeaders (ItemTable) — the sidebar source for
+	// Cursor versions before 3.12 (newer versions use the glass keys registered below).
 	if hdrErr := WriteGlobalComposerHeader(globalDbPath, regMeta, workspaceRoot); hdrErr != nil {
 		return nil, fmt.Errorf("failed to write global composer header: %w", hdrErr)
+	}
+	// Register in the glass sidebar keys — what Cursor >= 3.12 actually builds its
+	// Agent sidebar from. Without this the session exists but is never listed.
+	if glassErr := RegisterGlassProjectMembership(globalDbPath, newID, workspace.ID, workspaceRoot); glassErr != nil {
+		return nil, fmt.Errorf("failed to register session in Cursor sidebar: %w", glassErr)
 	}
 	// Append to selectedComposerIds so Cursor opens the resumed session as an active tab.
 	// This is a UX convenience only — sidebar visibility comes from composer.composerHeaders above.
