@@ -87,6 +87,25 @@ func EnsureWALMode(dbPath string) error {
 	return nil
 }
 
+// createEmptyWorkspaceDB creates a state.vscdb containing VS Code's exact ItemTable
+// schema (key UNIQUE ON CONFLICT REPLACE, BLOB value), so Cursor adopts a minted
+// workspace entry as its own on first open instead of treating it as corrupt.
+func createEmptyWorkspaceDB(dbPath string) error {
+	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
+	if err != nil {
+		return fmt.Errorf("failed to create workspace database: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close new workspace database", "error", closeErr)
+		}
+	}()
+	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)"); err != nil {
+		return fmt.Errorf("failed to create ItemTable: %w", err)
+	}
+	return nil
+}
+
 // LoadWorkspaceComposerIDs loads the composer IDs from a workspace database.
 // Uses two complementary sources to handle both Cursor 2 and Cursor 3:
 //

@@ -50,9 +50,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	if workspaceRoot == "" {
 		return nil, fmt.Errorf("cannot register session in Cursor IDE: no workspace root provided")
 	}
-	workspace, wsErr := FindWorkspaceForProject(workspaceRoot)
+	// EnsureWorkspaceForProject mints a workspace entry when the folder has never been
+	// opened in Cursor, so resuming into a brand-new project works. If even minting
+	// fails, tell the user the manual workaround instead of just the raw error.
+	workspace, wsErr := EnsureWorkspaceForProject(workspaceRoot)
 	if wsErr != nil {
-		return nil, fmt.Errorf("cannot register session in Cursor IDE: no workspace found for %q: %w", workspaceRoot, wsErr)
+		return nil, fmt.Errorf("cannot register session in Cursor IDE (open %q in Cursor once, then retry the resume): %w", workspaceRoot, wsErr)
 	}
 
 	newID := uuid.NewString()

@@ -37,8 +37,13 @@ func getGlobalDatabasePath() (string, error) {
 	return dbPath, nil
 }
 
-// GetWorkspaceStoragePath returns the OS-specific workspace storage directory
-func GetWorkspaceStoragePath() (string, error) {
+// GetWorkspaceStoragePath returns the OS-specific workspace storage directory.
+// It is a var so tests can point it at a temp directory (e.g. when exercising
+// EnsureWorkspaceForProject, which creates entries under it).
+var GetWorkspaceStoragePath = getWorkspaceStoragePath
+
+// getWorkspaceStoragePath is the real implementation; GetWorkspaceStoragePath delegates to it.
+func getWorkspaceStoragePath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
