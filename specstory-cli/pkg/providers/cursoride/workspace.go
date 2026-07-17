@@ -578,15 +578,21 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 // external (Go's URL encoder leaves ':' bare in paths, so it is encoded by hand). A
 // mismatch here can mis-associate reconstructed sessions with their workspace. UNC
 // paths (\\server\share) are not handled — workspace roots are local directories.
+// isWindowsDrivePath reports whether osPath is a Windows-shaped absolute path
+// (leading drive letter, e.g. "C:\proj" or "c:/proj"). Detected by shape rather than
+// runtime.GOOS so the conversion is deterministic and testable on any platform.
+func isWindowsDrivePath(osPath string) bool {
+	return len(osPath) >= 3 && osPath[1] == ':' &&
+		(osPath[2] == '\\' || osPath[2] == '/') &&
+		('a' <= osPath[0]|0x20 && osPath[0]|0x20 <= 'z')
+}
+
 func fileURIParts(osPath string) (fsPath, uriPath, external string) {
 	fsPath = osPath
 	p := osPath
 
-	// Windows-shaped absolute path (leading drive letter): lowercase the drive and
-	// use forward slashes in the URI path, backslashes in fsPath. Detected by shape
-	// rather than runtime.GOOS so the conversion is deterministic and testable anywhere.
-	if len(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/') &&
-		('a' <= p[0]|0x20 && p[0]|0x20 <= 'z') {
+	// Lowercase the drive and use forward slashes in the URI path, backslashes in fsPath.
+	if isWindowsDrivePath(p) {
 		drive := strings.ToLower(p[:1])
 		fsPath = drive + strings.ReplaceAll(p[1:], "/", `\`)
 		p = "/" + drive + strings.ReplaceAll(p[1:], `\`, "/")
@@ -610,13 +616,22 @@ func fileURIParts(osPath string) (fsPath, uriPath, external string) {
 // identical, Cursor-native encoding.
 func workspaceURIMap(workspaceRoot string) map[string]interface{} {
 	fsPath, uriPath, external := fileURIParts(workspaceRoot)
-	return map[string]interface{}{
+	uri := map[string]interface{}{
 		"$mid":     1,
 		"fsPath":   fsPath,
 		"external": external,
 		"path":     uriPath,
 		"scheme":   "file",
 	}
+	// VS Code stamps "_sep": 1 alongside a cached fsPath on Windows only
+	// (_pathSepMarker = isWindows ? 1 : undefined). URI.revive() discards the cached
+	// fsPath unless _sep matches that marker, so native Windows rows always carry it
+	// and Unix rows never do. Emitting it keeps reconstructed rows byte-identical to
+	// Cursor's own.
+	if isWindowsDrivePath(workspaceRoot) {
+		uri["_sep"] = 1
+	}
+	return uri
 }
 
 // uriToPath converts a workspace URI to a local file path.

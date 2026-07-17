@@ -412,7 +412,8 @@ func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, b
 }
 
 // ComposerHeadMeta holds the session metadata needed to register a reconstructed session
-// in the workspace-level indexes (both the JSON allComposers array and the SQL composerHeaders table).
+// in the global DB's two composer indexes: the JSON allComposers array and the
+// composerHeaders SQL table. Both live in globalStorage/state.vscdb, not the workspace DB.
 type ComposerHeadMeta struct {
 	ComposerID    string
 	Name          string
@@ -483,11 +484,16 @@ func AppendToSelectedComposerIDs(workspaceDbPath, composerID string) error {
 	return nil
 }
 
-// WriteGlobalComposerHeader adds a lightweight "head" entry for the reconstructed session to
-// the "composer.composerHeaders" key in the GLOBAL DB's ItemTable. This is the authoritative
-// source from which composerDataService.allComposersData.allComposers is populated on startup.
-// Cursor's Agent sidebar SWC component reads allComposersData.allComposers and filters by name,
-// so the entry MUST have a non-empty "name" field or it is silently hidden.
+// WriteGlobalComposerHeader registers a reconstructed session in the GLOBAL DB's two
+// composer indexes, which Cursor keeps in sync and which serve different readers:
+//
+//  1. The "composer.composerHeaders" key in ItemTable (JSON, allComposers array).
+//  2. The composerHeaders SQL table, keyed by composerId and filtered by workspaceId.
+//
+// The Agent sidebar lists sessions from the SQL table, so a session missing there is
+// invisible in the sidebar even though it loads correctly when opened directly by ID
+// (e.g. via selectedComposerIds). Both writes therefore happen in one transaction.
+// Entries in either index MUST have a non-empty "name" or Cursor silently hides them.
 func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, workspaceRoot string) error {
 	db, err := OpenDatabaseReadWrite(globalDbPath)
 	if err != nil {
@@ -516,16 +522,6 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	var allComposers []json.RawMessage
 	if rawArr, ok := blob["allComposers"]; ok {
 		_ = json.Unmarshal(rawArr, &allComposers)
-	}
-
-	// Skip if already registered (idempotent).
-	for _, entry := range allComposers {
-		var ref struct {
-			ComposerID string `json:"composerId"`
-		}
-		if json.Unmarshal(entry, &ref) == nil && ref.ComposerID == meta.ComposerID {
-			return nil
-		}
 	}
 
 	headEntry := map[string]interface{}{
@@ -564,10 +560,25 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		return fmt.Errorf("failed to marshal composer header entry: %w", err)
 	}
 
-	// Prepend the new entry to match how Cursor itself maintains this array
-	// (newest first); the sidebar's display order comes from lastUpdatedAt,
-	// not from array position.
-	allComposers = append([]json.RawMessage{entryJSON}, allComposers...)
+	// Replace an existing entry in place, otherwise prepend to match how Cursor itself
+	// maintains this array (newest first); the sidebar's display order comes from
+	// lastUpdatedAt, not from array position. Rewriting rather than returning early on a
+	// duplicate keeps this idempotent without skipping the SQL upsert below — a session
+	// already present in the JSON index may still be missing its SQL row.
+	replaced := false
+	for i, entry := range allComposers {
+		var ref struct {
+			ComposerID string `json:"composerId"`
+		}
+		if json.Unmarshal(entry, &ref) == nil && ref.ComposerID == meta.ComposerID {
+			allComposers[i] = entryJSON
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		allComposers = append([]json.RawMessage{entryJSON}, allComposers...)
+	}
 	encoded, err := json.Marshal(allComposers)
 	if err != nil {
 		return fmt.Errorf("failed to marshal allComposers: %w", err)
@@ -578,11 +589,31 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	if err != nil {
 		return fmt.Errorf("failed to marshal composer.composerHeaders: %w", err)
 	}
-	if _, err := db.Exec(
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to start composer header transaction: %w", err)
+	}
+	var txErr error
+	defer func() {
+		if txErr != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if _, txErr = tx.Exec(
 		"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
 		string(dataJSON),
-	); err != nil {
-		return fmt.Errorf("failed to write composer.composerHeaders: %w", err)
+	); txErr != nil {
+		return fmt.Errorf("failed to write composer.composerHeaders: %w", txErr)
+	}
+
+	if txErr = upsertComposerHeaderRow(tx, meta, entryJSON); txErr != nil {
+		return txErr
+	}
+
+	if txErr = tx.Commit(); txErr != nil {
+		return fmt.Errorf("failed to commit composer header transaction: %w", txErr)
 	}
 
 	// Checkpoint the WAL so our write lands in the main DB file before Cursor opens it.
@@ -590,6 +621,42 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	// snapshot and only see the session after its own first-open checkpoint.
 	if _, err := db.Exec("PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
 		slog.Warn("WAL checkpoint failed on global database", "error", err)
+	}
+	return nil
+}
+
+// upsertComposerHeaderRow writes the session's row into the composerHeaders SQL table, the
+// index the Agent sidebar lists sessions from (filtered by the workspaceId column). The row's
+// value column holds the same head JSON stored in the allComposers array, so both indexes
+// agree.
+//
+// Cursor versions without this table use the JSON index alone, so a missing table is logged
+// and treated as success rather than failing the resume — the caller has already written the
+// index that such a version reads.
+func upsertComposerHeaderRow(tx *sql.Tx, meta ComposerHeadMeta, headJSON []byte) error {
+	var exists int
+	if err := tx.QueryRow(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'composerHeaders'",
+	).Scan(&exists); err != nil {
+		return fmt.Errorf("failed to check for composerHeaders table: %w", err)
+	}
+	if exists == 0 {
+		slog.Warn("Cursor IDE global database has no composerHeaders table; "+
+			"session registered in the JSON index only and may not appear in the Agent sidebar",
+			"composerID", meta.ComposerID)
+		return nil
+	}
+
+	// recency drives the sidebar's ordering and tracks lastUpdatedAt for a session that has
+	// not been reopened since import. checkpointAt stays NULL: reconstructed sessions carry
+	// no checkpoint history.
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO composerHeaders
+		(composerId, workspaceId, createdAt, lastUpdatedAt, isArchived, isSubagent, recency, checkpointAt, value)
+		VALUES (?, ?, ?, ?, 0, 0, ?, NULL, ?)`,
+		meta.ComposerID, meta.WorkspaceID, meta.CreatedAt, meta.LastUpdatedAt,
+		meta.LastUpdatedAt, string(headJSON),
+	); err != nil {
+		return fmt.Errorf("failed to write composerHeaders row: %w", err)
 	}
 	return nil
 }

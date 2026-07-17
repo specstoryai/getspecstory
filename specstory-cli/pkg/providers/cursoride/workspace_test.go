@@ -846,3 +846,37 @@ func TestFindProjectComposerIDs(t *testing.T) {
 		t.Errorf("expected 3 composer IDs, got %d: %v", len(ids), ids)
 	}
 }
+
+// TestWorkspaceURIMap_SepMarker verifies the "_sep" marker is emitted for Windows paths and
+// omitted for Unix ones, matching VS Code's _pathSepMarker (1 on Windows, undefined elsewhere).
+// URI.revive() drops the cached fsPath when the marker is absent, so native Windows rows
+// always carry it.
+func TestWorkspaceURIMap_SepMarker(t *testing.T) {
+	tests := []struct {
+		name    string
+		osPath  string
+		wantSep bool
+	}{
+		{name: "windows path gets marker", osPath: `C:\Users\Admin\proj`, wantSep: true},
+		{name: "windows forward slash path gets marker", osPath: "c:/Users/Admin/proj", wantSep: true},
+		{name: "unix path has no marker", osPath: "/home/user/proj", wantSep: false},
+		{name: "macos path has no marker", osPath: "/Users/bago/code/proj", wantSep: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uri := workspaceURIMap(tt.osPath)
+			sep, ok := uri["_sep"]
+			if tt.wantSep {
+				if !ok {
+					t.Fatalf("_sep missing for %q, want 1", tt.osPath)
+				}
+				if sep != 1 {
+					t.Errorf("_sep = %v, want 1", sep)
+				}
+			} else if ok {
+				t.Errorf("_sep = %v for %q, want it absent", sep, tt.osPath)
+			}
+		})
+	}
+}
