@@ -12,6 +12,23 @@ type ComposerData struct {
 	ModelConfig                 *ModelConfig                 `json:"modelConfig,omitempty"`
 	CreatedAt                   int64                        `json:"createdAt"`
 	LastUpdatedAt               int64                        `json:"lastUpdatedAt,omitempty"`
+	WorkspaceIdentifier         *ComposerWorkspaceIdentifier `json:"workspaceIdentifier,omitempty"`
+}
+
+// ComposerWorkspaceIdentifier is the workspace association Cursor (>= 3.12) embeds in
+// each composerData row. It is the only LIVE project association in those versions:
+// the workspace-DB keys (composer.composerData, workbench.panel.*) are no longer
+// written per conversation, and the global composer.composerHeaders key is flushed
+// lazily — often not until Cursor exits — so neither can identify a session that was
+// just created.
+type ComposerWorkspaceIdentifier struct {
+	ID  string                `json:"id"`            // workspace storage directory hash
+	URI *ComposerWorkspaceURI `json:"uri,omitempty"` // folder the workspace was opened on
+}
+
+// ComposerWorkspaceURI carries the filesystem location of a workspaceIdentifier.
+type ComposerWorkspaceURI struct {
+	FsPath string `json:"fsPath,omitempty"`
 }
 
 // ComposerConversationHeader represents a conversation header (used when full conversation isn't loaded).
@@ -41,7 +58,7 @@ type ComposerConversation struct {
 	CapabilityType int                 `json:"capabilityType,omitempty"` // 15=tool
 	UnifiedMode    int                 `json:"unifiedMode,omitempty"`    // 1=Ask, 2=Agent, 5=Plan
 	TimingInfo     *TimingInfo         `json:"timingInfo,omitempty"`
-	ToolFormerData *ToolInvocationData `json:"toolFormerData,omitempty"`
+	ToolFormerData *BubbleConversation `json:"toolFormerData,omitempty"`
 	ModelInfo      *ModelInfo          `json:"modelInfo,omitempty"`
 }
 
@@ -84,23 +101,11 @@ type CapabilityData struct {
 	ParsedBubbleMap    map[string]*BubbleConversation `json:"-"` // Parsed bubble data map
 }
 
-// BubbleConversation represents tool invocation data (stored in capabilities.bubbleDataMap)
-// This is called BubbleConversationData in the TypeScript code
+// BubbleConversation represents tool invocation data. Cursor stores the identical shape
+// in two places: V1 keeps it in capabilities.bubbleDataMap, V3+ embeds it directly in the
+// bubble as toolFormerData — so one type serves both (see resolveToolData).
+// This is called BubbleConversationData in the TypeScript code.
 type BubbleConversation struct {
-	Tool           int                    `json:"tool"`
-	Name           string                 `json:"name"`
-	RawArgs        string                 `json:"rawArgs,omitempty"`
-	Params         string                 `json:"params,omitempty"`
-	Result         string                 `json:"result,omitempty"`
-	Status         string                 `json:"status,omitempty"`
-	Error          string                 `json:"error,omitempty"`
-	AdditionalData map[string]interface{} `json:"additionalData,omitempty"`
-	UserDecision   string                 `json:"userDecision,omitempty"`
-}
-
-// ToolInvocationData represents tool invocation information (V3+ format, stored directly in bubble)
-// This is the same structure as BubbleConversation but embedded in the message
-type ToolInvocationData struct {
 	Tool           int                    `json:"tool"`
 	Name           string                 `json:"name"`
 	RawArgs        string                 `json:"rawArgs,omitempty"`

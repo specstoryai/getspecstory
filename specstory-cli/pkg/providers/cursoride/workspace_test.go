@@ -774,3 +774,75 @@ func TestFileURIParts(t *testing.T) {
 		})
 	}
 }
+
+// TestFindProjectComposerIDs covers the union of the two project-association sources:
+// workspace-DB references (Cursor 2 / early 3) and the workspaceIdentifier embedded in
+// global composerData rows (the only live source in Cursor >= 3.12), including
+// deduplication and both embedded match modes (workspace storage ID and fsPath).
+func TestFindProjectComposerIDs(t *testing.T) {
+	tmp := t.TempDir()
+	projectDir := filepath.Join(tmp, "myproj")
+	if err := os.Mkdir(projectDir, 0755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+
+	// Workspace DB carrying one old-style reference, which the global DB also lists
+	// (with no workspaceIdentifier) to prove IDs are deduplicated across sources.
+	wsDBPath := filepath.Join(tmp, "state.vscdb")
+	createWorkspaceDB(t, wsDBPath, []string{"ws-composer"})
+	workspaces := []WorkspaceMatch{{ID: "ws-hash-1", DBPath: wsDBPath}}
+
+	marshal := func(c ComposerData) string {
+		t.Helper()
+		b, err := json.Marshal(c)
+		if err != nil {
+			t.Fatalf("marshal composer: %v", err)
+		}
+		return string(b)
+	}
+	globalDbPath := createTestGlobalDB(t, map[string]string{
+		"composerData:ws-composer": marshal(ComposerData{ComposerID: "ws-composer"}),
+		"composerData:by-wsid": marshal(ComposerData{
+			ComposerID:          "by-wsid",
+			WorkspaceIdentifier: &ComposerWorkspaceIdentifier{ID: "ws-hash-1"},
+		}),
+		"composerData:by-fspath": marshal(ComposerData{
+			ComposerID: "by-fspath",
+			WorkspaceIdentifier: &ComposerWorkspaceIdentifier{
+				ID:  "some-other-workspace-hash",
+				URI: &ComposerWorkspaceURI{FsPath: projectDir},
+			},
+		}),
+		"composerData:unrelated": marshal(ComposerData{
+			ComposerID: "unrelated",
+			WorkspaceIdentifier: &ComposerWorkspaceIdentifier{
+				ID:  "nope",
+				URI: &ComposerWorkspaceURI{FsPath: filepath.Join(tmp, "otherproj")},
+			},
+		}),
+	})
+
+	ids, err := FindProjectComposerIDs(globalDbPath, projectDir, workspaces)
+	if err != nil {
+		t.Fatalf("FindProjectComposerIDs: %v", err)
+	}
+
+	got := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		if got[id] {
+			t.Errorf("duplicate composer ID %q in result", id)
+		}
+		got[id] = true
+	}
+	for _, want := range []string{"ws-composer", "by-wsid", "by-fspath"} {
+		if !got[want] {
+			t.Errorf("expected composer %q in result, got %v", want, ids)
+		}
+	}
+	if got["unrelated"] {
+		t.Errorf("composer %q from another project must not match, got %v", "unrelated", ids)
+	}
+	if len(ids) != 3 {
+		t.Errorf("expected 3 composer IDs, got %d: %v", len(ids), ids)
+	}
+}
