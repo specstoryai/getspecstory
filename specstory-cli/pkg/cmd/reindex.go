@@ -1116,7 +1116,7 @@ func printReindexSummary(ids []string, perAgent map[string]int, dbPath string, e
 	}
 	fprintf(w, "      %s\n\n", summarizeCounts(ids, perAgent))
 	if unattributed > 0 {
-		fprintf(w, "      %d projects  ·  %d unattributed\n", projects, unattributed)
+		fprintf(w, "      %d projects  ·  %d unattributed sessions\n", projects, unattributed)
 	} else {
 		fprintf(w, "      %d projects\n", projects)
 	}

@@ -1,6 +1,8 @@
 package cursoride
 
 import (
+	"crypto/md5" // #nosec G501 -- not used for security; mirrors Cursor's own workspace-ID scheme
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -164,6 +166,67 @@ func findWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 		"selectedWorkspaceID", best.ID)
 
 	return best, nil
+}
+
+// EnsureWorkspaceForProject returns the workspace entry for the project, minting one in
+// Cursor's workspaceStorage when the folder has never been opened in Cursor (the case
+// where FindWorkspaceForProject has nothing to find, which would otherwise make the
+// project unusable as a resume target). Minting reproduces Cursor's own single-folder
+// workspace ID — md5(folder path + a platform stat salt; see workspaceIDStatSalt) — so
+// when the user later opens the folder, Cursor computes the same ID and adopts the
+// minted entry instead of creating a duplicate.
+func EnsureWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
+	if ws, err := FindWorkspaceForProject(projectPath); err == nil {
+		return ws, nil
+	}
+
+	id, err := cursorWorkspaceID(projectPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine Cursor workspace ID for %q: %w", projectPath, err)
+	}
+	storagePath, err := GetWorkspaceStoragePath()
+	if err != nil {
+		return nil, err
+	}
+
+	wsPath := filepath.Join(storagePath, id)
+	dbPath := filepath.Join(wsPath, "state.vscdb")
+	folderURI := pathToFileURI(projectPath)
+
+	if err := os.MkdirAll(wsPath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create workspace storage directory: %w", err)
+	}
+	// workspace.json mirrors the format Cursor writes (2-space indented single field).
+	workspaceJSON, err := json.MarshalIndent(WorkspaceJSON{Folder: folderURI}, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal workspace.json: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(wsPath, "workspace.json"), workspaceJSON, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write workspace.json: %w", err)
+	}
+	if err := createEmptyWorkspaceDB(dbPath); err != nil {
+		return nil, err
+	}
+
+	slog.Info("Minted Cursor workspace entry for project",
+		"workspaceID", id, "projectPath", projectPath)
+
+	return &WorkspaceMatch{ID: id, Path: wsPath, DBPath: dbPath, URI: folderURI}, nil
+}
+
+// cursorWorkspaceID computes the workspace storage directory name Cursor derives for a
+// local single-folder workspace: md5(folder path + platform stat salt). This mirrors
+// getSingleFolderWorkspaceIdentifier in Cursor's main.js and was verified byte-for-byte
+// against real workspaceStorage entries. The path is hashed exactly as given (no case
+// or symlink normalization) because that is what Cursor does — the same folder opened
+// via differently-spelled paths genuinely gets distinct workspace entries.
+func cursorWorkspaceID(projectPath string) (string, error) {
+	info, err := os.Stat(projectPath)
+	if err != nil {
+		return "", err
+	}
+	sum := md5.Sum([]byte(projectPath + workspaceIDStatSalt(info)))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 // workspaceDBModTime returns the modification time of a workspace's state.vscdb, used

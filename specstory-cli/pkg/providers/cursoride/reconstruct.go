@@ -50,9 +50,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	if workspaceRoot == "" {
 		return nil, fmt.Errorf("cannot register session in Cursor IDE: no workspace root provided")
 	}
-	workspace, wsErr := FindWorkspaceForProject(workspaceRoot)
+	// EnsureWorkspaceForProject mints a workspace entry when the folder has never been
+	// opened in Cursor, so resuming into a brand-new project works. If even minting
+	// fails, tell the user the manual workaround instead of just the raw error.
+	workspace, wsErr := EnsureWorkspaceForProject(workspaceRoot)
 	if wsErr != nil {
-		return nil, fmt.Errorf("cannot register session in Cursor IDE: no workspace found for %q: %w", workspaceRoot, wsErr)
+		return nil, fmt.Errorf("cannot register session in Cursor IDE (open %q in Cursor once, then retry the resume): %w", workspaceRoot, wsErr)
 	}
 
 	newID := uuid.NewString()
@@ -212,11 +215,15 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		LastUpdatedAt: nowMs + int64(len(turns))*1000,
 		WorkspaceID:   workspace.ID,
 	}
-	// Write to the global composer.composerHeaders (ItemTable) — the authoritative source that
-	// composerDataService.allComposersData.allComposers is loaded from on startup.
-	// Sessions absent from this key are invisible in the sidebar regardless of other indexes.
+	// Write to the global composer.composerHeaders (ItemTable) — the sidebar source for
+	// Cursor versions before 3.12 (newer versions use the glass keys registered below).
 	if hdrErr := WriteGlobalComposerHeader(globalDbPath, regMeta, workspaceRoot); hdrErr != nil {
 		return nil, fmt.Errorf("failed to write global composer header: %w", hdrErr)
+	}
+	// Register in the glass sidebar keys — what Cursor >= 3.12 actually builds its
+	// Agent sidebar from. Without this the session exists but is never listed.
+	if glassErr := RegisterGlassProjectMembership(globalDbPath, newID, workspace.ID, workspaceRoot); glassErr != nil {
+		return nil, fmt.Errorf("failed to register session in Cursor sidebar: %w", glassErr)
 	}
 	// Append to selectedComposerIds so Cursor opens the resumed session as an active tab.
 	// This is a UX convenience only — sidebar visibility comes from composer.composerHeaders above.

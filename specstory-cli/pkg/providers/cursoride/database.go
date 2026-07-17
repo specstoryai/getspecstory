@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
@@ -83,6 +84,25 @@ func EnsureWALMode(dbPath string) error {
 	}
 
 	slog.Info("Enabled WAL mode on database", "path", dbPath)
+	return nil
+}
+
+// createEmptyWorkspaceDB creates a state.vscdb containing VS Code's exact ItemTable
+// schema (key UNIQUE ON CONFLICT REPLACE, BLOB value), so Cursor adopts a minted
+// workspace entry as its own on first open instead of treating it as corrupt.
+func createEmptyWorkspaceDB(dbPath string) error {
+	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
+	if err != nil {
+		return fmt.Errorf("failed to create workspace database: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close new workspace database", "error", closeErr)
+		}
+	}()
+	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)"); err != nil {
+		return fmt.Errorf("failed to create ItemTable: %w", err)
+	}
 	return nil
 }
 
@@ -513,13 +533,16 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		_ = json.Unmarshal(rawArr, &allComposers)
 	}
 
-	// Skip if already registered (idempotent).
+	// Track whether the blob already carries this composer (idempotent re-runs); the
+	// table insert below is INSERT OR REPLACE, so it is idempotent on its own.
+	alreadyInBlob := false
 	for _, entry := range allComposers {
 		var ref struct {
 			ComposerID string `json:"composerId"`
 		}
 		if json.Unmarshal(entry, &ref) == nil && ref.ComposerID == meta.ComposerID {
-			return nil
+			alreadyInBlob = true
+			break
 		}
 	}
 
@@ -565,25 +588,36 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		return fmt.Errorf("failed to marshal composer header entry: %w", err)
 	}
 
-	// Prepend the new entry to match how Cursor itself maintains this array
-	// (newest first); the sidebar's display order comes from lastUpdatedAt,
-	// not from array position.
-	allComposers = append([]json.RawMessage{entryJSON}, allComposers...)
-	encoded, err := json.Marshal(allComposers)
-	if err != nil {
-		return fmt.Errorf("failed to marshal allComposers: %w", err)
-	}
-	blob["allComposers"] = encoded
+	if !alreadyInBlob {
+		// Prepend the new entry to match how Cursor itself maintains this array
+		// (newest first); the sidebar's display order comes from lastUpdatedAt,
+		// not from array position.
+		allComposers = append([]json.RawMessage{entryJSON}, allComposers...)
+		encoded, mErr := json.Marshal(allComposers)
+		if mErr != nil {
+			return fmt.Errorf("failed to marshal allComposers: %w", mErr)
+		}
+		blob["allComposers"] = encoded
 
-	dataJSON, err := json.Marshal(blob)
-	if err != nil {
-		return fmt.Errorf("failed to marshal composer.composerHeaders: %w", err)
+		dataJSON, mErr := json.Marshal(blob)
+		if mErr != nil {
+			return fmt.Errorf("failed to marshal composer.composerHeaders: %w", mErr)
+		}
+		if _, execErr := db.Exec(
+			"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
+			string(dataJSON),
+		); execErr != nil {
+			return fmt.Errorf("failed to write composer.composerHeaders: %w", execErr)
+		}
 	}
-	if _, err := db.Exec(
-		"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
-		string(dataJSON),
-	); err != nil {
-		return fmt.Errorf("failed to write composer.composerHeaders: %w", err)
+
+	// Cursor >= 3.12 (composer.composerHeaders.tableGateEnabled) reads headers from the
+	// dedicated composerHeaders TABLE instead of the JSON key above — the sidebar joins
+	// that table against the glass membership map, so the session is invisible in newer
+	// Cursors without this row. The table is created by Cursor itself; when absent
+	// (older versions) the JSON key is the only source and the insert is skipped.
+	if err := insertComposerHeaderRow(db, meta, entryJSON); err != nil {
+		return err
 	}
 
 	// Checkpoint the WAL so our write lands in the main DB file before Cursor opens it.
@@ -592,6 +626,195 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	if _, err := db.Exec("PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
 		slog.Warn("WAL checkpoint failed on global database", "error", err)
 	}
+	return nil
+}
+
+// insertComposerHeaderRow writes the head entry into the composerHeaders SQL table when
+// it exists (see the call site in WriteGlobalComposerHeader for why). Column values
+// mirror what Cursor writes for its own sessions: recency and checkpointAt track
+// lastUpdatedAt, and isSubagent/isArchived are 0 for a normal visible session.
+func insertComposerHeaderRow(db *sql.DB, meta ComposerHeadMeta, headJSON []byte) error {
+	var tableName string
+	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='composerHeaders'").Scan(&tableName)
+	if err == sql.ErrNoRows {
+		slog.Debug("composerHeaders table not present, skipping table registration (pre-3.12 Cursor)")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to check for composerHeaders table: %w", err)
+	}
+
+	if _, err := db.Exec(
+		`INSERT OR REPLACE INTO composerHeaders
+			(composerId, workspaceId, createdAt, lastUpdatedAt, isArchived, isSubagent, recency, checkpointAt, value)
+			VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)`,
+		meta.ComposerID, meta.WorkspaceID, meta.CreatedAt, meta.LastUpdatedAt,
+		meta.LastUpdatedAt, meta.LastUpdatedAt, string(headJSON),
+	); err != nil {
+		return fmt.Errorf("failed to insert composerHeaders row: %w", err)
+	}
+
+	slog.Debug("Inserted composerHeaders table row", "composerID", meta.ComposerID)
+	return nil
+}
+
+// glassProjectsKey and glassMembershipKey are the ItemTable keys behind the Agent
+// sidebar in Cursor >= 3.12 ("glass" is Cursor's name for that UI layer): the first
+// holds project entities keyed by workspace, the second maps composerID -> projectID.
+// Newer Cursors build the sidebar from these — composer.composerHeaders is no longer
+// read for it — so a reconstructed session must be registered here or it stays
+// invisible. Older Cursor versions ignore both keys, so writing them is always safe.
+const (
+	glassProjectsKey   = "glass.localAgentProjects.v1"
+	glassMembershipKey = "glass.localAgentProjectMembership.v1"
+)
+
+// glassProject mirrors the fields of a glass.localAgentProjects.v1 entry needed for
+// matching; existing entries are carried through verbatim as raw JSON when rewritten.
+type glassProject struct {
+	ID        string `json:"id"`
+	Workspace struct {
+		ID  string `json:"id"`
+		URI struct {
+			FsPath string `json:"fsPath"`
+		} `json:"uri"`
+	} `json:"workspace"`
+}
+
+// RegisterGlassProjectMembership adds a composer to the project-membership map that
+// backs the Agent sidebar in Cursor >= 3.12, creating a project entry for the workspace
+// when none exists yet (matched by workspace storage ID, then by canonical fsPath).
+//
+// Caveat: like every ItemTable write made while Cursor is running, a running instance
+// can flush its own in-memory copy of these keys over ours. The resume flow already
+// tells the user to restart Cursor; registration is reliable when Cursor is not
+// running or is restarted afterwards.
+func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, workspaceRoot string) error {
+	db, err := OpenDatabaseReadWrite(globalDbPath)
+	if err != nil {
+		return fmt.Errorf("failed to open global database for glass registration: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close global database after glass registration", "error", closeErr)
+		}
+	}()
+
+	// Resolve (or create) the project entry for this workspace. Unknown fields of
+	// existing entries are preserved by keeping them as raw JSON.
+	var rawProjects []json.RawMessage
+	var projectsRaw string
+	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", glassProjectsKey).Scan(&projectsRaw)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to read %s: %w", glassProjectsKey, err)
+	}
+	if projectsRaw != "" {
+		if jsonErr := json.Unmarshal([]byte(projectsRaw), &rawProjects); jsonErr != nil {
+			slog.Warn("Failed to parse glass projects, starting fresh", "error", jsonErr)
+			rawProjects = nil
+		}
+	}
+
+	canonicalRoot, cErr := normalizePathForComparison(workspaceRoot)
+	if cErr != nil {
+		canonicalRoot = workspaceRoot
+	}
+	projectID := ""
+	for _, entry := range rawProjects {
+		var project glassProject
+		if json.Unmarshal(entry, &project) != nil {
+			continue
+		}
+		if project.Workspace.ID == workspaceID {
+			projectID = project.ID
+			break
+		}
+		if project.Workspace.URI.FsPath != "" {
+			if canonical, pErr := normalizePathForComparison(project.Workspace.URI.FsPath); pErr == nil && canonical == canonicalRoot {
+				projectID = project.ID
+				break
+			}
+		}
+	}
+
+	if projectID == "" {
+		projectID = uuid.NewString()
+		nowMs := time.Now().UnixMilli()
+		// "New Project" mirrors the placeholder name Cursor writes for its own
+		// freshly-created project entries.
+		newEntry := map[string]interface{}{
+			"id":   projectID,
+			"name": "New Project",
+			"workspace": map[string]interface{}{
+				"id": workspaceID,
+				"uri": map[string]interface{}{
+					"$mid":     1,
+					"fsPath":   workspaceRoot,
+					"external": pathToFileURI(workspaceRoot),
+					"path":     workspaceRoot,
+					"scheme":   "file",
+				},
+			},
+			"createdAt":     nowMs,
+			"lastUpdatedAt": nowMs,
+			"isArchived":    false,
+		}
+		entryJSON, mErr := json.Marshal(newEntry)
+		if mErr != nil {
+			return fmt.Errorf("failed to marshal glass project entry: %w", mErr)
+		}
+		rawProjects = append(rawProjects, entryJSON)
+		projectsJSON, mErr := json.Marshal(rawProjects)
+		if mErr != nil {
+			return fmt.Errorf("failed to marshal glass projects: %w", mErr)
+		}
+		if _, execErr := db.Exec(
+			"INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+			glassProjectsKey, string(projectsJSON),
+		); execErr != nil {
+			return fmt.Errorf("failed to write %s: %w", glassProjectsKey, execErr)
+		}
+		slog.Debug("Created glass project entry for workspace",
+			"projectID", projectID, "workspaceID", workspaceID)
+	}
+
+	// Add the composer -> project mapping, preserving all existing entries verbatim.
+	membership := make(map[string]json.RawMessage)
+	var membershipRaw string
+	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = ?", glassMembershipKey).Scan(&membershipRaw)
+	if err != nil && err != sql.ErrNoRows {
+		return fmt.Errorf("failed to read %s: %w", glassMembershipKey, err)
+	}
+	if membershipRaw != "" {
+		if jsonErr := json.Unmarshal([]byte(membershipRaw), &membership); jsonErr != nil {
+			slog.Warn("Failed to parse glass membership, starting fresh", "error", jsonErr)
+			membership = make(map[string]json.RawMessage)
+		}
+	}
+	encodedProjectID, err := json.Marshal(projectID)
+	if err != nil {
+		return fmt.Errorf("failed to marshal project ID: %w", err)
+	}
+	membership[composerID] = encodedProjectID
+	membershipJSON, err := json.Marshal(membership)
+	if err != nil {
+		return fmt.Errorf("failed to marshal glass membership: %w", err)
+	}
+	if _, err := db.Exec(
+		"INSERT OR REPLACE INTO ItemTable (key, value) VALUES (?, ?)",
+		glassMembershipKey, string(membershipJSON),
+	); err != nil {
+		return fmt.Errorf("failed to write %s: %w", glassMembershipKey, err)
+	}
+
+	// Checkpoint so the write lands in the main DB file before Cursor next opens it
+	// (same rationale as WriteGlobalComposerHeader).
+	if _, err := db.Exec("PRAGMA wal_checkpoint(PASSIVE)"); err != nil {
+		slog.Warn("WAL checkpoint failed after glass registration", "error", err)
+	}
+
+	slog.Info("Registered composer in glass sidebar",
+		"composerID", composerID, "projectID", projectID)
 	return nil
 }
 

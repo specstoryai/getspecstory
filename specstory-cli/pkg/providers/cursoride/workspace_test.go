@@ -635,3 +635,71 @@ func TestFindProjectComposerIDs(t *testing.T) {
 		t.Errorf("expected 3 composer IDs, got %d: %v", len(ids), ids)
 	}
 }
+
+// TestEnsureWorkspaceForProject_MintsEntry verifies that a project never opened in
+// Cursor gets a workspace entry minted with Cursor's own ID scheme, and that the
+// minted entry round-trips through this provider's own workspace discovery.
+func TestEnsureWorkspaceForProject_MintsEntry(t *testing.T) {
+	storage := t.TempDir()
+	origStorage := GetWorkspaceStoragePath
+	GetWorkspaceStoragePath = func() (string, error) { return storage, nil }
+	t.Cleanup(func() { GetWorkspaceStoragePath = origStorage })
+
+	projectDir := filepath.Join(t.TempDir(), "fresh-project")
+	if err := os.Mkdir(projectDir, 0755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+
+	ws, err := EnsureWorkspaceForProject(projectDir)
+	if err != nil {
+		t.Fatalf("EnsureWorkspaceForProject: %v", err)
+	}
+
+	// The ID must be Cursor's scheme: md5(path + platform stat salt).
+	wantID, err := cursorWorkspaceID(projectDir)
+	if err != nil {
+		t.Fatalf("cursorWorkspaceID: %v", err)
+	}
+	if ws.ID != wantID {
+		t.Errorf("workspace ID = %q, want %q", ws.ID, wantID)
+	}
+
+	// workspace.json must parse and carry the folder URI.
+	wj, err := readWorkspaceJSON(filepath.Join(ws.Path, "workspace.json"))
+	if err != nil {
+		t.Fatalf("minted workspace.json unreadable: %v", err)
+	}
+	if wj.Folder != pathToFileURI(projectDir) {
+		t.Errorf("workspace.json folder = %q, want %q", wj.Folder, pathToFileURI(projectDir))
+	}
+
+	// The state.vscdb must exist with a usable ItemTable (our own readers query it).
+	if _, err := LoadWorkspaceComposerIDs(ws.DBPath); err != nil {
+		t.Errorf("minted state.vscdb not readable: %v", err)
+	}
+
+	// Round-trip: the provider's own workspace discovery must now find the entry.
+	matches, err := FindAllWorkspacesForProject(projectDir)
+	if err != nil {
+		t.Fatalf("FindAllWorkspacesForProject after minting: %v", err)
+	}
+	if len(matches) != 1 || matches[0].ID != wantID {
+		t.Errorf("expected minted workspace to be discovered, got %+v", matches)
+	}
+
+	// A second call must reuse the entry, not mint a duplicate.
+	ws2, err := EnsureWorkspaceForProject(projectDir)
+	if err != nil {
+		t.Fatalf("second EnsureWorkspaceForProject: %v", err)
+	}
+	if ws2.ID != wantID {
+		t.Errorf("second call returned ID %q, want %q", ws2.ID, wantID)
+	}
+	entries, err := os.ReadDir(storage)
+	if err != nil {
+		t.Fatalf("read storage dir: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("expected 1 workspace entry after two calls, got %d", len(entries))
+	}
+}

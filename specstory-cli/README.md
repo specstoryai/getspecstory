@@ -479,7 +479,7 @@ Each exchange is recorded as a child span with these attributes:
 ### Development Prerequisites
 
 - macOS development environment
-- Go 1.26.4 or later
+- Go 1.26.5 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 
@@ -554,8 +554,8 @@ Sync specific session with debug output:
     ├── 1.json      # Claude Code: sequential numbering
     ├── 2.json      # Cursor CLI: based on rowid
     ├── 3.json
-    └── ...
-    └── raw-composer.json # Cursor IDE: the full raw composer record for the session
+    ├── ...
+    ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
