@@ -522,7 +522,9 @@ func cleanSyntheticPrefixes(content string) string {
 			return strings.TrimSpace(trimmed[len(prefix):])
 		}
 	}
-	return content
+	// Return the trimmed form in the no-match case too, so callers always get
+	// consistently-trimmed output regardless of whether a prefix was stripped.
+	return trimmed
 }
 
 // extractContentText extracts plain text from a message content field.

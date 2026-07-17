@@ -64,9 +64,7 @@ func ConvertToAgentChatSession(composer *ComposerData, workspaceRoot string) (*s
 	// pass below.
 	var currentMessages []schema.Message
 	for i, bubble := range composer.Conversation {
-		// Skip empty bubbles that have no content to display
-		// BUT: Don't skip tool invocations (capabilityType=15) - they generate content from tool data
-		if bubble.Text == "" && (bubble.Thinking == nil || bubble.Thinking.Text == "") && bubble.CapabilityType != 0 && bubble.CapabilityType != 15 {
+		if isEmptyCapabilityBubble(&bubble) {
 			slog.Debug("Skipping empty capability bubble",
 				"bubbleId", bubble.BubbleID,
 				"capabilityType", bubble.CapabilityType)
@@ -195,27 +193,45 @@ func ConvertToAgentChatSession(composer *ComposerData, workspaceRoot string) (*s
 	}, nil
 }
 
+// composerNameCandidates returns the texts a composer can be identified by, in priority
+// order: the composer name (when set) followed by the first user message. generateSlug
+// and generateCursorIDESessionName share it so both always derive from the same source
+// texts; each applies its own transform and takes the first non-empty result.
+func composerNameCandidates(composer *ComposerData) []string {
+	var candidates []string
+	if composer.Name != "" {
+		candidates = append(candidates, composer.Name)
+	}
+	for _, bubble := range composer.Conversation {
+		if bubble.Type == 1 && bubble.Text != "" {
+			candidates = append(candidates, bubble.Text)
+			break
+		}
+	}
+	return candidates
+}
+
 // generateSlug creates a filesystem-safe slug from the composer name or first user message,
 // matching the spi.GenerateFilenameFromUserMessage convention used by every other provider.
+// Falls back to the composer ID when no candidate text survives the slug transform.
 func generateSlug(composer *ComposerData) string {
-	// Use composer name if available
-	if composer.Name != "" {
-		if slug := spi.GenerateFilenameFromUserMessage(composer.Name); slug != "" {
+	for _, text := range composerNameCandidates(composer) {
+		if slug := spi.GenerateFilenameFromUserMessage(text); slug != "" {
 			return slug
 		}
 	}
-
-	// Otherwise, use first user message
-	for _, bubble := range composer.Conversation {
-		if bubble.Type == 1 && bubble.Text != "" {
-			if slug := spi.GenerateFilenameFromUserMessage(bubble.Text); slug != "" {
-				return slug
-			}
-		}
-	}
-
-	// Fallback to composer ID
 	return composer.ComposerID
+}
+
+// isEmptyCapabilityBubble reports whether a capability bubble carries nothing to render:
+// no text and no thinking, on a bubble whose capabilityType is neither plain content (0)
+// nor a tool invocation (15). Tool bubbles are never skipped here because their content
+// is generated later from the tool data, not from the (empty) bubble text.
+func isEmptyCapabilityBubble(bubble *ComposerConversation) bool {
+	return bubble.Text == "" &&
+		(bubble.Thinking == nil || bubble.Thinking.Text == "") &&
+		bubble.CapabilityType != 0 &&
+		bubble.CapabilityType != 15
 }
 
 // getRoleFromType converts Cursor's message type to schema role
@@ -297,7 +313,7 @@ func registeredToolType(toolName string, toolRegistry *ToolRegistry) ToolType {
 // Returns nil if the tool data cannot be found.
 func resolveToolData(bubble *ComposerConversation, capabilitiesMap map[int]*CapabilityData, composerVersion int) *BubbleConversation {
 	if composerVersion >= 3 && bubble.ToolFormerData != nil {
-		return convertToolInvocationData(bubble.ToolFormerData)
+		return bubble.ToolFormerData
 	}
 	if capData, ok := capabilitiesMap[bubble.CapabilityType]; ok {
 		if capData.ParsedBubbleMap != nil {
@@ -332,21 +348,6 @@ func toSchemaToolType(t ToolType) string {
 	return string(t)
 }
 
-// convertToolInvocationData converts ToolInvocationData to BubbleConversation
-func convertToolInvocationData(data *ToolInvocationData) *BubbleConversation {
-	return &BubbleConversation{
-		Tool:           data.Tool,
-		Name:           data.Name,
-		RawArgs:        data.RawArgs,
-		Params:         data.Params,
-		Result:         data.Result,
-		Status:         data.Status,
-		Error:          data.Error,
-		AdditionalData: data.AdditionalData,
-		UserDecision:   data.UserDecision,
-	}
-}
-
 // parseCapabilities parses the capabilities array and extracts tool data
 // Returns a map of capabilityType -> CapabilityData
 func parseCapabilities(composer *ComposerData) map[int]*CapabilityData {
@@ -376,10 +377,12 @@ func parseCapabilities(composer *ComposerData) map[int]*CapabilityData {
 	return capabilitiesMap
 }
 
-// calculateTimestamp calculates the absolute timestamp from timing info
+// calculateTimestamp calculates the absolute timestamp from timing info.
 // Based on the TypeScript extension logic:
-// Sometimes clientStartTime is relative (< 946684800000 = Jan 1, 2000)
-// In that case, calculate absolute time as: clientEndTime - clientStartTime
+// Sometimes clientStartTime is relative (< 946684800000 = Jan 1, 2000).
+// In the relative form clientStartTime holds elapsed milliseconds rather than an epoch
+// timestamp, while the end-time fields stay absolute epoch milliseconds — so the
+// absolute start is recovered as: clientEndTime (absolute) - clientStartTime (elapsed).
 func calculateTimestamp(timingInfo *TimingInfo) string {
 	if timingInfo == nil {
 		return ""

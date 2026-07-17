@@ -3,6 +3,7 @@ package cursoride
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -244,7 +245,7 @@ func TestNativeSessionPath(t *testing.T) {
 		t.Errorf("path base = %q, want specstory-cursor-abc-uuid", filepath.Base(path))
 	}
 	// Must be inside the OS temp dir so it never lands in the user's project.
-	if !strings.HasPrefix(path, filepath.Join("/", "tmp")) && !strings.HasPrefix(path, "/var/folders") && !strings.HasPrefix(path, "/private") {
-		t.Logf("temp path: %s (accepted — OS temp dirs vary)", path)
+	if filepath.Dir(path) != filepath.Clean(os.TempDir()) {
+		t.Errorf("path %q is not directly inside os.TempDir() %q", path, os.TempDir())
 	}
 }

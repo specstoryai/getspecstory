@@ -17,12 +17,18 @@ import (
 // well under that limit.
 const composerBatchSize = 200
 
+// busyTimeoutPragma is appended to every DSN so each new connection waits for a
+// briefly-held lock instead of failing immediately with SQLITE_BUSY. Cursor itself
+// may be running and writing to these databases (e.g. during a checkpoint), so
+// without a busy timeout a resume or watch operation can fail on a transient lock.
+const busyTimeoutPragma = "_pragma=busy_timeout(5000)"
+
 // OpenDatabase opens a SQLite database in read-only mode with controlled
 // connection pooling. Callers that need WAL mode guaranteed should call
 // EnsureWALMode once before using this function (e.g. at watcher startup).
 func OpenDatabase(dbPath string) (*sql.DB, error) {
 	// Open in read-only mode
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+busyTimeoutPragma)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -45,7 +51,7 @@ func OpenDatabase(dbPath string) (*sql.DB, error) {
 // once at watcher startup, not on every query.
 func EnsureWALMode(dbPath string) error {
 	// Open read-write to be able to change journal mode
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
 	if err != nil {
 		return fmt.Errorf("failed to open database for WAL check: %w", err)
 	}
@@ -129,49 +135,11 @@ func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 		}
 	}
 
-	// Method 2: workbench.panel.composerChatViewPane entries
-	// In Cursor 3 these are the authoritative source for all conversation IDs.
-	// Each JSON value is a map whose keys follow the pattern
-	// "workbench.panel.aichat.view.{composerUUID}".
-	// Two key formats exist:
-	//   - "workbench.panel.composerChatViewPane" (no suffix) — the main panel shared by all tabs
-	//   - "workbench.panel.composerChatViewPane.{paneUUID}" — one entry per open tab/pane
-	rows, queryErr := db.Query(
-		"SELECT value FROM ItemTable WHERE (key = 'workbench.panel.composerChatViewPane' OR (key LIKE 'workbench.panel.composerChatViewPane.%' AND key NOT LIKE '%.hidden'))",
-	)
-	if queryErr != nil {
-		slog.Warn("Failed to query workspace panel entries", "error", queryErr)
-	} else {
-		defer func() {
-			if closeErr := rows.Close(); closeErr != nil {
-				slog.Warn("Failed to close panel query rows", "error", closeErr)
-			}
-		}()
-
-		const viewPrefix = "workbench.panel.aichat.view."
-		for rows.Next() {
-			var panelJSON string
-			if scanErr := rows.Scan(&panelJSON); scanErr != nil {
-				slog.Warn("Failed to scan panel row", "error", scanErr)
-				continue
-			}
-			var panelData map[string]interface{}
-			if jsonErr := json.Unmarshal([]byte(panelJSON), &panelData); jsonErr != nil {
-				slog.Warn("Failed to parse panel JSON", "error", jsonErr)
-				continue
-			}
-			for key := range panelData {
-				if strings.HasPrefix(key, viewPrefix) {
-					composerID := strings.TrimPrefix(key, viewPrefix)
-					if !seen[composerID] {
-						seen[composerID] = true
-						composerIDs = append(composerIDs, composerID)
-					}
-				}
-			}
-		}
-		if rowsErr := rows.Err(); rowsErr != nil {
-			slog.Warn("Error iterating panel rows", "error", rowsErr)
+	// Method 2: workbench.panel.composerChatViewPane entries.
+	for _, id := range loadPanelComposerIDs(db) {
+		if !seen[id] {
+			seen[id] = true
+			composerIDs = append(composerIDs, id)
 		}
 	}
 
@@ -180,6 +148,55 @@ func LoadWorkspaceComposerIDs(workspaceDbPath string) ([]string, error) {
 		"composerIDs", composerIDs)
 
 	return composerIDs, nil
+}
+
+// loadPanelComposerIDs extracts composer IDs from the workbench.panel.composerChatViewPane
+// entries in a workspace database. In Cursor 3 these are the authoritative source for all
+// conversation IDs. Each JSON value is a map whose keys follow the pattern
+// "workbench.panel.aichat.view.{composerUUID}".
+// Two key formats exist:
+//   - "workbench.panel.composerChatViewPane" (no suffix) — the main panel shared by all tabs
+//   - "workbench.panel.composerChatViewPane.{paneUUID}" — one entry per open tab/pane
+//
+// Failures are logged and yield a partial (possibly empty) result rather than an error —
+// method 1 in LoadWorkspaceComposerIDs may still have produced usable IDs.
+func loadPanelComposerIDs(db *sql.DB) []string {
+	rows, err := db.Query(
+		"SELECT value FROM ItemTable WHERE (key = 'workbench.panel.composerChatViewPane' OR (key LIKE 'workbench.panel.composerChatViewPane.%' AND key NOT LIKE '%.hidden'))",
+	)
+	if err != nil {
+		slog.Warn("Failed to query workspace panel entries", "error", err)
+		return nil
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Warn("Failed to close panel query rows", "error", closeErr)
+		}
+	}()
+
+	const viewPrefix = "workbench.panel.aichat.view."
+	var composerIDs []string
+	for rows.Next() {
+		var panelJSON string
+		if scanErr := rows.Scan(&panelJSON); scanErr != nil {
+			slog.Warn("Failed to scan panel row", "error", scanErr)
+			continue
+		}
+		var panelData map[string]interface{}
+		if jsonErr := json.Unmarshal([]byte(panelJSON), &panelData); jsonErr != nil {
+			slog.Warn("Failed to parse panel JSON", "error", jsonErr)
+			continue
+		}
+		for key := range panelData {
+			if strings.HasPrefix(key, viewPrefix) {
+				composerIDs = append(composerIDs, strings.TrimPrefix(key, viewPrefix))
+			}
+		}
+	}
+	if rowsErr := rows.Err(); rowsErr != nil {
+		slog.Warn("Error iterating panel rows", "error", rowsErr)
+	}
+	return composerIDs
 }
 
 // LoadComposerDataBatch loads multiple composers and their bubbles from the global database.
@@ -340,7 +357,7 @@ func OpenDatabaseReadWrite(dbPath string) (*sql.DB, error) {
 	if err := EnsureWALMode(dbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode before opening read-write database", "error", err)
 	}
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database for writing: %w", err)
 	}
@@ -361,37 +378,32 @@ func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, b
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
-	var txErr error
-	defer func() {
-		if txErr != nil {
-			_ = tx.Rollback()
-		}
-	}()
+	// Rollback after a successful Commit is a documented no-op (ErrTxDone), so it can
+	// be deferred unconditionally instead of tracking a separate error flag.
+	defer func() { _ = tx.Rollback() }()
 
-	if _, txErr = tx.Exec(
+	if _, err := tx.Exec(
 		"INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)",
 		"composerData:"+composerID, string(composerJSON),
-	); txErr != nil {
-		return fmt.Errorf("failed to insert composer data: %w", txErr)
+	); err != nil {
+		return fmt.Errorf("failed to insert composer data: %w", err)
 	}
 
 	for i := range bubbles {
 		bubbleJSON, err := json.Marshal(&bubbles[i])
 		if err != nil {
-			txErr = fmt.Errorf("failed to marshal bubble %s: %w", bubbles[i].BubbleID, err)
-			return txErr
+			return fmt.Errorf("failed to marshal bubble %s: %w", bubbles[i].BubbleID, err)
 		}
 		key := "bubbleId:" + composerID + ":" + bubbles[i].BubbleID
-		if _, txErr = tx.Exec(
+		if _, err := tx.Exec(
 			"INSERT OR REPLACE INTO cursorDiskKV (key, value) VALUES (?, ?)",
 			key, string(bubbleJSON),
-		); txErr != nil {
-			return fmt.Errorf("failed to insert bubble %s: %w", bubbles[i].BubbleID, txErr)
+		); err != nil {
+			return fmt.Errorf("failed to insert bubble %s: %w", bubbles[i].BubbleID, err)
 		}
 	}
 
-	txErr = tx.Commit()
-	return txErr
+	return tx.Commit()
 }
 
 // ComposerHeadMeta holds the session metadata needed to register a reconstructed session
@@ -553,7 +565,9 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		return fmt.Errorf("failed to marshal composer header entry: %w", err)
 	}
 
-	// Prepend so the newest session sorts to the top (Cursor sorts by lastUpdatedAt DESC).
+	// Prepend the new entry to match how Cursor itself maintains this array
+	// (newest first); the sidebar's display order comes from lastUpdatedAt,
+	// not from array position.
 	allComposers = append([]json.RawMessage{entryJSON}, allComposers...)
 	encoded, err := json.Marshal(allComposers)
 	if err != nil {

@@ -82,14 +82,14 @@ func TestGenerateSlug(t *testing.T) {
 func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 	tests := []struct {
 		name           string
-		toolData       *ToolInvocationData
+		toolData       *BubbleConversation
 		wantToolNonNil bool
 		wantBodyHas    string // substring expected in Tool.FormattedMarkdown, if wantToolNonNil
 		wantContentHas string // substring expected in Content, if wantToolNonNil is false
 	}{
 		{
 			name: "successfully resolved tool populates Tool, not Content",
-			toolData: &ToolInvocationData{
+			toolData: &BubbleConversation{
 				Tool:   1,
 				Name:   "run_terminal_cmd",
 				Status: "completed",
@@ -99,7 +99,7 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 		},
 		{
 			name: "cancelled tool is structured with Cancelled body",
-			toolData: &ToolInvocationData{
+			toolData: &BubbleConversation{
 				Tool:   1,
 				Name:   "run_terminal_cmd",
 				Status: "cancelled",
@@ -109,7 +109,7 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 		},
 		{
 			name: "invalid tool (Tool=0) is structured with error body",
-			toolData: &ToolInvocationData{
+			toolData: &BubbleConversation{
 				Tool: 0,
 				Name: "unknown_tool",
 			},
@@ -118,7 +118,7 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 		},
 		{
 			name: "errored tool is structured with the error message as body",
-			toolData: &ToolInvocationData{
+			toolData: &BubbleConversation{
 				Tool:   1,
 				Name:   "run_terminal_cmd",
 				Status: "error",
@@ -129,7 +129,7 @@ func TestConvertToAgentChatSession_ToolRendering(t *testing.T) {
 		},
 		{
 			name: "tool data without a name falls back to Content, no Tool",
-			toolData: &ToolInvocationData{
+			toolData: &BubbleConversation{
 				Tool:   1,
 				Status: "completed",
 			},

@@ -360,8 +360,95 @@ func isRemoteURIRequiringBasenameMatch(uri string) bool {
 		strings.HasPrefix(lower, "vscode-remote://dev-container")
 }
 
+// FindProjectComposerIDs returns the composer IDs associated with the project, merging
+// the two association sources that exist across Cursor versions:
+//
+//  1. Workspace-DB references (composer.composerData / workbench.panel keys) — Cursor 2
+//     and early Cursor 3 record every conversation there.
+//  2. The workspaceIdentifier embedded in each global composerData row — in Cursor
+//     >= 3.12 the workspace DB no longer records conversations at all, and the global
+//     composer.composerHeaders key is flushed lazily (often not until Cursor exits),
+//     so this embedded field is the only association that updates live.
+//
+// A composer matches via source 2 when its workspace storage ID equals one of the
+// project's matched workspace entries (covers remote workspaces, whose fsPath is not a
+// local path), or when its fsPath resolves to the project path (covers workspace
+// entries created after the caller resolved its workspace list — Cursor mints a fresh
+// entry per literal path spelling, e.g. `~/source/...` vs `~/Source/...`).
+// The full-DB lightweight scan this requires is deliberate: it is the only way to see
+// the embedded workspaceIdentifier, and at watch cadence (>= 10s between checks) the
+// cost of parsing the composer rows is acceptable. Callers that already hold the
+// scanned map should use projectComposerIDs directly instead of scanning again.
+func FindProjectComposerIDs(globalDbPath, projectPath string, workspaces []WorkspaceMatch) ([]string, error) {
+	composers, err := LoadAllComposerDataLightweight(globalDbPath)
+	if err != nil {
+		// The workspace-DB IDs may still be usable (older Cursor versions), so degrade
+		// to source 1 rather than failing the whole lookup.
+		slog.Warn("Failed to load global composer data for workspaceIdentifier matching", "error", err)
+		composers = nil
+	}
+	return projectComposerIDs(composers, projectPath, workspaces)
+}
+
+// projectComposerIDs is the load-free core of FindProjectComposerIDs: it matches an
+// already-scanned composer map against the project. Split out so callers that need the
+// scanned map for their own purposes too (e.g. the watcher's seeding, which also reads
+// the timestamps) don't scan the global database twice.
+func projectComposerIDs(composers map[string]*ComposerData, projectPath string, workspaces []WorkspaceMatch) ([]string, error) {
+	ids, err := LoadComposerIDsFromAllWorkspaces(workspaces)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		seen[id] = true
+	}
+
+	canonicalProject, err := normalizePathForComparison(projectPath)
+	if err != nil {
+		canonicalProject = projectPath
+	}
+	workspaceIDs := make(map[string]bool, len(workspaces))
+	for _, ws := range workspaces {
+		workspaceIDs[ws.ID] = true
+	}
+
+	for composerID, composer := range composers {
+		if seen[composerID] || !composerBelongsToProject(composer, workspaceIDs, canonicalProject) {
+			continue
+		}
+		seen[composerID] = true
+		ids = append(ids, composerID)
+	}
+
+	slog.Debug("Resolved project composer IDs", "count", len(ids), "projectPath", projectPath)
+	return ids, nil
+}
+
+// composerBelongsToProject implements the embedded-workspaceIdentifier match of
+// FindProjectComposerIDs (source 2 in its doc comment).
+func composerBelongsToProject(composer *ComposerData, workspaceIDs map[string]bool, canonicalProject string) bool {
+	wi := composer.WorkspaceIdentifier
+	if wi == nil {
+		return false
+	}
+	if workspaceIDs[wi.ID] {
+		return true
+	}
+	if wi.URI == nil || wi.URI.FsPath == "" {
+		return false
+	}
+	canonicalComposer, err := normalizePathForComparison(wi.URI.FsPath)
+	if err != nil {
+		canonicalComposer = wi.URI.FsPath
+	}
+	return canonicalComposer == canonicalProject
+}
+
 // LoadComposerIDsFromAllWorkspaces loads and deduplicates composer IDs from all matching workspaces.
 // This handles WSL environments where the same project may have multiple workspace entries.
+// NOTE: this only covers Cursor 2 / early Cursor 3 — newer versions stopped recording
+// conversations in the workspace DB entirely; use FindProjectComposerIDs for full coverage.
 func LoadComposerIDsFromAllWorkspaces(workspaces []WorkspaceMatch) ([]string, error) {
 	seen := make(map[string]bool)
 	var allIDs []string
@@ -637,15 +724,17 @@ func parseVSCodeRemoteURI(uri string) (string, error) {
 
 	hostLower := strings.ToLower(decodedHost)
 
-	// Check if it's a supported remote type
-	if !strings.HasPrefix(hostLower, "wsl+") &&
-		!strings.EqualFold(decodedHost, "wsl") &&
-		!strings.HasPrefix(hostLower, "ssh-remote+") &&
-		!strings.EqualFold(decodedHost, "ssh-remote") &&
-		!strings.HasPrefix(hostLower, "tunnel+") &&
-		!strings.EqualFold(decodedHost, "tunnel") &&
-		!strings.HasPrefix(hostLower, "dev-container+") &&
-		!strings.EqualFold(decodedHost, "dev-container") {
+	// Check if it's a supported remote type: each host is either bare ("wsl") or
+	// carries a "+{config}" suffix ("wsl+ubuntu", "ssh-remote+{config-hex}").
+	supportedHosts := []string{"wsl", "ssh-remote", "tunnel", "dev-container"}
+	supported := false
+	for _, host := range supportedHosts {
+		if hostLower == host || strings.HasPrefix(hostLower, host+"+") {
+			supported = true
+			break
+		}
+	}
+	if !supported {
 		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
 	}
 
