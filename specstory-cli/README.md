@@ -554,8 +554,8 @@ Sync specific session with debug output:
     ├── 1.json      # Claude Code: sequential numbering
     ├── 2.json      # Cursor CLI: based on rowid
     ├── 3.json
-    └── ...
-    └── raw-composer.json # Cursor IDE: the full raw composer record for the session
+    ├── ...
+    ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
