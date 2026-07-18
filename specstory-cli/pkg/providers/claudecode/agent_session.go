@@ -108,6 +108,11 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 	var currentExchange *Exchange
 	var exchangeStartTime string
 
+	// Text of every user message that actually reached the agent. A queued input
+	// that was later sent appears here verbatim, so we use this to skip it below
+	// (it already renders as a normal user prompt) and only surface never-sent ones.
+	deliveredUserTexts := collectDeliveredUserTexts(records)
+
 	for _, record := range records {
 		recordType, _ := record.Data["type"].(string)
 		timestamp, _ := record.Data["timestamp"].(string)
@@ -178,6 +183,32 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 			msg := buildAgentMessage(record, workspaceRoot, isSidechain)
 			currentExchange.Messages = append(currentExchange.Messages, msg)
 			currentExchange.EndTime = timestamp
+
+		case "queue-operation":
+			// Text the user typed while the agent was busy (rescued in the parser).
+			// Only "enqueue" carries content; dequeue/remove are null lifecycle events.
+			if operation, _ := record.Data["operation"].(string); operation != "enqueue" {
+				continue
+			}
+			content, _ := record.Data["content"].(string)
+			trimmed := strings.TrimSpace(content)
+			if trimmed == "" {
+				continue
+			}
+			// Skip queued inputs that were actually sent — they already appear as a
+			// normal user prompt. Surface only what the user typed but never sent.
+			if deliveredUserTexts[trimmed] {
+				continue
+			}
+
+			// Render the never-sent input as its own user turn at this point in time.
+			if currentExchange != nil {
+				exchanges = append(exchanges, *currentExchange)
+			}
+			currentExchange = &Exchange{
+				StartTime: timestamp,
+				Messages:  []Message{buildQueuedInputMessage(record)},
+			}
 		}
 	}
 
@@ -302,6 +333,63 @@ func buildUserMessage(record JSONLRecord, isSidechain bool) Message {
 	}
 
 	return msg
+}
+
+// collectDeliveredUserTexts returns the trimmed text of every user message that
+// reached the agent, keyed for exact-match lookup. Used to tell a queued input that
+// was eventually sent (already rendered) from one that was typed but never sent.
+func collectDeliveredUserTexts(records []JSONLRecord) map[string]bool {
+	delivered := make(map[string]bool)
+	for _, record := range records {
+		if recordType, _ := record.Data["type"].(string); recordType != "user" {
+			continue
+		}
+		message, _ := record.Data["message"].(map[string]interface{})
+		if message == nil {
+			continue
+		}
+
+		var text string
+		switch content := message["content"].(type) {
+		case string:
+			text = content
+		case []interface{}:
+			var parts []string
+			for _, item := range content {
+				contentMap, ok := item.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				if contentType, _ := contentMap["type"].(string); contentType == "text" {
+					if t, _ := contentMap["text"].(string); t != "" {
+						parts = append(parts, t)
+					}
+				}
+			}
+			text = strings.Join(parts, "\n")
+		}
+
+		if trimmed := strings.TrimSpace(text); trimmed != "" {
+			delivered[trimmed] = true
+		}
+	}
+	return delivered
+}
+
+// buildQueuedInputMessage builds a user Message for a never-sent queued input,
+// tagged via Metadata so the renderer can mark it distinctly.
+func buildQueuedInputMessage(record JSONLRecord) Message {
+	uuid, _ := record.Data["uuid"].(string)
+	timestamp, _ := record.Data["timestamp"].(string)
+	content, _ := record.Data["content"].(string)
+
+	return Message{
+		ID:        uuid,
+		Timestamp: timestamp,
+		Role:      "user",
+		Content:   []ContentPart{{Type: "text", Text: content}},
+		Metadata:  map[string]interface{}{"queued": true},
+	}
 }
 
 // buildAgentMessage creates a Message from an assistant JSONL record
