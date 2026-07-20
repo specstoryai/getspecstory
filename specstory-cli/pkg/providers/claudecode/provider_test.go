@@ -228,6 +228,22 @@ func TestFindFirstUserMessage(t *testing.T) {
 			session:  Session{Records: []JSONLRecord{}},
 			expected: "",
 		},
+		{
+			name: "Strips 'Implement the following plan:' prefix",
+			session: Session{
+				Records: []JSONLRecord{
+					{
+						Data: map[string]interface{}{
+							"type": "user",
+							"message": map[string]interface{}{
+								"content": "Implement the following plan:\n\n# Plan: Replace Gemini Watcher Polling with fsnotify",
+							},
+						},
+					},
+				},
+			},
+			expected: "# Plan: Replace Gemini Watcher Polling with fsnotify",
+		},
 	}
 
 	for _, tt := range tests {
@@ -235,6 +251,50 @@ func TestFindFirstUserMessage(t *testing.T) {
 			result := findFirstUserMessage(tt.session)
 			if result != tt.expected {
 				t.Errorf("findFirstUserMessage() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCleanSyntheticPrefixes tests stripping of boilerplate prefixes
+func TestCleanSyntheticPrefixes(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "Strips plan mode prefix",
+			content:  "Implement the following plan:\n\n# Plan: Replace Gemini Watcher",
+			expected: "# Plan: Replace Gemini Watcher",
+		},
+		{
+			name:     "Case insensitive matching",
+			content:  "implement the following plan:\n\nDo the thing",
+			expected: "Do the thing",
+		},
+		{
+			name:     "Leaves normal messages unchanged",
+			content:  "Fix the login bug on the dashboard",
+			expected: "Fix the login bug on the dashboard",
+		},
+		{
+			name:     "Handles prefix with leading whitespace",
+			content:  "  Implement the following plan:\n\nSome plan",
+			expected: "Some plan",
+		},
+		{
+			name:     "Returns empty string if only prefix",
+			content:  "Implement the following plan:",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := cleanSyntheticPrefixes(tt.content)
+			if result != tt.expected {
+				t.Errorf("cleanSyntheticPrefixes(%q) = %q, want %q", tt.content, result, tt.expected)
 			}
 		})
 	}
@@ -457,5 +517,46 @@ func TestConvertToAgentChatSession(t *testing.T) {
 				t.Errorf("CreatedAt is empty, want timestamp")
 			}
 		})
+	}
+}
+
+func TestIsSyntheticMessage_SlashCommandNoise(t *testing.T) {
+	synthetic := []string{
+		"warmup",
+		"<TEXTBLOCK>real prompt</TEXTBLOCK>",
+		"<command-name>/code-review</command-name>",
+		"  <local-command-stdout>Cancelled</local-command-stdout>",
+		"<local-command-caveat>Caveat: …</local-command-caveat>",
+		"<command-message>today</command-message>",
+		"[Request interrupted by user]",
+		"[Request interrupted by user for tool use]",
+	}
+	for _, c := range synthetic {
+		if !isSyntheticMessage(c) {
+			t.Errorf("expected synthetic: %q", c)
+		}
+	}
+	real := []string{
+		"read @docs/SESSION-PORTABILITY.md task to follow",
+		"fix the bug in the parser",
+		"I have a <command-name> mentioned mid-sentence", // not a prefix → real
+	}
+	for _, c := range real {
+		if isSyntheticMessage(c) {
+			t.Errorf("expected real: %q", c)
+		}
+	}
+}
+
+func TestExtractCommandName(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"<command-name>/code-review</command-name>\n<command-message>code-review</command-message>", "/code-review"},
+		{"<command-message>today</command-message>", "/today"},
+		{"no command here", ""},
+	}
+	for _, c := range cases {
+		if got := extractCommandName(c.in); got != c.want {
+			t.Errorf("extractCommandName(%q) = %q, want %q", c.in, got, c.want)
+		}
 	}
 }

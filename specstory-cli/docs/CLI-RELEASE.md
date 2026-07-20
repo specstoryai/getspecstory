@@ -8,7 +8,7 @@
 2. Update `specstory-cli/changelog.md` with release notes
 3. Tag and push the release:
    ```zsh
-   git tag -a specstory-cli/v1.0.0 -m "Release v1.0.0"
+   git tag -a specstory-cli/v2.0.0 -m "Release v2.0.0"
    git push origin --tags
    ```
 4. Monitor the [GitHub Action](https://github.com/specstoryai/getspecstory/actions)
@@ -61,7 +61,7 @@ The release workflow handles everything after you push the tag:
 
 ### Release notes not updated
 
-Check that the version in `changelog.md` matches the tag format (e.g., `## v1.0.0` for tag `specstory-cli/v1.0.0`).
+Check that the version in `changelog.md` matches the tag format (e.g., `## v2.0.0` for tag `specstory-cli/v2.0.0`).
 
 ### Homebrew tap not updated
 
@@ -75,7 +75,7 @@ If automation fails, update manually:
 
 ```zsh
 # Get SHA256 hashes
-VERSION="1.0.0"
+VERSION="2.0.0"
 curl -sL "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v${VERSION}/SpecStoryCLI_Darwin_arm64.tar.gz" | shasum -a 256
 curl -sL "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v${VERSION}/SpecStoryCLI_Darwin_x86_64.tar.gz" | shasum -a 256
 curl -sL "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v${VERSION}/SpecStoryCLI_Linux_arm64.tar.gz" | shasum -a 256

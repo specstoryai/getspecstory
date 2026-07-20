@@ -1,10 +1,69 @@
 # Specstory CLI Changelog
 
-## v1.14.0 <!-- release date TBD -->
+## 2.5.0 2026-07-21
 
 ### 📢 Announcements
 
-- The SpecStory CLI now supports the [Antigravity CLI](https://antigravity.google/) (i.e. `antigravity-cli`, the `agy` binary) for sessions created from Antigravity CLI version `1.0.2` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), [Gemini CLI](https://github.com/google-gemini/gemini-cli), Factory's [Droid CLI](https://factory.ai/product/cli) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- The SpecStory CLI now supports the [Antigravity CLI](https://antigravity.google/) (i.e. `antigravity-cli`, the `agy` binary) for sessions created from Antigravity CLI version `1.0.2` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), [Gemini CLI](https://github.com/google-gemini/gemini-cli), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+
+## v2.4.0 2026-07-20
+
+### ⚙️ Improvements
+
+- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks) library. Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235).
+- Redaction also covers all the data synced to SpecStory Cloud, not just local markdown.
+
+### 🔧 CLI Configuration & Commands
+
+- If you don't want secret redaction for any reason (not recommended), use the `--no-redact-secrets` flag or `enabled = false` in the `[redaction]` section of your `.specstory/cli/config.toml`.
+
+### 🐛 Bug Fixes
+
+- Fixed some indeterminism in Clade Code session rendering order around the Claude `local-command-caveat` that could cause markdown edit churn on repeated `sync` runs.
+
+## v2.3.0 2026-07-17
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports the [Cursor IDE](https://cursor.com/product) (i.e. `cursoride`) for sessions created from Cursor version 3 or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), [Gemini CLI](https://github.com/google-gemini/gemini-cli), Factory's [Droid CLI](https://factory.ai/product/cli), and [DeepSeek TUI](https://github.com/Hmbown/CodeWhale)
+- You can now use `specstory resume` to resume agent sessions from Cursor IDE into terminal coding agents such as Claude Code, and Codex.
+
+## v2.2.0 2026-07-14
+
+### 📢 Announcements
+
+- [SpecStory Pro](https://specstory.com/pricing) users can now use `specstory resume` to resume agent sessions from other machines using any session that's been synced to their SpecStory Cloud account from any other computer.
+- [SpecStory Pro](https://specstory.com/pricing) users can now use `specstory search` to search, browse and view agent sessions you've synced to SpecStory Cloud from any other computer.
+- [SpecStory Pro](https://specstory.com/pricing) users can now use `specstory skills` to generate, review, and install skills forged from the SpecStory histories that are synced to SpecStory Cloud from all their computers.
+
+### ⚙️ Improvements
+
+- SpecStory CLI operations that use the `~/.specstory/sessions.db` SQLite database (e.g. `specstory reindex`, `specstory search`, `specstory resume`) now self-heal if the `sessions.db` file is removed but the `sessions.db-wal` and/or `session.db-shm` files remain.
+- More agent sessions from the Cursor CLI provider are now attributed to the correct project in `specstory search` and `specstory resume` and not to an `unknown` project. This is challenging as the Cursor CLI agent session data does not include the project directory, and instead has a one-way hash of the project directory. We know use additional techniques to determine the correct project directory for the session, when it's possible to do so.
+
+## v2.1.0 2026-07-06
+
+### ⚙️ Improvements
+
+- Delete any session or project from the `~/.specstory/sessions.db` index using the `d` hotkey in `specstory resume` or `specstory search`.
+- Small improvement in the `specstory search` / `resume` TUI to label the currently active search query.
+
+## v2.0.0 2026-06-29
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports cross-project and cross-agent resume using `specstory resume`. Run `specstory resume` in any project dir and by default it shows you all the agent coding sessions for that project across all the supported providers. You can select any session and then select any coding agent you have installed to resume it in. For example, you can resume a Claude Code session in Codex. You can press `tab` in the UI to switch to a project browser and resume sessions from other projects in the current project. You can press `a` in the UI to filter the sessions by type of coding agent. You can pre-select the target agent you'll be resuming into by specifying it with `specstory resume <agent>`.
+- The SpecStory CLI now supports indexed project and cross-project full-text search of your agent coding sessions using `specstory search`. By default you'll be searching across all projects, and you can limit it to the current project directory with `tab` and filter results to a specific agent with `a`.
+- The `resume` and `search` features rely on a session index created in `~/.specstory/session.db`. This index is created automatically the first time you run `resume` or `search`, or you can create it manually with `specstory reindex`.
+
+### ⚙️ Improvements
+
+- Massive improvement in the `sync` performance for Claude Code projects with many sessions.
+- Skip rendering content-less messages with just an agent header, [contribution](https://github.com/specstoryai/getspecstory/pull/237) by [huangruizhe](https://github.com/huangruizhe).
+
+### 🐛 Bug Fixes
+
+- The Codex CLI provider now respects `CODEX_HOME` if set, [issue 136](https://github.com/specstoryai/getspecstory/issues/136), [contribution](https://github.com/specstoryai/getspecstory/pull/238) by [Shravan-0](https://github.com/Shravan-0).
 
 ## v1.13.0 2026-05-18
 

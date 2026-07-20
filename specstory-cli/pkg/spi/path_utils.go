@@ -16,6 +16,23 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// markdownHeadingRe matches a leading Markdown ATX heading marker after outer
+// whitespace has been trimmed: 1-6 '#' characters followed by whitespace. The
+// trailing whitespace requirement is what distinguishes a real heading ("# Title")
+// from hashtag-like text ("#login issue"), which must be left untouched.
+var markdownHeadingRe = regexp.MustCompile(`^#{1,6}\s+`)
+
+// stripMarkdownHeading removes a leading markdown heading marker (e.g. "# Title" → "Title").
+// These are structural formatting, not meaningful slug content.
+func stripMarkdownHeading(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if markdownHeadingRe.MatchString(trimmed) {
+		trimmed = markdownHeadingRe.ReplaceAllString(trimmed, "")
+		trimmed = strings.TrimSpace(trimmed)
+	}
+	return trimmed
+}
+
 // xmlTagsRe matches XML-style tag blocks including their content, such as
 // <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
 // These are injected by IDE tools/system prompts and should be stripped before
@@ -50,6 +67,9 @@ func extractWordsFromMessage(message string, maxWords int) []string {
 	if message == "" {
 		return []string{}
 	}
+
+	// Strip leading markdown heading markers before they get converted to "hash"
+	message = stripMarkdownHeading(message)
 
 	// Normalize unicode and remove accents
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
@@ -139,6 +159,41 @@ func GenerateReadableName(message string) string {
 	return truncated + "..."
 }
 
+// ReadableTitleFromSessionData derives the same human-readable title a local row shows — the first
+// user message run through GenerateReadableName (XML-stripped, whitespace-normalized, capped at 100
+// chars). Used at cloud-sync time so a cloud row can display a prompt title identical to its local
+// counterpart. Because it runs through GenerateReadableName, the stored value stays tiny even when
+// the first message is enormous (e.g. a pasted log dump). Empty when there is no user message.
+func ReadableTitleFromSessionData(data *schema.SessionData) string {
+	return GenerateReadableName(firstUserMessageText(data))
+}
+
+// firstUserMessageText returns the concatenated text content of the first user-role message in the
+// session — the prompt that opens the conversation. Skips a user message that carries no text (e.g.
+// a tool result) and moves to the next. Empty when none is found.
+func firstUserMessageText(data *schema.SessionData) string {
+	if data == nil {
+		return ""
+	}
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			if msg.Role != schema.RoleUser {
+				continue
+			}
+			var b strings.Builder
+			for _, part := range msg.Content {
+				if part.Type == "text" {
+					b.WriteString(part.Text)
+				}
+			}
+			if text := strings.TrimSpace(b.String()); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
 // appendRemainingParts appends the remaining path components from parts[startIdx:] to the
 // result path, skipping any empty components. This is used when we can't canonicalize the
 // rest of the path (e.g., directory doesn't exist or can't be read).
@@ -189,7 +244,7 @@ func GetCanonicalPath(p string) (string, error) {
 	} else if err != nil {
 		// Symlink resolution failed (e.g., path doesn't exist yet),
 		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 
