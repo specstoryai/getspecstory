@@ -11,6 +11,10 @@
 
 - If you don't want secret redaction for any reason (not recommended), use the `--no-redact-secrets` flag or `enabled = false` in the `[redaction]` section of your `.specstory/cli/config.toml`.
 
+### 🐛 Bug Fixes
+
+- Fixed some indeterminism in Clade Code session rendering order around the Claude `local-command-caveat` that could cause markdown edit churn on repeated `sync` runs.
+
 ## v2.3.0 2026-07-17
 
 ### 📢 Announcements
