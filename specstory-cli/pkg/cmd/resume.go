@@ -391,6 +391,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 	track("success")
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
+	printCursorIDERestartNote(plan, out)
 	return rec.SessionID, nil
 }
 
@@ -442,7 +443,17 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 	}
 	track("success")
 	fprintf(out, "Reconstructed cloud %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
+	printCursorIDERestartNote(plan, out)
 	return rec.SessionID, nil
+}
+
+// printCursorIDERestartNote tells the user how to surface a session reconstructed into Cursor
+// IDE's store: Cursor only picks up imported sessions from its SQLite database on startup, so
+// unlike CLI targets the result is not visible until the app is restarted.
+func printCursorIDERestartNote(plan *resumePlan, out io.Writer) {
+	if plan.toID == "cursoride" {
+		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
+	}
 }
 
 // materializeReconstructed reconstructs data into plan.to's native store under cwd, durably writes
@@ -469,8 +480,13 @@ func materializeReconstructed(plan *resumePlan, cwd string, data *schema.Session
 	// instant it starts. On a filesystem without strong close-to-open coherence the freshly
 	// written file can lag, so confirm it is actually readable before handing the agent a
 	// --resume it would otherwise reject as "session not found".
-	if err := waitForSessionFileVisible(path, sessionFileVisibleTimeout); err != nil {
-		return nil, fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
+	// Skip when Content is empty: some providers (e.g. Cursor IDE) write the session data
+	// directly to their own store (SQLite) and return an empty sentinel file whose only purpose
+	// is to satisfy this path — there is no file content to wait for.
+	if len(rec.Content) > 0 {
+		if err := waitForSessionFileVisible(path, sessionFileVisibleTimeout); err != nil {
+			return nil, fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
+		}
 	}
 
 	slog.Info("resume: wrote reconstructed session", "path", path, "newID", rec.SessionID)
