@@ -2,7 +2,7 @@
 
 ## Background
 
-The CLI redacts secrets from generated markdown before writing it to disk and syncing it to cloud (`pkg/session/redact.go`, betterleaks default ruleset). Two cloud-synced payloads also need redacted:
+The CLI redacts secrets from generated markdown before writing it to disk and syncing it to cloud (`pkg/redact`, betterleaks default ruleset). Two cloud-synced payloads also need redacted:
 
 - **Raw data** (`session.RawData`): the provider's native session data (JSONL for Claude Code and Codex CLI, generated JSON blobs for the Cursor providers). No structured consumer today; used only for token-usage extraction, which treats it as plain text. Persisted in cloud storage as "insurance."
 - **SessionData JSON** (`session.SessionDataJSON()`): the normalized session structure. Consumed by session resumption (low volume). Regenerated wholesale on every save.
@@ -69,13 +69,12 @@ At process startup, before any detection, set the Betterleaks regex engine to RE
 - Re-scan a small overlap window across each boundary so a secret spanning the split (e.g. a decoded multi-line PEM block) is still caught. Applying the same finding twice is naturally idempotent — `applyRedactions` skips secrets no longer present.
 - Findings from all chunks accumulate and are applied to the full payload with the existing `applyRedactions` loop (longest-first, deterministic tie-break).
 
-### Per-save scans of all three payloads
+### Markdown per save, cloud payloads per send
 
-Every payload is redacted independently, wholesale, on each save — no cross-payload state, no cache, no incremental bookkeeping:
+Every payload is redacted independently, wholesale — no cross-payload state, no cache, no incremental bookkeeping — but at two different moments:
 
-- **Markdown**: existing scan, now chunked + RE2 (drops from ~1s to ~34ms on the largest observed file).
-- **Raw data**: scanned and redacted before `SyncSessionToCloud`.
-- **SessionData JSON**: scanned and redacted before `SyncSessionToCloud`.
+- **Markdown**: scanned on each save, before the disk write (chunked + RE2 drops it from ~1s to ~34ms on the largest observed file). The analytics `redacted_count` covers this scan only.
+- **Raw data / SessionData JSON**: scanned inside the sync machinery (`performSync`) at actual send time, in the sync goroutine, off the save path. Autosave syncs are debounced with newer payloads replacing queued ones, so payloads that never upload are never scanned — and because redaction happens in the same goroutine as the send, the decision cannot race a login completing mid-run.
 
 The shared `[REDACTED:rule-id]` placeholder keeps payloads consistent where the same secret is detected in each.
 
@@ -86,11 +85,12 @@ The shared `[REDACTED:rule-id]` placeholder keeps payloads consistent where the 
 
 ## Performance budgets
 
-|                                 Path                                 |        Measured basis         |        Budget        |
-| -------------------------------------------------------------------- | ----------------------------- | -------------------- |
-| Typical save event, all three payloads                               | sub-MB payloads at 12–50 MB/s | tens of milliseconds |
-| Worst observed session (10MB raw + 2.8MB SessionData + 1MB markdown) | 815ms + 53ms + 34ms           | ~1s                  |
-| Detector construction                                                | ~5ms                          | once per process     |
+|                                    Path                                     |        Measured basis         |        Budget        |
+| --------------------------------------------------------------------------- | ----------------------------- | -------------------- |
+| Typical save event (markdown) or upload (raw + SessionData)                 | sub-MB payloads at 12–50 MB/s | tens of milliseconds |
+| Worst observed session, one full upload (10MB raw + 2.8MB SessionData)      | 815ms + 53ms                  | ~1s                  |
+| Worst observed markdown save (1.3MB)                                        | 34ms                          | tens of milliseconds |
+| Detector construction                                                       | ~5ms                          | once per process     |
 
 If the worst-case tail ever becomes a problem (sessions far larger than observed), parallel chunk scanning is the next lever; nothing in this design precludes it.
 

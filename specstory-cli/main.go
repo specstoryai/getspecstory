@@ -20,6 +20,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/redact"
 	sessionpkg "github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
@@ -430,9 +431,9 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				slog.Info("Resuming session", "sessionId", resumeSessionID)
 			}
 
-			// Get debug-raw flag value (must be before callback to capture in closure)
+			// Get debug-raw flag value for the agent watcher; the autosave
+			// callback resolves its own copy via ResolveProcessingOptions
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useUTC := !localTimeZone
 
 			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
 			// if the index can't be opened — never block the running agent on it).
@@ -445,40 +446,20 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// allowing immediate markdown generation and cloud sync. Errors are logged but
 			// don't stop execution because transient failures (e.g., network issues) shouldn't
 			// interrupt the user's coding session.
+			autosave := cmdpkg.NewAutosaveCallback(cmdpkg.AutosaveDeps{
+				Ctx:        ctx,
+				Config:     config,
+				Processing: cmdpkg.ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */),
+				LiveIndex:  liveIndex,
+				Provenance: provenanceEngine,
+			})
 			sessionCallback := func(session *spi.AgentChatSession) {
 				if session == nil {
 					return
 				}
-
 				// Track the session ID for deep linking on exit
 				lastRunSessionID = session.SessionID
-
-				// Process the session (write markdown and sync to cloud)
-				// Don't show output during interactive run mode
-				// This is autosave mode (true)
-				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
-					OnlyCloudSync:      onlyCloudSync,
-					IsAutosave:         true,
-					DebugRaw:           debugRaw,
-					UseUTC:             useUTC,
-					NoTelemetryPrompts: noTelemetryPrompts,
-					RedactSecrets:      !noRedactSecrets,
-				})
-				if err != nil {
-					// Log error but continue - don't fail the whole run
-					// In interactive mode, we prioritize keeping the agent running.
-					// Failed markdown writes or cloud syncs can be retried later via
-					// the sync command, so we just log and continue.
-					slog.Error("Failed to process session update",
-						"sessionId", session.SessionID,
-						"error", err)
-				}
-
-				// Mirror the markdown write into the restore index in real time.
-				liveIndex.Record(providerID, session)
-
-				// Push agent events to provenance engine for correlation
-				provenance.ProcessEvents(ctx, provenanceEngine, session)
+				autosave(providerID, session)
 			}
 
 			// Execute the agent and watch for updates
@@ -736,6 +717,13 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 				continue
 			}
 
+			// Redact secrets before emitting — --print output is routinely
+			// piped into files, so it deserves the same protection as saved
+			// markdown history.
+			if !noRedactSecrets {
+				markdownContent, _ = redact.RedactContent(markdownContent)
+			}
+
 			// Separate multiple sessions with a horizontal rule
 			if printedSessions > 0 {
 				fmt.Print("\n---\n\n")
@@ -749,14 +737,8 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			})
 		} else {
 			// Normal sync: write to file and optionally cloud sync
-			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
-				OnlyCloudSync:      onlyCloudSync,
-				ShowOutput:         true,
-				DebugRaw:           debugRaw,
-				UseUTC:             useUTC,
-				NoTelemetryPrompts: noTelemetryPrompts,
-				RedactSecrets:      !noRedactSecrets,
-			}); err != nil {
+			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config,
+				cmdpkg.ResolveProcessingOptions(cmd, false /* isAutosave */, true /* showOutput */)); err != nil {
 				errorCount++
 				lastError = err
 			} else {
@@ -937,6 +919,14 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 				return
 			}
 
+			// Redact secrets before any downstream use (statistics,
+			// identical-content compare, file write, cloud sync) so every
+			// consumer sees the same content — mirrors ProcessSingleSession.
+			redactedCount := 0
+			if !noRedactSecrets {
+				markdownContent, redactedCount = redact.RedactContent(markdownContent)
+			}
+
 			// Compute statistics from the SessionData
 			sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 			statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
@@ -992,13 +982,17 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 					// Track successful sync
 					if !fileExists {
 						analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-							"session_id":      session.SessionID,
-							"only_cloud_sync": onlyCloudSync,
+							"session_id":        session.SessionID,
+							"only_cloud_sync":   onlyCloudSync,
+							"redaction_enabled": !noRedactSecrets,
+							"redacted_count":    redactedCount,
 						})
 					} else {
 						analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-							"session_id":      session.SessionID,
-							"only_cloud_sync": onlyCloudSync,
+							"session_id":        session.SessionID,
+							"only_cloud_sync":   onlyCloudSync,
+							"redaction_enabled": !noRedactSecrets,
+							"redacted_count":    redactedCount,
 						})
 					}
 				}
@@ -1021,7 +1015,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 			// Trigger cloud sync with provider-specific data
 			// Manual sync command: perform immediate sync with HEAD check (not autosave mode)
 			// In only-cloud-sync mode: always sync
-			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), false)
+			cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), provider.Name(), spi.ReadableTitleFromSessionData(session.SessionData), !noRedactSecrets, false)
 		}()
 
 		// Print progress with [n/m] format
@@ -1455,12 +1449,20 @@ func main() {
 	}
 
 	// NOW create the commands - after logging is configured
+	// Config-derived flag defaults shared by every session-saving command in
+	// pkg/cmd, resolved once so their flags can't drift from each other.
+	sessionFlagDefaults := cmdpkg.SessionFlagDefaults{
+		LocalTimeZone:      localTimeZone,
+		DebugDir:           debugDir,
+		NoTelemetryPrompts: noTelemetryPrompts,
+		NoRedactSecrets:    noRedactSecrets,
+	}
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
-	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir, !noRedactSecrets)
-	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, localTimeZone, debugDir)
+	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, sessionFlagDefaults)
+	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, sessionFlagDefaults)
 	reindexCmd := cmdpkg.CreateReindexCommand()
-	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, localTimeZone, debugDir)
+	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, sessionFlagDefaults)
 	skillsCmd := cmdpkg.CreateSkillsCommand(&cloudURL)
 	syncCmd = createSyncCommand()
 	listCmd := cmdpkg.CreateListCommand()

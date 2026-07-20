@@ -11,6 +11,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/redact"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -77,6 +78,22 @@ type ProcessingOptions struct {
 	RedactSecrets      bool // Redact API keys and tokens from markdown output
 }
 
+// markdownWriteEvent selects the analytics event for a successful markdown
+// write from the two axes that distinguish the four events: autosave vs
+// manual sync, and new file vs update of an existing one.
+func markdownWriteEvent(isAutosave, fileExists bool) string {
+	if isAutosave {
+		if fileExists {
+			return analytics.EventAutosaveSuccess
+		}
+		return analytics.EventAutosaveNew
+	}
+	if fileExists {
+		return analytics.EventSyncMarkdownSuccess
+	}
+	return analytics.EventSyncMarkdownNew
+}
+
 // ProcessSingleSession writes markdown and triggers cloud sync for a single session.
 // ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
 // Returns the size of the markdown content in bytes.
@@ -124,12 +141,13 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		return 0, fmt.Errorf("failed to generate markdown: %w", err)
 	}
 
-	// Redact secrets before writing to disk or syncing to cloud.
-	// redactedCount accumulates across the markdown and, below, the cloud
-	// payloads — it feeds the analytics redacted_count property.
+	// Redact secrets from the markdown before writing to disk or syncing to
+	// cloud. The count feeds the analytics redacted_count property and covers
+	// the markdown only: the cloud payloads are redacted later, inside the
+	// sync machinery at actual send time.
 	redactedCount := 0
 	if opts.RedactSecrets {
-		markdownContent, redactedCount = RedactContent(markdownContent)
+		markdownContent, redactedCount = redact.RedactContent(markdownContent)
 	}
 
 	// Calculate markdown size in bytes
@@ -156,29 +174,6 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		}
 	}
 
-	// Decide the cloud sync up front so payload preparation can happen before
-	// analytics tracking, letting redacted_count include secrets found only in
-	// tool payloads that the markdown elides.
-	// In only-cloud-sync mode: always sync (no file to check for identical content)
-	// In normal mode: skip sync only if identical content AND in autosave mode
-	willSync := opts.OnlyCloudSync || !identicalContent || !opts.IsAutosave
-	var rawData, sessionDataJSON string
-	if willSync {
-		rawData = session.RawData
-		sessionDataJSON = session.SessionDataJSON()
-		// The cloud payloads carry the same conversation content as the
-		// markdown (plus tool payloads and metadata), so they need the same
-		// redaction. Skip the scans when no sync would be sent. A secret
-		// present in several payloads counts once per payload it was
-		// replaced in.
-		if opts.RedactSecrets && cloud.IsSyncActive() {
-			var rawCount, sessionDataCount int
-			rawData, rawCount = RedactContent(rawData)
-			sessionDataJSON, sessionDataCount = RedactContent(sessionDataJSON)
-			redactedCount += rawCount + sessionDataCount
-		}
-	}
-
 	// Write file if needed (skip if only-cloud-sync is enabled)
 	if !opts.OnlyCloudSync {
 		if !identicalContent {
@@ -189,60 +184,25 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 			if err != nil {
 				// Track write error
+				errorEvent := analytics.EventSyncMarkdownError
 				if opts.IsAutosave {
-					analytics.TrackEvent(analytics.EventAutosaveError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
-				} else {
-					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
+					errorEvent = analytics.EventAutosaveError
 				}
+				analytics.TrackEvent(errorEvent, analytics.Properties{
+					"session_id":      session.SessionID,
+					"error":           err.Error(),
+					"only_cloud_sync": opts.OnlyCloudSync,
+				})
 				return 0, fmt.Errorf("error writing markdown file: %w", err)
 			}
 
 			// Track successful write
-			if opts.IsAutosave {
-				if !fileExists {
-					// New file created during autosave
-					analytics.TrackEvent(analytics.EventAutosaveNew, analytics.Properties{
-						"session_id":        session.SessionID,
-						"only_cloud_sync":   opts.OnlyCloudSync,
-						"redaction_enabled": opts.RedactSecrets,
-						"redacted_count":    redactedCount,
-					})
-				} else {
-					// File updated during autosave
-					analytics.TrackEvent(analytics.EventAutosaveSuccess, analytics.Properties{
-						"session_id":        session.SessionID,
-						"only_cloud_sync":   opts.OnlyCloudSync,
-						"redaction_enabled": opts.RedactSecrets,
-						"redacted_count":    redactedCount,
-					})
-				}
-			} else {
-				if !fileExists {
-					// New file created during manual sync
-					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-						"session_id":        session.SessionID,
-						"only_cloud_sync":   opts.OnlyCloudSync,
-						"redaction_enabled": opts.RedactSecrets,
-						"redacted_count":    redactedCount,
-					})
-				} else {
-					// File updated during manual sync
-					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-						"session_id":        session.SessionID,
-						"only_cloud_sync":   opts.OnlyCloudSync,
-						"redaction_enabled": opts.RedactSecrets,
-						"redacted_count":    redactedCount,
-					})
-				}
-			}
+			analytics.TrackEvent(markdownWriteEvent(opts.IsAutosave, fileExists), analytics.Properties{
+				"session_id":        session.SessionID,
+				"only_cloud_sync":   opts.OnlyCloudSync,
+				"redaction_enabled": opts.RedactSecrets,
+				"redacted_count":    redactedCount,
+			})
 
 			slog.Info("Successfully wrote file",
 				"sessionId", session.SessionID,
@@ -264,9 +224,16 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 			"sessionId", session.SessionID)
 	}
 
-	// Trigger cloud sync with the payloads prepared (and redacted) above
-	if willSync {
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(rawData), sessionDataJSON, session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.IsAutosave)
+	// Trigger cloud sync with provider-specific data
+	// In only-cloud-sync mode: always sync (no file to check for identical content)
+	// In normal mode: skip sync only if identical content AND in autosave mode
+	if opts.OnlyCloudSync || !identicalContent || !opts.IsAutosave {
+		// Raw data and SessionData carry the same conversation content as the
+		// markdown (plus tool payloads and metadata), so they need the same
+		// redaction. It happens inside the sync machinery at actual send time,
+		// so payloads replaced during the autosave debounce are never scanned;
+		// the markdown is already redacted above.
+		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.RedactSecrets, opts.IsAutosave)
 	}
 
 	if opts.ShowOutput && !log.IsSilent() {
