@@ -58,11 +58,10 @@ var provenanceEnabled bool // flag to enable AI provenance tracking
 var loadedConfig *config.Config
 
 // Telemetry State
-var telemetryEndpoint string        // OTLP gRPC collector endpoint
-var telemetryServiceName string     // override the default service name
-var noTelemetryPrompts bool         // flag to disable sending prompt text in telemetry
-var noRedactSecrets bool            // flag to disable secret redaction in markdown output
-var redactionExtraPatterns []string // additional regex patterns to redact
+var telemetryEndpoint string    // OTLP gRPC collector endpoint
+var telemetryServiceName string // override the default service name
+var noTelemetryPrompts bool     // flag to disable sending prompt text in telemetry
+var noRedactSecrets bool        // flag to disable secret redaction in markdown output
 
 // Run Mode State
 var lastRunSessionID string // tracks the session ID from the most recent run command for deep linking
@@ -458,13 +457,12 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 				// Don't show output during interactive run mode
 				// This is autosave mode (true)
 				_, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
-					OnlyCloudSync:          onlyCloudSync,
-					IsAutosave:             true,
-					DebugRaw:               debugRaw,
-					UseUTC:                 useUTC,
-					NoTelemetryPrompts:     noTelemetryPrompts,
-					RedactSecrets:          !noRedactSecrets,
-					RedactionExtraPatterns: redactionExtraPatterns,
+					OnlyCloudSync:      onlyCloudSync,
+					IsAutosave:         true,
+					DebugRaw:           debugRaw,
+					UseUTC:             useUTC,
+					NoTelemetryPrompts: noTelemetryPrompts,
+					RedactSecrets:      !noRedactSecrets,
 				})
 				if err != nil {
 					// Log error but continue - don't fail the whole run
@@ -752,13 +750,12 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		} else {
 			// Normal sync: write to file and optionally cloud sync
 			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config, sessionpkg.ProcessingOptions{
-				OnlyCloudSync:          onlyCloudSync,
-				ShowOutput:             true,
-				DebugRaw:               debugRaw,
-				UseUTC:                 useUTC,
-				NoTelemetryPrompts:     noTelemetryPrompts,
-				RedactSecrets:          !noRedactSecrets,
-				RedactionExtraPatterns: redactionExtraPatterns,
+				OnlyCloudSync:      onlyCloudSync,
+				ShowOutput:         true,
+				DebugRaw:           debugRaw,
+				UseUTC:             useUTC,
+				NoTelemetryPrompts: noTelemetryPrompts,
+				RedactSecrets:      !noRedactSecrets,
 			}); err != nil {
 				errorCount++
 				lastError = err
@@ -1438,7 +1435,6 @@ func main() {
 
 	noTelemetryPrompts = noTelemetryPrompts || cfg.IsTelemetryPromptsDisabled()
 	noRedactSecrets = noRedactSecrets || !cfg.IsRedactionEnabled()
-	redactionExtraPatterns = cfg.GetRedactionExtraPatterns()
 
 	// Set SPI debug dir override before any commands run
 	if debugDir != "" {
@@ -1461,7 +1457,7 @@ func main() {
 	// NOW create the commands - after logging is configured
 	rootCmd = createRootCommand()
 	runCmd = createRunCommand()
-	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir, !noRedactSecrets, redactionExtraPatterns)
+	watchCmd := cmdpkg.CreateWatchCommand(&cloudURL, localTimeZone, debugDir, !noRedactSecrets)
 	resumeCmd := cmdpkg.CreateResumeCommand(&cloudURL, localTimeZone, debugDir)
 	reindexCmd := cmdpkg.CreateReindexCommand()
 	searchCmd := cmdpkg.CreateSearchCommand(&cloudURL, localTimeZone, debugDir)

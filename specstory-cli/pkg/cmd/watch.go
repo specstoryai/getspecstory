@@ -39,7 +39,7 @@ func truncateSessionID(id string) string {
 // CreateWatchCommand dynamically creates the watch command with provider information.
 // cloudURL binds to the parent's --cloud-url flag so PersistentPreRunE can apply it.
 // localTimeZone and debugDir are passed from the global config/flag values.
-func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string, redactSecrets bool, redactionExtraPatterns []string) *cobra.Command {
+func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string, redactSecrets bool) *cobra.Command {
 	registry := factory.GetRegistry()
 	ids := registry.ListIDs()
 	providerList := registry.GetProviderList()
@@ -212,13 +212,12 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				// Don't show output during watch mode
 				// This is autosave mode (true)
 				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, session.ProcessingOptions{
-					OnlyCloudSync:          onlyCloudSync,
-					IsAutosave:             true,
-					DebugRaw:               debugRaw,
-					UseUTC:                 useUTC,
-					NoTelemetryPrompts:     noTelemetryPrompts,
-					RedactSecrets:          !noRedactSecretsFlag,
-					RedactionExtraPatterns: redactionExtraPatterns,
+					OnlyCloudSync:      onlyCloudSync,
+					IsAutosave:         true,
+					DebugRaw:           debugRaw,
+					UseUTC:             useUTC,
+					NoTelemetryPrompts: noTelemetryPrompts,
+					RedactSecrets:      !noRedactSecretsFlag,
 				})
 				if err != nil {
 					// Log error but continue - don't fail the whole watch
