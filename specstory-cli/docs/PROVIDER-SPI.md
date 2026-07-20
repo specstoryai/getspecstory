@@ -14,6 +14,9 @@ The SPI defines a standard interface that all agent providers must implement. Th
 | `cursor` | Cursor CLI | `~/.cursor/chats/<project-hash>/<session-id>/store.db` |
 | `codex` | Codex CLI | `~/.codex/sessions/YYYY/MM/DD/<session-id>.jsonl` |
 | `gemini` | Gemini CLI | `~/.gemini/tmp/<hash>/chats/<session-id>.json` |
+| `pi` | Pi | `~/.pi/agent/sessions/--<encoded-cwd>--/<timestamp>_<uuid>.jsonl` |
+
+> The `pi` provider currently implements sync/list/search/reindex/check/detect; `run`, `watch`, and session reconstruction return descriptive "not yet supported" errors.
 
 ## Quick Start: Implementing a New Provider
 
@@ -41,7 +44,8 @@ pkg/
     ├── claudecode/        # Claude Code provider implementation
     ├── cursorcli/         # Cursor CLI provider implementation
     ├── codexcli/          # Codex CLI provider implementation
-    └── gemini/            # Gemini CLI provider implementation
+    ├── geminicli/         # Gemini CLI provider implementation
+    └── piagent/           # Pi provider implementation
 ```
 
 ### Dependency Flow
@@ -53,7 +57,8 @@ main.go
       → providers/claudecode
       → providers/cursorcli
       → providers/codexcli
-      → providers/gemini
+      → providers/geminicli
+      → providers/piagent
 
 providers/* → spi (interfaces and schema)
 ```

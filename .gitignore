@@ -12,3 +12,6 @@ dist/
 # local .specstory artifacts not tracked on dev (history itself stays tracked)
 .specstory/statistics.json
 .specstory/cli/
+
+# pi until-done extension state (local goal-loop artifacts, not project code)
+.until-done/
