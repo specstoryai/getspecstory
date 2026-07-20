@@ -1154,6 +1154,18 @@ func (syncMgr *SyncManager) flushAllPending() {
 	})
 }
 
+// IsSyncActive reports whether SyncSessionToCloud would actually send a sync
+// (manager initialized and enabled, user authenticated). Callers can use it to
+// skip expensive payload preparation, like secret redaction, when a sync would
+// be dropped anyway.
+func IsSyncActive() bool {
+	syncManagerMutex.RLock()
+	syncMgr := globalSyncManager
+	syncManagerMutex.RUnlock()
+
+	return syncMgr != nil && syncMgr.enabled && IsAuthenticated()
+}
+
 // SyncSessionToCloud asynchronously syncs a session to the cloud
 // When isAutosaveMode is true (run command), syncs are debounced and skip HEAD checks for efficiency
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks

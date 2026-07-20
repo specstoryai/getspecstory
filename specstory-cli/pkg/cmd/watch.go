@@ -340,7 +340,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	watchCmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
 	watchCmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	watchCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
-	watchCmd.Flags().Bool("no-redact-secrets", !redactSecrets, "disable redaction of API keys and tokens from saved markdown history")
+	watchCmd.Flags().Bool("no-redact-secrets", !redactSecrets, "disable redaction of API keys and tokens from saved markdown history and cloud-synced session data")
 
 	return watchCmd
 }

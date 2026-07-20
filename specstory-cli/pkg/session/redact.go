@@ -8,7 +8,21 @@ import (
 	gosync "sync"
 
 	"github.com/betterleaks/betterleaks/detect"
+	"github.com/betterleaks/betterleaks/regexp"
+	"github.com/betterleaks/betterleaks/regexp/re2"
 	"github.com/betterleaks/betterleaks/report"
+)
+
+// Chunk sizing mirrors the betterleaks CLI's own file source, which scans
+// ~100KB fragments: the keyword prefilter runs per fragment, confining each
+// triggered rule's regex to the chunk containing its keyword instead of the
+// whole payload. The overlap is re-scanned across each boundary so a secret
+// spanning a split (e.g. a multi-line PEM block) is still seen whole by one
+// of the two chunks; only secrets longer than the overlap can be missed at a
+// boundary.
+const (
+	redactChunkSize    = 100_000
+	redactChunkOverlap = 10_000
 )
 
 // detector is the shared betterleaks secret detector. It is built once from the
@@ -30,9 +44,47 @@ var (
 // the same instance.
 func getDetector() (*detect.Detector, error) {
 	detectorOnce.Do(func() {
+		// RE2 (C++ engine via WASM, no cgo) scans our keyword-dense content
+		// 20-70x faster than Go's stdlib regexp. Rule compilation is lazy, so
+		// setting the engine here, before the first detection, covers all rules.
+		regexp.SetEngine(re2.RE2{})
 		detector, detectorErr = detect.NewDetectorDefaultConfig()
 	})
 	return detector, detectorErr
+}
+
+// detectChunked scans content in newline-aligned ~100KB fragments with a
+// small boundary overlap, instead of one DetectString call over the whole
+// payload. Overlap can report the same secret twice; applyRedactions
+// deduplicates via its already-replaced check.
+func detectChunked(d *detect.Detector, content string) []report.Finding {
+	if len(content) <= redactChunkSize {
+		return d.DetectString(content)
+	}
+
+	var findings []report.Finding
+	start := 0
+	for {
+		end := start + redactChunkSize
+		if end >= len(content) {
+			findings = append(findings, d.DetectString(content[start:])...)
+			break
+		}
+		// Prefer splitting at a line boundary; hard-split single lines larger
+		// than the chunk size.
+		if nl := strings.LastIndexByte(content[start:end], '\n'); nl > 0 {
+			end = start + nl + 1
+		}
+		findings = append(findings, d.DetectString(content[start:end])...)
+
+		next := end - redactChunkOverlap
+		if next <= start {
+			// Guarantee forward progress when a chunk shrank below the overlap.
+			next = end
+		}
+		start = next
+	}
+	return findings
 }
 
 // RedactContent replaces secrets detected by betterleaks with labelled
@@ -52,7 +104,7 @@ func RedactContent(content string) (string, int) {
 		})
 		return content, 0
 	}
-	return applyRedactions(content, d.DetectString(content))
+	return applyRedactions(content, detectChunked(d, content))
 }
 
 // applyRedactions replaces each finding's secret value with a labelled

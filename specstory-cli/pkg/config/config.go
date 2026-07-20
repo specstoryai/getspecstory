@@ -102,7 +102,8 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # last_agent = "claude"
 
 [redaction]
-# Redact secrets and API keys from saved markdown history. (default: true)
+# Redact secrets and API keys from saved markdown history and cloud-synced
+# session data. (default: true)
 # Detection uses the betterleaks ruleset, covering API keys, tokens, private
 # keys, and other credentials for many providers.
 # enabled = false # equivalent to --no-redact-secrets
@@ -120,6 +121,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # Cursor CLI command
 # cursor_cmd = "cursor-agent"
+
+# Cursor IDE command (used by specstory run cursoride to open the IDE)
+# cursoride_cmd = "cursor"
 
 # Droid CLI command
 # droid_cmd = "droid"
@@ -164,10 +168,11 @@ type SkillsConfig struct {
 	DefaultLocation string `toml:"default_location"`
 }
 
-// RedactionConfig holds secret redaction settings for markdown output.
+// RedactionConfig holds secret redaction settings for markdown output and
+// cloud-synced session payloads.
 type RedactionConfig struct {
-	// Enabled controls whether secrets are redacted from saved markdown files.
-	// Defaults to true when not explicitly set.
+	// Enabled controls whether secrets are redacted from saved markdown files
+	// and cloud-synced session data. Defaults to true when not explicitly set.
 	Enabled *bool `toml:"enabled"`
 }
 
@@ -235,12 +240,13 @@ type TelemetryConfig struct {
 // These are used by `specstory run` as the equivalent of the -c flag,
 // scoped to a specific provider.
 type ProvidersConfig struct {
-	ClaudeCmd   string `toml:"claude_cmd"`
-	CodexCmd    string `toml:"codex_cmd"`
-	CursorCmd   string `toml:"cursor_cmd"`
-	DeepSeekCmd string `toml:"deepseek_cmd"`
-	DroidCmd    string `toml:"droid_cmd"`
-	GeminiCmd   string `toml:"gemini_cmd"`
+	ClaudeCmd    string `toml:"claude_cmd"`
+	CodexCmd     string `toml:"codex_cmd"`
+	CursorCmd    string `toml:"cursor_cmd"`
+	CursorIDECmd string `toml:"cursoride_cmd"`
+	DeepSeekCmd  string `toml:"deepseek_cmd"`
+	DroidCmd     string `toml:"droid_cmd"`
+	GeminiCmd    string `toml:"gemini_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -949,6 +955,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.CodexCmd
 	case "cursor":
 		return c.Providers.CursorCmd
+	case "cursoride":
+		return c.Providers.CursorIDECmd
 	case "deepseek":
 		return c.Providers.DeepSeekCmd
 	case "droid":

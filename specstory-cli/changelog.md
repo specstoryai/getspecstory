@@ -4,7 +4,8 @@
 
 ### ⚙️ Improvements
 
-- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks). Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235).
+- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks) library. Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235).
+- Redaction also covers the session data synced to SpecStory Cloud, not just local markdown. Scanning uses the RE2 regex engine with chunked fragments, so even very large sessions redact in well under a second (see `docs/SECRET-REDACTION-PERFORMANCE.md`).
 
 ### 🔧 CLI Configuration & Commands
 

@@ -16,7 +16,7 @@ It saves your AI coding conversations as local markdown files of each session. I
 - Seamless integration with terminal coding agents
 - Command-line wrapper for terminal coding agents with markdown auto-save
 - Sync all your prior conversations to local markdown files
-- Automatic redaction of secrets (API keys, tokens, credentials) from saved markdown history
+- Automatic redaction of secrets (API keys, tokens, credentials) from saved markdown history and cloud-synced session data
 - Optional: Syncs your markdown files to the SpecStory Cloud for easy search and chat
 - Open source under the Apache 2.0 license
 
@@ -262,7 +262,8 @@ The configuration is determined with the following priority (highest priority to
 # prompts = false
 
 [redaction]
-# Redact secrets and API keys from saved markdown history. (default: true)
+# Redact secrets and API keys from saved markdown history and cloud-synced
+# session data. (default: true)
 # Detection uses the betterleaks ruleset, covering API keys, tokens, private
 # keys, and other credentials for many providers.
 # enabled = false # equivalent to --no-redact-secrets
@@ -309,7 +310,7 @@ The configuration is determined with the following priority (highest priority to
 | `[telemetry]`     | `endpoint`        | disabled*            | OTLP gRPC collector endpoint               |
 | `[telemetry]`     | `service_name`    | `"specstory-cli"`    | Service name for telemetry                 |
 | `[telemetry]`     | `prompts`         | `true`               | Include prompt text in telemetry spans     |
-| `[redaction]`     | `enabled`         | `true`               | Redact secrets from saved markdown history |
+| `[redaction]`     | `enabled`         | `true`               | Redact secrets from markdown and cloud data |
 | `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
 | `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
 | `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |

@@ -17,6 +17,13 @@ const (
 	fakeGCPAPIKey   = "AIzaSyD8xKq2mL9nP4rT7wZ0aB3cE6fH1jG5kM7"
 )
 
+// fakePEM is a fabricated multi-line private key: real header/footer, body of
+// realistic-looking base64. Multi-line so it can straddle chunk boundaries.
+const fakePEM = "-----BEGIN RSA PRIVATE KEY-----\n" +
+	"MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\n" +
+	"MzEfYyjiWA4R4/M2bS1GB4t7NXp98C3SC6dVMvDuictGeurT8jNbvJZHtCSuYEvu\n" +
+	"-----END RSA PRIVATE KEY-----"
+
 func TestRedactContent(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -75,6 +82,66 @@ func TestRedactContent(t *testing.T) {
 			}
 			if len(tt.wantContains) == 0 && len(tt.wantAbsent) == 0 && got != tt.input {
 				t.Errorf("RedactContent(%q) = %q, want unchanged", tt.input, got)
+			}
+		})
+	}
+}
+
+// TestRedactContent_Chunking exercises the ~100KB chunked scanning path:
+// secrets positioned to straddle chunk boundaries must still be caught via
+// the boundary overlap, in both the newline-split and hard-split (single
+// huge line) cases.
+func TestRedactContent_Chunking(t *testing.T) {
+	// Multi-line content: ~99.5KB of padding lines puts the PEM astride the
+	// first newline-aligned chunk boundary.
+	paddingLine := strings.Repeat("plain filler text ", 5) + "\n" // 91 bytes
+	multiLine := strings.Repeat(paddingLine, 1094) +              // ~99.5KB
+		fakePEM + "\n" +
+		strings.Repeat(paddingLine, 550) // ~50KB tail
+
+	// Single-line content (no newlines anywhere): forces the hard-split
+	// fallback. One token sits mid-chunk, another straddles the split offset.
+	hugeLine := strings.Repeat("x", 99_990) +
+		" " + fakeGitHubOAuth + " " + // straddles the 100KB hard split
+		strings.Repeat("x", 19_000) +
+		" " + fakeGCPAPIKey + " " + // mid-chunk in the second fragment
+		strings.Repeat("x", 30_000)
+
+	tests := []struct {
+		name         string
+		input        string
+		wantContains []string
+		wantAbsent   []string
+	}{
+		{
+			name:         "multi-line secret straddles newline-split boundary",
+			input:        multiLine,
+			wantContains: []string{"[REDACTED:private-key]"},
+			wantAbsent:   []string{fakePEM},
+		},
+		{
+			name:         "secrets in and across hard-split huge line",
+			input:        hugeLine,
+			wantContains: []string{"[REDACTED:github-oauth]", "[REDACTED:gcp-api-key]"},
+			wantAbsent:   []string{fakeGitHubOAuth, fakeGCPAPIKey},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, count := RedactContent(tt.input)
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("chunked RedactContent missing %q in output", want)
+				}
+			}
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(got, absent) {
+					t.Errorf("chunked RedactContent left secret %q in output", absent)
+				}
+			}
+			if count != len(tt.wantContains) {
+				t.Errorf("count = %d, want %d", count, len(tt.wantContains))
 			}
 		})
 	}
