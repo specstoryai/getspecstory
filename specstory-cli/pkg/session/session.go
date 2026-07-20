@@ -124,7 +124,9 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		return 0, fmt.Errorf("failed to generate markdown: %w", err)
 	}
 
-	// Redact secrets before writing to disk or syncing to cloud
+	// Redact secrets before writing to disk or syncing to cloud.
+	// redactedCount accumulates across the markdown and, below, the cloud
+	// payloads — it feeds the analytics redacted_count property.
 	redactedCount := 0
 	if opts.RedactSecrets {
 		markdownContent, redactedCount = RedactContent(markdownContent)
@@ -151,6 +153,29 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 			slog.Info("Markdown file already exists with same content, skipping write",
 				"sessionId", session.SessionID,
 				"path", fileFullPath)
+		}
+	}
+
+	// Decide the cloud sync up front so payload preparation can happen before
+	// analytics tracking, letting redacted_count include secrets found only in
+	// tool payloads that the markdown elides.
+	// In only-cloud-sync mode: always sync (no file to check for identical content)
+	// In normal mode: skip sync only if identical content AND in autosave mode
+	willSync := opts.OnlyCloudSync || !identicalContent || !opts.IsAutosave
+	var rawData, sessionDataJSON string
+	if willSync {
+		rawData = session.RawData
+		sessionDataJSON = session.SessionDataJSON()
+		// The cloud payloads carry the same conversation content as the
+		// markdown (plus tool payloads and metadata), so they need the same
+		// redaction. Skip the scans when no sync would be sent. A secret
+		// present in several payloads counts once per payload it was
+		// replaced in.
+		if opts.RedactSecrets && cloud.IsSyncActive() {
+			var rawCount, sessionDataCount int
+			rawData, rawCount = RedactContent(rawData)
+			sessionDataJSON, sessionDataCount = RedactContent(sessionDataJSON)
+			redactedCount += rawCount + sessionDataCount
 		}
 	}
 
@@ -239,19 +264,8 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 			"sessionId", session.SessionID)
 	}
 
-	// Trigger cloud sync with provider-specific data
-	// In only-cloud-sync mode: always sync (no file to check for identical content)
-	// In normal mode: skip sync only if identical content AND in autosave mode
-	if opts.OnlyCloudSync || !identicalContent || !opts.IsAutosave {
-		rawData := session.RawData
-		sessionDataJSON := session.SessionDataJSON()
-		// The cloud payloads carry the same conversation content as the
-		// markdown (plus tool payloads and metadata), so they need the same
-		// redaction. Skip the scans when no sync would be sent.
-		if opts.RedactSecrets && cloud.IsSyncActive() {
-			rawData, _ = RedactContent(rawData)
-			sessionDataJSON, _ = RedactContent(sessionDataJSON)
-		}
+	// Trigger cloud sync with the payloads prepared (and redacted) above
+	if willSync {
 		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(rawData), sessionDataJSON, session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.IsAutosave)
 	}
 

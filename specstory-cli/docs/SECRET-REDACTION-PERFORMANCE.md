@@ -2,7 +2,7 @@
 
 ## Background
 
-The CLI redacts secrets from generated markdown before writing it to disk and syncing it to cloud (`pkg/session/redact.go`, betterleaks default ruleset). Two cloud-synced payloads are not yet redacted:
+The CLI redacts secrets from generated markdown before writing it to disk and syncing it to cloud (`pkg/session/redact.go`, betterleaks default ruleset). Two cloud-synced payloads also need redacted:
 
 - **Raw data** (`session.RawData`): the provider's native session data (JSONL for Claude Code and Codex CLI, generated JSON blobs for the Cursor providers). No structured consumer today; used only for token-usage extraction, which treats it as plain text. Persisted in cloud storage as "insurance."
 - **SessionData JSON** (`session.SessionDataJSON()`): the normalized session structure. Consumed by session resumption (low volume). Regenerated wholesale on every save.

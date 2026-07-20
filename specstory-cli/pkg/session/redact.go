@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	gosync "sync"
+	"sync"
 
 	"github.com/betterleaks/betterleaks/detect"
 	"github.com/betterleaks/betterleaks/regexp"
@@ -30,13 +30,13 @@ const (
 // is expensive and the result is safe to reuse across sessions.
 var (
 	detector     *detect.Detector
-	detectorOnce gosync.Once
+	detectorOnce sync.Once
 	detectorErr  error
 
 	// warnOnce rate-limits the detector-failure warning: in run mode redaction
 	// runs on every autosave event, and a broken detector cannot heal at
 	// runtime, so repeating the warning would just flood the log.
-	warnOnce gosync.Once
+	warnOnce sync.Once
 )
 
 // getDetector lazily constructs the shared detector with betterleaks' built-in

@@ -539,7 +539,7 @@ func openCursorIDE(projectPath, customCommand string) error {
 
 	args = append(args, projectPath)
 	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("cursor CLI failed: %w: %s", err, string(out))
+		return fmt.Errorf("cursor IDE launcher %q failed: %w: %s", launcher, err, string(out))
 	}
 	return nil
 }
