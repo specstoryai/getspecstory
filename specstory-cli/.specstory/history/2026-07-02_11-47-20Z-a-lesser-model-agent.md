@@ -16348,3 +16348,4605 @@ Typecheck is green after both changes.
 One cosmetic nit, take or leave: the PUT response serializes the `session` object from the upsert — i.e., from *before* the size UPDATE — so its `sessionDataSize` reads as `null` on a first push even though the blob and size landed. The CLI ignores the response body so nothing is affected today; a half-line comment there (or refreshing the value in the response) would save a future web-app consumer some confusion.
 
 With flags 1 and 2 resolved and flag 3 consciously deferred (the nil-`SessionData` re-push repeat — worth its code comment eventually), Chunk 1 is done from my side: implementation matches D2/D3/D4/D5/D7/D9/D22, both repos pass their gates, and the deploy-ordering constraint (gzip-accepting server before the CLI release) is recorded in the doc and your memory. Ready for Chunk 2 whenever you are.
+
+---
+
+_**User (2026-07-08 21:21:06Z)**_
+
+OK, another agent implemented chunk 2 of the plan. Please review.
+
+---
+
+_**Agent (claude-fable-5 2026-07-08 21:21:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Scope CLI Chunk 2 changes
+
+`git branch --show-current && git log --oneline -5 && git status --short | grep -v ".specstory" && echo "---diffstat---" && git diff --stat | grep -v ".specstory" | tail -20`
+
+```text
+cloud-resume
+9028c6f Ignore
+dbfa819 Merge branch 'dev' into cloud-resume
+117f5d2 SpecStory histories.
+982c152 Fix doc location.
+7fe838f Session and project delete from index. Search term labeling in TUI.
+ M pkg/sessionindex/store.go
+ M pkg/spi/schema/types.go
+?? pkg/cloud/resume_client.go
+---diffstat---
+ .../2026-02-12_17-20-59Z-notice-what-we-did.md     |   6 +
+ .../2026-02-16_13-04-52Z-in-the-claude-code.md     |  30 +
+ .../history/2026-02-16_15-21-13Z-look-at-our-5.md  |  36 ++
+ .../history/2026-03-18_10-33-34Z-take-a-look-at.md |  46 ++
+ .../history/2026-05-13_13-48-53Z-i-ve-got-a.md     |  68 +++
+ .../2026-06-18_14-52-09Z-read-at-docs-session.md   | 680 +++++++++++++++++++++
+ .../2026-06-23_13-10-32Z-what-s-the-claude.md      |  86 +++
+ .../history/2026-06-23_20-26-43Z-ok-take-a-look.md | 214 +++++++
+ .../history/2026-06-29_14-09-23Z-take-a-look-at.md |  88 +++
+ .../2026-06-29_15-30-30Z-ok-going-to-review.md     |  26 +
+ .../2026-06-29_16-24-57Z-need-to-review-the.md     |  36 ++
+ .../2026-06-29_18-33-08Z-let-s-consider-the.md     |  66 ++
+ 21 files changed, 1530 insertions(+), 10 deletions(-)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:21:34Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Scope server Chunk 2 changes
+
+`cd ~/source/SpecStory/specstory-sync && git log --oneline -5 && git status --short | grep -v ".specstory" && echo "---diffstat---" && git diff --stat | grep -v ".specstory" | tail -15`
+
+```text
+05732d81 Merge branch 'dev' into cloud-resume
+3c70b430 SpecStory histories.
+f7e16776 Don't track SpecStory statistics.json.
+0a47e170 docs: changelog entry for release PR #98
+7e997dac feat(lore-cloud): prod config parity + enable runner (Phase A + B)
+ M shared/types.ts
+ M sync-cloud/worker/handlers/projects.ts
+ M sync-cloud/worker/handlers/sessions.ts
+ M sync-cloud/worker/routers/api/v1/sessions_router.ts
+ M sync-cloud/worker/supabase.ts
+---diffstat---
+ shared/types.ts                                    |  1 +
+ sync-cloud/worker/handlers/projects.ts             | 17 ++++-
+ sync-cloud/worker/handlers/sessions.ts             | 67 +++++++++++++++++++
+ .../worker/routers/api/v1/sessions_router.ts       | 15 ++++-
+ sync-cloud/worker/supabase.ts                      | 76 ++++++++++++++++++++--
+ 5 files changed, 170 insertions(+), 6 deletions(-)
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:21:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+CLI diffstat excluding history plus recent pkg commits
+
+`git diff --stat -- . ':!.specstory' && echo "=== untracked ===" && git status --short | grep "^??" | grep -v specstory; echo "=== last commits touching pkg ==="; git log --oneline -8 -- pkg/ main.go`
+
+```text
+ specstory-cli/pkg/sessionindex/store.go | 7 +++++++
+ specstory-cli/pkg/spi/schema/types.go   | 9 +++++++--
+ 2 files changed, 14 insertions(+), 2 deletions(-)
+=== untracked ===
+?? pkg/cloud/resume_client.go
+=== last commits touching pkg ===
+dbfa819 Merge branch 'dev' into cloud-resume
+7fe838f Session and project delete from index. Search term labeling in TUI.
+5719b0f Initial chunk of Cloude resume work, DB updates and pushing SessionData blobs to cloud on sync.
+293e32a Merge branch 'dev' into skills-interface
+dc16a5a feat(skills): add `skills agents --json` for install-target discovery
+1574338 fix(skills): align selected row + add a created-age column
+8db7edd polish(skills): visible drift, live run badge, install location, and edges
+8eea7b4 feat(skills): two-tab TUI — Library + Run Activity
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:21:58Z)**_
+
+The CLI working tree looks surprisingly thin for Chunk 2 — let me read what's actually there before concluding:
+
+_**Agent (claude-fable-5 2026-07-08 21:21:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show CLI diffs and size of new client file
+
+`git diff pkg/sessionindex/store.go pkg/spi/schema/types.go && wc -l pkg/cloud/resume_client.go`
+
+```text
+diff --git a/specstory-cli/pkg/sessionindex/store.go b/specstory-cli/pkg/sessionindex/store.go
+index b0080bf..9286d36 100644
+--- a/specstory-cli/pkg/sessionindex/store.go
++++ b/specstory-cli/pkg/sessionindex/store.go
+@@ -75,6 +75,13 @@ type Session struct {
+ 	// looking up and deleting a prior FTS row before insert. Leave false when unsure — the
+ 	// lookup-and-delete is then kept, which is always correct (a missing prior row is a no-op).
+ 	IsNew bool
++
++	// The following fields are TUI/cloud-only — NOT persisted to sessions.db (the DB
++	// scan/upsert never references them). They are populated only on cloud-sourced rows
++	// blended into the resume browser (Chunk 2). Local rows leave them zero-valued.
++	IsCloud     bool   // true = this row came from SpecStory Cloud, not the local index (D14)
++	DeviceID    string // cloud metadata.deviceId — stable machine id for the machine filter (D15)
++	MachineName string // cloud metadata.machineName — human machine label for the machine filter
+ }
+ 
+ // Fingerprint identifies an indexed session's freshness: the native file's size and
+diff --git a/specstory-cli/pkg/spi/schema/types.go b/specstory-cli/pkg/spi/schema/types.go
+index 2fe2948..b56741e 100644
+--- a/specstory-cli/pkg/spi/schema/types.go
++++ b/specstory-cli/pkg/spi/schema/types.go
+@@ -27,6 +27,11 @@ const (
+ 	ToolTypeUnknown = "unknown"
+ )
+ 
++// CurrentSchemaVersion is the SessionData schema version this CLI produces and understands.
++// Cloud resume compares a fetched blob's SchemaVersion against this: a newer blob (produced by
++// a newer CLI on another machine) is refused rather than mis-reconstructed (D12).
++const CurrentSchemaVersion = "1.0"
++
+ // SessionData is the unified data format for sessions from all terminal coding agent providers
+ type SessionData struct {
+ 	SchemaVersion string       `json:"schemaVersion"`
+@@ -150,8 +155,8 @@ func (s *SessionData) Validate() bool {
+ 	valid := true
+ 
+ 	// Check schema version
+-	if s.SchemaVersion != "1.0" {
+-		slog.Warn("schema validation: schemaVersion must be '1.0'", "got", s.SchemaVersion)
++	if s.SchemaVersion != CurrentSchemaVersion {
++		slog.Warn("schema validation: schemaVersion must be '"+CurrentSchemaVersion+"'", "got", s.SchemaVersion)
+ 		valid = false
+ 	}
+ 
+     168 pkg/cloud/resume_client.go
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:22:04Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cloud/resume_client.go`
+
+```text
+1	package cloud
+2	
+3	import (
+4		"fmt"
+5		"io"
+6		"net/http"
+7		"net/url"
+8		"time"
+9	)
+10	
+11	// Cloud-resume client (Chunk 2). These methods surface SpecStory Cloud sessions/projects for
+12	// the blended resume browser and fetch a session's SessionData blob for cross-machine resume.
+13	// They mirror the request/auth conventions of skillsAPIRequest (Bearer token, User-Agent,
+14	// {success,data,error} envelope) and are best-effort: callers in the TUI swallow errors and
+15	// degrade to local-only (D11).
+16	
+17	const (
+18		// cloudResumeLimit caps how many sessions the cloud contributes, matching local search's
+19		// LIMIT 500 by recency so each source offers its 500 newest before merge/dedup (D21).
+20		cloudResumeLimit = 500
+21	
+22		// cloudResumeHTTPTimeout bounds the SessionData blob fetch. Blobs are a few MB at most and
+23		// resume is interactive/low-frequency, so a normal request timeout is plenty (D8).
+24		cloudResumeHTTPTimeout = 30 * time.Second
+25	
+26		// sessionDataMediaType is the Accept value that selects the SessionData blob variant of the
+27		// shared GET session route (server-side: SESSION_DATA_MEDIA_TYPE), rather than markdown/JSON.
+28		sessionDataMediaType = "application/vnd.specstory.session-data+json"
+29	)
+30	
+31	// CloudSessionMetadata is the subset of a cloud session's metadata the resume browser needs:
+32	// the agent (display name), and the machine identity for the machine filter (D9/D15).
+33	type CloudSessionMetadata struct {
+34		AgentName   string `json:"agentName"`   // human name, e.g. "Claude Code" (not the provider id)
+35		DeviceID    string `json:"deviceId"`    // stable machine id; sessions group/filter by this
+36		MachineName string `json:"machineName"` // human machine label, e.g. "Mac-Studio.local"
+37	}
+38	
+39	// CloudSession is a cloud-resumable session summary (server type: SessionSummary). Only the
+40	// fields the browser + dedup + resume need are decoded.
+41	type CloudSession struct {
+42		ID                   string               `json:"id"`        // internal session uuid (cloud-side)
+43		ClientID             string               `json:"clientId"`  // native session id (== local session_id)
+44		ProjectID            string               `json:"projectId"` // git_id / workspace_id
+45		Name                 string               `json:"name"`
+46		UserTitle            string               `json:"userTitle,omitempty"`
+47		MarkdownSize         int                  `json:"markdownSize"`
+48		SessionDataSize      int                  `json:"sessionDataSize"` // > 0 (list is ?resumable), 0 if absent
+49		CreatedAt            string               `json:"createdAt"`
+50		UpdatedAt            string               `json:"updatedAt"`
+51		Metadata             CloudSessionMetadata `json:"metadata"`
+52		FirstExchangeContent string               `json:"firstExchangeContent,omitempty"`
+53	}
+54	
+55	// CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
+56	// cloud-only projects into the all-projects browser (D16).
+57	type CloudProject struct {
+58		ID        string `json:"id"` // project_id (git_id / workspace_id)
+59		Name      string `json:"name"`
+60		Icon      string `json:"icon"`
+61		Color     string `json:"color"`
+62		CreatedAt string `json:"createdAt"`
+63		UpdatedAt string `json:"updatedAt"`
+64	}
+65	
+66	// ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
+67	// the TUI's soft gate + nudge (D10). This is a NETWORK call (fetches entitlement) and MUST run
+68	// off the UI thread. Interpret the result: !loggedIn → "log in" nudge; loggedIn && !pro →
+69	// "upgrade" nudge; both true → fetch cloud sessions. An entitlement-fetch failure degrades to
+70	// not-pro (silent), never blocking local-first.
+71	func ResumeEligibility() (loggedIn bool, pro bool) {
+72		if !IsAuthenticated() {
+73			return false, false
+74		}
+75		ent, err := GetEntitlement()
+76		if err != nil || ent == nil {
+77			return true, false
+78		}
+79		return true, ent.Features.Resume
+80	}
+81	
+82	// ListCloudSessions returns the cloud-resumable sessions for a project — those with a
+83	// SessionData blob (?resumable=true, D5), newest-first, capped at cloudResumeLimit (D21).
+84	func ListCloudSessions(projectID string) ([]CloudSession, error) {
+85		var resp struct {
+86			Success bool `json:"success"`
+87			Data    struct {
+88				Sessions []CloudSession `json:"sessions"`
+89			} `json:"data"`
+90			Error string `json:"error"`
+91		}
+92	
+93		path := fmt.Sprintf(
+94			"/api/v1/projects/%s/sessions?resumable=true&limit=%d",
+95			url.PathEscape(projectID), cloudResumeLimit,
+96		)
+97		if err := skillsAPIRequest(http.MethodGet, path, nil, &resp); err != nil {
+98			return nil, err
+99		}
+100		if !resp.Success {
+101			return nil, fmt.Errorf("list cloud sessions failed: %s", resp.Error)
+102		}
+103		return resp.Data.Sessions, nil
+104	}
+105	
+106	// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+107	// projects into the all-projects browser (D16).
+108	func ListCloudProjects() ([]CloudProject, error) {
+109		var resp struct {
+110			Success bool `json:"success"`
+111			Data    struct {
+112				Projects []CloudProject `json:"projects"`
+113			} `json:"data"`
+114			Error string `json:"error"`
+115		}
+116	
+117		if err := skillsAPIRequest(http.MethodGet, "/api/v1/projects", nil, &resp); err != nil {
+118			return nil, err
+119		}
+120		if !resp.Success {
+121			return nil, fmt.Errorf("list cloud projects failed: %s", resp.Error)
+122		}
+123		return resp.Data.Projects, nil
+124	}
+125	
+126	// FetchSessionData streams a session's SessionData blob (D8) and returns the raw JSON bytes.
+127	// It does NOT unmarshal into schema.SessionData — the resume layer does that (and checks
+128	// schemaVersion), keeping this package decoupled from the schema package, exactly as the sync
+129	// push treats SessionData as an opaque string. Uses a custom request (not skillsAPIRequest)
+130	// because it needs the SessionData Accept header and a raw-bytes body, not JSON decoding.
+131	func FetchSessionData(projectID, sessionID string) ([]byte, error) {
+132		apiURL := GetAPIBaseURL() + "/api/v1/projects/" +
+133			url.PathEscape(projectID) + "/sessions/" + url.PathEscape(sessionID)
+134	
+135		req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+136		if err != nil {
+137			return nil, fmt.Errorf("creating session-data request: %w", err)
+138		}
+139		req.Header.Set("Authorization", "Bearer "+GetCloudToken())
+140		req.Header.Set("Accept", sessionDataMediaType)
+141		req.Header.Set("User-Agent", GetUserAgent())
+142	
+143		client := &http.Client{Timeout: cloudResumeHTTPTimeout}
+144		resp, err := client.Do(req)
+145		if err != nil {
+146			return nil, fmt.Errorf("fetch session data failed: %w", err)
+147		}
+148		defer func() { _ = resp.Body.Close() }()
+149	
+150		body, err := io.ReadAll(resp.Body)
+151		if err != nil {
+152			return nil, fmt.Errorf("reading session data response: %w", err)
+153		}
+154	
+155		switch {
+156		case resp.StatusCode == http.StatusUnauthorized:
+157			return nil, &ErrAuthenticationFailed{Message: "not authenticated to SpecStory Cloud"}
+158		case resp.StatusCode == http.StatusForbidden:
+159			// The requireFeature("resume") gate — the user isn't on a qualifying plan.
+160			return nil, fmt.Errorf("resuming cloud sessions requires SpecStory Pro")
+161		case resp.StatusCode == http.StatusNotFound:
+162			return nil, fmt.Errorf("session data not found in cloud")
+163		case resp.StatusCode < 200 || resp.StatusCode >= 300:
+164			return nil, fmt.Errorf("fetch session data returned status %d", resp.StatusCode)
+165		}
+166	
+167		return body, nil
+168	}
+169
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:22:14Z)**_
+
+The CLI client is clean, but it's only part of Chunk 2's CLI scope — let me review the server diff before concluding:
+
+_**Agent (claude-fable-5 2026-07-08 21:22:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show server router and projects diffs
+
+`cd ~/source/SpecStory/specstory-sync && git diff shared/types.ts sync-cloud/worker/routers/api/v1/sessions_router.ts sync-cloud/worker/handlers/projects.ts`
+
+```text
+diff --git a/shared/types.ts b/shared/types.ts
+index 99e3878e..eb72f96d 100644
+--- a/shared/types.ts
++++ b/shared/types.ts
+@@ -198,6 +198,7 @@ export const SessionSummarySchema = z.object({
+   updatedAt: z.string(),
+   startedAt: z.string().optional(),
+   endedAt: z.string().optional(),
++  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = not cloud-resumable (D5)
+   metadata: SessionMetadataSchema,
+   exchangeCount: z.number(),
+   firstExchangeContent: z.string(),
+diff --git a/sync-cloud/worker/handlers/projects.ts b/sync-cloud/worker/handlers/projects.ts
+index 599d84c1..24b78666 100644
+--- a/sync-cloud/worker/handlers/projects.ts
++++ b/sync-cloud/worker/handlers/projects.ts
+@@ -15,6 +15,7 @@ import {
+   updateWorkspace,
+ } from "../supabase";
+ import { generateResponse, handleError, generateSessionETag } from "./shared";
++import { requireFeature } from "./billing";
+ import {
+   AVAILABLE_PROJECT_ICONS,
+   AVAILABLE_PROJECT_COLORS,
+@@ -113,7 +114,21 @@ export async function handleListSessions(
+     const url = new URL(request.url);
+     const limit = parseInt(url.searchParams.get("limit") || "200");
+ 
+-    const sessions = await listSessionsForWorkspace(request, projectId, limit);
++    // Opt-in cloud-resume listing (D5): the CLI passes ?resumable=true to get only sessions
++    // with a SessionData blob. This is a Pro-only surface, so gate it — but ONLY when the
++    // param is present, since this endpoint is shared with the web app's ungated listing (D10).
++    const resumable = url.searchParams.get("resumable") === "true";
++    if (resumable) {
++      const denied = await requireFeature("resume")(request);
++      if (denied) return denied;
++    }
++
++    const sessions = await listSessionsForWorkspace(
++      request,
++      projectId,
++      limit,
++      resumable
++    );
+ 
+     // Add ETags to each session in the response
+     const sessionsWithETags = await Promise.all(
+diff --git a/sync-cloud/worker/routers/api/v1/sessions_router.ts b/sync-cloud/worker/routers/api/v1/sessions_router.ts
+index 0c97d8ac..a432e54b 100644
+--- a/sync-cloud/worker/routers/api/v1/sessions_router.ts
++++ b/sync-cloud/worker/routers/api/v1/sessions_router.ts
+@@ -9,6 +9,8 @@ import {
+   handleDeleteSession,
+   handleUpdateSessionTitle,
+   handleReadSessionMarkdown,
++  handleReadSessionData,
++  SESSION_DATA_MEDIA_TYPE,
+ } from "../../../handlers/sessions";
+ 
+ export default class SessionsRouter {
+@@ -46,8 +48,19 @@ export default class SessionsRouter {
+     router.get(
+       "/api/v1/projects/:projectId/sessions/:sessionId",
+       async (request: ApiRequest) => {
++        const accept = request.headers.get("Accept");
++
++        // SessionData variant (cloud resume, D8) — Pro-gated inside the handler.
++        if (accept === SESSION_DATA_MEDIA_TYPE) {
++          return await handleReadSessionData(
++            request,
++            request.params.projectId,
++            request.params.sessionId
++          );
++        }
++
+         // if the request content type is text/markdown, return the markdown content
+-        if (request.headers.get("Accept") === "text/markdown") {
++        if (accept === "text/markdown") {
+           return await handleReadSessionMarkdown(
+             request,
+             request.params.projectId,
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+---
+
+_**User (2026-07-08 21:22:23Z)**_
+
+[Request interrupted by user]
+
+_**User (2026-07-08 21:22:28Z)**_
+
+No TUI yet.
+
+---
+
+_**Agent (claude-fable-5 2026-07-08 21:22:35Z)**_
+
+Got it — reviewing what's here (server endpoints + CLI client), not the absent TUI. Remaining server pieces:
+
+_**Agent (claude-fable-5 2026-07-08 21:22:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show SessionData read handler and supabase diffs
+
+`cd ~/source/SpecStory/specstory-sync && git diff sync-cloud/worker/handlers/sessions.ts sync-cloud/worker/supabase.ts`
+
+```text
+diff --git a/sync-cloud/worker/handlers/sessions.ts b/sync-cloud/worker/handlers/sessions.ts
+index 9a401ea6..ca88ec31 100644
+--- a/sync-cloud/worker/handlers/sessions.ts
++++ b/sync-cloud/worker/handlers/sessions.ts
+@@ -8,9 +8,12 @@ import {
+ import {
+   upsertWorkspace,
+   uploadToStorage,
++  downloadFromStorage,
++  getSessionDataStoragePath,
+   listRecentSessions,
+   getSessionDetail,
+ } from "../supabase";
++import { requireFeature } from "./billing";
+ 
+ import {
+   WriteSessionRequestSchema,
+@@ -411,6 +414,70 @@ export async function handleReadSession(
+   }
+ }
+ 
++// Media type the CLI sends in Accept to request a session's SessionData blob (the canonical
++// cloud-resume representation) from the shared GET route, instead of markdown/JSON detail (D8).
++export const SESSION_DATA_MEDIA_TYPE =
++  "application/vnd.specstory.session-data+json";
++
++// Stream a session's SessionData blob for cloud resume (D8). Reached via Accept-negotiation on
++// the shared GET …/{sessionId} route. Gated with requireFeature("resume") HERE (not on the whole
++// route) because that route also serves ordinary markdown/JSON reads to every authenticated
++// web-app user — only this SessionData variant is Pro-only (D10).
++export async function handleReadSessionData(
++  request: ApiRequest,
++  projectId: string,
++  sessionId: string
++): Promise<Response> {
++  const denied = await requireFeature("resume")(request);
++  if (denied) return denied;
++
++  try {
++    // Validate access + resolve the blob's storage path (null → no permission / no session /
++    // no blob; all 404, never distinguished).
++    const loc = await getSessionDataStoragePath(
++      projectId,
++      sessionId,
++      request.userId!
++    );
++    if (!loc) {
++      return generateResponse(
++        { success: false, error: "SessionData not found" },
++        404,
++        "GET, OPTIONS",
++        "Content-Type, Authorization"
++      );
++    }
++
++    const blob = await downloadFromStorage(
++      "sessions",
++      `${loc.workspaceId}/${loc.sessionUuid}/session-data.json`
++    );
++    if (!blob) {
++      // Column said resumable but the blob is missing — shouldn't happen now that the size is
++      // written only after a successful upload (see handleWriteSession), but 404 defensively.
++      return generateResponse(
++        { success: false, error: "SessionData blob not found" },
++        404,
++        "GET, OPTIONS",
++        "Content-Type, Authorization"
++      );
++    }
++
++    // Stream the blob straight through the API (D8) — no signed URL.
++    return new Response(blob.stream(), {
++      status: 200,
++      headers: {
++        "Content-Type": "application/json",
++        "Access-Control-Allow-Origin": "*",
++        "Access-Control-Allow-Methods": "GET, OPTIONS",
++      },
++    });
++  } catch (error) {
++    console.error("Error handling read session data:", error);
++    return handleError(error);
++  }
++}
++
+ export async function handleReadSessionMarkdown(
+   request: ApiRequest,
+   projectId: string,
+diff --git a/sync-cloud/worker/supabase.ts b/sync-cloud/worker/supabase.ts
+index 2f30492a..89efc4e8 100644
+--- a/sync-cloud/worker/supabase.ts
++++ b/sync-cloud/worker/supabase.ts
+@@ -216,7 +216,10 @@ export async function updateWorkspace(
+ export async function listSessionsForWorkspace(
+   request: ApiRequest,
+   projectId: string,
+-  limit: number = 200
++  limit: number = 200,
++  // When true, only return cloud-resumable sessions (those with a SessionData blob,
++  // session_data_size > 0). Opt-in so the web app's default listing is unchanged (D5).
++  resumable: boolean = false
+ ): Promise<SessionSummary[]> {
+   // Get the workspace IDs the user may access for this project (owner-only in Step 0).
+   const workspaceIds = await getAccessibleWorkspaceIds(request.userId!, {
+@@ -229,12 +232,18 @@ export async function listSessionsForWorkspace(
+ 
+   // Filter sessions by all the workspaceIds that the user has permission to access
+   // as well as the exchanges in each session.
+-  const { data: sessions, error } = await supabaseClient()
++  let query = supabaseClient()
+     .from("sessions")
+     .select(
+-      "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, created_at, updated_at, started_at, ended_at, metadata, exchanges (id, order_number)"
++      "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata, exchanges (id, order_number)"
+     )
+-    .in("workspace_id", workspaceIds)
++    .in("workspace_id", workspaceIds);
++
++  if (resumable) {
++    query = query.gt("session_data_size", 0);
++  }
++
++  const { data: sessions, error } = await query
+     .order("ended_at", { ascending: false, nullsFirst: false })
+     .order("updated_at", { ascending: false })
+     .limit(limit);
+@@ -287,6 +296,7 @@ export async function listSessionsForWorkspace(
+       updatedAt: session.updated_at as string,
+       startedAt: session.started_at ? String(session.started_at) : undefined,
+       endedAt: session.ended_at ? String(session.ended_at) : undefined,
++      sessionDataSize: session.session_data_size as number | null,
+       metadata: session.metadata as SessionMetadata,
+       exchangeCount: session.exchanges.length,
+       firstExchangeContent: firstSessionExchangesContent[session.id as string],
+@@ -294,6 +304,43 @@ export async function listSessionsForWorkspace(
+   });
+ }
+ 
++// Resolve the storage location of a session's SessionData blob, validating that the caller
++// may access it. Returns null when the user has no permission, the session doesn't exist, or
++// it has no SessionData blob (session_data_size NULL) — the caller 404s in all three cases,
++// never leaking which. Lean by design: unlike getSessionDetail it skips markdown/exchanges,
++// since the resume read only needs the blob path (D8).
++export async function getSessionDataStoragePath(
++  projectId: string,
++  sessionId: string,
++  userId: string
++): Promise<{ workspaceId: string; sessionUuid: string } | null> {
++  const workspaceIds = await getAccessibleWorkspaceIds(userId, { projectId });
++  if (workspaceIds.length === 0) {
++    return null;
++  }
++
++  const { data, error } = await supabaseClient()
++    .from("sessions")
++    .select("id, workspace_id, session_data_size")
++    .in("workspace_id", workspaceIds)
++    .eq("client_id", sessionId)
++    .maybeSingle();
++
++  if (error && error.message) {
++    throw new Error(`Failed to resolve session data path: ${error.message}`);
++  }
++
++  // No row, or a legacy session with no SessionData blob → treat as not found.
++  if (!data || data.session_data_size === null) {
++    return null;
++  }
++
++  return {
++    workspaceId: data.workspace_id as string,
++    sessionUuid: data.id as string,
++  };
++}
++
+ // Define a minimal workspace type for recent sessions
+ export interface ProjectSummary {
+   id: string;
+@@ -761,6 +808,27 @@ export async function uploadToStorage(
+   return urlData.publicUrl;
+ }
+ 
++// Download an object-storage blob as a Blob for streaming back through the API (D8). This is
++// the first blob-read path in the worker — blobs were previously write-only. Returns null on
++// any error (not found, storage failure) so the caller can 404 rather than 500.
++export async function downloadFromStorage(
++  bucket: string,
++  path: string
++): Promise<Blob | null> {
++  const { data, error } = await supabaseClient()
++    .storage.from(bucket)
++    .download(path);
++
++  if (error || !data) {
++    console.error(
++      `Failed to download from ${bucket} at ${path}: ${error?.message}`
++    );
++    return null;
++  }
++
++  return data;
++}
++
+ export async function deleteFromStorage(
+   bucket: string,
+   paths: string[],
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:23:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify list and projects response shapes
+
+`cd ~/source/SpecStory/specstory-sync && grep -n "sessionsWithETags" -A 20 sync-cloud/worker/handlers/projects.ts | sed -n '1,30p'; echo "=== handleListProjects response ==="; grep -n "handleListProjects" -A 40 sync-cloud/worker/handlers/projects.ts | grep -n "generateResponse\|projects\|listWorkspaces" | head; echo "=== ProjectSummary shape ==="; grep -n "export interface ProjectSummary" -A 12 sync-cloud/worker/supabase.ts`
+
+```text
+134:    const sessionsWithETags = await Promise.all(
+135-      sessions.map(async (session) => ({
+136-        ...session,
+137-        etag: await generateSessionETag(session),
+138-      }))
+139-    );
+140-
+141-    const response: ListSessionsResponse = {
+142-      success: true,
+143-      data: {
+144:        sessions: sessionsWithETags,
+145:        total: sessionsWithETags.length,
+146-        projectId,
+147-      },
+148-    };
+149-
+150-    return generateResponse(
+151-      response,
+152-      200,
+153-      "POST, GET, OPTIONS",
+154-      "Content-Type"
+155-    );
+156-  } catch (error) {
+157-    console.error("Error handling list sessions:", error);
+158-    return handleError(error);
+159-  }
+160-}
+161-
+162-export async function handleUpdateProject(
+163-  request: ApiRequest,
+=== handleListProjects response ===
+5:29-    const rawWorkspaces = await listWorkspaces(request);
+18:42-        projects: workspaces,
+23:47-    return generateResponse(
+30:54-    console.error("Error handling list projects:", error);
+=== ProjectSummary shape ===
+345:export interface ProjectSummary {
+346-  id: string;
+347-  name: string;
+348-  icon?: string;
+349-  color?: string;
+350-}
+351-
+352-// Define the return type for sessions with workspace info
+353-export interface SessionWithProject
+354-  extends Omit<SessionSummary, "exchangeCount" | "firstExchangeContent"> {
+355-  clientId: string; // For frontend compatibility
+356-  sessionId: string; // For frontend compatibility
+357-  workspaceId: string; // For frontend compatibility
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:23:36Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show listWorkspaces return shape
+
+`cd ~/source/SpecStory/specstory-sync && grep -n "export async function listWorkspaces" -A 60 sync-cloud/worker/supabase.ts | grep -n "return\|:" | sed -n '1,35p'`
+
+```text
+1:130:export async function listWorkspaces(
+2:131-  request: ApiRequest
+3:132-): Promise<Workspace[]> {
+8:137-    return [];
+13:142-  const { data: workspaces, error } = await supabaseClient()
+19:148-    .order("last_session", { ascending: false, nullsFirst: false });
+22:151-    throw new Error(`Failed to list workspaces: ${error.message}`);
+26:155-    return [];
+31:160-  return workspaces.map((workspace) => ({
+32:161-    id: workspace.id as string,
+33:162-    projectId: workspace.project_id as string,
+34:163-    ownerId: workspace.owner_id as string,
+35:164-    name: workspace.name as string,
+36:165-    icon: workspace.icon as string,
+37:166-    color: workspace.color as string,
+38:167-    sessionCount: workspace.session_count as number,
+39:168-    lastUpdated: (workspace.last_session as string) || new Date().toISOString(),
+41:170-    lastActivityDate:
+43:172-    lastSyncDate:
+45:174-    totalMarkdownSize: (workspace.total_markdown_size as number) || 0,
+50:179-  request: ApiRequest,
+51:180-  workspaceId: string,
+52:181-  icon: string | undefined,
+53:182-  color: string | undefined,
+54:183-  name: string | undefined
+55:184-): Promise<void> {
+59:188-  const { data: owned, error: ownErr } = await supabaseClient()
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:23:55Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check projectId in SessionSummary and typecheck
+
+`cd ~/source/SpecStory/specstory-sync && grep -n "projectId" shared/types.ts | head -3 && grep -n "projectId:" sync-cloud/worker/supabase.ts | head -3; npx tsc --noEmit -p sync-cloud 2>&1 | head -3; echo "tsc: $?"`
+
+```text
+149:  projectId: z.string().optional(), // Because we don't have a projectId in the session table
+173:  projectId: z.string(),
+192:  projectId: z.string(),
+30:  projectId: string; // String workspace ID
+119:    projectId: workspace.project_id as string,
+162:    projectId: workspace.project_id as string,
+tsc: 0
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:24:01Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build, lint, test CLI
+
+`go build -o specstory . && golangci-lint run 2>&1 | tail -2 && go test ./pkg/cloud/ ./pkg/sessionindex/ ./pkg/spi/... 2>&1 | grep -v "no test files" | tail -6`
+
+```text
+0 issues.
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	0.227s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.060s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.023s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	0.008s
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:24:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show session summary mapping in listSessionsForWorkspace
+
+`cd ~/source/SpecStory/specstory-sync && sed -n '270,300p' sync-cloud/worker/supabase.ts`
+
+```text
+          .maybeSingle();
+      if (firstExchangeError && firstExchangeError.message) {
+        throw new Error(
+          `Failed to get first exchange content: ${firstExchangeError.message}`
+        );
+      }
+      firstSessionExchangesContent[session.id as string] = String(
+        firstExchange?.content || ""
+      );
+    } else {
+      firstSessionExchangesContent[session.id as string] = "";
+    }
+  }
+
+  // If we have sessions to return then we want to return the session data as well as the count of exchanges in each session,
+  // and the content of the first exchange in each session.
+  return sessions.map((session) => {
+    return {
+      id: session.id as string,
+      clientId: session.client_id as string,
+      projectId: projectId,
+      name: session.name as string,
+      userTitle: (session.user_title as string | null) || undefined,
+      markdownSize: session.markdown_size as number,
+      rawDataSize: session.raw_data_size as number,
+      createdAt: session.created_at as string,
+      updatedAt: session.updated_at as string,
+      startedAt: session.started_at ? String(session.started_at) : undefined,
+      endedAt: session.ended_at ? String(session.ended_at) : undefined,
+      sessionDataSize: session.session_data_size as number | null,
+      metadata: session.metadata as SessionMetadata,
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:25:00Z)**_
+
+Review complete. Here's the verdict on what exists (server endpoints + CLI cloud client; TUI acknowledged as not yet started):
+
+## Verdict
+
+**The server work is design-faithful and carefully scoped — approve with one performance landmine to defuse. The CLI client is clean but has one real (latent) decode bug to fix before the TUI consumes it.** All gates pass: `tsc` clean, Go build/lint/tests green.
+
+What's verifiably right, against the doc: the SessionData read is Accept-negotiated on the shared GET route (`application/vnd.specstory.session-data+json`) with `requireFeature("resume")` scoped to *that variant only*, so the web app's ordinary reads stay ungated (D8/D10, exactly as specified); `?resumable=true` gates and filters only when the param is present (D5's opt-in, web app untouched); `getSessionDataStoragePath` is lean, permission-checked, and returns a uniform 404 for no-permission/no-session/no-blob without leaking which; `downloadFromStorage` is the promised first blob-read path; the missing-blob defensive 404 correctly references the Chunk 1 write-ordering fix; `sessionDataSize` rides `SessionSummary` as `nullish` (additive for the web app). On the CLI: the client mirrors the `skillsAPIRequest` conventions, `FetchSessionData` maps 401/403/404 to the right user-facing errors (403 → the Pro message), returns raw bytes so the resume layer owns unmarshal + version check, and I verified the list envelope (`data.sessions`, `projectId` populated) matches the decode. `CurrentSchemaVersion` extraction and the not-persisted TUI fields on the index `Session` struct are both tidy.
+
+## The two findings
+
+**1. `CloudProject` decodes the wrong fields — D16 would break silently (CLI bug, latent).** The `/api/v1/projects` response items carry `id` = the **workspace's internal UUID**, with the project identifier in `projectId`, and there is no `createdAt`/`updatedAt` — the recency field is `lastUpdated` (`supabase.ts:160-174`). The struct decodes `json:"id"` (its comment even claims it's the project_id) and `json:"createdAt"/"updatedAt"`. Consequences when the TUI lands: dedup-by-`project_id` never matches, so *every* cloud project renders as cloud-only (duplicating local ones), and the blended recency sort gets zero timestamps. Fix now while it's cheap: decode `projectId` and `lastUpdated` (and consider `sessionCount` — useful for the projects view).
+
+**2. The resumable list at `limit=500` runs up to 500 sequential DB queries per picker open (server, perf).** `listSessionsForWorkspace` fetches `firstExchangeContent` in a per-session `await` loop (`supabase.ts:~250-282`). At the web app's default 200 that's already heavy; the CLI will call this with `resumable=true&limit=500` on *every browse open*, and 500 sequential Supabase round-trips is plausibly 5–25 seconds — which would make D11's "searching cloud…" chronically time out for large projects. The CLI doesn't use `firstExchangeContent` or `exchangeCount` at all. Cheapest fix: when `resumable=true`, skip the `exchanges` join and the first-exchange loop entirely and return `0`/`""` (the Zod schema requires the fields, not the queries).
+
+## Minor notes
+
+- The new read skips the ETag/`If-None-Match` handling D8 mentions. Fine for v1's one-shot interactive fetch — either add it trivially later or trim it from D8 so doc and code agree.
+- Both sides do strict-equality Accept matching; fine since we control both ends, and the constants are named on each side.
+- Flag 3 from Chunk 1 (the nil-`SessionData` re-push repeat) remains deferred, unchanged.
+
+**Remaining Chunk 2 CLI scope** (for whoever picks it up): blended browse with async layering + indicator (D11), dedup + the selection-time local-index guard (D13), cloud icon (D14), machine filter with the deviceId-keyed ring (D15), blended projects (D16 — blocked on finding 1), Pro nudges (D10), and the fetch→`schemaVersion` check→reconstruct resume path (D12), which now has `CurrentSchemaVersion` ready to compare against.
+
+---
+
+_**User (2026-07-08 21:34:35Z)**_
+
+OK, the building agent didn't fully agree with your finding #1
+
+Net on the review: one real bug, one inverted.
+- Recency (real): CloudProject now decodes lastUpdated (the true last-activity timestamp) instead of the now-defaulted createdAt/updatedAt, so the blended project sort (D16) will order correctly. Added sessionCount too, and dropped the misleading defaulted fields.
+- id (inverted): I kept json:"id" because the wire proves it's the project_id (569d-…) and projectId is null — decoding projectId as suggested would have set every cloud project's key to empty and caused the "renders as cloud-only / dedup never matches" break. I documented the handleListProjects override in the struct so the next reader doesn't re-derive it from listWorkspaces and reach the same wrong conclusion.
+
+This struct isn't consumed until the blended-projects view lands, so it's fixed well ahead of need.
+
+I'd finished reading the core model file (session_tui.go) when you flagged this. Ready to resume the TUI build (2d — the blended browse: startCloudFetch + merge/dedup/re-sort + cloud icon + "searching cloud…" indicator + Pro nudge). Want me to proceed straight into it?
+
+Review their response and changes.
+
+---
+
+_**Agent (claude-fable-5 2026-07-08 21:34:47Z)**_
+
+Let me verify their claim against the actual handler — the key question is whether `handleListProjects` re-maps `id` before responding:
+
+_**Agent (claude-fable-5 2026-07-08 21:34:49Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show handleListProjects response mapping
+
+`cd ~/source/SpecStory/specstory-sync && grep -n "handleListProjects" -A 30 sync-cloud/worker/handlers/projects.ts | head -40`
+
+```text
+25:export async function handleListProjects(
+26-  request: ApiRequest
+27-): Promise<Response> {
+28-  try {
+29-    const rawWorkspaces = await listWorkspaces(request);
+30-
+31-    // Ensure all required fields are present for the response type
+32-    const workspaces = rawWorkspaces.map(({ projectId, ...workspace }) => ({
+33-      ...workspace,
+34-      id: projectId,
+35-      createdAt: workspace.createdAt || new Date().toISOString(),
+36-      updatedAt: workspace.updatedAt || new Date().toISOString(),
+37-    }));
+38-
+39-    const response: ListProjectsResponse = {
+40-      success: true,
+41-      data: {
+42-        projects: workspaces,
+43-        total: workspaces.length,
+44-      },
+45-    };
+46-
+47-    return generateResponse(
+48-      response,
+49-      200,
+50-      "GET, OPTIONS",
+51-      "Content-Type, Authorization"
+52-    );
+53-  } catch (error) {
+54-    console.error("Error handling list projects:", error);
+55-    return handleError(error);
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:34:50Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show updated CloudProject struct
+
+`grep -n "CloudProject" -B 2 -A 25 pkg/cloud/resume_client.go | head -45`
+
+```text
+53-}
+54-
+55:// CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
+56-// cloud-only projects into the all-projects browser (D16).
+57-//
+58-// Field notes, verified against the live GET /api/v1/projects response:
+59-//   - id IS the project_id (git_id/workspace_id) — handleListProjects remaps `id := projectId`
+60-//     (its `{ ...workspace, id: projectId }` override wins), and `projectId` itself is absent on
+61-//     the wire. So dedup-by-project_id keys on ID.
+62-//   - lastUpdated is the real recency signal (last session activity). The response also carries
+63-//     createdAt/updatedAt, but those are server-defaulted to "now" per request — NOT real
+64-//     timestamps — so blended recency sort must use LastUpdated (D16).
+65:type CloudProject struct {
+66-	ID           string `json:"id"`
+67-	Name         string `json:"name"`
+68-	Icon         string `json:"icon"`
+69-	Color        string `json:"color"`
+70-	LastUpdated  string `json:"lastUpdated"`
+71-	SessionCount int    `json:"sessionCount"`
+72-}
+73-
+74-// ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
+75-// the TUI's soft gate + nudge (D10). This is a NETWORK call (fetches entitlement) and MUST run
+76-// off the UI thread. Interpret the result: !loggedIn → "log in" nudge; loggedIn && !pro →
+77-// "upgrade" nudge; both true → fetch cloud sessions. An entitlement-fetch failure degrades to
+78-// not-pro (silent), never blocking local-first.
+79-func ResumeEligibility() (loggedIn bool, pro bool) {
+80-	if !IsAuthenticated() {
+81-		return false, false
+82-	}
+83-	ent, err := GetEntitlement()
+84-	if err != nil || ent == nil {
+85-		return true, false
+86-	}
+87-	return true, ent.Features.Resume
+88-}
+89-
+90-// ListCloudSessions returns the cloud-resumable sessions for a project — those with a
+--
+112-}
+113-
+114:// ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+115-// projects into the all-projects browser (D16).
+116:func ListCloudProjects() ([]CloudProject, error) {
+117-	var resp struct {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:35:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build and lint after struct fix
+
+`go build -o specstory . && golangci-lint run 2>&1 | tail -2`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:35:38Z)**_
+
+The building agent is right, and my finding #1 was half-wrong — verified at the source. `handleListProjects` (projects.ts:32-37) destructures `projectId` *out* of the workspace objects and overwrites `id` with it, so on the wire `id` genuinely is the project_id and `projectId` is absent. I derived my claim from `listWorkspaces`' internal return shape and missed the handler's remap one layer up — exactly the re-derivation trap their struct comment now warns against. Had they applied my suggested fix, every cloud project key would have decoded empty and caused the very break I predicted. Good catch on their part.
+
+The half that stood is also now confirmed *worse* than I originally stated: the handler doesn't merely omit real timestamps, it **fabricates them** — `createdAt`/`updatedAt` are server-defaulted to `new Date().toISOString()` per request (projects.ts:35-36), so decoding them wouldn't have produced zero times but "everything modified right now," which would have silently sorted all cloud projects to the top. Their fix — decode `lastUpdated` + `sessionCount`, drop the defaulted fields, document both the `id` override and the fabricated-timestamps trap in field notes — is exactly right, and the comment quality is the part that prevents the next person (me, evidently) from repeating the mistake. Build and lint are green.
+
+**One new edge I spotted while verifying their fix**, worth a line in the TUI work: `listWorkspaces` has the same "now" defaulting for `lastUpdated` itself — `(workspace.last_session as string) || new Date().toISOString()` (supabase.ts:168). A cloud workspace with **zero sessions** (created on first push, sessions since deleted) has `last_session = null`, so it arrives with `lastUpdated ≈ now` and would float to the top of the blended recency sort as a ghost. Cheap, correct handling: **filter out cloud projects with `sessionCount == 0` before blending** — a project with no sessions has nothing to resume anyway, so it doesn't belong in the resume browser at all. `SessionCount` is already on the struct, so it's a one-line guard in the merge.
+
+Verdict: their response holds up, the changes are correct — proceed with 2d (blended browse: `startCloudFetch` + merge/dedup/re-sort + cloud icon + indicator + Pro nudge), carrying the `sessionCount == 0` guard into the blend logic.
+
+---
+
+_**User (2026-07-08 21:52:04Z)**_
+
+OK, the building agent addressed finding #2. Check the change.
+
+---
+
+_**Agent (claude-fable-5 2026-07-08 21:52:20Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show updated listSessionsForWorkspace diff
+
+`cd ~/source/SpecStory/specstory-sync && git diff sync-cloud/worker/supabase.ts | head -140`
+
+```text
+diff --git a/sync-cloud/worker/supabase.ts b/sync-cloud/worker/supabase.ts
+index 2f30492a..0a95b8c6 100644
+--- a/sync-cloud/worker/supabase.ts
++++ b/sync-cloud/worker/supabase.ts
+@@ -216,7 +216,10 @@ export async function updateWorkspace(
+ export async function listSessionsForWorkspace(
+   request: ApiRequest,
+   projectId: string,
+-  limit: number = 200
++  limit: number = 200,
++  // When true, only return cloud-resumable sessions (those with a SessionData blob,
++  // session_data_size > 0). Opt-in so the web app's default listing is unchanged.
++  resumable: boolean = false
+ ): Promise<SessionSummary[]> {
+   // Get the workspace IDs the user may access for this project (owner-only in Step 0).
+   const workspaceIds = await getAccessibleWorkspaceIds(request.userId!, {
+@@ -227,12 +230,56 @@ export async function listSessionsForWorkspace(
+     throw new Error("No workspace permissions");
+   }
+ 
+-  // Filter sessions by all the workspaceIds that the user has permission to access
+-  // as well as the exchanges in each session.
++  // Resumable path (cloud-resume browse): the CLI never uses exchangeCount /
++  // firstExchangeContent, so take a LEAN path — no exchanges embed and, crucially, no
++  // per-session first-exchange lookup. That lookup below is up to `limit` (500 for the CLI)
++  // SEQUENTIAL Supabase round-trips, which would make D11's "searching cloud…" pass chronically
++  // slow / time out on large projects. Return 0/"" for the two unused fields (the Zod schema
++  // requires the fields, not the queries).
++  if (resumable) {
++    const { data: sessions, error } = await supabaseClient()
++      .from("sessions")
++      .select(
++        "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata"
++      )
++      .in("workspace_id", workspaceIds)
++      .gt("session_data_size", 0)
++      .order("ended_at", { ascending: false, nullsFirst: false })
++      .order("updated_at", { ascending: false })
++      .limit(limit);
++
++    if (error && error.message) {
++      throw new Error(`Failed to list sessions for project: ${error.message}`);
++    }
++    if (!sessions) {
++      return [];
++    }
++
++    return sessions.map((session) => ({
++      id: session.id as string,
++      clientId: session.client_id as string,
++      projectId: projectId,
++      name: session.name as string,
++      userTitle: (session.user_title as string | null) || undefined,
++      markdownSize: session.markdown_size as number,
++      rawDataSize: session.raw_data_size as number,
++      createdAt: session.created_at as string,
++      updatedAt: session.updated_at as string,
++      startedAt: session.started_at ? String(session.started_at) : undefined,
++      endedAt: session.ended_at ? String(session.ended_at) : undefined,
++      sessionDataSize: session.session_data_size as number | null,
++      metadata: session.metadata as SessionMetadata,
++      exchangeCount: 0,
++      firstExchangeContent: "",
++    }));
++  }
++
++  // Non-resumable path (web app default) — unchanged: embed exchanges and fetch the first
++  // exchange's content per session for the list preview.
+   const { data: sessions, error } = await supabaseClient()
+     .from("sessions")
+     .select(
+-      "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, created_at, updated_at, started_at, ended_at, metadata, exchanges (id, order_number)"
++      "id, client_id, workspace_id, name, user_title, markdown_size, raw_data_size, session_data_size, created_at, updated_at, started_at, ended_at, metadata, exchanges (id, order_number)"
+     )
+     .in("workspace_id", workspaceIds)
+     .order("ended_at", { ascending: false, nullsFirst: false })
+@@ -287,6 +334,7 @@ export async function listSessionsForWorkspace(
+       updatedAt: session.updated_at as string,
+       startedAt: session.started_at ? String(session.started_at) : undefined,
+       endedAt: session.ended_at ? String(session.ended_at) : undefined,
++      sessionDataSize: session.session_data_size as number | null,
+       metadata: session.metadata as SessionMetadata,
+       exchangeCount: session.exchanges.length,
+       firstExchangeContent: firstSessionExchangesContent[session.id as string],
+@@ -294,6 +342,43 @@ export async function listSessionsForWorkspace(
+   });
+ }
+ 
++// Resolve the storage location of a session's SessionData blob, validating that the caller
++// may access it. Returns null when the user has no permission, the session doesn't exist, or
++// it has no SessionData blob (session_data_size NULL) — the caller 404s in all three cases,
++// never leaking which. Lean by design: unlike getSessionDetail it skips markdown/exchanges,
++// since the resume read only needs the blob path.
++export async function getSessionDataStoragePath(
++  projectId: string,
++  sessionId: string,
++  userId: string
++): Promise<{ workspaceId: string; sessionUuid: string } | null> {
++  const workspaceIds = await getAccessibleWorkspaceIds(userId, { projectId });
++  if (workspaceIds.length === 0) {
++    return null;
++  }
++
++  const { data, error } = await supabaseClient()
++    .from("sessions")
++    .select("id, workspace_id, session_data_size")
++    .in("workspace_id", workspaceIds)
++    .eq("client_id", sessionId)
++    .maybeSingle();
++
++  if (error && error.message) {
++    throw new Error(`Failed to resolve session data path: ${error.message}`);
++  }
++
++  // No row, or a legacy session with no SessionData blob → treat as not found.
++  if (!data || data.session_data_size === null) {
++    return null;
++  }
++
++  return {
++    workspaceId: data.workspace_id as string,
++    sessionUuid: data.id as string,
++  };
++}
++
+ // Define a minimal workspace type for recent sessions
+ export interface ProjectSummary {
+   id: string;
+@@ -761,6 +846,27 @@ export async function uploadToStorage(
+   return urlData.publicUrl;
+ }
+ 
++// Download an object-storage blob as a Blob for streaming back through the API. This is
++// the first blob-read path in the worker — blobs were previously write-only. Returns null on
++// any error (not found, storage failure) so the caller can 404 rather than 500.
++export async function downloadFromStorage(
++  bucket: string,
++  path: string
++): Promise<Blob | null> {
++  const { data, error } = await supabaseClient()
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:52:35Z)**_
+
+The fix is exactly what was called for. Verifying it typechecks, then verdict:
+
+_**Agent (claude-fable-5 2026-07-08 21:52:38Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Typecheck the lean-path change
+
+`cd ~/source/SpecStory/specstory-sync && npx tsc --noEmit -p sync-cloud 2>&1 | head -3; echo "tsc exit: $?"`
+
+```text
+tsc exit: 0
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-08 21:52:58Z)**_
+
+Typecheck is clean, and the change is right — approved. Specifics:
+
+**The fix does exactly what finding #2 required.** The `resumable=true` branch is a dedicated lean query: no `exchanges` embed, no per-session first-exchange loop, with `exchangeCount: 0` / `firstExchangeContent: ""` satisfying the Zod schema ("the schema requires the fields, not the queries" — the comment even preserves the reasoning). The round-trip math goes from up-to-501 sequential Supabase calls per picker-open to exactly **two** (accessible-workspaces + sessions), regardless of limit. That's what keeps D11's "searching cloud…" pass honest on large projects.
+
+**It's also structurally better than the version I reviewed.** The previous cut mutated a shared query builder (`query = query.gt(...)`) threading the filter through the heavy path; now the web-app default path is byte-identical to its original single-query shape except the purely additive `session_data_size` select, and the filter + `requireFeature` gate live only on the CLI-facing branch. The two paths can now evolve independently, which is exactly the isolation D5's opt-in was about.
+
+One crumb, not worth a round-trip to fix now: the CLI's `CloudSession.FirstExchangeContent` field is now guaranteed-empty on this path — dead weight. Drop it from the struct (or annotate that `?resumable=true` never populates it) whenever someone's next in that file, so the TUI builder doesn't try to render it.
+
+With findings #1 (as corrected by the builder) and #2 both closed, everything reviewed so far — Chunk 1, the Chunk 2 server surface, and the CLI cloud client — is in good shape. Clear to proceed with the blended-browse TUI work.
+
+---
+
+_**User (2026-07-09 01:11:55Z)**_
+
+OK, the building agent finished out chunk 2. Please review.
+
+---
+
+_**Agent (claude-fable-5 2026-07-09 01:12:16Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Scope the completed Chunk 2 CLI changes
+
+`git status --short | grep -v ".specstory" && echo "---" && git diff --stat -- . ':!.specstory' && git log --oneline -3`
+
+```text
+ M docs/CLOUD-RESUME.md
+ M pkg/cloud/sync.go
+ M pkg/cloud/sync_test.go
+ M pkg/cmd/resume.go
+ M pkg/cmd/search.go
+ M pkg/cmd/session_tui.go
+ M pkg/cmd/session_tui_browser.go
+ M pkg/cmd/session_tui_view.go
+ M pkg/sessionindex/store.go
+ M pkg/spi/schema/types.go
+?? pkg/cloud/resume_client.go
+?? pkg/cmd/session_tui_cloud.go
+---
+ specstory-cli/docs/CLOUD-RESUME.md           |   2 +-
+ specstory-cli/pkg/cloud/sync.go              |  29 +++---
+ specstory-cli/pkg/cloud/sync_test.go         |   6 +-
+ specstory-cli/pkg/cmd/resume.go              | 132 +++++++++++++++++++++++++--
+ specstory-cli/pkg/cmd/search.go              |   8 +-
+ specstory-cli/pkg/cmd/session_tui.go         |  85 +++++++++++++++--
+ specstory-cli/pkg/cmd/session_tui_browser.go |  22 ++++-
+ specstory-cli/pkg/cmd/session_tui_view.go    |  71 ++++++++++++--
+ specstory-cli/pkg/sessionindex/store.go      |  13 +++
+ specstory-cli/pkg/spi/schema/types.go        |   9 +-
+ 10 files changed, 330 insertions(+), 47 deletions(-)
+9028c6f Ignore
+dbfa819 Merge branch 'dev' into cloud-resume
+117f5d2 SpecStory histories.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:12:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show small diffs and new file size
+
+`wc -l pkg/cmd/session_tui_cloud.go && git diff docs/CLOUD-RESUME.md pkg/spi/schema/types.go pkg/sessionindex/store.go pkg/cloud/sync.go pkg/cloud/sync_test.go`
+
+```text
+     476 pkg/cmd/session_tui_cloud.go
+diff --git a/specstory-cli/docs/CLOUD-RESUME.md b/specstory-cli/docs/CLOUD-RESUME.md
+index 001c98e..c858e0f 100644
+--- a/specstory-cli/docs/CLOUD-RESUME.md
++++ b/specstory-cli/docs/CLOUD-RESUME.md
+@@ -20,7 +20,7 @@ Extend the CLI's local-only `resume` and `search` functionality to also surface
+ - **D5 — A `session_data_size INTEGER` (nullable) column on `sessions` tracks blob presence** (byte count, set in `Session.upsert` when the push carries `sessionData`), mirroring the existing `markdown_size` / `raw_data_size` columns. `NULL` = legacy/no blob; `> 0` = cloud-resumable. Both read paths filter on it so browse/search only surface resumable cloud sessions — but the filter is **opt-in, not unconditional**: the list endpoint (`GET …/{projectId}/sessions`) is shared with the web app, and a blanket `WHERE session_data_size > 0` would hide every legacy session from cloud.specstory.com until re-synced (regressing a surface this feature doesn't own, contrary to §3's additive promise). So the CLI passes a new **`?resumable=true`** query param, which adds `WHERE session_data_size > 0`; without the param the endpoint behaves exactly as today. The aligned FTS search (D18) applies the same predicate on the `sessions` row unconditionally — it's a new resume-only surface, so no opt-in is needed there. Nullable represents the back-catalog with no backfill. This is metadata *about* the blob — consistent with D3, not a contents column.
+ - **D6 — Back-catalog heals by re-sync, not backfill.** Legacy sessions (`session_data_size IS NULL`) are filtered out of resume browse/search (D5) until a new-enough CLI re-syncs them and populates `SessionData`. No server-side backfill job.
+ - **D7 — Self-heal triggers via an explicit `session_data_size` signal.** The server exposes `session_data_size` on both sync-skip paths. **HEAD:** a new `X-Session-Data-Size` header (`NULL` coerced to `0`, so "legacy" and "no blob" read the same). **Bulk sizes:** the `GET …/sessions/sizes` response is a flat `{"<sessionID>": markdownSize}` map whose value type must stay a bare number for deployed CLIs — so rather than changing the shape (or minting a v2 endpoint), the server adds a **suffixed key per session**: `"<sessionID>:sessionData": <blob byte size>`, emitted only when `session_data_size` is non-`NULL`. This is backward-compatible by construction: old CLIs unmarshal the map fine (values are still numbers) and only ever do point lookups by plain sessionID, so the extra entries are inert; and `:` can't appear in a UUID, so keys can't collide. The new CLI reads `bulkSizes[sessionID+":sessionData"]` — Go's zero-value map lookup makes a missing key read as `0`, which is exactly the re-send signal, with no NULL handling anywhere. The CLI's `requiresSync` (`sync.go:460-595`) re-sends when **markdown is newer OR `serverSessionDataSize == 0`** (currently it compares markdown size only). `X-Markdown-Size` keeps its true meaning. Applies to both the HEAD path and the batch bulk-sizes path (so `specstory sync` heals too).
+-- **D8 — Resume fetches the `SessionData` blob by streaming through the API**, not via a signed storage URL. A new read (route or content-negotiated variant of `GET …/{sessionId}`) reuses the existing `Bearer` auth + `Session.validateAccess` + ETag path and streams the `session-data.json` blob back via a new `downloadFromStorage` helper (Supabase `.download()`). **No blob-retrieval path exists today** — blobs are currently write-only (`uploadToStorage` + `deleteFromStorage`; the `getPublicUrl` return value is discarded), and reads serve `markdown_content` from the DB column — so this is greenfield. Signed URLs (client→storage direct, single egress) are a documented **future optimization** if blob sizes or resume volume grow; not needed for v1's low-frequency, interactive resume.
++- **D8 — Resume fetches the `SessionData` blob by streaming through the API**, not via a signed storage URL. A new read (route or content-negotiated variant of `GET …/{sessionId}`) reuses the existing `Bearer` auth + access check and streams the `session-data.json` blob back via a new `downloadFromStorage` helper (Supabase `.download()`). **No blob-retrieval path exists today** — blobs are currently write-only (`uploadToStorage` + `deleteFromStorage`; the `getPublicUrl` return value is discarded), and reads serve `markdown_content` from the DB column — so this is greenfield. ETag/`If-None-Match` (304) is **not** on this read: resume is a one-shot interactive fetch, so revalidation caching buys little; it and signed URLs (client→storage direct, single egress) are documented **future optimizations** if blob sizes or resume volume grow — not needed for v1's low-frequency, interactive resume.
+ - **D9 — Machine identity reuses `metadata.deviceId`; add `machineName`.** The machine ID is the existing `metadata.deviceId` (`SHA256(first non-loopback MAC)`, fallback hostname-hash; `getDeviceID`, `sync.go:625`) — already pushed and stored in the `metadata` JSONB. **No new column.** (Note: the GraphQL `searchSessions` *declares* `deviceId`/`deviceIds` filter args, but the resolver ignores them — it forwards only `projectIds` + `timeFilter`, `graphql.ts:249-250` — so there's **no working server-side machine filter today**; D15 filters client-side regardless.) The push adds **`machineName` = `os.Hostname()`** to metadata — three server edit sites plus the CLI push: `WriteSessionRequestSchema`, `SessionMetadataSchema` (`shared/types.ts:71`), and the inline metadata block in `handleWriteSession` (`sessions.ts:63-92`). Group/badge by stable `deviceId`, display latest `machineName`. Enables: **machine badge** on rows, **machine filter** (like agent/project), and **browse-by-machine**. (Cross-store overlap is handled by session-identity dedup in the blend model, D13 — *not* by machine exclusion.) _Caveat:_ MAC-based `deviceId` isn't perfectly stable (VPN/virtual adapters/interface ordering) → a machine may occasionally split into two identities; kept for v1 (already ships; changing it orphans existing IDs), persisted-UUID is future hardening.
+ - **D10 — Cross-machine (cloud) search/resume is gated on SpecStory Pro, as a soft gate.** Eligibility = `cloud.IsAuthenticated()` AND `cloud.GetEntitlement().Features.Resume` (the entitlement client is already on this branch: `GET /api/v1/billing/entitlement` → `Entitlement{Plan, Features{Resume,…}}`, `pkg/cloud/skills.go:29-42`; server-side the `resume` feature already exists with `MIN_PLAN.resume = "pro"`, `specstory-sync/shared/entitlements.ts:33`, deployed to prod). **Local resume/search always works for everyone**; cloud is layered in only when eligible. Ineligible users get a nudge in the resume/search UX — not logged in: "Log into SpecStory Cloud to search & resume sessions from your other machines"; logged in but not Pro: "Upgrade to Pro to search & resume sessions from your other machines." **Push stays unconditional** (D2) so upgrading retroactively unlocks existing cloud history. Entitlement is fetched **async/cached** to keep the TUI local-first. The server also enforces entitlement on cloud endpoints (client check is friendly UX, not the security boundary) via the existing `requireFeature("resume")` route guard (`specstory-sync/.../handlers/billing.ts:293` — re-reads the subscription per request, returns 403 `upgrade_required`; already guards the skills and analytics routes).
+ - **D11 — Local-first, best-effort, with a live cloud-progress affordance.** Local results render **immediately** (instant, offline-capable); the cloud request runs async and **supplements** them. While it's in flight, the TUI shows a visible "searching cloud…" indicator; when cloud results arrive they're **deduped (session identity, local preferred — D13) and merged in**, and the indicator clears. On timeout or failure, silently degrade to local-only and clear the indicator (optionally a subtle "cloud unavailable" hint). Applies to both browse and search. _Detail for browse & search:_ preserve cursor/selection when cloud rows merge into the recency-sorted list so the user's position doesn't jump. _Search cadence:_ the cloud debounce is **decoupled from local's** — local FTS stays per-keystroke; the cloud query fires only after **~600ms of keyboard silence** (fire-on-pause), reusing the existing seq-guarded debounce machinery (`searchDebounce`, `session_tui_search.go`) to drop stale responses. That cuts cloud traffic from ~a request per keystroke to 1–2 per typed query, which — together with the aligned search living on its own rate-limit bucket (D18) — keeps the worker's per-path limiter out of play.
+diff --git a/specstory-cli/pkg/cloud/sync.go b/specstory-cli/pkg/cloud/sync.go
+index bc07872..716ba01 100644
+--- a/specstory-cli/pkg/cloud/sync.go
++++ b/specstory-cli/pkg/cloud/sync.go
+@@ -29,7 +29,7 @@ const (
+ 	// CloudSyncTimeout is the maximum time to wait for cloud sync operations to complete.
+ 	// Raised from 120s when the push began carrying SessionData (in addition to markdown +
+ 	// rawData); a gzipped body shrinks upload time but the aggregate ceiling still needs
+-	// more headroom for large multi-blob sessions (D22).
++	// more headroom for large multi-blob sessions.
+ 	CloudSyncTimeout = 180 * time.Second // Allow 3 minutes for large sessions to upload
+ 
+ 	// MaxConcurrentHTTPRequests limits the total number of concurrent HTTP requests (HEAD + PUT combined)
+@@ -66,7 +66,7 @@ type pendingSyncRequest struct {
+ 	mdPath      string
+ 	mdContent   string
+ 	rawData     []byte
+-	sessionData string // normalized SessionData JSON (canonical cloud-resume blob, D2)
++	sessionData string // normalized SessionData JSON (canonical cloud-resume blob)
+ 	agentName   string
+ }
+ 
+@@ -89,8 +89,8 @@ type APIRequest struct {
+ 	Markdown    string `json:"markdown"`
+ 	RawData     string `json:"rawData"`
+ 	// SessionData is the normalized schema.SessionData JSON — the canonical cloud-resume
+-	// representation the server stores verbatim as a session-data.json blob (D2/D3). It is
+-	// added alongside rawData, not a replacement (D4). Omitted when empty so pushes for
++	// representation the server stores verbatim as a session-data.json blob. It is
++	// added alongside rawData, not a replacement. Omitted when empty so pushes for
+ 	// sessions without SessionData behave exactly as before.
+ 	SessionData string             `json:"sessionData,omitempty"`
+ 	Metadata    APIRequestMetadata `json:"metadata"`
+@@ -103,7 +103,7 @@ type APIRequestMetadata struct {
+ 	AgentName     string `json:"agentName"`
+ 	DeviceID      string `json:"deviceId"`
+ 	// MachineName is os.Hostname() at sync time — displayed for the machine badge/filter
+-	// while sessions group by the stable deviceId (D9). Omitted when unavailable.
++	// while sessions group by the stable deviceId. Omitted when unavailable.
+ 	MachineName string `json:"machineName,omitempty"`
+ }
+ 
+@@ -502,7 +502,7 @@ func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID
+ 		// Self-heal: the server emits a suffixed "<sessionID>:sessionData" key holding the
+ 		// SessionData blob's byte size, only when the blob exists. A missing key reads as 0
+ 		// via Go's zero-value map lookup — which is exactly the re-send signal for legacy
+-		// sessions that predate SessionData, backfilling the cloud-resume corpus (D7).
++		// sessions that predate SessionData, backfilling the cloud-resume corpus.
+ 		serverSessionDataSize := bulkSizes[sessionID+":sessionData"]
+ 
+ 		// Sync when markdown grew OR the session has no SessionData blob yet
+@@ -604,7 +604,7 @@ func (syncMgr *SyncManager) requiresSync(sessionID, mdPath, mdContent, projectID
+ 		}
+ 
+ 		// Self-heal: re-send when the server has no SessionData blob for this session yet.
+-		// The X-Session-Data-Size header is NULL-coerced-to-0 server-side (D7); a missing or
++		// The X-Session-Data-Size header is NULL-coerced-to-0 server-side; a missing or
+ 		// zero value (legacy session, or a server that predates the header) triggers a re-send
+ 		// that backfills the cloud-resume corpus.
+ 		serverSessionDataSize := 0
+@@ -677,6 +677,13 @@ func GetUserAgent() string {
+ 	return fmt.Sprintf("%s/%s SpecStory, Inc.", ClientName, clientVersion)
+ }
+ 
++// DeviceID returns this machine's stable device id (the same value pushed as metadata.deviceId).
++// The resume browser uses it to tell this machine's cloud rows from other machines' for the
++// machine filter.
++func DeviceID() string {
++	return getDeviceID()
++}
++
+ // getDeviceID generates a unique device ID based on MAC address
+ func getDeviceID() string {
+ 	// Return cached value if available
+@@ -714,7 +721,7 @@ func getDeviceID() string {
+ 	return deviceID
+ }
+ 
+-// gzipBytes compresses the given bytes with gzip for the cloud sync PUT body (D22).
++// gzipBytes compresses the given bytes with gzip for the cloud sync PUT body.
+ func gzipBytes(data []byte) ([]byte, error) {
+ 	var buf bytes.Buffer
+ 	gz := gzip.NewWriter(&buf)
+@@ -731,7 +738,7 @@ func gzipBytes(data []byte) ([]byte, error) {
+ 
+ // getMachineName returns the human-readable machine name (os.Hostname) captured once and
+ // cached. Unlike the stable deviceId (which sessions group by), this is a display label
+-// for the machine badge/filter (D9). Returns "" if the hostname can't be determined, in
++// for the machine badge/filter. Returns "" if the hostname can't be determined, in
+ // which case the field is simply omitted from the push.
+ func getMachineName() string {
+ 	if machineName != "" {
+@@ -889,7 +896,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
+ 	// Gzip the body: the payload now carries markdown + rawData + SessionData, and transcript
+ 	// JSON compresses ~5-10x. This shrinks upload time and effectively raises the server's
+ 	// 50MB Content-Length cap (checked against the compressed size). The server decompresses
+-	// when Content-Encoding: gzip is present; requests without the header are unaffected (D22).
++	// when Content-Encoding: gzip is present; requests without the header are unaffected.
+ 	compressedData, err := gzipBytes(jsonData)
+ 	if err != nil {
+ 		slog.Error("Cloud sync error gzipping body", "sessionId", sessionID, "error", err)
+@@ -917,7 +924,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
+ 	req.Header.Set("User-Agent", GetUserAgent())
+ 
+ 	// Create HTTP client with timeout. Raised from 30s: the gzipped multi-blob body
+-	// (markdown + rawData + SessionData) can take longer to upload for large sessions (D22).
++	// (markdown + rawData + SessionData) can take longer to upload for large sessions.
+ 	client := &http.Client{
+ 		Timeout: 60 * time.Second,
+ 	}
+diff --git a/specstory-cli/pkg/cloud/sync_test.go b/specstory-cli/pkg/cloud/sync_test.go
+index 2c690d3..c50a51e 100644
+--- a/specstory-cli/pkg/cloud/sync_test.go
++++ b/specstory-cli/pkg/cloud/sync_test.go
+@@ -473,7 +473,7 @@ func TestRequiresSync_WithBulkSizes(t *testing.T) {
+ 			skipHeadCheck: false,
+ 			wantNeedsSync: true,
+ 			wantErr:       false,
+-			description:   "Legacy session without a SessionData blob re-syncs to backfill it (D7), even when markdown matches",
++			description:   "Legacy session without a SessionData blob re-syncs to backfill it, even when markdown matches",
+ 		},
+ 		{
+ 			name:          "bulk sizes available, session exists, local larger",
+@@ -611,7 +611,7 @@ func TestRequiresSync_BulkSizesEdgeCases(t *testing.T) {
+ 			serverSize:     7, // matches len("content")
+ 			hasSessionData: false,
+ 			wantNeedsSync:  true,
+-			description:    "Legacy session with no SessionData blob re-syncs to backfill it (D7)",
++			description:    "Legacy session with no SessionData blob re-syncs to backfill it",
+ 		},
+ 		{
+ 			name:           "non-zero local, zero server",
+@@ -640,7 +640,7 @@ func TestRequiresSync_BulkSizesEdgeCases(t *testing.T) {
+ 			}
+ 
+ 			// Set bulk sizes with test session. When the session already has a SessionData
+-			// blob, include the suffixed key so the self-heal check (D7) is satisfied.
++			// blob, include the suffixed key so the self-heal check is satisfied.
+ 			sessionID := "edge-case-session"
+ 			bulkSizes := map[string]int{sessionID: tt.serverSize}
+ 			if tt.hasSessionData {
+diff --git a/specstory-cli/pkg/sessionindex/store.go b/specstory-cli/pkg/sessionindex/store.go
+index b0080bf..c4d3744 100644
+--- a/specstory-cli/pkg/sessionindex/store.go
++++ b/specstory-cli/pkg/sessionindex/store.go
+@@ -75,6 +75,13 @@ type Session struct {
+ 	// looking up and deleting a prior FTS row before insert. Leave false when unsure — the
+ 	// lookup-and-delete is then kept, which is always correct (a missing prior row is a no-op).
+ 	IsNew bool
++
++	// The following fields are TUI/cloud-only — NOT persisted to sessions.db (the DB
++	// scan/upsert never references them). They are populated only on cloud-sourced rows
++	// blended into the resume browser. Local rows leave them zero-valued.
++	IsCloud     bool   // true = this row came from SpecStory Cloud, not the local index
++	DeviceID    string // cloud metadata.deviceId — stable machine id for the machine filter
++	MachineName string // cloud metadata.machineName — human machine label for the machine filter
+ }
+ 
+ // Fingerprint identifies an indexed session's freshness: the native file's size and
+@@ -578,6 +585,12 @@ type ProjectSummary struct {
+ 	Sessions     int            // total sessions in the project
+ 	LastActivity string         // most recent updated_at across the project
+ 	AgentCounts  map[string]int // sessions per agent (claude, codex, …)
++
++	// IsCloud marks a project that exists only in SpecStory Cloud (from another machine, never
++	// worked on locally). Set only on cloud-blended rows in the all-projects browser; local
++	// rollups leave it false. AgentCounts is nil for these (the cloud list has no per-agent
++	// breakdown).
++	IsCloud bool
+ }
+ 
+ // ListProjects returns one rolled-up summary per project, most recently active first.
+diff --git a/specstory-cli/pkg/spi/schema/types.go b/specstory-cli/pkg/spi/schema/types.go
+index 2fe2948..1b99190 100644
+--- a/specstory-cli/pkg/spi/schema/types.go
++++ b/specstory-cli/pkg/spi/schema/types.go
+@@ -27,6 +27,11 @@ const (
+ 	ToolTypeUnknown = "unknown"
+ )
+ 
++// CurrentSchemaVersion is the SessionData schema version this CLI produces and understands.
++// Cloud resume compares a fetched blob's SchemaVersion against this: a newer blob (produced by
++// a newer CLI on another machine) is refused rather than mis-reconstructed.
++const CurrentSchemaVersion = "1.0"
++
+ // SessionData is the unified data format for sessions from all terminal coding agent providers
+ type SessionData struct {
+ 	SchemaVersion string       `json:"schemaVersion"`
+@@ -150,8 +155,8 @@ func (s *SessionData) Validate() bool {
+ 	valid := true
+ 
+ 	// Check schema version
+-	if s.SchemaVersion != "1.0" {
+-		slog.Warn("schema validation: schemaVersion must be '1.0'", "got", s.SchemaVersion)
++	if s.SchemaVersion != CurrentSchemaVersion {
++		slog.Warn("schema validation: schemaVersion must be '"+CurrentSchemaVersion+"'", "got", s.SchemaVersion)
+ 		valid = false
+ 	}
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:12:41Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/cmd/session_tui_cloud.go`
+
+```text
+1	package cmd
+2	
+3	import (
+4		"fmt"
+5		"log/slog"
+6		"sort"
+7		"time"
+8	
+9		tea "charm.land/bubbletea/v2"
+10	
+11		"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+12		"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+13		"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+14	)
+15	
+16	// machineEntry is one stop in the machine-filter ring: a stable key and its display label.
+17	type machineEntry struct {
+18		key   string // "" (all machines), "local" (this machine), or a remote deviceId
+19		label string // "all machines", "local only", or a machineName (disambiguated if it collides)
+20	}
+21	
+22	// rebuildMachineCycle derives the machine-filter ring from the current cloud rows. The ring is
+23	// [all] until cloud rows from OTHER machines exist, at which point it becomes all → "local only" →
+24	// each remote machine (keyed by stable deviceId, labelled by machineName, sorted by deviceId for
+25	// stable order; duplicate names get (1)/(2) suffixes). This machine never appears as its own remote
+26	// entry — it's covered by "local only".
+27	func (m *sessionTUI) rebuildMachineCycle() {
+28		// Latest machineName per remote deviceId.
+29		names := map[string]string{}
+30		for _, s := range m.cloudAll {
+31			if !s.IsCloud || s.DeviceID == "" || s.DeviceID == m.deviceID {
+32				continue
+33			}
+34			if s.MachineName != "" {
+35				names[s.DeviceID] = s.MachineName
+36			} else if _, ok := names[s.DeviceID]; !ok {
+37				names[s.DeviceID] = shortID(s.DeviceID)
+38			}
+39		}
+40	
+41		if len(names) == 0 {
+42			// No other machines to distinguish — the filter would be a no-op, so hide it.
+43			m.machineCycle = []machineEntry{{key: "", label: "all machines"}}
+44			m.machineFilter = ""
+45			return
+46		}
+47	
+48		ids := make([]string, 0, len(names))
+49		for id := range names {
+50			ids = append(ids, id)
+51		}
+52		sort.Strings(ids)
+53	
+54		// Disambiguate duplicate machine names with deterministic (1)/(2) suffixes.
+55		labelCount := map[string]int{}
+56		for _, id := range ids {
+57			labelCount[names[id]]++
+58		}
+59		labelSeen := map[string]int{}
+60	
+61		cycle := []machineEntry{{key: "", label: "all machines"}, {key: "local", label: "local only"}}
+62		for _, id := range ids {
+63			label := names[id]
+64			if labelCount[label] > 1 {
+65				labelSeen[label]++
+66				label = fmt.Sprintf("%s (%d)", label, labelSeen[label])
+67			}
+68			cycle = append(cycle, machineEntry{key: id, label: label})
+69		}
+70		m.machineCycle = cycle
+71	
+72		// If the active filter's machine dropped out of the ring, fall back to all.
+73		if !machineKeyInCycle(cycle, m.machineFilter) {
+74			m.machineFilter = ""
+75		}
+76	}
+77	
+78	func machineKeyInCycle(cycle []machineEntry, key string) bool {
+79		for _, e := range cycle {
+80			if e.key == key {
+81				return true
+82			}
+83		}
+84		return false
+85	}
+86	
+87	// cycleMachine advances the machine filter to the next ring entry and re-filters the cached rows
+88	// client-side (no re-query), mirroring cycleAgent.
+89	func (m *sessionTUI) cycleMachine() tea.Cmd {
+90		if len(m.machineCycle) <= 1 {
+91			return nil // nothing to cycle (only "all")
+92		}
+93		idx := 0
+94		for i, e := range m.machineCycle {
+95			if e.key == m.machineFilter {
+96				idx = i
+97				break
+98			}
+99		}
+100		m.machineFilter = m.machineCycle[(idx+1)%len(m.machineCycle)].key
+101		m.refilterCurrentAgent()
+102		return m.requestVisibleSnippets(modeList)
+103	}
+104	
+105	// machineMatch reports whether a row passes the current machine filter. "local only" keeps local
+106	// rows plus this machine's own cloud rows (its synced-then-pruned sessions); a specific remote
+107	// deviceId keeps only that machine's cloud rows.
+108	func (m *sessionTUI) machineMatch(s sessionindex.Session) bool {
+109		switch m.machineFilter {
+110		case "":
+111			return true
+112		case "local":
+113			return !s.IsCloud || s.DeviceID == m.deviceID
+114		default:
+115			return s.IsCloud && s.DeviceID == m.machineFilter
+116		}
+117	}
+118	
+119	// machineScopeLabel returns the display label for the active machine filter, or "" when unfiltered.
+120	func (m sessionTUI) machineScopeLabel() string {
+121		for _, e := range m.machineCycle {
+122			if e.key == m.machineFilter && e.key != "" {
+123				return e.label
+124			}
+125		}
+126		return ""
+127	}
+128	
+129	// Cloud resume — the blended-browse glue. SpecStory Cloud sessions from the user's
+130	// other machines are fetched best-effort, off the UI thread, and merged into the local list
+131	// (local-first, dedup local-preferred, re-sorted by recency). None of this is on the
+132	// critical path of a local resume: any failure degrades silently to local-only.
+133	
+134	// Footer nudges shown to users who can't yet use cloud resume. Eligibility = logged-in +
+135	// Pro; the two states get different invitations.
+136	const (
+137		cloudNudgeLogin   = "Log into SpecStory Cloud to search & resume sessions from your other machines"
+138		cloudNudgeUpgrade = "Upgrade to Pro to search & resume sessions from your other machines"
+139	)
+140	
+141	// cloudEligibilityMsg carries the async eligibility result (a network entitlement check).
+142	type cloudEligibilityMsg struct {
+143		loggedIn bool
+144		pro      bool
+145	}
+146	
+147	// cloudSessionsMsg carries a completed cloud fetch for a project. sessions is already converted
+148	// to index rows (IsCloud=true, agent resolved to a provider id); err set = silent degrade.
+149	type cloudSessionsMsg struct {
+150		projectID string
+151		sessions  []sessionindex.Session
+152		err       error
+153	}
+154	
+155	// cloudProjectsMsg carries the completed cloud project list, already converted to project rows
+156	// (IsCloud=true) with zero-session ghosts filtered out; err set = silent degrade.
+157	type cloudProjectsMsg struct {
+158		projects []sessionindex.ProjectSummary
+159		err      error
+160	}
+161	
+162	// cloudEligibilityCmd runs the (networked) eligibility check off the UI thread.
+163	func cloudEligibilityCmd() tea.Cmd {
+164		return func() tea.Msg {
+165			loggedIn, pro := cloud.ResumeEligibility()
+166			return cloudEligibilityMsg{loggedIn: loggedIn, pro: pro}
+167		}
+168	}
+169	
+170	// cloudFetchCmd lists a project's cloud-resumable sessions off the UI thread and converts them to
+171	// index rows. agentIDByName resolves each row's display agent name back to a provider id.
+172	func cloudFetchCmd(projectID string, agentIDByName map[string]string) tea.Cmd {
+173		return func() tea.Msg {
+174			cs, err := cloud.ListCloudSessions(projectID)
+175			if err != nil {
+176				return cloudSessionsMsg{projectID: projectID, err: err}
+177			}
+178			return cloudSessionsMsg{projectID: projectID, sessions: cloudToSessions(cs, agentIDByName)}
+179		}
+180	}
+181	
+182	// cloudProjectsFetchCmd lists the user's cloud projects off the UI thread for blending cloud-only
+183	// projects into the all-projects browser.
+184	func cloudProjectsFetchCmd() tea.Cmd {
+185		return func() tea.Msg {
+186			cp, err := cloud.ListCloudProjects()
+187			if err != nil {
+188				return cloudProjectsMsg{err: err}
+189			}
+190			return cloudProjectsMsg{projects: cloudToProjects(cp)}
+191		}
+192	}
+193	
+194	// cloudToSessions converts cloud session summaries to local index rows for blending. Rows whose
+195	// agent can't be resolved to a known provider id are skipped — they can't be reconstructed/resumed
+196	// here, so rendering them would only offer an action that fails.
+197	func cloudToSessions(cs []cloud.CloudSession, agentIDByName map[string]string) []sessionindex.Session {
+198		out := make([]sessionindex.Session, 0, len(cs))
+199		for _, c := range cs {
+200			agentID, ok := agentIDByName[c.Metadata.AgentName]
+201			if !ok {
+202				slog.Debug("cloud resume: skipping session with unknown agent",
+203					"agentName", c.Metadata.AgentName, "sessionId", c.ClientID)
+204				continue
+205			}
+206			out = append(out, sessionindex.Session{
+207				ProjectID:   c.ProjectID,
+208				Agent:       agentID,
+209				SessionID:   c.ClientID,
+210				CreatedAt:   c.CreatedAt,
+211				UpdatedAt:   c.UpdatedAt,
+212				Name:        c.Name,
+213				IsCloud:     true,
+214				DeviceID:    c.Metadata.DeviceID,
+215				MachineName: c.Metadata.MachineName,
+216			})
+217		}
+218		return out
+219	}
+220	
+221	// cloudFetchForActiveCmd starts a cloud fetch for the active project when the user is cloud-
+222	// eligible, marking the pending indicator; returns nil otherwise. Callers invoke it after changing
+223	// the active project (drill into a project, or tab/esc back home) so that project's cloud sessions
+224	// blend in, mirroring the initial fetch on open.
+225	func (m *sessionTUI) cloudFetchForActiveCmd() tea.Cmd {
+226		if !m.cloudEligible {
+227			return nil
+228		}
+229		m.cloudPending = true
+230		return cloudFetchCmd(m.projectID, m.agentIDByName)
+231	}
+232	
+233	// cloudToProjects converts cloud project summaries to project rows for the blended browser. A
+234	// project with zero sessions is skipped: a workspace can exist in the cloud with no sessions (e.g.
+235	// created on first push, its sessions since deleted), in which case last_session is null and its
+236	// lastUpdated defaults to ~now server-side — it would float to the top of the recency sort as a
+237	// phantom with nothing to resume.
+238	func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
+239		out := make([]sessionindex.ProjectSummary, 0, len(cs))
+240		for _, c := range cs {
+241			if c.SessionCount == 0 {
+242				continue
+243			}
+244			out = append(out, sessionindex.ProjectSummary{
+245				ProjectID:    c.ID,
+246				ProjectName:  c.Name,
+247				Sessions:     c.SessionCount,
+248				LastActivity: c.LastUpdated,
+249				IsCloud:      true,
+250			})
+251		}
+252		return out
+253	}
+254	
+255	// applyCloudEligibility records the eligibility result, sets the appropriate nudge, and — when
+256	// eligible — starts the first cloud fetch for the active (home) project's sessions and the user's
+257	// cloud project list (for the blended all-projects browser).
+258	func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, tea.Cmd) {
+259		m.cloudChecked = true
+260		m.cloudEligible = msg.loggedIn && msg.pro
+261		switch {
+262		case !msg.loggedIn:
+263			m.cloudNudge = cloudNudgeLogin
+264		case !msg.pro:
+265			m.cloudNudge = cloudNudgeUpgrade
+266		default:
+267			m.cloudNudge = ""
+268		}
+269		if !m.cloudEligible {
+270			return m, nil
+271		}
+272		m.cloudPending = true
+273		return m, tea.Batch(
+274			cloudFetchCmd(m.projectID, m.agentIDByName),
+275			cloudProjectsFetchCmd(),
+276		)
+277	}
+278	
+279	// applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
+280	// project filter so cloud-only projects appear immediately (preserving the highlighted project).
+281	func (m sessionTUI) applyCloudProjects(msg cloudProjectsMsg) (tea.Model, tea.Cmd) {
+282		if msg.err != nil {
+283			slog.Debug("cloud resume: list projects failed, showing local only", "error", msg.err)
+284			return m, nil
+285		}
+286		m.cloudProjects = msg.projects
+287		if m.mode == modeProjects {
+288			selID := ""
+289			if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+290				selID = m.projFiltered[m.projCursor].ProjectID
+291			}
+292			m.applyProjectFilter()
+293			m.projCursor = indexOfProject(m.projFiltered, selID)
+294			m.clampProjScroll()
+295		}
+296		return m, nil
+297	}
+298	
+299	// applyCloudSessions merges a completed cloud fetch into the active list: dedup local-preferred,
+300	// re-sort by recency, preserve the selected row. Stale/failed fetches degrade silently.
+301	func (m sessionTUI) applyCloudSessions(msg cloudSessionsMsg) (tea.Model, tea.Cmd) {
+302		m.cloudPending = false
+303		if msg.err != nil {
+304			slog.Debug("cloud resume: fetch failed, showing local only",
+305				"project", msg.projectID, "error", msg.err)
+306			return m, nil
+307		}
+308		// Discard results for a project the user has since navigated away from.
+309		if msg.projectID != m.projectID {
+310			return m, nil
+311		}
+312	
+313		// Preserve the selected session across the merge so the cursor doesn't jump.
+314		selID := ""
+315		if sel := m.selected(); sel != nil {
+316			selID = sel.SessionID
+317		}
+318	
+319		// Hold the cloud rows separately from m.all; refilterCurrentAgent merges them in. This
+320		// survives the local re-queries (index warm, post-delete refresh) that replace m.all.
+321		m.cloudAll = msg.sessions
+322		m.rebuildAgentCycle()
+323		m.applyFilter()
+324		m.cursor = indexOfSession(m.filtered, selID)
+325		m.clampScroll()
+326		return m, m.requestVisibleSnippets(modeList)
+327	}
+328	
+329	// mergeCloudRows blends cloud rows into a local list: dedup by (agent, session_id) with the LOCAL
+330	// copy preferred (it resumes instantly and offline), then re-sort the union by recency
+331	// (UpdatedAt desc). The TUI model never sorts its input, so cloud rows must be interleaved by time
+332	// here rather than appended.
+333	func mergeCloudRows(local, cloudRows []sessionindex.Session) []sessionindex.Session {
+334		seen := make(map[string]bool, len(local))
+335		for _, s := range local {
+336			seen[sessionindex.FingerprintKey(s.Agent, s.SessionID)] = true
+337		}
+338		merged := make([]sessionindex.Session, 0, len(local)+len(cloudRows))
+339		merged = append(merged, local...)
+340		for _, c := range cloudRows {
+341			if seen[sessionindex.FingerprintKey(c.Agent, c.SessionID)] {
+342				continue // local wins
+343			}
+344			merged = append(merged, c)
+345		}
+346		sort.SliceStable(merged, func(i, j int) bool {
+347			return sessionUpdatedTime(merged[i]).After(sessionUpdatedTime(merged[j]))
+348		})
+349		return merged
+350	}
+351	
+352	// sessionUpdatedTime parses a row's UpdatedAt for recency sorting. Local and cloud timestamps are
+353	// both RFC3339 but differ in precision/offset (e.g. "…Z" vs "…+00:00" with microseconds), so a raw
+354	// string compare would misorder them — parse to a real time instead. Unparseable → zero (sorts last).
+355	func sessionUpdatedTime(s sessionindex.Session) time.Time {
+356		if t, err := time.Parse(time.RFC3339, s.UpdatedAt); err == nil {
+357			return t
+358		}
+359		return time.Time{}
+360	}
+361	
+362	// mergeCloudProjects blends cloud-only projects into the local project list: dedup by project_id
+363	// with the local rollup preferred (it has the real per-agent chips and resumes offline), then
+364	// re-sort the union by recency (LastActivity desc). Same shape as mergeCloudRows for sessions.
+365	func mergeCloudProjects(local, cloudProjects []sessionindex.ProjectSummary) []sessionindex.ProjectSummary {
+366		seen := make(map[string]bool, len(local))
+367		for _, p := range local {
+368			seen[p.ProjectID] = true
+369		}
+370		merged := make([]sessionindex.ProjectSummary, 0, len(local)+len(cloudProjects))
+371		merged = append(merged, local...)
+372		for _, c := range cloudProjects {
+373			if seen[c.ProjectID] {
+374				continue // local wins
+375			}
+376			merged = append(merged, c)
+377		}
+378		sort.SliceStable(merged, func(i, j int) bool {
+379			return projectActivityTime(merged[i]).After(projectActivityTime(merged[j]))
+380		})
+381		return merged
+382	}
+383	
+384	// projectActivityTime parses a project's LastActivity for recency sorting (RFC3339, like
+385	// sessionUpdatedTime). Unparseable → zero (sorts last).
+386	func projectActivityTime(p sessionindex.ProjectSummary) time.Time {
+387		if t, err := time.Parse(time.RFC3339, p.LastActivity); err == nil {
+388			return t
+389		}
+390		return time.Time{}
+391	}
+392	
+393	// cloudDeleteResultMsg carries the outcome of an async cloud delete.
+394	type cloudDeleteResultMsg struct {
+395		pd  pendingDelete
+396		err error
+397	}
+398	
+399	// cloudDeleteCmd deletes a cloud session or project via the API off the UI thread.
+400	func cloudDeleteCmd(pd pendingDelete) tea.Cmd {
+401		return func() tea.Msg {
+402			var err error
+403			if pd.source == deleteFromProjects {
+404				err = cloud.DeleteCloudProject(pd.projectID)
+405			} else {
+406				err = cloud.DeleteCloudSession(pd.projectID, pd.sessionID)
+407			}
+408			return cloudDeleteResultMsg{pd: pd, err: err}
+409		}
+410	}
+411	
+412	// applyCloudDeleteResult removes the deleted cloud row/project from the cached cloud data and
+413	// refreshes the view, or surfaces a transient error notice if the delete failed.
+414	func (m sessionTUI) applyCloudDeleteResult(msg cloudDeleteResultMsg) (tea.Model, tea.Cmd) {
+415		pd := msg.pd
+416		if msg.err != nil {
+417			slog.Debug("cloud resume: cloud delete failed", "error", msg.err)
+418			m.statusMsg = "Cloud delete failed — " + pd.label + " left in place"
+419			return m, nil
+420		}
+421	
+422		scope := "session"
+423		if pd.source == deleteFromProjects {
+424			scope = "project"
+425		}
+426		analytics.TrackEvent(analytics.EventSessionDeleted, analytics.Properties{
+427			"scope":  scope,
+428			"agent":  pd.agent,
+429			"source": "cloud",
+430		})
+431	
+432		if pd.source == deleteFromProjects {
+433			m.cloudProjects = removeCloudProject(m.cloudProjects, pd.projectID)
+434			selID := ""
+435			if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+436				selID = m.projFiltered[m.projCursor].ProjectID
+437			}
+438			m.applyProjectFilter()
+439			m.projCursor = indexOfProject(m.projFiltered, selID)
+440			m.clampProjScroll()
+441			return m, nil
+442		}
+443	
+444		m.cloudAll = removeSession(m.cloudAll, pd.agent, pd.sessionID)
+445		m.rebuildAgentCycle()
+446		m.applyFilter()
+447		m.cursor = clampIndex(m.cursor, len(m.filtered))
+448		m.clampScroll()
+449		return m, m.requestVisibleSnippets(modeList)
+450	}
+451	
+452	// removeCloudProject returns projects without the given project_id.
+453	func removeCloudProject(projects []sessionindex.ProjectSummary, projectID string) []sessionindex.ProjectSummary {
+454		out := make([]sessionindex.ProjectSummary, 0, len(projects))
+455		for _, p := range projects {
+456			if p.ProjectID == projectID {
+457				continue
+458			}
+459			out = append(out, p)
+460		}
+461		return out
+462	}
+463	
+464	// indexOfProject returns the position of the project with id in list, or 0 when absent (so a
+465	// refreshed list with a vanished selection lands safely at the top).
+466	func indexOfProject(list []sessionindex.ProjectSummary, id string) int {
+467		if id == "" {
+468			return 0
+469		}
+470		for i := range list {
+471			if list[i].ProjectID == id {
+472				return i
+473			}
+474		}
+475		return 0
+476	}
+477
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:13:06Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show TUI model and browser diffs
+
+`git diff pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/search.go`
+
+```text
+diff --git a/specstory-cli/pkg/cmd/search.go b/specstory-cli/pkg/cmd/search.go
+index 031400c..640b2c7 100644
+--- a/specstory-cli/pkg/cmd/search.go
++++ b/specstory-cli/pkg/cmd/search.go
+@@ -130,9 +130,11 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
+ 				sessionID: rm.result.session.SessionID,
+ 				// A search hit can be from another project; resume must load the source from
+ 				// its original cwd, not the current directory.
+-				fromCwd: rm.result.session.OriginCwd,
+-				to:      toProv,
+-				toID:    rm.result.targetID,
++				fromCwd:   rm.result.session.OriginCwd,
++				to:        toProv,
++				toID:      rm.result.targetID,
++				fromCloud: rm.result.session.IsCloud,
++				projectID: rm.result.session.ProjectID,
+ 			}
+ 			return launchResume(plan, cwd, launchOpts)
+ 		},
+diff --git a/specstory-cli/pkg/cmd/session_tui.go b/specstory-cli/pkg/cmd/session_tui.go
+index 688d0f7..c9d27ce 100644
+--- a/specstory-cli/pkg/cmd/session_tui.go
++++ b/specstory-cli/pkg/cmd/session_tui.go
+@@ -11,6 +11,7 @@ import (
+ 	tea "charm.land/bubbletea/v2"
+ 
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
+ )
+@@ -51,9 +52,12 @@ type pendingDelete struct {
+ 	source    deleteSource
+ 	agent     string // session target (deleteFromList / deleteFromGlobal)
+ 	sessionID string
+-	projectID string // project target (deleteFromProjects)
++	projectID string // project target (deleteFromProjects); also the cloud project for a cloud session
+ 	label     string // human label for the confirmation line
+ 	count     int    // project session count (deleteFromProjects)
++	// isCloud routes the delete to the Cloud API (a permanent, cross-machine delete) instead of a
++	// local soft delete, and switches the confirmation copy to match.
++	isCloud bool
+ }
+ 
+ // agentMeta carries an agent's display name + accent color for the list.
+@@ -147,6 +151,31 @@ type sessionTUI struct {
+ 	// disappearing, so a failure would look like a silent no-op without this.
+ 	statusMsg string
+ 
++	// Cloud resume: SpecStory Cloud sessions from the user's OTHER machines, blended
++	// into the browser best-effort and local-first. Eligibility (logged-in + Pro) is
++	// checked once, async, off the UI thread; cloudEligible gates fetches; cloudPending drives the
++	// "searching cloud…" indicator; cloudNudge is the footer invitation shown to ineligible users.
++	// agentIDByName reverse-maps a cloud row's display agent name ("Claude Code") back to
++	// the provider id ("claude") that dedup and the resume/reconstruct path key on.
++	cloudChecked  bool
++	cloudEligible bool
++	cloudPending  bool
++	cloudNudge    string
++	// cloudAll holds the active project's cloud sessions SEPARATELY from m.all. They must not live
++	// in m.all: the background index warm and post-delete refresh both do `m.all = ListByProject()`,
++	// which would discard anything merged into it. Instead they're merged with m.all at filter time
++	// (refilterCurrentAgent), so a local re-query can't wipe them.
++	cloudAll      []sessionindex.Session
++	cloudProjects []sessionindex.ProjectSummary // cloud-only projects, merged into the browser at filter time
++	agentIDByName map[string]string             // agent display name -> provider id
++
++	// Machine filter (the `m` key), modeled on the agent filter: cycle all → "local only" → each
++	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
++	// is just [all] until then. Keyed by stable deviceId; displayed by machineName.
++	machineFilter string         // "" = all; "local" = this machine; else a remote deviceId
++	machineCycle  []machineEntry // the filter ring, rebuilt from cloudAll
++	deviceID      string         // this machine's stable id (for the "local only" match)
++
+ 	mode         tuiMode
+ 	chosen       *sessionindex.Session
+ 	targetCursor int
+@@ -197,6 +226,13 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
+ 		projSearch:      pi,
+ 		globalInput:     gi,
+ 	}
++	// Reverse map for blending cloud rows: their metadata carries the display agent name, but
++	// dedup and resume key on the provider id.
++	m.agentIDByName = make(map[string]string, len(agents))
++	for id, meta := range agents {
++		m.agentIDByName[meta.name] = id
++	}
++	m.deviceID = cloud.DeviceID()
+ 	m.rebuildAgentCycle()
+ 	m.applyFilter()
+ 
+@@ -224,15 +260,17 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
+ }
+ 
+ func (m sessionTUI) Init() tea.Cmd {
++	// Kick the async cloud-eligibility check once on open (off the UI thread). When it resolves,
++	// Update either starts the first cloud fetch (eligible) or sets the footer nudge.
++	cmds := []tea.Cmd{cloudEligibilityCmd()}
+ 	// Search starts focused in the all-projects input; kick the blink and any pre-seeded query.
+ 	if m.globalSearching {
+-		cmds := []tea.Cmd{m.globalInput.Focus()}
++		cmds = append(cmds, m.globalInput.Focus())
+ 		if queryReady(m.globalQuery) {
+ 			cmds = append(cmds, searchDebounce(m.searchSeq, modeProjects))
+ 		}
+-		return tea.Batch(cmds...)
+ 	}
+-	return nil
++	return tea.Batch(cmds...)
+ }
+ 
+ func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+@@ -281,6 +319,14 @@ func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+ 			}
+ 		}
+ 		return m, nil
++	case cloudEligibilityMsg:
++		return m.applyCloudEligibility(msg)
++	case cloudSessionsMsg:
++		return m.applyCloudSessions(msg)
++	case cloudProjectsMsg:
++		return m.applyCloudProjects(msg)
++	case cloudDeleteResultMsg:
++		return m.applyCloudDeleteResult(msg)
+ 	case tea.KeyPressMsg:
+ 		// Any keypress dismisses a lingering status notice (e.g. a failed delete); it has served
+ 		// its purpose once the user has read it and moved on.
+@@ -419,12 +465,14 @@ func (m sessionTUI) updateList(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+ 		return m, m.search.Focus()
+ 	case "a":
+ 		return m, m.cycleAgent()
++	case "m":
++		return m, m.cycleMachine()
+ 	case "v":
+ 		m.toggleViewMode()
+ 		return m, m.requestVisibleSnippets(modeList)
+ 	case "d":
+ 		if sel := m.selected(); sel != nil {
+-			m.pendingDelete = pendingDelete{source: deleteFromList, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
++			m.pendingDelete = pendingDelete{source: deleteFromList, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}
+ 			m.confirmingDelete = true
+ 		}
+ 	}
+@@ -454,6 +502,12 @@ func (m sessionTUI) performDelete() (tea.Model, tea.Cmd) {
+ 	m.confirmingDelete = false
+ 	pd := m.pendingDelete
+ 
++	// Cloud rows delete from SpecStory Cloud via the API, async so a slow/down server can't freeze
++	// the TUI. The row stays until the delete confirms (applyCloudDeleteResult removes it).
++	if pd.isCloud {
++		return m, cloudDeleteCmd(pd)
++	}
++
+ 	affected, err := softDeletePending(pd)
+ 	if err != nil {
+ 		slog.Debug("resume: soft delete failed", "error", err)
+@@ -741,12 +795,19 @@ func (m *sessionTUI) rebuildAgentCycle() {
+ 	for _, s := range m.all {
+ 		present[s.Agent] = true
+ 	}
++	// Cloud rows can introduce agents not present locally, so include them in the filter ring.
++	for _, s := range m.cloudAll {
++		present[s.Agent] = true
++	}
+ 	ids := make([]string, 0, len(present))
+ 	for id := range present {
+ 		ids = append(ids, id)
+ 	}
+ 	sort.Strings(ids)
+ 	m.agentCycle = append([]string{""}, ids...)
++	// The machine ring is derived from the same row set (specifically the cloud rows), so keep it
++	// in lockstep with the agent ring.
++	m.rebuildMachineCycle()
+ }
+ 
+ func (m *sessionTUI) cycleAgent() tea.Cmd {
+@@ -817,14 +878,24 @@ func (m *sessionTUI) applyFilter() {
+ func (m *sessionTUI) refilterCurrentAgent() {
+ 	searching := queryReady(m.searchQuery)
+ 	src := m.all
++	// Browse (no active search): blend the active project's cloud sessions with the local ones —
++	// deduped local-preferred and re-sorted by recency. Kept out of m.all so local re-queries
++	// (index warm, post-delete refresh) can't discard them. Search stays local-only for now.
++	if len(m.cloudAll) > 0 {
++		src = mergeCloudRows(m.all, m.cloudAll)
++	}
+ 	if searching {
+ 		src = m.searchRaw
+ 	}
+ 	out := make([]sessionindex.Session, 0, len(src))
+ 	for _, s := range src {
+-		if m.agentFilter == "" || s.Agent == m.agentFilter {
+-			out = append(out, s)
++		if m.agentFilter != "" && s.Agent != m.agentFilter {
++			continue
+ 		}
++		if !m.machineMatch(s) {
++			continue
++		}
++		out = append(out, s)
+ 	}
+ 	m.filtered = out
+ 	if searching {
+diff --git a/specstory-cli/pkg/cmd/session_tui_browser.go b/specstory-cli/pkg/cmd/session_tui_browser.go
+index 007c1e4..2850071 100644
+--- a/specstory-cli/pkg/cmd/session_tui_browser.go
++++ b/specstory-cli/pkg/cmd/session_tui_browser.go
+@@ -170,6 +170,8 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
+ 		fromCwd:   rm.result.session.OriginCwd,
+ 		to:        toProv,
+ 		toID:      rm.result.targetID,
++		fromCloud: rm.result.session.IsCloud,
++		projectID: rm.result.session.ProjectID,
+ 	}, nil
+ }
+ 
+@@ -213,6 +215,7 @@ func (m *sessionTUI) enterBrowser() {
+ func (m *sessionTUI) gotoHome() {
+ 	m.projectID, m.projectName = m.homeProjectID, m.homeProjectName
+ 	m.all = m.homeSessions
++	m.cloudAll = nil // cloud rows are per-project; a fresh fetch repopulates them (fire-on-drill)
+ 	m.inBrowser = false
+ 	m.agentFilter, m.searchQuery = "", ""
+ 	m.search.SetValue("")
+@@ -232,6 +235,7 @@ func (m *sessionTUI) drillInto(p sessionindex.ProjectSummary) {
+ 	m.projectID = p.ProjectID
+ 	m.projectName = projectDisplayName(p)
+ 	m.all = sessions
++	m.cloudAll = nil // cloud rows are per-project; a fresh fetch repopulates them (fire-on-drill)
+ 	m.inBrowser = true
+ 	m.agentFilter, m.searchQuery = "", ""
+ 	m.search.SetValue("")
+@@ -252,9 +256,11 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+ 			return m, tea.Quit
+ 		}
+ 		m.gotoHome()
++		return m, m.cloudFetchForActiveCmd()
+ 	case "tab":
+ 		if !m.startedInBrowser {
+ 			m.gotoHome()
++			return m, m.cloudFetchForActiveCmd()
+ 		}
+ 	case "up", "k":
+ 		m.moveProjCursor(-1)
+@@ -272,6 +278,7 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+ 	case "enter":
+ 		if m.projCursor >= 0 && m.projCursor < len(m.projFiltered) {
+ 			m.drillInto(m.projFiltered[m.projCursor])
++			return m, m.cloudFetchForActiveCmd()
+ 		}
+ 	case "/":
+ 		// FTS over sessions across ALL projects (consistent with / in a session list).
+@@ -290,6 +297,7 @@ func (m sessionTUI) updateProjects(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+ 			m.pendingDelete = pendingDelete{
+ 				source:    deleteFromProjects,
+ 				projectID: p.ProjectID,
++				isCloud:   p.IsCloud,
+ 				label:     projectDisplayName(p),
+ 				count:     p.Sessions,
+ 			}
+@@ -320,12 +328,18 @@ func (m sessionTUI) updateProjectSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
+ }
+ 
+ func (m *sessionTUI) applyProjectFilter() {
++	// Blend cloud-only projects with the local list (deduped, local-preferred, recency-sorted) so a
++	// project worked on only from another machine still shows up to drill into.
++	src := m.projects
++	if len(m.cloudProjects) > 0 {
++		src = mergeCloudProjects(m.projects, m.cloudProjects)
++	}
+ 	q := strings.ToLower(strings.TrimSpace(m.projSearchQuery))
+ 	if q == "" {
+-		m.projFiltered = m.projects
++		m.projFiltered = src
+ 	} else {
+-		out := make([]sessionindex.ProjectSummary, 0, len(m.projects))
+-		for _, p := range m.projects {
++		out := make([]sessionindex.ProjectSummary, 0, len(src))
++		for _, p := range src {
+ 			if strings.Contains(strings.ToLower(projectDisplayName(p)), q) {
+ 				out = append(out, p)
+ 			}
+@@ -455,7 +469,7 @@ func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) str
+ 	}
+ 	chips := m.agentCountChips(p.AgentCounts)
+ 	when := relativeTime(p.LastActivity)
+-	return cursor + renderName(projectDisplayName(p), selected, 32) + "  " +
++	return cursor + cloudMark(p.IsCloud) + " " + renderName(projectDisplayName(p), selected, 30) + "  " +
+ 		chips + styDim.Render("  · "+when)
+ }
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:13:29Z)**_
+
+Now the view rendering and the resume path — the D12/schema-version/selection-guard pieces:
+
+_**Agent (claude-fable-5 2026-07-09 01:13:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show view and resume diffs
+
+`git diff pkg/cmd/session_tui_view.go pkg/cmd/resume.go`
+
+```text
+diff --git a/specstory-cli/pkg/cmd/resume.go b/specstory-cli/pkg/cmd/resume.go
+index 76847f6..bca8bd1 100644
+--- a/specstory-cli/pkg/cmd/resume.go
++++ b/specstory-cli/pkg/cmd/resume.go
+@@ -2,6 +2,7 @@ package cmd
+ 
+ import (
+ 	"context"
++	"encoding/json"
+ 	"errors"
+ 	"fmt"
+ 	"io"
+@@ -9,6 +10,7 @@ import (
+ 	"os"
+ 	"os/signal"
+ 	"path/filepath"
++	"strconv"
+ 	"strings"
+ 	"syscall"
+ 	"time"
+@@ -22,6 +24,7 @@ import (
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+ )
+ 
+@@ -45,6 +48,13 @@ type resumePlan struct {
+ 	fromCwd string
+ 	to      spi.Provider
+ 	toID    string
++
++	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
++	// local index. It has no local native file, so resume always fetches its SessionData from the
++	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
++	// from (the source session's project_id).
++	fromCloud bool
++	projectID string
+ }
+ 
+ // agentChoice pairs a registry ID with its provider.
+@@ -285,6 +295,13 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
+ // Same-agent resume reuses the existing session; cross-agent reconstructs the
+ // source SessionData into the target's native store and returns the fresh ID.
+ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, error) {
++	// Cloud-sourced session: there is no local native file to resume in place, so always fetch its
++	// SessionData from the cloud and reconstruct into the target — even when source and target agent
++	// are the same.
++	if plan.fromCloud {
++		return prepareCloudResumeTarget(plan, cwd, out)
++	}
++
+ 	// Same agent: native resume on the existing session, no transform.
+ 	if plan.fromID == plan.toID {
+ 		fprintf(out, "\nResuming %s session %s in place...\n", plan.from.Name(), shortID(plan.sessionID))
+@@ -298,6 +315,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
+ 			"from_agent": plan.fromID,
+ 			"to_agent":   plan.toID,
+ 			"outcome":    outcome,
++			"source":     "local",
+ 		})
+ 	}
+ 	slog.Info("resume: reconstructing cross-agent session",
+@@ -321,10 +339,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
+ 	}
+ 
+ 	note := fmt.Sprintf("Resumed from a %s session via SpecStory.", plan.from.Name())
+-	rec, err := plan.to.ReconstructSession(fromSession.SessionData, spi.ReconstructOptions{
+-		WorkspaceRoot: cwd,
+-		MigrationNote: note,
+-	})
++	rec, err := materializeReconstructed(plan, cwd, fromSession.SessionData, note)
+ 	if err != nil {
+ 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
+ 			track("unsupported")
+@@ -336,26 +351,123 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
+ 		track("error")
+ 		return "", fmt.Errorf("failed to reconstruct session for %s: %w", plan.to.Name(), err)
+ 	}
++	track("success")
++	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
++	return rec.SessionID, nil
++}
++
++// prepareCloudResumeTarget resumes a session that lives only in SpecStory Cloud: fetch its
++// SessionData, refuse a schema newer than this CLI understands, then reconstruct into the target
++// agent's native store (always — there is no local file to resume in place). Returns the fresh
++// native session ID, just like the cross-agent path.
++func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, error) {
++	track := func(outcome string) {
++		analytics.TrackEvent(analytics.EventResumeReconstructed, analytics.Properties{
++			"from_agent": plan.fromID,
++			"to_agent":   plan.toID,
++			"outcome":    outcome,
++			"source":     "cloud",
++		})
++	}
++
++	fprintf(out, "\nFetching %s session %s from SpecStory Cloud...\n", plan.from.Name(), shortID(plan.sessionID))
++	raw, err := cloud.FetchSessionData(plan.projectID, plan.sessionID)
++	if err != nil {
++		track("error")
++		return "", fmt.Errorf("failed to fetch session from cloud: %w", err)
++	}
++
++	var data schema.SessionData
++	if err := json.Unmarshal(raw, &data); err != nil {
++		track("error")
++		return "", fmt.Errorf("failed to parse cloud session data: %w", err)
++	}
++
++	// Refuse a blob produced by a newer CLI schema than this build understands — reconstructing it
++	// could silently drop or mangle fields this version doesn't know about.
++	if schemaVersionNewer(data.SchemaVersion, schema.CurrentSchemaVersion) {
++		track("schema_too_new")
++		return "", utils.ValidationError{Message: "Resuming this session requires an updated SpecStory CLI."}
++	}
++
++	note := fmt.Sprintf("Resumed from a %s session on another machine via SpecStory.", plan.from.Name())
++	rec, err := materializeReconstructed(plan, cwd, &data, note)
++	if err != nil {
++		if errors.Is(err, spi.ErrReconstructionUnsupported) {
++			track("unsupported")
++			return "", utils.ValidationError{Message: fmt.Sprintf(
++				"%s can't yet be a resume target. Choose Claude Code or Codex CLI.", plan.to.Name())}
++		}
++		slog.Warn("resume: cloud reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
++		track("error")
++		return "", fmt.Errorf("failed to reconstruct cloud session for %s: %w", plan.to.Name(), err)
++	}
++	track("success")
++	fprintf(out, "Reconstructed cloud %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
++	return rec.SessionID, nil
++}
++
++// materializeReconstructed reconstructs data into plan.to's native store under cwd, durably writes
++// the native file, and waits for it to become readable, returning the fresh session. Shared by the
++// cross-agent and cloud resume paths (both reconstruct from a SessionData already in hand). A
++// spi.ErrReconstructionUnsupported from the provider is returned unwrapped so callers can detect it.
++func materializeReconstructed(plan *resumePlan, cwd string, data *schema.SessionData, note string) (*spi.ReconstructedSession, error) {
++	rec, err := plan.to.ReconstructSession(data, spi.ReconstructOptions{
++		WorkspaceRoot: cwd,
++		MigrationNote: note,
++	})
++	if err != nil {
++		return nil, err
++	}
+ 
+ 	path, err := plan.to.NativeSessionPath(cwd, rec.Filename)
+ 	if err != nil {
+-		return "", fmt.Errorf("failed to resolve target session path: %w", err)
++		return nil, fmt.Errorf("failed to resolve target session path: %w", err)
+ 	}
+ 	if err := writeReconstructedSession(path, rec.Content); err != nil {
+-		return "", err
++		return nil, err
+ 	}
+ 	// The agent runs in a separate process and resolves the session by reading this file the
+ 	// instant it starts. On a filesystem without strong close-to-open coherence the freshly
+ 	// written file can lag, so confirm it is actually readable before handing the agent a
+ 	// --resume it would otherwise reject as "session not found".
+ 	if err := waitForSessionFileVisible(path, sessionFileVisibleTimeout); err != nil {
+-		return "", fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
++		return nil, fmt.Errorf("reconstructed %s session is not ready to resume: %w", plan.to.Name(), err)
+ 	}
+ 
+ 	slog.Info("resume: wrote reconstructed session", "path", path, "newID", rec.SessionID)
+-	track("success")
+-	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
+-	return rec.SessionID, nil
++	return rec, nil
++}
++
++// schemaVersionNewer reports whether SessionData version v is newer than this CLI's supported
++// version (dotted numeric, e.g. "1.0" vs "1.1"). Unparseable components compare as 0, so a
++// malformed version is treated as not-newer and allowed through rather than blocking resume.
++func schemaVersionNewer(v, current string) bool {
++	return compareSchemaVersion(v, current) > 0
++}
++
++func compareSchemaVersion(a, b string) int {
++	as, bs := strings.Split(a, "."), strings.Split(b, ".")
++	n := len(as)
++	if len(bs) > n {
++		n = len(bs)
++	}
++	for i := 0; i < n; i++ {
++		av, bv := 0, 0
++		if i < len(as) {
++			av, _ = strconv.Atoi(strings.TrimSpace(as[i]))
++		}
++		if i < len(bs) {
++			bv, _ = strconv.Atoi(strings.TrimSpace(bs[i]))
++		}
++		if av != bv {
++			if av > bv {
++				return 1
++			}
++			return -1
++		}
++	}
++	return 0
+ }
+ 
+ // shortID abbreviates a session ID for display.
+diff --git a/specstory-cli/pkg/cmd/session_tui_view.go b/specstory-cli/pkg/cmd/session_tui_view.go
+index ab2f4a1..6dee39e 100644
+--- a/specstory-cli/pkg/cmd/session_tui_view.go
++++ b/specstory-cli/pkg/cmd/session_tui_view.go
+@@ -23,8 +23,23 @@ var (
+ 	styCursor = lipgloss.NewStyle().Foreground(lipgloss.Color("213")).Bold(true)
+ 	stySel    = lipgloss.NewStyle().Foreground(lipgloss.Color("255")).Bold(true)
+ 	styWarn   = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true) // transient error notice
++	styCloud  = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))             // cloud-sourced marker (blue)
+ )
+ 
++// cloudMark is a 2-column gutter marker: a cloud glyph on cloud-sourced rows, blank on local
++// rows. It pads to exactly 2 columns regardless of the glyph's terminal width (a cloud emoji can
++// measure 1 or 2 cells depending on the terminal) so the agent column stays aligned across rows.
++func cloudMark(isCloud bool) string {
++	if !isCloud {
++		return "  "
++	}
++	pad := 2 - lipgloss.Width("☁")
++	if pad < 0 {
++		pad = 0
++	}
++	return styCloud.Render("☁") + strings.Repeat(" ", pad)
++}
++
+ func (m sessionTUI) View() tea.View {
+ 	var content string
+ 	switch {
+@@ -46,6 +61,11 @@ func (m sessionTUI) View() tea.View {
+ 	if m.statusMsg != "" {
+ 		content += "\n" + styWarn.Render(m.statusMsg)
+ 	}
++	// The cloud nudge invites ineligible users (logged out / not Pro) to unlock cross-machine
++	// resume. Shown only on the browse/search screens, not over a modal or the target-agent step.
++	if m.cloudNudge != "" && !m.previewing && !m.confirmingDelete && m.mode != modeTarget {
++		content += "\n" + styFaint.Render(m.cloudNudge)
++	}
+ 	v := tea.NewView(content)
+ 	v.AltScreen = true
+ 	return v
+@@ -94,6 +114,10 @@ func (m sessionTUI) agentScope() string {
+ func (m sessionTUI) renderHeader() string {
+ 	// Agent filter sits left, right after the project, rather than tucked in the far corner.
+ 	left := m.headerLeft(m.projectScope()) + styDim.Render("  ·  ") + m.agentScope()
++	// Surface the active machine filter alongside the agent one, matching its "agent: X" form.
++	if ml := m.machineScopeLabel(); ml != "" {
++		left += styDim.Render("  ·  ") + styDim.Render("machine: ") + stySel.Render(ml)
++	}
+ 	right := ""
+ 	// Surface a locked-in scoped search the same way the all-projects search does: a labelled
+ 	// "search: <q>" chip on the left and a match count on the right, so the filter isn't invisible.
+@@ -101,6 +125,10 @@ func (m sessionTUI) renderHeader() string {
+ 		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
+ 		right = styDim.Render(fmt.Sprintf("%d matches", len(m.filtered)))
+ 	}
++	// Surface the in-flight cloud fetch when the right corner is otherwise free.
++	if m.cloudPending && right == "" {
++		right = styDim.Render("☁ searching cloud…")
++	}
+ 	return headerRow(left, right, m.lineWidth())
+ }
+ 
+@@ -152,14 +180,15 @@ func rowLabel(s sessionindex.Session, selected bool, snippet string, titleWidth,
+ // shows the highlighted match context instead of the session title.
+ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet string) string {
+ 	cursor := rowCursor(selected)
++	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
+ 	agent := m.agentTag(s.Agent)
+ 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
+ 
+ 	if m.viewMode == "sparse" {
+ 		turns := styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
+-		label := rowLabel(s, selected, snippet, m.lineWidth()-24, m.lineWidth()-26)
+-		head := cursor + agent + "  " + label + "   " + turns
+-		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
++		label := rowLabel(s, selected, snippet, m.lineWidth()-27, m.lineWidth()-29)
++		head := cursor + mark + " " + agent + "  " + label + "   " + turns
++		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+ 		return head + "\n" + sub
+ 	}
+ 	turns := styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
+@@ -169,8 +198,8 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
+ 	if extra < 0 {
+ 		extra = 0
+ 	}
+-	label := rowLabel(s, selected, snippet, m.lineWidth()-22-extra, m.lineWidth()-24-extra)
+-	return cursor + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
++	label := rowLabel(s, selected, snippet, m.lineWidth()-25-extra, m.lineWidth()-27-extra)
++	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
+ }
+ 
+ // renderSnippet renders a FTS snippet (matched terms wrapped in the control-char marks)
+@@ -239,7 +268,12 @@ func (m sessionTUI) renderFooter() string {
+ 	if m.inBrowser {
+ 		scopeKey = "tab/esc back"
+ 	}
+-	keys := []string{"↑↓ move", "r resume", "space preview", "/ search", "a agent", "d delete", scopeKey, "v " + m.viewMode, "q quit"}
++	keys := []string{"↑↓ move", "r resume", "space preview", "/ search", "a agent"}
++	// Only offer the machine filter when there's actually another machine to focus on.
++	if len(m.machineCycle) > 1 {
++		keys = append(keys, "m machine")
++	}
++	keys = append(keys, "d delete", scopeKey, "v "+m.viewMode, "q quit")
+ 	return styDim.Render(strings.Join(keys, " · "))
+ }
+ 
+@@ -291,6 +325,9 @@ func (m sessionTUI) renderTarget() string {
+ // only be undone by wiping and rebuilding the index.
+ func (m sessionTUI) renderDeleteConfirm() string {
+ 	pd := m.pendingDelete
++	if pd.isCloud {
++		return m.renderCloudDeleteConfirm(pd)
++	}
+ 	var b strings.Builder
+ 	b.WriteString(styBold.Render("Remove from the index?"))
+ 	b.WriteString("\n\n")
+@@ -314,6 +351,28 @@ func (m sessionTUI) renderDeleteConfirm() string {
+ 	return b.String()
+ }
+ 
++// renderCloudDeleteConfirm draws the confirmation for deleting a session or project from SpecStory
++// Cloud. Unlike the local soft delete, this is a permanent, cross-machine removal, so the copy says
++// so plainly.
++func (m sessionTUI) renderCloudDeleteConfirm(pd pendingDelete) string {
++	var b strings.Builder
++	b.WriteString(styBold.Render("Delete from SpecStory Cloud?"))
++	b.WriteString("\n\n")
++
++	if pd.source == deleteFromProjects {
++		b.WriteString(styDim.Render("Cloud project: ") + stySel.Render(pd.label) + "\n")
++		fmt.Fprintf(&b, "Deletes this project and all %d of its sessions from SpecStory Cloud.", pd.count)
++	} else {
++		b.WriteString(styDim.Render("Cloud session: ") + stySel.Render(pd.label) + "\n")
++		b.WriteString("Deletes this session from SpecStory Cloud.")
++	}
++	b.WriteString("\n\n")
++	b.WriteString(styWarn.Render("This removes it from the cloud for ALL your machines and can't be undone."))
++	b.WriteString("\n\n")
++	b.WriteString(styBold.Render("Delete?") + styDim.Render("  y / N"))
++	return b.String()
++}
++
+ // ---- helpers ----
+ 
+ func (m sessionTUI) agentName(id string) string {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:14:15Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check cloud delete client functions and server routes
+
+`grep -n "func DeleteCloud" -A 20 pkg/cloud/resume_client.go | head -50; echo "=== server delete routes ==="; cd ~/source/SpecStory/specstory-sync && grep -rn "router.delete\|\.delete(" sync-cloud/worker/routers/ | head`
+
+```text
+137:func DeleteCloudSession(projectID, sessionID string) error {
+138-	var resp struct {
+139-		Success bool   `json:"success"`
+140-		Error   string `json:"error"`
+141-	}
+142-	path := "/api/v1/projects/" + url.PathEscape(projectID) + "/sessions/" + url.PathEscape(sessionID)
+143-	if err := skillsAPIRequest(http.MethodDelete, path, nil, &resp); err != nil {
+144-		return err
+145-	}
+146-	if !resp.Success {
+147-		return fmt.Errorf("delete cloud session failed: %s", resp.Error)
+148-	}
+149-	return nil
+150-}
+151-
+152-// DeleteCloudProject permanently deletes a project and all its sessions from SpecStory Cloud.
+153-// Owner-validated server-side.
+154:func DeleteCloudProject(projectID string) error {
+155-	var resp struct {
+156-		Success bool   `json:"success"`
+157-		Error   string `json:"error"`
+158-	}
+159-	path := "/api/v1/projects/" + url.PathEscape(projectID)
+160-	if err := skillsAPIRequest(http.MethodDelete, path, nil, &resp); err != nil {
+161-		return err
+162-	}
+163-	if !resp.Success {
+164-		return fmt.Errorf("delete cloud project failed: %s", resp.Error)
+165-	}
+166-	return nil
+167-}
+168-
+169-// FetchSessionData streams a session's SessionData blob and returns the raw JSON bytes.
+170-// It does NOT unmarshal into schema.SessionData — the resume layer does that (and checks
+171-// schemaVersion), keeping this package decoupled from the schema package, exactly as the sync
+172-// push treats SessionData as an opaque string. Uses a custom request (not skillsAPIRequest)
+173-// because it needs the SessionData Accept header and a raw-bytes body, not JSON decoding.
+174-func FetchSessionData(projectID, sessionID string) ([]byte, error) {
+=== server delete routes ===
+sync-cloud/worker/routers/api/v1/chat_router.ts:30:    router.delete("/api/v1/chat/:id", async (request: ApiRequest) => {
+sync-cloud/worker/routers/api/v1/api_tokens_router.ts:27:    router.delete("/api/v1/api-tokens/:id", async (request: ApiRequest) => {
+sync-cloud/worker/routers/api/v1/projects_router.ts:21:    router.delete(
+sync-cloud/worker/routers/api/v1/sessions_router.ts:92:    router.delete(
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:14:24Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm delete route paths
+
+`cd ~/source/SpecStory/specstory-sync && sed -n '21,24p' sync-cloud/worker/routers/api/v1/projects_router.ts && sed -n '92,95p' sync-cloud/worker/routers/api/v1/sessions_router.ts`
+
+```text
+    router.delete(
+      "/api/v1/projects/:projectId",
+      async (request: ApiRequest) => {
+        return await handleDeleteProject(request, request.params.projectId);
+    router.delete(
+      "/api/v1/projects/:projectId/sessions/:sessionId",
+      async (request: ApiRequest) => {
+        return await handleDeleteSession(
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:14:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Full CLI build, lint, test
+
+`go build -o specstory . && golangci-lint run 2>&1 | tail -2 && go test ./... 2>&1 | grep -v "^ok\|no test files"; echo "tests exit: $?"`
+
+```text
+0 issues.
+tests exit: 1
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:14:39Z)**_
+
+Routes match the client exactly. That test exit code was grep's, not go's — rerunning properly:
+
+_**Agent (claude-fable-5 2026-07-09 01:14:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run full test suite with real exit code
+
+`go test ./... > /tmp/dummy_gotest.out 2>&1; echo "go test exit: $?"; grep -v "^ok\|no test files" /tmp/dummy_gotest.out | head -5`
+
+```text
+go test exit: 0
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 01:15:36Z)**_
+
+All gates pass (build, lint 0 issues, full `go test ./...` green). Here's the review.
+
+## Verdict
+
+**Chunk 2 is complete and well-built — approve with one design-fidelity flag that needs a decision (the D13 selection-time guard was not implemented) and two behavioral nits.** The quality bar is noticeably high: several latent bug classes were killed proactively, with reasoning documented where it matters.
+
+**Verified against the design:** D10 (async eligibility → exact nudge strings, footer-placed, hidden over modals; ineligible skips fetches entirely), D11 (local-first, `cloudPending` indicator, silent degrade on error, stale-fetch discard via `projectID` guard, cursor preserved across merge), D13 (dedup by `(agent, session_id)`, local wins, recency re-sort), D14 (cloud glyph with terminal-width normalization so columns stay aligned), D15 (deviceId-keyed ring, "local only" includes this machine's pruned cloud rows, deterministic `(1)/(2)` suffixes, own hostname never listed — plus a nice beyond-spec touch: the filter hides entirely when no other machines exist), D16 (blended projects, cloud-only icon, and the `sessionCount == 0` ghost filter with the server-defaults-`lastUpdated`-to-now rationale written down), D12 (cloud-only always reconstructs, fresh ID, exact "Resuming this session requires an updated SpecStory CLI." message, malformed versions lenient-by-design, `materializeReconstructed` cleanly shared with the cross-agent path). The standout architectural decision: `cloudAll` is held **outside** `m.all` and merged at filter time, because the background index-warm and post-delete refresh both replace `m.all` wholesale — that would have been a maddening "cloud rows vanish randomly" bug, prevented and documented. Same for parsing timestamps before sorting (local and cloud RFC3339 differ in precision/offset; string compare would misorder).
+
+## The flag: D13's selection-time guard is missing
+
+§3.6 specifies: on select, check the local index for `(agent, session_id)` and prefer in-place local resume before taking the cloud path. It's not implemented — `fromCloud` is set straight from the row's `IsCloud`. **In Chunk 2 this is genuinely unreachable**: browse dedups against the *full* local project list, so a cloud-badged row can't secretly exist locally. But the guard's motivating case is Chunk 3 — a cloud *search* hit for a session local FTS didn't match — and the `fromCloud` plumbing is already wired into `search.go` ready for exactly that. When cloud search lands, a locally-present session would silently take the network fetch + reconstruct path (new session ID, lossy flatten) instead of instant in-place resume. Either implement it now (cheap: one store lookup where the plan is built) or put an explicit TODO at both plan-construction sites so Chunk 3 can't forget it. My preference is now — it's ~5 lines and removes a foot-gun from the Chunk 3 builder's path.
+
+## Two nits
+
+- **Cloud rows render "0 prompts."** `cloudToSessions` doesn't populate turn counts, and the lean server path deliberately zeroes `exchangeCount` — so cloud rows read as empty sessions in both view modes. Cosmetic but misleading; simplest fix is suppressing the turns column on `IsCloud` rows rather than un-leaning the server query.
+- **Local-delete resurrection.** Deleting a synced local row soft-deletes the index entry, the refresh drops it from `m.all` — and the merge immediately re-adds it from `cloudAll`, now cloud-badged. That's *consistent* with the D13 pruned-session model, but to a user it reads as "my delete didn't take." If unintended, also drop it from `cloudAll` on local delete; if intended (it *is* still in the cloud), consider a one-line status notice ("removed locally; still in cloud").
+
+## Noted, no action needed
+
+Cloud deletes are scope beyond the chunk but ride pre-existing DELETE endpoints (paths verified to match the client exactly), run async so a down server can't freeze the TUI, keep the row until confirmation, and the "ALL your machines / can't be undone" confirm copy with default-No is exactly right. Eligibility is async per-open (the doc's "cached" is satisfied within a process; cross-invocation caching is a future nicety). A remote machine-filter combined with local-only search guarantees zero matches until Chunk 3 — harmless. And the 30s timeout on the browse fetch is long for an interactive indicator; D11 says "timeout" without a number, but ~8s would feel better than half a minute of "searching cloud…" against a hung server.
+
+Last thing: the doc's Chunk 2 **validation gate** (machine A resumes machine B's session, same- and cross-agent; offline degrade; nudges in both ineligible states; machine filter cycle) is a manual pass I can't run from here — worth doing against the local stack before calling the chunk closed, same as you did for Chunk 1.
+
+---
+
+_**User (2026-07-09 14:00:04Z)**_
+
+building agent addressed the D13 gap, please check
+
+---
+
+_**Agent (claude-fable-5 2026-07-09 14:00:29Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show D13 guard implementation
+
+`git diff pkg/cmd/session_tui_browser.go pkg/cmd/search.go pkg/cmd/resume.go | grep -A 30 -B 5 "fromCloud\|localIndex\|guard" | head -100`
+
+```text
+@@ -45,6 +48,13 @@ type resumePlan struct {
+ 	fromCwd string
+ 	to      spi.Provider
+ 	toID    string
++
++	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
++	// local index. It has no local native file, so resume always fetches its SessionData from the
++	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
++	// from (the source session's project_id).
++	fromCloud bool
++	projectID string
+ }
+ 
+ // agentChoice pairs a registry ID with its provider.
+@@ -285,6 +295,13 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
+ // Same-agent resume reuses the existing session; cross-agent reconstructs the
+ // source SessionData into the target's native store and returns the fresh ID.
+ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, error) {
++	// Cloud-sourced session: there is no local native file to resume in place, so always fetch its
++	// SessionData from the cloud and reconstruct into the target — even when source and target agent
++	// are the same.
++	if plan.fromCloud {
++		return prepareCloudResumeTarget(plan, cwd, out)
++	}
++
+ 	// Same agent: native resume on the existing session, no transform.
+ 	if plan.fromID == plan.toID {
+ 		fprintf(out, "\nResuming %s session %s in place...\n", plan.from.Name(), shortID(plan.sessionID))
+@@ -298,6 +315,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
+ 			"from_agent": plan.fromID,
+ 			"to_agent":   plan.toID,
+ 			"outcome":    outcome,
++			"source":     "local",
+ 		})
+ 	}
+ 	slog.Info("resume: reconstructing cross-agent session",
+@@ -321,10 +339,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
+ 	}
+ 
+ 	note := fmt.Sprintf("Resumed from a %s session via SpecStory.", plan.from.Name())
+-	rec, err := plan.to.ReconstructSession(fromSession.SessionData, spi.ReconstructOptions{
+-		WorkspaceRoot: cwd,
+-		MigrationNote: note,
+-	})
++	rec, err := materializeReconstructed(plan, cwd, fromSession.SessionData, note)
+ 	if err != nil {
+ 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
+ 			track("unsupported")
+@@ -336,26 +351,123 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
+ 		track("error")
+ 		return "", fmt.Errorf("failed to reconstruct session for %s: %w", plan.to.Name(), err)
+ 	}
+--
+@@ -124,15 +124,19 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
+ 				slog.Debug("search: failed to persist resume prefs", "error", err)
+ 			}
+ 
++			// A search hit can be from another project; resume must load the source from its
++			// original cwd, not the current directory. The guard also prefers a local copy when a
++			// cloud-badged hit is actually present on this machine.
++			fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
+ 			plan := &resumePlan{
+ 				from:      fromProv,
+ 				fromID:    rm.result.session.Agent,
+ 				sessionID: rm.result.session.SessionID,
+-				// A search hit can be from another project; resume must load the source from
+-				// its original cwd, not the current directory.
+-				fromCwd: rm.result.session.OriginCwd,
+-				to:      toProv,
+-				toID:    rm.result.targetID,
++				fromCwd:   fromCwd,
++				to:        toProv,
++				toID:      rm.result.targetID,
++				fromCloud: fromCloud,
++				projectID: rm.result.session.ProjectID,
+ 			}
+ 			return launchResume(plan, cwd, launchOpts)
+ 		},
+diff --git a/specstory-cli/pkg/cmd/session_tui_browser.go b/specstory-cli/pkg/cmd/session_tui_browser.go
+index 007c1e4..16477d1 100644
+--- a/specstory-cli/pkg/cmd/session_tui_browser.go
++++ b/specstory-cli/pkg/cmd/session_tui_browser.go
+@@ -163,16 +163,38 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
+ 		slog.Debug("resume: could not save prefs", "error", err)
+ 	}
+ 
++	fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
+ 	return &resumePlan{
+ 		from:      fromProv,
+ 		fromID:    fromID,
+ 		sessionID: rm.result.session.SessionID,
+-		fromCwd:   rm.result.session.OriginCwd,
++		fromCwd:   fromCwd,
+ 		to:        toProv,
+ 		toID:      rm.result.targetID,
++		fromCloud: fromCloud,
++		projectID: rm.result.session.ProjectID,
+ 	}, nil
+ }
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 14:00:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show resumeSourceForSession implementation
+
+`grep -rn "func resumeSourceForSession" -A 35 pkg/cmd/ | head -45`
+
+```text
+pkg/cmd/session_tui_browser.go:186:func resumeSourceForSession(store *sessionindex.Store, s *sessionindex.Session) (fromCloud bool, fromCwd string) {
+pkg/cmd/session_tui_browser.go-187-	fromCloud = s.IsCloud
+pkg/cmd/session_tui_browser.go-188-	fromCwd = s.OriginCwd
+pkg/cmd/session_tui_browser.go-189-	if s.IsCloud {
+pkg/cmd/session_tui_browser.go-190-		if local, ok, err := store.GetSession(s.Agent, s.SessionID); err == nil && ok {
+pkg/cmd/session_tui_browser.go-191-			fromCloud = false
+pkg/cmd/session_tui_browser.go-192-			fromCwd = local.OriginCwd
+pkg/cmd/session_tui_browser.go-193-		}
+pkg/cmd/session_tui_browser.go-194-	}
+pkg/cmd/session_tui_browser.go-195-	return fromCloud, fromCwd
+pkg/cmd/session_tui_browser.go-196-}
+pkg/cmd/session_tui_browser.go-197-
+pkg/cmd/session_tui_browser.go-198-// colorForAgent returns a stable accent color per provider for the list.
+pkg/cmd/session_tui_browser.go-199-func colorForAgent(id string) color.Color {
+pkg/cmd/session_tui_browser.go-200-	switch id {
+pkg/cmd/session_tui_browser.go-201-	case "claude":
+pkg/cmd/session_tui_browser.go-202-		return lipgloss.Color("170") // purple
+pkg/cmd/session_tui_browser.go-203-	case "codex":
+pkg/cmd/session_tui_browser.go-204-		return lipgloss.Color("42") // green
+pkg/cmd/session_tui_browser.go-205-	case "cursor":
+pkg/cmd/session_tui_browser.go-206-		return lipgloss.Color("39") // blue
+pkg/cmd/session_tui_browser.go-207-	case "gemini":
+pkg/cmd/session_tui_browser.go-208-		return lipgloss.Color("45") // cyan
+pkg/cmd/session_tui_browser.go-209-	case "droid":
+pkg/cmd/session_tui_browser.go-210-		return lipgloss.Color("214") // orange
+pkg/cmd/session_tui_browser.go-211-	case "deepseek":
+pkg/cmd/session_tui_browser.go-212-		return lipgloss.Color("203") // red
+pkg/cmd/session_tui_browser.go-213-	default:
+pkg/cmd/session_tui_browser.go-214-		return lipgloss.Color("250")
+pkg/cmd/session_tui_browser.go-215-	}
+pkg/cmd/session_tui_browser.go-216-}
+pkg/cmd/session_tui_browser.go-217-
+pkg/cmd/session_tui_browser.go-218-// ---- all-projects browser (Stage B) ----
+pkg/cmd/session_tui_browser.go-219-
+pkg/cmd/session_tui_browser.go-220-// enterBrowser switches to the all-projects browser, loading the project rollup lazily.
+pkg/cmd/session_tui_browser.go-221-func (m *sessionTUI) enterBrowser() {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 14:00:53Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check GetSession and soft-delete semantics
+
+`grep -n "func (s \*Store) GetSession" -A 25 pkg/sessionindex/store.go | head -35; grep -n "deleted" pkg/sessionindex/store.go | head -8`
+
+```text
+573:func (s *Store) GetSession(agent, sessionID string) (Session, bool, error) {
+574-	rows, err := s.db.Query(`SELECT `+sessionColumns+`
+575-		FROM sessions WHERE agent = ? AND session_id = ? AND deleted = 0`, agent, sessionID)
+576-	if err != nil {
+577-		return Session{}, false, err
+578-	}
+579-	defer func() { _ = rows.Close() }()
+580-
+581-	sessions, err := scanSessions(rows)
+582-	if err != nil {
+583-		return Session{}, false, err
+584-	}
+585-	if len(sessions) == 0 {
+586-		return Session{}, false, nil
+587-	}
+588-	return sessions[0], true, nil
+589-}
+590-
+591-// ListByProject returns a project's sessions, newest activity first. Body is not
+592-// populated (it lives only in the FTS index). Used by the `specstory resume` picker.
+593-func (s *Store) ListByProject(projectID string) ([]Session, error) {
+594-	rows, err := s.db.Query(`SELECT `+sessionColumns+`
+595-		FROM sessions WHERE project_id = ? AND deleted = 0 ORDER BY updated_at DESC, created_at DESC`, projectID)
+596-	if err != nil {
+597-		return nil, err
+598-	}
+5:// sessions.db is a DERIVED CACHE over the native session stores: it can be deleted and
+94:	// Deleted marks a soft-deleted (tombstoned) session. reindex skips it regardless of
+95:	// whether the native file changed, so a user's delete stays deleted until sessions.db
+96:	// is wiped and rebuilt. See the deleted-column migration in ensureSchema.
+218:	// simply re-add on the next pass — we keep the row, flag it deleted, and strip its FTS
+219:	// body. Every read path filters deleted=0, the write path (upsertOne) refuses to
+221:	// stays deleted until the user wipes sessions.db and rebuilds. Benign error when the
+224:	s.runMigration(`ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0`)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 14:01:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build, lint, test the guard change
+
+`go build -o specstory . && golangci-lint run 2>&1 | tail -2 && go test ./pkg/... > /tmp/dummy_gotest.out 2>&1; echo "go test exit: $?"`
+
+```text
+0 issues.
+go test exit: 0
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 14:01:27Z)**_
+
+The D13 guard is correctly implemented — signed off. Details:
+
+- **Right mechanics**: `resumeSourceForSession` does the one-lookup guard the doc specifies — for a cloud-badged row, check the local index by `(agent, session_id)`; if present, flip `fromCloud` to false *and* take `fromCwd` from the **local** row (cloud rows carry an empty `OriginCwd`, so this second half is load-bearing, not decorative — without it the flipped plan couldn't locate the source session).
+- **Both plan sites, one helper**: wired into `selectResumeViaTUI` (browse) and the search command identically, so Chunk 3's cloud search hits get the guard for free the moment they exist. No duplication to drift.
+- **The soft-delete interplay is right, and I verified it deliberately**: `GetSession` filters `deleted = 0` (`store.go:575`). So a session the user soft-deleted locally does *not* flip back to a local resume — its cloud-badged row takes the cloud path, rather than resurrecting an index entry the user explicitly removed. Meanwhile a live local copy flips to instant in-place resume. Both directions land where a user would expect.
+- Gates: build clean, lint 0 issues, all package tests pass.
+
+One residual edge, noted-not-blocking: if an index row exists but its native file has actually vanished from disk (stale index), the guard flips to local and the local load then fails with an error instead of falling back to the cloud copy. The fingerprint-based reindex keeps that window small, and "error, then user re-picks" is an acceptable outcome — a fallback-to-cloud retry inside `prepareResumeTarget` would be polish for later, not something to hold the chunk for.
+
+With that, Chunk 2 is fully closed from my side: all design points implemented or consciously dispositioned, the guard now future-proofs Chunk 3, and the remaining pre-close item is the manual validation gate from the doc (cross-machine resume both directions, offline degrade, nudges, machine filter cycle) against the local stack.
+
+---
+
+_**User (2026-07-09 15:48:20Z)**_
+
+OK, the coding agent implemented chunk 3, please review.
+
+---
+
+_**Agent (claude-fable-5 2026-07-09 15:48:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Scope CLI Chunk 3 changes
+
+`git status --short | grep -v ".specstory" && echo "---" && git diff --stat -- . ':!.specstory' | tail -8 && git log --oneline -3`
+
+```text
+Exit code 1
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:48:50Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Scope server Chunk 3 changes
+
+`cd ~/source/SpecStory/specstory-sync && git status --short | grep -v ".specstory" && echo "---" && git diff --stat | tail -10 && git log --oneline -3 && ls supabase/migrations/ | tail -3`
+
+```text
+ M shared/db/schema.ts
+ M shared/models/session.ts
+ M shared/models/workspace.ts
+ M shared/types.ts
+ M supabase/migrations/20260702120000_AddSessionDataSizeToSessions.sql
+ M sync-cloud/worker/handlers/projects.ts
+ M sync-cloud/worker/handlers/sessions.ts
+ M sync-cloud/worker/router.ts
+ M sync-cloud/worker/routers/api/v1/sessions_router.ts
+ M sync-cloud/worker/supabase.ts
+ M sync-cloud/worker/types.ts
+?? supabase/migrations/20260709120000_AddExchangesFtsSimple.sql
+?? sync-cloud/tests/buildSimpleTsQuery.test.ts
+?? sync-cloud/worker/handlers/resume_search_query.ts
+?? sync-cloud/worker/handlers/search.ts
+---
+ shared/models/workspace.ts                         |   2 +-
+ shared/types.ts                                    |   5 +-
+ ...20260702120000_AddSessionDataSizeToSessions.sql |   4 +-
+ sync-cloud/worker/handlers/projects.ts             |  17 ++-
+ sync-cloud/worker/handlers/sessions.ts             |  75 +++++++++++++-
+ sync-cloud/worker/router.ts                        |   8 ++
+ .../worker/routers/api/v1/sessions_router.ts       |  15 ++-
+ sync-cloud/worker/supabase.ts                      | 114 ++++++++++++++++++++-
+ sync-cloud/worker/types.ts                         |   6 +-
+ 11 files changed, 327 insertions(+), 20 deletions(-)
+05732d81 Merge branch 'dev' into cloud-resume
+3c70b430 SpecStory histories.
+f7e16776 Don't track SpecStory statistics.json.
+20260701120000_AddSpecScoreLLMColumns.sql
+20260702120000_AddSessionDataSizeToSessions.sql
+20260709120000_AddExchangesFtsSimple.sql
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:49:03Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check CLI tree state and recent commits
+
+`git status --short | head -20; echo "---log---"; git log --oneline -6; echo "---last commit stat---"; git show --stat HEAD -- . ':!.specstory' | tail -20`
+
+```text
+ M .specstory/history/2026-02-10_22-16-11Z.md
+ M .specstory/history/2026-02-12_17-20-59Z-notice-what-we-did.md
+ M .specstory/history/2026-02-16_13-04-52Z-in-the-claude-code.md
+ M .specstory/history/2026-02-16_15-21-13Z-look-at-our-5.md
+ M .specstory/history/2026-02-23_22-28-34Z.md
+ M .specstory/history/2026-03-18_10-33-34Z-take-a-look-at.md
+ M .specstory/history/2026-04-13_12-53-52Z.md
+ M .specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md
+ M .specstory/history/2026-06-10_14-24-50Z.md
+ M .specstory/history/2026-06-18_14-52-09Z-read-at-docs-session.md
+ M .specstory/history/2026-06-23_13-10-32Z-what-s-the-claude.md
+ M .specstory/history/2026-06-23_20-26-43Z-ok-take-a-look.md
+ M .specstory/history/2026-06-24_20-23-53Z-right-now-specstory-resume.md
+ M .specstory/history/2026-06-29_14-09-23Z-take-a-look-at.md
+ M .specstory/history/2026-06-29_15-30-30Z-ok-going-to-review.md
+ M .specstory/history/2026-06-29_16-24-57Z-need-to-review-the.md
+ M .specstory/history/2026-06-29_18-33-08Z-let-s-consider-the.md
+ M .specstory/history/2026-06-30_16-59-39Z-just-attempted-a-specstory.md
+ M .specstory/history/2026-07-02_11-47-20Z.md
+---log---
+4078963 Resume and browse cloud sessions and cloud projects. Some fixes to project dir determination for Claude CLI provider.
+9028c6f Ignore
+dbfa819 Merge branch 'dev' into cloud-resume
+117f5d2 SpecStory histories.
+982c152 Fix doc location.
+7fe838f Session and project delete from index. Search term labeling in TUI.
+---last commit stat---
+    Resume and browse cloud sessions and cloud projects. Some fixes to project dir determination for Claude CLI provider.
+
+ specstory-cli/changelog.md                         |  12 +
+ specstory-cli/docs/CLOUD-RESUME.md                 |   2 +-
+ specstory-cli/pkg/cloud/resume_client.go           | 211 +++++++++
+ specstory-cli/pkg/cloud/sync.go                    |  29 +-
+ specstory-cli/pkg/cloud/sync_test.go               |   6 +-
+ specstory-cli/pkg/cmd/reindex.go                   |  63 ++-
+ specstory-cli/pkg/cmd/reindex_test.go              |  39 ++
+ specstory-cli/pkg/cmd/resume.go                    | 139 +++++-
+ specstory-cli/pkg/cmd/search.go                    |  14 +-
+ specstory-cli/pkg/cmd/session_tui.go               |  85 +++-
+ specstory-cli/pkg/cmd/session_tui_browser.go       |  44 +-
+ specstory-cli/pkg/cmd/session_tui_cloud.go         | 476 +++++++++++++++++++++
+ specstory-cli/pkg/cmd/session_tui_view.go          |  88 +++-
+ .../pkg/providers/cursorcli/path_utils.go          |  94 +++-
+ .../pkg/providers/cursorcli/path_utils_test.go     |  46 ++
+ specstory-cli/pkg/sessionindex/store.go            | 103 ++++-
+ specstory-cli/pkg/spi/schema/types.go              |   9 +-
+ 17 files changed, 1390 insertions(+), 70 deletions(-)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:49:18Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Look for chunk 3 cloud search code in CLI
+
+`grep -rn "cloudSearch\|CloudSearch\|SearchCloud\|searchCloud" pkg/ --include="*.go" | grep -v _test | head; echo "---"; grep -n "600\|fire-on-pause\|cloudSearchDebounce" pkg/cmd/session_tui_search.go | head -5`
+
+```text
+---
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:49:26Z)**_
+
+No Chunk 3 CLI code exists yet — like last round, this is the server side first (the CLI's fire-on-pause debounce + merge isn't started). Reviewing the server work:
+
+_**Agent (claude-fable-5 2026-07-09 15:49:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show migration and new file sizes
+
+`cd ~/source/SpecStory/specstory-sync && cat supabase/migrations/20260709120000_AddExchangesFtsSimple.sql && wc -l sync-cloud/worker/handlers/resume_search_query.ts sync-cloud/worker/handlers/search.ts sync-cloud/tests/buildSimpleTsQuery.test.ts`
+
+```text
+-- Add a `simple`-config FTS to exchanges for the CLI cloud-resume search, aligned to the CLI's
+-- local SQLite unicode61 search (literal tokens, prefix/type-ahead, implicit AND — no stemming or
+-- stopwords), which is DISTINCT from the web app's existing `english` fts column.
+--
+-- It's a PLAIN nullable tsvector column, NOT a GENERATED column: the ALTER is then instant with no
+-- table rewrite. A trigger populates it on write, so it fills in lazily as sessions re-sync (the
+-- exchange parser re-writes content on every sync via onConflictDoUpdate). No backfill — legacy
+-- un-re-synced rows stay NULL, which the search's `session_data_size > 0` filter excludes anyway,
+-- and a NULL tsvector is inert against `fts_simple @@ query`.
+ALTER TABLE exchanges ADD COLUMN IF NOT EXISTS fts_simple tsvector;
+
+CREATE OR REPLACE FUNCTION exchanges_fts_simple_update() RETURNS trigger AS $$
+BEGIN
+  NEW.fts_simple := to_tsvector('simple', COALESCE(NEW.content, ''));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS exchanges_fts_simple_trg ON exchanges;
+CREATE TRIGGER exchanges_fts_simple_trg
+  BEFORE INSERT OR UPDATE ON exchanges
+  FOR EACH ROW EXECUTE FUNCTION exchanges_fts_simple_update();
+
+-- GIN over the simple tsvector. Builds cheaply (all-NULL initially; GIN skips NULLs).
+CREATE INDEX IF NOT EXISTS idx_exchanges_fts_simple ON exchanges USING gin (fts_simple);
+      55 sync-cloud/worker/handlers/resume_search_query.ts
+      54 sync-cloud/worker/handlers/search.ts
+      46 sync-cloud/tests/buildSimpleTsQuery.test.ts
+     155 total
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:49:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read query builder and search handler
+
+`cd ~/source/SpecStory/specstory-sync && cat sync-cloud/worker/handlers/resume_search_query.ts sync-cloud/worker/handlers/search.ts`
+
+```text
+// Pure query-builder for the CLI cloud-resume search, kept dependency-free (no worker/cloudflare
+// imports) so it can be unit-tested in isolation. See handlers/search.ts for the endpoint.
+
+// tokenize splits on every run of non-alphanumeric characters, matching the CLI's undeclared
+// unicode61 default (so "poem.txt" -> [poem, txt]). Unicode letters/digits count.
+function tokenize(s: string): string[] {
+  return s.match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+// tokensToPhrase joins tokens as an adjacency phrase (`<->`), optionally making the last token a
+// prefix (`:*`) for type-ahead. Lowercased to match the simple config's normalization.
+function tokensToPhrase(tokens: string[], prefixLast: boolean): string {
+  return tokens
+    .map((t, i) =>
+      prefixLast && i === tokens.length - 1
+        ? `${t.toLowerCase()}:*`
+        : t.toLowerCase()
+    )
+    .join(" <-> ");
+}
+
+// buildSimpleTsQuery turns free-form input into a Postgres `simple`-config tsquery that mirrors the
+// CLI's local FTS5 search (session_tui_search.go's ftsQuery over the undeclared unicode61 default).
+// THREE COMPONENTS MUST STAY IN LOCKSTEP: the CLI's unicode61 tokenizer, the CLI's ftsQuery, and
+// this builder. Mapping:
+//   - bare words             "thank you"    -> thank:* & you:*   (each word a prefix term, AND-ed)
+//   - word with punctuation  "poem.txt"     -> poem <-> txt:*    (sub-tokens adjacent, prefix last)
+//   - closed phrase          "\"thank you\"" -> thank <-> you     (adjacency, no prefix)
+//   - open phrase (typing)   "\"thank yo"    -> thank <-> yo:*    (adjacency, prefix last)
+// Only letter/digit tokens are emitted and the whole tsquery is assembled from them, so no raw user
+// character reaches to_tsquery (which, unlike websearch_to_tsquery, throws on malformed input). An
+// all-punctuation query yields "" — the caller then skips the DB and returns zero hits.
+export function buildSimpleTsQuery(input: string): string {
+  const segs = input.split('"');
+  const parts: string[] = [];
+  for (let i = 0; i < segs.length; i++) {
+    const seg = segs[i];
+    if (i % 2 === 0) {
+      // outside quotes: each whitespace word is its own prefix-terminated adjacency phrase
+      for (const field of seg.split(/\s+/)) {
+        const toks = tokenize(field);
+        if (toks.length > 0) parts.push(tokensToPhrase(toks, true));
+      }
+    } else if (i === segs.length - 1) {
+      // open phrase (still typing): adjacency across all tokens + prefix on the last
+      const toks = tokenize(seg);
+      if (toks.length > 0) parts.push(tokensToPhrase(toks, true));
+    } else {
+      // closed phrase: exact adjacency, no prefix
+      const toks = tokenize(seg);
+      if (toks.length > 0) parts.push(tokensToPhrase(toks, false));
+    }
+  }
+  return parts.join(" & ");
+}
+import { requireFeature } from "./billing";
+import { generateResponse, handleError } from "./shared";
+import { buildSimpleTsQuery } from "./resume_search_query";
+import { Session } from "../../../shared/models/session";
+import type { ApiRequest } from "../types";
+
+// The CLI contributes at most this many cloud hits, matching local search's LIMIT 500 by recency,
+// so each source offers its 500 newest before the client merges/dedups.
+const RESUME_SEARCH_LIMIT = 500;
+
+// Mirror the CLI's minQueryLen: a 1-char prefix matches almost the whole corpus, and ranking +
+// headline generation over that set is pathologically slow, so we never run it.
+const MIN_QUERY_ALNUM = 2;
+
+// handleResumeSearch is the CLI cloud-resume search endpoint. Its own pathname gives it its own
+// rate-limit bucket, isolating CLI search traffic from the web app's english search (and vice
+// versa). Pro-gated. Returns cloud-resumable sessions matching the query, aligned to local search.
+export async function handleResumeSearch(request: ApiRequest): Promise<Response> {
+  const denied = await requireFeature("resume")(request);
+  if (denied) return denied;
+
+  try {
+    const body = (await request.json()) as { query?: unknown };
+    const query = typeof body.query === "string" ? body.query : "";
+
+    const alnum = (query.match(/[\p{L}\p{N}]/gu) ?? []).length;
+    const tsQuery = alnum >= MIN_QUERY_ALNUM ? buildSimpleTsQuery(query) : "";
+
+    let results: Awaited<ReturnType<typeof Session.searchResumable>> = [];
+    if (tsQuery !== "") {
+      try {
+        results = await Session.searchResumable(
+          request.userId!,
+          tsQuery,
+          RESUME_SEARCH_LIMIT
+        );
+      } catch (err) {
+        // Degrade to empty rather than 500, so the CLI silently falls back to local-only.
+        console.error("resume search query failed, returning empty:", err);
+        results = [];
+      }
+    }
+
+    return generateResponse(
+      { success: true, data: { results } },
+      200,
+      "POST, OPTIONS",
+      "Content-Type, Authorization"
+    );
+  } catch (error) {
+    console.error("Error handling resume search:", error);
+    return handleError(error);
+  }
+}
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:49:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show searchResumable, types, and router diffs
+
+`cd ~/source/SpecStory/specstory-sync && git diff shared/models/session.ts shared/types.ts sync-cloud/worker/router.ts | head -190`
+
+```text
+diff --git a/shared/models/session.ts b/shared/models/session.ts
+index 44043fa0..6923726c 100644
+--- a/shared/models/session.ts
++++ b/shared/models/session.ts
+@@ -4,6 +4,7 @@ import * as schema from "../db/schema";
+ import {
+   and,
+   eq,
++  gt,
+   inArray,
+   SQL,
+   getTableColumns,
+@@ -28,9 +29,27 @@ import {
+   type TimeFilter,
+ } from "../utils/dateRange";
+ import { Workspace } from "./workspace";
+-import { deleteFromStorage } from "../../sync-cloud/worker/supabase";
++import {
++  deleteFromStorage,
++  getAccessibleWorkspaceIds,
++} from "../../sync-cloud/worker/supabase";
+ import * as Sentry from "@sentry/cloudflare";
+ 
++// ResumableSearchHit is one cloud-resume search result: a resumable session plus a highlighted
++// snippet (STX/ETX-delimited, matching the CLI's local snippet format) from its first matching
++// exchange. Shaped for the CLI's blended search list.
++export interface ResumableSearchHit {
++  id: string;
++  clientId: string;
++  projectId: string;
++  name: string;
++  updatedAt: string;
++  createdAt: string;
++  sessionDataSize: number | null;
++  metadata: SessionMetadata;
++  snippet: string;
++}
++
+ export class Session extends BaseModel {
+   static table = schema.sessions;
+ 
+@@ -203,6 +222,78 @@ export class Session extends BaseModel {
+       );
+   }
+ 
++  // searchResumable runs the CLI-aligned cloud-resume search: match exchanges against the `simple`
++  // FTS (fts_simple) with a PRE-BUILT tsquery (mirrors the CLI's local unicode61 semantics — see
++  // the handler's buildSimpleTsQuery), restrict to cloud-resumable sessions (session_data_size > 0),
++  // and return one ts_headline snippet per session (its first matching exchange), newest session
++  // first, capped at limit. tsQuery is a bound parameter assembled from constructed tokens only, so
++  // no raw user input reaches to_tsquery (which throws on malformed input).
++  public static async searchResumable(
++    userId: string,
++    tsQuery: string,
++    limit: number
++  ): Promise<ResumableSearchHit[]> {
++    const workspaceIds = await getAccessibleWorkspaceIds(userId);
++    if (workspaceIds.length === 0) {
++      return [];
++    }
++
++    // ts_headline delimiters match the CLI's local snippet() markers (STX/ETX) so the TUI renders
++    // local and cloud hits identically with no client special-casing.
++    const headlineOpts =
++      `StartSel=${String.fromCharCode(2)}, StopSel=${String.fromCharCode(3)}, ` +
++      `MaxWords=18, MinWords=8, ShortWord=0, HighlightAll=FALSE, MaxFragments=0`;
++
++    const rows = await this.db
++      .select({
++        id: schema.sessions.id,
++        clientId: schema.sessions.clientId,
++        projectId: schema.workspaces.projectId,
++        name: schema.sessions.name,
++        updatedAt: sql<string>`${schema.sessions.updatedAt}`.as("updated_at"),
++        createdAt: sql<string>`${schema.sessions.createdAt}`.as("created_at"),
++        sessionDataSize: schema.sessions.sessionDataSize,
++        metadata: schema.sessions.metadata,
++        // One snippet per session: the first matching exchange's headline (array_agg ordered by
++        // order_number, take [1]) — avoids DISTINCT ON while grouping.
++        snippet: sql<string>`(array_agg(
++          ts_headline('simple', ${schema.exchanges.content}, to_tsquery('simple', ${tsQuery}), ${headlineOpts})
++          ORDER BY ${schema.exchanges.orderNumber}
++        ))[1]`.as("snippet"),
++      })
++      .from(schema.sessions)
++      .innerJoin(
++        schema.workspaces,
++        eq(schema.workspaces.id, schema.sessions.workspaceId)
++      )
++      .innerJoin(
++        schema.exchanges,
++        eq(schema.exchanges.sessionId, schema.sessions.id)
++      )
++      .where(
++        and(
++          inArray(schema.sessions.workspaceId, workspaceIds),
++          gt(schema.sessions.sessionDataSize, 0),
++          sql`${schema.exchanges.ftsSimple} @@ to_tsquery('simple', ${tsQuery})`
++        )
++      )
++      .groupBy(schema.sessions.id, schema.workspaces.id)
++      .orderBy(desc(schema.sessions.updatedAt))
++      .limit(limit);
++
++    return rows.map((r) => ({
++      id: r.id as string,
++      clientId: r.clientId as string,
++      projectId: r.projectId as string,
++      name: r.name as string,
++      updatedAt: String(r.updatedAt),
++      createdAt: String(r.createdAt),
++      sessionDataSize: (r.sessionDataSize as number | null) ?? null,
++      metadata: (r.metadata as SessionMetadata) ?? {},
++      snippet: (r.snippet as string) ?? "",
++    }));
++  }
++
+   public static async searchMarkdown(
+     query: string,
+     limit: number = 200,
+diff --git a/shared/types.ts b/shared/types.ts
+index 99e3878e..e0c93821 100644
+--- a/shared/types.ts
++++ b/shared/types.ts
+@@ -103,7 +103,7 @@ export const SessionMetadataSchema = z.object({
+   agentName: z.string().optional(),
+   deviceId: z.string().optional(),
+   // Human-readable machine name (os.Hostname) captured at sync time. Sessions group by
+-  // the stable deviceId; machineName is the display label for the machine badge/filter (D9).
++  // the stable deviceId; machineName is the display label for the machine badge/filter.
+   machineName: z.string().optional(),
+   gitBranches: z.array(z.string()).optional(),
+   llmModels: z.array(z.string()).optional(),
+@@ -153,7 +153,7 @@ export const SessionDetailSchema = z.object({
+   markdownContent: z.string(),
+   markdownSize: z.number(),
+   rawDataSize: z.number(),
+-  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = legacy/no blob (D5)
++  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = legacy/no blob
+   metadata: SessionMetadataSchema,
+   shouldSkipProcessing: z.boolean(),
+   createdAt: z.string(),
+@@ -198,6 +198,7 @@ export const SessionSummarySchema = z.object({
+   updatedAt: z.string(),
+   startedAt: z.string().optional(),
+   endedAt: z.string().optional(),
++  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = not cloud-resumable
+   metadata: SessionMetadataSchema,
+   exchangeCount: z.number(),
+   firstExchangeContent: z.string(),
+diff --git a/sync-cloud/worker/router.ts b/sync-cloud/worker/router.ts
+index a8e9ef77..a670a33b 100644
+--- a/sync-cloud/worker/router.ts
++++ b/sync-cloud/worker/router.ts
+@@ -16,6 +16,7 @@ import { createGraphQLHandler } from "./graphql";
+ import { handleOpenApiRequest } from "./handlers/openapi";
+ 
+ import { handleLogin } from "./handlers/login";
++import { handleResumeSearch } from "./handlers/search";
+ import { handleProjectStats } from "./handlers/project-stats";
+ import {
+   handleLoreIngest,
+@@ -292,6 +293,13 @@ AIRulesRouter.setupRoutes(router);
+ BillingRouter.setupRoutes(router);
+ AnalyticsRouter.setupRoutes(router);
+ 
++// CLI cloud-resume search (Pro-gated in the handler). Its own pathname gives it its own
++// rate-limit bucket (withRateLimiter keys on pathname), isolating CLI search traffic from the web
++// app's english search on /graphql, and vice versa.
++router.post("/api/v1/search/resume", (request: ApiRequest) =>
++  handleResumeSearch(request)
++);
++
+ // Environment feature flags for the signed-in caller (dark-launch hiding). Read by
+ // the SPA's FlagsProvider on load; the entitlement read stays separate + always live.
+ router.get("/api/v1/flags", (request: ApiRequest) => handleGetFlags(request));
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:50:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read tests, typecheck, run the new test
+
+`cd ~/source/SpecStory/specstory-sync && cat sync-cloud/tests/buildSimpleTsQuery.test.ts && npx tsc --noEmit -p sync-cloud 2>&1 | head -3; echo "tsc: $?"; cd sync-cloud && npx vitest run tests/buildSimpleTsQuery.test.ts 2>&1 | tail -6`
+
+```text
+import { describe, it, expect } from "vitest";
+import { buildSimpleTsQuery } from "../worker/handlers/resume_search_query";
+
+// buildSimpleTsQuery must mirror the CLI's local ftsQuery (unicode61) semantics, expressed as a
+// Postgres `simple` tsquery: `&` = AND, `<->` = adjacency, `:*` = prefix.
+describe("buildSimpleTsQuery", () => {
+  it("bare words become AND-ed prefix terms", () => {
+    expect(buildSimpleTsQuery("thank you")).toBe("thank:* & you:*");
+    expect(buildSimpleTsQuery("hello")).toBe("hello:*");
+  });
+
+  it("a word with punctuation becomes an adjacency phrase, last token prefixed", () => {
+    expect(buildSimpleTsQuery("poem.txt")).toBe("poem <-> txt:*");
+    expect(buildSimpleTsQuery("max-cpu!")).toBe("max <-> cpu:*");
+  });
+
+  it("a closed quoted phrase is exact adjacency with no prefix", () => {
+    expect(buildSimpleTsQuery('"thank you"')).toBe("thank <-> you");
+  });
+
+  it("an open (still-typing) quote keeps the last token a prefix", () => {
+    expect(buildSimpleTsQuery('"thank yo')).toBe("thank <-> yo:*");
+  });
+
+  it("mixes bare words and a closed phrase with AND", () => {
+    expect(buildSimpleTsQuery('foo "bar baz" qux')).toBe(
+      "foo:* & bar <-> baz & qux:*"
+    );
+  });
+
+  it("emits nothing for empty or all-punctuation input (caller returns zero hits)", () => {
+    expect(buildSimpleTsQuery("")).toBe("");
+    expect(buildSimpleTsQuery("   ")).toBe("");
+    expect(buildSimpleTsQuery("!!! ...")).toBe("");
+  });
+
+  it("never lets a raw tsquery operator through — only constructed tokens", () => {
+    // A user typing tsquery syntax is tokenized to letters/digits; the operators below are ours.
+    expect(buildSimpleTsQuery("a & b | c")).toBe("a:* & b:* & c:*");
+    expect(buildSimpleTsQuery("drop:*")).toBe("drop:*");
+  });
+
+  it("unicode letters and digits count as tokens", () => {
+    expect(buildSimpleTsQuery("café 42")).toBe("café:* & 42:*");
+  });
+});
+tsc: 0
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  11:50:36
+   Duration  941ms (transform 19ms, setup 0ms, collect 20ms, tests 2ms, environment 0ms, prepare 99ms)
+
+[vpw:debug] Shutting down runtimes...
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:51:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check CLI queryReady threshold
+
+`grep -n "func queryReady" -A 8 pkg/cmd/session_tui_search.go`
+
+```text
+23:func queryReady(input string) bool {
+24-	n := 0
+25-	for _, r := range input {
+26-		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+27-			n++
+28-			if n >= minQueryLen {
+29-				return true
+30-			}
+31-		}
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:51:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm minQueryLen value
+
+`grep -n "minQueryLen" pkg/cmd/session_tui_search.go | head -2`
+
+```text
+15:// minQueryLen is the shortest query we run a full-text search for. A single-character
+19:const minQueryLen = 2
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 15:51:45Z)**_
+
+`MIN_QUERY_ALNUM = 2` exactly mirrors the CLI's `minQueryLen = 2` with the same letters+digits counting. Here's the full review.
+
+## Verdict
+
+**Server-side Chunk 3 is design-faithful, well-tested, and approve-able with one performance flag — the `ts_headline` placement violates D19's own cost rule.** Scope note: this is the server half only; the CLI's fire-on-pause debounce and search-TUI merge don't exist yet, same staging as Chunk 2.
+
+**Verified against the design:**
+
+- **D20 migration** — exactly as specified: plain nullable `tsvector` (instant ALTER, no rewrite), `BEFORE INSERT OR UPDATE` trigger, GIN index, no backfill, idempotent DDL throughout, and the lazy-population rationale written into the migration comments.
+- **D18 builder** — `buildSimpleTsQuery` is a pure, dependency-free module with unit tests covering all four `ftsQuery` mappings (bare words → AND-ed prefix terms, punctuation → adjacency with last-token prefix, closed phrase, open type-ahead phrase), plus empty/all-punctuation short-circuit, operator-injection attempts, and unicode. Tokens are lowercased to match the `simple` config's normalization — a subtle requirement gotten right. The lockstep hazard is restated at the definition site as instructed.
+- **D18 safety** — constructive-only assembly, bound-parameter `tsQuery`, empty query skips the DB, and the DB path catches and returns empty instead of 500. The min-length gate matches local parity.
+- **D18/D10 routing** — dedicated `POST /api/v1/search/resume` (own rate-limit bucket, comment explains why), registered after the JWT middleware, `requireFeature("resume")` as the handler's first line.
+- **D17/D19/D21** — recency ordering, STX/ETX `ts_headline` delimiters matching local `snippet()`, limit 500, `session_data_size > 0` filter, and `metadata` in each hit so the machine filter/dedup work on arrival.
+
+## The flag: `ts_headline` runs before the LIMIT, for every matching exchange
+
+D19 says snippets are "applied only to returned rows (`ts_headline` re-parses per document)" — that constraint exists because `ts_headline` is expensive. The implementation puts it *inside* `array_agg(...)` in the grouped query, which means Postgres computes a headline for **every matching exchange of every matching session** before `GROUP BY`/`ORDER BY`/`LIMIT` can prune anything (the sort is on `updated_at`, so no plan can push the limit below the aggregation). A broad two-character prefix query — `"th"` → `th:*` — can match thousands of exchanges across a big corpus: thousands of text re-parses per query, with all but ≤500 first-elements discarded. Fire-on-pause caps the *frequency*; this is per-query *cost*, and it lands on exactly the endpoint whose bucket isolation was supposed to make CLI search safe to run often.
+
+The fix shape keeps it one statement: phase 1 selects the top-500 matching sessions cheaply (`EXISTS` subquery against `exchanges` using the GIN index, `ORDER BY updated_at DESC LIMIT 500` — no headline, no aggregation); phase 2 `LATERAL`-joins each of those sessions to its first matching exchange (`ORDER BY order_number LIMIT 1`) and computes `ts_headline` on exactly those ≤500 rows. Same results, headline count drops from "all matches" to "returned rows," which is what D19 promised.
+
+## Small notes, no action required
+
+- Headline sizing is `MaxWords=18, MinWords=8` vs. local's 12-token window — D19 requires matching *delimiters*, not window sizes; visually close enough to tune later if rows look uneven.
+- A malformed request body falls to `handleError` (a 4xx/5xx) rather than empty results — correct: the "errors return empty" rule is for the query path (honored via the inner catch); a body-parse failure is a client bug worth surfacing.
+- `shared/models/session.ts` importing `getAccessibleWorkspaceIds` from the worker package follows the pre-existing `deleteFromStorage` precedent — not new debt.
+- Gates: `tsc --noEmit` clean, vitest 8/8 on the builder.
+
+**Remaining for Chunk 3**: the CLI half (fire-on-pause ~600ms debounce reusing the seq-guarded machinery, merge into the search TUI over Chunk 2's dedup/machine-filter/gating — where the D13 selection guard is already waiting), then the doc's validation gate (local-vs-cloud parity queries, identical snippet rendering, recency ordering across sources, the 500 cap, and `fts_simple` populating via re-sync with no backfill).
+
+---
+
+_**User (2026-07-09 19:11:31Z)**_
+
+The building agent addressed the ts_headline flag, check the fix. Also built the remaining parts of chunk 3. Check those.
+
+---
+
+_**Agent (claude-fable-5 2026-07-09 19:12:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show updated searchResumable with ts_headline fix
+
+`cd ~/source/SpecStory/specstory-sync && git diff shared/models/session.ts | head -130`
+
+```text
+diff --git a/shared/models/session.ts b/shared/models/session.ts
+index 44043fa0..6b450ad7 100644
+--- a/shared/models/session.ts
++++ b/shared/models/session.ts
+@@ -28,9 +28,27 @@ import {
+   type TimeFilter,
+ } from "../utils/dateRange";
+ import { Workspace } from "./workspace";
+-import { deleteFromStorage } from "../../sync-cloud/worker/supabase";
++import {
++  deleteFromStorage,
++  getAccessibleWorkspaceIds,
++} from "../../sync-cloud/worker/supabase";
+ import * as Sentry from "@sentry/cloudflare";
+ 
++// ResumableSearchHit is one cloud-resume search result: a resumable session plus a highlighted
++// snippet (STX/ETX-delimited, matching the CLI's local snippet format) from its first matching
++// exchange. Shaped for the CLI's blended search list.
++export interface ResumableSearchHit {
++  id: string;
++  clientId: string;
++  projectId: string;
++  name: string;
++  updatedAt: string;
++  createdAt: string;
++  sessionDataSize: number | null;
++  metadata: SessionMetadata;
++  snippet: string;
++}
++
+ export class Session extends BaseModel {
+   static table = schema.sessions;
+ 
+@@ -203,6 +221,82 @@ export class Session extends BaseModel {
+       );
+   }
+ 
++  // searchResumable runs the CLI-aligned cloud-resume search: match exchanges against the `simple`
++  // FTS (fts_simple) with a PRE-BUILT tsquery (mirrors the CLI's local unicode61 semantics — see
++  // the handler's buildSimpleTsQuery), restrict to cloud-resumable sessions (session_data_size > 0),
++  // and return one ts_headline snippet per session (its first matching exchange), newest session
++  // first, capped at limit. tsQuery is a bound parameter assembled from constructed tokens only, so
++  // no raw user input reaches to_tsquery (which throws on malformed input).
++  public static async searchResumable(
++    userId: string,
++    tsQuery: string,
++    limit: number
++  ): Promise<ResumableSearchHit[]> {
++    const workspaceIds = await getAccessibleWorkspaceIds(userId);
++    if (workspaceIds.length === 0) {
++      return [];
++    }
++
++    // ts_headline delimiters match the CLI's local snippet() markers (STX/ETX) so the TUI renders
++    // local and cloud hits identically with no client special-casing.
++    const headlineOpts =
++      `StartSel=${String.fromCharCode(2)}, StopSel=${String.fromCharCode(3)}, ` +
++      `MaxWords=18, MinWords=8, ShortWord=0, HighlightAll=FALSE, MaxFragments=0`;
++
++    const wsList = sql.join(
++      workspaceIds.map((id) => sql`${id}`),
++      sql`, `
++    );
++    const tsq = sql`to_tsquery('simple', ${tsQuery})`;
++
++    // Two phases in one statement so the expensive part (ts_headline, which re-parses the document
++    // per call) runs ONLY on the returned rows, not on every matching exchange:
++    //   1. matched_sessions — the newest `limit` resumable sessions that have ANY matching exchange,
++    //      found via an index-friendly EXISTS with NO headline and NO aggregation.
++    //   2. LATERAL — for each of those ≤limit sessions, its FIRST matching exchange, and ts_headline
++    //      computed on exactly those ≤limit rows.
++    const rows = (await this.db.execute(sql`
++      WITH matched_sessions AS (
++        SELECT s.id, s.client_id, s.name, s.metadata, s.updated_at, s.created_at,
++               s.session_data_size, w.project_id
++        FROM sessions s
++        JOIN workspaces w ON w.id = s.workspace_id
++        WHERE s.workspace_id IN (${wsList})
++          AND s.session_data_size > 0
++          AND EXISTS (
++            SELECT 1 FROM exchanges e
++            WHERE e.session_id = s.id AND e.fts_simple @@ ${tsq}
++          )
++        ORDER BY s.updated_at DESC
++        LIMIT ${limit}
++      )
++      SELECT ms.id, ms.client_id, ms.name, ms.metadata, ms.updated_at, ms.created_at,
++             ms.session_data_size, ms.project_id,
++             ts_headline('simple', fe.content, ${tsq}, ${headlineOpts}) AS snippet
++      FROM matched_sessions ms
++      LEFT JOIN LATERAL (
++        SELECT e.content
++        FROM exchanges e
++        WHERE e.session_id = ms.id AND e.fts_simple @@ ${tsq}
++        ORDER BY e.order_number
++        LIMIT 1
++      ) fe ON true
++      ORDER BY ms.updated_at DESC
++    `)) as unknown as Record<string, unknown>[];
++
++    return rows.map((r) => ({
++      id: r.id as string,
++      clientId: r.client_id as string,
++      projectId: r.project_id as string,
++      name: r.name as string,
++      updatedAt: String(r.updated_at),
++      createdAt: String(r.created_at),
++      sessionDataSize: (r.session_data_size as number | null) ?? null,
++      metadata: (r.metadata as SessionMetadata) ?? {},
++      snippet: (r.snippet as string) ?? "",
++    }));
++  }
++
+   public static async searchMarkdown(
+     query: string,
+     limit: number = 200,
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:12:17Z)**_
+
+The SQL rewrite is exactly the prescribed two-phase shape. One runtime-shape check (`db.execute` result varies by driver), then the CLI half:
+
+_**Agent (claude-fable-5 2026-07-09 19:12:19Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check db.execute precedent and driver
+
+`cd ~/source/SpecStory/specstory-sync && grep -rn "\.execute(" shared/ sync-cloud/worker --include="*.ts" | grep -v node_modules | grep -v test | head -5; grep -rn "drizzle(" shared/db/*.ts | head -3`
+
+```text
+shared/models/session.ts:258:    const rows = (await this.db.execute(sql`
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:12:19Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Scope CLI chunk 3 diff
+
+`git status --short | grep -v ".specstory"; echo "---"; git diff --stat -- . ':!.specstory' | tail -10`
+
+```text
+ M pkg/cloud/resume_client.go
+ M pkg/cmd/session_tui.go
+ M pkg/cmd/session_tui_browser.go
+ M pkg/cmd/session_tui_cloud.go
+ M pkg/cmd/session_tui_search.go
+---
+ specstory-cli/pkg/cloud/resume_client.go     |  30 +++++
+ specstory-cli/pkg/cmd/session_tui.go         |  15 ++-
+ specstory-cli/pkg/cmd/session_tui_browser.go |  57 +++++++--
+ specstory-cli/pkg/cmd/session_tui_cloud.go   | 176 +++++++++++++++++++++++++--
+ specstory-cli/pkg/cmd/session_tui_search.go  |  20 ++-
+ 5 files changed, 263 insertions(+), 35 deletions(-)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:12:29Z)**_
+
+No precedent — this is the repo's first raw `db.execute()`, so the return shape needs verifying against the actual driver:
+
+_**Agent (claude-fable-5 2026-07-09 19:12:33Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Identify the drizzle driver
+
+`cd ~/source/SpecStory/specstory-sync && grep -rn "drizzle" shared/db/index.ts shared/db/db.ts shared/models/base_model.ts 2>/dev/null | head -5; grep -rln "postgres-js\|node-postgres\|neon" shared/ sync-cloud/worker --include="*.ts" | grep -v node_modules | head -3; grep -rn "from \"drizzle-orm/" shared/models/base_model.ts shared/db/*.ts 2>/dev/null | head -4`
+
+```text
+shared/models/base_model.ts:1:import { Table } from "drizzle-orm";
+shared/models/base_model.ts:3:import { drizzleClient } from "../services/db";
+shared/models/base_model.ts:7:  db: ReturnType<typeof drizzleClient>;
+shared/models/base_model.ts:13:    return drizzleClient();
+shared/services/db.ts
+shared/db/schema.ts
+shared/services/analytics/overview.ts
+shared/db/schema.ts:20:} from "drizzle-orm/pg-core";
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:12:41Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show driver in db service
+
+`cd ~/source/SpecStory/specstory-sync && grep -n "postgres\|drizzle" shared/services/db.ts | head -8`
+
+```text
+2:import postgres from "postgres";
+3:import { drizzle } from "drizzle-orm/postgres-js";
+12:type DrizzleClientInstance = ReturnType<typeof drizzle<typeof schema>>;
+13:const drizzleClientStorage = new AsyncLocalStorage<DrizzleClientInstance>();
+32:  return drizzle(
+33:    postgres(process.env.SUPABASE_CONNECTION_URL!, {
+53:export function drizzleClient(): DrizzleClientInstance {
+54:  const drizzleClient = drizzleClientStorage.getStore();
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:12:50Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show search client and TUI model diffs
+
+`git diff pkg/cloud/resume_client.go pkg/cmd/session_tui_search.go pkg/cmd/session_tui.go`
+
+```text
+diff --git a/specstory-cli/pkg/cloud/resume_client.go b/specstory-cli/pkg/cloud/resume_client.go
+index f654742..fa34ba8 100644
+--- a/specstory-cli/pkg/cloud/resume_client.go
++++ b/specstory-cli/pkg/cloud/resume_client.go
+@@ -112,6 +112,36 @@ func ListCloudSessions(projectID string) ([]CloudSession, error) {
+ 	return resp.Data.Sessions, nil
+ }
+ 
++// CloudSearchHit is one cloud-resume search result: a resumable session plus a highlighted snippet
++// from its first matching exchange. The snippet uses the same STX/ETX markers as local search, so
++// the TUI renders local and cloud hits identically.
++type CloudSearchHit struct {
++	CloudSession
++	Snippet string `json:"snippet"`
++}
++
++// SearchCloudSessions runs the aligned cloud-resume search for a query and returns the matching
++// resumable sessions (newest first, server-capped at 500), each with a highlighted snippet. The
++// server mirrors local search semantics, so results blend with local hits coherently.
++func SearchCloudSessions(query string) ([]CloudSearchHit, error) {
++	var resp struct {
++		Success bool `json:"success"`
++		Data    struct {
++			Results []CloudSearchHit `json:"results"`
++		} `json:"data"`
++		Error string `json:"error"`
++	}
++
++	reqBody := map[string]string{"query": query}
++	if err := skillsAPIRequest(http.MethodPost, "/api/v1/search/resume", reqBody, &resp); err != nil {
++		return nil, err
++	}
++	if !resp.Success {
++		return nil, fmt.Errorf("cloud search failed: %s", resp.Error)
++	}
++	return resp.Data.Results, nil
++}
++
+ // ListCloudProjects returns all projects the user has in the cloud, for blending cloud-only
+ // projects into the all-projects browser.
+ func ListCloudProjects() ([]CloudProject, error) {
+diff --git a/specstory-cli/pkg/cmd/session_tui.go b/specstory-cli/pkg/cmd/session_tui.go
+index c9d27ce..2f0d55b 100644
+--- a/specstory-cli/pkg/cmd/session_tui.go
++++ b/specstory-cli/pkg/cmd/session_tui.go
+@@ -173,9 +173,18 @@ type sessionTUI struct {
+ 	// remote machine. Only meaningful once cloud rows from OTHER machines are present, so the ring
+ 	// is just [all] until then. Keyed by stable deviceId; displayed by machineName.
+ 	machineFilter string         // "" = all; "local" = this machine; else a remote deviceId
+-	machineCycle  []machineEntry // the filter ring, rebuilt from cloudAll
++	machineCycle  []machineEntry // the filter ring, rebuilt from cloud rows in play
+ 	deviceID      string         // this machine's stable id (for the "local only" match)
+ 
++	// Cloud search (global search view). Kept separate from the local FTS results, exactly like
++	// cloudAll vs all in browse, so a fresh local query (per keystroke) and a cloud result (on the
++	// slower fire-on-pause debounce) don't clobber each other; rebuildGlobalResults merges them.
++	globalLocal         []sessionindex.Session // raw local FTS results for the active global query
++	globalCloud         []sessionindex.Session // cloud search hits for the active global query
++	globalCloudSnippets map[string]string      // cloud snippets, keyed by FingerprintKey(agent, id)
++	cloudSearchSeq      int                    // debounce seq for cloud search (separate from searchSeq)
++	cloudSearchPending  bool                   // a cloud search is in flight (drives the indicator)
++
+ 	mode         tuiMode
+ 	chosen       *sessionindex.Session
+ 	targetCursor int
+@@ -327,6 +336,10 @@ func (m sessionTUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+ 		return m.applyCloudProjects(msg)
+ 	case cloudDeleteResultMsg:
+ 		return m.applyCloudDeleteResult(msg)
++	case cloudSearchDebounceMsg:
++		return m.applyCloudSearchDebounce(msg)
++	case cloudSearchResultMsg:
++		return m.applyCloudSearchResult(msg)
+ 	case tea.KeyPressMsg:
+ 		// Any keypress dismisses a lingering status notice (e.g. a failed delete); it has served
+ 		// its purpose once the user has read it and moved on.
+diff --git a/specstory-cli/pkg/cmd/session_tui_search.go b/specstory-cli/pkg/cmd/session_tui_search.go
+index a5effbf..70c9038 100644
+--- a/specstory-cli/pkg/cmd/session_tui_search.go
++++ b/specstory-cli/pkg/cmd/session_tui_search.go
+@@ -166,20 +166,14 @@ func (m sessionTUI) runSearch(seq int, kind tuiMode, ctx context.Context) tea.Cm
+ // applySearchResults installs async FTS results into the matching list (scoped or global).
+ func (m *sessionTUI) applySearchResults(kind tuiMode, sessions []sessionindex.Session) {
+ 	if kind == modeProjects {
++		// Local snippets are re-fetched lazily for visible rows; cloud snippets live separately in
++		// globalCloudSnippets and survive a local re-query.
+ 		m.globalSnippets = map[string]string{}
+-		var out []sessionindex.Session
+-		for _, s := range sessions {
+-			if m.agentFilter == "" || s.Agent == m.agentFilter {
+-				out = append(out, s)
+-			}
+-		}
+-		m.globalResults = out
+-		if m.globalCursor > len(m.globalResults)-1 {
+-			m.globalCursor = len(m.globalResults) - 1
+-		}
+-		if m.globalCursor < 0 {
+-			m.globalCursor = 0
+-		}
++		// Hold the raw local hits separately from the cloud hits; rebuildGlobalResults merges them
++		// (dedup local-preferred, recency-sorted) and applies the agent + machine filters.
++		m.globalLocal = sessions
++		m.rebuildGlobalResults()
++		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
+ 		m.globalTop = 0
+ 		return
+ 	}
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:12:56Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show cloud search merge and browser diffs
+
+`git diff pkg/cmd/session_tui_cloud.go pkg/cmd/session_tui_browser.go`
+
+```text
+diff --git a/specstory-cli/pkg/cmd/session_tui_browser.go b/specstory-cli/pkg/cmd/session_tui_browser.go
+index 16477d1..0ebf1e2 100644
+--- a/specstory-cli/pkg/cmd/session_tui_browser.go
++++ b/specstory-cli/pkg/cmd/session_tui_browser.go
+@@ -582,14 +582,28 @@ func (m sessionTUI) updateGlobalSearch(msg tea.KeyPressMsg) (tea.Model, tea.Cmd)
+ 	m.globalInput, cmd = m.globalInput.Update(msg)
+ 	m.globalQuery = m.globalInput.Value()
+ 	m.searchSeq++
++	m.cloudSearchSeq++ // supersede any in-flight cloud search too
++	// The current cloud hits are for the PREVIOUS query — drop them so the fresh local result
++	// doesn't merge stale cloud rows. The new fire-on-pause cloud search refills them on a pause.
++	m.globalCloud = nil
++	m.globalCloudSnippets = nil
+ 	if !queryReady(m.globalQuery) {
+ 		// Too short to search the whole corpus: no results until the 2nd character.
+ 		m.globalResults = nil
+ 		m.globalSnippets = nil
++		m.globalLocal = nil
++		m.globalCloud = nil
++		m.globalCloudSnippets = nil
++		m.cloudSearchPending = false
+ 		m.snippetSeq++
+ 		return m, cmd
+ 	}
+-	return m, tea.Batch(cmd, searchDebounce(m.searchSeq, modeProjects))
++	cmds := []tea.Cmd{cmd, searchDebounce(m.searchSeq, modeProjects)}
++	// Cloud search fires on its own slower fire-on-pause debounce, only when eligible.
++	if m.cloudEligible {
++		cmds = append(cmds, cloudSearchDebounce(m.cloudSearchSeq))
++	}
++	return m, tea.Batch(cmds...)
+ }
+ 
+ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+@@ -641,13 +655,15 @@ func (m sessionTUI) updateGlobalResults(msg tea.KeyPressMsg) (tea.Model, tea.Cmd
+ 		}
+ 	case "a":
+ 		return m, m.cycleAgent()
++	case "m":
++		return m, m.cycleMachine()
+ 	case "v":
+ 		m.toggleViewMode()
+ 		m.clampGlobalScroll() // toggleViewMode clamps the list; the global list scrolls separately
+ 		return m, m.requestVisibleSnippets(modeProjects)
+ 	case "d":
+ 		if sel := m.globalSelected(); sel != nil {
+-			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, label: sessionTitle(*sel)}
++			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}
+ 			m.confirmingDelete = true
+ 		}
+ 	}
+@@ -699,6 +715,11 @@ func (m *sessionTUI) exitGlobal() {
+ 	m.globalScopeID, m.globalScopeName = "", "" // re-enter search at all-projects scope
+ 	m.globalResults = nil
+ 	m.globalSnippets = nil
++	m.globalLocal = nil
++	m.globalCloud = nil
++	m.globalCloudSnippets = nil
++	m.cloudSearchSeq++ // supersede any in-flight cloud search
++	m.cloudSearchPending = false
+ 	m.snippetSeq++
+ 	m.globalCursor, m.globalTop = 0, 0
+ }
+@@ -732,12 +753,19 @@ func (m sessionTUI) renderGlobalResults() string {
+ 		scope = styDim.Render("project: ") + stySel.Render(m.globalScopeName)
+ 	}
+ 	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
++	if ml := m.machineScopeLabel(); ml != "" {
++		left += styDim.Render("  ·  ") + styDim.Render("machine: ") + stySel.Render(ml)
++	}
+ 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
+ 		// Label the locked-in query "search: <q>" so it reads as a filter, mirroring the
+ 		// "agent: <name>" / "project: <name>" labels rather than a bare unexplained word.
+ 		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
+ 	}
+-	right := styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
++	right := ""
++	if m.cloudSearchPending {
++		right = styDim.Render("☁ searching cloud…  ·  ")
++	}
++	right += styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
+ 	b.WriteString(headerRow(left, right, m.lineWidth()) + "\n")
+ 	b.WriteString(strings.Repeat("─", m.lineWidth()) + "\n")
+ 
+@@ -755,7 +783,11 @@ func (m sessionTUI) renderGlobalResults() string {
+ 		end := min(m.globalTop+h, len(m.globalResults))
+ 		for i := m.globalTop; i < end; i++ {
+ 			s := m.globalResults[i]
+-			snip := m.globalSnippets[sessionindex.FingerprintKey(s.Agent, s.SessionID)]
++			key := sessionindex.FingerprintKey(s.Agent, s.SessionID)
++			snip := m.globalSnippets[key]
++			if snip == "" {
++				snip = m.globalCloudSnippets[key] // cloud hits carry their snippet from the server
++			}
+ 			b.WriteString(m.globalRow(s, i == m.globalCursor, snip))
+ 			if i < end-1 {
+ 				b.WriteString("\n")
+@@ -788,7 +820,11 @@ func (m sessionTUI) renderGlobalResults() string {
+ 		b.WriteString(m.globalInput.View() + "    " + styFaint.Render(inputHint))
+ 		return b.String()
+ 	}
+-	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "d delete", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
++	keys := []string{"↑↓ move", "r resume", "space preview", "a agent"}
++	if len(m.machineCycle) > 1 {
++		keys = append(keys, "m machine")
++	}
++	keys = append(keys, "d delete", "v "+m.viewMode, "/ edit search", scopeKey, escHint, "q quit")
+ 	b.WriteString(styDim.Render(strings.Join(keys, " · ")))
+ 	return b.String()
+ }
+@@ -797,19 +833,20 @@ func (m sessionTUI) renderGlobalResults() string {
+ // snippet. Honors the dense/sparse view mode, matching the project session list.
+ func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet string) string {
+ 	cursor := rowCursor(selected)
++	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
+ 	agent := m.agentTag(s.Agent)
+ 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
+ 
+ 	if m.viewMode == "sparse" {
+-		label := rowLabel(s, selected, snippet, m.lineWidth()-30, m.lineWidth()-32)
+-		head := cursor + agent + "  " + styFaint.Render(proj) + "  " + label
+-		sub := "    " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
++		label := rowLabel(s, selected, snippet, m.lineWidth()-33, m.lineWidth()-35)
++		head := cursor + mark + " " + agent + "  " + styFaint.Render(proj) + "  " + label
++		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+ 		return head + "\n" + sub
+ 	}
+ 
+ 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
+-	label := rowLabel(s, selected, snippet, m.lineWidth()-46, m.lineWidth()-48)
+-	return cursor + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
++	label := rowLabel(s, selected, snippet, m.lineWidth()-49, m.lineWidth()-51)
++	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
+ }
+ 
+ func sessionProject(s sessionindex.Session) string {
+diff --git a/specstory-cli/pkg/cmd/session_tui_cloud.go b/specstory-cli/pkg/cmd/session_tui_cloud.go
+index 6e78d34..3fe65fa 100644
+--- a/specstory-cli/pkg/cmd/session_tui_cloud.go
++++ b/specstory-cli/pkg/cmd/session_tui_cloud.go
+@@ -25,18 +25,23 @@ type machineEntry struct {
+ // stable order; duplicate names get (1)/(2) suffixes). This machine never appears as its own remote
+ // entry — it's covered by "local only".
+ func (m *sessionTUI) rebuildMachineCycle() {
+-	// Latest machineName per remote deviceId.
++	// Latest machineName per remote deviceId, across whichever cloud rows are in play (browse's
++	// cloudAll and search's globalCloud).
+ 	names := map[string]string{}
+-	for _, s := range m.cloudAll {
+-		if !s.IsCloud || s.DeviceID == "" || s.DeviceID == m.deviceID {
+-			continue
+-		}
+-		if s.MachineName != "" {
+-			names[s.DeviceID] = s.MachineName
+-		} else if _, ok := names[s.DeviceID]; !ok {
+-			names[s.DeviceID] = shortID(s.DeviceID)
++	addMachine := func(rows []sessionindex.Session) {
++		for _, s := range rows {
++			if !s.IsCloud || s.DeviceID == "" || s.DeviceID == m.deviceID {
++				continue
++			}
++			if s.MachineName != "" {
++				names[s.DeviceID] = s.MachineName
++			} else if _, ok := names[s.DeviceID]; !ok {
++				names[s.DeviceID] = shortID(s.DeviceID)
++			}
+ 		}
+ 	}
++	addMachine(m.cloudAll)
++	addMachine(m.globalCloud)
+ 
+ 	if len(names) == 0 {
+ 		// No other machines to distinguish — the filter would be a no-op, so hide it.
+@@ -98,6 +103,13 @@ func (m *sessionTUI) cycleMachine() tea.Cmd {
+ 		}
+ 	}
+ 	m.machineFilter = m.machineCycle[(idx+1)%len(m.machineCycle)].key
++	// Client-side re-filter of cached rows — same as the agent filter, in whichever view is active.
++	if m.mode == modeProjects && m.globalActive {
++		m.rebuildGlobalResults()
++		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
++		m.clampGlobalScroll()
++		return m.requestVisibleSnippets(modeProjects)
++	}
+ 	m.refilterCurrentAgent()
+ 	return m.requestVisibleSnippets(modeList)
+ }
+@@ -252,6 +264,132 @@ func cloudToProjects(cs []cloud.CloudProject) []sessionindex.ProjectSummary {
+ 	return out
+ }
+ 
++// ---- cloud search (global search view) ----
++
++// cloudSearchDebounceDelay is the fire-on-pause window for cloud search: it only fires after this
++// much keyboard silence. Local FTS stays per-keystroke (searchDebounceDelay); the cloud query is
++// deliberately slower so a typed query makes 1-2 cloud requests, not one per keystroke.
++const cloudSearchDebounceDelay = 600 * time.Millisecond
++
++type cloudSearchDebounceMsg struct{ seq int }
++
++type cloudSearchResultMsg struct {
++	seq      int
++	sessions []sessionindex.Session
++	snippets map[string]string
++	err      error
++}
++
++// cloudSearchDebounce schedules a fire-on-pause tick; on fire, the model checks the seq and cloud
++// eligibility before actually querying (so only the last keystroke in a burst hits the network).
++func cloudSearchDebounce(seq int) tea.Cmd {
++	return tea.Tick(cloudSearchDebounceDelay, func(time.Time) tea.Msg {
++		return cloudSearchDebounceMsg{seq: seq}
++	})
++}
++
++// cloudSearchCmd runs the aligned cloud search off the UI thread and converts hits to index rows.
++func cloudSearchCmd(query string, seq int, agentIDByName map[string]string) tea.Cmd {
++	return func() tea.Msg {
++		hits, err := cloud.SearchCloudSessions(query)
++		if err != nil {
++			return cloudSearchResultMsg{seq: seq, err: err}
++		}
++		sessions, snippets := cloudSearchHitsToSessions(hits, agentIDByName)
++		return cloudSearchResultMsg{seq: seq, sessions: sessions, snippets: snippets}
++	}
++}
++
++// cloudSearchHitsToSessions converts search hits to index rows (like cloudToSessions) and collects
++// their server-highlighted snippets, keyed by FingerprintKey so the renderer finds them.
++func cloudSearchHitsToSessions(
++	hits []cloud.CloudSearchHit, agentIDByName map[string]string,
++) ([]sessionindex.Session, map[string]string) {
++	sessions := make([]sessionindex.Session, 0, len(hits))
++	snippets := make(map[string]string, len(hits))
++	for _, h := range hits {
++		agentID, ok := agentIDByName[h.Metadata.AgentName]
++		if !ok {
++			slog.Debug("cloud search: skipping hit with unknown agent",
++				"agentName", h.Metadata.AgentName, "sessionId", h.ClientID)
++			continue
++		}
++		sessions = append(sessions, sessionindex.Session{
++			ProjectID:   h.ProjectID,
++			Agent:       agentID,
++			SessionID:   h.ClientID,
++			CreatedAt:   h.CreatedAt,
++			UpdatedAt:   h.UpdatedAt,
++			Name:        h.Name,
++			IsCloud:     true,
++			DeviceID:    h.Metadata.DeviceID,
++			MachineName: h.Metadata.MachineName,
++		})
++		if h.Snippet != "" {
++			snippets[sessionindex.FingerprintKey(agentID, h.ClientID)] = h.Snippet
++		}
++	}
++	return sessions, snippets
++}
++
++// applyCloudSearchDebounce fires the actual cloud query only if this is still the latest request
++// and cloud is eligible — otherwise it's a no-op (a newer keystroke superseded it, or the user
++// isn't Pro/logged-in).
++func (m sessionTUI) applyCloudSearchDebounce(msg cloudSearchDebounceMsg) (tea.Model, tea.Cmd) {
++	if msg.seq != m.cloudSearchSeq || !m.cloudEligible || !queryReady(m.globalQuery) {
++		return m, nil
++	}
++	m.cloudSearchPending = true
++	return m, cloudSearchCmd(m.globalQuery, msg.seq, m.agentIDByName)
++}
++
++// applyCloudSearchResult merges a completed cloud search into the global results (dedup local-
++// preferred, re-sorted by recency), preserving the selected row. Stale/failed responses degrade
++// silently to local-only.
++func (m sessionTUI) applyCloudSearchResult(msg cloudSearchResultMsg) (tea.Model, tea.Cmd) {
++	if msg.seq != m.cloudSearchSeq {
++		return m, nil // a newer query superseded this one
++	}
++	m.cloudSearchPending = false
++	if msg.err != nil {
++		slog.Debug("cloud search failed, showing local only", "error", msg.err)
++		return m, nil
++	}
++
++	selID := ""
++	if sel := m.globalSelected(); sel != nil {
++		selID = sel.SessionID
++	}
++	m.globalCloud = msg.sessions
++	m.globalCloudSnippets = msg.snippets
++	m.rebuildGlobalResults()
++	m.globalCursor = indexOfSession(m.globalResults, selID)
++	m.clampGlobalScroll()
++	return m, nil
++}
++
++// rebuildGlobalResults derives the visible global-search list by merging the local FTS results with
++// the cloud search hits (dedup local-preferred, recency-sorted) and applying the agent + machine
++// filters. Cursor management is the caller's — this only rebuilds the list and the machine ring.
++func (m *sessionTUI) rebuildGlobalResults() {
++	src := m.globalLocal
++	if len(m.globalCloud) > 0 {
++		src = mergeCloudRows(m.globalLocal, m.globalCloud)
++	}
++	out := make([]sessionindex.Session, 0, len(src))
++	for _, s := range src {
++		if m.agentFilter != "" && s.Agent != m.agentFilter {
++			continue
++		}
++		if !m.machineMatch(s) {
++			continue
++		}
++		out = append(out, s)
++	}
++	m.globalResults = out
++	m.rebuildMachineCycle()
++}
++
+ // applyCloudEligibility records the eligibility result, sets the appropriate nudge, and — when
+ // eligible — starts the first cloud fetch for the active (home) project's sessions and the user's
+ // cloud project list (for the blended all-projects browser).
+@@ -270,10 +408,18 @@ func (m sessionTUI) applyCloudEligibility(msg cloudEligibilityMsg) (tea.Model, t
+ 		return m, nil
+ 	}
+ 	m.cloudPending = true
+-	return m, tea.Batch(
++	cmds := []tea.Cmd{
+ 		cloudFetchCmd(m.projectID, m.agentIDByName),
+ 		cloudProjectsFetchCmd(),
+-	)
++	}
++	// Opened straight into search with a pre-seeded query (`specstory search foo`): now that we know
++	// we're eligible, kick the cloud search too (the per-keystroke path only fires on later typing).
++	if m.globalActive && queryReady(m.globalQuery) {
++		m.cloudSearchSeq++
++		m.cloudSearchPending = true
++		cmds = append(cmds, cloudSearchCmd(m.globalQuery, m.cloudSearchSeq, m.agentIDByName))
++	}
++	return m, tea.Batch(cmds...)
+ }
+ 
+ // applyCloudProjects records the cloud project list and, if the browser is showing, re-applies the
+@@ -441,7 +587,15 @@ func (m sessionTUI) applyCloudDeleteResult(msg cloudDeleteResultMsg) (tea.Model,
+ 		return m, nil
+ 	}
+ 
++	// Session delete: drop it from whichever cloud slice holds it and refresh that view.
+ 	m.cloudAll = removeSession(m.cloudAll, pd.agent, pd.sessionID)
++	m.globalCloud = removeSession(m.globalCloud, pd.agent, pd.sessionID)
++	if pd.source == deleteFromGlobal {
++		m.rebuildGlobalResults()
++		m.globalCursor = clampIndex(m.globalCursor, len(m.globalResults))
++		m.clampGlobalScroll()
++		return m, m.requestVisibleSnippets(modeProjects)
++	}
+ 	m.rebuildAgentCycle()
+ 	m.applyFilter()
+ 	m.cursor = clampIndex(m.cursor, len(m.filtered))
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:13:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check scoped-search handling vs cloud results
+
+`grep -n "globalScopeID" pkg/cmd/session_tui_browser.go pkg/cmd/session_tui.go pkg/cmd/session_tui_cloud.go | head -10`
+
+```text
+pkg/cmd/session_tui_browser.go:687:	case m.globalScopeID != "":
+pkg/cmd/session_tui_browser.go:689:		m.globalScopeID, m.globalScopeName = "", ""
+pkg/cmd/session_tui_browser.go:693:		m.globalScopeID, m.globalScopeName = sel.ProjectID, sessionProject(*sel)
+pkg/cmd/session_tui_browser.go:696:		m.globalScopeID, m.globalScopeName = m.homeProjectID, m.homeProjectName
+pkg/cmd/session_tui_browser.go:715:	m.globalScopeID, m.globalScopeName = "", "" // re-enter search at all-projects scope
+pkg/cmd/session_tui_browser.go:752:	if m.globalScopeID != "" {
+pkg/cmd/session_tui_browser.go:773:	if m.globalScopeID != "" {
+pkg/cmd/session_tui_browser.go:806:	if m.globalScopeID != "" {
+pkg/cmd/session_tui.go:120:	globalScopeID   string // "" = all projects; else the project id the search is scoped to
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:13:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run all gates on both repos
+
+`go build -o specstory . && golangci-lint run 2>&1 | tail -2 && go test ./pkg/... > /tmp/dummy_gotest.out 2>&1; echo "go test: $?"; cd ~/source/SpecStory/specstory-sync && npx tsc --noEmit -p sync-cloud 2>&1 | head -3; echo "tsc: $?"`
+
+```text
+0 issues.
+go test: 0
+tsc: 0
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:14:35Z)**_
+
+All gates green (build, lint, Go tests, `tsc`). Here's the review of both parts.
+
+## Part 1: the `ts_headline` fix — approved
+
+The rewrite is exactly the prescribed two-phase shape, executed well: phase 1 (`matched_sessions` CTE) finds the newest ≤500 resumable sessions via an `EXISTS` against `exchanges` — GIN-friendly, no headline, no aggregation — and phase 2 `LEFT JOIN LATERAL`s each to its first matching exchange (`ORDER BY order_number LIMIT 1`) with `ts_headline` computed on exactly those ≤500 rows. Headline count drops from "every matching exchange in the corpus" to "returned rows," which is what D19 promised. Details that check out: `tsQuery` and the workspace list are bound parameters; the `LEFT JOIN ... ON true` means a vanishing exchange degrades to an empty snippet rather than dropping the row; ordering is preserved across both phases. I also verified the runtime shape concern I had — this is the repo's **first** raw `db.execute()`, and the return shape varies by driver — but the repo uses `drizzle-orm/postgres-js`, which returns the row array directly, so the `rows.map` over snake_case keys is correct.
+
+## Part 2: the CLI half of Chunk 3 — approve with one real bug
+
+**Verified right, and there's a lot of it:** the 600ms fire-on-pause debounce with per-keystroke `cloudSearchSeq` supersession (only the last keystroke in a burst hits the network — D11 exactly); staleness handled in *both* directions (out-of-order responses discarded by seq; previous-query cloud hits dropped eagerly on keystroke so a fresh local result can't merge stale rows); `queryReady` + eligibility re-checked at fire time; the pending-flag lifecycle correct in every ordering I traced (stale result while a newer search is in flight, query shrinking below the minimum, exit/escape cleanup). The state architecture mirrors browse deliberately — `globalLocal`/`globalCloud` held separately and merged in `rebuildGlobalResults` via the same `mergeCloudRows` (dedup local-preferred, parsed-time recency), so per-keystroke local re-queries can't clobber cloud hits. Snippets flow server→`FingerprintKey`-keyed map→the same STX/ETX renderer as local (D19's "no client special-casing" achieved). The machine ring now builds from both browse and search cloud rows, the `m` key works in the results view, and the Chunk 2 quirk (remote machine filter + local-only search = guaranteed empty) is thereby resolved. The pre-seeded-query race (`specstory search foo` before eligibility resolves) is explicitly handled. Cloud deletes work from the global view and prune both slices. And resume from a cloud search hit already passes through `resumeSourceForSession` — the D13 guard built last round pays off exactly as intended.
+
+**The bug: scoped search leaks other projects' cloud hits.** Global search supports a project scope (`globalScopeID`, session_tui.go:120 — toggled in the results view, browser.go:687-696). Local search respects it (`runSearch` passes it as the FTS project filter), but the cloud query is always all-projects and `rebuildGlobalResults` filters by agent and machine only — never by project. So in a scoped search, cloud hits from *other* projects render under a header that says "project: X". Cheapest correct fix is client-side: one more condition in `rebuildGlobalResults` — when `m.globalScopeID != ""`, keep only rows with `s.ProjectID == m.globalScopeID`. Placing it there also covers scope *toggling* for free, since the local re-query that follows a scope change lands in `applySearchResults` → `rebuildGlobalResults`. (Passing the scope to the server would save a few bytes but isn't needed — the 500-cap merge semantics stay correct with client-side filtering.)
+
+**Carried nit:** cloud search hits show "0 prompts" like browse rows — same accepted cosmetic from Chunk 2.
+
+Fix the scope filter and Chunk 3's code is done from my side; then it's the doc's validation gate (local-vs-cloud parity queries per D18, identical snippet rendering, cross-source recency ordering, the 500 cap, and `fts_simple` populating via re-sync with no backfill run).
+
+---
+
+_**User (2026-07-09 19:18:22Z)**_
+
+I don't understand the "then" part of this: "then it's the doc's validation gate (local-vs-cloud parity queries per D18, identical snippet rendering, cross-source recency ordering, the 500 cap, and fts_simple populating via re-sync with no backfill run)."
+
+---
+
+_**Agent (claude-fable-5 2026-07-09 19:18:44Z)**_
+
+That sentence was me pointing back at the implementation plan in `CLOUD-RESUME.md` — §4 defines each chunk as ending with a **manual test/validation gate** before you call it done ("Each spans CLI + specstory-sync and ends with a manual test/validation gate"). You ran that pass for Chunk 1 against the local Docker stack (that's what's recorded in my notes about the wrangler/Clerk gotchas), and Chunk 3 has its own checklist at the bottom of §4. I was saying: once the scope-filter bug is fixed, the *code* is done — what remains is that hands-on pass.
+
+Concretely, Chunk 3's validation bullet expands to five checks, all done by a human at a terminal (CLI pointed at the local stack via `SPECSTORY_CLOUD_URL`, or at cloud-dev):
+
+1. **Parity queries (D18)** — type the same searches into local and cloud and confirm they behave the same way where the corpora overlap. The specific traps this catches: a stemmed word ("running" must *not* match "run" in the cloud — that would mean the `english` config leaked in), a stopword ("the" must actually match — `simple` keeps stopwords), and mid-word type-ahead ("poe" must prefix-match "poem.txt" in both).
+2. **Identical snippet rendering** — a query hit on a synced session should show its highlighted snippet styled exactly like a local hit's (same highlight, no stray control characters). This proves the STX/ETX delimiter contract between `ts_headline` and the TUI's renderer end-to-end, which no unit test covers.
+3. **Cross-source recency ordering** — in a blended result list, confirm cloud and local rows interleave correctly by time rather than clumping (this exercises the parsed-time sort against *real* server timestamps, where the precision/offset formats differ from local ones).
+4. **The 500 cap** — sanity-check a broad query on a big corpus doesn't hang or misbehave at the limit boundary.
+5. **`fts_simple` populates via re-sync, no backfill** — the lazy-population claim (D20). Check the DB after a fresh migration: legacy exchanges have `fts_simple IS NULL` and don't match cloud search; re-sync one session (`specstory sync`) and confirm its exchanges' `fts_simple` fill in via the trigger and the session becomes cloud-searchable — without anyone running a backfill job.
+
+None of this can be verified from code review — it's the integration behavior across the CLI, the worker, Postgres, and a real terminal. That's the "then."
+
+---
+
+_**User (2026-07-09 19:19:38Z)**_
+
+Coding agent fixed the globalScope issue, check it.
+
+Says this about the nit:
+
+"0 prompts" nit: confirmed a non-issue for search — globalRow renders no turns/prompts column at all (grep came back empty), so cloud search hits never show it. The Chunk-2 suppression only mattered for the browse sessionRow, which does have that column.
+
+---
+
+_**Agent (claude-fable-5 2026-07-09 19:19:52Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show scope fix and check turns rendering claims
+
+`git diff pkg/cmd/session_tui_cloud.go pkg/cmd/session_tui_browser.go | grep -B 5 -A 15 "globalScope" | head -60; echo "=== turns in globalRow/sessionRow ==="; grep -n "UserTurns\|prompts" pkg/cmd/session_tui_browser.go pkg/cmd/session_tui_view.go | head`
+
+```text
++			m.pendingDelete = pendingDelete{source: deleteFromGlobal, agent: sel.Agent, sessionID: sel.SessionID, projectID: sel.ProjectID, isCloud: sel.IsCloud, label: sessionTitle(*sel)}
+ 			m.confirmingDelete = true
+ 		}
+ 	}
+@@ -699,6 +715,11 @@ func (m *sessionTUI) exitGlobal() {
+ 	m.globalScopeID, m.globalScopeName = "", "" // re-enter search at all-projects scope
+ 	m.globalResults = nil
+ 	m.globalSnippets = nil
++	m.globalLocal = nil
++	m.globalCloud = nil
++	m.globalCloudSnippets = nil
++	m.cloudSearchSeq++ // supersede any in-flight cloud search
++	m.cloudSearchPending = false
+ 	m.snippetSeq++
+ 	m.globalCursor, m.globalTop = 0, 0
+ }
+@@ -732,12 +753,19 @@ func (m sessionTUI) renderGlobalResults() string {
+ 		scope = styDim.Render("project: ") + stySel.Render(m.globalScopeName)
+ 	}
+ 	left := m.headerLeft(scope) + styDim.Render("  ·  ") + m.agentScope()
++	if ml := m.machineScopeLabel(); ml != "" {
++		left += styDim.Render("  ·  ") + styDim.Render("machine: ") + stySel.Render(ml)
++	}
+ 	if q := strings.TrimSpace(m.globalQuery); q != "" && !m.globalSearching {
+ 		// Label the locked-in query "search: <q>" so it reads as a filter, mirroring the
+ 		// "agent: <name>" / "project: <name>" labels rather than a bare unexplained word.
+ 		left += styDim.Render("  ·  ") + styDim.Render("search: ") + stySel.Render(q)
+ 	}
+-	right := styDim.Render(fmt.Sprintf("%d matches", len(m.globalResults)))
++	right := ""
++	if m.cloudSearchPending {
++		right = styDim.Render("☁ searching cloud…  ·  ")
++	}
+--
++	out := make([]sessionindex.Session, 0, len(src))
++	for _, s := range src {
++		// Honor the search's project scope: the cloud query is always all-projects (local FTS is
++		// scoped server-side), so without this, a scoped search would surface cloud hits from other
++		// projects under a "project: X" header.
++		if m.globalScopeID != "" && s.ProjectID != m.globalScopeID {
++			continue
++		}
++		if m.agentFilter != "" && s.Agent != m.agentFilter {
++			continue
++		}
++		if !m.machineMatch(s) {
++			continue
++		}
++		out = append(out, s)
++	}
++	m.globalResults = out
++	m.rebuildMachineCycle()
++}
++
+ // applyCloudEligibility records the eligibility result, sets the appropriate nudge, and — when
+=== turns in globalRow/sessionRow ===
+pkg/cmd/session_tui_view.go:189:		// than render a misleading "0 prompts".
+pkg/cmd/session_tui_view.go:192:			turns = styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
+pkg/cmd/session_tui_view.go:202:		turns = styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:20:07Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show scope toggle handler and turns suppression
+
+`sed -n '680,700p' pkg/cmd/session_tui_browser.go; echo "=== view suppression ==="; sed -n '183,205p' pkg/cmd/session_tui_view.go`
+
+```text
+// toggleGlobalScope flips the cross-project search between all projects and a single project
+// (tab): the highlighted hit's project when a result is selected, else the current directory's
+// project (nothing to point at). A second tab widens back to all projects. It then re-runs the
+// query from the top against the new scope.
+func (m *sessionTUI) toggleGlobalScope() tea.Cmd {
+	switch {
+	case m.globalScopeID != "":
+		// Already scoped → widen back to all projects.
+		m.globalScopeID, m.globalScopeName = "", ""
+	case m.globalSelected() != nil:
+		// A result is highlighted → scope to its project.
+		sel := m.globalSelected()
+		m.globalScopeID, m.globalScopeName = sel.ProjectID, sessionProject(*sel)
+	default:
+		// No results to point at → scope to the current directory's project.
+		m.globalScopeID, m.globalScopeName = m.homeProjectID, m.homeProjectName
+	}
+	m.globalCursor, m.globalTop = 0, 0
+	m.searchSeq++
+	if !queryReady(m.globalQuery) {
+=== view suppression ===
+	mark := cloudMark(s.IsCloud) // 2-col gutter: cloud glyph on cloud rows, blank on local
+	agent := m.agentTag(s.Agent)
+	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
+
+	if m.viewMode == "sparse" {
+		// Cloud rows carry no turn count (the lean list omits it), so suppress the column rather
+		// than render a misleading "0 prompts".
+		turns := ""
+		if !s.IsCloud {
+			turns = styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
+		}
+		label := rowLabel(s, selected, snippet, m.lineWidth()-27, m.lineWidth()-29)
+		head := cursor + mark + " " + agent + "  " + label + "   " + turns
+		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+		return head + "\n" + sub
+	}
+	// Blank 4-col slot for cloud rows (no local turn count) so the column stays aligned.
+	turns := "    "
+	if !s.IsCloud {
+		turns = styDim.Render(fmt.Sprintf("%4d", s.UserTurns))
+	}
+	// A year-stamped date ("Dec 31 '25") is wider than the 4-col slot; shrink the label by the
+	// overflow so the right-hand turns column can't get pushed off the line and wrap.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:20:21Z)**_
+
+Both confirmed. Final gates:
+
+_**Agent (claude-fable-5 2026-07-09 19:20:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Build, lint, test the scope fix
+
+`go build -o specstory . && golangci-lint run 2>&1 | tail -2 && go test ./pkg/... > /tmp/dummy_gotest.out 2>&1; echo "go test: $?"`
+
+```text
+0 issues.
+go test: 0
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-07-09 19:20:59Z)**_
+
+Sign-off on both — all gates green (build, lint 0, tests pass).
+
+**The scope fix is correct and optimally placed.** It's the first condition in `rebuildGlobalResults` with the why-comment ("the cloud query is always all-projects — local FTS is scoped server-side"), which means every path that rebuilds the list inherits it: local result arrival (keystrokes and scope toggles both re-run the query — `toggleGlobalScope` bumps `searchSeq`, and the arriving result lands in `applySearchResults` → rebuild), cloud result arrival, and agent/machine cycling. It also has a property worth appreciating: `globalCloud` is deliberately *retained* across scope toggles — correct, because the cloud fetch is scope-independent, so narrowing to a project and widening back reuses the cached hits with zero extra network, the filter doing all the work.
+
+**The "0 prompts" claim checks out — on both halves.** `globalRow` genuinely has no turns/prompts column (the only turns rendering in the codebase is in `sessionRow`), so cloud search hits never could show it. And better than claimed as a mere non-issue: the browse-side suppression *was* implemented — `sessionRow` now omits the count on `IsCloud` rows in sparse mode and renders a blank width-preserving slot in dense mode so the column alignment holds (`session_tui_view.go:187-202`). That closes the carried nit entirely rather than deferring it.
+
+**Chunk 3 is code-complete.** Everything from the design is now implemented and reviewed across all three chunks: seed & self-heal, blended browse + cloud resume, and aligned cloud search — plus the extras that accreted along the way (cloud deletes, the machine filter's search-view extension, the D13 guard). What remains before you can call the whole feature done is the Chunk 3 manual validation gate we discussed (parity queries, snippet rendering, cross-source ordering, the 500 cap, lazy `fts_simple` population), and then the D22 release sequencing when you ship: server deploys first, CLI release after.
