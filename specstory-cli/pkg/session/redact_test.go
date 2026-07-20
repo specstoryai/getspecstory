@@ -3,6 +3,8 @@ package session
 import (
 	"strings"
 	"testing"
+
+	"github.com/betterleaks/betterleaks/report"
 )
 
 // The fixtures below are syntactically valid but fabricated credentials chosen
@@ -15,63 +17,132 @@ const (
 	fakeGCPAPIKey   = "AIzaSyD8xKq2mL9nP4rT7wZ0aB3cE6fH1jG5kM7"
 )
 
-func TestRedactContent_BuiltinPatterns(t *testing.T) {
+func TestRedactContent(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		contains string // expected placeholder in output
+		name         string
+		input        string
+		wantContains []string // placeholders that must appear in the output
+		wantAbsent   []string // secret values that must not survive redaction
+		wantCount    int      // distinct secret values replaced
+		// When both want slices are empty, the input must pass through unchanged.
 	}{
 		{
-			name:     "GitHub OAuth token",
-			input:    "token=" + fakeGitHubOAuth,
-			contains: "[REDACTED:github-oauth]",
+			name:         "GitHub OAuth token",
+			input:        "token=" + fakeGitHubOAuth,
+			wantContains: []string{"[REDACTED:github-oauth]"},
+			wantAbsent:   []string{fakeGitHubOAuth},
+			wantCount:    1,
 		},
 		{
-			name:     "Google API key",
-			input:    "key=" + fakeGCPAPIKey,
-			contains: "[REDACTED:gcp-api-key]",
+			name:         "Google API key",
+			input:        "key=" + fakeGCPAPIKey,
+			wantContains: []string{"[REDACTED:gcp-api-key]"},
+			wantAbsent:   []string{fakeGCPAPIKey},
+			wantCount:    1,
+		},
+		{
+			name:         "multiple secrets in one string",
+			input:        "oauth: " + fakeGitHubOAuth + " and google: " + fakeGCPAPIKey,
+			wantContains: []string{"[REDACTED:github-oauth]", "[REDACTED:gcp-api-key]"},
+			wantAbsent:   []string{fakeGitHubOAuth, fakeGCPAPIKey},
+			wantCount:    2,
+		},
+		{
+			name:  "no secrets",
+			input: "This is a normal conversation with no secrets.",
+		},
+		{
+			name:  "empty input",
+			input: "",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RedactContent(tt.input)
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("RedactContent(%q) = %q, want it to contain %q", tt.input, got, tt.contains)
+			got, count := RedactContent(tt.input)
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("RedactContent(%q) = %q, want it to contain %q", tt.input, got, want)
+				}
 			}
-			// The original secret text must no longer be present.
-			if got == tt.input {
-				t.Errorf("RedactContent(%q): content was not modified", tt.input)
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(got, absent) {
+					t.Errorf("RedactContent(%q) = %q, secret %q still present", tt.input, got, absent)
+				}
+			}
+			if count != tt.wantCount {
+				t.Errorf("RedactContent(%q) count = %d, want %d", tt.input, count, tt.wantCount)
+			}
+			if len(tt.wantContains) == 0 && len(tt.wantAbsent) == 0 && got != tt.input {
+				t.Errorf("RedactContent(%q) = %q, want unchanged", tt.input, got)
 			}
 		})
 	}
 }
 
-func TestRedactContent_MultipleSecretsInOneString(t *testing.T) {
-	input := "oauth: " + fakeGitHubOAuth + " and google: " + fakeGCPAPIKey
-	got := RedactContent(input)
-	if !strings.Contains(got, "[REDACTED:github-oauth]") {
-		t.Errorf("expected github-oauth redacted, got: %q", got)
+// TestApplyRedactions exercises the replacement semantics with fabricated
+// findings, independent of the betterleaks ruleset: overlap ordering,
+// duplicate-value dedup, and the empty-secret guard.
+func TestApplyRedactions(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		findings  []report.Finding
+		want      string
+		wantCount int
+	}{
+		{
+			name:    "substring secret cannot split a longer secret",
+			content: "key=abcSECRETxyz",
+			// Shorter finding listed first to prove longest-first sorting, not
+			// input order, decides replacement order.
+			findings: []report.Finding{
+				{RuleID: "short-rule", Secret: "SECRET"},
+				{RuleID: "long-rule", Secret: "abcSECRETxyz"},
+			},
+			want:      "key=[REDACTED:long-rule]",
+			wantCount: 1,
+		},
+		{
+			name:    "same secret matched by two rules counts once",
+			content: "token=AAABBBCCC",
+			findings: []report.Finding{
+				{RuleID: "rule-b", Secret: "AAABBBCCC"},
+				{RuleID: "rule-a", Secret: "AAABBBCCC"},
+			},
+			// Equal-length secrets tie-break on rule ID for deterministic output.
+			want:      "token=[REDACTED:rule-a]",
+			wantCount: 1,
+		},
+		{
+			name:    "repeated secret value redacted everywhere",
+			content: "first=SEC123 second=SEC123",
+			findings: []report.Finding{
+				{RuleID: "rule", Secret: "SEC123"},
+			},
+			want:      "first=[REDACTED:rule] second=[REDACTED:rule]",
+			wantCount: 1,
+		},
+		{
+			name:    "empty secret is ignored",
+			content: "nothing to redact",
+			findings: []report.Finding{
+				{RuleID: "rule", Secret: ""},
+			},
+			want:      "nothing to redact",
+			wantCount: 0,
+		},
 	}
-	if !strings.Contains(got, "[REDACTED:gcp-api-key]") {
-		t.Errorf("expected gcp-api-key redacted, got: %q", got)
-	}
-	if strings.Contains(got, fakeGitHubOAuth) || strings.Contains(got, fakeGCPAPIKey) {
-		t.Errorf("original secrets still present, got: %q", got)
-	}
-}
 
-func TestRedactContent_NoSecrets(t *testing.T) {
-	input := "This is a normal conversation with no secrets."
-	got := RedactContent(input)
-	if got != input {
-		t.Errorf("RedactContent(%q) = %q, want unchanged", input, got)
-	}
-}
-
-func TestRedactContent_EmptyInput(t *testing.T) {
-	got := RedactContent("")
-	if got != "" {
-		t.Errorf("RedactContent(\"\") = %q, want \"\"", got)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, count := applyRedactions(tt.content, tt.findings)
+			if got != tt.want {
+				t.Errorf("applyRedactions(%q) = %q, want %q", tt.content, got, tt.want)
+			}
+			if count != tt.wantCount {
+				t.Errorf("applyRedactions(%q) count = %d, want %d", tt.content, count, tt.wantCount)
+			}
+		})
 	}
 }

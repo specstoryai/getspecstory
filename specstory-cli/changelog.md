@@ -2,7 +2,13 @@
 
 ## v2.4.0 2026-07-20
 
-- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks). Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235). If you don't want secret redaction for some reason (not recommended), use `enabled = false` in the `[redaction]` section of your `.specstory/cli/config.toml`.
+### ⚙️ Improvements
+
+- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks). Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235).
+
+### 🔧 CLI Configuration & Commands
+
+- If you don't want secret redaction for any reason (not recommended), use the `--no-redact-secrets` flag or `enabled = false` in the `[redaction]` section of your `.specstory/cli/config.toml`.
 
 ## v2.3.0 2026-07-17
 

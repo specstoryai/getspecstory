@@ -105,7 +105,7 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Redact secrets and API keys from saved markdown history. (default: true)
 # Detection uses the betterleaks ruleset, covering API keys, tokens, private
 # keys, and other credentials for many providers.
-# enabled = false
+# enabled = false # equivalent to --no-redact-secrets
 
 [providers]
 # Agent execution commands by provider (used by specstory run)

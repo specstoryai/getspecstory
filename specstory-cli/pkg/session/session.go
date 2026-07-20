@@ -125,8 +125,9 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	}
 
 	// Redact secrets before writing to disk or syncing to cloud
+	redactedCount := 0
 	if opts.RedactSecrets {
-		markdownContent = RedactContent(markdownContent)
+		markdownContent, redactedCount = RedactContent(markdownContent)
 	}
 
 	// Calculate markdown size in bytes
@@ -184,28 +185,36 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 				if !fileExists {
 					// New file created during autosave
 					analytics.TrackEvent(analytics.EventAutosaveNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
+						"session_id":        session.SessionID,
+						"only_cloud_sync":   opts.OnlyCloudSync,
+						"redaction_enabled": opts.RedactSecrets,
+						"redacted_count":    redactedCount,
 					})
 				} else {
 					// File updated during autosave
 					analytics.TrackEvent(analytics.EventAutosaveSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
+						"session_id":        session.SessionID,
+						"only_cloud_sync":   opts.OnlyCloudSync,
+						"redaction_enabled": opts.RedactSecrets,
+						"redacted_count":    redactedCount,
 					})
 				}
 			} else {
 				if !fileExists {
 					// New file created during manual sync
 					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
+						"session_id":        session.SessionID,
+						"only_cloud_sync":   opts.OnlyCloudSync,
+						"redaction_enabled": opts.RedactSecrets,
+						"redacted_count":    redactedCount,
 					})
 				} else {
 					// File updated during manual sync
 					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
+						"session_id":        session.SessionID,
+						"only_cloud_sync":   opts.OnlyCloudSync,
+						"redaction_enabled": opts.RedactSecrets,
+						"redacted_count":    redactedCount,
 					})
 				}
 			}
