@@ -1140,11 +1140,16 @@ nonexistent_option = "oops"
 func TestGetProviderCmd(t *testing.T) {
 	cfg := &Config{
 		Providers: ProvidersConfig{
-			ClaudeCmd: "claude --dangerously-skip-permissions",
-			CodexCmd:  "/usr/local/bin/codex",
-			CursorCmd: "cursor-agent --fast",
-			DroidCmd:  "droid --verbose",
-			GeminiCmd: "gemini --model pro",
+			ClaudeCmd:                     "claude --dangerously-skip-permissions",
+			CodexCmd:                      "/usr/local/bin/codex",
+			CopilotIDECmd:                 "code",
+			CopilotIDEInsidersCmd:         "code-insiders",
+			CopilotIDEVSCodiumCmd:         "codium",
+			CopilotIDEVSCodiumInsidersCmd: "codium-insiders",
+			CursorCmd:                     "cursor-agent --fast",
+			CursorIDECmd:                  "cursor --wait",
+			DroidCmd:                      "droid --verbose",
+			GeminiCmd:                     "gemini --model pro",
 		},
 	}
 
@@ -1154,7 +1159,12 @@ func TestGetProviderCmd(t *testing.T) {
 	}{
 		{"claude", "claude --dangerously-skip-permissions"},
 		{"codex", "/usr/local/bin/codex"},
+		{"copilotide", "code"},
+		{"copilotide-insiders", "code-insiders"},
+		{"copilotide-vscodium", "codium"},
+		{"copilotide-vscodium-insiders", "codium-insiders"},
 		{"cursor", "cursor-agent --fast"},
+		{"cursoride", "cursor --wait"},
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
 		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
@@ -1199,6 +1209,8 @@ func TestProviderCmdFromConfig(t *testing.T) {
 [providers]
 claude_cmd = "claude --allow-dangerously-skip-permissions"
 codex_cmd = "/custom/codex"
+cursoride_cmd = "cursor --wait"
+copilotide_cmd = "code --wait"
 `)
 
 		cfg, err := Load(nil)
@@ -1211,6 +1223,12 @@ codex_cmd = "/custom/codex"
 		}
 		if got := cfg.GetProviderCmd("codex"); got != "/custom/codex" {
 			t.Errorf("GetProviderCmd(codex) = %q, want %q", got, "/custom/codex")
+		}
+		if got := cfg.GetProviderCmd("cursoride"); got != "cursor --wait" {
+			t.Errorf("GetProviderCmd(cursoride) = %q, want %q", got, "cursor --wait")
+		}
+		if got := cfg.GetProviderCmd("copilotide"); got != "code --wait" {
+			t.Errorf("GetProviderCmd(copilotide) = %q, want %q", got, "code --wait")
 		}
 		// Unset provider should return empty
 		if got := cfg.GetProviderCmd("cursor"); got != "" {
@@ -1272,7 +1290,11 @@ claude_cmd = "claude --project-level"
 			t.Fatalf("Load() returned error: %v", err)
 		}
 
-		for _, id := range []string{"claude", "codex", "cursor", "droid", "gemini"} {
+		for _, id := range []string{
+			"claude", "codex",
+			"copilotide", "copilotide-insiders", "copilotide-vscodium", "copilotide-vscodium-insiders",
+			"cursor", "cursoride", "droid", "gemini",
+		} {
 			if got := cfg.GetProviderCmd(id); got != "" {
 				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)
 			}
