@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/redact"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -62,13 +63,14 @@ type SyncSession struct {
 // pendingSyncRequest holds a queued sync request during debounce period
 // Debounced syncs always skip HEAD check since we know content just changed
 type pendingSyncRequest struct {
-	sessionID   string
-	mdPath      string
-	mdContent   string
-	rawData     []byte
-	sessionData string // normalized SessionData JSON (canonical cloud-resume blob)
-	agentName   string
-	title       string // readable session title (first user message), for metadata.title
+	sessionID      string
+	mdPath         string
+	mdContent      string
+	rawData        []byte
+	sessionData    string // normalized SessionData JSON (canonical cloud-resume blob)
+	agentName      string
+	title          string // readable session title (first user message), for metadata.title
+	redactPayloads bool   // redact rawData/sessionData at send time (mdContent arrives already redacted)
 }
 
 // BulkSizesResponse represents the API response for bulk session sizes
@@ -790,7 +792,18 @@ func GetSyncManager() *SyncManager {
 }
 
 // performSync executes the actual sync operation (HEAD check + PUT request)
-func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, skipHeadCheck bool) {
+func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, redactPayloads bool, skipHeadCheck bool) {
+	// Redact the cloud payloads here, at actual send time, rather than at
+	// enqueue: debounced requests are replaced by newer ones, so scanning at
+	// send covers only payloads that actually upload, and auth state cannot
+	// change between the redaction decision and the send. The markdown is
+	// already redacted upstream, where it is also written to disk.
+	if redactPayloads {
+		redactedRaw, _ := redact.RedactContent(string(rawData))
+		rawData = []byte(redactedRaw)
+		sessionData, _ = redact.RedactContent(sessionData)
+	}
+
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	// Log the sync attempt
@@ -997,7 +1010,7 @@ func (syncMgr *SyncManager) performSync(sessionID, mdPath, mdContent string, raw
 
 // debouncedSync implements debouncing logic for a session
 // Always skips HEAD check since we know content just changed in autosave mode
-func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string) {
+func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, rawData []byte, sessionData string, agentName, title string, redactPayloads bool) {
 	// Get or create debounce state for this session
 	stateInterface, _ := syncMgr.debounceSessions.LoadOrStore(sessionID, &sessionDebounceState{})
 	state := stateInterface.(*sessionDebounceState)
@@ -1028,7 +1041,7 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 				syncMgr.wg.Done()
 				atomic.AddInt32(&syncMgr.syncCount, -1)
 			}()
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, true)
+			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, true)
 		}()
 
 		// Log with timeSinceLastSync only if meaningful (not after cleanup)
@@ -1045,13 +1058,14 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 
 	// Within debounce window - queue or replace pending request
 	state.pending = &pendingSyncRequest{
-		sessionID:   sessionID,
-		mdPath:      mdPath,
-		mdContent:   mdContent,
-		rawData:     rawData,
-		sessionData: sessionData,
-		agentName:   agentName,
-		title:       title,
+		sessionID:      sessionID,
+		mdPath:         mdPath,
+		mdContent:      mdContent,
+		rawData:        rawData,
+		sessionData:    sessionData,
+		agentName:      agentName,
+		title:          title,
+		redactPayloads: redactPayloads,
 	}
 
 	// Set timer if not already set
@@ -1106,7 +1120,7 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 			syncMgr.wg.Done()
 			atomic.AddInt32(&syncMgr.syncCount, -1)
 		}()
-		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, true)
+		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
 	}()
 
 	slog.Debug("Flushed pending sync after debounce, cleaned up session state",
@@ -1143,7 +1157,7 @@ func (syncMgr *SyncManager) flushAllPending() {
 					syncMgr.wg.Done()
 					atomic.AddInt32(&syncMgr.syncCount, -1)
 				}()
-				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, true)
+				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
 			}()
 
 			slog.Info("Flushing pending sync on shutdown",
@@ -1157,7 +1171,10 @@ func (syncMgr *SyncManager) flushAllPending() {
 // SyncSessionToCloud asynchronously syncs a session to the cloud
 // When isAutosaveMode is true (run command), syncs are debounced and skip HEAD checks for efficiency
 // When isAutosaveMode is false (manual sync), syncs are immediate with HEAD checks
-func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionData string, agentName string, title string, isAutosaveMode bool) {
+// When redactPayloads is true, rawData and sessionData have secrets redacted at
+// actual send time in performSync; mdContent must arrive already redacted (the
+// caller also writes it to disk).
+func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawData []byte, sessionData string, agentName string, title string, redactPayloads bool, isAutosaveMode bool) {
 	syncManagerMutex.RLock()
 	syncMgr := globalSyncManager
 	syncManagerMutex.RUnlock()
@@ -1180,7 +1197,7 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 	// Route to debounced or immediate sync based on mode
 	if isAutosaveMode {
 		// Autosave mode: debounce syncs and skip HEAD checks
-		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title)
+		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads)
 	} else {
 		// Manual sync mode: immediate sync with HEAD check
 		syncMgr.wg.Add(1)
@@ -1190,7 +1207,7 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 				syncMgr.wg.Done()
 				atomic.AddInt32(&syncMgr.syncCount, -1)
 			}()
-			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, false)
+			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, false)
 		}()
 	}
 }

@@ -478,23 +478,48 @@ func (p *JSONLParser) eliminateDuplicates(records []JSONLRecord) []JSONLRecord {
 		uniqueRecords = append(uniqueRecords, record)
 	}
 
-	// Sort by timestamp for deterministic order
+	// recordMap iteration order is random, so the sort below must be a total
+	// order (recordLess) — a timestamp-only comparator would leave equal-
+	// timestamp records in a different order on every run.
 	sort.Slice(uniqueRecords, func(i, j int) bool {
-		tsI, _ := uniqueRecords[i].Data["timestamp"].(string)
-		tsJ, _ := uniqueRecords[j].Data["timestamp"].(string)
-		return tsI < tsJ
+		return recordLess(uniqueRecords[i], uniqueRecords[j])
 	})
 
 	return uniqueRecords
 }
 
+// recordLess orders records by timestamp, then source file, then line number.
+// It is a total order: no two records compare equal, so every sort using it
+// produces the same result regardless of input order — several callers feed
+// their sorts from randomized map iteration, and without a total order the
+// regenerated markdown would differ from run to run on unchanged sessions.
+// The tiebreak matters because Claude Code writes related records (e.g. a
+// local-command caveat and its command message) with identical timestamps;
+// for those, JSONL append order is the true conversation order, and parents
+// are appended before their children.
+func recordLess(a, b JSONLRecord) bool {
+	tsA, _ := a.Data["timestamp"].(string)
+	tsB, _ := b.Data["timestamp"].(string)
+	if tsA != tsB {
+		return tsA < tsB
+	}
+	if a.File != b.File {
+		return a.File < b.File
+	}
+	return a.Line < b.Line
+}
+
 // mergeDagsWithSameSessionId merges DAGs that have the same session ID
 // This handles cases where Claude Code resumes a session, creating multiple roots for the same session
 func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONLRecord {
-	// Map to group DAGs by session ID
+	// Map to group DAGs by session ID. sessionOrder preserves first-appearance
+	// order because map iteration is random: merging (and returning) in map
+	// order would concatenate a resumed session's DAGs differently on every
+	// run, reordering equal-timestamp records in the regenerated markdown.
 	sessionDagMap := make(map[string][][]JSONLRecord)
+	sessionOrder := []string{}
 
-	for _, dag := range dags {
+	for i, dag := range dags {
 		if len(dag) == 0 {
 			continue
 		}
@@ -508,17 +533,22 @@ func (p *JSONLParser) mergeDagsWithSameSessionId(dags [][]JSONLRecord) [][]JSONL
 			}
 		}
 
-		// If no session ID found, treat it as a unique DAG
+		// If no session ID found, treat it as a unique DAG (index-keyed so the
+		// placeholder is deterministic across runs)
 		if sessionId == "" {
-			sessionId = fmt.Sprintf("no-session-%p", &dag)
+			sessionId = fmt.Sprintf("no-session-%d", i)
 		}
 
+		if _, seen := sessionDagMap[sessionId]; !seen {
+			sessionOrder = append(sessionOrder, sessionId)
+		}
 		sessionDagMap[sessionId] = append(sessionDagMap[sessionId], dag)
 	}
 
-	// Merge DAGs with the same session ID
+	// Merge DAGs with the same session ID, in first-appearance order
 	mergedDags := [][]JSONLRecord{}
-	for sessionId, dagsForSession := range sessionDagMap {
+	for _, sessionId := range sessionOrder {
+		dagsForSession := sessionDagMap[sessionId]
 		if len(dagsForSession) == 1 {
 			// No merging needed
 			mergedDags = append(mergedDags, dagsForSession[0])
@@ -557,14 +587,14 @@ func (p *JSONLParser) buildDAGs(records []JSONLRecord) [][]JSONLRecord {
 		}
 	}
 
-	// Sort each child list by timestamp once, giving the same deterministic traversal order the
-	// per-node sort used to — but paid O(N log N) total across the forest instead of per visit.
+	// Sort each child list once (total order via recordLess, so equal-timestamp
+	// siblings keep a stable order), giving the same deterministic traversal
+	// order the per-node sort used to — but paid O(N log N) total across the
+	// forest instead of per visit.
 	for parentUuid := range childrenByParent {
 		children := childrenByParent[parentUuid]
 		sort.Slice(children, func(i, j int) bool {
-			tsI, _ := children[i].Data["timestamp"].(string)
-			tsJ, _ := children[j].Data["timestamp"].(string)
-			return tsI < tsJ
+			return recordLess(children[i], children[j])
 		})
 	}
 
@@ -606,31 +636,17 @@ func (p *JSONLParser) buildDAGFromRoot(root JSONLRecord, childrenByParent map[st
 	return dag
 }
 
-// flattenDAG flattens a DAG into an array ordered by timestamp
+// flattenDAG flattens a DAG into an array ordered by timestamp.
+// Equal-timestamp ordering comes from recordLess's file/line tiebreak, which
+// preserves parent-before-child (parents are appended to the JSONL first). An
+// earlier comparator checked parentUuid directly for ties, but only for
+// adjacent pairs — that is not a valid strict weak ordering (it can cycle
+// through an unrelated third record), and sort.Slice on an invalid comparator
+// produces input-order-dependent results, which reordered equal-timestamp
+// records from run to run.
 func (p *JSONLParser) flattenDAG(dag []JSONLRecord) []JSONLRecord {
-	// Sort by timestamp, with parent-child relationships as tiebreaker
 	sort.Slice(dag, func(i, j int) bool {
-		tsI, _ := dag[i].Data["timestamp"].(string)
-		tsJ, _ := dag[j].Data["timestamp"].(string)
-		if tsI != tsJ {
-			return tsI < tsJ
-		}
-		// If timestamps are equal, check parent-child relationship
-		uuidI, _ := dag[i].Data["uuid"].(string)
-		uuidJ, _ := dag[j].Data["uuid"].(string)
-		parentI, _ := dag[i].Data["parentUuid"].(string)
-		parentJ, _ := dag[j].Data["parentUuid"].(string)
-
-		// If j is the parent of i, j should come first
-		if parentI == uuidJ {
-			return false
-		}
-		// If i is the parent of j, i should come first
-		if parentJ == uuidI {
-			return true
-		}
-		// Otherwise, sort by UUID for deterministic ordering
-		return uuidI < uuidJ
+		return recordLess(dag[i], dag[j])
 	})
 
 	return dag
