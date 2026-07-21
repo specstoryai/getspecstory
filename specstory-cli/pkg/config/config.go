@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -108,6 +109,27 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # keys, and other credentials for many providers.
 # enabled = false # equivalent to --no-redact-secrets
 
+[monitor]
+# Settings for 'specstory monitor <root-dir>', which discovers every git repo
+# under a root directory and starts/stops 'specstory watch' children as coding
+# agent activity comes and goes.
+
+# Stop a repo's watch child after this much inactivity (Go duration string).
+# Default: "5m"
+# idle_timeout = "10m" # equivalent to --idle-timeout "10m"
+
+# How many directory levels below the root dir to search for git repos (root = 0).
+# Default: 4
+# max_depth = 6 # equivalent to --max-depth 6
+
+# Path globs (relative to the root dir) to skip during repo discovery.
+# node_modules, vendor, and .git are always skipped.
+# exclude = ["archive/*", "scratch"] # equivalent to repeated --exclude flags
+
+# Reserved for future use: default root directories to monitor when none is
+# given on the command line. The CLI currently requires the root-dir argument.
+# root_dirs = ["~/src"]
+
 [providers]
 # Agent execution commands by provider (used by specstory run)
 # Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
@@ -144,6 +166,7 @@ type Config struct {
 	Analytics    AnalyticsConfig    `toml:"analytics"`
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
 	Redaction    RedactionConfig    `toml:"redaction"`
+	Monitor      MonitorConfig      `toml:"monitor"`
 	Providers    ProvidersConfig    `toml:"providers"`
 	Resume       ResumeConfig       `toml:"resume"`
 	Skills       SkillsConfig       `toml:"skills"`
@@ -166,6 +189,22 @@ type SkillsConfig struct {
 	ViewMode string `toml:"view_mode"`
 	// DefaultLocation is the last-used install location: "global" or "project".
 	DefaultLocation string `toml:"default_location"`
+}
+
+// MonitorConfig holds settings for the `specstory monitor` supervisor command.
+type MonitorConfig struct {
+	// RootDirs is reserved for future use (defaulting the monitor root when no
+	// argument is given); the CLI currently requires the root-dir argument.
+	RootDirs []string `toml:"root_dirs"`
+	// IdleTimeout is how long a repo may be inactive before its watch child is
+	// stopped, as a Go duration string (e.g. "5m"). Defaults to 5m.
+	IdleTimeout string `toml:"idle_timeout"`
+	// MaxDepth limits how many directory levels below the root dir are
+	// searched for git repos (root = 0). Defaults to 4 when not set.
+	MaxDepth *int `toml:"max_depth"`
+	// Exclude is a list of path globs (relative to the root dir) skipped
+	// during repo discovery.
+	Exclude []string `toml:"exclude"`
 }
 
 // RedactionConfig holds secret redaction settings for markdown output and
@@ -942,6 +981,51 @@ func (c *Config) IsRedactionEnabled() bool {
 		return *c.Redaction.Enabled
 	}
 	return true // default: redaction on
+}
+
+// Monitor defaults live here (not in pkg/monitor) so the config file, the CLI
+// flag defaults, and the help text all resolve from one place.
+const (
+	// defaultMonitorIdleTimeout is how long a repo may be inactive before its
+	// watch child is reaped when idle_timeout is not configured.
+	defaultMonitorIdleTimeout = 5 * time.Minute
+	// defaultMonitorMaxDepth is the repo discovery depth limit when max_depth
+	// is not configured.
+	defaultMonitorMaxDepth = 4
+)
+
+// MonitorIdleTimeout returns how long a monitored repo may be inactive before
+// its watch child is stopped. Defaults to 5m; unparseable or non-positive
+// configured values fall back to the default (with a warning) rather than
+// failing startup, because the monitor is a long-running supervisor and a
+// typo'd config shouldn't keep it from running at all.
+func (c *Config) MonitorIdleTimeout() time.Duration {
+	if c.Monitor.IdleTimeout == "" {
+		return defaultMonitorIdleTimeout
+	}
+	d, err := time.ParseDuration(c.Monitor.IdleTimeout)
+	if err != nil || d <= 0 {
+		slog.Warn("Invalid [monitor] idle_timeout in config; using default",
+			"value", c.Monitor.IdleTimeout,
+			"default", defaultMonitorIdleTimeout,
+			"error", err)
+		return defaultMonitorIdleTimeout
+	}
+	return d
+}
+
+// MonitorMaxDepth returns the repo discovery depth limit (root dir = 0).
+// Defaults to 4 if not explicitly set.
+func (c *Config) MonitorMaxDepth() int {
+	if c.Monitor.MaxDepth != nil {
+		return *c.Monitor.MaxDepth
+	}
+	return defaultMonitorMaxDepth
+}
+
+// MonitorExclude returns the path globs excluded from repo discovery.
+func (c *Config) MonitorExclude() []string {
+	return c.Monitor.Exclude
 }
 
 // GetProviderCmd returns the custom execution command for a provider, or empty

@@ -25,6 +25,22 @@ func encodeProjectDirName(realPath string) string {
 	return name
 }
 
+// EncodeProjectDirName exposes Claude Code's project-directory naming for a
+// project path. Claude Code's encoding is lossy (every non-alphanumeric/dash
+// character becomes a dash), so entries under ~/.claude/projects cannot be
+// decoded back to paths — callers that need to map an entry back to a project
+// (e.g. the monitor's activity resolver) must instead encode their known
+// project paths with this function and compare. Symlinks are resolved first
+// because Claude Code encodes the real path; if resolution fails (path does
+// not exist yet) the raw path is used, matching resolveClaudeProjectDir.
+func EncodeProjectDirName(projectPath string) string {
+	realPath, err := filepath.EvalSymlinks(projectPath)
+	if err != nil {
+		realPath = projectPath
+	}
+	return encodeProjectDirName(realPath)
+}
+
 // resolveClaudeProjectDir returns ~/.claude/projects/<encoded> for the given
 // project path, resolving symlinks, WITHOUT requiring the directory to exist.
 // Used when writing a reconstructed session into the store (the caller creates
