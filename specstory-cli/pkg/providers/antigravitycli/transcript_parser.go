@@ -28,13 +28,18 @@ const (
 	typeUserInput           = "USER_INPUT"
 	typeConversationHistory = "CONVERSATION_HISTORY"
 	typeSystemMessage       = "SYSTEM_MESSAGE"
-	typePlannerResponse     = "PLANNER_RESPONSE"
-	typeRunCommand          = "RUN_COMMAND"
-	typeViewFile            = "VIEW_FILE"
-	typeCodeAction          = "CODE_ACTION"
-	typeGrepSearch          = "GREP_SEARCH"
-	typeListDirectory       = "LIST_DIRECTORY"
-	typeGeneric             = "GENERIC"
+	// typeCheckpoint is a conversation-truncation marker `agy` inserts when it
+	// compacts history ("{{ CHECKPOINT N }} The earlier parts of this
+	// conversation have been truncated…"). Like CONVERSATION_HISTORY it is context
+	// scaffolding, not user-visible turn content, so it is skipped.
+	typeCheckpoint      = "CHECKPOINT"
+	typePlannerResponse = "PLANNER_RESPONSE"
+	typeRunCommand      = "RUN_COMMAND"
+	typeViewFile        = "VIEW_FILE"
+	typeCodeAction      = "CODE_ACTION"
+	typeGrepSearch      = "GREP_SEARCH"
+	typeListDirectory   = "LIST_DIRECTORY"
+	typeGeneric         = "GENERIC"
 )
 
 // maxTranscriptLineSize bounds JSONL sidecar scanning well above bufio's 64KB
@@ -266,7 +271,7 @@ func normalizeFallbackArgs(args map[string]any) map[string]any {
 // sessionMetadata builds lightweight spi.SessionMetadata from an already-parsed
 // session. Returns nil when the conversation has no usable user prompt — callers
 // treat that as "skip".
-func sessionMetadata(session *agSession, history map[string]historyEntry) *spi.SessionMetadata {
+func sessionMetadata(session *agSession, history map[string]historyEntry, summaries map[string]conversationSummary) *spi.SessionMetadata {
 	prompt := firstUserPromptText(session)
 	if prompt == "" {
 		return nil
@@ -284,11 +289,19 @@ func sessionMetadata(session *agSession, history map[string]historyEntry) *spi.S
 		}
 	}
 
+	// Prefer Antigravity's own generated conversation title/preview when present;
+	// it is a cleaner label than one derived from the raw first prompt. The
+	// summaries store is partial and async, so fall back to the derived name.
+	name := spi.GenerateReadableName(prompt)
+	if best := summaries[session.ConversationID].bestName(); best != "" {
+		name = best
+	}
+
 	return &spi.SessionMetadata{
 		SessionID: session.ConversationID,
 		CreatedAt: createdAt,
 		Slug:      slug,
-		Name:      spi.GenerateReadableName(prompt),
+		Name:      name,
 	}
 }
 

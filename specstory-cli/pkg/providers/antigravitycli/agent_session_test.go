@@ -125,6 +125,39 @@ func TestBuildExchanges_GroupsAndAttaches(t *testing.T) {
 	}
 }
 
+func TestBuildExchanges_SkipsCheckpoint(t *testing.T) {
+	// A CHECKPOINT step is a conversation-truncation marker, not user-visible
+	// content. It must be skipped deliberately: it should neither start/extend an
+	// exchange nor leak its "{{ CHECKPOINT N }} … truncated …" text into any
+	// message.
+	session := &agSession{
+		ConversationID: "conv-cp",
+		CreatedAt:      "2026-07-21T10:00:00Z",
+		Steps: []transcriptStep{
+			{StepIndex: 0, Type: typeUserInput, Source: sourceUserExplicit, CreatedAt: "2026-07-21T10:00:00Z", Content: "<USER_REQUEST>\nremember X\n</USER_REQUEST>"},
+			{StepIndex: 1, Type: typePlannerResponse, CreatedAt: "2026-07-21T10:00:01Z", Content: "Noted."},
+			{StepIndex: 2, Type: typeCheckpoint, CreatedAt: "2026-07-21T10:00:02Z", Content: "{{ CHECKPOINT 0 }}\nThe earlier parts of this conversation have been truncated due to its long length."},
+			{StepIndex: 3, Type: typeUserInput, Source: sourceUserExplicit, CreatedAt: "2026-07-21T10:00:03Z", Content: "<USER_REQUEST>\nwhat is X\n</USER_REQUEST>"},
+			{StepIndex: 4, Type: typePlannerResponse, CreatedAt: "2026-07-21T10:00:04Z", Content: "X."},
+		},
+	}
+
+	exchanges := buildExchanges(session, "")
+
+	if len(exchanges) != 2 {
+		t.Fatalf("expected 2 exchanges (checkpoint skipped), got %d", len(exchanges))
+	}
+	for _, ex := range exchanges {
+		for _, msg := range ex.Messages {
+			for _, part := range msg.Content {
+				if strings.Contains(part.Text, "CHECKPOINT") || strings.Contains(part.Text, "truncated") {
+					t.Errorf("checkpoint content leaked into a message: %q", part.Text)
+				}
+			}
+		}
+	}
+}
+
 func TestAttachToolResult_FIFOAndOrphan(t *testing.T) {
 	// Two pending tool calls; two results should attach in order (FIFO).
 	current := &Exchange{Messages: []Message{

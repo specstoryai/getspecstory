@@ -2,6 +2,7 @@ package antigravitycli
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,12 +10,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	_ "modernc.org/sqlite" // Pure Go SQLite driver, shared with the cursor providers
 )
 
 const (
-	geminiConfigDirName   = "config"
-	geminiProjectsDirName = "projects"
-	logDirName            = "log"
+	geminiConfigDirName           = "config"
+	geminiProjectsDirName         = "projects"
+	logDirName                    = "log"
+	conversationSummariesFileName = "conversation_summaries.db"
 )
 
 var (
@@ -41,6 +45,86 @@ type antigravityProjectFile struct {
 			Path      string `json:"path"`
 		} `json:"resources"`
 	} `json:"projectResources"`
+}
+
+// conversationSummary is the subset of a conversation_summaries.db row this
+// provider uses to enrich a session's display name. Antigravity generates title
+// and preview asynchronously, so either (or the whole row) may be missing for a
+// given conversation — callers must fall back to a prompt-derived name.
+type conversationSummary struct {
+	Title   string
+	Preview string
+}
+
+// bestName returns the human-readable name from the summary, preferring the
+// generated title over the preview. Empty when neither is populated yet.
+func (s conversationSummary) bestName() string {
+	if title := strings.TrimSpace(s.Title); title != "" {
+		return title
+	}
+	return strings.TrimSpace(s.Preview)
+}
+
+func resolveConversationSummariesPath() (string, error) {
+	base, err := resolveAntigravityDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, conversationSummariesFileName), nil
+}
+
+// loadConversationSummaryIndex reads conversation_summaries.db and returns a map
+// conversationId → conversationSummary. It is a best-effort enrichment source:
+// Antigravity populates the store asynchronously and does not index every
+// conversation, so a missing file, missing table, or absent row is not an error
+// — the caller falls back to a name derived from the first user prompt. The DB is
+// opened read-only so a live `agy` writer is never blocked.
+func loadConversationSummaryIndex() (map[string]conversationSummary, error) {
+	empty := map[string]conversationSummary{}
+
+	path, err := resolveConversationSummariesPath()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := os.Stat(path); err != nil {
+		return empty, nil // no summaries DB yet — nothing to enrich with
+	}
+
+	db, err := sql.Open("sqlite", path+"?mode=ro")
+	if err != nil {
+		slog.Debug("antigravity: cannot open conversation summaries db", "path", path, "error", err)
+		return empty, nil
+	}
+	defer func() { _ = db.Close() }()
+
+	// WAL mode keeps reads from blocking a live agy writer (best-effort).
+	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
+		slog.Debug("antigravity: failed to set WAL on summaries db", "error", err)
+	}
+
+	rows, err := db.Query("SELECT conversation_id, title, preview FROM conversation_summaries")
+	if err != nil {
+		slog.Debug("antigravity: cannot query conversation summaries", "error", err)
+		return empty, nil
+	}
+	defer func() { _ = rows.Close() }()
+
+	index := make(map[string]conversationSummary)
+	for rows.Next() {
+		var id, title, preview string
+		if err := rows.Scan(&id, &title, &preview); err != nil {
+			slog.Debug("antigravity: skipping malformed summary row", "error", err)
+			continue
+		}
+		if id = strings.TrimSpace(id); id == "" {
+			continue
+		}
+		index[id] = conversationSummary{Title: title, Preview: preview}
+	}
+	if err := rows.Err(); err != nil {
+		slog.Debug("antigravity: error iterating summary rows", "error", err)
+	}
+	return index, nil
 }
 
 func resolveGeminiProjectsDir() (string, error) {

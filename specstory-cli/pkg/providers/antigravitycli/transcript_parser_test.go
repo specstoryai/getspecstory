@@ -129,7 +129,7 @@ func TestSessionMetadata(t *testing.T) {
 			{Type: typeUserInput, Content: "<USER_REQUEST>\nFix the bug\n</USER_REQUEST>"},
 		},
 	}
-	meta := sessionMetadata(session, map[string]historyEntry{})
+	meta := sessionMetadata(session, map[string]historyEntry{}, nil)
 	if meta == nil {
 		t.Fatalf("expected metadata")
 	}
@@ -142,7 +142,7 @@ func TestSessionMetadata(t *testing.T) {
 
 	// No user prompt → nil (skip).
 	empty := &agSession{ConversationID: "c", Steps: []transcriptStep{{Type: typePlannerResponse, Content: "x"}}}
-	if sessionMetadata(empty, map[string]historyEntry{}) != nil {
+	if sessionMetadata(empty, map[string]historyEntry{}, nil) != nil {
 		t.Errorf("expected nil metadata for session without user prompt")
 	}
 }

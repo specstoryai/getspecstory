@@ -31,7 +31,7 @@ func (p *Provider) Name() string {
 }
 
 // Check verifies that the Antigravity CLI is available and returns its resolved
-// location and version (`agy --version` prints a bare semver such as "1.0.2").
+// location and version (`agy --version` prints a bare semver such as "1.1.3").
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseCommand(customCommand)
 	isCustom := strings.TrimSpace(customCommand) != ""
@@ -175,6 +175,7 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	}
 	history, _ := loadHistoryIndex()
 	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	summaries, _ := loadConversationSummaryIndex()
 
 	var result []spi.SessionMetadata
 	for _, file := range files {
@@ -186,7 +187,7 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		if !sessionMatchesProject(session, projectPath) {
 			continue
 		}
-		meta := sessionMetadata(session, history)
+		meta := sessionMetadata(session, history, summaries)
 		if meta == nil {
 			slog.Debug("antigravity: skipping session with no user prompt", "conversationId", file.ConversationID)
 			continue
@@ -248,6 +249,48 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	err := watchSessions(ctx, projectPath, debugRaw, sessionCallback)
 	slog.Info("WatchAgent: watcher exited", "error", err)
 	return err
+}
+
+// ListAllAgentChatSessions enumerates every Antigravity session across all
+// projects, one ref per conversation that has a parseable transcript. Unlike the
+// project-scoped listing, the project is discovered rather than supplied: each
+// ref carries the session's resolved workspace as OriginCwd so `specstory
+// reindex` can map it to a project. Enumeration is keyed off the brain/ dirs
+// (the transcript-backed conversations) rather than conversations/*.db, since
+// only the former yield conversation content this provider can read. See
+// docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	files, err := listConversationFiles()
+	if err != nil {
+		return nil, err
+	}
+	history, _ := loadHistoryIndex()
+	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	summaries, _ := loadConversationSummaryIndex()
+
+	var refs []spi.GlobalSessionRef
+	for _, file := range files {
+		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, false)
+		if err != nil {
+			slog.Debug("antigravity: skipping session during global enumeration",
+				"conversationId", file.ConversationID, "error", err)
+			continue
+		}
+		meta := sessionMetadata(session, history, summaries)
+		if meta == nil {
+			// No user prompt — nothing resumable/indexable.
+			continue
+		}
+		refs = append(refs, spi.GlobalSessionRef{
+			SessionID:  meta.SessionID,
+			CreatedAt:  meta.CreatedAt,
+			Slug:       meta.Slug,
+			Name:       meta.Name,
+			NativePath: file.Path,
+			OriginCwd:  session.Workspace,
+		})
+	}
+	return refs, nil
 }
 
 // --- helpers shared across the package ---

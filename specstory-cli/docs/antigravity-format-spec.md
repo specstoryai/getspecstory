@@ -1,20 +1,18 @@
 # Antigravity CLI — On-Disk Session Storage Format Spec
 
 Authoritative, reverse-engineered specification of how Google's **Antigravity
-agentic coding CLI** (`agy` binary, version **1.0.2**) stores sessions on disk.
-Intended for an engineer writing a Go parser. Every claim below is backed by
-real captured data observed on macOS (Darwin 24.6.0).
+agentic coding CLI** (`agy` binary) stores sessions on disk. Intended for an
+engineer writing a Go parser. Every claim below is backed by real captured data
+observed on macOS.
 
 - App: `agy` on `PATH` (for example, `~/.local/bin/agy`)
-- Version observed: `1.0.2` (via `agy --version`)
+- Baseline version: `1.1.3+` (the provider targets 1.1.3 and later)
 - App data root: `~/.gemini/antigravity-cli/`
-- Capture date: 2026-05-26
-- Scenarios used for this spec (captured on disk at the time of analysis):
-  - interactive TUI session, 11 steps, all `run_command`
-  - `agy -p "say hello"`, 3 steps, no tools (text-only)
-  - `agy -p` read+search without `--add-dir`, 80 steps, `run_command`/`list_dir`/`list_permissions`, has `RUNNING` + `SYSTEM_MESSAGE` + `ERROR`
-  - `agy -p --add-dir`, file tools `view_file`/`write_to_file`/`grep_search`/`list_dir`
-  - `agy -p --add-dir` edit + failing command, then `agy -c` continuation (multi-turn, append-only)
+
+A parser reads the plaintext `brain/<id>/…/transcript_full.jsonl` transcript
+(§3). The per-conversation SQLite store at `conversations/<id>.db` is the
+canonical state `agy` itself resumes from (§1.1) — relevant to reconstruction,
+not to forward parsing.
 
 ---
 
@@ -37,8 +35,8 @@ real captured data observed on macOS (Darwin 24.6.0).
     ├── knowledge/knowledge.lock
     ├── cli.log -> log/cli-YYYYMMDD_HHMMSS.log      # symlink to latest log
     ├── log/cli-YYYYMMDD_HHMMSS.log                 # klog-format server logs
-    ├── conversations/<conversationId>.pb           # ENCRYPTED/high-entropy — NOT protobuf. IGNORE.
-    ├── implicit/<uuid>.pb                           # ENCRYPTED/high-entropy. Different UUID namespace (NOT conversationId). IGNORE.
+    ├── conversations/<conversationId>.db           # SQLite conversation store (+ -wal/-shm). ★ canonical resume source (§1.1)
+    ├── conversation_summaries.db                   # SQLite index of conversations (summaries/titles)
     ├── scratch/                                    # default workspace when no --add-dir given (see §5)
     └── brain/<conversationId>/                      # ★ one dir per conversation
         └── .system_generated/
@@ -53,19 +51,40 @@ real captured data observed on macOS (Darwin 24.6.0).
                 └── task-<N>.log                    # captured stdout of async (RUNNING) command N
 ```
 
-### Encryption confirmation
-`conversations/*.pb` and `implicit/*.pb` are **encrypted, not parseable**. The
-146 KB `conversations/<conversationId>.pb` has a gzip compression ratio of **1.00**
-(incompressible) and `strings` yields only random 4-char fragments. `implicit`
-files (200–600 B) gzip to >100% of original. **Both should be skipped entirely.**
-The `.pb` extension is misleading — do not attempt protobuf decode.
+## 1.1 The conversation store — `conversations/<id>.db`
+
+Each conversation is a **readable SQLite database** at
+`conversations/<conversationId>.db` (accompanied by the usual `-wal`/`-shm`
+files while open). It is NOT encrypted. Tables observed:
+
+| table | key | notes |
+|---|---|---|
+| `trajectory_meta` | `trajectory_id` | ids + `trajectory_type`/`source` integers |
+| `steps` | `idx` | one row per step: `step_type`/`status` ints + `step_payload` (blob) and sibling blobs (`metadata`, `render_info`, `permissions`, …) |
+| `gen_metadata` | `idx` | per-step generation metadata (blob) |
+| `executor_metadata`, `parent_references`, `battle_mode_infos` | `idx` | per-step blobs |
+| `trajectory_metadata_blob` | `id` (`"main"`) | trajectory-level blob |
+
+The `steps.step_payload` blobs are **protobuf** (wire-format, not JSON) — the
+user/agent text is embedded as readable UTF-8 within the protobuf bytes (e.g.
+`strings conversations/<id>.db | grep <your-prompt>` finds it). No `.proto`
+schema ships with the CLI, so writing a valid payload means reverse-engineering
+the message layout.
+
+**Resume reads this SQLite store, not the transcript.** Verified empirically:
+with `conversations/<id>.db` moved aside (transcript intact),
+`agy --conversation <id>` resumes with **no memory** of the conversation and
+starts hunting the filesystem; with the transcript moved aside (`.db` intact),
+resume recalls prior context perfectly. **Implication for reconstruction:** a
+synthetic `transcript_full.jsonl` alone can NOT produce a resumable session — a
+resumable reconstruction would have to synthesize the protobuf-in-SQLite `.db`.
 
 ---
 
 ## 2. Session identity & timing
 
 - **conversationId** is a UUIDv4. It names the `brain/<conversationId>/` dir AND
-  the `conversations/<conversationId>.pb` file. This is the canonical session ID.
+  the `conversations/<conversationId>.db` file. This is the canonical session ID.
 - There is **no top-level `conversationId` field inside the transcript files.** The
   ID is only the directory name. (It does appear embedded in the encrypted env
   var `ANTIGRAVITY_SOURCE_METADATA` that the CLI injects into child processes —
@@ -117,6 +136,7 @@ folded back into the model's turn.
 | `USER_INPUT` | USER_EXPLICIT | the user prompt | wrapped XML-ish blocks, see §3.7 |
 | `CONVERSATION_HISTORY` | SYSTEM | turn-start context marker | **no `content` field** (empty placeholder) |
 | `SYSTEM_MESSAGE` | SYSTEM | injected system notice (e.g. server restart, subagent stop) | `<SYSTEM_MESSAGE>...</SYSTEM_MESSAGE>` wrapper text, see §3.8 |
+| `CHECKPOINT` | SYSTEM | conversation-truncation marker inserted when history is compacted | `{{ CHECKPOINT N }}` header + "The earlier parts of this conversation have been truncated…" — context scaffolding, not user-visible turn content (skip like `CONVERSATION_HISTORY`) |
 | `PLANNER_RESPONSE` | MODEL | model turn: text and/or `tool_calls` (+optional `thinking`) | the model's prose reply (may be empty when it's only a tool call) |
 | `RUN_COMMAND` | MODEL | result of a `run_command` tool call | command output block, see §3.9 |
 | `VIEW_FILE` | MODEL | result of a `view_file` tool call | line-numbered file dump, see §6 |
@@ -324,11 +344,12 @@ Conversation using project ID: 00000000-0000-4000-8000-000000000002
 Created conversation 00000000-0000-4000-8000-000000000001
 ```
 
-The transcript/brain directory still has **no canonical metadata field** that
-links `conversationId` to `projectId` or workspace path; the direct linkage is
-runtime state (env var `ANTIGRAVITY_PROJECT_ID` / `ANTIGRAVITY_TRAJECTORY_ID`)
-and/or inside encrypted `conversations/*.pb`. The CLI logs are therefore a
-best-effort retained operational source, not transcript metadata.
+The transcript/brain directory has **no canonical metadata field** that links
+`conversationId` to `projectId` or workspace path; the direct linkage is runtime
+state (env var `ANTIGRAVITY_PROJECT_ID` / `ANTIGRAVITY_TRAJECTORY_ID`). The CLI
+logs are therefore a best-effort retained operational source, not transcript
+metadata. (The `conversations/<id>.db` SQLite store may also carry this linkage,
+but that has not been mined.)
 
 ### 5.3 Recommended workspace-inference strategy for the parser
 In priority order:
@@ -427,13 +448,13 @@ Summary: This directory contains 1 subdirectories and 3 files.
 - **Command:** `agy --version`
 - **Output:** a single line, just the semver, e.g.:
   ```
-  1.0.2
+  1.1.3
   ```
   (no "v" prefix, no extra text; exit 0)
 - Avoid `agy version` (no `--`): it tries to open a TTY and errors in
   non-interactive contexts (`bubbletea: could not open TTY`).
 - `agy changelog` prints release notes grouped by version, newest first
-  (`1.0.2:` then bullet lines prefixed with `·`, blank line, `1.0.1:` etc.) — also
+  (`1.1.3:` then bullet lines prefixed with `·`, blank line, `1.1.2:` etc.) — also
   non-interactive and exit 0; the first `N.N.N:` line is the current version.
 
 ---
@@ -476,21 +497,18 @@ them as a "session failed" signal.
 2. **history.jsonl scope uncertainty.** Confirmed `-p` is excluded; unconfirmed
    whether `--prompt-interactive` (`-i`) writes to it. Assume only fully
    interactive TUI sessions are logged there.
-3. **`implicit/*.pb` purpose unknown** (encrypted; different UUID namespace than
-   conversationId, count happens to equal conversation count). Likely "implicit"
-   memory/context blobs. Skip.
-4. **Untested tools:** `codebase_search`, browser/URL tools (`read_url`,
+3. **Untested tools:** `codebase_search`, browser/URL tools (`read_url`,
    `execute_url`), MCP tools, subagent/task spawning. Their exact `args` keys and
    result `type` are unconfirmed — the only safe assumption is that an unknown
    tool's result is the next step and its `type` may be a new dedicated type or
    `GENERIC`. Parser should map by capability and default unknowns to generic.
-5. **`thinking` field** carries model reasoning text. Map it to SpecStory's
+4. **`thinking` field** carries model reasoning text. Map it to SpecStory's
    `thinking` content type, consistent with other providers; renderers can
    decide whether and how to expose it.
-6. **The single index-4 gap** is inferred to be a hidden context-refresh step; its
+5. **The single index-4 gap** is inferred to be a hidden context-refresh step; its
    exact nature is not directly observable (it's never written to the transcript).
    Risk is low — treat the gap as benign, not data loss.
-7. **`ANTIGRAVITY_SOURCE_METADATA` env var** (seen in an `env` command's captured
+6. **`ANTIGRAVITY_SOURCE_METADATA` env var** (seen in an `env` command's captured
    output) contains a per-tool-call `id`, `thinkingSignature`, and the
    conversationId+stepIndex — this is the only place a call `id` surfaces, but
    it's incidental (only appears if the session happened to run `env`). Do not

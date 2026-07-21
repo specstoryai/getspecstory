@@ -170,8 +170,9 @@ func buildExchanges(session *agSession, workspaceRoot string) []Exchange {
 				current.EndTime = step.CreatedAt
 			}
 
-		case step.Type == typeConversationHistory, step.Type == typeSystemMessage:
-			// Replayed context / injected notices — not user-visible turn content.
+		case step.Type == typeConversationHistory, step.Type == typeSystemMessage, step.Type == typeCheckpoint:
+			// Replayed context / injected notices / truncation markers — not
+			// user-visible turn content.
 			continue
 
 		default:
