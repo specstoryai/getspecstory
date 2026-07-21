@@ -16,6 +16,7 @@ It saves your AI coding conversations as local markdown files of each session. I
 - Seamless integration with terminal coding agents
 - Command-line wrapper for terminal coding agents with markdown auto-save
 - Sync all your prior conversations to local markdown files
+- Automatic redaction of secrets (API keys, tokens, credentials) from saved markdown history and cloud-synced session data
 - Optional: Syncs your markdown files to the SpecStory Cloud for easy search and chat
 - Open source under the Apache 2.0 license
 
@@ -260,6 +261,13 @@ The configuration is determined with the following priority (highest priority to
 # Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
+[redaction]
+# Redact secrets and API keys from saved markdown history and cloud-synced
+# session data. (default: true)
+# Detection uses the betterleaks ruleset, covering API keys, tokens, private
+# keys, and other credentials for many providers.
+# enabled = false # equivalent to --no-redact-secrets
+
 [providers]
 # Agent execution commands by provider (used by specstory run)
 # Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
@@ -302,6 +310,7 @@ The configuration is determined with the following priority (highest priority to
 | `[telemetry]`     | `endpoint`        | disabled*            | OTLP gRPC collector endpoint               |
 | `[telemetry]`     | `service_name`    | `"specstory-cli"`    | Service name for telemetry                 |
 | `[telemetry]`     | `prompts`         | `true`               | Include prompt text in telemetry spans     |
+| `[redaction]`     | `enabled`         | `true`               | Redact secrets from markdown and cloud data |
 | `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
 | `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
 | `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
@@ -479,7 +488,7 @@ Each exchange is recorded as a child span with these attributes:
 ### Development Prerequisites
 
 - macOS development environment
-- Go 1.26.4 or later
+- Go 1.26.5 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 
@@ -554,8 +563,8 @@ Sync specific session with debug output:
     ├── 1.json      # Claude Code: sequential numbering
     ├── 2.json      # Cursor CLI: based on rowid
     ├── 3.json
-    └── ...
-    └── raw-composer.json # Cursor IDE: the full raw composer record for the session
+    ├── ...
+    ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 

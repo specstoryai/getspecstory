@@ -2,13 +2,16 @@ package copilotide
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
-	"runtime"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -21,7 +24,6 @@ type Variant struct {
 	ID          string // provider ID used for registration and in generated session data
 	AppName     string // user-facing application label (e.g. "VS Code Insiders")
 	DataDirName string // application data directory name under the OS config root (e.g. "Code - Insiders")
-	MacAppName  string // macOS application name for `open -a`
 	Command     string // CLI launcher expected on PATH (e.g. "code-insiders")
 }
 
@@ -31,7 +33,6 @@ var (
 		ID:          "copilotide",
 		AppName:     "VS Code",
 		DataDirName: "Code",
-		MacAppName:  "Visual Studio Code",
 		Command:     "code",
 	}
 
@@ -39,7 +40,6 @@ var (
 		ID:          "copilotide-insiders",
 		AppName:     "VS Code Insiders",
 		DataDirName: "Code - Insiders",
-		MacAppName:  "Visual Studio Code - Insiders",
 		Command:     "code-insiders",
 	}
 
@@ -50,7 +50,6 @@ var (
 		ID:          "copilotide-vscodium",
 		AppName:     "VSCodium",
 		DataDirName: "VSCodium",
-		MacAppName:  "VSCodium",
 		Command:     "codium",
 	}
 
@@ -58,7 +57,6 @@ var (
 		ID:          "copilotide-vscodium-insiders",
 		AppName:     "VSCodium Insiders",
 		DataDirName: "VSCodium - Insiders",
-		MacAppName:  "VSCodium - Insiders",
 		Command:     "codium-insiders",
 	}
 )
@@ -358,53 +356,97 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	return metadataList, nil
 }
 
-// ExecAgentAndWatch opens the VS Code variant at the project path so the user can
-// continue the session. VS Code Copilot is an IDE, not a CLI, so there is no --resume
-// flag to pass the session ID; the session already lives in the workspace's chat store
-// and is found via the Chat panel. Watching is not possible, so the function returns
-// once the open attempt completes. (Mirrors the Cursor IDE provider's behavior.)
-func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, _ string, _ bool, _ func(*spi.AgentChatSession)) error {
-	fmt.Fprintf(os.Stderr, "\nSession is ready in %s. Open the Chat panel to find it.\n", p.variant.AppName)
-	if err := p.openApp(projectPath); err != nil {
+// ExecAgentAndWatch opens the VS Code variant at the project path and then watches the
+// workspace's chat store, auto-saving session updates via sessionCallback. VS Code
+// Copilot is an IDE, not a CLI: there is no child process whose exit ends the session,
+// so this blocks until the user interrupts (Ctrl-C) rather than until an agent exits.
+//
+// The resume flow (resumeSessionID != "") arrives here after ReconstructSession has
+// already written the imported session into the workspace's chat store — the "session
+// is ready" note only makes sense in that case, not on a plain `specstory run`.
+// (Mirrors the Cursor IDE provider's behavior.)
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	if resumeSessionID != "" {
+		fmt.Fprintf(os.Stderr, "\nSession is ready in %s. Open the Chat panel to find it.\n", p.variant.AppName)
+	}
+	if err := p.openApp(projectPath, customCommand); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error
-		// since the session is already in the store and the user can open the IDE manually.
+		// since the user can open the IDE manually and watching still works.
 		slog.Debug("Could not open the IDE automatically", "app", p.variant.AppName, "error", err)
 		fmt.Fprintf(os.Stderr, "Open %s manually in: %s\n", p.variant.AppName, projectPath)
+		if errors.Is(err, errAppCLIMissing) {
+			fmt.Fprintf(os.Stderr, "To let SpecStory open the project for you, install the `%s` shell command:\n", p.variant.Command)
+			fmt.Fprintf(os.Stderr, "open the command palette in %s (Cmd/Ctrl+Shift+P) and run \"Shell Command: Install '%s' command in PATH\".\n", p.variant.AppName, p.variant.Command)
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Watching %s Copilot sessions in this project — press Ctrl-C to stop.\n", p.variant.AppName)
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// The watcher needs the project's workspace entry, which won't exist yet if this
+	// project has never been opened in this VS Code variant — the open above creates
+	// it a moment later, once the IDE actually opens the folder. Retry until the
+	// watcher can start or the user interrupts.
+	printedWaiting := false
+	for {
+		err := p.WatchAgent(ctx, projectPath, debugRaw, sessionCallback)
+		if ctx.Err() != nil || err == nil {
+			return nil
+		}
+		if !printedWaiting {
+			fmt.Fprintf(os.Stderr, "Waiting for %s to open this project...\n", p.variant.AppName)
+			printedWaiting = true
+		}
+		slog.Debug("Copilot watcher not ready, retrying", "app", p.variant.AppName, "error", err)
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(5 * time.Second):
+		}
+	}
+}
+
+// errAppCLIMissing signals that the variant's CLI launcher is not on PATH. On macOS the
+// command is opt-in (installed from the app's command palette), so its absence is an
+// expected condition, not a failure — callers use this to print installation guidance
+// instead of a generic error.
+var errAppCLIMissing = errors.New("the app's shell command is not installed")
+
+// openApp launches the VS Code variant at the given project path. By default it uses
+// the variant's own CLI launcher (`code`, `code-insiders`, …) — the only launcher that
+// reliably opens the directory as a workspace window (`open -a` on macOS mostly just
+// activates an already-running instance on its home screen, so it is deliberately not
+// used as a fallback). A custom command (from --command or the matching *_cmd config
+// entry) overrides the launcher binary and prepends any extra arguments before the
+// project path.
+//
+// When the default CLI isn't on PATH, errAppCLIMissing is returned so the caller can
+// tell the user how to install it; a missing custom launcher returns a plain error,
+// since the install guidance only applies to the variant's own command. On Windows the
+// launcher is a .cmd shim, which exec.LookPath resolves via PATHEXT.
+func (p *Provider) openApp(projectPath, customCommand string) error {
+	launcher := p.variant.Command
+	var args []string
+	if customCommand != "" {
+		if parts := spi.SplitCommandLine(customCommand); len(parts) > 0 {
+			launcher = parts[0]
+			args = parts[1:]
+		}
+	}
+
+	if _, err := exec.LookPath(launcher); err != nil {
+		if customCommand == "" {
+			return errAppCLIMissing
+		}
+		return fmt.Errorf("configured %s launcher %q not found on PATH: %w", p.variant.AppName, launcher, err)
+	}
+
+	args = append(args, projectPath)
+	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("%s launcher %q failed: %w: %s", p.variant.AppName, launcher, err, string(out))
 	}
 	return nil
-}
-
-// openApp attempts to launch the VS Code variant at the given project path using the
-// platform-specific mechanism. On macOS this is `open -a <MacAppName>`; on Linux the
-// variant's CLI command is tried if it is on PATH.
-func (p *Provider) openApp(projectPath string) error {
-	args := p.appOpenArgs(projectPath)
-	if len(args) == 0 {
-		return fmt.Errorf("no known way to open %s on this platform", p.variant.AppName)
-	}
-	cmd := execCommand(args[0], args[1:]...)
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("%w: %s", err, string(out))
-	}
-	return nil
-}
-
-// appOpenArgs returns the command + arguments to open the VS Code variant at the given
-// path for the current platform. Returns nil when no mechanism is known.
-func (p *Provider) appOpenArgs(projectPath string) []string {
-	switch runtime.GOOS {
-	case "darwin":
-		return []string{"open", "-a", p.variant.MacAppName, projectPath}
-	default:
-		// Linux and Windows: the variant's CLI launcher on PATH. On Windows the
-		// launcher is a .cmd shim, which exec.LookPath resolves via PATHEXT.
-		return []string{p.variant.Command, projectPath}
-	}
-}
-
-// execCommand is a thin wrapper around exec.Command to allow test patching if needed.
-var execCommand = func(name string, args ...string) *exec.Cmd {
-	return exec.Command(name, args...)
 }
 
 // ListAllAgentChatSessions enumerates every VS Code Copilot session across all

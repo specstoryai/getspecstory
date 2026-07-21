@@ -462,11 +462,11 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 // The resume flow (resumeSessionID != "") arrives here after ReconstructSession has
 // already written the imported session into the global database — the "session is ready"
 // note only makes sense in that case, not on a plain `specstory run cursoride`.
-func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if resumeSessionID != "" {
-		fmt.Fprintln(os.Stderr, "\nSession is ready in Cursor IDE. Open the composer panel to find it.")
+		fmt.Fprintln(os.Stderr, "\nSession is ready in the Cursor IDE. Open the Agents panel to find it.")
 	}
-	if err := openCursorIDE(projectPath); err != nil {
+	if err := openCursorIDE(projectPath, customCommand); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error
 		// since the user can open Cursor manually and watching still works.
 		slog.Debug("Could not open Cursor IDE automatically", "error", err)
@@ -510,19 +510,36 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSession
 // instead of a generic error.
 var errCursorCLIMissing = errors.New("the `cursor` shell command is not installed")
 
-// openCursorIDE launches Cursor IDE at the given project path via Cursor's own `cursor`
-// CLI — the only launcher that reliably opens the directory as a workspace window
-// (`open -a Cursor` on macOS mostly just activates an already-running instance on its
-// home screen, so it is deliberately not used as a fallback). When the CLI isn't on
-// PATH, nothing is launched and errCursorCLIMissing is returned so the caller can tell
-// the user how to install the command. On Windows the launcher is a .cmd shim, which
-// exec.LookPath resolves via PATHEXT.
-func openCursorIDE(projectPath string) error {
-	if _, err := exec.LookPath("cursor"); err != nil {
-		return errCursorCLIMissing
+// openCursorIDE launches Cursor IDE at the given project path. By default it uses
+// Cursor's own `cursor` CLI — the only launcher that reliably opens the directory as
+// a workspace window (`open -a Cursor` on macOS mostly just activates an
+// already-running instance on its home screen, so it is deliberately not used as a
+// fallback). A custom command (from --command or the cursoride_cmd config) overrides
+// the launcher binary and prepends any extra arguments before the project path.
+//
+// When the default `cursor` CLI isn't on PATH, errCursorCLIMissing is returned so the
+// caller can tell the user how to install it; a missing custom launcher returns a
+// plain error, since the install guidance only applies to Cursor's own command.
+func openCursorIDE(projectPath, customCommand string) error {
+	launcher := "cursor"
+	var args []string
+	if customCommand != "" {
+		if parts := spi.SplitCommandLine(customCommand); len(parts) > 0 {
+			launcher = parts[0]
+			args = parts[1:]
+		}
 	}
-	if out, err := exec.Command("cursor", projectPath).CombinedOutput(); err != nil {
-		return fmt.Errorf("cursor CLI failed: %w: %s", err, string(out))
+
+	if _, err := exec.LookPath(launcher); err != nil {
+		if customCommand == "" {
+			return errCursorCLIMissing
+		}
+		return fmt.Errorf("configured Cursor IDE launcher %q not found on PATH: %w", launcher, err)
+	}
+
+	args = append(args, projectPath)
+	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("cursor IDE launcher %q failed: %w: %s", launcher, err, string(out))
 	}
 	return nil
 }

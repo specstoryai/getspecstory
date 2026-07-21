@@ -10,8 +10,6 @@ In the `search`/`resume` shared TUI, we want a new command, hot keyed with `d` t
 
 ---
 
-_**Agent (claude-opus-4-8 2026-07-06 21:57:42Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 21:57:43Z)**_
 
 I'll start by exploring the shared TUI code for the `search`/`resume` commands to understand the structure before proposing an approach.
@@ -1697,8 +1695,6 @@ _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:02Z)**_
 
 _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:05Z)**_
 
-_**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:05Z)**_
-
 Now let me read the browser (project view) and search TUI files.
 
 _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:06Z)**_
@@ -2738,8 +2734,6 @@ _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:06Z)**_
 
 _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:09Z)**_
 
-_**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:09Z)**_
-
 Let me check for any existing delete/confirm patterns and the command entry points.
 
 _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:12Z)**_
@@ -2797,8 +2791,6 @@ pkg/cmd/reindex.go:693:		id, name = unknownProjectID, ""
 pkg/cmd/reindex.go:771:	if projectID == unknownProjectID {
 ```
 </details></tool-use>
-
-_**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:18Z)**_
 
 _**Agent - sidechain (claude-opus-4-8 2026-07-06 21:58:18Z)**_
 
@@ -3031,8 +3023,6 @@ Inside the model:
 The only confirmation prompts in the codebase are **non-TUI, stdin-based** (`pkg/cmd/logout.go:50-64`, reads "yes" from stdin), which is not applicable inside a bubbletea program.
 
 **Implication for a delete feature:** you'd add e.g. a `confirmingDelete bool` (+ the pending `*sessionindex.Session`) to the struct, a case checked before mode routing in `Update`, a `updateDeleteConfirm` handler (y/n/esc), a render branch, and a new `Store.DeleteSession(agent, sessionID)` writer method — but the TUI currently holds a read-only `OpenReader` handle (`browser:34,46`), so the write handle/connection story needs resolving first.
-
-_**Agent (claude-opus-4-8 2026-07-06 21:59:23Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 21:59:24Z)**_
 
@@ -3292,8 +3282,6 @@ _**Agent (claude-opus-4-8 2026-07-06 21:59:26Z)**_
 100		}
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 21:59:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 21:59:29Z)**_
 
@@ -3569,8 +3557,6 @@ _**Agent (claude-opus-4-8 2026-07-06 21:59:31Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 21:59:43Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 21:59:44Z)**_
 
 Let me check the reindex/warm behavior — critical because sessions.db is a derived cache, so I need to know whether a deleted row gets re-added on the next warm/reindex.
@@ -3725,8 +3711,6 @@ pkg/sessionindex/store.go:345:	delFTSByKey, err := prep("fts delete by key", `DE
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:00:01Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:00:10Z)**_
 
 I've now got a complete picture of the design. Before I propose an implementation, there's one pivotal decision I need you to make, because it fundamentally changes what gets built.
@@ -3800,8 +3784,6 @@ For project delete... do the removal/flag on all the current rows of that projec
 In the confirmation message, let them know about these semantics.
 
 ---
-
-_**Agent (claude-opus-4-8 2026-07-06 22:05:03Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:05:06Z)**_
 
@@ -4035,8 +4017,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:05:10Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:05:40Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:05:41Z)**_
 
 Let me confirm how reindex consumes fingerprints (for the hard-skip-deleted point) so my plan is accurate.
@@ -4083,8 +4063,6 @@ Find selectWork and Fingerprint type
 pkg/sessionindex/store.go:83:type Fingerprint struct {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:05:48Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:06:08Z)**_
 
@@ -4145,8 +4123,6 @@ _**User (2026-07-06 22:07:57Z)**_
 3. yup
 
 ---
-
-_**Agent (claude-opus-4-8 2026-07-06 22:08:20Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:08:21Z)**_
 
@@ -4292,8 +4268,6 @@ pkg/sessionindex/store.go:365:	return s.UpsertBatch([]Session{sess})
 pkg/sessionindex/store.go:408:// Session.IsNew and skip the whole-table FTS delete for genuinely new sessions.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:08:45Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:08:50Z)**_
 
@@ -4545,8 +4519,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:08:52Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:08:56Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:08:57Z)**_
 
 Let me look at the render/View dispatch, the project & global-results handlers, and the analytics events so I can wire everything in.
@@ -4733,8 +4705,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:09:01Z)**_
 619	func (m *sessionTUI) toggleGlobalScope() tea.Cmd {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:09:04Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:09:04Z)**_
 
@@ -4947,8 +4917,6 @@ pkg/analytics/events.go:35:	EventListSessions           = "ext_list_sessions"   
 
 _**Agent (claude-opus-4-8 2026-07-06 22:09:45Z)**_
 
-_**Agent (claude-opus-4-8 2026-07-06 22:09:45Z)**_
-
 I have everything. Let me check the Search query (to see if it needs a defensive filter) and the events.go tail, then implement.
 
 _**Agent (claude-opus-4-8 2026-07-06 22:09:47Z)**_
@@ -5066,8 +5034,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:09:48Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:09:52Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:09:53Z)**_
 
 Everything's confirmed. `SearchContext` joins `sessions s`, so I'll add a defensive `AND s.deleted = 0` there too (the FTS row is already gone, but this guards against any orphan). Let me implement now, starting with the store layer.
@@ -5088,8 +5054,6 @@ TaskCreate creates ONE task per call and has no `tasks` or `todos` parameter. Ca
 This tool's schema was not sent to the API — it was not in the discovered-tool set derived from message history. Without the schema in your prompt, typed parameters (arrays, numbers, booleans) get emitted as strings and the client-side parser rejects them. Load the tool first: call ToolSearch with query "select:TaskCreate", then retry this call. For reference, this tool's input schema is: {"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"subject":{"description":"A brief title for the task","type":"string"},"description":{"description":"What needs to be done","type":"string"},"activeForm":{"description":"Present continuous form shown in spinner when in_progress (e.g., \"Running tests\")","type":"string"},"metadata":{"description":"Arbitrary metadata to attach to the task","type":"object","propertyNames":{"type":"string"},"additionalProperties":{}}},"required":["subject","description"],"additionalProperties":false}</tool_use_error>
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:10:03Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:10:03Z)**_
 
@@ -5193,8 +5157,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessioninde
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:11:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:11:12Z)**_
 
 Now the `upsertOne` tombstone guard. First, extend the `selOldRowid` prepared statement to also read `deleted`:
@@ -5232,8 +5194,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:11:35Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessionindex/store.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:11:38Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:11:39Z)**_
 
@@ -5329,8 +5289,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessioninde
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:12:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:12:12Z)**_
 
 The FTS5 virtual table won't reliably support a row-value `IN (subquery)` delete. Let me rewrite `softDelete` to resolve the target keys first, then delete FTS rows by key (mirroring the existing `delFTSByKey` pattern) — provably safe:
@@ -5344,8 +5302,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:12:27Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/sessionindex/store.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:12:29Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:12:30Z)**_
 
@@ -5391,8 +5347,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:12:31Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:12:44Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:12:45Z)**_
 
 `selectWork` needs to skip tombstoned rows (an optimization — `upsertOne`'s guard is the correctness backstop, including under `--force` where fingerprints aren't loaded). Adding the skip:
@@ -5420,8 +5374,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:12:54Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/analytics/events.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:13:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:13:49Z)**_
 
@@ -5539,8 +5491,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:13:51Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:14:06Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:14:07Z)**_
 
 `projectDisplayName` and `sessionTitle` helpers exist — I'll reuse them. Let me check `session_tui.go`'s imports before adding the handlers:
@@ -5594,8 +5544,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:14:09Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:14:11Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:14:12Z)**_
 
 I'll add the delete types after the `tuiMode` const block:
@@ -5637,8 +5585,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:14:29Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:14:31Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:14:32Z)**_
 
@@ -5728,8 +5674,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:14:55Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:14:56Z)**_
 
 Now the core handlers. First add the `analytics` import to `session_tui.go`:
@@ -5743,8 +5687,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:14:58Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session_tui.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:15:35Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:15:36Z)**_
 
@@ -5760,8 +5702,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:16:10Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:16:11Z)**_
 
 Now the render branch and confirmation screen. First wire it into `View()`:
@@ -5776,8 +5716,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:16:20Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:16:21Z)**_
 
 Those are pre-existing gopls style hints (re-flagged due to line shifts, and matching the codebase's existing `if`-clamp style) — I'll verify golangci-lint doesn't error on them at the end. Now the confirmation screen renderer:
@@ -5791,8 +5729,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:16:29Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session_tui_view.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:16:33Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:16:33Z)**_
 
@@ -5831,8 +5767,6 @@ pkg/cmd/session_tui_browser.go:745:		inputHint := "esc quit"
 pkg/cmd/session_tui_browser.go:756:	keys := []string{"↑↓ move", "r resume", "space preview", "a agent", "v " + m.viewMode, "/ edit search", scopeKey, escHint, "q quit"}
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:16:43Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:16:44Z)**_
 
@@ -5927,8 +5861,6 @@ Vet and lint
 
 _**Agent (claude-opus-4-8 2026-07-06 22:17:21Z)**_
 
-_**Agent (claude-opus-4-8 2026-07-06 22:17:21Z)**_
-
 Build clean, `go vet` clean, `golangci-lint run` → **0 issues**. Now the tests:
 
 _**Agent (claude-opus-4-8 2026-07-06 22:17:23Z)**_
@@ -5962,8 +5894,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.077s
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:17:38Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:17:39Z)**_
 
@@ -6005,8 +5935,6 @@ Survey existing store test helpers
 251:func TestSearchAndSnippets(t *testing.T) {
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:17:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:17:48Z)**_
 
@@ -6141,8 +6069,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:17:49Z)**_
 120	// orphaning the FTS row.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:17:56Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:17:57Z)**_
 
@@ -6371,8 +6297,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	0.021s
 
 _**Agent (claude-opus-4-8 2026-07-06 22:18:31Z)**_
 
-_**Agent (claude-opus-4-8 2026-07-06 22:18:31Z)**_
-
 All soft-delete tests pass, including the critical tombstone-survives-reupsert guard. Final full suite + lint:
 
 _**Agent (claude-opus-4-8 2026-07-06 22:18:35Z)**_
@@ -6405,8 +6329,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
 0 issues.
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:19:04Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:19:16Z)**_
 
@@ -6441,8 +6363,6 @@ _**User (2026-07-06 22:22:44Z)**_
 update the docs
 
 ---
-
-_**Agent (claude-opus-4-8 2026-07-06 22:22:47Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:22:48Z)**_
 
@@ -6609,8 +6529,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:22:52Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:22:57Z)**_
 
-_**Agent (claude-opus-4-8 2026-07-06 22:22:57Z)**_
-
 Now I'll update `RESUME-TUI.md` — add a delete behavior bullet and update the keys lines:
 
 _**Agent (claude-opus-4-8 2026-07-06 22:23:05Z)**_
@@ -6642,8 +6560,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:23:16Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESUME-TUI.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:23:19Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:23:23Z)**_
 
@@ -6738,8 +6654,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:23:38Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSION-SEARCH.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:23:40Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:23:41Z)**_
 
@@ -6844,8 +6758,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:23:45Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:23:48Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:23:53Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -6855,8 +6767,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:23:53Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSIONS-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:23:59Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:24:00Z)**_
 
@@ -6882,8 +6792,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:00Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:24:09Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:24:24Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -6893,8 +6801,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:24Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSIONS-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:24:28Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:24:28Z)**_
 
@@ -6922,8 +6828,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:29Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:24:32Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:24:35Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -6933,8 +6837,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:35Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSIONS-DB.md has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:24:38Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:24:38Z)**_
 
@@ -7049,8 +6951,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:24:47Z)**_
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:24:58Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:24:59Z)**_
 
 README documents commands at a high level and has no keybinding section for the TUI, so there's nothing keybinding-specific to update there. Let me do a final verification that everything still builds, lints, formats, and tests clean:
@@ -7111,8 +7011,6 @@ _**User (2026-07-06 22:28:12Z)**_
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-06-18.27.02.png]
 
 ---
-
-_**Agent (claude-opus-4-8 2026-07-06 22:28:17Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:28:18Z)**_
 
@@ -7192,8 +7090,6 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/session
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-07-06 22:28:31Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:28:32Z)**_
 
 I widened the separator to `"  ·  "` to match the spacing used between the other header labels (line 701). Let me build and lint:
@@ -7236,8 +7132,6 @@ _**User (2026-07-06 22:29:39Z)**_
 
 ---
 
-_**Agent (claude-opus-4-8 2026-07-06 22:29:44Z)**_
-
 _**Agent (claude-opus-4-8 2026-07-06 22:29:45Z)**_
 
 In `resume`, the scoped `/` search in a session list uses `m.searchQuery`, and `renderHeader` doesn't surface it. Let me look:
@@ -7263,8 +7157,6 @@ _**Agent (claude-opus-4-8 2026-07-06 22:29:46Z)**_
 97		}
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-07-06 22:29:55Z)**_
 
 _**Agent (claude-opus-4-8 2026-07-06 22:29:55Z)**_
 

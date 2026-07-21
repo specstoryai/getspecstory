@@ -1,6 +1,21 @@
 # Specstory CLI Changelog
 
-## v2.3.0 2026-07-16
+## v2.4.0 2026-07-20
+
+### ⚙️ Improvements
+
+- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks) library. Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235).
+- Redaction also covers all the data synced to SpecStory Cloud, not just local markdown.
+
+### 🔧 CLI Configuration & Commands
+
+- If you don't want secret redaction for any reason (not recommended), use the `--no-redact-secrets` flag or `enabled = false` in the `[redaction]` section of your `.specstory/cli/config.toml`.
+
+### 🐛 Bug Fixes
+
+- Fixed some indeterminism in Clade Code session rendering order around the Claude `local-command-caveat` that could cause markdown edit churn on repeated `sync` runs.
+
+## v2.3.0 2026-07-17
 
 ### 📢 Announcements
 

@@ -213,8 +213,13 @@ func getGlobalDatabasePath() (string, error) {
 	return "", fmt.Errorf("global database not found in any of the expected locations")
 }
 
-// GetWorkspaceStoragePath returns the OS-specific workspace storage directory
-func GetWorkspaceStoragePath() (string, error) {
+// GetWorkspaceStoragePath returns the OS-specific workspace storage directory.
+// It is a var so tests can point it at a temp directory (e.g. when exercising
+// EnsureWorkspaceForProject, which creates entries under it).
+var GetWorkspaceStoragePath = getWorkspaceStoragePath
+
+// getWorkspaceStoragePath is the real implementation; GetWorkspaceStoragePath delegates to it.
+func getWorkspaceStoragePath() (string, error) {
 	// An explicit --user-data-dir cursoride:<path> override takes precedence over
 	// OS-default discovery. Same warn-and-fall-back semantics as GetGlobalDatabasePath:
 	// a stale override should not silently disable the provider.

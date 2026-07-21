@@ -101,6 +101,13 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # (managed automatically) the agent you last resumed into — used as the default target.
 # last_agent = "claude"
 
+[redaction]
+# Redact secrets and API keys from saved markdown history and cloud-synced
+# session data. (default: true)
+# Detection uses the betterleaks ruleset, covering API keys, tokens, private
+# keys, and other credentials for many providers.
+# enabled = false # equivalent to --no-redact-secrets
+
 [providers]
 # Agent execution commands by provider (used by specstory run)
 # Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
@@ -112,8 +119,17 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Codex CLI command
 # codex_cmd = "codex"
 
+# Copilot IDE commands (used by specstory run copilotide[-variant] to open the IDE)
+# copilotide_cmd = "code"
+# copilotide_insiders_cmd = "code-insiders"
+# copilotide_vscodium_cmd = "codium"
+# copilotide_vscodium_insiders_cmd = "codium-insiders"
+
 # Cursor CLI command
 # cursor_cmd = "cursor-agent"
+
+# Cursor IDE command (used by specstory run cursoride to open the IDE)
+# cursoride_cmd = "cursor"
 
 # Droid CLI command
 # droid_cmd = "droid"
@@ -133,6 +149,7 @@ type Config struct {
 	Logging      LoggingConfig      `toml:"logging"`
 	Analytics    AnalyticsConfig    `toml:"analytics"`
 	Telemetry    TelemetryConfig    `toml:"telemetry"`
+	Redaction    RedactionConfig    `toml:"redaction"`
 	Providers    ProvidersConfig    `toml:"providers"`
 	Resume       ResumeConfig       `toml:"resume"`
 	Skills       SkillsConfig       `toml:"skills"`
@@ -155,6 +172,14 @@ type SkillsConfig struct {
 	ViewMode string `toml:"view_mode"`
 	// DefaultLocation is the last-used install location: "global" or "project".
 	DefaultLocation string `toml:"default_location"`
+}
+
+// RedactionConfig holds secret redaction settings for markdown output and
+// cloud-synced session payloads.
+type RedactionConfig struct {
+	// Enabled controls whether secrets are redacted from saved markdown files
+	// and cloud-synced session data. Defaults to true when not explicitly set.
+	Enabled *bool `toml:"enabled"`
 }
 
 // VersionCheckConfig holds version check settings
@@ -221,12 +246,17 @@ type TelemetryConfig struct {
 // These are used by `specstory run` as the equivalent of the -c flag,
 // scoped to a specific provider.
 type ProvidersConfig struct {
-	ClaudeCmd   string `toml:"claude_cmd"`
-	CodexCmd    string `toml:"codex_cmd"`
-	CursorCmd   string `toml:"cursor_cmd"`
-	DeepSeekCmd string `toml:"deepseek_cmd"`
-	DroidCmd    string `toml:"droid_cmd"`
-	GeminiCmd   string `toml:"gemini_cmd"`
+	ClaudeCmd                     string `toml:"claude_cmd"`
+	CodexCmd                      string `toml:"codex_cmd"`
+	CopilotIDECmd                 string `toml:"copilotide_cmd"`
+	CopilotIDEInsidersCmd         string `toml:"copilotide_insiders_cmd"`
+	CopilotIDEVSCodiumCmd         string `toml:"copilotide_vscodium_cmd"`
+	CopilotIDEVSCodiumInsidersCmd string `toml:"copilotide_vscodium_insiders_cmd"`
+	CursorCmd                     string `toml:"cursor_cmd"`
+	CursorIDECmd                  string `toml:"cursoride_cmd"`
+	DeepSeekCmd                   string `toml:"deepseek_cmd"`
+	DroidCmd                      string `toml:"droid_cmd"`
+	GeminiCmd                     string `toml:"gemini_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -924,6 +954,15 @@ func upsertTOMLSection(content, section string, kvs []tomlKeyVal) string {
 	return b.String()
 }
 
+// IsRedactionEnabled returns whether secret redaction is enabled.
+// Defaults to true if not explicitly set.
+func (c *Config) IsRedactionEnabled() bool {
+	if c.Redaction.Enabled != nil {
+		return *c.Redaction.Enabled
+	}
+	return true // default: redaction on
+}
+
 // GetProviderCmd returns the custom execution command for a provider, or empty
 // string if none is configured. The providerID should match a registered
 // provider ID (e.g., "claude", "codex", "cursor", "droid", "gemini").
@@ -933,8 +972,18 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.ClaudeCmd
 	case "codex":
 		return c.Providers.CodexCmd
+	case "copilotide":
+		return c.Providers.CopilotIDECmd
+	case "copilotide-insiders":
+		return c.Providers.CopilotIDEInsidersCmd
+	case "copilotide-vscodium":
+		return c.Providers.CopilotIDEVSCodiumCmd
+	case "copilotide-vscodium-insiders":
+		return c.Providers.CopilotIDEVSCodiumInsidersCmd
 	case "cursor":
 		return c.Providers.CursorCmd
+	case "cursoride":
+		return c.Providers.CursorIDECmd
 	case "deepseek":
 		return c.Providers.DeepSeekCmd
 	case "droid":
