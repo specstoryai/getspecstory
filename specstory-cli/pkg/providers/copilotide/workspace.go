@@ -247,6 +247,29 @@ func sortWorkspacesNewestFirst(matches []WorkspaceMatch) {
 	})
 }
 
+// The exported wrappers below expose this package's workspace-mapping helpers
+// for the source-tree monitor's Copilot-IDE supervisor
+// (specstoryai/getspecstory#257), which enumerates workspaceStorage itself to
+// map workspaces to repos. They have no caller within this branch yet — they go
+// live once that monitor reaches dev and its `copilotide_monitor` build tag is
+// dropped. Kept as thin wrappers so the internal helpers stay unexported.
+
+// ReadWorkspaceJSON reads and parses a workspace.json file. See the note above.
+func ReadWorkspaceJSON(path string) (*WorkspaceJSON, error) {
+	return readWorkspaceJSON(path)
+}
+
+// URIToPath converts a file:// URI to a local filesystem path. See the note above.
+func URIToPath(uri string) (string, error) {
+	return uriToPath(uri)
+}
+
+// CollectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
+// canonical paths of all listed folders. See the note above.
+func CollectCodeWorkspaceFolders(workspaceFilePath string) []string {
+	return collectCodeWorkspaceFolders(workspaceFilePath)
+}
+
 // collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
 // canonical paths of all listed folders. Relative paths are resolved against the
 // workspace file's directory.

@@ -61,6 +61,17 @@ var (
 	}
 )
 
+// Variants returns every VS Code distribution this provider supports.
+//
+// Exported for the source-tree monitor's Copilot-IDE supervisor
+// (specstoryai/getspecstory#257), which enumerates all workspaceStorage
+// locations to map chat activity back to repos rather than searching per
+// project. It has no caller within this branch yet — it goes live once that
+// monitor reaches dev and its `copilotide_monitor` build tag is dropped.
+func Variants() []Variant {
+	return []Variant{VSCode, VSCodeInsiders, VSCodium, VSCodiumInsiders}
+}
+
 // Provider implements the SPI Provider interface for the Copilot chat built
 // into a VS Code distribution (stock VS Code or VS Code Insiders).
 type Provider struct {
