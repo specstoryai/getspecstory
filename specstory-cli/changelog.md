@@ -1,5 +1,15 @@
 # Specstory CLI Changelog
 
+## [Unreleased]
+
+### 📢 Announcements
+
+- New `specstory monitor <root-dir>` command: discovers every git repo under a root directory, watches the coding agents' session storage (Claude Code, Codex CLI, Cursor CLI) for activity, and supervises per-repo `specstory watch` processes — spawning them on agent activity and stopping them after a configurable idle timeout (`--idle-timeout`, default 5m). Repo discovery depth and exclusions are tunable via `--max-depth` / `--exclude`, and defaults can be set in the new `[monitor]` config section.
+
+### 🔧 CLI Configuration & Commands
+
+- The monitor also includes VS Code Copilot IDE chat-activity detection (stock VS Code, Insiders, VSCodium, and VSCodium Insiders), but it is compiled out of the default build behind the `copilotide_monitor` build tag and is inactive until the `copilotide` provider lands in this tree. Cursor IDE activity detection is deferred because Cursor stores chat activity in SQLite databases, which requires polling machinery rather than path mapping.
+
 ## v2.4.0 2026-07-20
 
 ### ⚙️ Improvements

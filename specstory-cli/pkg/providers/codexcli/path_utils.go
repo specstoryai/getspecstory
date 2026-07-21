@@ -17,6 +17,29 @@ func codexSessionsRoot(homeDir string) string {
 	return filepath.Join(homeDir, ".codex", "sessions")
 }
 
+// SessionsRoot returns the directory Codex CLI stores session files under,
+// honoring CODEX_HOME the same way session enumeration does. Exposed so the
+// monitor command can watch the same storage root this provider reads from.
+func SessionsRoot() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return codexSessionsRoot(homeDir), nil
+}
+
+// SessionOriginCwd returns the originating working directory recorded in a
+// Codex session file's session_meta header (its first JSONL line). Exposed so
+// the monitor's activity resolver can map a new session file back to a project
+// directory without re-implementing Codex's session-meta parsing.
+func SessionOriginCwd(sessionPath string) (string, error) {
+	meta, err := loadCodexSessionMeta(sessionPath)
+	if err != nil {
+		return "", err
+	}
+	return meta.Payload.CWD, nil
+}
+
 // normalizeCodexPath resolves a path to an absolute, cleaned representation suitable for comparisons.
 func normalizeCodexPath(path string) string {
 	if strings.TrimSpace(path) == "" {
