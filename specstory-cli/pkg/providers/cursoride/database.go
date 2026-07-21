@@ -751,14 +751,8 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 			"id":   projectID,
 			"name": "New Project",
 			"workspace": map[string]interface{}{
-				"id": workspaceID,
-				"uri": map[string]interface{}{
-					"$mid":     1,
-					"fsPath":   workspaceRoot,
-					"external": pathToFileURI(workspaceRoot),
-					"path":     workspaceRoot,
-					"scheme":   "file",
-				},
+				"id":  workspaceID,
+				"uri": workspaceURIMap(workspaceRoot),
 			},
 			"createdAt":     nowMs,
 			"lastUpdatedAt": nowMs,
