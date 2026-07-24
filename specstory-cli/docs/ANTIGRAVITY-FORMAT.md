@@ -6,7 +6,7 @@ engineer writing a Go parser. Every claim below is backed by real captured data
 observed on macOS.
 
 - App: `agy` on `PATH` (for example, `~/.local/bin/agy`)
-- Baseline version: `1.1.3+` (the provider targets 1.1.3 and later)
+- Baseline version: `1.1.5+` (the provider targets 1.1.5 and later)
 - App data root: `~/.gemini/antigravity-cli/`
 
 A parser reads the plaintext `brain/<id>/…/transcript_full.jsonl` transcript

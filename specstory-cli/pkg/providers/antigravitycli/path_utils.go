@@ -23,6 +23,9 @@ const (
 	// dir at the stable path <id>/.system_generated/logs/transcript_full.jsonl.
 	systemGeneratedDir = ".system_generated"
 	logsDirName        = "logs"
+	// tasksDirName holds async RUN_COMMAND output (task-<step>.log), written
+	// when a long-running command finishes — without rewriting the transcript.
+	tasksDirName = "tasks"
 
 	// transcriptFileName is the primary source: tool-call args are native JSON.
 	transcriptFileName = "transcript_full.jsonl"

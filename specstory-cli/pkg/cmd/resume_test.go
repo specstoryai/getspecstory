@@ -230,6 +230,8 @@ func (f *fakeProvider) NativeSessionPath(_ string, filename string) (string, err
 	return filepath.Join(f.nativeDir, filename), nil
 }
 
+func (f *fakeProvider) SupportsReconstruction() bool { return !f.reconstructUnsupported }
+
 // Unused-by-these-tests interface methods.
 func (f *fakeProvider) GetAgentChatSessions(string, bool, spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	return nil, nil
@@ -243,9 +245,9 @@ func (f *fakeProvider) WatchAgent(context.Context, string, bool, func(*spi.Agent
 }
 func (f *fakeProvider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) { return nil, nil }
 
-// TestSupportsReconstruction pins the capability probe against the real
-// registry: Antigravity is the one provider with no native serializer, so it is
-// the one invalid reconstruction target.
+// TestSupportsReconstruction pins the capability answers of the real registry:
+// Antigravity is a provider with no native serializer, so it is the one
+// invalid reconstruction target.
 func TestSupportsReconstruction(t *testing.T) {
 	registry := factory.GetRegistry()
 	for id, want := range map[string]bool{"claude": true, "codex": true, "antigravity": false} {
@@ -253,8 +255,8 @@ func TestSupportsReconstruction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("registry.Get(%q): %v", id, err)
 		}
-		if got := spi.SupportsReconstruction(prov); got != want {
-			t.Errorf("SupportsReconstruction(%s) = %v, want %v", id, got, want)
+		if got := prov.SupportsReconstruction(); got != want {
+			t.Errorf("%s.SupportsReconstruction() = %v, want %v", id, got, want)
 		}
 	}
 }

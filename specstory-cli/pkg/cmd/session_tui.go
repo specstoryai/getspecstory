@@ -13,7 +13,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
 
@@ -1039,7 +1038,7 @@ func (m sessionTUI) eligibleTargets(sess *sessionindex.Session) []agentChoice {
 	var out []agentChoice
 	for _, a := range m.installed {
 		sameAgentLocal := sess != nil && !sess.IsCloud && a.id == sess.Agent
-		if sameAgentLocal || spi.SupportsReconstruction(a.provider) {
+		if sameAgentLocal || a.provider.SupportsReconstruction() {
 			out = append(out, a)
 		}
 	}

@@ -114,7 +114,7 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 				// but an agent without a native serializer can only resume its own
 				// local sessions in place — so as a blanket target it is invalid.
 				// Fail here, before the picker opens on a dead-end choice.
-				if !spi.SupportsReconstruction(presetProvider) {
+				if !presetProvider.SupportsReconstruction() {
 					return utils.ValidationError{Message: fmt.Sprintf(
 						"%s can't be a resume target for other agents' sessions. Run 'specstory resume' without a target and pick one of its own sessions to resume in place",
 						presetProvider.Name())}

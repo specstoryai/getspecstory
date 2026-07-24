@@ -268,7 +268,7 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 // after the RUN_COMMAND result step that remains RUNNING in the transcript.
 func loadTaskOutputs(transcriptPath string) (map[int]string, error) {
 	systemDir := filepath.Dir(filepath.Dir(transcriptPath))
-	tasksDir := filepath.Join(systemDir, "tasks")
+	tasksDir := filepath.Join(systemDir, tasksDirName)
 	entries, err := os.ReadDir(tasksDir)
 	if err != nil {
 		if os.IsNotExist(err) {

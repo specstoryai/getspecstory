@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -114,9 +115,10 @@ func addWatch(watcher *fsnotify.Watcher, state *watchState, dir string) error {
 }
 
 // addConversationWatches adds a watch on each existing nested directory level of
-// every conversation (<id>, <id>/.system_generated, and the logs dir that
-// directly holds the transcript). Levels that don't exist yet are added later as
-// their parent's Create event arrives.
+// every conversation: <id>, <id>/.system_generated, the logs dir that directly
+// holds the transcript, and the tasks dir that receives async command output.
+// Levels that don't exist yet are added later as their parent's Create event
+// arrives.
 func addConversationWatches(watcher *fsnotify.Watcher, brainDir string, state *watchState) {
 	entries, err := os.ReadDir(brainDir)
 	if err != nil {
@@ -133,6 +135,10 @@ func addConversationWatches(watcher *fsnotify.Watcher, brainDir string, state *w
 			idDir,
 			filepath.Join(idDir, systemGeneratedDir),
 			filepath.Join(idDir, systemGeneratedDir, logsDirName),
+			// A finished async command appends its output to tasks/ WITHOUT
+			// rewriting the transcript's RUNNING step, so the task log write is
+			// the only filesystem signal that the session content changed.
+			filepath.Join(idDir, systemGeneratedDir, tasksDirName),
 		}
 		for _, dir := range levels {
 			if state.watchedDirs[dir] {
@@ -194,7 +200,7 @@ func handleWatchEvent(event fsnotify.Event, watcher *fsnotify.Watcher, brainDir 
 		}
 	}
 
-	if !isTranscriptPath(event.Name) {
+	if !isTranscriptPath(event.Name) && !isTaskLogPath(event.Name) {
 		return
 	}
 	if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
@@ -209,9 +215,23 @@ func isTranscriptPath(path string) bool {
 	return base == transcriptFileName || base == fallbackTranscriptFileName
 }
 
+// isTaskLogPath reports whether a path is an async command task log
+// (.system_generated/tasks/task-<step>.log). These matter to the watcher
+// because a finished async command writes its output here without touching the
+// transcript, so the session must be re-emitted off this file's event.
+func isTaskLogPath(path string) bool {
+	base := filepath.Base(path)
+	if !strings.HasPrefix(base, "task-") || !strings.HasSuffix(base, ".log") {
+		return false
+	}
+	return filepath.Base(filepath.Dir(path)) == tasksDirName
+}
+
 // conversationIDFromTranscriptPath recovers the conversation id (the brain
 // subdirectory name) from a transcript path of the form
-// brain/<id>/.system_generated/logs/transcript_full.jsonl.
+// brain/<id>/.system_generated/logs/transcript_full.jsonl. Task-log paths
+// (brain/<id>/.system_generated/tasks/task-<step>.log) sit at the same depth,
+// so the same walk serves both.
 func conversationIDFromTranscriptPath(transcriptPath string) string {
 	logsDir := filepath.Dir(transcriptPath)
 	sysDir := filepath.Dir(logsDir)
@@ -219,10 +239,11 @@ func conversationIDFromTranscriptPath(transcriptPath string) string {
 	return filepath.Base(idDir)
 }
 
-// processTranscriptFile parses and dispatches a single transcript if it changed
-// since last processed and matches the project filter.
-func processTranscriptFile(transcriptPath string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
-	conversationID := conversationIDFromTranscriptPath(transcriptPath)
+// processTranscriptFile parses and dispatches a conversation off a filesystem
+// event — on its transcript, or on one of its async task logs — if the content
+// changed since last processed and matches the project filter.
+func processTranscriptFile(eventPath string, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession), state *watchState) {
+	conversationID := conversationIDFromTranscriptPath(eventPath)
 	if conversationID == "" {
 		return
 	}
@@ -243,12 +264,24 @@ func processTranscriptFile(transcriptPath string, projectPath string, debugRaw b
 		slog.Debug("antigravity: cannot stat transcript", "path", preferredPath, "error", err)
 		return
 	}
+	modTime := info.ModTime().UnixNano()
+
+	// A task-log write does not touch the transcript, so fold the log's own
+	// mtime into the freshness key — otherwise emitConversation would dedupe
+	// this event against the unchanged transcript mtime and drop the update.
+	if isTaskLogPath(eventPath) {
+		if taskInfo, err := os.Stat(eventPath); err == nil {
+			if t := taskInfo.ModTime().UnixNano(); t > modTime {
+				modTime = t
+			}
+		}
+	}
 
 	history, projectWorkspaces := loadWorkspaceIndexes()
 	emitConversation(conversationFile{
 		ConversationID: conversationID,
 		Path:           preferredPath,
-		ModTime:        info.ModTime().UnixNano(),
+		ModTime:        modTime,
 	}, projectPath, debugRaw, history, projectWorkspaces, sessionCallback, state)
 }
 

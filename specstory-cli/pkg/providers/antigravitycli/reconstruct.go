@@ -30,3 +30,10 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
 	return "", spi.ErrReconstructionUnsupported
 }
+
+// SupportsReconstruction reports false: see ReconstructSession above — no
+// serializer exists that produces a session `agy` would actually resume, so
+// this provider must never be offered as a cross-agent or cloud resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return false
+}
