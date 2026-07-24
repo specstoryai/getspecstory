@@ -3,7 +3,6 @@ package antigravitycli
 import (
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -573,18 +572,16 @@ func appendUniqueAbsPath(paths *[]string, seen map[string]bool, value string) {
 }
 
 // stripFileURI removes a leading file:// scheme and decodes escaped path bytes
-// so URIs like file:///tmp/my%20file.go become /tmp/my file.go.
+// so URIs like file:///tmp/my%20file.go become /tmp/my file.go. Non-URI values
+// pass through unchanged. Conversion is delegated to spi.FileURIToPath so all
+// providers translate drive-letter, UNC, and WSL URI forms identically.
 func stripFileURI(value string) string {
 	trimmed := strings.TrimSpace(value)
 	if !strings.HasPrefix(trimmed, "file:") {
 		return trimmed
 	}
-	parsed, err := url.Parse(trimmed)
-	if err == nil && parsed.Scheme == "file" {
-		if decoded, err := url.PathUnescape(parsed.Path); err == nil {
-			return decoded
-		}
-		return parsed.Path
+	if path, err := spi.FileURIToPath(trimmed); err == nil {
+		return path
 	}
 	return strings.TrimPrefix(trimmed, "file://")
 }

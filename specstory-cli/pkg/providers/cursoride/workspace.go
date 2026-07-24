@@ -639,11 +639,11 @@ func pathToFileURI(path string) string {
 	return u.String()
 }
 
-// uriToPath converts a workspace URI to a local file path.
-// Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
-// vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL,
-// vscode-remote://ssh-remote+config/path URIs for SSH remotes, and
-// vscode-remote://tunnel+host/path URIs for remote tunnels.
+// uriToPath converts a workspace URI to a local file path. The
+// vscode-remote:// forms (wsl+distro, ssh-remote+config, tunnel+host) are
+// Cursor/VS Code specific and handled here; plain file:// URIs — including the
+// WSL and Windows drive-letter/UNC shapes — are converted by the shared
+// spi.FileURIToPath so every provider translates them identically.
 func uriToPath(uri string) (string, error) {
 	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
 	// rejects percent-encoded characters like %2B in the host component
@@ -651,52 +651,7 @@ func uriToPath(uri string) (string, error) {
 	if strings.HasPrefix(uri, "vscode-remote://") {
 		return parseVSCodeRemoteURI(uri)
 	}
-
-	// Parse the URI
-	parsedURI, err := url.Parse(uri)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse URI: %w", err)
-	}
-
-	// Reject non-file schemes
-	if parsedURI.Scheme != "file" && parsedURI.Scheme != "" {
-		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsedURI.Scheme, uri)
-	}
-
-	// Get the path from the URI and decode it
-	// This converts %3A to : and other URL-encoded characters
-	path, err := url.PathUnescape(parsedURI.Path)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode URI path: %w", err)
-	}
-
-	// Handle WSL file:// URIs (e.g., file://wsl.localhost/Ubuntu/home/user/project)
-	// Host is "wsl.localhost" and path starts with /{DistroName}/...
-	// Strip the distro name to get the actual WSL filesystem path
-	if strings.EqualFold(parsedURI.Host, "wsl.localhost") || strings.HasPrefix(strings.ToLower(parsedURI.Host), "wsl$") {
-		// path = /Ubuntu/home/user/project → strip /Ubuntu → /home/user/project
-		if len(path) > 1 {
-			if idx := strings.Index(path[1:], "/"); idx >= 0 {
-				path = path[idx+1:]
-				slog.Debug("Converted WSL file URI to path", "uri", uri, "path", path)
-				return path, nil
-			}
-		}
-		return "", fmt.Errorf("malformed WSL URI path: %s", uri)
-	}
-
-	// On Windows, URL paths have an extra leading slash (e.g., file:///c:/Users becomes /c:/Users)
-	// We need to remove the leading slash and normalize the path
-	if filepath.Separator == '\\' {
-		// Remove leading slash on Windows
-		if len(path) > 0 && path[0] == '/' {
-			path = path[1:]
-		}
-		// Normalize path separators to backslashes
-		path = filepath.FromSlash(path)
-	}
-
-	return path, nil
+	return spi.FileURIToPath(uri)
 }
 
 // collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
