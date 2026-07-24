@@ -15,7 +15,7 @@ var _ spi.Provider = (*Provider)(nil)
 // conversation state from the per-conversation SQLite store
 // (conversations/<id>.db, protobuf step payloads) — NOT from the plaintext
 // transcript this provider parses (verified empirically; see
-// docs/antigravity-format-spec.md §1.1). A resumable reconstruction would
+// docs/ANTIGRAVITY-FORMAT.md §1.1). A resumable reconstruction would
 // therefore have to synthesize that protobuf-in-SQLite store, so the
 // text-serializer approach the other providers use cannot produce a session
 // `agy` will actually resume. Until such a serializer exists, this provider
