@@ -6,7 +6,6 @@ import (
 	"io"
 	"path/filepath"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -141,7 +140,7 @@ func formatToolOutput(tool *ToolInfo) string {
 	}
 
 	if strings.Contains(content, "\n") {
-		return fmt.Sprintf("Output:\n```text\n%s\n```", content)
+		return "Output:\n" + codeFence("text", content)
 	}
 	return fmt.Sprintf("Output: %s", content)
 }
@@ -167,7 +166,7 @@ func formatDiffBlockOutput(content string) string {
 	if diff == "" {
 		return ""
 	}
-	return fmt.Sprintf("Output:\n```diff\n%s\n```", diff)
+	return "Output:\n" + codeFence("diff", diff)
 }
 
 // formatInvokeSubagentOutput summarizes invoke_subagent's result JSON as one
@@ -454,7 +453,7 @@ func renderWriteInput(args map[string]any) string {
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(formatContentBlock(content, path))
+		b.WriteString(codeFence(languageFromPath(path), content))
 	}
 	return b.String()
 }
@@ -730,7 +729,6 @@ func renderAskQuestionInput(args map[string]any) string {
 
 func formatDiffBlock(oldText, newText string) string {
 	var b strings.Builder
-	b.WriteString("```diff\n")
 	if oldText != "" {
 		for _, line := range strings.Split(oldText, "\n") {
 			b.WriteString("-")
@@ -745,17 +743,29 @@ func formatDiffBlock(oldText, newText string) string {
 			b.WriteString("\n")
 		}
 	}
-	b.WriteString("```")
-	return b.String()
+	return codeFence("diff", strings.TrimSuffix(b.String(), "\n"))
 }
 
-func formatContentBlock(content, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
+// codeFence wraps body in a fenced code block tagged with lang. The fence is
+// one backtick longer than the longest backtick run inside body (never fewer
+// than the standard three), because a backslash cannot escape a backtick inside
+// a fence — lengthening the fence is the only way to keep an embedded ```
+// (e.g. a written markdown file) from terminating the block early. The body is
+// never altered.
+func codeFence(lang, body string) string {
+	longest, run := 0, 0
+	for _, r := range body {
+		if r != '`' {
+			run = 0
+			continue
+		}
+		run++
+		if run > longest {
+			longest = run
+		}
 	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+	fence := strings.Repeat("`", max(3, longest+1))
+	return fence + lang + "\n" + body + "\n" + fence
 }
 
 func languageFromPath(path string) string {
@@ -779,48 +789,25 @@ func languageFromPath(path string) string {
 // --- generic helpers ---
 
 func renderGenericJSON(args map[string]any) string {
-	keys := make([]string, 0, len(args))
-	for k := range args {
-		// toolAction/toolSummary are agy-injected human labels present on every
-		// call, not real arguments; drop them so the fallback shows only real args.
+	// toolAction/toolSummary are agy-injected human labels present on every
+	// call, not real arguments; drop them so the fallback shows only real args.
+	real := make(map[string]any, len(args))
+	for k, v := range args {
 		if k == "toolAction" || k == "toolSummary" {
 			continue
 		}
-		keys = append(keys, k)
+		real[k] = v
 	}
-	if len(keys) == 0 {
+	if len(real) == 0 {
 		return ""
 	}
-	sort.Strings(keys)
-	var b strings.Builder
-	b.WriteString("```json\n{")
-	for i, k := range keys {
-		if i > 0 {
-			b.WriteString(",")
-		}
-		b.WriteString("\n  \"")
-		b.WriteString(k)
-		b.WriteString("\": ")
-		b.WriteString(renderJSONValue(args[k]))
+	// MarshalIndent emits map keys sorted, so the fallback is deterministic.
+	// Args come from json.Unmarshal, so re-marshaling them cannot fail.
+	data, err := json.MarshalIndent(real, "", "  ")
+	if err != nil {
+		return ""
 	}
-	b.WriteString("\n}\n```")
-	return b.String()
-}
-
-func renderJSONValue(v any) string {
-	switch val := v.(type) {
-	case string:
-		bytes, _ := json.Marshal(val)
-		return string(bytes)
-	case json.Number:
-		return val.String()
-	default:
-		bytes, err := json.Marshal(val)
-		if err != nil {
-			return fmt.Sprintf("%q", fmt.Sprint(val))
-		}
-		return string(bytes)
-	}
+	return codeFence("json", string(data))
 }
 
 // collectStringList gathers string values from args across the given keys. Each

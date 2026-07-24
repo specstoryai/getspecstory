@@ -97,23 +97,20 @@ func generateAgentSession(session *agSession, workspaceRoot string) (*SessionDat
 		updated = created
 	}
 
-	// Provider.Version must be non-empty for schema validation. Antigravity does
-	// not stamp the model on every step, so we use the model derived from the
-	// first turn's settings block and fall back to "unknown".
-	version := strings.TrimSpace(session.Model)
-	if version == "" {
-		version = "unknown"
-	}
-
 	// Antigravity surfaces no per-step token usage in the transcript, so — like
 	// DeepSeek TUI — we intentionally do not synthesize a schema.Usage value.
 
 	data := &SessionData{
 		SchemaVersion: "1.0",
 		Provider: ProviderInfo{
-			ID:      providerSchemaID,
-			Name:    providerName,
-			Version: version,
+			ID:   providerSchemaID,
+			Name: providerName,
+			// Version is the agent CLI's version and must be non-empty to
+			// validate. Antigravity records no CLI version in any session data
+			// (it is only obtainable live from `agy --version`), hence the
+			// constant. The model is not a substitute — it is carried on each
+			// agent message's Model field instead.
+			Version: "unknown",
 		},
 		SessionID:     session.ConversationID,
 		CreatedAt:     created,
@@ -361,27 +358,63 @@ var resultBoilerplate = []string{
 
 // cleanResultContent normalizes a tool result's content for display: it strips
 // the per-result "Created At:"/"Completed At:" timing header (redundant with the
-// turn timestamps), the leading tab indentation agy inserts into RUN_COMMAND
-// output blocks, and the framework boilerplate above, then collapses the blank
-// lines those removals leave behind.
+// turn timestamps) and the framework boilerplate above, then collapses the blank
+// lines those removals leave behind. Tab de-indentation is confined to
+// RUN_COMMAND results, and even there only the block's shared indent is removed:
+// agy uniformly tab-indents the whole output block (format spec §3.9), but any
+// deeper tabs are the command's real output (e.g. a printed Makefile rule) and
+// must survive. Other result types are not indented by agy at all, so their
+// leading tabs are content and pass through untouched.
 func cleanResultContent(step transcriptStep) string {
-	content := strings.TrimSpace(step.Content)
-	if content == "" {
+	// Only whole-string trimming happens at the end: trimming up front would eat
+	// the first line's indentation and skew the shared-indent computation below.
+	content := step.Content
+	if strings.TrimSpace(content) == "" {
 		return ""
 	}
 	for _, phrase := range resultBoilerplate {
 		content = strings.ReplaceAll(content, phrase, "")
 	}
-	lines := strings.Split(content, "\n")
-	kept := make([]string, 0, len(lines))
-	for _, line := range lines {
-		line = strings.TrimRight(strings.TrimLeft(line, "\t"), " \t")
-		if strings.HasPrefix(line, "Created At:") || strings.HasPrefix(line, "Completed At:") {
+	kept := make([]string, 0)
+	for _, line := range strings.Split(content, "\n") {
+		deindented := strings.TrimLeft(line, "\t")
+		if strings.HasPrefix(deindented, "Created At:") || strings.HasPrefix(deindented, "Completed At:") {
 			continue
 		}
 		kept = append(kept, line)
 	}
+	if step.Type == typeRunCommand {
+		kept = stripSharedTabIndent(kept)
+	}
 	return collapseBlankLines(strings.TrimSpace(strings.Join(kept, "\n")))
+}
+
+// stripSharedTabIndent removes the leading-tab indentation common to every
+// non-blank line, so a uniformly indented block loses only the indent agy added
+// while tabs that are part of the text itself remain. Whitespace-only lines
+// neither constrain the shared indent nor keep their whitespace.
+func stripSharedTabIndent(lines []string) []string {
+	shared := -1
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		tabs := len(line) - len(strings.TrimLeft(line, "\t"))
+		if shared == -1 || tabs < shared {
+			shared = tabs
+		}
+	}
+	if shared <= 0 {
+		return lines
+	}
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue // leave as "" — blank lines carry no indent worth keeping
+		}
+		out[i] = line[shared:]
+	}
+	return out
 }
 
 // collapseBlankLines reduces any run of blank lines to a single blank line, so

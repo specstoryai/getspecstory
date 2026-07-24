@@ -172,6 +172,49 @@ func TestCleanResultContent_StripsHeaderAndBoilerplate(t *testing.T) {
 	}
 }
 
+func TestCleanResultContent_TabHandling(t *testing.T) {
+	// RUN_COMMAND: agy uniformly tab-indents the output block (spec §3.9). Only
+	// that shared indent may be stripped — the deeper tab here is the command's
+	// real output (a printed Makefile rule) and must survive.
+	run := "Created At: 2026-07-24T11:00:00Z\n\n" +
+		"\t\t\tThe command completed successfully.\n" +
+		"\t\t\tOutput:\n" +
+		"\t\t\tbuild:\n" +
+		"\t\t\t\tgo build ./..."
+	got := cleanResultContent(transcriptStep{Type: typeRunCommand, Content: run})
+	if strings.Contains(got, "\t\t") {
+		t.Errorf("shared indent not stripped: %q", got)
+	}
+	if !strings.Contains(got, "\n\tgo build ./...") {
+		t.Errorf("tab belonging to command output was lost: %q", got)
+	}
+
+	// Non-RUN_COMMAND results are not indented by agy, so leading tabs are file
+	// content and must pass through untouched.
+	view := "build:\n\tgo build ./..."
+	if got := cleanResultContent(transcriptStep{Type: typeViewFile, Content: view}); got != view {
+		t.Errorf("view_file content altered: got %q, want %q", got, view)
+	}
+}
+
+func TestCodeFence_OutrunsEmbeddedBackticks(t *testing.T) {
+	// A written markdown file containing its own ``` fence: the wrapper fence
+	// must be longer so the block doesn't terminate early, and the body must not
+	// be altered (backslash-escaping backticks inside a fence does nothing).
+	got := codeFence("markdown", "# Doc\n```go\nx := 1\n```")
+	if !strings.HasPrefix(got, "````markdown\n") || !strings.HasSuffix(got, "\n````") {
+		t.Errorf("fence should be one backtick longer than embedded runs: %q", got)
+	}
+	if !strings.Contains(got, "```go") {
+		t.Errorf("body must be unaltered: %q", got)
+	}
+
+	// No backticks in the body → the standard three-backtick fence.
+	if got := codeFence("diff", "-a\n+b"); !strings.HasPrefix(got, "```diff\n") || !strings.HasSuffix(got, "\n```") {
+		t.Errorf("plain body should use the standard fence: %q", got)
+	}
+}
+
 func TestFormatSubagentOutputs(t *testing.T) {
 	// invoke_subagent: summarize to the conversation id, drop log URI / workspace.
 	invoke := &ToolInfo{Name: "invoke_subagent", Output: map[string]any{"content": "Created the following subagents:\n{\n  \"conversationId\":  \"abc-123\",\n  \"logAbsoluteUri\":  \"file:///x/transcript.jsonl\",\n  \"workspaceUris\":  [\"file:///x\"]\n}"}}

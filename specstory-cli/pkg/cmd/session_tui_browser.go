@@ -255,7 +255,9 @@ func colorForAgent(id string) color.Color {
 	case "codex":
 		return lipgloss.Color("#219B75") // green
 	case "cursor", "cursoride":
-		return lipgloss.Color("#F6F6F3") // off-white
+		// Mid grey (~4.5:1 contrast on both white and black backgrounds) —
+		// Cursor's off-white brand color is invisible on light terminal themes.
+		return lipgloss.Color("#767676")
 	case "gemini":
 		return lipgloss.Color("#3781DE") // blue (matches antigravity)
 	case "droid":

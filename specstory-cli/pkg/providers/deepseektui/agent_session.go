@@ -186,9 +186,12 @@ func generateAgentSession(session *dsSession, workspaceRoot string) (*SessionDat
 	data := &SessionData{
 		SchemaVersion: "1.0",
 		Provider: ProviderInfo{
-			ID:      "deepseek-tui",
-			Name:    "DeepSeek TUI",
-			Version: session.Metadata.Model,
+			ID:   "deepseek-tui",
+			Name: "DeepSeek TUI",
+			// Version is the agent's version, which DeepSeek TUI does not record
+			// in its session files — the model is not a substitute and is carried
+			// on each assistant message's Model field instead.
+			Version: "unknown",
 		},
 		SessionID:     session.Metadata.ID,
 		CreatedAt:     created,

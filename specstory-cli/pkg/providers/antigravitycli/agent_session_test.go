@@ -239,8 +239,11 @@ func TestGenerateAgentSession_Validates(t *testing.T) {
 	if data.Provider.ID != providerSchemaID || data.Provider.Name != providerName {
 		t.Errorf("unexpected provider info: %+v", data.Provider)
 	}
-	if data.Provider.Version != "Gemini 3.5 Flash (High)" {
-		t.Errorf("expected version to be the model, got %q", data.Provider.Version)
+	// The model belongs on each agent message, not on Provider.Version (which is
+	// the CLI version — unrecorded by Antigravity, so a constant "unknown").
+	agentMsg := data.Exchanges[0].Messages[1]
+	if agentMsg.Model != "Gemini 3.5 Flash (High)" {
+		t.Errorf("expected agent message to carry the model, got %q", agentMsg.Model)
 	}
 	if data.SessionID != "conv-1" || data.WorkspaceRoot != "/proj" {
 		t.Errorf("unexpected session fields: %+v", data)
@@ -258,23 +261,6 @@ func TestGenerateAgentSession_NoExchanges(t *testing.T) {
 	}
 	if _, err := generateAgentSession(session, "/proj"); err == nil {
 		t.Errorf("expected error for session with no exchanges")
-	}
-}
-
-func TestGenerateAgentSession_UnknownModelFallsBack(t *testing.T) {
-	session := &agSession{
-		ConversationID: "conv-1",
-		Steps: []transcriptStep{
-			{Type: typeUserInput, Source: sourceUserExplicit, Content: "<USER_REQUEST>\nhi\n</USER_REQUEST>"},
-			{Type: typePlannerResponse, Content: "hello"},
-		},
-	}
-	data, err := generateAgentSession(session, "/proj")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if data.Provider.Version != "unknown" {
-		t.Errorf("expected version fallback to 'unknown', got %q", data.Provider.Version)
 	}
 }
 
