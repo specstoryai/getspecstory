@@ -284,6 +284,36 @@ func TestGenerateAgentSession_NoExchanges(t *testing.T) {
 	}
 }
 
+// An unscoped session loaded with no project context (empty caller workspace
+// AND empty session workspace — the reindex-by-ref path for text-only
+// print-mode sessions) must still satisfy the schema's required WorkspaceRoot,
+// via the cwd fallback.
+func TestGenerateAgentSession_UnscopedFallsBackToCwd(t *testing.T) {
+	session := &agSession{
+		ConversationID: "conv-unscoped",
+		CreatedAt:      "2026-07-24T10:00:00Z",
+		Steps: []transcriptStep{
+			{StepIndex: 0, Type: typeUserInput, Source: sourceUserExplicit, CreatedAt: "2026-07-24T10:00:00Z", Content: "<USER_REQUEST>\nsay hello\n</USER_REQUEST>"},
+			{StepIndex: 1, Type: typePlannerResponse, CreatedAt: "2026-07-24T10:00:01Z", Content: "Hello!"},
+		},
+	}
+
+	data, err := generateAgentSession(session, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if data.WorkspaceRoot != cwd {
+		t.Errorf("WorkspaceRoot = %q, want cwd %q", data.WorkspaceRoot, cwd)
+	}
+	if !data.Validate() {
+		t.Errorf("unscoped session data must still pass schema validation")
+	}
+}
+
 func TestResolveSessionWorkspace(t *testing.T) {
 	tests := []struct {
 		name              string

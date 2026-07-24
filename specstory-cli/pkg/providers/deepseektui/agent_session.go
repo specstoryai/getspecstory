@@ -163,9 +163,22 @@ func convertToAgentSession(session *dsSession, workspaceRoot string, debugRaw bo
 
 // generateAgentSession converts a dsSession into the shared SessionData schema.
 func generateAgentSession(session *dsSession, workspaceRoot string) (*SessionData, error) {
+	// Prefer the session's own recorded workspace, then the project the CLI is
+	// working from. Both can be empty at once — a session file without a
+	// metadata.workspace loaded by id with no project context (its reindex ref
+	// carries an empty OriginCwd) — so last, fall back to the CLI's own cwd:
+	// the schema requires a non-empty WorkspaceRoot, and for a session whose
+	// workspace is unknowable the directory the CLI is running from is the
+	// only one there is. Project attribution is unaffected — it derives from
+	// the ref, not from this field.
 	workspace := strings.TrimSpace(workspaceRoot)
 	if ws := strings.TrimSpace(session.Metadata.Workspace); ws != "" {
 		workspace = ws
+	}
+	if workspace == "" {
+		if cwd, err := os.Getwd(); err == nil {
+			workspace = cwd
+		}
 	}
 
 	exchanges := buildExchanges(session, workspace)

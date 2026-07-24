@@ -1,6 +1,7 @@
 package deepseektui
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -314,12 +315,24 @@ func TestConvertAssistantMessage(t *testing.T) {
 }
 
 func TestGenerateAgentSession_MetadataWorkspaceAndUsage(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
 	tests := []struct {
 		name              string
 		metadataWorkspace string
 		callerWorkspace   string
 		wantWorkspace     string
 	}{
+		{
+			// Schema requires WorkspaceRoot; with neither source available the
+			// CLI's own cwd is the fallback (reindex ref with empty OriginCwd).
+			name:              "cwd fallback when metadata and caller workspace both empty",
+			metadataWorkspace: "",
+			callerWorkspace:   "",
+			wantWorkspace:     cwd,
+		},
 		{
 			name:              "metadata workspace overrides caller workspace",
 			metadataWorkspace: "/metadata/workspace",

@@ -297,7 +297,7 @@ func indexConversationProjectsFromLog(path string, index map[string]string) erro
 	var currentProjectID string
 	var pendingConversationIDs []string
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxTranscriptLineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLineSize)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if projectID := projectIDFromLogLine(line); projectID != "" {

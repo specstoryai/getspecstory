@@ -56,9 +56,13 @@ const (
 // than rewriting the step, so these are the steps loadTaskOutputs backfills.
 const statusRunning = "RUNNING"
 
-// maxTranscriptLineSize bounds JSONL sidecar scanning well above bufio's 64KB
-// default while still placing a hard cap on malformed lines.
-const maxTranscriptLineSize = 16 * 1024 * 1024
+// maxScanLineSize bounds the line scanners over the sidecar indexes —
+// history.jsonl and the CLI logs — well above bufio's 64KB default while still
+// placing a hard cap on malformed lines. Transcripts are deliberately NOT read
+// through a capped scanner: parseTranscript reads the whole file and splits it,
+// so an oversized line degrades to one unparseable step instead of aborting the
+// scan and losing everything after it.
+const maxScanLineSize = 16 * 1024 * 1024
 
 // historyEntry is one line of ~/.gemini/antigravity-cli/history.jsonl. It maps a
 // prompt to the workspace it was issued in. NOTE: only interactive TUI sessions
@@ -144,7 +148,7 @@ func loadHistoryIndex() (map[string]historyEntry, error) {
 
 	index := make(map[string]historyEntry)
 	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxTranscriptLineSize)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxScanLineSize)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
