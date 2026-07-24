@@ -40,7 +40,6 @@ const (
 	typeCodeAction      = "CODE_ACTION"
 	typeGrepSearch      = "GREP_SEARCH"
 	typeListDirectory   = "LIST_DIRECTORY"
-	typeGeneric         = "GENERIC"
 )
 
 // statusRunning is the `status` value on a tool-result step whose command has

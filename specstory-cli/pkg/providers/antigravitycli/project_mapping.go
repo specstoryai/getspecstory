@@ -102,17 +102,17 @@ func loadConversationSummaryIndex() (map[string]conversationSummary, error) {
 		return empty, nil // no summaries DB yet — nothing to enrich with
 	}
 
+	// Strictly read-only: this provider never writes Antigravity's data. Unlike
+	// providers that reconstruct native sessions for resume, agy sessions cannot
+	// be synthesized (see reconstruct.go), so no code path here needs write
+	// access — and a read-only handle can never corrupt or block a live `agy`
+	// writer.
 	db, err := sql.Open("sqlite", path+"?mode=ro")
 	if err != nil {
 		slog.Debug("antigravity: cannot open conversation summaries db", "path", path, "error", err)
 		return empty, nil
 	}
 	defer func() { _ = db.Close() }()
-
-	// WAL mode keeps reads from blocking a live agy writer (best-effort).
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		slog.Debug("antigravity: failed to set WAL on summaries db", "error", err)
-	}
 
 	rows, err := db.Query("SELECT conversation_id, title, preview FROM conversation_summaries")
 	if err != nil {

@@ -361,10 +361,18 @@ func addPathHint(hints *[]string, value string, workspaceRoot string) {
 }
 
 // --- per-tool input renderers ---
+//
+// Each renderer reads exactly the arg keys its tool has been observed to emit
+// (the format spec §3.5 and captured sessions) — no speculative aliases. Every
+// renderer is dispatched by the tool's real name, so a key that isn't present
+// means agy changed its arg shape; in that case the renderer falls back to
+// renderGenericJSON, which shows the raw args rather than guessing wrong.
+// NOTE: key casing varies by tool — the file tools are PascalCase, but e.g.
+// search_web is lowercase and define_subagent/ask_question are snake_case.
 
 func renderRunCommandInput(args map[string]any) string {
-	command := stringValue(args, "CommandLine", "command", "cmd")
-	workdir := stringValue(args, "Cwd", "workdir", "dir", "cwd")
+	command := stringValue(args, "CommandLine")
+	workdir := stringValue(args, "Cwd")
 	if command == "" && workdir == "" {
 		return renderGenericJSON(args)
 	}
@@ -379,7 +387,7 @@ func renderRunCommandInput(args map[string]any) string {
 }
 
 func renderReadInput(args map[string]any) string {
-	path := stringValue(args, "AbsolutePath", "file_path", "path", "file")
+	path := stringValue(args, "AbsolutePath")
 	if path == "" {
 		return renderGenericJSON(args)
 	}
@@ -387,7 +395,7 @@ func renderReadInput(args map[string]any) string {
 }
 
 func renderListInput(args map[string]any) string {
-	path := stringValue(args, "DirectoryPath", "path", "dir", "directory")
+	path := stringValue(args, "DirectoryPath")
 	if path == "" {
 		return renderGenericJSON(args)
 	}
@@ -396,10 +404,10 @@ func renderListInput(args map[string]any) string {
 
 func renderGrepInput(args map[string]any) string {
 	var parts []string
-	if pat := stringValue(args, "Query", "pattern", "query", "regex"); pat != "" {
+	if pat := stringValue(args, "Query"); pat != "" {
 		parts = append(parts, fmt.Sprintf("Pattern: `%s`", pat))
 	}
-	if path := stringValue(args, "SearchPath", "path", "dir", "directory"); path != "" {
+	if path := stringValue(args, "SearchPath"); path != "" {
 		parts = append(parts, fmt.Sprintf("Path: `%s`", stripFileURI(path)))
 	}
 	if len(parts) == 0 {
@@ -409,15 +417,16 @@ func renderGrepInput(args map[string]any) string {
 }
 
 func renderWebSearchInput(args map[string]any) string {
-	if q := stringValue(args, "Query", "query", "q", "search"); q != "" {
+	// search_web's observed arg key is lowercase, unlike the file tools.
+	if q := stringValue(args, "query"); q != "" {
 		return fmt.Sprintf("Query: `%s`", q)
 	}
 	return renderGenericJSON(args)
 }
 
 func renderWebFetchInput(args map[string]any) string {
-	url := stringValue(args, "Url", "URL", "url", "uri")
-	prompt := stringValue(args, "Prompt", "prompt", "query")
+	url := stringValue(args, "Url")
+	prompt := stringValue(args, "Prompt")
 	if url == "" && prompt == "" {
 		return renderGenericJSON(args)
 	}
