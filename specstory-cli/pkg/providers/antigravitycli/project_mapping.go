@@ -25,7 +25,7 @@ const (
 // only interactive sessions, so the remaining way to place a conversation is to
 // scrape its own CLI logs for the conversationId -> projectId pairing and join
 // that to ~/.gemini/config/projects/<id>.json. These patterns match the log
-// lines emitted by agy 1.0.2–1.1.x (see docs/antigravity-format-spec.md §5.2).
+// lines emitted by agy 1.0.2–1.1.x (see docs/ANTIGRAVITY-FORMAT.md §5.2).
 //
 // This is a best-effort fallback, not a contract: the lines are internal
 // diagnostics that Google can reword, drop, or move behind a log level at any
