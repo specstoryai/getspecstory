@@ -276,7 +276,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 // Enumeration is keyed off the brain/ dirs (the transcript-backed
 // conversations) rather than conversations/*.db, since only the former yield
 // conversation content this provider can read. See
-// docs/antigravity-format-spec.md §1.1.
+// docs/ANTIGRAVITY-FORMAT.md §1.1.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 	files, err := listConversationFiles()
 	if err != nil {
