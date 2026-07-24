@@ -914,7 +914,7 @@ func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet str
 	agent := m.agentTag(s.Agent)
 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
 
-	pad := m.agentColWidth() - 8 // widen with a long agent id so columns stay aligned
+	pad := m.agentColW - agentColMinWidth // widen with a long agent id so columns stay aligned
 
 	if m.viewMode == "sparse" {
 		label := rowLabel(s, selected, snippet, m.lineWidth()-33-pad, m.lineWidth()-35-pad)

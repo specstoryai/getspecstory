@@ -1,6 +1,8 @@
 package antigravitycli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -276,56 +278,117 @@ func TestGenerateAgentSession_UnknownModelFallsBack(t *testing.T) {
 	}
 }
 
-func TestCommonPathPrefix(t *testing.T) {
+func TestResolveSessionWorkspace(t *testing.T) {
 	tests := []struct {
-		name  string
-		paths []string
-		want  string
+		name              string
+		history           map[string]historyEntry
+		projectWorkspaces map[string]string
+		want              string
 	}{
-		{name: "empty", paths: nil, want: ""},
-		{name: "single path yields itself", paths: []string{"/a/b/c.go"}, want: "/a/b/c.go"},
-		{name: "common ancestor", paths: []string{"/a/b/c.go", "/a/b/d.txt", "/a/b/sub/e"}, want: "/a/b"},
-		{name: "no shared root", paths: []string{"/a/x", "/b/y"}, want: ""},
+		{
+			name:              "history is authoritative over the project mapping",
+			history:           map[string]historyEntry{"conv-1": {Workspace: "/from/history"}},
+			projectWorkspaces: map[string]string{"conv-1": "/from/project"},
+			want:              "/from/history",
+		},
+		{
+			name:              "falls back to the CLI log/config project mapping",
+			history:           map[string]historyEntry{},
+			projectWorkspaces: map[string]string{"conv-1": "/from/project"},
+			want:              "/from/project",
+		},
+		{
+			name:              "a history entry with a blank workspace does not shadow the mapping",
+			history:           map[string]historyEntry{"conv-1": {Workspace: "  "}},
+			projectWorkspaces: map[string]string{"conv-1": "/from/project"},
+			want:              "/from/project",
+		},
+		{
+			// Deliberately NOT inferred from the paths the tools touched: the
+			// common ancestor collapses above the project as soon as one path
+			// falls outside it, which would attach the session to every
+			// unrelated project beneath that ancestor.
+			name:              "no stated workspace yields empty rather than a guess",
+			history:           map[string]historyEntry{},
+			projectWorkspaces: nil,
+			want:              "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := commonPathPrefix(tt.paths); got != tt.want {
-				t.Errorf("commonPathPrefix(%v) = %q, want %q", tt.paths, got, tt.want)
+			if got := resolveSessionWorkspace("conv-1", tt.history, tt.projectWorkspaces); got != tt.want {
+				t.Errorf("resolveSessionWorkspace() = %q, want %q", got, tt.want)
 			}
 		})
 	}
 }
 
-func TestResolveSessionWorkspace(t *testing.T) {
-	steps := []transcriptStep{
-		{Type: typePlannerResponse, ToolCalls: []transcriptToolCall{{Name: "view_file", Args: map[string]any{"AbsolutePath": "file:///proj/a.go"}}}},
-		{Type: typePlannerResponse, ToolCalls: []transcriptToolCall{{Name: "run_command", Args: map[string]any{"Cwd": "/proj"}}}},
+// A session with no stated workspace (agy -p print mode) is placed purely by the
+// paths its tools touched. It must reach the project it actually worked in and
+// no other — in particular it must not match a sibling project just because both
+// live under a directory the session also read from.
+func TestSessionMatchesProject_NoStatedWorkspace(t *testing.T) {
+	home := t.TempDir()
+	projA := filepath.Join(home, "Source", "projA")
+	projB := filepath.Join(home, "Source", "projB")
+	for _, dir := range []string{projA, projB} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	// The files must exist: path matching canonicalizes both sides, and on macOS
+	// the temp root is a symlink, so an absent file cannot be resolved to the
+	// same real path as the project directory it sits in.
+	touched := filepath.Join(projA, "main.go")
+	dotfile := filepath.Join(home, ".zshrc")
+	for _, f := range []string{touched, dotfile} {
+		if err := os.WriteFile(f, []byte("x"), 0o644); err != nil {
+			t.Fatalf("write %s: %v", f, err)
+		}
 	}
 
-	// History is authoritative when present.
-	history := map[string]historyEntry{"conv-1": {Workspace: "/from/history"}}
-	if got := resolveSessionWorkspace("conv-1", steps, history, map[string]string{"conv-1": "/from/project"}); got != "/from/history" {
-		t.Errorf("expected history workspace, got %q", got)
+	session := &agSession{
+		Workspace: "",
+		Steps: []transcriptStep{{Type: typePlannerResponse, ToolCalls: []transcriptToolCall{
+			{Name: "view_file", Args: map[string]any{"AbsolutePath": dotfile}},
+			{Name: "view_file", Args: map[string]any{"AbsolutePath": touched}},
+		}}},
 	}
 
-	// CLI log/config project mapping is preferred over tool-path inference.
-	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}, map[string]string{"conv-1": "/from/project"}); got != "/from/project" {
-		t.Errorf("expected project mapping workspace, got %q", got)
+	if !sessionMatchesProject(session, projA) {
+		t.Errorf("session should match the project whose files it touched")
 	}
-
-	// Otherwise inferred from tool paths' common ancestor.
-	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}, nil); got != "/proj" {
-		t.Errorf("expected inferred workspace /proj, got %q", got)
+	if sessionMatchesProject(session, projB) {
+		t.Errorf("session must not match a sibling project it never touched")
 	}
 }
 
-func TestResolveSessionWorkspace_SingleFileUsesParent(t *testing.T) {
-	steps := []transcriptStep{
-		{Type: typePlannerResponse, ToolCalls: []transcriptToolCall{{Name: "view_file", Args: map[string]any{"AbsolutePath": "file:///proj/sub/main.go"}}}},
+func TestWorkspacesOverlap(t *testing.T) {
+	root := t.TempDir()
+	sub := filepath.Join(root, "pkg")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
 	}
 
-	if got := resolveSessionWorkspace("conv-1", steps, map[string]historyEntry{}, nil); got != "/proj/sub" {
-		t.Errorf("expected inferred workspace /proj/sub, got %q", got)
+	tests := []struct {
+		name      string
+		workspace string
+		project   string
+		want      bool
+	}{
+		{name: "identical", workspace: root, project: root, want: true},
+		{name: "workspace inside project", workspace: sub, project: root, want: true},
+		{name: "project inside workspace (monorepo root)", workspace: root, project: sub, want: true},
+		{name: "unrelated", workspace: root, project: t.TempDir(), want: false},
+		{name: "empty workspace never overlaps", workspace: "", project: root, want: false},
+		{name: "blank workspace never overlaps", workspace: "   ", project: root, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := workspacesOverlap(tt.workspace, tt.project); got != tt.want {
+				t.Errorf("workspacesOverlap(%q, %q) = %v, want %v", tt.workspace, tt.project, got, tt.want)
+			}
+		})
 	}
 }
 

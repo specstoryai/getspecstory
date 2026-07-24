@@ -92,16 +92,16 @@ func TestListConversationFiles(t *testing.T) {
 	}
 }
 
-func TestFindTranscriptByID(t *testing.T) {
+func TestResolveTranscriptPathByID(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	if path, err := findTranscriptByID("missing"); err != nil || path != "" {
+	if path, err := resolveTranscriptPath("missing"); err != nil || path != "" {
 		t.Errorf("expected ('', nil) for missing id, got (%q, %v)", path, err)
 	}
 
 	writeConversation(t, home, "conv-x", `{"step_index":0,"type":"USER_INPUT"}`)
-	path, err := findTranscriptByID("conv-x")
+	path, err := resolveTranscriptPath("conv-x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

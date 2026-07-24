@@ -195,7 +195,7 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 		if !s.IsCloud {
 			turns = styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
 		}
-		pad := m.agentColWidth() - 8
+		pad := m.agentColW - agentColMinWidth
 		label := rowLabel(s, selected, snippet, m.lineWidth()-27-pad, m.lineWidth()-29-pad)
 		head := cursor + mark + " " + agent + "  " + label + "   " + turns
 		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
@@ -214,7 +214,7 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 	}
 	// A longer agent column (e.g. "antigravity") widens the fixed left columns;
 	// shrink the label budget to match so the right-hand turns count stays put.
-	extra += m.agentColWidth() - 8
+	extra += m.agentColW - agentColMinWidth
 	label := rowLabel(s, selected, snippet, m.lineWidth()-25-extra, m.lineWidth()-27-extra)
 	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
 }
@@ -399,21 +399,27 @@ func (m sessionTUI) agentName(id string) string {
 }
 
 func (m sessionTUI) agentTag(id string) string {
-	label := fmt.Sprintf("%-*s", m.agentColWidth(), id)
+	label := fmt.Sprintf("%-*s", m.agentColW, id)
 	if a, ok := m.agents[id]; ok {
 		return lipgloss.NewStyle().Foreground(a.accent).Render(label)
 	}
 	return label
 }
 
+// agentColMinWidth is the agent column's historical width. Row layouts budget
+// their label space against it, so a wider column (see agentColWidth) is
+// charged back to the label as the difference from this floor.
+const agentColMinWidth = 8
+
 // agentColWidth is the fixed width of the agent-name column: the longest known
-// agent id, floored at 8. Padding every tag to this width keeps a long name
-// (e.g. "antigravity", 11 cols) from overflowing an 8-col field and shoving the
-// following columns out of alignment across rows. The floor preserves the prior
-// layout for installs whose ids are all ≤8.
-func (m sessionTUI) agentColWidth() int {
-	w := 8
-	for id := range m.agents {
+// agent id, floored at agentColMinWidth. Padding every tag to this width keeps a
+// long name (e.g. "antigravity", 11 cols) from overflowing the field and shoving
+// the following columns out of alignment across rows. The floor preserves the
+// prior layout for installs whose ids are all within it. Computed once at
+// construction — m.agents does not change for the lifetime of the model.
+func agentColWidth(agents map[string]agentMeta) int {
+	w := agentColMinWidth
+	for id := range agents {
 		if len(id) > w {
 			w = len(id)
 		}

@@ -351,22 +351,37 @@ logs are therefore a best-effort retained operational source, not transcript
 metadata. (The `conversations/<id>.db` SQLite store may also carry this linkage,
 but that has not been mined.)
 
-### 5.3 Recommended workspace-inference strategy for the parser
-In priority order:
+### 5.3 Workspace resolution strategy for the parser
+
+A conversation's workspace is taken only from sources that state it outright, in
+priority order:
+
 1. **history.jsonl `workspace`** keyed by matching `conversationId` — authoritative
    when present (interactive sessions only).
 2. **CLI-log/config join** — map `conversationId -> projectId` from retained
    `antigravity-cli/log/cli-*.log`, then `projectId -> workspace` from
    `config/projects/*.json`.
-3. **Tool-arg paths in the transcript** — derive the workspace from the most
-   common ancestor of `Cwd` (run_command), `AbsolutePath` (view_file),
-   `TargetFile` (write/edit), `SearchPath` (grep_search), `DirectoryPath`
-   (list_dir). For print-mode `--add-dir` sessions these are absolute and
-   consistently point at the workspace.
-4. If none resolve (e.g. the no-`--add-dir` session that wandered the whole
-   filesystem), mark workspace **unknown** — do not guess. Note: `agy -p` with no
-   `--add-dir` defaults the workspace to `~/.gemini/antigravity-cli/scratch`
-   (an empty dir), so the model flails; such sessions have no meaningful project.
+3. If neither resolves, the workspace is **unknown** — do not guess.
+
+**Do not infer a workspace from the tool-arg paths in the transcript.** An
+earlier revision of this spec recommended taking the common ancestor of `Cwd`,
+`AbsolutePath`, `TargetFile`, `SearchPath`, and `DirectoryPath`; that was
+implemented and then removed. The ancestor collapses far above the project as
+soon as a single path falls outside it — one `view_file` on `~/.gitconfig` is
+enough to yield `$HOME` — and because a workspace that *contains* the project
+counts as a match (so a monorepo root recorded in history.jsonl matches a sync
+run from a package inside it), an inferred `$HOME` attaches the session to every
+project beneath it.
+
+Sessions with an unknown workspace are still placed correctly: match them by
+whether any tool-arg path falls **inside** the candidate project. That requires
+a path the session genuinely touched, so it cannot leak into a sibling project.
+Such sessions carry no workspace of their own, which means they are enumerated
+globally without a project rather than being mapped to a guessed one.
+
+Note: `agy -p` with no `--add-dir` defaults the workspace to
+`~/.gemini/antigravity-cli/scratch` (an empty dir), so the model flails; such
+sessions have no meaningful project.
 
 ---
 
@@ -491,9 +506,10 @@ them as a "session failed" signal.
 1. **conversationId → workspace has no canonical transcript metadata link** for
    print-mode sessions. history.jsonl covers interactive only. Retained CLI logs
    can join `conversationId -> projectId -> workspace`, but if logs rotate or are
-   absent, workspace must be inferred from transcript tool-arg paths (§5.3).
-   RISK: a text-only session with no history/log entry has no recoverable
-   workspace.
+   absent the workspace is simply unknown — it is not inferred from tool-arg
+   paths (§5.3 explains why). RISK: such a session is matched to a project only
+   by the paths it touched, and a text-only session that touched nothing is not
+   attributable to any project at all.
 2. **history.jsonl scope uncertainty.** Confirmed `-p` is excluded; unconfirmed
    whether `--prompt-interactive` (`-i`) writes to it. Assume only fully
    interactive TUI sessions are logged there.

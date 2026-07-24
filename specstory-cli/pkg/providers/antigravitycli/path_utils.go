@@ -157,13 +157,6 @@ func listConversationFiles() ([]conversationFile, error) {
 	return files, nil
 }
 
-// findTranscriptByID resolves the transcript path for a specific conversation.
-// Returns ("", nil) when the conversation has no transcript on disk — that's
-// "not found", not an error.
-func findTranscriptByID(conversationID string) (string, error) {
-	return resolveTranscriptPath(conversationID)
-}
-
 // canonicalizePath resolves a path to its canonical form for comparison, so that
 // symlinks and case-insensitive filesystems (macOS) compare equal.
 func canonicalizePath(path string) string {

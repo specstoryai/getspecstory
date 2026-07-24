@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -328,12 +329,12 @@ func extractPathHints(input map[string]any, workspaceRoot string) []string {
 		return nil
 	}
 
-	pathFields := []string{
-		// Antigravity PascalCase keys.
-		"AbsolutePath", "TargetFile", "Cwd", "DirectoryPath", "SearchPath",
-		// Common variants, for forward-compatibility with unseen tools.
-		"path", "file_path", "file", "dir", "directory", "cwd", "workdir",
-	}
+	// Antigravity's own PascalCase keys come from the canonical list in
+	// agent_session.go so the two stay in step; the lowercase variants are
+	// forward-compatibility for tools we have not seen emitted.
+	pathFields := append(slices.Clone(toolPathArgKeys),
+		"path", "file_path", "file", "dir", "directory", "cwd", "workdir")
+
 	var hints []string
 	for _, field := range pathFields {
 		val, ok := input[field]

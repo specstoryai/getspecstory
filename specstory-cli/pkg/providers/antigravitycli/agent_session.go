@@ -43,14 +43,12 @@ var (
 	modelRe = regexp.MustCompile(`Model Selection.{0,4}from .+? to (.+?)\.(?:\s|$)`)
 )
 
-// toolPathArgKeys are the tool-arg keys that carry absolute filesystem paths.
-// They are the only on-disk signal of a print-mode session's workspace, since
-// the transcript has no workspace field (see the format spec, §5).
-var (
-	toolPathArgKeys      = []string{"Cwd", "AbsolutePath", "TargetFile", "SearchPath", "DirectoryPath"}
-	workspaceDirArgKeys  = []string{"Cwd", "SearchPath", "DirectoryPath"}
-	workspaceFileArgKeys = []string{"AbsolutePath", "TargetFile"}
-)
+// toolPathArgKeys are the Antigravity tool-arg keys that carry absolute
+// filesystem paths. They are the only on-disk signal of which project a
+// print-mode session belongs to, since the transcript has no workspace field
+// (see the format spec, §5). This is the canonical list — markdown_tools.go
+// builds its path-hint field list from it rather than repeating the keys.
+var toolPathArgKeys = []string{"Cwd", "AbsolutePath", "TargetFile", "SearchPath", "DirectoryPath"}
 
 // convertToAgentSession converts a parsed agSession into the unified
 // AgentChatSession format. Returns nil for empty/unconvertible sessions.
@@ -128,8 +126,9 @@ func generateAgentSession(session *agSession, workspaceRoot string) (*SessionDat
 	return data, nil
 }
 
-// buildExchanges groups transcript steps into exchanges. Steps are processed in
-// file order (NOT by step_index — the index has a benign gap at 4). Each
+// buildExchanges groups transcript steps into exchanges. Steps arrive already
+// ordered by step_index (parseTranscript sorts them, because agy flushes async
+// results to the file out of order) and are processed in that order. Each
 // USER_INPUT starts a new exchange; PLANNER_RESPONSE adds an agent text message
 // plus one message per tool call; a tool-result step attaches its output to the
 // matching pending tool message.
@@ -174,6 +173,13 @@ func buildExchanges(session *agSession, workspaceRoot string) []Exchange {
 			// Replayed context / injected notices / truncation markers — not
 			// user-visible turn content.
 			continue
+
+		case step.Type == typeUserInput:
+			// A USER_INPUT the first case rejected: the source is not
+			// USER_EXPLICIT, so it is replayed or synthesized input rather than
+			// something the user typed this turn.
+			slog.Debug("antigravity: skipping non-explicit user input",
+				"conversationId", session.ConversationID, "source", step.Source, "stepIndex", step.StepIndex)
 
 		default:
 			slog.Debug("antigravity: skipping unrecognized step",
@@ -279,7 +285,7 @@ func convertToolCallMessage(tc transcriptToolCall, useID, model, timestamp, work
 // the output.
 func attachToolResult(step transcriptStep, current *Exchange, taskOutputs map[int]string) {
 	content := cleanResultContent(step)
-	if strings.EqualFold(step.Status, "RUNNING") {
+	if strings.EqualFold(step.Status, statusRunning) {
 		if taskOutput := strings.TrimSpace(taskOutputs[step.StepIndex]); taskOutput != "" {
 			if content != "" {
 				content += "\n\nTask output:\n" + taskOutput
@@ -432,21 +438,26 @@ func deriveModel(steps []transcriptStep) string {
 	return ""
 }
 
-// resolveSessionWorkspace determines the workspace a conversation belongs to.
-// history.jsonl is authoritative when it has an entry (interactive sessions).
-// Otherwise, retained CLI logs can join conversationId -> projectId -> workspace.
-// Finally, the workspace is inferred as the common ancestor of absolute paths
-// touched by tools. Returns "" when nothing is resolvable.
-func resolveSessionWorkspace(conversationID string, steps []transcriptStep, history map[string]historyEntry, projectWorkspaces map[string]string) string {
+// resolveSessionWorkspace determines the workspace a conversation belongs to,
+// using only sources that state it outright: history.jsonl (interactive
+// sessions), then the conversationId -> projectId -> workspace join recovered
+// from retained CLI logs. Returns "" when neither knows.
+//
+// A workspace is deliberately NOT inferred from the paths the session's tools
+// touched. The common ancestor of those paths collapses to something far above
+// the project as soon as one path falls outside it (reading ~/.gitconfig is
+// enough to yield $HOME), and sessionMatchesProject treats a workspace that
+// contains the project as a match — so an inferred ancestor would attach the
+// session to every unrelated project beneath it. Sessions with no stated
+// workspace are still matched to their project by the tool-path scan in
+// sessionMatchesProject, which requires a path actually inside that project.
+func resolveSessionWorkspace(conversationID string, history map[string]historyEntry, projectWorkspaces map[string]string) string {
 	if entry, ok := history[conversationID]; ok {
 		if ws := strings.TrimSpace(entry.Workspace); ws != "" {
 			return ws
 		}
 	}
-	if ws := strings.TrimSpace(projectWorkspaces[conversationID]); ws != "" {
-		return ws
-	}
-	return commonPathPrefix(collectWorkspacePaths(steps))
+	return strings.TrimSpace(projectWorkspaces[conversationID])
 }
 
 // sessionWorkspaceKnown reports whether a session has any signal of which
@@ -462,14 +473,17 @@ func sessionWorkspaceKnown(session *agSession) bool {
 // empty projectPath matches every session (no filtering). A session matches when
 // its resolved workspace and the project are nested either way, or when any tool
 // touched a path inside the project.
+//
+// Matching a workspace that merely contains the project is safe because
+// resolveSessionWorkspace only returns workspaces Antigravity stated itself —
+// a monorepo root recorded in history.jsonl should match a sync run from one of
+// its subdirectories.
 func sessionMatchesProject(session *agSession, projectPath string) bool {
 	if strings.TrimSpace(projectPath) == "" {
 		return true
 	}
-	if session.Workspace != "" {
-		if pathWithin(session.Workspace, projectPath) || pathWithin(projectPath, session.Workspace) {
-			return true
-		}
+	if workspacesOverlap(session.Workspace, projectPath) {
+		return true
 	}
 	for _, p := range collectToolPaths(session.Steps) {
 		if pathWithin(p, projectPath) {
@@ -477,6 +491,18 @@ func sessionMatchesProject(session *agSession, projectPath string) bool {
 		}
 	}
 	return false
+}
+
+// workspacesOverlap reports whether a stated workspace and a project directory
+// are the same or nested either way. Both directions count: a session recorded
+// against a subdirectory belongs to a sync run from the repo root, and one
+// recorded against a monorepo root belongs to a sync run from a package inside
+// it. An empty workspace never overlaps.
+func workspacesOverlap(workspace, projectPath string) bool {
+	if strings.TrimSpace(workspace) == "" {
+		return false
+	}
+	return pathWithin(workspace, projectPath) || pathWithin(projectPath, workspace)
 }
 
 // collectToolPaths gathers the absolute filesystem paths referenced by every
@@ -498,40 +524,6 @@ func collectToolPaths(steps []transcriptStep) []string {
 	return paths
 }
 
-// collectWorkspacePaths gathers directory candidates for workspace inference.
-// File-valued tool args are reduced to their parent directory; directory-valued
-// args are used as-is.
-func collectWorkspacePaths(steps []transcriptStep) []string {
-	var paths []string
-	seen := make(map[string]bool)
-	add := func(value string, fileValue bool) {
-		p := stripFileURI(strings.TrimSpace(value))
-		if p == "" || !filepath.IsAbs(p) {
-			return
-		}
-		if fileValue {
-			p = filepath.Dir(p)
-		}
-		appendUniqueAbsPath(&paths, seen, p)
-	}
-
-	for _, step := range steps {
-		for _, tc := range step.ToolCalls {
-			for _, key := range workspaceDirArgKeys {
-				if val, ok := tc.Args[key].(string); ok {
-					add(val, false)
-				}
-			}
-			for _, key := range workspaceFileArgKeys {
-				if val, ok := tc.Args[key].(string); ok {
-					add(val, true)
-				}
-			}
-		}
-	}
-	return paths
-}
-
 func appendUniqueAbsPath(paths *[]string, seen map[string]bool, value string) {
 	p := stripFileURI(strings.TrimSpace(value))
 	if p == "" || !filepath.IsAbs(p) || seen[p] {
@@ -539,38 +531,6 @@ func appendUniqueAbsPath(paths *[]string, seen map[string]bool, value string) {
 	}
 	seen[p] = true
 	*paths = append(*paths, p)
-}
-
-// commonPathPrefix returns the deepest directory that is an ancestor of every
-// given absolute path, or "" when the slice is empty or paths share no common
-// root.
-func commonPathPrefix(paths []string) string {
-	if len(paths) == 0 {
-		return ""
-	}
-
-	split := func(p string) []string {
-		return strings.Split(filepath.Clean(p), string(filepath.Separator))
-	}
-
-	common := split(paths[0])
-	for _, p := range paths[1:] {
-		parts := split(p)
-		n := len(common)
-		if len(parts) < n {
-			n = len(parts)
-		}
-		i := 0
-		for i < n && common[i] == parts[i] {
-			i++
-		}
-		common = common[:i]
-	}
-
-	if len(common) <= 1 {
-		return ""
-	}
-	return strings.Join(common, string(filepath.Separator))
 }
 
 // stripFileURI removes a leading file:// scheme and decodes escaped path bytes

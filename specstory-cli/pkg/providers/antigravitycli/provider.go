@@ -90,8 +90,20 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		return true
 	}
 
-	history, _ := loadHistoryIndex()
-	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	history, projectWorkspaces := loadWorkspaceIndexes()
+
+	// Answer from the indexes first: a conversation whose workspace is already
+	// stated needs no transcript read at all, which for interactive users
+	// short-circuits before any file is opened.
+	for _, file := range files {
+		workspace := resolveSessionWorkspace(file.ConversationID, history, projectWorkspaces)
+		if workspace != "" && workspacesOverlap(workspace, projectPath) {
+			return true
+		}
+	}
+
+	// Sessions with no stated workspace (print mode) can only be placed by the
+	// paths their tools touched, which means parsing the transcript.
 	for _, file := range files {
 		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, false)
 		if err != nil {
@@ -115,27 +127,12 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	if err != nil {
 		return nil, err
 	}
-	history, _ := loadHistoryIndex()
-	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	history, projectWorkspaces := loadWorkspaceIndexes()
 
 	total := len(files)
 	result := make([]spi.AgentChatSession, 0, total)
 	for i, file := range files {
-		session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, true)
-		if err != nil {
-			slog.Debug("antigravity: skipping session", "conversationId", file.ConversationID, "error", err)
-			if progress != nil {
-				progress(i+1, total)
-			}
-			continue
-		}
-		if !sessionMatchesProject(session, projectPath) {
-			if progress != nil {
-				progress(i+1, total)
-			}
-			continue
-		}
-		if chat := convertToAgentSession(session, projectPath, debugRaw); chat != nil {
+		if chat := convertConversation(file, projectPath, debugRaw, history, projectWorkspaces); chat != nil {
 			result = append(result, *chat)
 		}
 		if progress != nil {
@@ -145,14 +142,34 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	return result, nil
 }
 
+// convertConversation parses one conversation and converts it to the unified
+// format, returning nil when it cannot be read or does not belong to
+// projectPath. Keeping the per-conversation work here lets the callers report
+// progress exactly once per file regardless of why a file was skipped.
+func convertConversation(file conversationFile, projectPath string, debugRaw bool,
+	history map[string]historyEntry, projectWorkspaces map[string]string) *spi.AgentChatSession {
+
+	session, err := parseTranscript(file.ConversationID, file.Path, history, projectWorkspaces, true)
+	if err != nil {
+		slog.Debug("antigravity: skipping session", "conversationId", file.ConversationID, "error", err)
+		return nil
+	}
+	if !sessionMatchesProject(session, projectPath) {
+		return nil
+	}
+	return convertToAgentSession(session, projectPath, debugRaw)
+}
+
 // GetAgentChatSession returns the session with the given conversation ID.
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
-	path, err := findTranscriptByID(sessionID)
-	if err != nil || path == "" {
+	path, err := resolveTranscriptPath(sessionID)
+	if err != nil {
 		return nil, err
 	}
-	history, _ := loadHistoryIndex()
-	projectWorkspaces, _ := loadConversationWorkspaceIndex()
+	if path == "" {
+		return nil, nil // no transcript on disk — not found, not an error
+	}
+	history, projectWorkspaces := loadWorkspaceIndexes()
 	session, err := parseTranscript(sessionID, path, history, projectWorkspaces, true)
 	if err != nil {
 		return nil, err
@@ -173,9 +190,8 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	if err != nil {
 		return nil, err
 	}
-	history, _ := loadHistoryIndex()
-	projectWorkspaces, _ := loadConversationWorkspaceIndex()
-	summaries, _ := loadConversationSummaryIndex()
+	history, projectWorkspaces := loadWorkspaceIndexes()
+	summaries := loadSummaries()
 
 	var result []spi.SessionMetadata
 	for _, file := range files {
@@ -255,18 +271,19 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 // projects, one ref per conversation that has a parseable transcript. Unlike the
 // project-scoped listing, the project is discovered rather than supplied: each
 // ref carries the session's resolved workspace as OriginCwd so `specstory
-// reindex` can map it to a project. Enumeration is keyed off the brain/ dirs
-// (the transcript-backed conversations) rather than conversations/*.db, since
-// only the former yield conversation content this provider can read. See
-// docs/SESSIONS-DB.md.
+// reindex` can map it to a project; sessions whose workspace Antigravity never
+// stated carry an empty OriginCwd and stay unmapped rather than guessing.
+// Enumeration is keyed off the brain/ dirs (the transcript-backed
+// conversations) rather than conversations/*.db, since only the former yield
+// conversation content this provider can read. See
+// docs/antigravity-format-spec.md §1.1.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 	files, err := listConversationFiles()
 	if err != nil {
 		return nil, err
 	}
-	history, _ := loadHistoryIndex()
-	projectWorkspaces, _ := loadConversationWorkspaceIndex()
-	summaries, _ := loadConversationSummaryIndex()
+	history, projectWorkspaces := loadWorkspaceIndexes()
+	summaries := loadSummaries()
 
 	var refs []spi.GlobalSessionRef
 	for _, file := range files {

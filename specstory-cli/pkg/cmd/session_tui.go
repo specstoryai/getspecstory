@@ -78,6 +78,7 @@ type sessionTUI struct {
 	projectID   string
 	projectName string
 	agents      map[string]agentMeta // provider id -> display meta
+	agentColW   int                  // width of the agent-name column, see agentColWidth
 	installed   []agentChoice        // installed agents, for the target step
 	presetTo    string               // pre-selected target (from `resume <agent>`), or ""
 	lastAgent   string               // default target (last resumed), or ""
@@ -248,6 +249,7 @@ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projec
 		homeProjectName: projectName,
 		homeSessions:    sessions,
 		agents:          agents,
+		agentColW:       agentColWidth(agents),
 		installed:       installed,
 		presetTo:        opts.presetTo,
 		lastAgent:       opts.lastAgent,

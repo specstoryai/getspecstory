@@ -21,6 +21,18 @@ const (
 	conversationSummariesFileName = "conversation_summaries.db"
 )
 
+// Antigravity records no workspace in the transcript, and history.jsonl covers
+// only interactive sessions, so the remaining way to place a conversation is to
+// scrape its own CLI logs for the conversationId -> projectId pairing and join
+// that to ~/.gemini/config/projects/<id>.json. These patterns match the log
+// lines emitted by agy 1.0.2–1.1.x (see docs/antigravity-format-spec.md §5.2).
+//
+// This is a best-effort fallback, not a contract: the lines are internal
+// diagnostics that Google can reword, drop, or move behind a log level at any
+// release, and the logs rotate. When a pattern stops matching, the affected
+// conversations simply fall back to being matched by the paths their tools
+// touched — nothing errors, so a silent format change shows up as sessions no
+// longer being attributed to their project.
 var (
 	projectIDFromUsingRe        = regexp.MustCompile(`project: using project .*\(id=([0-9a-fA-F-]{36})\)`)
 	projectIDFromConversationRe = regexp.MustCompile(`Conversation using project ID:\s*([0-9a-fA-F-]{36})`)
@@ -187,6 +199,8 @@ func loadProjectWorkspaceIndex() (map[string]string, error) {
 	return index, nil
 }
 
+// projectWorkspacePath extracts the workspace root from a project config,
+// preferring the git folder, then any plain folder URI or path on the resource.
 func projectWorkspacePath(project antigravityProjectFile) string {
 	for _, resource := range project.ProjectResources.Resources {
 		for _, candidate := range []string{
@@ -199,12 +213,18 @@ func projectWorkspacePath(project antigravityProjectFile) string {
 			}
 		}
 	}
+	// Projects created by the CLI (rather than the IDE) have an empty resources
+	// array and carry the workspace in `name`, which for those entries is the
+	// absolute path rather than a display label. cleanWorkspacePath rejects
+	// anything that is not an absolute path, so a genuine label is ignored here.
 	if path := cleanWorkspacePath(project.Name); path != "" {
 		return path
 	}
 	return ""
 }
 
+// cleanWorkspacePath normalizes a configured workspace value, returning "" for
+// anything that is not an absolute filesystem path.
 func cleanWorkspacePath(value string) string {
 	path := filepath.Clean(strings.TrimSpace(stripFileURI(value)))
 	if path == "." || !filepath.IsAbs(path) {
@@ -234,6 +254,9 @@ func loadConversationWorkspaceIndex() (map[string]string, error) {
 	return index, nil
 }
 
+// loadConversationProjectIndex maps conversation IDs to Antigravity project IDs
+// by scraping every retained CLI log. A missing log dir is not an error — it
+// just means no conversation can be placed this way.
 func loadConversationProjectIndex() (map[string]string, error) {
 	logDir, err := resolveAntigravityLogDir()
 	if err != nil {
@@ -260,6 +283,10 @@ func loadConversationProjectIndex() (map[string]string, error) {
 	return index, nil
 }
 
+// indexConversationProjectsFromLog scans one CLI log, attributing each
+// conversation id it sees to the most recently logged project id. agy logs the
+// two in either order, so ids seen before any project line are held pending and
+// attributed to the next project line encountered.
 func indexConversationProjectsFromLog(path string, index map[string]string) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -288,10 +315,7 @@ func indexConversationProjectsFromLog(path string, index map[string]string) erro
 			index[conversationID] = currentProjectID
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return err
-	}
-	return nil
+	return scanner.Err()
 }
 
 func projectIDFromLogLine(line string) string {

@@ -43,6 +43,11 @@ const (
 	typeGeneric         = "GENERIC"
 )
 
+// statusRunning is the `status` value on a tool-result step whose command has
+// not finished. agy writes the eventual output to a sidecar task log rather
+// than rewriting the step, so these are the steps loadTaskOutputs backfills.
+const statusRunning = "RUNNING"
+
 // maxTranscriptLineSize bounds JSONL sidecar scanning well above bufio's 64KB
 // default while still placing a hard cap on malformed lines.
 const maxTranscriptLineSize = 16 * 1024 * 1024
@@ -154,6 +159,35 @@ func loadHistoryIndex() (map[string]historyEntry, error) {
 	return index, nil
 }
 
+// loadWorkspaceIndexes loads the two optional indexes that state which project a
+// conversation belongs to. Both are best-effort: when one is unreadable the
+// affected sessions fall back to matching by the paths their tools touched, so a
+// failure degrades project attribution rather than failing the caller. It is
+// logged rather than returned because that degradation is otherwise invisible —
+// sync simply reports no sessions for the project.
+func loadWorkspaceIndexes() (map[string]historyEntry, map[string]string) {
+	history, err := loadHistoryIndex()
+	if err != nil {
+		slog.Debug("antigravity: history index unavailable, falling back to tool-path matching", "error", err)
+	}
+	projectWorkspaces, err := loadConversationWorkspaceIndex()
+	if err != nil {
+		slog.Debug("antigravity: conversation/project index unavailable, falling back to tool-path matching", "error", err)
+	}
+	return history, projectWorkspaces
+}
+
+// loadSummaries loads the optional generated-title store, logging rather than
+// returning a failure: an absent title just means the session is named from its
+// first prompt instead.
+func loadSummaries() map[string]conversationSummary {
+	summaries, err := loadConversationSummaryIndex()
+	if err != nil {
+		slog.Debug("antigravity: conversation summaries unavailable, naming sessions from their first prompt", "error", err)
+	}
+	return summaries
+}
+
 // parseTranscript reads a conversation's transcript JSONL file and returns an
 // agSession. When wantRawData is true the full file bytes are retained on
 // RawData for cloud sync / debug-raw output; callers that only need the parsed
@@ -212,7 +246,7 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 		session.CreatedAt = strings.TrimSpace(steps[0].CreatedAt)
 		session.UpdatedAt = strings.TrimSpace(steps[len(steps)-1].CreatedAt)
 	}
-	session.Workspace = resolveSessionWorkspace(conversationID, steps, history, projectWorkspaces)
+	session.Workspace = resolveSessionWorkspace(conversationID, history, projectWorkspaces)
 	session.Model = deriveModel(steps)
 	if wantRawData {
 		session.RawData = string(data)
