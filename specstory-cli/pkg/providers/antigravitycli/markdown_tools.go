@@ -14,44 +14,25 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
-// classifyToolType maps an Antigravity tool name to a SpecStory tool type.
-// Unknown tools fall back to "generic" (not "unknown") so that tools we know the
-// provider can emit still render sensibly.
+// classifyToolType maps an Antigravity tool name to a SpecStory tool type. The
+// cases below are Antigravity's complete tool set as of agy 1.1.x, captured by
+// asking the agent to enumerate its own tools (see
+// docs/antigravity-format-spec.md §3.5). Everything else — the tools that carry
+// no useful type (ask_permission, ask_question, define_subagent,
+// generate_image, invoke_subagent, list_permissions, manage_subagents,
+// send_message), MCP tools, and anything a later release adds — falls back to
+// "generic" (not "unknown") so it still renders sensibly.
 func classifyToolType(name string) string {
-	writeTools := map[string]bool{
-		"write_to_file": true, "replace_file_content": true,
-		"multi_replace_file_content": true,
-		"create_file":                true, "edit_file": true, "apply_patch": true,
-	}
-	readTools := map[string]bool{
-		"view_file": true, "read_file": true,
-		"list_dir": true, "read_directory": true,
-	}
-	searchTools := map[string]bool{
-		"grep_search": true, "codebase_search": true, "file_search": true,
-		"find_files": true, "web_search": true, "search_web": true,
-		"read_url": true, "read_url_content": true,
-		"fetch_url": true, "execute_url": true,
-	}
-	shellTools := map[string]bool{
-		"run_command": true, "run_terminal_command": true,
-		"exec": true, "shell": true,
-	}
-	taskTools := map[string]bool{
-		"update_plan": true, "todo_write": true, "create_plan": true,
-		"task_list": true, "manage_task": true, "schedule": true,
-	}
-
-	switch {
-	case writeTools[name]:
+	switch name {
+	case "write_to_file", "replace_file_content", "multi_replace_file_content":
 		return schema.ToolTypeWrite
-	case readTools[name]:
+	case "view_file", "list_dir":
 		return schema.ToolTypeRead
-	case searchTools[name]:
+	case "grep_search", "search_web", "read_url_content":
 		return schema.ToolTypeSearch
-	case shellTools[name]:
+	case "run_command":
 		return schema.ToolTypeShell
-	case taskTools[name]:
+	case "manage_task", "schedule":
 		return schema.ToolTypeTask
 	default:
 		return schema.ToolTypeGeneric
@@ -79,33 +60,31 @@ func formatToolCall(tool *ToolInfo) string {
 	return strings.TrimSpace(strings.Join(parts, "\n\n"))
 }
 
+// formatToolInput renders a tool call's arguments. The cases are Antigravity's
+// real tool names (§3.5); a tool with no case — ask_permission, whose argument
+// shape has never been captured, or anything a later release adds — falls
+// through to the raw-argument fallback rather than a guessed layout.
 func formatToolInput(tool *ToolInfo) string {
 	args := tool.Input
 	switch normalizeToolName(tool.Name) {
-	case "runcommand", "runterminalcommand", "exec", "shell":
+	case "runcommand":
 		return renderRunCommandInput(args)
-	case "viewfile", "readfile":
+	case "viewfile":
 		return renderReadInput(args)
-	case "listdir", "readdirectory":
+	case "listdir":
 		return renderListInput(args)
 	case "grepsearch":
 		return renderGrepInput(args)
-	case "codebasesearch", "filesearch", "findfiles":
-		return renderFileSearchInput(args)
-	case "searchweb", "websearch":
+	case "searchweb":
 		return renderWebSearchInput(args)
-	case "readurlcontent", "readurl", "fetchurl", "executeurl":
+	case "readurlcontent":
 		return renderWebFetchInput(args)
-	case "writetofile", "createfile":
+	case "writetofile":
 		return renderWriteInput(args)
-	case "replacefilecontent", "editfile":
+	case "replacefilecontent":
 		return renderEditInput(args)
 	case "multireplacefilecontent":
 		return renderMultiEditInput(args)
-	case "applypatch":
-		return renderApplyPatch(args)
-	case "updateplan", "todowrite", "createplan":
-		return renderTodoWrite(args)
 	case "generateimage":
 		return renderGenerateImageInput(args)
 	case "definesubagent":
@@ -429,13 +408,6 @@ func renderGrepInput(args map[string]any) string {
 	return strings.Join(parts, "\n")
 }
 
-func renderFileSearchInput(args map[string]any) string {
-	if pat := stringValue(args, "Query", "pattern", "query", "name"); pat != "" {
-		return fmt.Sprintf("Pattern: `%s`", pat)
-	}
-	return renderGenericJSON(args)
-}
-
 func renderWebSearchInput(args map[string]any) string {
 	if q := stringValue(args, "Query", "query", "q", "search"); q != "" {
 		return fmt.Sprintf("Query: `%s`", q)
@@ -497,44 +469,6 @@ func renderEditInput(args map[string]any) string {
 		return renderGenericJSON(args)
 	}
 	return b.String()
-}
-
-func renderApplyPatch(args map[string]any) string {
-	patch := stringValue(args, "patch", "input")
-	if patch == "" {
-		return renderGenericJSON(args)
-	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
-}
-
-func renderTodoWrite(args map[string]any) string {
-	itemsRaw, _ := args["todos"].([]any)
-	if len(itemsRaw) == 0 {
-		for _, key := range []string{"items", "plan", "steps"} {
-			if v, ok := args[key].([]any); ok && len(v) > 0 {
-				itemsRaw = v
-				break
-			}
-		}
-	}
-	if len(itemsRaw) == 0 {
-		return renderGenericJSON(args)
-	}
-	var b strings.Builder
-	b.WriteString("Todo List:\n")
-	for _, raw := range itemsRaw {
-		item, _ := raw.(map[string]any)
-		if item == nil {
-			continue
-		}
-		status := strings.TrimSpace(stringValue(item, "status"))
-		desc := strings.TrimSpace(stringValue(item, "description", "content", "text"))
-		if desc == "" {
-			desc = "(no description)"
-		}
-		fmt.Fprintf(&b, "- [%s] %s\n", todoSymbol(status), desc)
-	}
-	return strings.TrimRight(b.String(), "\n")
 }
 
 // renderMultiEditInput renders a multi_replace_file_content call: the target
@@ -945,15 +879,4 @@ func normalizeToolName(name string) string {
 	cleaned = strings.ReplaceAll(cleaned, "-", "")
 	cleaned = strings.ReplaceAll(cleaned, "_", "")
 	return cleaned
-}
-
-func todoSymbol(status string) string {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "completed", "done":
-		return "x"
-	case "in_progress", "active":
-		return "⚡"
-	default:
-		return " "
-	}
 }

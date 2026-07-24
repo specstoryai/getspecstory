@@ -7,26 +7,34 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
+// Every one of Antigravity's 19 real tools, plus an unknown one. The list is the
+// agent's own enumeration of its tool set (docs/antigravity-format-spec.md
+// §3.5), so this doubles as the record of which names actually exist: a name not
+// in this table should not be special-cased anywhere in the provider.
 func TestClassifyToolType(t *testing.T) {
 	tests := []struct {
 		name string
 		want string
 	}{
-		{"run_command", schema.ToolTypeShell},
-		{"view_file", schema.ToolTypeRead},
-		{"list_dir", schema.ToolTypeRead},
 		{"write_to_file", schema.ToolTypeWrite},
 		{"replace_file_content", schema.ToolTypeWrite},
+		{"multi_replace_file_content", schema.ToolTypeWrite},
+		{"view_file", schema.ToolTypeRead},
+		{"list_dir", schema.ToolTypeRead},
 		{"grep_search", schema.ToolTypeSearch},
-		{"codebase_search", schema.ToolTypeSearch},
 		{"search_web", schema.ToolTypeSearch},
 		{"read_url_content", schema.ToolTypeSearch},
-		{"multi_replace_file_content", schema.ToolTypeWrite},
+		{"run_command", schema.ToolTypeShell},
 		{"manage_task", schema.ToolTypeTask},
 		{"schedule", schema.ToolTypeTask},
-		{"update_plan", schema.ToolTypeTask},
-		{"list_permissions", schema.ToolTypeGeneric},
+		{"ask_permission", schema.ToolTypeGeneric},
+		{"ask_question", schema.ToolTypeGeneric},
+		{"define_subagent", schema.ToolTypeGeneric},
 		{"generate_image", schema.ToolTypeGeneric},
+		{"invoke_subagent", schema.ToolTypeGeneric},
+		{"list_permissions", schema.ToolTypeGeneric},
+		{"manage_subagents", schema.ToolTypeGeneric},
+		{"send_message", schema.ToolTypeGeneric},
 		{"some_future_tool", schema.ToolTypeGeneric},
 	}
 	for _, tt := range tests {

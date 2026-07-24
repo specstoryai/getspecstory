@@ -193,12 +193,29 @@ positional (call at step N → result at next step). An internal tool-call `id`
 | `list_dir` | `DirectoryPath` (str) | `LIST_DIRECTORY` | JSON-lines per entry `{"name":...,"isDir":true}` or `{"name":...,"sizeBytes":"NN"}`, then `Summary: This directory contains X subdirectories and Y files.` (or `Empty directory`) | **read** |
 | `list_permissions` | *(none beyond toolAction/toolSummary)* | `GENERIC` | bulleted list of permission grants | **generic** |
 
-Tools NOT exercised in capture but likely to exist (the planner referred to its
-"search tool"/"file viewer" by capability, and the CLI has a sandbox/browser
-subsystem): `codebase_search` (semantic search), browser/URL tools
-(`execute_url`/`read_url` appear in `list_permissions` output), MCP tools
-(`mcp(*)` permission), subagent/task tools. A parser should treat any unknown
-tool `name` as **generic** and map by `type` of the following result step.
+**The complete tool set.** Asking the agent to enumerate its own tools (agy
+1.1.x, Gemini 3.6 Flash) returns exactly 19, all of which have since been
+exercised in capture:
+
+```
+ask_permission        grep_search      manage_task                 run_command
+ask_question          invoke_subagent  multi_replace_file_content  schedule
+define_subagent       list_dir         read_url_content            search_web
+generate_image        list_permissions replace_file_content        send_message
+                                       view_file                   write_to_file
+```
+
+Earlier revisions of this spec guessed at names that do **not** exist —
+`codebase_search`, `execute_url`, `read_url`, `apply_patch`, `todo_write`,
+`update_plan`, `file_search`, `exec`, `shell`, `read_file`, `create_file`,
+`edit_file`. Renderers had been written for several of them; they were removed,
+because a renderer for a tool that never fires is untestable code that reads as
+though it were verified behavior. Do not special-case a tool name that is not in
+the list above.
+
+A parser should still treat any unknown tool `name` as **generic** and map by
+the `type` of the following result step — that covers MCP tools (the `mcp(*)`
+permission) and anything a later release adds.
 
 ### 3.6 `transcript.jsonl` double-escaping (the difference)
 Same step at step_index 7 (`write_to_file`), both files:
