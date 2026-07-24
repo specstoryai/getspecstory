@@ -8,7 +8,7 @@ import (
 )
 
 // Every one of Antigravity's 19 real tools, plus an unknown one. The list is the
-// agent's own enumeration of its tool set (docs/antigravity-format-spec.md
+// agent's own enumeration of its tool set (docs/ANTIGRAVITY-FORMAT.md
 // §3.5), so this doubles as the record of which names actually exist: a name not
 // in this table should not be special-cased anywhere in the provider.
 func TestClassifyToolType(t *testing.T) {
