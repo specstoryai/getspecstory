@@ -184,6 +184,26 @@ func TestAttachToolResult_FIFOAndOrphan(t *testing.T) {
 	}
 }
 
+// A dedicated result type (here SEARCH_WEB, observed in real transcripts) must
+// route past an older pending call of a different type to the matching one —
+// under FIFO the web search completing before a slow command would attach its
+// result to the command.
+func TestAttachToolResult_DedicatedResultTypesRouteByType(t *testing.T) {
+	current := &Exchange{Messages: []Message{
+		{Role: schema.RoleAgent, Tool: &ToolInfo{Name: "run_command", Type: schema.ToolTypeShell, Input: map[string]any{"CommandLine": "sleep 5"}}},
+		{Role: schema.RoleAgent, Tool: &ToolInfo{Name: "search_web", Type: schema.ToolTypeSearch, Input: map[string]any{"query": "x"}}},
+	}}
+
+	attachToolResult(transcriptStep{Type: typeSearchWeb, Content: "WEB-RESULTS"}, current, nil)
+
+	if current.Messages[0].Tool.Output != nil {
+		t.Errorf("run_command wrongly received the search result")
+	}
+	if out, _ := current.Messages[1].Tool.Output["content"].(string); out != "WEB-RESULTS" {
+		t.Errorf("search_web output = %q, want WEB-RESULTS", out)
+	}
+}
+
 func TestAttachToolResult_AsyncTaskOutput(t *testing.T) {
 	current := &Exchange{Messages: []Message{
 		{Role: schema.RoleAgent, Tool: &ToolInfo{Name: "run_command", Input: map[string]any{"CommandLine": "long-task"}}},

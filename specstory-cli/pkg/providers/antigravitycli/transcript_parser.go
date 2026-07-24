@@ -40,6 +40,15 @@ const (
 	typeCodeAction      = "CODE_ACTION"
 	typeGrepSearch      = "GREP_SEARCH"
 	typeListDirectory   = "LIST_DIRECTORY"
+
+	// Dedicated result types observed for the non-file tools (spec §3.2). Tools
+	// without a dedicated type produce GENERIC, which needs no constant: it maps
+	// to no tool type and takes the positional-attachment fallback.
+	typeSearchWeb      = "SEARCH_WEB"
+	typeReadURLContent = "READ_URL_CONTENT"
+	typeGenerateImage  = "GENERATE_IMAGE"
+	typeInvokeSubagent = "INVOKE_SUBAGENT"
+	typeAskQuestion    = "ASK_QUESTION"
 )
 
 // statusRunning is the `status` value on a tool-result step whose command has

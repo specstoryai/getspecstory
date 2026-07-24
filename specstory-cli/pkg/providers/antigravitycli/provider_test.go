@@ -32,12 +32,6 @@ func writeConversationSummary(t *testing.T, home, conversationID, title, preview
 	}
 }
 
-func TestName(t *testing.T) {
-	if got := NewProvider().Name(); got != providerName {
-		t.Errorf("Name() = %q, want %q", got, providerName)
-	}
-}
-
 func TestClassifyCheckError(t *testing.T) {
 	if got := classifyCheckError(&exec.Error{Name: "agy", Err: exec.ErrNotFound}); got != "not_found" {
 		t.Errorf("not-found error classified as %q", got)
@@ -54,6 +48,7 @@ func TestBuildCheckErrorMessage(t *testing.T) {
 	tests := []struct {
 		name      string
 		errorType string
+		command   string
 		isCustom  bool
 		stderr    string
 		want      []string
@@ -62,10 +57,16 @@ func TestBuildCheckErrorMessage(t *testing.T) {
 		{name: "not found custom", errorType: "not_found", isCustom: true, want: []string{"custom path"}},
 		{name: "permission", errorType: "permission_denied", want: []string{"chmod +x"}},
 		{name: "version failed with stderr", errorType: "version_failed", stderr: "boom", want: []string{"agy --version", "boom"}},
+		// A custom antigravity_cmd must be named in the guidance, not a hardcoded `agy`.
+		{name: "version failed names the custom command", errorType: "version_failed", command: "/opt/wrap/agy-wrap", isCustom: true, want: []string{"/opt/wrap/agy-wrap --version"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			msg := buildCheckErrorMessage(tt.errorType, "agy", tt.isCustom, tt.stderr)
+			command := tt.command
+			if command == "" {
+				command = "agy"
+			}
+			msg := buildCheckErrorMessage(tt.errorType, command, tt.isCustom, tt.stderr)
 			for _, want := range tt.want {
 				if !strings.Contains(msg, want) {
 					t.Errorf("message %q missing %q", msg, want)

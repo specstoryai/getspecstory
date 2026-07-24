@@ -320,7 +320,10 @@ func (m sessionTUI) renderTarget() string {
 		b.WriteString(styDim.Render("   " + sessionTitle(*m.chosen)))
 	}
 	b.WriteString("\n\n")
-	for i, a := range m.installed {
+	if len(m.targets) == 0 {
+		b.WriteString(styFaint.Render("   No installed agent can resume this session.") + "\n")
+	}
+	for i, a := range m.targets {
 		cursor := "   "
 		label := a.provider.Name()
 		// The "native resume" hint applies only to local sessions. A cloud session has no local

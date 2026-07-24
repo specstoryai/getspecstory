@@ -15,6 +15,18 @@ import (
 // real native output.
 var ErrReconstructionUnsupported = errors.New("session reconstruction not supported by this provider")
 
+// SupportsReconstruction reports whether a provider can materialize sessions
+// into its native store — i.e. whether it can serve as a cross-agent (or cloud)
+// resume target. It probes NativeSessionPath, which a provider without a native
+// serializer answers with ErrReconstructionUnsupported alongside
+// ReconstructSession; unlike calling ReconstructSession, the probe is a pure
+// path computation with no side effects. Any other outcome — a path, or an
+// unrelated error — means the provider has a serializer.
+func SupportsReconstruction(p Provider) bool {
+	_, err := p.NativeSessionPath("", "capability-probe")
+	return !errors.Is(err, ErrReconstructionUnsupported)
+}
+
 // ReconstructOptions controls how a session is reconstructed into native form.
 type ReconstructOptions struct {
 	// WorkspaceRoot is the target working directory the reconstructed session

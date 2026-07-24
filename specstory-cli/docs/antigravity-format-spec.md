@@ -143,6 +143,11 @@ folded back into the model's turn.
 | `CODE_ACTION` | MODEL | result of `write_to_file` OR `replace_file_content` | creation note or unified diff, see §6 |
 | `GREP_SEARCH` | MODEL | result of a `grep_search` tool call | JSON-lines of matches, see §6 |
 | `LIST_DIRECTORY` | MODEL | result of a `list_dir` tool call | JSON-lines of entries + summary, see §6 |
+| `SEARCH_WEB` | MODEL | result of a `search_web` tool call | `The search for "…" returned the following summary:` + markdown summary |
+| `READ_URL_CONTENT` | MODEL | result of a `read_url_content` tool call | `Title:` / `OG Description:` header + note that the full content was saved to a file under the brain dir |
+| `GENERATE_IMAGE` | MODEL | result of a `generate_image` tool call | `Using prompt: …` + `Generated image is saved at <path>` |
+| `INVOKE_SUBAGENT` | MODEL | result of an `invoke_subagent` tool call | `Created the following subagents:` + JSON record(s) (conversationId, logAbsoluteUri, workspaceUris) |
+| `ASK_QUESTION` | MODEL | result of an `ask_question` tool call | the user's answer(s), one `A<n>:` line per question |
 | `GENERIC` | MODEL | result of tools without a dedicated type (e.g. `list_permissions`) | freeform text |
 
 The result step's `type` is derived from the tool category, NOT a single generic

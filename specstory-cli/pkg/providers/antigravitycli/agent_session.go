@@ -325,9 +325,13 @@ func pickPendingTool(current *Exchange, wantType string) *ToolInfo {
 
 // resultStepToolType maps an Antigravity result step type to the SpecStory tool
 // type (schema.ToolType*) the originating call carries on ToolInfo.Type, so a
-// result can be routed to the matching pending call. Result types without a clean
-// 1:1 mapping — GENERIC and the dedicated new-tool result types — return "", which
-// tells pickPendingTool to fall back to positional (FIFO) attachment.
+// result can be routed to the matching pending call. Each mapping mirrors what
+// classifyToolType assigns the originating tool — the two must agree or routing
+// misses. GENERIC and any unlisted future type return "", which tells
+// pickPendingTool to fall back to positional (FIFO) attachment. The granularity
+// is the tool type, not the tool: e.g. grep_search and search_web both map to
+// "search" and can still cross-pair with each other, but a typed result can
+// never land on a pending call of a different type.
 func resultStepToolType(resultType string) string {
 	switch resultType {
 	case typeRunCommand:
@@ -336,8 +340,10 @@ func resultStepToolType(resultType string) string {
 		return schema.ToolTypeRead
 	case typeCodeAction:
 		return schema.ToolTypeWrite
-	case typeGrepSearch:
+	case typeGrepSearch, typeSearchWeb, typeReadURLContent:
 		return schema.ToolTypeSearch
+	case typeGenerateImage, typeInvokeSubagent, typeAskQuestion:
+		return schema.ToolTypeGeneric
 	default:
 		return ""
 	}

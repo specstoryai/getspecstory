@@ -5,11 +5,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -195,6 +197,10 @@ type fakeProvider struct {
 	name        string
 	gotLoadPath string // projectPath captured from GetAgentChatSession
 	nativeDir   string // where NativeSessionPath places the reconstructed file
+	// reconstructUnsupported makes the fake report no native serializer, the way
+	// Antigravity does: both ReconstructSession and NativeSessionPath answer
+	// spi.ErrReconstructionUnsupported.
+	reconstructUnsupported bool
 }
 
 func (f *fakeProvider) Name() string                  { return f.name }
@@ -207,6 +213,9 @@ func (f *fakeProvider) GetAgentChatSession(projectPath, sessionID string, _ bool
 }
 
 func (f *fakeProvider) ReconstructSession(*schema.SessionData, spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
+	if f.reconstructUnsupported {
+		return nil, spi.ErrReconstructionUnsupported
+	}
 	return &spi.ReconstructedSession{
 		SessionID: "new-session-id",
 		Filename:  "reconstructed.jsonl",
@@ -215,6 +224,9 @@ func (f *fakeProvider) ReconstructSession(*schema.SessionData, spi.ReconstructOp
 }
 
 func (f *fakeProvider) NativeSessionPath(_ string, filename string) (string, error) {
+	if f.reconstructUnsupported {
+		return "", spi.ErrReconstructionUnsupported
+	}
 	return filepath.Join(f.nativeDir, filename), nil
 }
 
@@ -230,6 +242,55 @@ func (f *fakeProvider) WatchAgent(context.Context, string, bool, func(*spi.Agent
 	return nil
 }
 func (f *fakeProvider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) { return nil, nil }
+
+// TestSupportsReconstruction pins the capability probe against the real
+// registry: Antigravity is the one provider with no native serializer, so it is
+// the one invalid reconstruction target.
+func TestSupportsReconstruction(t *testing.T) {
+	registry := factory.GetRegistry()
+	for id, want := range map[string]bool{"claude": true, "codex": true, "antigravity": false} {
+		prov, err := registry.Get(id)
+		if err != nil {
+			t.Fatalf("registry.Get(%q): %v", id, err)
+		}
+		if got := spi.SupportsReconstruction(prov); got != want {
+			t.Errorf("SupportsReconstruction(%s) = %v, want %v", id, got, want)
+		}
+	}
+}
+
+// TestEligibleTargets verifies the target step narrows the installed agents per
+// chosen session: an agent without a native serializer is offered only for its
+// own LOCAL sessions (native in-place resume) — never for another agent's
+// session, and never for a cloud session (which must reconstruct even into the
+// same agent).
+func TestEligibleTargets(t *testing.T) {
+	m := sessionTUI{installed: []agentChoice{
+		{id: "claude", provider: &fakeProvider{name: "Claude Code"}},
+		{id: "antigravity", provider: &fakeProvider{name: "Antigravity CLI", reconstructUnsupported: true}},
+	}}
+
+	tests := []struct {
+		name string
+		sess *sessionindex.Session
+		want []string
+	}{
+		{"other agent's session excludes the non-serializing agent", &sessionindex.Session{Agent: "claude"}, []string{"claude"}},
+		{"own local session adds it back for native resume", &sessionindex.Session{Agent: "antigravity"}, []string{"claude", "antigravity"}},
+		{"own cloud session still excludes it", &sessionindex.Session{Agent: "antigravity", IsCloud: true}, []string{"claude"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got []string
+			for _, a := range m.eligibleTargets(tt.sess) {
+				got = append(got, a.id)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("eligibleTargets() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 // TestPrepareResumeTargetLoadsSourceFromOriginCwd guards the cross-project resume fix:
 // the source session must be loaded from the directory it was launched in (fromCwd),

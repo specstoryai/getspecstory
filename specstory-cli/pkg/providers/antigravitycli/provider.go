@@ -343,13 +343,16 @@ func buildCheckErrorMessage(errorType string, command string, isCustom bool, std
 		builder.WriteString("SpecStory cannot execute the Antigravity CLI due to permissions.\n\n")
 		fmt.Fprintf(&builder, "Try: chmod +x %s\n", command)
 	default:
-		builder.WriteString("`agy --version` failed.\n\n")
+		// Name the command that actually failed — with a custom antigravity_cmd
+		// (wrapper script, non-agy binary) a hardcoded `agy` would point the user
+		// at the wrong program.
+		fmt.Fprintf(&builder, "`%s %s` failed.\n\n", command, versionFlag)
 		if stderr != "" {
 			builder.WriteString("Error output:\n")
 			builder.WriteString(stderr)
 			builder.WriteString("\n\n")
 		}
-		builder.WriteString("Run `agy --version` manually to diagnose, then retry.")
+		fmt.Fprintf(&builder, "Run `%s %s` manually to diagnose, then retry.", command, versionFlag)
 	}
 	return builder.String()
 }
