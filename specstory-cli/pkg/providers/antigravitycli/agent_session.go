@@ -162,9 +162,9 @@ func buildExchanges(session *agSession, workspaceRoot string) []Exchange {
 			current.Messages = append(current.Messages, convertPlannerStep(step, session.ConversationID, session.Model, workspaceRoot)...)
 			current.EndTime = step.CreatedAt
 
-		case isToolResultType(step.Type):
-			// Tool results carry source MODEL and immediately follow their
-			// PLANNER_RESPONSE; they are not new turns.
+		case isToolResultStep(step):
+			// Tool results carry source MODEL and follow their PLANNER_RESPONSE;
+			// they are not new turns.
 			if current != nil {
 				attachToolResult(step, current, session.TaskOutputs)
 				current.EndTime = step.CreatedAt
@@ -269,10 +269,13 @@ func convertToolCallMessage(tc transcriptToolCall, useID, model, timestamp, work
 	}
 }
 
-// attachToolResult routes a tool-result step's content to the oldest tool
-// message in the current exchange that has not yet received output (FIFO).
-// Correlation is positional because Antigravity transcripts carry no call→result
-// id. After attaching, the tool's FormattedMarkdown is re-rendered to include
+// attachToolResult routes a tool-result step's content to a pending tool message
+// in the current exchange (one that has not yet received output). Antigravity
+// transcripts carry no call→result id, so correlation is by tool type first
+// (route the result to a pending call whose type matches the result's category),
+// falling back to the oldest pending call (positional/FIFO). The type check keeps
+// results correctly paired when several calls are in flight and complete out of
+// order. After attaching, the tool's FormattedMarkdown is re-rendered to include
 // the output.
 func attachToolResult(step transcriptStep, current *Exchange, taskOutputs map[int]string) {
 	content := cleanResultContent(step)
@@ -285,32 +288,114 @@ func attachToolResult(step transcriptStep, current *Exchange, taskOutputs map[in
 			}
 		}
 	}
+	tool := pickPendingTool(current, resultStepToolType(step.Type))
+	if tool == nil {
+		slog.Debug("antigravity: tool result with no pending tool call", "type", step.Type, "stepIndex", step.StepIndex)
+		return
+	}
+	tool.Output = map[string]any{"content": content}
+	if formatted := formatToolCall(tool); formatted != "" {
+		tool.FormattedMarkdown = &formatted
+	}
+}
+
+// pickPendingTool selects the tool message a result should attach to: the oldest
+// pending (output-less) tool whose Type equals wantType, or — when wantType is
+// empty (ambiguous result category) or none matches — the oldest pending tool of
+// any type. Returns nil when no tool is awaiting output.
+func pickPendingTool(current *Exchange, wantType string) *ToolInfo {
+	var fallback *ToolInfo
 	for i := range current.Messages {
 		tool := current.Messages[i].Tool
 		if tool == nil || tool.Output != nil {
 			continue
 		}
-		tool.Output = map[string]any{"content": content}
-		if formatted := formatToolCall(tool); formatted != "" {
-			tool.FormattedMarkdown = &formatted
+		if fallback == nil {
+			fallback = tool
 		}
-		return
+		if wantType != "" && tool.Type == wantType {
+			return tool
+		}
 	}
-	slog.Debug("antigravity: tool result with no pending tool call", "type", step.Type, "stepIndex", step.StepIndex)
+	return fallback
 }
 
-// cleanResultContent returns a tool result's content with the leading tab
-// indentation that Antigravity inserts into RUN_COMMAND output blocks removed.
+// resultStepToolType maps an Antigravity result step type to the SpecStory tool
+// type (schema.ToolType*) the originating call carries on ToolInfo.Type, so a
+// result can be routed to the matching pending call. Result types without a clean
+// 1:1 mapping — GENERIC and the dedicated new-tool result types — return "", which
+// tells pickPendingTool to fall back to positional (FIFO) attachment.
+func resultStepToolType(resultType string) string {
+	switch resultType {
+	case typeRunCommand:
+		return schema.ToolTypeShell
+	case typeViewFile, typeListDirectory:
+		return schema.ToolTypeRead
+	case typeCodeAction:
+		return schema.ToolTypeWrite
+	case typeGrepSearch:
+		return schema.ToolTypeSearch
+	default:
+		return ""
+	}
+}
+
+// resultBoilerplate are framework filler phrases agy appends to tool results.
+// They are instructions to the model, not information for a human reader, so they
+// are stripped from rendered output. Matched as substrings because agy sometimes
+// appends them inline to a content line (e.g. right after "The following changes
+// were made … to: <path>.").
+var resultBoilerplate = []string{
+	"If relevant, proactively run terminal commands to execute this code for the USER. Don't ask for permission.",
+	"Please note that the above snippet only shows the MODIFIED lines from the last change. It shows up to 3 lines of unchanged lines before and after the modified lines. The actual file contents may have many more lines not shown.",
+	"Do not output the path of this image to show to the user since the user can already see it. However, you can embed this image in artifacts for the USER's review.",
+	"The subagents will send you a message when they have completed their task or require guidance. There is no need to poll for their responses.",
+	"You can use the view_file tool to read specific sections if needed.",
+}
+
+// cleanResultContent normalizes a tool result's content for display: it strips
+// the per-result "Created At:"/"Completed At:" timing header (redundant with the
+// turn timestamps), the leading tab indentation agy inserts into RUN_COMMAND
+// output blocks, and the framework boilerplate above, then collapses the blank
+// lines those removals leave behind.
 func cleanResultContent(step transcriptStep) string {
 	content := strings.TrimSpace(step.Content)
 	if content == "" {
 		return ""
 	}
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		lines[i] = strings.TrimLeft(line, "\t")
+	for _, phrase := range resultBoilerplate {
+		content = strings.ReplaceAll(content, phrase, "")
 	}
-	return strings.TrimSpace(strings.Join(lines, "\n"))
+	lines := strings.Split(content, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimRight(strings.TrimLeft(line, "\t"), " \t")
+		if strings.HasPrefix(line, "Created At:") || strings.HasPrefix(line, "Completed At:") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return collapseBlankLines(strings.TrimSpace(strings.Join(kept, "\n")))
+}
+
+// collapseBlankLines reduces any run of blank lines to a single blank line, so
+// content stays readable after header/boilerplate removal opens gaps.
+func collapseBlankLines(s string) string {
+	var b strings.Builder
+	blank := false
+	for _, line := range strings.Split(s, "\n") {
+		if strings.TrimSpace(line) == "" {
+			if blank {
+				continue
+			}
+			blank = true
+		} else {
+			blank = false
+		}
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+	return strings.TrimSpace(b.String())
 }
 
 // cleanUserPrompt extracts the real prompt from a USER_INPUT content blob.

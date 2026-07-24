@@ -3,6 +3,7 @@ package antigravitycli
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -18,7 +19,8 @@ import (
 func classifyToolType(name string) string {
 	writeTools := map[string]bool{
 		"write_to_file": true, "replace_file_content": true,
-		"create_file": true, "edit_file": true, "apply_patch": true,
+		"multi_replace_file_content": true,
+		"create_file":                true, "edit_file": true, "apply_patch": true,
 	}
 	readTools := map[string]bool{
 		"view_file": true, "read_file": true,
@@ -26,7 +28,8 @@ func classifyToolType(name string) string {
 	}
 	searchTools := map[string]bool{
 		"grep_search": true, "codebase_search": true, "file_search": true,
-		"find_files": true, "web_search": true, "read_url": true,
+		"find_files": true, "web_search": true, "search_web": true,
+		"read_url": true, "read_url_content": true,
 		"fetch_url": true, "execute_url": true,
 	}
 	shellTools := map[string]bool{
@@ -35,7 +38,7 @@ func classifyToolType(name string) string {
 	}
 	taskTools := map[string]bool{
 		"update_plan": true, "todo_write": true, "create_plan": true,
-		"task_list": true,
+		"task_list": true, "manage_task": true, "schedule": true,
 	}
 
 	switch {
@@ -88,18 +91,40 @@ func formatToolInput(tool *ToolInfo) string {
 		return renderGrepInput(args)
 	case "codebasesearch", "filesearch", "findfiles":
 		return renderFileSearchInput(args)
-	case "websearch":
+	case "searchweb", "websearch":
 		return renderWebSearchInput(args)
-	case "readurl", "fetchurl", "executeurl":
+	case "readurlcontent", "readurl", "fetchurl", "executeurl":
 		return renderWebFetchInput(args)
 	case "writetofile", "createfile":
 		return renderWriteInput(args)
 	case "replacefilecontent", "editfile":
 		return renderEditInput(args)
+	case "multireplacefilecontent":
+		return renderMultiEditInput(args)
 	case "applypatch":
 		return renderApplyPatch(args)
 	case "updateplan", "todowrite", "createplan":
 		return renderTodoWrite(args)
+	case "generateimage":
+		return renderGenerateImageInput(args)
+	case "definesubagent":
+		return renderDefineSubagentInput(args)
+	case "invokesubagent":
+		return renderInvokeSubagentInput(args)
+	case "managesubagents":
+		return renderManageInput(args, "Conversations", "ConversationIds")
+	case "managetask":
+		return renderManageInput(args, "Task", "TaskId")
+	case "sendmessage":
+		return renderSendMessageInput(args)
+	case "schedule":
+		return renderScheduleInput(args)
+	case "askquestion":
+		return renderAskQuestionInput(args)
+	case "listpermissions":
+		// No meaningful args (only toolAction/toolSummary); the result text is
+		// self-describing, so render input as empty and let the output stand alone.
+		return ""
 	default:
 		return renderGenericJSON(args)
 	}
@@ -114,10 +139,186 @@ func formatToolOutput(tool *ToolInfo) string {
 	if content == "" {
 		return ""
 	}
+
+	// A few tools return a JSON blob (agy's protobuf-JSON, double-spaced and full
+	// of internal ids) that reads far better as a short summary. These are scoped
+	// by tool name so JSON-lines results (list_dir, grep_search) are never touched.
+	switch normalizeToolName(tool.Name) {
+	case "invokesubagent":
+		if s := formatInvokeSubagentOutput(content); s != "" {
+			return s
+		}
+	case "managesubagents":
+		if s := formatManageSubagentsOutput(content); s != "" {
+			return s
+		}
+	}
+
+	// agy's edit tools wrap the applied diff in [diff_block_start]/[diff_block_end];
+	// render it as a diff fence (any tool whose result carries the markers).
+	if s := formatDiffBlockOutput(content); s != "" {
+		return s
+	}
+
 	if strings.Contains(content, "\n") {
 		return fmt.Sprintf("Output:\n```text\n%s\n```", content)
 	}
 	return fmt.Sprintf("Output: %s", content)
+}
+
+const (
+	diffBlockStartMarker = "[diff_block_start]"
+	diffBlockEndMarker   = "[diff_block_end]"
+)
+
+// formatDiffBlockOutput reformats an agy edit-tool result — a lead sentence
+// followed by a unified diff wrapped in [diff_block_start]/[diff_block_end]
+// markers — into a ```diff fenced block. The lead line ("The following changes
+// were made by the … tool to: <path>.") is dropped as redundant: the input block
+// already shows the target path and the diff. Returns "" when no diff block is
+// present, so the caller falls back to the raw output.
+func formatDiffBlockOutput(content string) string {
+	start := strings.Index(content, diffBlockStartMarker)
+	end := strings.Index(content, diffBlockEndMarker)
+	if start == -1 || end == -1 || end < start {
+		return ""
+	}
+	diff := strings.TrimSpace(content[start+len(diffBlockStartMarker) : end])
+	if diff == "" {
+		return ""
+	}
+	return fmt.Sprintf("Output:\n```diff\n%s\n```", diff)
+}
+
+// formatInvokeSubagentOutput summarizes invoke_subagent's result JSON as one
+// bullet per spawned subagent (its conversation id), dropping the internal log
+// URI and workspace paths. Returns "" when the output is not the expected
+// lead-in + JSON shape, so the caller falls back to the raw text.
+func formatInvokeSubagentOutput(content string) string {
+	lead, objs, ok := splitLeadJSON(content)
+	if !ok {
+		return ""
+	}
+	var bullets []string
+	for _, o := range objs {
+		if id := stringValue(o, "conversationId"); id != "" {
+			bullets = append(bullets, fmt.Sprintf("- conversation `%s`", id))
+		}
+	}
+	if len(bullets) == 0 {
+		return ""
+	}
+	return joinOutput(defaultLead(lead, "Created subagents:"), bullets)
+}
+
+// formatManageSubagentsOutput summarizes manage_subagents' result JSON as one
+// bullet per active subagent (role, type, conversation id), dropping the model
+// placeholder, tier, initial prompt, and internal log URIs. Returns "" when the
+// output is not the expected lead-in + JSON shape (e.g. the "kill" action's plain
+// text), so the caller falls back to the raw text.
+func formatManageSubagentsOutput(content string) string {
+	lead, objs, ok := splitLeadJSON(content)
+	if !ok {
+		return ""
+	}
+	var bullets []string
+	for _, o := range objs {
+		spec, _ := o["spec"].(map[string]any)
+		result, _ := o["result"].(map[string]any)
+		role := stringValue(spec, "role")
+		typeName := stringValue(spec, "typeName")
+		id := stringValue(result, "conversationId")
+
+		label := role
+		if label == "" {
+			label = typeName
+		}
+		if label == "" && id == "" {
+			continue
+		}
+		line := "- "
+		if label != "" {
+			line += "**" + label + "**"
+		}
+		if typeName != "" && typeName != label {
+			line += " (`" + typeName + "`)"
+		}
+		if id != "" {
+			if label != "" {
+				line += " — "
+			}
+			line += "conversation `" + id + "`"
+		}
+		bullets = append(bullets, line)
+	}
+	if len(bullets) == 0 {
+		return ""
+	}
+	return joinOutput(defaultLead(lead, "Active subagents:"), bullets)
+}
+
+// splitLeadJSON splits a tool result into its leading prose and the JSON
+// value(s) that follow. It scans for the first line beginning a JSON object or
+// array, treats everything before as the lead, and decodes the remainder as a
+// stream of JSON values (tolerating agy's occasional multi-object output). It
+// returns ok=false when no parseable JSON is present, so callers can fall back.
+func splitLeadJSON(content string) (lead string, objs []map[string]any, ok bool) {
+	lines := strings.Split(content, "\n")
+	start := -1
+	for i, line := range lines {
+		t := strings.TrimSpace(line)
+		if strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[") {
+			start = i
+			break
+		}
+	}
+	if start == -1 {
+		return "", nil, false
+	}
+	lead = strings.TrimSpace(strings.Join(lines[:start], "\n"))
+
+	dec := json.NewDecoder(strings.NewReader(strings.Join(lines[start:], "\n")))
+	for {
+		var v any
+		err := dec.Decode(&v)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			if len(objs) == 0 {
+				return "", nil, false
+			}
+			break // stop at the first non-JSON trailing content, keep what parsed
+		}
+		switch t := v.(type) {
+		case map[string]any:
+			objs = append(objs, t)
+		case []any:
+			for _, e := range t {
+				if m, ok := e.(map[string]any); ok {
+					objs = append(objs, m)
+				}
+			}
+		}
+	}
+	if len(objs) == 0 {
+		return "", nil, false
+	}
+	return lead, objs, true
+}
+
+// defaultLead returns lead, or fallback when lead is empty.
+func defaultLead(lead, fallback string) string {
+	if lead != "" {
+		return lead
+	}
+	return fallback
+}
+
+// joinOutput assembles a summarized tool output: the "Output:" label, the lead
+// sentence, then the bullet lines.
+func joinOutput(lead string, bullets []string) string {
+	return fmt.Sprintf("Output: %s\n%s", lead, strings.Join(bullets, "\n"))
 }
 
 // extractPathHints surfaces filesystem paths referenced by a tool's input so
@@ -335,6 +536,254 @@ func renderTodoWrite(args map[string]any) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// renderMultiEditInput renders a multi_replace_file_content call: the target
+// file, the optional instruction, then one diff block per replacement chunk.
+func renderMultiEditInput(args map[string]any) string {
+	path := stripFileURI(stringValue(args, "TargetFile", "file_path", "path", "file"))
+	chunks, _ := args["ReplacementChunks"].([]any)
+
+	var b strings.Builder
+	if path != "" {
+		fmt.Fprintf(&b, "Path: `%s`", path)
+	}
+	if instr := strings.TrimSpace(stringValue(args, "Instruction")); instr != "" {
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(instr)
+	}
+
+	var diffs []string
+	for _, raw := range chunks {
+		chunk, _ := raw.(map[string]any)
+		if chunk == nil {
+			continue
+		}
+		oldText := stringValue(chunk, "TargetContent")
+		newText := stringValue(chunk, "ReplacementContent")
+		if oldText == "" && newText == "" {
+			continue
+		}
+		diffs = append(diffs, formatDiffBlock(oldText, newText))
+	}
+	if len(diffs) > 0 {
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString(strings.Join(diffs, "\n\n"))
+	}
+
+	if b.Len() == 0 {
+		return renderGenericJSON(args)
+	}
+	return b.String()
+}
+
+// renderGenerateImageInput renders a generate_image call: the image name and
+// aspect ratio, then the generation prompt.
+func renderGenerateImageInput(args map[string]any) string {
+	prompt := strings.TrimSpace(stringValue(args, "Prompt", "prompt"))
+	name := stringValue(args, "ImageName", "name")
+	aspect := stringValue(args, "AspectRatio", "aspect_ratio")
+	if prompt == "" && name == "" {
+		return renderGenericJSON(args)
+	}
+
+	var parts []string
+	switch {
+	case name != "" && aspect != "":
+		parts = append(parts, fmt.Sprintf("Image: `%s` (aspect ratio `%s`)", name, aspect))
+	case name != "":
+		parts = append(parts, fmt.Sprintf("Image: `%s`", name))
+	case aspect != "":
+		parts = append(parts, fmt.Sprintf("Aspect ratio: `%s`", aspect))
+	}
+	if prompt != "" {
+		parts = append(parts, "Prompt: "+prompt)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// renderDefineSubagentInput renders a define_subagent call: the subagent name and
+// description, then its system prompt as a blockquote.
+func renderDefineSubagentInput(args map[string]any) string {
+	name := stringValue(args, "name")
+	desc := strings.TrimSpace(stringValue(args, "description"))
+	sysPrompt := strings.TrimSpace(stringValue(args, "system_prompt"))
+	if name == "" && desc == "" && sysPrompt == "" {
+		return renderGenericJSON(args)
+	}
+
+	var b strings.Builder
+	if name != "" {
+		fmt.Fprintf(&b, "Subagent: `%s`", name)
+	}
+	if desc != "" {
+		if b.Len() > 0 {
+			b.WriteString(" — ")
+		}
+		b.WriteString(desc)
+	}
+	if sysPrompt != "" {
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		b.WriteString("System prompt:\n")
+		b.WriteString(blockquote(sysPrompt))
+	}
+	return b.String()
+}
+
+// renderInvokeSubagentInput renders an invoke_subagent call as a bullet per
+// spawned subagent: its role, type, model, and prompt.
+func renderInvokeSubagentInput(args map[string]any) string {
+	subs, _ := args["Subagents"].([]any)
+	if len(subs) == 0 {
+		return renderGenericJSON(args)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Invoking %d subagent(s):\n", len(subs))
+	for _, raw := range subs {
+		sub, _ := raw.(map[string]any)
+		if sub == nil {
+			continue
+		}
+		role := stringValue(sub, "Role", "role")
+		typeName := stringValue(sub, "TypeName", "type_name")
+		model := stringValue(sub, "Model", "model")
+		prompt := strings.TrimSpace(stringValue(sub, "Prompt", "prompt"))
+
+		label := role
+		if label == "" {
+			label = typeName
+		}
+		var meta []string
+		if typeName != "" && typeName != label {
+			meta = append(meta, "`"+typeName+"`")
+		}
+		if model != "" {
+			meta = append(meta, "model `"+model+"`")
+		}
+
+		line := "- **" + label + "**"
+		if len(meta) > 0 {
+			line += " (" + strings.Join(meta, ", ") + ")"
+		}
+		if prompt != "" {
+			line += ": " + prompt
+		}
+		b.WriteString(line + "\n")
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// renderManageInput renders an Action-based management call (manage_task,
+// manage_subagents): the action verb and the target ids it operates on. idKeys
+// lists the argument keys that may carry the target id(s), each a string or a
+// list of strings.
+func renderManageInput(args map[string]any, idLabel string, idKeys ...string) string {
+	var parts []string
+	if action := stringValue(args, "Action", "action"); action != "" {
+		parts = append(parts, fmt.Sprintf("Action: `%s`", action))
+	}
+	if ids := collectStringList(args, idKeys...); len(ids) > 0 {
+		quoted := make([]string, len(ids))
+		for i, id := range ids {
+			quoted[i] = "`" + id + "`"
+		}
+		parts = append(parts, fmt.Sprintf("%s: %s", idLabel, strings.Join(quoted, ", ")))
+	}
+	if len(parts) == 0 {
+		return renderGenericJSON(args)
+	}
+	return strings.Join(parts, "\n")
+}
+
+// renderSendMessageInput renders a send_message call: the recipient and the
+// message body.
+func renderSendMessageInput(args map[string]any) string {
+	recipient := stringValue(args, "Recipient", "recipient", "to")
+	message := strings.TrimSpace(stringValue(args, "Message", "message", "text"))
+	if recipient == "" && message == "" {
+		return renderGenericJSON(args)
+	}
+
+	var parts []string
+	if recipient != "" {
+		parts = append(parts, fmt.Sprintf("To: `%s`", recipient))
+	}
+	if message != "" {
+		parts = append(parts, message)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// renderScheduleInput renders a schedule call: the timer duration and condition,
+// then the prompt the timer will fire.
+func renderScheduleInput(args map[string]any) string {
+	duration := stringValue(args, "DurationSeconds", "duration_seconds", "duration")
+	prompt := strings.TrimSpace(stringValue(args, "Prompt", "prompt"))
+	condition := stringValue(args, "TimerCondition", "timer_condition", "condition")
+	if duration == "" && prompt == "" {
+		return renderGenericJSON(args)
+	}
+
+	var parts []string
+	if duration != "" {
+		label := fmt.Sprintf("Timer: %ss", duration)
+		if condition != "" {
+			label += fmt.Sprintf(" (condition: `%s`)", condition)
+		}
+		parts = append(parts, label)
+	}
+	if prompt != "" {
+		parts = append(parts, "Prompt: "+prompt)
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+// renderAskQuestionInput renders an ask_question call: each question in bold
+// followed by its selectable options as a bullet list. The user's answer arrives
+// in the tool output and is rendered by formatToolOutput.
+func renderAskQuestionInput(args map[string]any) string {
+	questions, _ := args["questions"].([]any)
+	if len(questions) == 0 {
+		return renderGenericJSON(args)
+	}
+
+	var b strings.Builder
+	for qi, raw := range questions {
+		q, _ := raw.(map[string]any)
+		if q == nil {
+			continue
+		}
+		text := strings.TrimSpace(stringValue(q, "question"))
+		if text == "" {
+			continue
+		}
+		if qi > 0 {
+			b.WriteString("\n")
+		}
+		fmt.Fprintf(&b, "**%s**", text)
+		if multi, ok := q["is_multi_select"].(bool); ok && multi {
+			b.WriteString(" _(select multiple)_")
+		}
+		b.WriteString("\n")
+		options, _ := q["options"].([]any)
+		for _, opt := range options {
+			if s, ok := opt.(string); ok {
+				fmt.Fprintf(&b, "- %s\n", s)
+			}
+		}
+	}
+	out := strings.TrimRight(b.String(), "\n")
+	if out == "" {
+		return renderGenericJSON(args)
+	}
+	return out
+}
+
 func formatDiffBlock(oldText, newText string) string {
 	var b strings.Builder
 	b.WriteString("```diff\n")
@@ -386,12 +835,17 @@ func languageFromPath(path string) string {
 // --- generic helpers ---
 
 func renderGenericJSON(args map[string]any) string {
-	if len(args) == 0 {
-		return ""
-	}
 	keys := make([]string, 0, len(args))
 	for k := range args {
+		// toolAction/toolSummary are agy-injected human labels present on every
+		// call, not real arguments; drop them so the fallback shows only real args.
+		if k == "toolAction" || k == "toolSummary" {
+			continue
+		}
 		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		return ""
 	}
 	sort.Strings(keys)
 	var b strings.Builder
@@ -423,6 +877,41 @@ func renderJSONValue(v any) string {
 		}
 		return string(bytes)
 	}
+}
+
+// collectStringList gathers string values from args across the given keys. Each
+// key's value may be a single string or a list of strings; empties are skipped.
+func collectStringList(args map[string]any, keys ...string) []string {
+	var out []string
+	for _, key := range keys {
+		val, ok := args[key]
+		if !ok {
+			continue
+		}
+		switch v := val.(type) {
+		case string:
+			if v != "" {
+				out = append(out, v)
+			}
+		case []any:
+			for _, entry := range v {
+				if s, ok := entry.(string); ok && s != "" {
+					out = append(out, s)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// blockquote prefixes each line of text with "> " so multi-line prompts render as
+// a markdown blockquote.
+func blockquote(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	for i, line := range lines {
+		lines[i] = "> " + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func stringValue(args map[string]any, keys ...string) string {

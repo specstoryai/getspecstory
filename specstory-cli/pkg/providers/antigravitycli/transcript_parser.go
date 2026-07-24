@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -17,7 +18,7 @@ import (
 // Transcript step sources (the `source` field). Observed values are
 // USER_EXPLICIT (the user prompt), SYSTEM (injected context/notices), and MODEL
 // (the model's reasoning, tool calls, and tool results). Only USER_EXPLICIT is
-// matched directly; the others are routed by `type`.
+// matched directly; results are identified by type (see isToolResultStep).
 const sourceUserExplicit = "USER_EXPLICIT"
 
 // Transcript step types (the `type` field). Tool calls are emitted on
@@ -91,14 +92,20 @@ type agSession struct {
 	RawData        string         // full transcript bytes, retained only when wantRawData
 }
 
-// isToolResultType reports whether a step type represents a tool result (which
-// always carries source MODEL and immediately follows its PLANNER_RESPONSE).
-func isToolResultType(stepType string) bool {
-	switch stepType {
-	case typeRunCommand, typeViewFile, typeCodeAction, typeGrepSearch, typeListDirectory, typeGeneric:
-		return true
-	default:
+// isToolResultStep reports whether a step carries a tool result. Results are
+// identified by exclusion: any step that is not one of the structural,
+// non-result types — the user prompt (USER_INPUT), the model's own turn
+// (PLANNER_RESPONSE), or the system scaffolding (CONVERSATION_HISTORY,
+// SYSTEM_MESSAGE, CHECKPOINT). Defining results this way — rather than with a
+// fixed result-type allowlist — keeps new dedicated result types (e.g.
+// SEARCH_WEB, READ_URL_CONTENT, GENERATE_IMAGE, INVOKE_SUBAGENT, ASK_QUESTION)
+// from being dropped as unrecognized.
+func isToolResultStep(step transcriptStep) bool {
+	switch step.Type {
+	case typeUserInput, typePlannerResponse, typeConversationHistory, typeSystemMessage, typeCheckpoint:
 		return false
+	default:
+		return true
 	}
 }
 
@@ -181,6 +188,15 @@ func parseTranscript(conversationID, transcriptPath string, history map[string]h
 		}
 		steps = append(steps, step)
 	}
+
+	// agy flushes async tool results to the transcript as they complete, so file
+	// order can place a result line ahead of the PLANNER_RESPONSE that carries its
+	// call. Sort by step_index (the canonical monotonic sequence) so call/result
+	// correlation and the first/last timestamps below are computed on the true
+	// order. A stable sort keeps file order for any equal indices.
+	sort.SliceStable(steps, func(i, j int) bool {
+		return steps[i].StepIndex < steps[j].StepIndex
+	})
 
 	session := &agSession{
 		ConversationID: conversationID,

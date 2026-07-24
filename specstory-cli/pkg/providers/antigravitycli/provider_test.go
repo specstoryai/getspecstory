@@ -289,6 +289,59 @@ func TestListAgentChatSessions_PrefersSummaryName(t *testing.T) {
 	}
 }
 
+func TestGetAgentChatSession_ToolResultCorrelation(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// Steps are written in scrambled FILE order to reproduce agy 1.1.x behavior:
+	//   - an async result line (grep, step 4) precedes its call's PLANNER_RESPONSE
+	//     (step 3) — requires step_index sorting, else the result orphans and every
+	//     later pairing shifts by one;
+	//   - within the multi-call step 3 (view_file, grep_search) the results are
+	//     indexed in completion order (grep step 4 before view step 5) — requires
+	//     type-aware routing, else FIFO swaps them;
+	//   - search_web emits a dedicated SEARCH_WEB result type — must be recognized
+	//     by source, not a hardcoded type allowlist, else it is dropped.
+	writeConversation(t, home, "conv-1",
+		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-07-24T10:00:00Z","content":"<USER_REQUEST>\ndemo\n</USER_REQUEST>"}`,
+		`{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-07-24T10:00:01Z","tool_calls":[{"name":"list_dir","args":{"DirectoryPath":"/x"}}]}`,
+		`{"step_index":2,"source":"MODEL","type":"LIST_DIRECTORY","created_at":"2026-07-24T10:00:02Z","content":"DIR-LISTING"}`,
+		`{"step_index":4,"source":"MODEL","type":"GREP_SEARCH","created_at":"2026-07-24T10:00:04Z","content":"GREP-HITS"}`,
+		`{"step_index":3,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-07-24T10:00:03Z","tool_calls":[{"name":"view_file","args":{"AbsolutePath":"/x/a.txt"}},{"name":"grep_search","args":{"Query":"foo","SearchPath":"/x"}}]}`,
+		`{"step_index":5,"source":"MODEL","type":"VIEW_FILE","created_at":"2026-07-24T10:00:05Z","content":"FILE-CONTENTS"}`,
+		`{"step_index":6,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-07-24T10:00:06Z","tool_calls":[{"name":"search_web","args":{"query":"foo"}}]}`,
+		`{"step_index":7,"source":"MODEL","type":"SEARCH_WEB","created_at":"2026-07-24T10:00:07Z","content":"WEB-RESULTS"}`,
+	)
+
+	chat, err := NewProvider().GetAgentChatSession("", "conv-1", false)
+	if err != nil || chat == nil {
+		t.Fatalf("expected session, got chat=%v err=%v", chat, err)
+	}
+
+	got := map[string]string{}
+	for _, ex := range chat.SessionData.Exchanges {
+		for _, msg := range ex.Messages {
+			if msg.Tool == nil {
+				continue
+			}
+			out, _ := msg.Tool.Output["content"].(string)
+			got[msg.Tool.Name] = out
+		}
+	}
+
+	want := map[string]string{
+		"list_dir":    "DIR-LISTING",
+		"view_file":   "FILE-CONTENTS",
+		"grep_search": "GREP-HITS",
+		"search_web":  "WEB-RESULTS", // dedicated new result type must not be dropped
+	}
+	for name, wantOut := range want {
+		if got[name] != wantOut {
+			t.Errorf("tool %q: expected output %q, got %q", name, wantOut, got[name])
+		}
+	}
+}
+
 func TestWatchAgent_RequiresCallback(t *testing.T) {
 	if err := NewProvider().WatchAgent(t.Context(), "/proj", false, nil); err == nil {
 		t.Errorf("expected error when callback is nil")
