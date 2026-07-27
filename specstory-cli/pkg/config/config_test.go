@@ -1140,6 +1140,7 @@ nonexistent_option = "oops"
 func TestGetProviderCmd(t *testing.T) {
 	cfg := &Config{
 		Providers: ProvidersConfig{
+			AntigravityCmd:                "agy --sandbox",
 			ClaudeCmd:                     "claude --dangerously-skip-permissions",
 			CodexCmd:                      "/usr/local/bin/codex",
 			CopilotIDECmd:                 "code",
@@ -1148,6 +1149,7 @@ func TestGetProviderCmd(t *testing.T) {
 			CopilotIDEVSCodiumInsidersCmd: "codium-insiders",
 			CursorCmd:                     "cursor-agent --fast",
 			CursorIDECmd:                  "cursor --wait",
+			DeepSeekCmd:                   "deepseek --model r1",
 			DroidCmd:                      "droid --verbose",
 			GeminiCmd:                     "gemini --model pro",
 		},
@@ -1165,10 +1167,13 @@ func TestGetProviderCmd(t *testing.T) {
 		{"copilotide-vscodium-insiders", "codium-insiders"},
 		{"cursor", "cursor-agent --fast"},
 		{"cursoride", "cursor --wait"},
+		{"deepseek", "deepseek --model r1"},
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
+		{"antigravity", "agy --sandbox"},
 		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
 		{"CODEX", "/usr/local/bin/codex"},                   // case-insensitive
+		{"ANTIGRAVITY", "agy --sandbox"},                    // case-insensitive
 		{"unknown", ""},                                     // unknown provider
 		{"", ""},                                            // empty provider
 	}
@@ -1291,9 +1296,9 @@ claude_cmd = "claude --project-level"
 		}
 
 		for _, id := range []string{
-			"claude", "codex",
+			"antigravity", "claude", "codex",
 			"copilotide", "copilotide-insiders", "copilotide-vscodium", "copilotide-vscodium-insiders",
-			"cursor", "cursoride", "droid", "gemini",
+			"cursor", "cursoride", "deepseek", "droid", "gemini",
 		} {
 			if got := cfg.GetProviderCmd(id); got != "" {
 				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)

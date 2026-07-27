@@ -352,7 +352,7 @@ func FindAllWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
 		// the workspace file URI rather than the folder URI. Check whether that workspace
 		// file lists our target folder as one of its folders.
 		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, isRemoteURIRequiringBasenameMatch(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by .code-workspace folder reference",
 					"workspaceID", workspaceID,
@@ -629,21 +629,87 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	return &workspace, nil
 }
 
-// pathToFileURI converts an absolute filesystem path to a file:// URI.
-// Cursor stores workspaceIdentifier.uri.external in percent-encoded form (e.g.
-// spaces as %20), so raw string concatenation would produce a URI that doesn't
-// match what Cursor writes for paths containing reserved characters, which can
-// mis-associate reconstructed sessions with their workspace.
+// pathToFileURI converts an absolute filesystem path to a file:// URI, matching the
+// encoding Cursor itself writes (Windows drive-letter lowercasing and percent-encoded
+// colon included — see fileURIParts, which does the actual work).
 func pathToFileURI(path string) string {
-	u := url.URL{Scheme: "file", Path: path}
-	return u.String()
+	_, _, external := fileURIParts(path)
+	return external
 }
 
-// uriToPath converts a workspace URI to a local file path.
-// Handles standard file:// URIs, WSL file://wsl.localhost/ URIs,
-// vscode-remote://wsl+distro/ URIs used by Cursor/VS Code in WSL,
-// vscode-remote://ssh-remote+config/path URIs for SSH remotes, and
-// vscode-remote://tunnel+host/path URIs for remote tunnels.
+// fileURIParts converts an absolute filesystem path into the three related values a
+// VS Code-style serialized URI carries, matching how Cursor itself writes
+// workspaceIdentifier.uri rows so reconstructed sessions byte-match native ones:
+//
+//	fsPath   — the OS path ("c:\Users\x\proj" on Windows, "/home/x/proj" on Unix)
+//	uriPath  — the URI path component ("/c:/Users/x/proj"), forward slashes, decoded
+//	external — the full percent-encoded URI ("file:///c%3A/Users/x/proj")
+//
+// VS Code normalizes drive letters to lowercase and percent-encodes the drive colon in
+// external (Go's URL encoder leaves ':' bare in paths, so it is encoded by hand). A
+// mismatch here can mis-associate reconstructed sessions with their workspace. UNC
+// paths (\\server\share) are not handled — workspace roots are local directories.
+// isWindowsDrivePath reports whether osPath is a Windows-shaped absolute path
+// (leading drive letter, e.g. "C:\proj" or "c:/proj"). Detected by shape rather than
+// runtime.GOOS so the conversion is deterministic and testable on any platform.
+func isWindowsDrivePath(osPath string) bool {
+	return len(osPath) >= 3 && osPath[1] == ':' &&
+		(osPath[2] == '\\' || osPath[2] == '/') &&
+		('a' <= osPath[0]|0x20 && osPath[0]|0x20 <= 'z')
+}
+
+func fileURIParts(osPath string) (fsPath, uriPath, external string) {
+	fsPath = osPath
+	p := osPath
+
+	// Lowercase the drive and use forward slashes in the URI path, backslashes in fsPath.
+	if isWindowsDrivePath(p) {
+		drive := strings.ToLower(p[:1])
+		fsPath = drive + strings.ReplaceAll(p[1:], "/", `\`)
+		p = "/" + drive + strings.ReplaceAll(p[1:], `\`, "/")
+	}
+	uriPath = p
+
+	u := url.URL{Scheme: "file", Path: p}
+	external = u.String()
+	// Percent-encode the drive colon ("file:///c:/..." -> "file:///c%3A/...") to match
+	// VS Code's serialization.
+	const pfx = "file:///"
+	if len(external) > len(pfx)+1 && external[len(pfx)+1] == ':' {
+		external = external[:len(pfx)+1] + "%3A" + external[len(pfx)+2:]
+	}
+	return fsPath, uriPath, external
+}
+
+// workspaceURIMap builds the serialized VS Code URI object Cursor stores in
+// workspaceIdentifier.uri for a workspace root. Shared by the reconstruction
+// composer writer and the global composer-header writer so both rows carry
+// identical, Cursor-native encoding.
+func workspaceURIMap(workspaceRoot string) map[string]interface{} {
+	fsPath, uriPath, external := fileURIParts(workspaceRoot)
+	uri := map[string]interface{}{
+		"$mid":     1,
+		"fsPath":   fsPath,
+		"external": external,
+		"path":     uriPath,
+		"scheme":   "file",
+	}
+	// VS Code stamps "_sep": 1 alongside a cached fsPath on Windows only
+	// (_pathSepMarker = isWindows ? 1 : undefined). URI.revive() discards the cached
+	// fsPath unless _sep matches that marker, so native Windows rows always carry it
+	// and Unix rows never do. Emitting it keeps reconstructed rows byte-identical to
+	// Cursor's own.
+	if isWindowsDrivePath(workspaceRoot) {
+		uri["_sep"] = 1
+	}
+	return uri
+}
+
+// uriToPath converts a workspace URI to a local file path. The
+// vscode-remote:// forms (wsl+distro, ssh-remote+config, tunnel+host) are
+// Cursor/VS Code specific and handled here; plain file:// URIs — including the
+// WSL and Windows drive-letter/UNC shapes — are converted by the shared
+// spi.FileURIToPath so every provider translates them identically.
 func uriToPath(uri string) (string, error) {
 	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
 	// rejects percent-encoded characters like %2B in the host component
@@ -651,52 +717,7 @@ func uriToPath(uri string) (string, error) {
 	if strings.HasPrefix(uri, "vscode-remote://") {
 		return parseVSCodeRemoteURI(uri)
 	}
-
-	// Parse the URI
-	parsedURI, err := url.Parse(uri)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse URI: %w", err)
-	}
-
-	// Reject non-file schemes
-	if parsedURI.Scheme != "file" && parsedURI.Scheme != "" {
-		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsedURI.Scheme, uri)
-	}
-
-	// Get the path from the URI and decode it
-	// This converts %3A to : and other URL-encoded characters
-	path, err := url.PathUnescape(parsedURI.Path)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode URI path: %w", err)
-	}
-
-	// Handle WSL file:// URIs (e.g., file://wsl.localhost/Ubuntu/home/user/project)
-	// Host is "wsl.localhost" and path starts with /{DistroName}/...
-	// Strip the distro name to get the actual WSL filesystem path
-	if strings.EqualFold(parsedURI.Host, "wsl.localhost") || strings.HasPrefix(strings.ToLower(parsedURI.Host), "wsl$") {
-		// path = /Ubuntu/home/user/project → strip /Ubuntu → /home/user/project
-		if len(path) > 1 {
-			if idx := strings.Index(path[1:], "/"); idx >= 0 {
-				path = path[idx+1:]
-				slog.Debug("Converted WSL file URI to path", "uri", uri, "path", path)
-				return path, nil
-			}
-		}
-		return "", fmt.Errorf("malformed WSL URI path: %s", uri)
-	}
-
-	// On Windows, URL paths have an extra leading slash (e.g., file:///c:/Users becomes /c:/Users)
-	// We need to remove the leading slash and normalize the path
-	if filepath.Separator == '\\' {
-		// Remove leading slash on Windows
-		if len(path) > 0 && path[0] == '/' {
-			path = path[1:]
-		}
-		// Normalize path separators to backslashes
-		path = filepath.FromSlash(path)
-	}
-
-	return path, nil
+	return spi.FileURIToPath(uri)
 }
 
 // collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
@@ -750,8 +771,19 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 // codeWorkspaceContainsFolder checks whether any folder entry in a .code-workspace
 // JSON file resolves to canonicalFolder. This is used to find workspaces that were
 // opened via a .code-workspace file referencing the target folder.
-func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
-	for _, folder := range collectCodeWorkspaceFolders(workspaceFilePath) {
+// isRemote should be true when workspaceFilePath was decoded from a vscode-remote://
+// URI. In that case, if the file cannot be read (it lives on the remote host), we fall
+// back to treating the workspace file's parent directory as the project root. This is
+// safe for single-root remote workspaces, and it is gated on isRemote to avoid false
+// positives from deleted local files.
+func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
+	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	if len(folders) == 0 && isRemote {
+		// The file lives on the remote host and cannot be read locally.
+		// Fall back to treating its parent directory as the project root.
+		return filepath.Dir(workspaceFilePath) == canonicalFolder
+	}
+	for _, folder := range folders {
 		if folder == canonicalFolder {
 			return true
 		}

@@ -116,14 +116,8 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		// workspaceIdentifier associates this session with its workspace so Cursor's Agent
 		// sidebar shows it under the right project. Without this field Cursor ignores the session.
 		"workspaceIdentifier": map[string]interface{}{
-			"id": workspace.ID,
-			"uri": map[string]interface{}{
-				"$mid":     1,
-				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
-				"path":     workspaceRoot,
-				"scheme":   "file",
-			},
+			"id":  workspace.ID,
+			"uri": workspaceURIMap(workspaceRoot),
 		},
 		// Conversation index
 		"fullConversationHeadersOnly": headers,
@@ -249,4 +243,10 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 // harmless and will be cleaned up by the OS.
 func (p *Provider) NativeSessionPath(_ string, filename string) (string, error) {
 	return filepath.Join(os.TempDir(), "specstory-cursor-"+filename), nil
+}
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
 }

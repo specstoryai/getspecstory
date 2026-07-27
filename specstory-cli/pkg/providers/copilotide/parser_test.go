@@ -407,35 +407,6 @@ func TestParseResponsesForTools_HiddenToolsKeepSequenceAligned(t *testing.T) {
 	}
 }
 
-// TestUriToPath verifies file URI conversion, in particular that percent-encoded
-// characters come back decoded exactly once (url.Parse decodes; adding PathUnescape
-// on top would corrupt paths with literal % sequences).
-func TestUriToPath(t *testing.T) {
-	tests := []struct {
-		name    string
-		uri     string
-		want    string
-		wantErr bool
-	}{
-		{"plain path", "file:///Users/me/proj", "/Users/me/proj", false},
-		{"space decoded", "file:///Users/me/My%20Project", "/Users/me/My Project", false},
-		{"unicode decoded", "file:///Users/me/caf%C3%A9", "/Users/me/café", false},
-		{"literal percent preserved", "file:///Users/me/literal%2520pct", "/Users/me/literal%20pct", false},
-		{"non-file scheme rejected", "vscode-remote://wsl/home/me/proj", "", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := uriToPath(tt.uri)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("uriToPath(%q) error = %v, wantErr %v", tt.uri, err, tt.wantErr)
-			}
-			if got != tt.want {
-				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.want)
-			}
-		})
-	}
-}
-
 // TestBuildToolInfoFromInvocation_PreRenders verifies the forward pass populates
 // Summary and FormattedMarkdown so tool payloads survive cross-agent resume.
 func TestBuildToolInfoFromInvocation_PreRenders(t *testing.T) {

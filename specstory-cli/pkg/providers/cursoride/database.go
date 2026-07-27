@@ -62,6 +62,11 @@ func EnsureWALMode(dbPath string) error {
 		}
 	}()
 
+	// Clamp the pool to a single connection so the PRAGMA below runs on the same
+	// connection that the mode check used (journal_mode is per-connection to observe).
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
 	// Check current journal mode
 	var currentMode string
 	if err := db.QueryRow("PRAGMA journal_mode").Scan(&currentMode); err != nil {
@@ -427,7 +432,8 @@ func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, b
 }
 
 // ComposerHeadMeta holds the session metadata needed to register a reconstructed session
-// in the workspace-level indexes (both the JSON allComposers array and the SQL composerHeaders table).
+// in the global DB's two composer indexes: the JSON allComposers array and the
+// composerHeaders SQL table. Both live in globalStorage/state.vscdb, not the workspace DB.
 type ComposerHeadMeta struct {
 	ComposerID    string
 	Name          string
@@ -498,11 +504,16 @@ func AppendToSelectedComposerIDs(workspaceDbPath, composerID string) error {
 	return nil
 }
 
-// WriteGlobalComposerHeader adds a lightweight "head" entry for the reconstructed session to
-// the "composer.composerHeaders" key in the GLOBAL DB's ItemTable. This is the authoritative
-// source from which composerDataService.allComposersData.allComposers is populated on startup.
-// Cursor's Agent sidebar SWC component reads allComposersData.allComposers and filters by name,
-// so the entry MUST have a non-empty "name" field or it is silently hidden.
+// WriteGlobalComposerHeader registers a reconstructed session in the GLOBAL DB's two
+// composer indexes, which Cursor keeps in sync and which serve different readers:
+//
+//  1. The "composer.composerHeaders" key in ItemTable (JSON, allComposers array).
+//  2. The composerHeaders SQL table, keyed by composerId and filtered by workspaceId.
+//
+// The Agent sidebar lists sessions from the SQL table, so a session missing there is
+// invisible in the sidebar even though it loads correctly when opened directly by ID
+// (e.g. via selectedComposerIds). Both writes therefore happen in one transaction.
+// Entries in either index MUST have a non-empty "name" or Cursor silently hides them.
 func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, workspaceRoot string) error {
 	db, err := OpenDatabaseReadWrite(globalDbPath)
 	if err != nil {
@@ -572,14 +583,8 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		"referencedPlans":           []interface{}{},
 		"trackedGitRepos":           []interface{}{},
 		"workspaceIdentifier": map[string]interface{}{
-			"id": meta.WorkspaceID,
-			"uri": map[string]interface{}{
-				"$mid":     1,
-				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
-				"path":     workspaceRoot,
-				"scheme":   "file",
-			},
+			"id":  meta.WorkspaceID,
+			"uri": workspaceURIMap(workspaceRoot),
 		},
 	}
 
@@ -746,14 +751,8 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 			"id":   projectID,
 			"name": "New Project",
 			"workspace": map[string]interface{}{
-				"id": workspaceID,
-				"uri": map[string]interface{}{
-					"$mid":     1,
-					"fsPath":   workspaceRoot,
-					"external": pathToFileURI(workspaceRoot),
-					"path":     workspaceRoot,
-					"scheme":   "file",
-				},
+				"id":  workspaceID,
+				"uri": workspaceURIMap(workspaceRoot),
 			},
 			"createdAt":     nowMs,
 			"lastUpdatedAt": nowMs,

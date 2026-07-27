@@ -25,7 +25,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 
 	// Test case 1: No .project.json yet
 	t.Run("CreateNewProjectIdentity", func(t *testing.T) {
-		manager := NewProjectIdentityManager(tempDir)
+		manager := NewProjectIdentityManager(tempDir, "")
 
 		modified, err := manager.EnsureProjectIdentity()
 		if err != nil {
@@ -80,7 +80,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 			t.Fatalf("Failed to write git config: %v", err)
 		}
 
-		manager := NewProjectIdentityManager(tempDir)
+		manager := NewProjectIdentityManager(tempDir, "")
 
 		// Run EnsureProjectIdentity again - should add git_id
 		modified, err := manager.EnsureProjectIdentity()
@@ -110,7 +110,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 
 	// Test case 3: .project.json exists with both workspace_id and git_id
 	t.Run("NoModificationWhenComplete", func(t *testing.T) {
-		manager := NewProjectIdentityManager(tempDir)
+		manager := NewProjectIdentityManager(tempDir, "")
 
 		// Run EnsureProjectIdentity again - should not modify
 		modified, err := manager.EnsureProjectIdentity()
@@ -305,7 +305,7 @@ func TestProjectIdentityManager_ReadProjectIdentity(t *testing.T) {
 				}
 			}
 
-			manager := NewProjectIdentityManager(tempDir)
+			manager := NewProjectIdentityManager(tempDir, "")
 			identity, err := manager.ReadProjectIdentity()
 
 			if tt.expectError {
@@ -459,7 +459,7 @@ func TestGetProjectID(t *testing.T) {
 				}
 			}
 
-			manager := NewProjectIdentityManager(tempDir)
+			manager := NewProjectIdentityManager(tempDir, "")
 			projectID, err := manager.GetProjectID()
 
 			if tt.expectError {
@@ -640,8 +640,8 @@ func TestWorkspaceIDConsistency(t *testing.T) {
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Create multiple managers for the same directory
-	manager1 := NewProjectIdentityManager(tempDir)
-	manager2 := NewProjectIdentityManager(tempDir)
+	manager1 := NewProjectIdentityManager(tempDir, "")
+	manager2 := NewProjectIdentityManager(tempDir, "")
 
 	// Generate workspace IDs
 	id1 := manager1.generateWorkspaceID()
@@ -666,7 +666,7 @@ func TestTimestampFormat(t *testing.T) {
 		t.Fatalf("Failed to create .specstory directory: %v", err)
 	}
 
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 
 	// Create project identity
 	if _, err := manager.EnsureProjectIdentity(); err != nil {
@@ -833,7 +833,7 @@ func TestProjectNameInFullFlow(t *testing.T) {
 	}
 
 	// First run - should create everything including project_name
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 	modified, err := manager.EnsureProjectIdentity()
 	if err != nil {
 		t.Fatalf("First EnsureProjectIdentity failed: %v", err)
@@ -903,7 +903,7 @@ func TestProjectNameMigration(t *testing.T) {
 	}
 
 	// Run EnsureProjectIdentity - should add project_name
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 	modified, err := manager.EnsureProjectIdentity()
 	if err != nil {
 		t.Fatalf("EnsureProjectIdentity failed: %v", err)
@@ -941,7 +941,7 @@ func TestProjectIdentityManager_EnsureProjectIdentity_NoSpecstoryDir(t *testing.
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// DO NOT create .specstory directory - it should be created automatically
-	manager := NewProjectIdentityManager(tempDir)
+	manager := NewProjectIdentityManager(tempDir, "")
 
 	modified, err := manager.EnsureProjectIdentity()
 	if err != nil {

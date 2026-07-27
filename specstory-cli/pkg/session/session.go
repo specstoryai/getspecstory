@@ -141,13 +141,21 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		return 0, fmt.Errorf("failed to generate markdown: %w", err)
 	}
 
-	// Redact secrets from the markdown before writing to disk or syncing to
-	// cloud. The count feeds the analytics redacted_count property and covers
-	// the markdown only: the cloud payloads are redacted later, inside the
-	// sync machinery at actual send time.
+	// Redact secrets from the markdown before writing to disk, collecting
+	// statistics, or syncing to cloud. The count feeds the analytics
+	// redacted_count property and covers the markdown only: the cloud
+	// payloads are redacted later, inside the sync machinery at actual send
+	// time.
 	redactedCount := 0
 	if opts.RedactSecrets {
 		markdownContent, redactedCount = redact.RedactContent(markdownContent)
+	}
+
+	// Collect statistics (always enabled) on the redacted content, so stats
+	// reflect what's actually written to disk.
+	if err := CollectSessionStatistics(session, markdownContent, config); err != nil {
+		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+		// Don't fail the operation, just log warning
 	}
 
 	// Calculate markdown size in bytes
@@ -242,4 +250,13 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	}
 
 	return markdownSize, nil
+}
+
+// collectSessionStatistics computes and saves session statistics
+func CollectSessionStatistics(session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
+	stats := ComputeSessionStatistics(session.SessionData, markdownContent)
+
+	collector := NewStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
+	collector.AddSessionStats(session.SessionID, stats)
+	return collector.Flush()
 }

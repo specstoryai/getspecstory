@@ -139,6 +139,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # DeepSeek TUI command
 # deepseek_cmd = "deepseek"
+
+# Antigravity CLI command
+# antigravity_cmd = "agy"
 `
 
 // Config represents the complete CLI configuration
@@ -246,6 +249,7 @@ type TelemetryConfig struct {
 // These are used by `specstory run` as the equivalent of the -c flag,
 // scoped to a specific provider.
 type ProvidersConfig struct {
+	AntigravityCmd                string `toml:"antigravity_cmd"`
 	ClaudeCmd                     string `toml:"claude_cmd"`
 	CodexCmd                      string `toml:"codex_cmd"`
 	CopilotIDECmd                 string `toml:"copilotide_cmd"`
@@ -489,15 +493,24 @@ func ensureDefaultUserConfig(path string) {
 	slog.Debug("Created default user config file", "path", path)
 }
 
-// EnsureDefaultProjectConfig creates a default project-level config file at
-// .specstory/cli/config.toml if one doesn't already exist. All options are
-// commented out so the file is self-documenting but inert.
+// EnsureDefaultProjectConfig creates a default project-level config file if one
+// doesn't already exist. All options are commented out so the file is
+// self-documenting but inert.
+//
+// When configDir is non-empty the config file is placed at
+// {configDir}/config.toml, which respects --config-dir. Otherwise the
+// default location {cwd}/.specstory/cli/config.toml is used.
 //
 // This should only be called from commands that imply active project work
 // (run, sync, watch) to avoid scattering config files in arbitrary directories.
 // Failures are silently ignored — this is a convenience, not a requirement.
-func EnsureDefaultProjectConfig() {
-	path := getLocalConfigPath()
+func EnsureDefaultProjectConfig(configDir string) {
+	var path string
+	if configDir != "" {
+		path = filepath.Join(configDir, ConfigFileName)
+	} else {
+		path = getLocalConfigPath()
+	}
 	if path == "" {
 		return
 	}
@@ -956,7 +969,8 @@ func (c *Config) IsRedactionEnabled() bool {
 
 // GetProviderCmd returns the custom execution command for a provider, or empty
 // string if none is configured. The providerID should match a registered
-// provider ID (e.g., "claude", "codex", "cursor", "droid", "gemini").
+// provider ID (e.g., "claude", "codex", "cursor", "deepseek", "droid",
+// "gemini", "antigravity").
 func (c *Config) GetProviderCmd(providerID string) string {
 	switch strings.ToLower(providerID) {
 	case "claude":
@@ -981,6 +995,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.DroidCmd
 	case "gemini":
 		return c.Providers.GeminiCmd
+	case "antigravity":
+		return c.Providers.AntigravityCmd
 	default:
 		return ""
 	}

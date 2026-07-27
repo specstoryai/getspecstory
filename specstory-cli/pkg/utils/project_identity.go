@@ -29,29 +29,56 @@ type ProjectIdentity struct {
 
 // ProjectIdentityManager handles project identity operations
 type ProjectIdentityManager struct {
-	projectRoot string
+	projectRoot         string
+	specstoryDir        string // optional override for the .specstory directory location (from --specstory-dir)
+	overrideProjectName string // when non-empty, use instead of auto-detecting project name (from --project-name)
+	overrideGitOrigin   string // when non-empty, use instead of reading from .git/config (from --git-origin)
 }
 
-// NewProjectIdentityManager creates a new project identity manager
-func NewProjectIdentityManager(projectRoot string) *ProjectIdentityManager {
+// NewProjectIdentityManager creates a new project identity manager.
+// specstoryDir overrides the default {projectRoot}/.specstory location when non-empty,
+// directing .project.json reads and writes to that directory instead.
+func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentityManager {
 	return &ProjectIdentityManager{
-		projectRoot: projectRoot,
+		projectRoot:  projectRoot,
+		specstoryDir: specstoryDir,
 	}
 }
 
-// getProjectJSONPath returns the path to .specstory/.project.json
+// WithProjectName sets an explicit project name override, bypassing auto-detection.
+// The override is applied even if a project name already exists in .project.json.
+func (m *ProjectIdentityManager) WithProjectName(name string) *ProjectIdentityManager {
+	m.overrideProjectName = name
+	return m
+}
+
+// WithGitOrigin sets an explicit git remote origin URL override, bypassing .git/config.
+// The override is used to compute the git_id even if one already exists in .project.json.
+func (m *ProjectIdentityManager) WithGitOrigin(origin string) *ProjectIdentityManager {
+	m.overrideGitOrigin = origin
+	return m
+}
+
+// getSpecstoryDir returns the .specstory directory to use for this project.
+func (m *ProjectIdentityManager) getSpecstoryDir() string {
+	if m.specstoryDir != "" {
+		return m.specstoryDir
+	}
+	return filepath.Join(m.projectRoot, SPECSTORY_DIR)
+}
+
+// getProjectJSONPath returns the path to .project.json
 func (m *ProjectIdentityManager) getProjectJSONPath() string {
-	return filepath.Join(m.projectRoot, SPECSTORY_DIR, PROJECT_JSON_FILE)
+	return filepath.Join(m.getSpecstoryDir(), PROJECT_JSON_FILE)
 }
 
 // EnsureProjectIdentity initializes or updates the project identity
 // Returns true if the identity was created or modified
 func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
-	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot)
+	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot, "specstoryDir", m.getSpecstoryDir())
 
-	// Ensure .specstory directory exists (create if needed)
-	specstoryDir := filepath.Join(m.projectRoot, SPECSTORY_DIR)
-	if err := os.MkdirAll(specstoryDir, 0755); err != nil {
+	// Ensure the specstory directory exists (create if needed)
+	if err := os.MkdirAll(m.getSpecstoryDir(), 0755); err != nil {
 		return false, fmt.Errorf("failed to create .specstory directory: %w", err)
 	}
 
@@ -94,16 +121,32 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		}
 	}
 
-	// Check if we need to add git_id
-	if identity.GitID == "" && resolvedGitID != "" {
+	// Determine git_id: prefer explicit override, then the walk-up resolver
+	if m.overrideGitOrigin != "" {
+		// Always apply the explicit override (force-update even if already set)
+		gitID := m.createHash(m.normalizeGitURL(m.overrideGitOrigin))
+		if identity.GitID != gitID {
+			identity.GitID = gitID
+			identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
+			isModified = true
+			slog.Debug("Set git_id from --git-origin override", "git_id", gitID)
+		}
+	} else if identity.GitID == "" && resolvedGitID != "" {
 		identity.GitID = resolvedGitID
 		identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
 		isModified = true
 		slog.Debug("Added git_id to project identity", "git_id", resolvedGitID)
 	}
 
-	// Check if we need to add project_name
-	if identity.ProjectName == "" {
+	// Determine project_name: prefer explicit override, then the walk-up resolver
+	if m.overrideProjectName != "" {
+		// Always apply the explicit override (force-update even if already set)
+		if identity.ProjectName != m.overrideProjectName {
+			identity.ProjectName = m.overrideProjectName
+			isModified = true
+			slog.Debug("Set project_name from --project-name override", "project_name", m.overrideProjectName)
+		}
+	} else if identity.ProjectName == "" {
 		identity.ProjectName = resolvedName
 		isModified = true
 		slog.Debug("Added project_name to project identity", "project_name", resolvedName)
@@ -191,10 +234,6 @@ func (m *ProjectIdentityManager) generateWorkspaceID() string {
 // should be case-folded — NOT a per-volume probe. macOS and Windows volumes are
 // usually case-insensitive and Linux case-sensitive, so we key off GOOS for
 // simplicity and stability. It is a var so tests can exercise both behaviors.
-// Windows is included even though the app is built only for macOS/Linux today: the
-// in-flight Windows support lives on a branch that does not carry this file, so
-// folding case here keeps that branch from silently reintroducing case-divergent
-// workspace ids when it merges.
 //
 // Accepted trade-off: macOS (APFS/HFS+) can be formatted case-SENSITIVE, where
 // this default wrongly folds two genuinely-distinct directories that differ only
@@ -365,6 +404,18 @@ func (m *ProjectIdentityManager) parseGitRemoteURL(remoteURL string) string {
 	}
 
 	return repoName
+}
+
+// GetProjectNameForPath reads the project name from .project.json in the given project directory.
+// Uses the default .specstory location ({projectPath}/.specstory/.project.json).
+// Returns empty string if .project.json does not exist or has no project name set.
+// This is used by providers to get the project name override for workspace matching.
+func GetProjectNameForPath(projectPath string) string {
+	identity, err := NewProjectIdentityManager(projectPath, "").ReadProjectIdentity()
+	if err != nil || identity == nil {
+		return ""
+	}
+	return identity.ProjectName
 }
 
 // GetProjectName returns the project name from the project identity

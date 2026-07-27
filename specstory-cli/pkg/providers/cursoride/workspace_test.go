@@ -10,6 +10,109 @@ import (
 	"testing"
 )
 
+// resetUserDataDirOverride restores the package-level override after a test mutates it.
+// Tests must defer this — leaking state into sibling tests would silently change their behavior.
+func resetUserDataDirOverride(t *testing.T) {
+	t.Helper()
+	prev := userDataDirOverride
+	t.Cleanup(func() { userDataDirOverride = prev })
+}
+
+// TestUserDataDirOverride_WorkspaceStorage verifies that an override pointing to a
+// valid directory wins over OS-default discovery, and that a missing override path
+// falls through (warn-and-fall-back, not hard error).
+func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Build a fake user-data-dir: <tmp>/User/workspaceStorage
+	tmp := t.TempDir()
+	wantPath := filepath.Join(tmp, "User", "workspaceStorage")
+	if err := os.MkdirAll(wantPath, 0755); err != nil {
+		t.Fatalf("Failed to create fake workspaceStorage: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetWorkspaceStoragePath()
+	if err != nil {
+		t.Fatalf("GetWorkspaceStoragePath() with valid override returned error: %v", err)
+	}
+	if got != wantPath {
+		t.Errorf("GetWorkspaceStoragePath() = %q, want %q", got, wantPath)
+	}
+}
+
+// TestUserDataDirOverride_GlobalDatabase verifies override resolution for state.vscdb.
+func TestUserDataDirOverride_GlobalDatabase(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	tmp := t.TempDir()
+	globalDir := filepath.Join(tmp, "User", "globalStorage")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatalf("Failed to create fake globalStorage: %v", err)
+	}
+	wantPath := filepath.Join(globalDir, "state.vscdb")
+	if err := os.WriteFile(wantPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to write fake state.vscdb: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetGlobalDatabasePath()
+	if err != nil {
+		t.Fatalf("GetGlobalDatabasePath() with valid override returned error: %v", err)
+	}
+	if got != wantPath {
+		t.Errorf("GetGlobalDatabasePath() = %q, want %q", got, wantPath)
+	}
+}
+
+// TestUserDataDirOverride_MissingPathFallsThrough verifies that when the override is
+// set but the derived path does not exist, the resolver falls through to OS-default
+// discovery instead of failing fast. On systems without a real Cursor install, this
+// surfaces as the normal "not found" error from the OS-default path — proving we did
+// fall through and didn't get stuck on the bad override.
+func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Override points at a directory that exists but has no User/workspaceStorage inside.
+	SetUserDataDirOverride(t.TempDir())
+
+	_, err := GetWorkspaceStoragePath()
+	if err == nil {
+		// If a real Cursor install happens to exist on this machine, the OS-default
+		// branch succeeded — also a valid fall-through outcome. Either way, the override
+		// must not have been used (we'd have failed before reaching here otherwise).
+		return
+	}
+	// The error must come from the OS-default path, not from the override candidate
+	// (the override candidate is under t.TempDir()). The error message includes the
+	// path being checked; assert it doesn't mention our tmp dir.
+	if strings.Contains(err.Error(), t.TempDir()) {
+		t.Errorf("expected fall-through to OS default after bad override, but error mentions override path: %v", err)
+	}
+}
+
+// TestUserDataDirOverride_NoOverridePreservesExistingBehavior verifies that when the
+// override is empty, the resolver behaves exactly as it did before this feature —
+// no surprises for the common case.
+func TestUserDataDirOverride_NoOverridePreservesExistingBehavior(t *testing.T) {
+	resetUserDataDirOverride(t)
+	SetUserDataDirOverride("") // explicit clear
+
+	// On a CI box without Cursor installed, this will error; on a dev box with Cursor
+	// installed, it will succeed. Both outcomes are valid — we only assert the call
+	// completes without panicking and produces an unsurprising error shape if it fails.
+	got, err := GetWorkspaceStoragePath()
+	if err != nil {
+		if !strings.Contains(err.Error(), "workspace storage") {
+			t.Errorf("unexpected error from default discovery: %v", err)
+		}
+		return
+	}
+	if got == "" {
+		t.Errorf("GetWorkspaceStoragePath() returned empty path with no error")
+	}
+}
+
 func TestUriToPath(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -382,48 +485,92 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 		}
 	}
 
+	// nonExistentFile is a path that does not exist locally, simulating a remote-SSH workspace file.
+	nonExistentFile := filepath.Join(tmpDir, "remote-host", "my-project", "my-project.code-workspace")
+	// parentOfNonExistent is the directory that contains the non-existent file.
+	parentOfNonExistent := filepath.Dir(nonExistentFile)
+
 	tests := []struct {
 		name             string
-		workspaceContent string
+		workspaceContent string // empty means use nonExistentFile (skip writeWorkspaceFile)
+		workspaceFile    string
 		targetFolder     string
+		isRemote         bool
 		expected         bool
 	}{
 		{
 			name:             "relative path that resolves to target folder",
 			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         true,
 		},
 		{
 			name:             "absolute path matching target folder",
 			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         true,
 		},
 		{
 			name:             "no folders entry matching target",
 			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         false,
 		},
 		{
 			name:             "empty folders array",
 			workspaceContent: `{"folders": []}`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         false,
 		},
 		{
 			name:             "malformed JSON",
 			workspaceContent: `not json`,
+			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
 			expected:         false,
+		},
+		// Remote-SSH fallback: file doesn't exist locally but isRemote=true and the target
+		// folder matches the workspace file's parent directory.
+		{
+			name:          "remote SSH workspace file unreadable, parent dir matches project path",
+			workspaceFile: nonExistentFile,
+			targetFolder:  parentOfNonExistent,
+			isRemote:      true,
+			expected:      true,
+		},
+		// Remote-SSH fallback: file doesn't exist but the target folder is NOT the parent dir.
+		{
+			name:          "remote SSH workspace file unreadable, parent dir does not match",
+			workspaceFile: nonExistentFile,
+			targetFolder:  canonicalProjectDir,
+			isRemote:      true,
+			expected:      false,
+		},
+		// Non-remote: deleted local file should not trigger the parent-dir fallback.
+		{
+			name:          "local workspace file missing, isRemote false, no fallback",
+			workspaceFile: nonExistentFile,
+			targetFolder:  parentOfNonExistent,
+			isRemote:      false,
+			expected:      false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			writeWorkspaceFile(tt.workspaceContent)
-			result := codeWorkspaceContainsFolder(workspaceFile, tt.targetFolder)
+			if tt.workspaceContent != "" {
+				writeWorkspaceFile(tt.workspaceContent)
+			}
+			result := codeWorkspaceContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
 			if result != tt.expected {
 				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
 			}
@@ -564,6 +711,70 @@ func TestScanWorkspaceDirForComposerPaths_Empty(t *testing.T) {
 	}
 }
 
+// TestFileURIParts verifies the VS Code-style URI serialization used for
+// workspaceIdentifier.uri, in particular the Windows drive-letter normalization
+// (lowercase drive, forward-slash URI path, %3A-encoded colon in external).
+func TestFileURIParts(t *testing.T) {
+	tests := []struct {
+		name         string
+		osPath       string
+		wantFSPath   string
+		wantURIPath  string
+		wantExternal string
+	}{
+		{
+			name:         "unix path",
+			osPath:       "/home/user/proj",
+			wantFSPath:   "/home/user/proj",
+			wantURIPath:  "/home/user/proj",
+			wantExternal: "file:///home/user/proj",
+		},
+		{
+			name:         "unix path with space",
+			osPath:       "/home/user/my proj",
+			wantFSPath:   "/home/user/my proj",
+			wantURIPath:  "/home/user/my proj",
+			wantExternal: "file:///home/user/my%20proj",
+		},
+		{
+			name:         "windows path uppercase drive",
+			osPath:       `C:\Users\Admin\proj`,
+			wantFSPath:   `c:\Users\Admin\proj`,
+			wantURIPath:  "/c:/Users/Admin/proj",
+			wantExternal: "file:///c%3A/Users/Admin/proj",
+		},
+		{
+			name:         "windows path lowercase drive",
+			osPath:       `c:\Users\Admin\proj`,
+			wantFSPath:   `c:\Users\Admin\proj`,
+			wantURIPath:  "/c:/Users/Admin/proj",
+			wantExternal: "file:///c%3A/Users/Admin/proj",
+		},
+		{
+			name:         "windows path with space",
+			osPath:       `C:\Users\Admin\my proj`,
+			wantFSPath:   `c:\Users\Admin\my proj`,
+			wantURIPath:  "/c:/Users/Admin/my proj",
+			wantExternal: "file:///c%3A/Users/Admin/my%20proj",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsPath, uriPath, external := fileURIParts(tt.osPath)
+			if fsPath != tt.wantFSPath {
+				t.Errorf("fsPath = %q, want %q", fsPath, tt.wantFSPath)
+			}
+			if uriPath != tt.wantURIPath {
+				t.Errorf("uriPath = %q, want %q", uriPath, tt.wantURIPath)
+			}
+			if external != tt.wantExternal {
+				t.Errorf("external = %q, want %q", external, tt.wantExternal)
+			}
+		})
+	}
+}
+
 // TestFindProjectComposerIDs covers the union of the two project-association sources:
 // workspace-DB references (Cursor 2 / early 3) and the workspaceIdentifier embedded in
 // global composerData rows (the only live source in Cursor >= 3.12), including
@@ -633,6 +844,40 @@ func TestFindProjectComposerIDs(t *testing.T) {
 	}
 	if len(ids) != 3 {
 		t.Errorf("expected 3 composer IDs, got %d: %v", len(ids), ids)
+	}
+}
+
+// TestWorkspaceURIMap_SepMarker verifies the "_sep" marker is emitted for Windows paths and
+// omitted for Unix ones, matching VS Code's _pathSepMarker (1 on Windows, undefined elsewhere).
+// URI.revive() drops the cached fsPath when the marker is absent, so native Windows rows
+// always carry it.
+func TestWorkspaceURIMap_SepMarker(t *testing.T) {
+	tests := []struct {
+		name    string
+		osPath  string
+		wantSep bool
+	}{
+		{name: "windows path gets marker", osPath: `C:\Users\Admin\proj`, wantSep: true},
+		{name: "windows forward slash path gets marker", osPath: "c:/Users/Admin/proj", wantSep: true},
+		{name: "unix path has no marker", osPath: "/home/user/proj", wantSep: false},
+		{name: "macos path has no marker", osPath: "/Users/bago/code/proj", wantSep: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uri := workspaceURIMap(tt.osPath)
+			sep, ok := uri["_sep"]
+			if tt.wantSep {
+				if !ok {
+					t.Fatalf("_sep missing for %q, want 1", tt.osPath)
+				}
+				if sep != 1 {
+					t.Errorf("_sep = %v, want 1", sep)
+				}
+			} else if ok {
+				t.Errorf("_sep = %v for %q, want it absent", sep, tt.osPath)
+			}
+		})
 	}
 }
 
