@@ -20,7 +20,7 @@ import (
 // `specstory resume` (see sessionTUI), entered straight into the all-projects full-text
 // search with the input focused: type to search, `space` previews a match (glamour-rendered),
 // and `r` resumes it through the same launch path as `resume`. See docs/SESSION-SEARCH.md.
-func CreateSearchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
+func CreateSearchCommand(cloudURL *string, defaults SessionFlagDefaults) *cobra.Command {
 	searchCmd := &cobra.Command{
 		Use:   "search [query…]",
 		Short: "Search and read your past coding-agent sessions",
@@ -140,6 +140,6 @@ func CreateSearchCommand(cloudURL *string, localTimeZone bool, debugDir string) 
 		},
 	}
 
-	registerResumeLaunchFlags(searchCmd, cloudURL, localTimeZone, debugDir)
+	registerSessionProcessingFlags(searchCmd, cloudURL, defaults)
 	return searchCmd
 }

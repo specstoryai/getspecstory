@@ -29,11 +29,11 @@ func createTestGlobalDB(t *testing.T, kvPairs map[string]string) string {
 		_ = db.Close()
 		t.Fatalf("createTestGlobalDB: create ItemTable: %v", err)
 	}
-	// composerHeaders is the SQL index the Agent sidebar lists sessions from. Schema copied
-	// from a real Cursor 3 global database.
-	if _, err := db.Exec(`CREATE TABLE composerHeaders (composerId TEXT PRIMARY KEY,
-		workspaceId TEXT, createdAt INTEGER, lastUpdatedAt INTEGER, isArchived INTEGER,
-		isSubagent INTEGER, recency INTEGER, checkpointAt INTEGER, value TEXT)`); err != nil {
+	// composerHeaders mirrors the dedicated header table Cursor >= 3.12 creates
+	// (composer.composerHeaders.tableGateEnabled) and reads the sidebar from.
+	if _, err := db.Exec(`CREATE TABLE composerHeaders (composerId TEXT PRIMARY KEY, workspaceId TEXT,
+		createdAt INTEGER, lastUpdatedAt INTEGER, isArchived INTEGER, isSubagent INTEGER,
+		recency INTEGER, checkpointAt INTEGER, value TEXT)`); err != nil {
 		_ = db.Close()
 		t.Fatalf("createTestGlobalDB: create composerHeaders: %v", err)
 	}
@@ -225,6 +225,50 @@ func TestWriteGlobalComposerHeader_WritesEntry(t *testing.T) {
 	uri, _ := wi["uri"].(map[string]interface{})
 	if uri["fsPath"] != "/tmp/proj" {
 		t.Errorf("workspaceIdentifier.uri.fsPath = %v, want %q", uri["fsPath"], "/tmp/proj")
+	}
+
+	// The composerHeaders TABLE row must exist too — Cursor >= 3.12 builds the sidebar
+	// from the table, not the JSON blob.
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open for table check: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var wsID string
+	var isArchived, isSubagent int
+	var value string
+	row := db.QueryRow("SELECT workspaceId, isArchived, isSubagent, value FROM composerHeaders WHERE composerId=?", "test-composer-abc")
+	if err := row.Scan(&wsID, &isArchived, &isSubagent, &value); err != nil {
+		t.Fatalf("composerHeaders table row missing: %v", err)
+	}
+	if wsID != "ws-hash-123" || isArchived != 0 || isSubagent != 0 {
+		t.Errorf("composerHeaders row = (ws %q, archived %d, subagent %d), want (ws-hash-123, 0, 0)", wsID, isArchived, isSubagent)
+	}
+	if value == "" {
+		t.Error("composerHeaders row has empty head JSON value")
+	}
+}
+
+// TestWriteGlobalComposerHeader_NoTable verifies pre-3.12 databases (no composerHeaders
+// table) are tolerated: the JSON blob is written and the table insert is skipped.
+func TestWriteGlobalComposerHeader_NoTable(t *testing.T) {
+	// Minimal DB with only ItemTable — mirrors a pre-3.12 global database.
+	path := filepath.Join(t.TempDir(), "state.vscdb")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := db.Exec("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)"); err != nil {
+		t.Fatalf("create ItemTable: %v", err)
+	}
+	_ = db.Close()
+
+	meta := ComposerHeadMeta{ComposerID: "c1", Name: "S", CreatedAt: 1, LastUpdatedAt: 2, WorkspaceID: "ws"}
+	if err := WriteGlobalComposerHeader(path, meta, "/tmp/p"); err != nil {
+		t.Fatalf("WriteGlobalComposerHeader without table: %v", err)
+	}
+	if entries := readComposerHeaders(t, path); len(entries) != 1 {
+		t.Errorf("expected 1 blob entry, got %d", len(entries))
 	}
 }
 
@@ -456,5 +500,91 @@ func TestWriteGlobalComposerHeader_PreservesExisting(t *testing.T) {
 	}
 	if entries[1]["composerId"] != "existing-id" {
 		t.Errorf("second entry composerId = %v, want %q", entries[1]["composerId"], "existing-id")
+	}
+}
+
+// readGlassState returns the parsed glass projects list and membership map from ItemTable.
+func readGlassState(t *testing.T, dbPath string) ([]map[string]interface{}, map[string]string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("readGlassState: open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	read := func(key string) string {
+		var v string
+		err := db.QueryRow("SELECT value FROM ItemTable WHERE key=?", key).Scan(&v)
+		if err == sql.ErrNoRows {
+			return ""
+		}
+		if err != nil {
+			t.Fatalf("readGlassState: query %s: %v", key, err)
+		}
+		return v
+	}
+	var projects []map[string]interface{}
+	if raw := read(glassProjectsKey); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &projects); err != nil {
+			t.Fatalf("readGlassState: unmarshal projects: %v", err)
+		}
+	}
+	membership := map[string]string{}
+	if raw := read(glassMembershipKey); raw != "" {
+		if err := json.Unmarshal([]byte(raw), &membership); err != nil {
+			t.Fatalf("readGlassState: unmarshal membership: %v", err)
+		}
+	}
+	return projects, membership
+}
+
+// TestRegisterGlassProjectMembership_CreatesProject verifies that registering a composer
+// in a database with no glass state creates both the project entry (with the workspace
+// association Cursor needs) and the membership mapping.
+func TestRegisterGlassProjectMembership_CreatesProject(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+
+	if err := RegisterGlassProjectMembership(dbPath, "comp-1", "ws-hash-1", "/tmp/proj"); err != nil {
+		t.Fatalf("RegisterGlassProjectMembership: %v", err)
+	}
+
+	projects, membership := readGlassState(t, dbPath)
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 glass project, got %d", len(projects))
+	}
+	ws, _ := projects[0]["workspace"].(map[string]interface{})
+	if ws["id"] != "ws-hash-1" {
+		t.Errorf("project workspace id = %v, want ws-hash-1", ws["id"])
+	}
+	projectID, _ := projects[0]["id"].(string)
+	if projectID == "" {
+		t.Fatal("created project has empty id")
+	}
+	if membership["comp-1"] != projectID {
+		t.Errorf("membership[comp-1] = %q, want %q", membership["comp-1"], projectID)
+	}
+}
+
+// TestRegisterGlassProjectMembership_ReusesProject verifies that an existing project
+// entry for the workspace is reused (no duplicate project) and that existing membership
+// entries survive the rewrite.
+func TestRegisterGlassProjectMembership_ReusesProject(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+
+	// First composer creates the project; second must reuse it.
+	if err := RegisterGlassProjectMembership(dbPath, "comp-1", "ws-hash-1", "/tmp/proj"); err != nil {
+		t.Fatalf("first registration: %v", err)
+	}
+	if err := RegisterGlassProjectMembership(dbPath, "comp-2", "ws-hash-1", "/tmp/proj"); err != nil {
+		t.Fatalf("second registration: %v", err)
+	}
+
+	projects, membership := readGlassState(t, dbPath)
+	if len(projects) != 1 {
+		t.Fatalf("expected project to be reused (1 entry), got %d", len(projects))
+	}
+	projectID, _ := projects[0]["id"].(string)
+	if membership["comp-1"] != projectID || membership["comp-2"] != projectID {
+		t.Errorf("both composers should map to project %q, got comp-1=%q comp-2=%q",
+			projectID, membership["comp-1"], membership["comp-2"])
 	}
 }

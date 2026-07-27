@@ -89,6 +89,7 @@ The codebase package structure:
 - `pkg/config` - Optional TOML config file handling
 - `pkg/log/` - Logging utilities
 - `pkg/provenance/` - Optional AI provenance tracking
+- `pkg/redact/` - Secret redaction (betterleaks) shared by markdown generation and cloud sync
 - `pkg/providers/*` - Provider implementations including file watching, data processing, and session data generation
 - `pkg/session/` - Session data validation, helpers and markdown generation
 - `pkg/spi/` - SPI implementation for provider implementations

@@ -145,7 +145,8 @@ func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 		}
 	}
 
-	// Verify the global composer.composerHeaders was written — the key fix for sidebar visibility.
+	// Verify the global composer.composerHeaders was written — sidebar visibility for
+	// Cursor versions before 3.12.
 	headers := readComposerHeaders(t, dbPath)
 	found := false
 	for _, h := range headers {
@@ -159,6 +160,28 @@ func TestReconstructSession_WritesGlobalDB(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("composerHeaders entry for %q not found in global ItemTable", out.SessionID)
+	}
+
+	// Verify glass registration — sidebar visibility for Cursor >= 3.12. The session
+	// must be in the membership map, pointing at a project tied to the workspace.
+	projects, membership := readGlassState(t, dbPath)
+	projectID, ok := membership[out.SessionID]
+	if !ok {
+		t.Fatalf("session %q missing from glass membership map", out.SessionID)
+	}
+	projectFound := false
+	for _, p := range projects {
+		if p["id"] == projectID {
+			projectFound = true
+			ws, _ := p["workspace"].(map[string]interface{})
+			// "test-workspace" is the ID of the patched test workspace (createTestWorkspaceDB).
+			if ws["id"] != "test-workspace" {
+				t.Errorf("glass project workspace id = %v, want test-workspace", ws["id"])
+			}
+		}
+	}
+	if !projectFound {
+		t.Errorf("glass project %q referenced by membership not found", projectID)
 	}
 }
 

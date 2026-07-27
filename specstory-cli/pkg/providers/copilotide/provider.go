@@ -365,11 +365,11 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 // already written the imported session into the workspace's chat store — the "session
 // is ready" note only makes sense in that case, not on a plain `specstory run`.
 // (Mirrors the Cursor IDE provider's behavior.)
-func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if resumeSessionID != "" {
 		fmt.Fprintf(os.Stderr, "\nSession is ready in %s. Open the Chat panel to find it.\n", p.variant.AppName)
 	}
-	if err := p.openApp(projectPath); err != nil {
+	if err := p.openApp(projectPath, customCommand); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error
 		// since the user can open the IDE manually and watching still works.
 		slog.Debug("Could not open the IDE automatically", "app", p.variant.AppName, "error", err)
@@ -413,19 +413,38 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSession
 // instead of a generic error.
 var errAppCLIMissing = errors.New("the app's shell command is not installed")
 
-// openApp launches the VS Code variant at the given project path via its own CLI
-// launcher (`code`, `code-insiders`, …) — the only launcher that reliably opens the
-// directory as a workspace window (`open -a` on macOS mostly just activates an
-// already-running instance on its home screen, so it is deliberately not used as a
-// fallback). When the CLI isn't on PATH, nothing is launched and errAppCLIMissing is
-// returned so the caller can tell the user how to install the command. On Windows the
+// openApp launches the VS Code variant at the given project path. By default it uses
+// the variant's own CLI launcher (`code`, `code-insiders`, …) — the only launcher that
+// reliably opens the directory as a workspace window (`open -a` on macOS mostly just
+// activates an already-running instance on its home screen, so it is deliberately not
+// used as a fallback). A custom command (from --command or the matching *_cmd config
+// entry) overrides the launcher binary and prepends any extra arguments before the
+// project path.
+//
+// When the default CLI isn't on PATH, errAppCLIMissing is returned so the caller can
+// tell the user how to install it; a missing custom launcher returns a plain error,
+// since the install guidance only applies to the variant's own command. On Windows the
 // launcher is a .cmd shim, which exec.LookPath resolves via PATHEXT.
-func (p *Provider) openApp(projectPath string) error {
-	if _, err := exec.LookPath(p.variant.Command); err != nil {
-		return errAppCLIMissing
+func (p *Provider) openApp(projectPath, customCommand string) error {
+	launcher := p.variant.Command
+	var args []string
+	if customCommand != "" {
+		if parts := spi.SplitCommandLine(customCommand); len(parts) > 0 {
+			launcher = parts[0]
+			args = parts[1:]
+		}
 	}
-	if out, err := exec.Command(p.variant.Command, projectPath).CombinedOutput(); err != nil {
-		return fmt.Errorf("%s CLI failed: %w: %s", p.variant.Command, err, string(out))
+
+	if _, err := exec.LookPath(launcher); err != nil {
+		if customCommand == "" {
+			return errAppCLIMissing
+		}
+		return fmt.Errorf("configured %s launcher %q not found on PATH: %w", p.variant.AppName, launcher, err)
+	}
+
+	args = append(args, projectPath)
+	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
+		return fmt.Errorf("%s launcher %q failed: %w: %s", p.variant.AppName, launcher, err, string(out))
 	}
 	return nil
 }
