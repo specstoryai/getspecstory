@@ -143,6 +143,12 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 	return filepath.Join(GetChatSessionsPath(workspace.Dir), filename), nil
 }
 
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
+}
+
 // buildRequestBlocks pairs the flattened turns into VS Code request blocks: a user turn
 // opens a request, consecutive agent turns join into its single markdown response item.
 // Leading agent turns (the migration note) get a synthetic host request, and a trailing

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -379,4 +380,57 @@ func WriteDebugSessionData(sessionID string, sessionData *schema.SessionData) er
 	absPath, _ := filepath.Abs(filePath)
 	slog.Debug("Wrote debug session data", "sessionId", sessionID, "path", absPath)
 	return nil
+}
+
+// FileURIToPath converts a file:// URI to a local filesystem path, decoding
+// percent-escapes (file:///tmp/my%20file.go → /tmp/my file.go). It is the
+// single URI→path converter shared by providers whose stores record file URIs
+// (Cursor IDE workspace identifiers, Antigravity tool args and project
+// configs), so the non-POSIX forms are translated identically everywhere:
+//
+//   - WSL URIs (file://wsl.localhost/<distro>/path, file://wsl$/...): the host
+//     and distro segment are stripped, yielding the in-distro POSIX path.
+//   - Drive-letter URIs (file:///C:/Users/...): on Windows the spurious
+//     leading slash is trimmed and separators converted (C:\Users\...).
+//   - UNC URIs (file://server/share/...): on Windows the host becomes the UNC
+//     root (\\server\share\...). On POSIX systems a host has no filesystem
+//     meaning and is dropped.
+//
+// Returns an error for unparseable URIs and schemes other than file.
+func FileURIToPath(uri string) (string, error) {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URI: %w", err)
+	}
+	if parsed.Scheme != "file" && parsed.Scheme != "" {
+		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsed.Scheme, uri)
+	}
+
+	path, err := url.PathUnescape(parsed.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode URI path: %w", err)
+	}
+
+	// WSL URIs carry the distro as the first path segment under a wsl host;
+	// the usable path is what remains inside the distro.
+	if strings.EqualFold(parsed.Host, "wsl.localhost") || strings.HasPrefix(strings.ToLower(parsed.Host), "wsl$") {
+		if len(path) > 1 {
+			if idx := strings.Index(path[1:], "/"); idx >= 0 {
+				slog.Debug("Converted WSL file URI to path", "uri", uri, "path", path[idx+1:])
+				return path[idx+1:], nil
+			}
+		}
+		return "", fmt.Errorf("malformed WSL URI path: %s", uri)
+	}
+
+	if filepath.Separator == '\\' {
+		// A non-WSL host names a UNC share.
+		if parsed.Host != "" {
+			return `\\` + parsed.Host + filepath.FromSlash(path), nil
+		}
+		// Drive-letter URI paths arrive with a spurious leading slash (/C:/Users).
+		return filepath.FromSlash(strings.TrimPrefix(path, "/")), nil
+	}
+
+	return path, nil
 }

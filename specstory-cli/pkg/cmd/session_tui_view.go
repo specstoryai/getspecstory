@@ -195,7 +195,8 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 		if !s.IsCloud {
 			turns = styDim.Render(fmt.Sprintf("%d prompts", s.UserTurns))
 		}
-		label := rowLabel(s, selected, snippet, m.lineWidth()-27, m.lineWidth()-29)
+		pad := m.agentColW - agentColMinWidth
+		label := rowLabel(s, selected, snippet, m.lineWidth()-27-pad, m.lineWidth()-29-pad)
 		head := cursor + mark + " " + agent + "  " + label + "   " + turns
 		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
@@ -211,6 +212,9 @@ func (m sessionTUI) sessionRow(s sessionindex.Session, selected bool, snippet st
 	if extra < 0 {
 		extra = 0
 	}
+	// A longer agent column (e.g. "antigravity") widens the fixed left columns;
+	// shrink the label budget to match so the right-hand turns count stays put.
+	extra += m.agentColW - agentColMinWidth
 	label := rowLabel(s, selected, snippet, m.lineWidth()-25-extra, m.lineWidth()-27-extra)
 	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + label + "  " + turns
 }
@@ -316,7 +320,10 @@ func (m sessionTUI) renderTarget() string {
 		b.WriteString(styDim.Render("   " + sessionTitle(*m.chosen)))
 	}
 	b.WriteString("\n\n")
-	for i, a := range m.installed {
+	if len(m.targets) == 0 {
+		b.WriteString(styFaint.Render("   No installed agent can resume this session.") + "\n")
+	}
+	for i, a := range m.targets {
 		cursor := "   "
 		label := a.provider.Name()
 		// The "native resume" hint applies only to local sessions. A cloud session has no local
@@ -395,11 +402,32 @@ func (m sessionTUI) agentName(id string) string {
 }
 
 func (m sessionTUI) agentTag(id string) string {
-	label := fmt.Sprintf("%-8s", id)
+	label := fmt.Sprintf("%-*s", m.agentColW, id)
 	if a, ok := m.agents[id]; ok {
 		return lipgloss.NewStyle().Foreground(a.accent).Render(label)
 	}
 	return label
+}
+
+// agentColMinWidth is the agent column's historical width. Row layouts budget
+// their label space against it, so a wider column (see agentColWidth) is
+// charged back to the label as the difference from this floor.
+const agentColMinWidth = 8
+
+// agentColWidth is the fixed width of the agent-name column: the longest known
+// agent id, floored at agentColMinWidth. Padding every tag to this width keeps a
+// long name (e.g. "antigravity", 11 cols) from overflowing the field and shoving
+// the following columns out of alignment across rows. The floor preserves the
+// prior layout for installs whose ids are all within it. Computed once at
+// construction — m.agents does not change for the lifetime of the model.
+func agentColWidth(agents map[string]agentMeta) int {
+	w := agentColMinWidth
+	for id := range agents {
+		if len(id) > w {
+			w = len(id)
+		}
+	}
+	return w
 }
 
 // sessionTitle is the human label for a session: name, then slug, then short id.

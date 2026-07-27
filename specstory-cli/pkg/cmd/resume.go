@@ -107,9 +107,19 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 			presetTarget := ""
 			if len(args) == 1 {
 				presetTarget = strings.ToLower(strings.TrimSpace(args[0]))
-				if _, err := registry.Get(presetTarget); err != nil {
+				presetProvider, err := registry.Get(presetTarget)
+				if err != nil {
 					return utils.ValidationError{Message: fmt.Sprintf(
 						"unknown agent %q. Valid agents: %s", presetTarget, registry.GetProviderList())}
+				}
+				// A preset applies the target to whatever session is picked next,
+				// but an agent without a native serializer can only resume its own
+				// local sessions in place — so as a blanket target it is invalid.
+				// Fail here, before the picker opens on a dead-end choice.
+				if !presetProvider.SupportsReconstruction() {
+					return utils.ValidationError{Message: fmt.Sprintf(
+						"%s can't be a resume target for other agents' sessions. Run 'specstory resume' without a target and pick one of its own sessions to resume in place",
+						presetProvider.Name())}
 				}
 			}
 
@@ -348,7 +358,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a cross-agent resume target. Choose a different target agent (or resume in %s itself).",
+				"%s can't be a cross-agent resume target — it has no native session serializer. Choose a different target agent, or resume the session in %s itself",
 				plan.to.Name(), plan.from.Name())}
 		}
 		slog.Warn("resume: reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
@@ -401,7 +411,7 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a resume target. Choose Claude Code or Codex CLI.", plan.to.Name())}
+				"%s can't be a resume target for cloud sessions — resuming from the cloud requires reconstructing a local native session, which it doesn't support. Choose a different target agent", plan.to.Name())}
 		}
 		slog.Warn("resume: cloud reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
 		track("error")
