@@ -93,6 +93,12 @@ func buildRegistry(p hostPaths) []Agent {
 	return []Agent{
 		{Name: "amp", DisplayName: "Amp", ProjectDir: canonicalRel,
 			GlobalDir: filepath.Join(p.configHome, "agents", "skills"), ConfigDir: filepath.Join(p.configHome, "amp")},
+		// Antigravity discovers project skills in .agents/ (the canonical store) and global
+		// ones in ~/.gemini/config/. Detection keys off the antigravity-cli subtree, not
+		// ~/.gemini itself, which is shared with the separately-registered Gemini CLI.
+		{Name: "antigravity", DisplayName: "Antigravity", ProjectDir: canonicalRel,
+			GlobalDir: filepath.Join(p.home, ".gemini", "config", "skills"),
+			ConfigDir: filepath.Join(p.home, ".gemini", "antigravity-cli")},
 		{Name: "claude-code", DisplayName: "Claude Code", ProjectDir: filepath.Join(".claude", "skills"),
 			GlobalDir: filepath.Join(p.claudeHome, "skills"), ConfigDir: p.claudeHome},
 		{Name: "cline", DisplayName: "Cline", ProjectDir: canonicalRel,

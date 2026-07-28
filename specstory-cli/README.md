@@ -151,8 +151,11 @@ specstory skills
 
 Skills install using the same layout as the public `npx skills` CLI: a canonical
 `~/.agents/skills/<name>` store, symlinked into each detected agent's skills directory
-(Claude Code, Codex, Cursor, and more), tracked in the shared `~/.agents/.skill-lock.json`.
-Installs default to global; pass `--project` to install into the current repo instead.
+(Claude Code, Codex, Cursor, Antigravity, and more), tracked in the shared
+`~/.agents/.skill-lock.json`. Installs default to global; pass `--project` to install into
+the current repo instead. Agents that read `.agents/skills` directly need no symlink for a
+project install, but a global install is still linked into the directory they scan outside a
+project (e.g. `~/.gemini/config/skills` for Antigravity, `~/.codex/skills` for Codex).
 
 Every action is also a non-interactive subcommand with `--json`, so a front end (e.g. the
 VS Code extension) can drive the same engine:
