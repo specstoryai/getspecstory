@@ -1140,11 +1140,13 @@ nonexistent_option = "oops"
 func TestGetProviderCmd(t *testing.T) {
 	cfg := &Config{
 		Providers: ProvidersConfig{
-			ClaudeCmd: "claude --dangerously-skip-permissions",
-			CodexCmd:  "/usr/local/bin/codex",
-			CursorCmd: "cursor-agent --fast",
-			DroidCmd:  "droid --verbose",
-			GeminiCmd: "gemini --model pro",
+			ClaudeCmd:      "claude --dangerously-skip-permissions",
+			CodexCmd:       "/usr/local/bin/codex",
+			CursorCmd:      "cursor-agent --fast",
+			DeepSeekCmd:    "deepseek --model r1",
+			DroidCmd:       "droid --verbose",
+			GeminiCmd:      "gemini --model pro",
+			AntigravityCmd: "agy --sandbox",
 		},
 	}
 
@@ -1155,10 +1157,13 @@ func TestGetProviderCmd(t *testing.T) {
 		{"claude", "claude --dangerously-skip-permissions"},
 		{"codex", "/usr/local/bin/codex"},
 		{"cursor", "cursor-agent --fast"},
+		{"deepseek", "deepseek --model r1"},
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
+		{"antigravity", "agy --sandbox"},
 		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
 		{"CODEX", "/usr/local/bin/codex"},                   // case-insensitive
+		{"ANTIGRAVITY", "agy --sandbox"},                    // case-insensitive
 		{"unknown", ""},                                     // unknown provider
 		{"", ""},                                            // empty provider
 	}
@@ -1272,10 +1277,59 @@ claude_cmd = "claude --project-level"
 			t.Fatalf("Load() returned error: %v", err)
 		}
 
-		for _, id := range []string{"claude", "codex", "cursor", "droid", "gemini"} {
+		for _, id := range []string{"claude", "codex", "cursor", "deepseek", "droid", "gemini", "antigravity"} {
 			if got := cfg.GetProviderCmd(id); got != "" {
 				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)
 			}
 		}
 	})
+}
+
+func TestUpsertResumeSection_AppendWhenAbsent(t *testing.T) {
+	in := "[local_sync]\n# enabled = false\n"
+	out := upsertResumeSection(in, "sparse", "codex")
+	if !strings.Contains(out, "[local_sync]") || !strings.Contains(out, "# enabled = false") {
+		t.Errorf("existing section/comments not preserved:\n%s", out)
+	}
+	if !strings.Contains(out, "[resume]") || !strings.Contains(out, `view_mode = "sparse"`) || !strings.Contains(out, `last_agent = "codex"`) {
+		t.Errorf("resume section not appended:\n%s", out)
+	}
+	var cfg Config
+	if _, err := toml.Decode(out, &cfg); err != nil {
+		t.Fatalf("result is not valid TOML: %v", err)
+	}
+	if cfg.GetResumeViewMode() != "sparse" || cfg.GetResumeLastAgent() != "codex" {
+		t.Errorf("round-trip mismatch: %+v", cfg.Resume)
+	}
+}
+
+func TestUpsertResumeSection_ReplacePreservingOthers(t *testing.T) {
+	in := "[resume]\nview_mode = \"dense\"\nlast_agent = \"claude\"\n\n[providers]\n# claude_cmd = \"claude\"\n"
+	out := upsertResumeSection(in, "sparse", "gemini")
+	// The other section and its comment must survive untouched.
+	if !strings.Contains(out, "[providers]") || !strings.Contains(out, `# claude_cmd = "claude"`) {
+		t.Errorf("trailing section clobbered:\n%s", out)
+	}
+	// Old resume values replaced, not duplicated.
+	if strings.Count(out, "[resume]") != 1 {
+		t.Errorf("resume section duplicated:\n%s", out)
+	}
+	var cfg Config
+	if _, err := toml.Decode(out, &cfg); err != nil {
+		t.Fatalf("invalid TOML: %v", err)
+	}
+	if cfg.GetResumeViewMode() != "sparse" || cfg.GetResumeLastAgent() != "gemini" {
+		t.Errorf("values not replaced: %+v", cfg.Resume)
+	}
+}
+
+func TestGetResumeViewModeDefaults(t *testing.T) {
+	var c Config
+	if c.GetResumeViewMode() != "dense" {
+		t.Errorf("default view mode = %q; want dense", c.GetResumeViewMode())
+	}
+	c.Resume.ViewMode = "sparse"
+	if c.GetResumeViewMode() != "sparse" {
+		t.Errorf("view mode not honored")
+	}
 }

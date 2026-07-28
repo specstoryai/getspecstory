@@ -123,130 +123,46 @@ func TestProjectIdentityManager_EnsureProjectIdentity(t *testing.T) {
 	})
 }
 
-// TestProjectIdentityManager_generateGitID tests git ID generation from various git URL formats
-func TestProjectIdentityManager_generateGitID(t *testing.T) {
-	tests := []struct {
-		name        string
-		gitURL      string
-		expectedID  string // We'll calculate this for each URL
-		shouldMatch bool   // Whether GitHub HTTPS and SSH should match
+// TestGitIDFromURL verifies the git_id derivation that resolveIdentity uses —
+// createHash(normalizeGitURL(url)) — is well-formed for assorted URL shapes, and that
+// HTTPS and SSH clones of the same repo converge to one id (the point of normalizeGitURL).
+func TestGitIDFromURL(t *testing.T) {
+	manager := &ProjectIdentityManager{}
+	gitID := func(url string) string { return manager.createHash(manager.normalizeGitURL(url)) }
+
+	formats := []struct {
+		name   string
+		gitURL string
 	}{
-		{
-			name:        "GitHub HTTPS",
-			gitURL:      "https://github.com/specstoryai/specstory-cli.git",
-			shouldMatch: true,
-		},
-		{
-			name:        "GitHub SSH",
-			gitURL:      "git@github.com:specstoryai/specstory-cli.git",
-			shouldMatch: true,
-		},
-		{
-			name:        "GitLab SSH",
-			gitURL:      "git@gitlab.com:patterns-ai-core/langchainrb.git",
-			shouldMatch: false,
-		},
-		{
-			name:        "Custom Git Server",
-			gitURL:      "git@custom.example.com:myorg/myrepo.git",
-			shouldMatch: false,
-		},
+		{"GitHub HTTPS", "https://github.com/specstoryai/specstory-cli.git"},
+		{"GitHub SSH", "git@github.com:specstoryai/specstory-cli.git"},
+		{"GitLab HTTPS", "https://gitlab.com/patterns-ai-core/langchainrb.git"},
+		{"GitLab SSH", "git@gitlab.com:patterns-ai-core/langchainrb.git"},
+		{"Custom Git Server", "git@custom.example.com:myorg/myrepo.git"},
 	}
-
-	// Create temporary directory for each test
-	for _, tt := range tests {
+	for _, tt := range formats {
 		t.Run(tt.name, func(t *testing.T) {
-			tempDir, err := os.MkdirTemp("", "specstory-git-test-*")
-			if err != nil {
-				t.Fatalf("Failed to create temp dir: %v", err)
-			}
-			defer func() { _ = os.RemoveAll(tempDir) }()
-
-			// Create .git/config
-			gitDir := filepath.Join(tempDir, ".git")
-			if err := os.MkdirAll(gitDir, 0755); err != nil {
-				t.Fatalf("Failed to create .git directory: %v", err)
-			}
-
-			gitConfig := `[remote "origin"]
-	url = ` + tt.gitURL
-
-			if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(gitConfig), 0644); err != nil {
-				t.Fatalf("Failed to write git config: %v", err)
-			}
-
-			manager := NewProjectIdentityManager(tempDir)
-			gitID, err := manager.generateGitID()
-			if err != nil {
-				t.Errorf("generateGitID failed: %v", err)
-			}
-
-			// Verify format
-			if !IsValidProjectID(gitID) {
-				t.Errorf("Invalid git_id format: %s", gitID)
-			}
-
-			// Store the ID for comparison
-			if tt.shouldMatch {
-				tt.expectedID = gitID
+			if id := gitID(tt.gitURL); !IsValidProjectID(id) {
+				t.Errorf("invalid git_id format for %q: %s", tt.gitURL, id)
 			}
 		})
 	}
 
-	// Verify that HTTPS and SSH URLs generate the same ID for all git hosts
-	// Group URLs by expected normalized form
-	urlGroups := map[string][]string{
-		"github": {"GitHub HTTPS", "GitHub SSH"},
-		"gitlab": {"GitLab HTTPS", "GitLab SSH"},
-	}
-
-	// Add GitLab HTTPS test case
-	tests = append(tests, struct {
-		name        string
-		gitURL      string
-		expectedID  string
-		shouldMatch bool
+	// HTTPS and SSH URLs for the same repo must hash to the same id: a clone over either
+	// protocol resolves to one project.
+	convergence := []struct {
+		name       string
+		https, ssh string
 	}{
-		name:        "GitLab HTTPS",
-		gitURL:      "https://gitlab.com/patterns-ai-core/langchainrb.git",
-		shouldMatch: true,
-	})
-
-	for groupName, testNames := range urlGroups {
-		var ids []string
-
-		for _, testName := range testNames {
-			for _, tt := range tests {
-				if tt.name == testName {
-					tempDir, _ := os.MkdirTemp("", "specstory-git-test-*")
-					defer func() { _ = os.RemoveAll(tempDir) }()
-
-					gitDir := filepath.Join(tempDir, ".git")
-					_ = os.MkdirAll(gitDir, 0755)
-
-					gitConfig := `[remote "origin"]
-	url = ` + tt.gitURL
-
-					_ = os.WriteFile(filepath.Join(gitDir, "config"), []byte(gitConfig), 0644)
-
-					manager := NewProjectIdentityManager(tempDir)
-					gitID, _ := manager.generateGitID()
-					ids = append(ids, gitID)
-					break
-				}
+		{"GitHub", "https://github.com/specstoryai/specstory-cli.git", "git@github.com:specstoryai/specstory-cli.git"},
+		{"GitLab", "https://gitlab.com/patterns-ai-core/langchainrb.git", "git@gitlab.com:patterns-ai-core/langchainrb.git"},
+	}
+	for _, c := range convergence {
+		t.Run(c.name+" HTTPS==SSH", func(t *testing.T) {
+			if gitID(c.https) != gitID(c.ssh) {
+				t.Errorf("%s HTTPS and SSH should converge, got %s vs %s", c.name, gitID(c.https), gitID(c.ssh))
 			}
-		}
-
-		// Verify all IDs in the group are the same
-		if len(ids) > 1 {
-			for i := 1; i < len(ids); i++ {
-				if ids[i] != ids[0] {
-					t.Errorf("%s HTTPS and SSH URLs should generate the same ID, but got different IDs: %v",
-						groupName, ids)
-					break
-				}
-			}
-		}
+		})
 	}
 }
 
@@ -854,56 +770,39 @@ func TestParseGitRemoteURL(t *testing.T) {
 	}
 }
 
-// TestGenerateProjectName tests project name generation with git and fallback
-func TestGenerateProjectName(t *testing.T) {
-	t.Run("WithGitRemote", func(t *testing.T) {
-		tempDir, err := os.MkdirTemp("", "specstory-projectname-test-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		defer func() { _ = os.RemoveAll(tempDir) }()
+// TestProjectNameFromRemote tests repo-name extraction from a git remote URL
+// (parseGitRemoteURL, which resolveIdentity uses to name a project from its origin).
+func TestProjectNameFromRemote(t *testing.T) {
+	manager := &ProjectIdentityManager{}
+	tests := []struct {
+		name, url, want string
+	}{
+		{"GitHub HTTPS", "https://github.com/specstoryai/my-awesome-project.git", "my-awesome-project"},
+		{"GitHub SSH", "git@github.com:specstoryai/my-awesome-project.git", "my-awesome-project"},
+		{"Implicit host/path", "github.com/specstoryai/my-awesome-project", "my-awesome-project"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := manager.parseGitRemoteURL(tt.url); got != tt.want {
+				t.Errorf("parseGitRemoteURL(%q) = %q, want %q", tt.url, got, tt.want)
+			}
+		})
+	}
+}
 
-		// Create a git config with origin
-		gitDir := filepath.Join(tempDir, ".git")
-		if err := os.MkdirAll(gitDir, 0755); err != nil {
-			t.Fatalf("Failed to create .git directory: %v", err)
-		}
+// TestProjectNameFallsBackToDirName verifies a project with no resolvable git remote is
+// named by its directory basename — the fallback branch in resolveIdentity.
+func TestProjectNameFallsBackToDirName(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "test-project-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
-		gitConfig := `[core]
-	repositoryformatversion = 0
-[remote "origin"]
-	url = https://github.com/specstoryai/my-awesome-project.git
-	fetch = +refs/heads/*:refs/remotes/origin/*`
-
-		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(gitConfig), 0644); err != nil {
-			t.Fatalf("Failed to write git config: %v", err)
-		}
-
-		manager := NewProjectIdentityManager(tempDir)
-		projectName := manager.generateProjectName()
-
-		if projectName != "my-awesome-project" {
-			t.Errorf("Expected project name 'my-awesome-project', got '%s'", projectName)
-		}
-	})
-
-	t.Run("WithoutGitRemote", func(t *testing.T) {
-		// Create a directory with a specific name
-		tempDir, err := os.MkdirTemp("", "test-project-*")
-		if err != nil {
-			t.Fatalf("Failed to create temp dir: %v", err)
-		}
-		defer func() { _ = os.RemoveAll(tempDir) }()
-
-		manager := NewProjectIdentityManager(tempDir)
-		projectName := manager.generateProjectName()
-
-		// Should be the directory name
-		expectedName := filepath.Base(tempDir)
-		if projectName != expectedName {
-			t.Errorf("Expected project name '%s', got '%s'", expectedName, projectName)
-		}
-	})
+	_, _, name, _ := resolveIdentity(tempDir)
+	if want := filepath.Base(tempDir); name != want {
+		t.Errorf("expected project name %q, got %q", want, name)
+	}
 }
 
 // TestProjectNameInFullFlow tests project_name in the complete identity flow
@@ -1062,5 +961,192 @@ func TestProjectIdentityManager_EnsureProjectIdentity_NoSpecstoryDir(t *testing.
 	projectJSONPath := filepath.Join(specstoryDir, PROJECT_JSON_FILE)
 	if _, err := os.Stat(projectJSONPath); os.IsNotExist(err) {
 		t.Error("Expected .project.json file to be created")
+	}
+}
+
+// TestComputeProjectID is the executable spec for walk-up identity resolution:
+// the monorepo-subdir + two-clone scenario, plus worktree and remote-less cases.
+func TestComputeProjectID(t *testing.T) {
+	// newRepo creates a temp dir with a .git/config carrying the given origin url
+	// (empty url = a git repo with no remote).
+	newRepo := func(t *testing.T, url string) string {
+		t.Helper()
+		root := t.TempDir()
+		gitDir := filepath.Join(root, ".git")
+		if err := os.MkdirAll(gitDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cfg := "[core]\n\tbare = false\n"
+		if url != "" {
+			cfg += "[remote \"origin\"]\n\turl = " + url + "\n"
+		}
+		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+	mkSub := func(t *testing.T, root, rel string) string {
+		t.Helper()
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	compute := func(t *testing.T, dir string) string {
+		t.Helper()
+		id, _, err := ComputeProjectID(dir)
+		if err != nil {
+			t.Fatalf("ComputeProjectID(%q): %v", dir, err)
+		}
+		return id
+	}
+
+	t.Run("monorepo subdirs collapse to one git_id", func(t *testing.T) {
+		root := newRepo(t, "git@github.com:acme/widgets.git")
+		a := mkSub(t, root, "a")
+		b := mkSub(t, root, "pkg/b")
+
+		rootID := compute(t, root)
+		_, rootName, _ := ComputeProjectID(root)
+		if aID := compute(t, a); aID != rootID {
+			t.Errorf("subdir a did not collapse: root=%s a=%s", rootID, aID)
+		}
+		if bID := compute(t, b); bID != rootID {
+			t.Errorf("nested subdir b did not collapse: root=%s b=%s", rootID, bID)
+		}
+		if rootName != "widgets" {
+			t.Errorf("project name = %q, want widgets", rootName)
+		}
+	})
+
+	t.Run("two clones share git_id across different paths and url forms", func(t *testing.T) {
+		ssh := newRepo(t, "git@github.com:acme/widgets.git")
+		https := newRepo(t, "https://github.com/acme/widgets.git")
+		if compute(t, ssh) != compute(t, https) {
+			t.Errorf("clones diverged: ssh=%s https=%s", compute(t, ssh), compute(t, https))
+		}
+	})
+
+	t.Run("worktree (.git file) resolves to the main repo git_id", func(t *testing.T) {
+		main := newRepo(t, "git@github.com:acme/widgets.git")
+		wtGitDir := filepath.Join(main, ".git", "worktrees", "wt")
+		if err := os.MkdirAll(wtGitDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		// commondir points back to the shared .git (relative to the private gitdir).
+		if err := os.WriteFile(filepath.Join(wtGitDir, "commondir"), []byte("../..\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		wt := t.TempDir()
+		if err := os.WriteFile(filepath.Join(wt, ".git"), []byte("gitdir: "+wtGitDir+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if compute(t, wt) != compute(t, main) {
+			t.Errorf("worktree did not resolve to main repo: main=%s wt=%s", compute(t, main), compute(t, wt))
+		}
+	})
+
+	t.Run("remote-less repo: subdirs collapse, distinct repos differ", func(t *testing.T) {
+		root := newRepo(t, "")
+		a := mkSub(t, root, "a")
+		if compute(t, a) != compute(t, root) {
+			t.Errorf("remote-less subdir did not collapse: root=%s a=%s", compute(t, root), compute(t, a))
+		}
+		if compute(t, newRepo(t, "")) == compute(t, root) {
+			t.Error("distinct remote-less repos collided")
+		}
+	})
+
+	t.Run("no-git dir yields a stable, non-empty id", func(t *testing.T) {
+		d := t.TempDir()
+		id := compute(t, d)
+		if id == "" {
+			t.Error("empty id for no-git dir")
+		}
+		if id2 := compute(t, d); id != id2 {
+			t.Errorf("unstable id: %s vs %s", id, id2)
+		}
+	})
+
+	t.Run("persisted workspace_id is preferred over the computed hash", func(t *testing.T) {
+		// A no-git dir falls back to the path-based workspace_id; an id already persisted in
+		// .project.json must win so reindex/resume/cloud all agree on one value even when the
+		// file predates path canonicalization.
+		d := t.TempDir()
+		specDir := filepath.Join(d, SPECSTORY_DIR)
+		if err := os.MkdirAll(specDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		const sentinel = "dead-beef-cafe-0001"
+		body := `{"workspace_id":"` + sentinel + `","workspace_id_at":"2020-01-01T00:00:00Z"}`
+		if err := os.WriteFile(filepath.Join(specDir, PROJECT_JSON_FILE), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if id := compute(t, d); id != sentinel {
+			t.Errorf("expected persisted workspace_id %q, got %q", sentinel, id)
+		}
+	})
+
+	t.Run("git_id wins over a persisted workspace_id", func(t *testing.T) {
+		root := newRepo(t, "git@github.com:acme/widgets.git")
+		specDir := filepath.Join(root, SPECSTORY_DIR)
+		if err := os.MkdirAll(specDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(specDir, PROJECT_JSON_FILE),
+			[]byte(`{"workspace_id":"should-not-be-used"}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if id := compute(t, root); id == "should-not-be-used" {
+			t.Error("git_id should win over a persisted workspace_id")
+		}
+	})
+
+	t.Run("empty cwd errors", func(t *testing.T) {
+		if _, _, err := ComputeProjectID(""); err == nil {
+			t.Error("expected error for empty cwd")
+		}
+	})
+}
+
+// TestCanonicalizeWorkspacePath verifies the case-fold rule: paths are lowercased on
+// case-insensitive filesystems (macOS/Windows) and left byte-exact otherwise.
+func TestCanonicalizeWorkspacePath(t *testing.T) {
+	orig := caseInsensitiveFilesystem
+	defer func() { caseInsensitiveFilesystem = orig }()
+
+	const mixed = "/Users/Sean/Source/Proj"
+
+	caseInsensitiveFilesystem = true
+	if got := canonicalizeWorkspacePath(mixed); got != "/users/sean/source/proj" {
+		t.Errorf("case-insensitive: got %q, want lowercased", got)
+	}
+
+	caseInsensitiveFilesystem = false
+	if got := canonicalizeWorkspacePath(mixed); got != mixed {
+		t.Errorf("case-sensitive: got %q, want byte-exact %q", got, mixed)
+	}
+}
+
+// TestWorkspaceIDCaseFolding is the regression test for the reported bug: on a
+// case-insensitive filesystem, the same physical directory named with different casing
+// (e.g. os.Getwd echoing a lowercase $PWD vs a recorded capital-cased cwd) must hash to
+// one workspace_id. On a case-sensitive filesystem the two are genuinely distinct.
+func TestWorkspaceIDCaseFolding(t *testing.T) {
+	orig := caseInsensitiveFilesystem
+	defer func() { caseInsensitiveFilesystem = orig }()
+
+	upper := &ProjectIdentityManager{projectRoot: "/Users/Sean/Source/Proj"}
+	lower := &ProjectIdentityManager{projectRoot: "/users/sean/source/proj"}
+
+	caseInsensitiveFilesystem = true
+	if upper.generateWorkspaceID() != lower.generateWorkspaceID() {
+		t.Error("case-insensitive FS: differently-cased paths produced different workspace ids")
+	}
+
+	caseInsensitiveFilesystem = false
+	if upper.generateWorkspaceID() == lower.generateWorkspaceID() {
+		t.Error("case-sensitive FS: differently-cased paths should yield distinct workspace ids")
 	}
 }

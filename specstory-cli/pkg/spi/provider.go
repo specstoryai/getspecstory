@@ -2,6 +2,8 @@ package spi
 
 import (
 	"context"
+	"encoding/json"
+	"log/slog"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -26,6 +28,24 @@ type AgentChatSession struct {
 	Slug        string              // Stable human-readable but file name safe slug, often derived from first user message
 	SessionData *schema.SessionData // Structured session data in unified format
 	RawData     string              // Raw session data (e.g., JSON blobs for Cursor CLI, JSONL for Claude Code and Codex CLI, etc.)
+}
+
+// SessionDataJSON marshals the session's normalized SessionData to a JSON string for
+// cloud sync. SessionData is the canonical cloud-resume representation (the cloud
+// stores and serves it verbatim), so it is pushed alongside the existing markdown and
+// rawData. Returns "" (and logs) when there is no SessionData or marshaling fails, so
+// callers can pass the result straight through — an empty payload simply means "no
+// cloud-resumable blob for this session" and the server leaves session_data_size NULL.
+func (s *AgentChatSession) SessionDataJSON() string {
+	if s == nil || s.SessionData == nil {
+		return ""
+	}
+	data, err := json.Marshal(s.SessionData)
+	if err != nil {
+		slog.Warn("Failed to marshal SessionData for cloud sync", "sessionId", s.SessionID, "error", err)
+		return ""
+	}
+	return string(data)
 }
 
 // SessionMetadata contains lightweight metadata about a session without full content
@@ -95,4 +115,40 @@ type Provider interface {
 	// sessionCallback: called with AgentChatSession on each update (provider should not block on callback)
 	// The implementation should handle its own file watching and session tracking
 	WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*AgentChatSession)) error
+
+	// ReconstructSession rebuilds the provider's native session format from the
+	// neutral SessionData so the agent can resume the conversation (the reverse of
+	// the parse/generate path). It is a pure transform: it returns the native file
+	// bytes, a freshly minted native-format session ID, and a suggested filename,
+	// but does NOT touch the filesystem — writing into the live agent store is the
+	// caller's responsibility.
+	//
+	// Every provider carries this responsibility; providers that do not yet have a
+	// native serializer return ErrReconstructionUnsupported.
+	// See docs/SESSION-PORTABILITY.md for the design.
+	ReconstructSession(data *schema.SessionData, opts ReconstructOptions) (*ReconstructedSession, error)
+
+	// NativeSessionPath resolves the absolute path where a reconstructed session
+	// file (with the given base filename, from ReconstructedSession.Filename)
+	// belongs in this provider's native store for the given project, WITHOUT
+	// requiring the directory to exist — the caller creates it and writes the file.
+	// Providers without a native serializer return ErrReconstructionUnsupported.
+	NativeSessionPath(projectPath string, filename string) (string, error)
+
+	// SupportsReconstruction reports whether this provider has a native
+	// serializer — i.e. whether it can be a cross-agent (or cloud) resume
+	// target. It must agree with ReconstructSession/NativeSessionPath returning
+	// ErrReconstructionUnsupported, and must be a pure capability answer with no
+	// filesystem access: callers invoke it just to build target lists (some
+	// NativeSessionPath implementations prepare directories, so probing that is
+	// not a substitute).
+	SupportsReconstruction() bool
+
+	// ListAllAgentChatSessions enumerates every session in this provider's native
+	// store, regardless of project — the inverse of the project-scoped
+	// ListAgentChatSessions. Each returned ref carries the originating cwd (read from
+	// inside the session) so the caller can resolve project identity; the project is
+	// discovered, not supplied. Lightweight: metadata only, no full SessionData parse.
+	// Used by `specstory reindex` to (re)build the restore index. See docs/SESSIONS-DB.md.
+	ListAllAgentChatSessions() ([]GlobalSessionRef, error)
 }

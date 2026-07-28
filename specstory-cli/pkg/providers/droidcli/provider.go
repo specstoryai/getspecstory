@@ -580,3 +580,38 @@ func generateDroidSessionName(session *fdSession) string {
 	// No suitable content found
 	return ""
 }
+
+// ListAllAgentChatSessions enumerates every Factory Droid session across all projects
+// in ~/.factory/sessions/. The originating cwd is read from inside each session
+// (parseFactorySession resolves it into WorkspaceRoot, preferring the recorded cwd).
+// See docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	files, err := listSessionFiles()
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []spi.GlobalSessionRef{}, nil
+		}
+		return nil, err
+	}
+
+	var refs []spi.GlobalSessionRef
+	for _, file := range files {
+		session, err := parseFactorySession(file.Path)
+		if err != nil {
+			slog.Debug("reindex: failed to parse droid session", "path", file.Path, "error", err)
+			continue
+		}
+		if session == nil || len(session.Blocks) == 0 {
+			continue // empty session
+		}
+		refs = append(refs, spi.GlobalSessionRef{
+			SessionID:  session.ID,
+			CreatedAt:  session.CreatedAt,
+			Slug:       session.Slug,
+			Name:       generateDroidSessionName(session),
+			NativePath: file.Path,
+			OriginCwd:  strings.TrimSpace(session.WorkspaceRoot),
+		})
+	}
+	return refs, nil
+}

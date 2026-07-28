@@ -1,0 +1,11 @@
+{
+  "name": "specstory-workthreads",
+  "version": "1.0.0",
+  "description": "A weekly work-thread rollup from SpecStory coding histories. Standalone skill.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}
