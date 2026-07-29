@@ -102,7 +102,7 @@ Specify a specific agent ID to check only a specific coding agent.`,
 	}
 
 	cmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
-	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	AddProvidersFlag(cmd)
 
 	return cmd
 }

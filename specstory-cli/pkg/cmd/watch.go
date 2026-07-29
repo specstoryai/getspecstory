@@ -313,7 +313,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	// filtering by provider has no meaning.
 	registerSessionProcessingFlags(watchCmd, cloudURL, defaults)
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
-	watchCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	AddProvidersFlag(watchCmd)
 
 	return watchCmd
 }

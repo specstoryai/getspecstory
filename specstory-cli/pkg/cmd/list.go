@@ -100,7 +100,7 @@ Provide a specific agent ID to list sessions from only that provider.`
 	}
 
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Output as JSON (default is human-readable table)")
-	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	AddProvidersFlag(cmd)
 
 	return cmd
 }

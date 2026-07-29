@@ -539,6 +539,12 @@ Provide a specific agent ID to sync a specific provider.`
 			if onlyStats && len(sessionIDs) > 0 {
 				return utils.ValidationError{Message: "cannot use --only-stats with -s/--session. Use --only-stats without -s to collect statistics for all sessions"}
 			}
+			// -s takes the session-specific sync path, which never consults the
+			// provider filter — reject the combination rather than silently ignore it
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			if len(sessionIDs) > 0 && len(providersFlag) > 0 {
+				return utils.ValidationError{Message: "cannot use --providers with -s/--session. Session IDs already identify their provider"}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1529,7 +1535,7 @@ func main() {
 	syncCmd.Flags().StringVar(&telemetryServiceName, "telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
 	syncCmd.Flags().BoolVar(&noTelemetryPrompts, "no-telemetry-prompts", noTelemetryPrompts, "exclude prompt text from telemetry spans, if telemetry is enabled")
 	syncCmd.Flags().BoolVar(&noRedactSecrets, "no-redact-secrets", noRedactSecrets, "disable redaction of API keys and tokens from saved markdown history and cloud-synced session data")
-	syncCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	cmdpkg.AddProvidersFlag(syncCmd)
 
 	runCmd.Flags().BoolVar(&provenanceEnabled, "provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
 	_ = runCmd.Flags().MarkHidden("provenance") // Hidden flag

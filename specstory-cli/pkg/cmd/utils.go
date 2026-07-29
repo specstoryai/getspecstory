@@ -5,11 +5,22 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
+
+// AddProvidersFlag registers the --providers filter flag on a command. Shared so
+// the flag stays identical across every command that supports provider filtering.
+// The flag is hidden because it's internal — provider filtering isn't part of the
+// public CLI surface (the positional provider-id argument is).
+func AddProvidersFlag(cmd *cobra.Command) {
+	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	_ = cmd.Flags().MarkHidden("providers")
+}
 
 // ResolveProviderIDs resolves the effective list of provider IDs from a positional
 // arg and/or --providers flag. Returns nil to indicate "use all providers" when
