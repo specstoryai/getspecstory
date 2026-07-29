@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding coversations from terminal coding agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, etc.).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE.
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -16,6 +16,7 @@ It saves your AI coding conversations as local markdown files of each session. I
 - Seamless integration with terminal coding agents
 - Command-line wrapper for terminal coding agents with markdown auto-save
 - Sync all your prior conversations to local markdown files
+- Automatic redaction of secrets (API keys, tokens, credentials) from saved markdown history and cloud-synced session data
 - Optional: Syncs your markdown files to the SpecStory Cloud for easy search and chat
 - Open source under the Apache 2.0 license
 
@@ -23,14 +24,18 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 The following coding agents are supported in the SpecStory CLI:
 
-| Agent                                                     | Provider                                  | Data Format | Source Location         |
-|-----------------------------------------------------------|-------------------------------------------|-------------|-------------------------|
-| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)   | JSONL       | `~/.claude/projects/`   |
-| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)       | JSONL       | `~/.codex/sessions/`    |
-| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)     | SQLite      | `~/.cursor/chats/`      |
-| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`  |
-| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)     | JSON        | `~/.gemini/tmp/`        |
-| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/` |
+|                           Agent                           |                    Provider                     | Data Format |       Source Location        |
+| --------------------------------------------------------- | ----------------------------------------------- | ----------- | ---------------------------- |
+| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)         | JSONL       | `~/.claude/projects/`        |
+| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`         |
+| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`           |
+| [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/` |
+| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`       |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
+| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
+| [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
+
+Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
 ### Agent Provider SPI (Service Provider Interface)
 
@@ -79,6 +84,113 @@ With a specific session UUID:
 ```zsh
 specstory sync -s <session-uuid>
 ```
+
+### Resume & Search
+
+SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
+a past session — in the same agent or a different one — without re-reading the transcript. Two
+commands share the same interactive picker:
+
+```zsh
+# Open a picker of the current project's sessions across all agents. Pick one, choose which
+# installed agent to continue it in, and go. `tab` switches to the all-projects browser.
+specstory resume
+
+# Pre-select the target agent — the picker then skips the target step and resumes straight
+# into that agent.
+specstory resume codex
+
+# Full-text search across every indexed session, then read or resume a match. Anything after
+# the command pre-seeds the query.
+specstory search
+specstory search max cpu
+```
+
+Inside the picker: `↑↓` move, `r` resumes, `space` previews (glamour-rendered), `/` searches,
+`a` cycles the agent filter, `v` toggles dense/sparse, and `d` soft-deletes (hides from the
+picker; native files on disk are untouched). See `docs/RESUME-TUI.md` and
+`docs/SESSION-SEARCH.md` for the full keymap.
+
+#### Resume a specific session directly (`--session`)
+
+Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
+without one the target-agent picker opens pinned to that session.
+
+```zsh
+# Canonical form (what the SpecStory Cloud web app's Resume button copies):
+specstory resume --session specstory://projects/{projectId}/sessions/{sessionId}
+
+# A cloud permalink pasted straight from a browser URL bar:
+specstory resume --session https://cloud.specstory.com/projects/{projectId}/sessions/{sessionId}
+
+# Shorthand — a bare session UUID, resolved local-first then cloud:
+specstory resume --session 550e8400-e29b-41d4-a716-446655440000
+
+# Fully non-interactive: pin both the session and the target agent.
+specstory resume claude --session specstory://projects/{projectId}/sessions/{sessionId}
+```
+
+A session that exists on this machine resumes in place (offline, instant) even when the URI
+came from the cloud. A session from another machine is fetched from SpecStory Cloud and
+reconstructed into the target agent — that path requires a SpecStory Cloud login
+(`specstory login`) and a Pro plan. A pasted permalink only contributes IDs; the CLI never
+sends your token to the permalink's host — if it differs from your configured cloud, pass
+`--cloud-url` to match (see [Targeting a non-production cloud](#targeting-a-non-production-cloud)).
+
+### Skills
+
+SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
+
+```zsh
+# Interactive browser with two tabs (press `tab` to switch):
+#   • Library — preview skills, approve/reject those awaiting review, install ready
+#     ones, and uninstall/reinstall installed ones.
+#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
+specstory skills
+```
+
+Skills install using the same layout as the public `npx skills` CLI: a canonical
+`~/.agents/skills/<name>` store, symlinked into each detected agent's skills directory
+(Claude Code, Codex, Cursor, Antigravity, and more), tracked in the shared
+`~/.agents/.skill-lock.json`. Installs default to global; pass `--project` to install into
+the current repo instead. Agents that read `.agents/skills` directly need no symlink for a
+project install, but a global install is still linked into the directory they scan outside a
+project (e.g. `~/.gemini/config/skills` for Antigravity, `~/.codex/skills` for Codex).
+
+Every action is also a non-interactive subcommand with `--json`, so a front end (e.g. the
+VS Code extension) can drive the same engine:
+
+```zsh
+specstory skills list --json                 # browse the library + local install state
+specstory skills show <name>                 # print a skill's SKILL.md
+specstory skills approve <name>              # approve a skill awaiting review
+specstory skills reject <name> --note "..."  # reject one
+specstory skills install <name>              # install for all detected agents (global)
+specstory skills install <name> --project --agents claude-code,codex
+specstory skills uninstall <name>            # remove files, links, and lock entry
+specstory skills install <name>              # reinstall an installed skill to refresh it
+specstory skills status --json               # locally installed skills (no login needed)
+specstory skills run                         # mine your sessions for new skills
+specstory skills runs --json                 # recent runs and their status
+```
+
+To generate new skills, kick off a run (`specstory skills run`, or press `m` in the browser to
+watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
+
+### Targeting a non-production cloud
+
+By default the CLI talks to `https://cloud.specstory.com`. To point every command at a
+dev/staging cloud without passing `--cloud-url` each time, set an environment variable:
+
+```zsh
+export SPECSTORY_CLOUD_URL=https://cloud-dev.specstory.com
+specstory login   # authenticate against that cloud
+specstory skills  # ...and everything else now uses it
+```
+
+Resolution order is `--cloud-url` flag → `SPECSTORY_CLOUD_URL` → production default, so a
+one-off `--cloud-url` still wins for a single command. `login` prints the target host when it
+isn't production, so you always know which cloud you're authenticating against.
 
 ## Configuration File
 
@@ -153,6 +265,13 @@ The configuration is determined with the following priority (highest priority to
 # Include user prompt text in telemetry spans (default: true)
 # prompts = false
 
+[redaction]
+# Redact secrets and API keys from saved markdown history and cloud-synced
+# session data. (default: true)
+# Detection uses the betterleaks ruleset, covering API keys, tokens, private
+# keys, and other credentials for many providers.
+# enabled = false # equivalent to --no-redact-secrets
+
 [providers]
 # Agent execution commands by provider (used by specstory run)
 # Pass custom flags (e.g. claude_cmd = "claude --allow-dangerously-skip-permissions")
@@ -175,6 +294,9 @@ The configuration is determined with the following priority (highest priority to
 
 # Gemini CLI command
 # gemini_cmd = "gemini"
+
+# Antigravity CLI command
+# antigravity_cmd = "agy"
 ```
 
 ### Configuration Options
@@ -195,12 +317,14 @@ The configuration is determined with the following priority (highest priority to
 | `[telemetry]`     | `endpoint`        | disabled*            | OTLP gRPC collector endpoint               |
 | `[telemetry]`     | `service_name`    | `"specstory-cli"`    | Service name for telemetry                 |
 | `[telemetry]`     | `prompts`         | `true`               | Include prompt text in telemetry spans     |
+| `[redaction]`     | `enabled`         | `true`               | Redact secrets from markdown and cloud data |
 | `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
 | `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
 | `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
 | `[providers]`     | `deepseek_cmd`    | `"deepseek"`         | DeepSeek TUI command                       |
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
+| `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
@@ -372,7 +496,7 @@ Each exchange is recorded as a child span with these attributes:
 ### Development Prerequisites
 
 - macOS development environment
-- Go 1.26.0 or later
+- Go 1.26.5 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 
@@ -411,7 +535,7 @@ go list -m -u all
 
 ### Debug Raw Mode
 
-The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI).
+The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Cursor IDE, Codex CLI, Gemini CLI, Droid CLI).
 
 When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
 
@@ -447,11 +571,12 @@ Sync specific session with debug output:
     ├── 1.json      # Claude Code: sequential numbering
     ├── 2.json      # Cursor CLI: based on rowid
     ├── 3.json
-    └── ...
+    ├── ...
+    ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid.
+Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE, a single `raw-composer.json` file holds the complete composer record instead of numbered per-record files.
 
 **Example:**
 

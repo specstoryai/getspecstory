@@ -1,5 +1,14 @@
+# IDE specific files
+.vscode/
+
 # SpecStory explanation file
 .specstory/.what-is-this.md
 .idea/
 
 dist/
+# deadreckon
+/.deadreckon/
+
+# local .specstory artifacts not tracked on dev (history itself stays tracked)
+.specstory/statistics.json
+.specstory/cli/

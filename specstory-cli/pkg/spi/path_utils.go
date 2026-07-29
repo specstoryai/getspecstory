@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,6 +16,23 @@ import (
 	"golang.org/x/text/transform"
 	"golang.org/x/text/unicode/norm"
 )
+
+// markdownHeadingRe matches a leading Markdown ATX heading marker after outer
+// whitespace has been trimmed: 1-6 '#' characters followed by whitespace. The
+// trailing whitespace requirement is what distinguishes a real heading ("# Title")
+// from hashtag-like text ("#login issue"), which must be left untouched.
+var markdownHeadingRe = regexp.MustCompile(`^#{1,6}\s+`)
+
+// stripMarkdownHeading removes a leading markdown heading marker (e.g. "# Title" → "Title").
+// These are structural formatting, not meaningful slug content.
+func stripMarkdownHeading(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if markdownHeadingRe.MatchString(trimmed) {
+		trimmed = markdownHeadingRe.ReplaceAllString(trimmed, "")
+		trimmed = strings.TrimSpace(trimmed)
+	}
+	return trimmed
+}
 
 // xmlTagsRe matches XML-style tag blocks including their content, such as
 // <ide_opened_file>...</ide_opened_file> or self-closing <tag />.
@@ -50,6 +68,9 @@ func extractWordsFromMessage(message string, maxWords int) []string {
 	if message == "" {
 		return []string{}
 	}
+
+	// Strip leading markdown heading markers before they get converted to "hash"
+	message = stripMarkdownHeading(message)
 
 	// Normalize unicode and remove accents
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
@@ -139,6 +160,41 @@ func GenerateReadableName(message string) string {
 	return truncated + "..."
 }
 
+// ReadableTitleFromSessionData derives the same human-readable title a local row shows — the first
+// user message run through GenerateReadableName (XML-stripped, whitespace-normalized, capped at 100
+// chars). Used at cloud-sync time so a cloud row can display a prompt title identical to its local
+// counterpart. Because it runs through GenerateReadableName, the stored value stays tiny even when
+// the first message is enormous (e.g. a pasted log dump). Empty when there is no user message.
+func ReadableTitleFromSessionData(data *schema.SessionData) string {
+	return GenerateReadableName(firstUserMessageText(data))
+}
+
+// firstUserMessageText returns the concatenated text content of the first user-role message in the
+// session — the prompt that opens the conversation. Skips a user message that carries no text (e.g.
+// a tool result) and moves to the next. Empty when none is found.
+func firstUserMessageText(data *schema.SessionData) string {
+	if data == nil {
+		return ""
+	}
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			if msg.Role != schema.RoleUser {
+				continue
+			}
+			var b strings.Builder
+			for _, part := range msg.Content {
+				if part.Type == "text" {
+					b.WriteString(part.Text)
+				}
+			}
+			if text := strings.TrimSpace(b.String()); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
 // appendRemainingParts appends the remaining path components from parts[startIdx:] to the
 // result path, skipping any empty components. This is used when we can't canonicalize the
 // rest of the path (e.g., directory doesn't exist or can't be read).
@@ -189,7 +245,7 @@ func GetCanonicalPath(p string) (string, error) {
 	} else if err != nil {
 		// Symlink resolution failed (e.g., path doesn't exist yet),
 		// continue with the original path - we'll still normalize the case below
-		slog.Warn("GetCanonicalPath: symlink resolution failed, using original path",
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
 			"path", p, "error", err)
 	}
 
@@ -311,4 +367,57 @@ func WriteDebugSessionData(sessionID string, sessionData *schema.SessionData) er
 	absPath, _ := filepath.Abs(filePath)
 	slog.Debug("Wrote debug session data", "sessionId", sessionID, "path", absPath)
 	return nil
+}
+
+// FileURIToPath converts a file:// URI to a local filesystem path, decoding
+// percent-escapes (file:///tmp/my%20file.go → /tmp/my file.go). It is the
+// single URI→path converter shared by providers whose stores record file URIs
+// (Cursor IDE workspace identifiers, Antigravity tool args and project
+// configs), so the non-POSIX forms are translated identically everywhere:
+//
+//   - WSL URIs (file://wsl.localhost/<distro>/path, file://wsl$/...): the host
+//     and distro segment are stripped, yielding the in-distro POSIX path.
+//   - Drive-letter URIs (file:///C:/Users/...): on Windows the spurious
+//     leading slash is trimmed and separators converted (C:\Users\...).
+//   - UNC URIs (file://server/share/...): on Windows the host becomes the UNC
+//     root (\\server\share\...). On POSIX systems a host has no filesystem
+//     meaning and is dropped.
+//
+// Returns an error for unparseable URIs and schemes other than file.
+func FileURIToPath(uri string) (string, error) {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse URI: %w", err)
+	}
+	if parsed.Scheme != "file" && parsed.Scheme != "" {
+		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsed.Scheme, uri)
+	}
+
+	path, err := url.PathUnescape(parsed.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode URI path: %w", err)
+	}
+
+	// WSL URIs carry the distro as the first path segment under a wsl host;
+	// the usable path is what remains inside the distro.
+	if strings.EqualFold(parsed.Host, "wsl.localhost") || strings.HasPrefix(strings.ToLower(parsed.Host), "wsl$") {
+		if len(path) > 1 {
+			if idx := strings.Index(path[1:], "/"); idx >= 0 {
+				slog.Debug("Converted WSL file URI to path", "uri", uri, "path", path[idx+1:])
+				return path[idx+1:], nil
+			}
+		}
+		return "", fmt.Errorf("malformed WSL URI path: %s", uri)
+	}
+
+	if filepath.Separator == '\\' {
+		// A non-WSL host names a UNC share.
+		if parsed.Host != "" {
+			return `\\` + parsed.Host + filepath.FromSlash(path), nil
+		}
+		// Drive-letter URI paths arrive with a spurious leading slash (/C:/Users).
+		return filepath.FromSlash(strings.TrimPrefix(path, "/")), nil
+	}
+
+	return path, nil
 }
