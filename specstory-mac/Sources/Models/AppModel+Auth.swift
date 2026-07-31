@@ -16,6 +16,7 @@ extension AppModel {
         showToast("Signed in as \(email)")
         supervisor?.restartAll()
         await refreshGates()
+        Task { await pro.refresh(signedIn: true) }
         await refreshFeed()
     }
 
@@ -24,6 +25,7 @@ extension AppModel {
         authState = auth.state
         currentEntitlement = nil
         currentFlags = [:]
+        Task { await pro.refresh(signedIn: false) }
         supervisor?.restartAll()
         await refreshFeed()
     }
@@ -35,6 +37,7 @@ extension AppModel {
             // Entitlements fail closed: a signed-out identity keeps no gates.
             currentEntitlement = nil
             currentFlags = [:]
+            Task { await pro.refresh(signedIn: false) }
             if notificationsEnabled {
                 NotificationService.shared.notifySignInNeeded()
             }

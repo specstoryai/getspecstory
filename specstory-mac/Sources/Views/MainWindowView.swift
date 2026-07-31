@@ -61,6 +61,10 @@ struct MainWindowView: View {
             }
         case .chat:
             ChatPanelView(model: model)
+        case .skills:
+            SkillsView(model: model, pro: model.pro)
+        case .analytics:
+            AnalyticsView(analytics: model.analytics)
         case .providers:
             ProvidersView(model: model)
         case .settings:
@@ -104,6 +108,8 @@ struct SidebarView: View {
 
             navItem(.home, label: "Home", symbol: "house")
             navItem(.chat, label: "Chat", symbol: "sparkles")
+            navItem(.skills, label: "Skills", symbol: "wand.and.stars")
+            navItem(.analytics, label: "Analytics", symbol: "chart.bar")
             navItem(.providers, label: "Providers", symbol: "cpu")
 
             Spacer()

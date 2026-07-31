@@ -6,7 +6,7 @@ struct MenuBarLabel: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        Image(systemName: symbolName)
+        label
             .accessibilityLabel("SpecStory")
             .help(model.menuBarHelp)
             .task {
@@ -16,11 +16,17 @@ struct MenuBarLabel: View {
             }
     }
 
-    private var symbolName: String {
+    /// The SpecStory book mark (template) normally; state symbols only when
+    /// something needs attention.
+    @ViewBuilder private var label: some View {
         switch model.menuBarState {
-        case .live: return "text.bubble.fill"
-        case .error: return "exclamationmark.bubble"
-        case .signedOut, .idle, .syncing: return "text.bubble"
+        case .error:
+            Image(systemName: "exclamationmark.bubble")
+        case .live:
+            Image(systemName: "record.circle")
+        case .signedOut, .idle, .syncing:
+            Image("MenuBarIcon")
+                .renderingMode(.template)
         }
     }
 }

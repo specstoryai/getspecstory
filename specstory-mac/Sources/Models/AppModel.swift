@@ -7,6 +7,8 @@ import SpecStoryKit
 enum PanelMode: String, CaseIterable, Identifiable {
     case home
     case chat
+    case skills
+    case analytics
     case providers
     case settings
 
@@ -38,6 +40,8 @@ final class AppModel: ObservableObject {
     let auth: AuthManager
     let chatClient: ChatStreamClient
     let indexBox = IndexReaderBox()
+    let pro = ProModel()
+    let analytics = AnalyticsModel()
     var supervisor: WatchSupervisor?
     var tripwire: SessionTripwire?
     private(set) var binaryURL: URL?
@@ -166,6 +170,8 @@ final class AppModel: ObservableObject {
 
         auth.bootstrap()
         authState = auth.state
+        pro.configure(auth: auth)
+        Task { await pro.refresh(signedIn: authState != .signedOut) }
 
         do {
             binaryURL = try BinaryLocator.locate()

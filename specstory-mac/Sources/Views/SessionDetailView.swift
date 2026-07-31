@@ -1,10 +1,14 @@
 import SwiftUI
 import SpecStoryKit
 
-/// Full session view: header with provenance and actions, rendered markdown.
+/// The branded session log viewer, ported from the SpecStory Cloud web
+/// experience: sticky header, element filter row, exchange cards (prompt
+/// bubble + agent output), and a numbered jump list at wide widths.
 struct SessionDetailView: View {
     @ObservedObject var model: AppModel
     let item: SessionItem
+
+    @StateObject private var state = TranscriptState()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -13,7 +17,13 @@ struct SessionDetailView: View {
             contentBody
         }
         .background(Theme.paper)
+        .onAppear { state.update(markdown: model.sessionMarkdown) }
+        .onChange(of: model.sessionMarkdown) { _, markdown in
+            state.update(markdown: markdown)
+        }
     }
+
+    // MARK: Header (sticky above the scroll)
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -48,6 +58,11 @@ struct SessionDetailView: View {
                             Text("·").foregroundStyle(Theme.inkTertiary)
                             Text(date.formatted(date: .abbreviated, time: .shortened))
                         }
+                        if let transcript = state.transcript, !transcript.exchanges.isEmpty {
+                            Text("·").foregroundStyle(Theme.inkTertiary)
+                            Text("\(transcript.exchanges.count) prompt\(transcript.exchanges.count == 1 ? "" : "s")")
+                                .monospacedDigit()
+                        }
                     }
                     .font(Theme.body(12))
                     .foregroundStyle(Theme.inkSecondary)
@@ -79,8 +94,10 @@ struct SessionDetailView: View {
         .padding(.bottom, 14)
     }
 
+    // MARK: Content
+
     @ViewBuilder private var contentBody: some View {
-        if model.detailLoading {
+        if model.detailLoading || state.parsing {
             VStack {
                 Spacer()
                 ProgressView("Loading session")
@@ -88,8 +105,12 @@ struct SessionDetailView: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
+        } else if let transcript = state.transcript, !transcript.exchanges.isEmpty {
+            TranscriptContentView(state: state, transcript: transcript, sessionID: item.clientID)
         } else if let markdown = model.sessionMarkdown {
-            MarkdownScrollView(markdown: markdown)
+            // Not SpecStory-shaped markdown: render it plainly rather than
+            // showing nothing.
+            RawMarkdownFallbackView(markdown: markdown)
         } else {
             VStack(spacing: 8) {
                 Spacer()
@@ -118,108 +139,167 @@ struct SessionDetailView: View {
     }
 }
 
-/// Renders session markdown in lightweight blocks so long transcripts stay
-/// responsive (one AttributedString for a whole session is too slow).
-struct MarkdownScrollView: View {
-    let markdown: String
+// MARK: - Transcript layout
+
+/// Filter bar + scrolling exchange feed, with the jump list as a right rail
+/// at wide widths and a popover behind a toolbar button when narrow.
+private struct TranscriptContentView: View {
+    @ObservedObject var state: TranscriptState
+    let transcript: SessionTranscript
+    let sessionID: String
+
+    @State private var tocPopoverShown = false
+
+    /// Below this width the TOC rail folds into a popover.
+    private static let wideThreshold: CGFloat = 940
+
+    var body: some View {
+        GeometryReader { geometry in
+            let wide = geometry.size.width >= Self.wideThreshold
+            ScrollViewReader { proxy in
+                VStack(spacing: 0) {
+                    HStack(spacing: 0) {
+                        ElementFilterRow(state: state)
+                        if !wide {
+                            tocButton(proxy: proxy)
+                                .padding(.trailing, 14)
+                        }
+                    }
+                    .background(Theme.paper)
+
+                    Divider().overlay(Theme.hairline)
+
+                    HStack(spacing: 0) {
+                        transcriptScroll
+                        if wide {
+                            Divider().overlay(Theme.hairline)
+                            TranscriptTOCList(
+                                exchanges: transcript.exchanges,
+                                activeID: state.activeExchangeID
+                            ) { id in
+                                jump(to: id, proxy: proxy)
+                            }
+                            .frame(minWidth: 200, idealWidth: 240, maxWidth: 260)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func tocButton(proxy: ScrollViewProxy) -> some View {
+        Button {
+            tocPopoverShown = true
+        } label: {
+            Image(systemName: "list.number")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.inkSecondary)
+                .frame(width: 24, height: 24)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Theme.hairline))
+        }
+        .buttonStyle(.plain)
+        .help("Jump to a prompt")
+        .popover(isPresented: $tocPopoverShown, arrowEdge: .bottom) {
+            TranscriptTOCList(
+                exchanges: transcript.exchanges,
+                activeID: state.activeExchangeID
+            ) { id in
+                tocPopoverShown = false
+                jump(to: id, proxy: proxy)
+            }
+            .frame(width: 280, height: 400)
+        }
+    }
+
+    private var transcriptScroll: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                ForEach(transcript.exchanges) { exchange in
+                    ExchangeCardView(
+                        exchange: exchange,
+                        number: exchange.id + 1,
+                        visible: state.visible
+                    )
+                    .equatable()
+                    .id(exchange.id)
+                    .background(
+                        GeometryReader { cardGeometry in
+                            Color.clear.preference(
+                                key: ExchangeTopPreferenceKey.self,
+                                value: [exchange.id: cardGeometry.frame(in: .named("transcriptScroll")).minY]
+                            )
+                        }
+                    )
+                }
+            }
+            // Fresh per-session identity so expansion state never bleeds
+            // between sessions that share exchange ids.
+            .id(sessionID)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
+            .frame(maxWidth: 780, alignment: .leading)
+            .frame(maxWidth: .infinity)
+        }
+        .coordinateSpace(name: "transcriptScroll")
+        .onPreferenceChange(ExchangeTopPreferenceKey.self) { tops in
+            updateActive(tops)
+        }
+    }
+
+    private func jump(to id: Int, proxy: ScrollViewProxy) {
+        state.activeExchangeID = id
+        proxy.scrollTo(id, anchor: .top)
+    }
+
+    /// Active exchange = the card nearest above the reading line (cloud uses
+    /// the top 10% of the viewport; a fixed offset reads the same here).
+    private func updateActive(_ tops: [Int: CGFloat]) {
+        guard !tops.isEmpty else { return }
+        let threshold: CGFloat = 120
+        let active = tops.filter { $0.value <= threshold }.max { $0.value < $1.value }?.key
+            ?? tops.min { $0.value < $1.value }?.key
+        if let active, state.activeExchangeID != active {
+            state.activeExchangeID = active
+        }
+    }
+}
+
+private struct ExchangeTopPreferenceKey: PreferenceKey {
+    static var defaultValue: [Int: CGFloat] = [:]
+
+    static func reduce(value: inout [Int: CGFloat], nextValue: () -> [Int: CGFloat]) {
+        value.merge(nextValue()) { _, new in new }
+    }
+}
+
+// MARK: - Fallback for non-SpecStory markdown
+
+struct RawMarkdownFallbackView: View {
+    private let segments: [SessionTranscript.Segment]
+
+    init(markdown: String) {
+        segments = SessionTranscript.fenceSegments(in: markdown)
+    }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
-                    MarkdownBlockView(block: block)
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                    switch segment {
+                    case .prose(let text):
+                        ProseBlocksView(text: text)
+                    case .code(let language, let filename, let content):
+                        CodeBlockView(language: language, filename: filename, content: content)
+                    default:
+                        EmptyView()
+                    }
                 }
             }
             .padding(.horizontal, 28)
             .padding(.vertical, 20)
-            .frame(maxWidth: Theme.feedWidth, alignment: .leading)
+            .frame(maxWidth: 780, alignment: .leading)
             .frame(maxWidth: .infinity)
         }
-    }
-
-    /// Fence-aware block splitter: blank lines separate prose blocks, but a
-    /// ``` fence swallows everything (including blank lines) until it closes,
-    /// so code renders as one block with its content intact.
-    private var blocks: [String] {
-        var result = [String]()
-        var current = [String]()
-        var inFence = false
-
-        func flush() {
-            let block = current.joined(separator: "\n")
-            if !block.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                result.append(block)
-            }
-            current = []
-        }
-
-        for line in markdown.components(separatedBy: "\n") {
-            let isFenceLine = line.trimmingCharacters(in: .whitespaces).hasPrefix("```")
-            if isFenceLine {
-                if inFence {
-                    current.append(line)
-                    flush()
-                    inFence = false
-                } else {
-                    flush()
-                    inFence = true
-                    current.append(line)
-                }
-            } else if !inFence, line.trimmingCharacters(in: .whitespaces).isEmpty {
-                flush()
-            } else {
-                current.append(line)
-            }
-        }
-        flush()
-        return result
-    }
-}
-
-struct MarkdownBlockView: View {
-    let block: String
-
-    var body: some View {
-        if block.hasPrefix("```") {
-            Text(fenceContent)
-                .font(Theme.mono(11))
-                .foregroundStyle(Theme.ink)
-                .textSelection(.enabled)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Theme.sidebarSelection, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        } else if block.hasPrefix("#") {
-            Text(block.drop(while: { $0 == "#" || $0 == " " }))
-                .font(Theme.display(17))
-                .foregroundStyle(Theme.ink)
-                .textSelection(.enabled)
-                .padding(.top, 6)
-        } else {
-            Text(rendered)
-                .font(Theme.body(12.5))
-                .foregroundStyle(Theme.ink)
-                .textSelection(.enabled)
-                .lineSpacing(3)
-        }
-    }
-
-    /// Drops the ```lang opening line and the closing ``` line whole, never
-    /// character-trimming (which mangles content containing backticks).
-    private var fenceContent: String {
-        var lines = block.components(separatedBy: "\n")
-        if lines.first?.trimmingCharacters(in: .whitespaces).hasPrefix("```") == true {
-            lines.removeFirst()
-        }
-        if lines.last?.trimmingCharacters(in: .whitespaces).hasPrefix("```") == true {
-            lines.removeLast()
-        }
-        return lines.joined(separator: "\n")
-    }
-
-    private var rendered: AttributedString {
-        (try? AttributedString(
-            markdown: block,
-            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        )) ?? AttributedString(block)
     }
 }
