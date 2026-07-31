@@ -5,7 +5,17 @@ import SpecStoryKit
 /// with cloud search.
 struct SearchOverlay: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var mention: MentionState
     @FocusState private var focused: Bool
+
+    init(model: AppModel) {
+        self.model = model
+        self.mention = model.searchMention
+    }
+
+    private func candidatesProvider() -> [MentionItem] {
+        mention.candidatesFromApp(cloudProjects: model.cloudProjects)
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -17,19 +27,34 @@ struct SearchOverlay: View {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(Theme.inkTertiary)
-                    TextField("Search sessions across every agent and machine", text: $model.searchQuery)
+                    TextField("Search sessions, @ to filter by project, agent, or time", text: $mention.text)
                         .textFieldStyle(.plain)
                         .font(Theme.body(15))
                         .focused($focused)
-                        .onChange(of: model.searchQuery) { _ in model.searchQueryChanged() }
+                        .mentionTextFieldSupport(mention, candidates: candidatesProvider)
+                        .onChange(of: mention.text) { _ in model.searchQueryChanged() }
+                        .onChange(of: mention.selectedProjectIDs) { _ in model.searchQueryChanged() }
+                        .onChange(of: mention.selectedAgents) { _ in model.searchQueryChanged() }
+                        .onChange(of: mention.timeFilter) { _ in model.searchQueryChanged() }
+                        .popover(
+                            isPresented: Binding(
+                                get: { mention.popoverShown },
+                                set: { mention.popoverShown = $0 }
+                            ),
+                            attachmentAnchor: .rect(.bounds), arrowEdge: .top
+                        ) {
+                            MentionTypeaheadPopover(state: mention, candidates: candidatesProvider())
+                        }
                         .onSubmit {
+                            if mention.consumeReturn(candidates: candidatesProvider()) { return }
                             if let first = model.searchResults.first {
                                 open(first)
                             }
                         }
-                    if !model.searchQuery.isEmpty {
+                    if !mention.text.isEmpty || mention.hasChips {
                         Button {
-                            model.searchQuery = ""
+                            mention.text = ""
+                            mention.clearAll()
                             model.searchResults = []
                         } label: {
                             Image(systemName: "xmark.circle.fill")
@@ -40,6 +65,12 @@ struct SearchOverlay: View {
                     }
                 }
                 .padding(16)
+
+                if mention.hasChips {
+                    MentionChipRow(state: mention)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 10)
+                }
 
                 if !model.searchResults.isEmpty {
                     Divider().overlay(Theme.hairline)
@@ -59,7 +90,7 @@ struct SearchOverlay: View {
                         .padding(10)
                     }
                     .frame(maxHeight: 380)
-                } else if !model.searchQuery.isEmpty {
+                } else if !mention.text.isEmpty || mention.hasChips {
                     Divider().overlay(Theme.hairline)
                     Text("No sessions match yet")
                         .font(Theme.body(12))

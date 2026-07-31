@@ -56,6 +56,7 @@ struct MainWindowView: View {
                     SessionDetailView(model: model, item: selected)
                 } else {
                     FeedView(model: model)
+                    AskBarBackdrop()
                     AskBar(model: model)
                 }
             }

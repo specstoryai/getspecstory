@@ -10,9 +10,10 @@ extension AppModel {
     }
 
     func submitAsk() {
-        let query = askQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = askMention.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty, !askStreaming else { return }
-        askQuery = ""
+        askMention.text = ""
+        askMention.dismissPopover()
         askMessages.append(AskMessage(role: .user, text: query))
         panelMode = .chat
 
@@ -45,7 +46,9 @@ extension AppModel {
                 let stream = self.chatClient.ask(
                     query: query,
                     chatSessionID: self.chatSessionID,
-                    projectIDs: nil, timeFilter: nil, agentNames: nil
+                    projectIDs: self.askMention.projectIDsParam,
+                    timeFilter: self.askMention.timeFilterParam,
+                    agentNames: self.askMention.agentNamesParam
                 )
                 for try await event in stream {
                     guard !Task.isCancelled else { break }
@@ -126,5 +129,47 @@ extension AppModel {
         askStreaming = false
         askMessages = []
         chatSessionID = nil
+        askMention.clearAll()
+    }
+
+    // MARK: Chat history (cloud parity browsing)
+
+    func refreshChatThreads() async {
+        guard canAskCloud else {
+            chatThreads = []
+            return
+        }
+        chatThreads = (try? await chatClient.chats(limit: 50)) ?? []
+    }
+
+    /// Loads a past thread into the panel, mapping stored messages back to
+    /// the ask transcript shape.
+    func openChatThread(_ summary: ChatThreadSummary) async {
+        askTask?.cancel()
+        askStreaming = false
+        chatSessionID = summary.id
+        guard let thread = try? await chatClient.chat(id: summary.id) else {
+            showToast("Could not load that chat")
+            return
+        }
+        var messages = [AskMessage]()
+        for message in thread.messages {
+            if let query = message.query, !query.isEmpty {
+                messages.append(AskMessage(role: .user, text: query))
+            }
+            if let response = message.response, !response.isEmpty {
+                messages.append(AskMessage(role: .assistant, text: response, sources: message.sources))
+            }
+        }
+        askMessages = messages
+        panelMode = .chat
+    }
+
+    func deleteChatThread(_ summary: ChatThreadSummary) async {
+        try? await chatClient.deleteChat(id: summary.id)
+        chatThreads.removeAll { $0.id == summary.id }
+        if chatSessionID == summary.id {
+            clearAskThread()
+        }
     }
 }

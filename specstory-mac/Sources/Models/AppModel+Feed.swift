@@ -65,8 +65,9 @@ extension AppModel {
 
     func searchQueryChanged() {
         searchTask?.cancel()
-        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else {
+        let query = searchMention.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Chips alone are a valid cloud query scope.
+        guard !query.isEmpty || searchMention.hasChips else {
             searchResults = []
             return
         }
@@ -92,7 +93,11 @@ extension AppModel {
 
         if case .signedIn = authState, cloudSyncEnabled {
             let hits = (try? await auth.api.searchSessions(
-                query: query, projectIDs: nil, timeFilter: nil, agentNames: nil, limit: 30
+                query: query,
+                projectIDs: searchMention.projectIDsParam,
+                timeFilter: searchMention.timeFilterParam,
+                agentNames: searchMention.agentNamesParam,
+                limit: 30
             )) ?? []
             for hit in hits {
                 guard let clientID = hit.clientId, !seen.contains(clientID) else { continue }

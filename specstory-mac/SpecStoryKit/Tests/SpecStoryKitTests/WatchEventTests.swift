@@ -37,4 +37,26 @@ final class WatchEventTests: XCTestCase {
         }
         XCTAssertNil(Provider(providerID: "not-an-agent"))
     }
+
+    func testProviderDisplayNameAliases() {
+        XCTAssertEqual(Provider(providerID: "Claude Code"), .claude)
+        XCTAssertEqual(Provider(providerID: "Codex Cli"), .codex)
+        XCTAssertEqual(Provider(providerID: "Cursor CLI"), .cursor)
+        XCTAssertEqual(Provider(providerID: "Factory Droid CLI"), .droid)
+        XCTAssertEqual(Provider(providerID: "DeepSeek TUI"), .deepseek)
+        XCTAssertEqual(Provider(providerID: "GitHub Copilot"), .copilotide)
+        XCTAssertEqual(Provider(providerID: "Antigravity CLI"), .antigravity)
+        XCTAssertNil(Provider(providerID: "totally unknown agent"))
+    }
+
+    func testHumanizeTitleStripsHistoryTimestamp() {
+        XCTAssertEqual(
+            SessionItem.humanizeTitle("2026-07-31_19-11-08Z-i-would-like-to"),
+            "I would like to"
+        )
+        XCTAssertEqual(
+            SessionItem.humanizeTitle("2026 07 31 19 11 08Z i would like to"),
+            "i would like to"
+        )
+    }
 }

@@ -45,13 +45,28 @@ public enum Provider: String, CaseIterable, Codable, Sendable, Identifiable {
     }
 
     /// Registry IDs are matched case-insensitively, like the CLI does.
-    /// "copilot" appears as a cloud agentName alias for copilotide.
+    /// Cloud metadata carries display-style agent names ("Claude Code",
+    /// "Codex Cli", "Factory Droid CLI"), so those map back too.
     public init?(providerID: String) {
         let normalized = providerID.lowercased()
-        if normalized == "copilot" {
-            self = .copilotide
+        if let direct = Provider(rawValue: normalized) {
+            self = direct
             return
         }
-        self.init(rawValue: normalized)
+        // Collapse to letters only so "Codex CLI", "codex-cli", and
+        // "Codex Cli" all land in one key.
+        let letters = normalized.filter { $0.isLetter }
+        switch letters {
+        case "claudecode": self = .claude
+        case "codexcli": self = .codex
+        case "cursorcli": self = .cursor
+        case "cursoride": self = .cursoride
+        case "geminicli": self = .gemini
+        case "antigravitycli": self = .antigravity
+        case "deepseektui": self = .deepseek
+        case "droidcli", "factorydroid", "factorydroidcli": self = .droid
+        case "copilot", "githubcopilot", "vscodecopilot", "vscodecopilotide": self = .copilotide
+        default: return nil
+        }
     }
 }

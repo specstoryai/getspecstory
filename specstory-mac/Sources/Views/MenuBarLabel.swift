@@ -16,14 +16,15 @@ struct MenuBarLabel: View {
             }
     }
 
-    /// The SpecStory book mark (template) normally; state symbols only when
-    /// something needs attention.
+    /// Always the SpecStory book: template (adapts to menu bar appearance)
+    /// when idle, full color while sessions are recording, badged on error.
     @ViewBuilder private var label: some View {
         switch model.menuBarState {
         case .error:
             Image(systemName: "exclamationmark.bubble")
         case .live:
-            Image(systemName: "record.circle")
+            Image("MenuBarIconLive")
+                .renderingMode(.original)
         case .signedOut, .idle, .syncing:
             Image("MenuBarIcon")
                 .renderingMode(.template)

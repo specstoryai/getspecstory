@@ -14,7 +14,7 @@ struct APIEnvelope<T: Decodable>: Decodable {
 
 /// Cloud timestamps are ISO 8601, sometimes with fractional seconds. Models
 /// keep the raw strings and expose computed Date accessors through this parser.
-enum CloudDate {
+public enum CloudDate {
     private static let fractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -22,7 +22,7 @@ enum CloudDate {
     }()
     private static let plain = ISO8601DateFormatter()
 
-    static func parse(_ string: String?) -> Date? {
+    public static func parse(_ string: String?) -> Date? {
         guard let string, !string.isEmpty else { return nil }
         return fractional.date(from: string) ?? plain.date(from: string)
     }

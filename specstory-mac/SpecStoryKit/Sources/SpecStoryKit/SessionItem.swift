@@ -125,6 +125,12 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
     /// title already looks like prose.
     public static func humanizeTitle(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Filename-derived titles start with the history timestamp
+        // ("2026-07-31_19-11-08Z-i-would-like-to"); drop it.
+        trimmed = trimmed.replacingOccurrences(
+            of: #"^\d{4}[-_ ]\d{2}[-_ ]\d{2}[-_ T]\d{2}[-_: ]\d{2}[-_: ]\d{2}Z?[-_ ]*"#,
+            with: "", options: .regularExpression
+        )
         // Prose titles lifted from first prompts can carry leading markdown
         // (headers, quotes, list markers); strip it.
         while let first = trimmed.first, "#>*`".contains(first) {

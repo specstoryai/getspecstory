@@ -1,57 +1,128 @@
 import SwiftUI
 import SpecStoryKit
 
-/// Floating "Ask anything" input pinned to the bottom of the feed, Granola
-/// style. Submitting routes to the Chat panel with a streaming answer.
+/// The "Ask anything" input, Granola style: a solid white pill with chips for
+/// @ context references, sitting on a paper gradient so feed content fades
+/// out underneath instead of showing through.
 struct AskBar: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var mention: MentionState
     @FocusState private var focused: Bool
 
+    init(model: AppModel) {
+        self.model = model
+        self.mention = model.askMention
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.accent)
-            TextField(model.askStreaming ? "Answering..." : "Ask anything about your sessions", text: $model.askQuery)
-                .textFieldStyle(.plain)
-                .font(Theme.body(13))
-                .focused($focused)
-                .onSubmit { model.submitAsk() }
-            if !model.askQuery.isEmpty {
-                Button {
-                    model.submitAsk()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(model.askStreaming ? Theme.inkTertiary : Theme.accent)
-                }
-                .buttonStyle(.plain)
-                .disabled(model.askStreaming)
-                .accessibilityLabel("Ask")
+        VStack(alignment: .leading, spacing: 0) {
+            if mention.hasChips {
+                MentionChipRow(state: mention)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 2)
             }
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.accent)
+                TextField(model.askStreaming ? "Answering..." : "Ask anything about your sessions", text: $mention.text)
+                    .textFieldStyle(.plain)
+                    .font(Theme.body(13))
+                    .focused($focused)
+                    .mentionTextFieldSupport(mention, candidates: candidatesProvider)
+                    .onSubmit {
+                        if mention.consumeReturn(candidates: candidatesProvider()) { return }
+                        model.submitAsk()
+                    }
+                Text("@ to focus")
+                    .font(Theme.body(10))
+                    .foregroundStyle(Theme.inkTertiary)
+                if !mention.text.isEmpty {
+                    Button {
+                        if mention.consumeReturn(candidates: candidatesProvider()) { return }
+                        model.submitAsk()
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(model.askStreaming ? Theme.inkTertiary : Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(model.askStreaming)
+                    .accessibilityLabel("Ask")
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.hairline))
-        .shadow(color: .black.opacity(0.10), radius: 12, y: 4)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Theme.accent.opacity(0.35), lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 14, y: 5)
+        .popover(
+            isPresented: Binding(
+                get: { mention.popoverShown },
+                set: { mention.popoverShown = $0 }
+            ),
+            attachmentAnchor: .rect(.bounds), arrowEdge: .top
+        ) {
+            MentionTypeaheadPopover(state: mention, candidates: candidatesProvider())
+        }
         .padding(.horizontal, 40)
-        .padding(.bottom, 18)
+        .padding(.bottom, 16)
         .frame(maxWidth: Theme.feedWidth)
+    }
+
+    private func candidatesProvider() -> [MentionItem] {
+        mention.candidatesFromApp(cloudProjects: model.cloudProjects)
     }
 }
 
-/// The Chat panel: ask thread with streamed answers and source pills.
+/// Paper-colored gradient that fades feed content out behind the Ask bar.
+struct AskBarBackdrop: View {
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: Theme.paper.opacity(0), location: 0),
+                .init(color: Theme.paper.opacity(0.85), location: 0.35),
+                .init(color: Theme.paper, location: 0.7),
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+        .frame(height: 110)
+        .allowsHitTesting(false)
+    }
+}
+
+/// The Chat panel: past conversations (cloud parity) plus the live thread.
 struct ChatPanelView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 10) {
                 Text("Chat")
                     .font(Theme.display(24))
                     .foregroundStyle(Theme.ink)
                 Spacer()
+                if !model.chatThreads.isEmpty {
+                    Menu {
+                        ForEach(model.chatThreads) { thread in
+                            Button {
+                                Task { await model.openChatThread(thread) }
+                            } label: {
+                                Text(threadLabel(thread))
+                            }
+                        }
+                    } label: {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                            .font(Theme.body(12))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
                 if !model.askMessages.isEmpty {
                     Button("New chat") { model.clearAskThread() }
                         .buttonStyle(.plain)
@@ -67,7 +138,11 @@ struct ChatPanelView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {
                         if model.askMessages.isEmpty {
-                            emptyState.padding(.top, 100)
+                            if model.chatThreads.isEmpty {
+                                emptyState.padding(.top, 100)
+                            } else {
+                                historyList
+                            }
                         }
                         ForEach(model.askMessages) { message in
                             AskMessageView(model: model, message: message)
@@ -75,7 +150,7 @@ struct ChatPanelView: View {
                         }
                     }
                     .padding(.horizontal, 28)
-                    .padding(.bottom, 90)
+                    .padding(.bottom, 110)
                     .frame(maxWidth: Theme.feedWidth)
                     .frame(maxWidth: .infinity)
                 }
@@ -90,8 +165,34 @@ struct ChatPanelView: View {
         }
         .background(Theme.paper)
         .overlay(alignment: .bottom) {
-            AskBar(model: model)
+            ZStack(alignment: .bottom) {
+                AskBarBackdrop()
+                AskBar(model: model)
+            }
         }
+        .task {
+            await model.refreshChatThreads()
+        }
+    }
+
+    /// Past conversations as cards, like the cloud chat home.
+    private var historyList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Past conversations")
+                .font(Theme.body(12, weight: .semibold))
+                .foregroundStyle(Theme.inkTertiary)
+                .textCase(.uppercase)
+                .kerning(0.4)
+            ForEach(model.chatThreads) { thread in
+                ChatThreadRow(model: model, thread: thread)
+            }
+        }
+        .padding(.top, 6)
+    }
+
+    private func threadLabel(_ thread: ChatThreadSummary) -> String {
+        let title = thread.title?.isEmpty == false ? thread.title! : "Untitled chat"
+        return String(title.prefix(60))
     }
 
     private var emptyState: some View {
@@ -102,13 +203,61 @@ struct ChatPanelView: View {
             Text("Ask your coding history anything")
                 .font(Theme.display(20))
                 .foregroundStyle(Theme.ink)
-            Text("\"How did I fix the auth race in March?\" \"Which sessions touched the billing worker?\" Answers cite the sessions they came from, and you can resume any of them.")
+            Text("\"How did I fix the auth race in March?\" \"Which sessions touched the billing worker?\" Answers cite the sessions they came from, and you can resume any of them. Type @ to focus on a project, agent, or time window.")
                 .font(Theme.body(12))
                 .foregroundStyle(Theme.inkSecondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+                .frame(maxWidth: 440)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+/// One past conversation row with open and delete.
+struct ChatThreadRow: View {
+    @ObservedObject var model: AppModel
+    let thread: ChatThreadSummary
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "bubble.left.and.text.bubble.right")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(thread.title?.isEmpty == false ? thread.title! : "Untitled chat")
+                    .font(Theme.body(13, weight: .medium))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                if let updated = thread.updatedAt ?? thread.createdAt,
+                   let date = CloudDate.parse(updated) {
+                    Text(date.formatted(.relative(presentation: .named)))
+                        .font(Theme.body(11))
+                        .foregroundStyle(Theme.inkTertiary)
+                }
+            }
+            Spacer()
+            if hovering {
+                Button {
+                    Task { await model.deleteChatThread(thread) }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.inkTertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete chat")
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+        .cardChrome(hovering: hovering)
+        .onHover { hovering = $0 }
+        .onTapGesture {
+            Task { await model.openChatThread(thread) }
+        }
     }
 }
 

@@ -42,6 +42,8 @@ final class AppModel: ObservableObject {
     let indexBox = IndexReaderBox()
     let pro = ProModel()
     let analytics = AnalyticsModel()
+    let askMention = MentionState()
+    let searchMention = MentionState()
     var supervisor: WatchSupervisor?
     var tripwire: SessionTripwire?
     private(set) var binaryURL: URL?
@@ -82,6 +84,7 @@ final class AppModel: ObservableObject {
     @Published var askQuery = ""
     @Published var askMessages: [AskMessage] = []
     @Published var askStreaming = false
+    @Published var chatThreads: [ChatThreadSummary] = []
 
     @Published var providerStatuses: [ProviderStatus] = []
     @Published var resumeSheetItem: SessionItem?
@@ -255,6 +258,8 @@ final class AppModel: ObservableObject {
     func dismissSearchOverlay() {
         searchOverlayShown = false
         searchQuery = ""
+        searchMention.text = ""
+        searchMention.clearAll()
         searchResults = []
         searchTask?.cancel()
     }

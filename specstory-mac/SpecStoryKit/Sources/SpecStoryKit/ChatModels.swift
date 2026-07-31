@@ -181,7 +181,7 @@ private struct StreamPayload: Decodable {
 
 /// One row from GET /api/v1/chats. Timestamps stay wire-format strings
 /// (Postgres timestamptz text); formatting is a UI concern.
-public struct ChatThreadSummary: Codable, Equatable, Sendable {
+public struct ChatThreadSummary: Codable, Equatable, Sendable, Identifiable {
     public let id: String
     public let title: String?
     public let createdAt: String?
