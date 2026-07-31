@@ -37,7 +37,7 @@ final class AppModel: ObservableObject {
     let keychain: KeychainStore
     let auth: AuthManager
     let chatClient: ChatStreamClient
-    var indexReader: SessionIndexReader?
+    let indexBox = IndexReaderBox()
     var supervisor: WatchSupervisor?
     var tripwire: SessionTripwire?
     private(set) var binaryURL: URL?
@@ -107,6 +107,18 @@ final class AppModel: ObservableObject {
     var currentFlags: [String: Bool] = [:]
     private var toastGeneration = 0
     private var booted = false
+    var reindexInFlight = false
+
+    /// The index is maintained live by watch children; a full rebuild is only
+    /// worth its cost when the database is missing or has gone stale.
+    private func indexNeedsRebuild() -> Bool {
+        let path = SessionIndexReader.defaultDatabaseURL.path
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let modified = attributes[.modificationDate] as? Date else {
+            return true
+        }
+        return Date().timeIntervalSince(modified) > 86_400
+    }
 
     init() {
         keychain = KeychainStore(service: "com.specstory.mac")
@@ -148,31 +160,31 @@ final class AppModel: ObservableObject {
         }
 
         // Show whatever the existing index has immediately; freshen behind it.
-        openIndexReader()
+        await indexBox.reopen()
         await refreshFeed()
-        startWatchers()
+        await startWatchers()
         startLivePruneTimer()
         Task { await refreshGates() }
         Task { await refreshProviderStatuses() }
 
-        if let binaryURL {
-            // Rebuild the cross-project index in the background so the feed
-            // becomes complete; watch children keep it live afterwards.
+        if let binaryURL, indexNeedsRebuild() {
+            // Reindex rebuilds sessions.db from scratch, so it only runs when
+            // the index is missing or stale; watch children keep a healthy
+            // index live, and refreshFeed guards against reading the empty
+            // mid-rebuild database.
+            reindexInFlight = true
             Task { [weak self] in
                 _ = try? await CLIRunner.run(
                     binary: binaryURL, arguments: ["reindex", "--silent"],
                     workingDirectory: NSHomeDirectory(), environment: [:], timeout: 600
                 )
                 guard let self else { return }
-                self.openIndexReader()
+                self.reindexInFlight = false
+                await self.indexBox.reopen()
                 await self.refreshFeed()
-                self.supervisor?.setProjects(self.recentProjectPaths())
+                self.supervisor?.setProjects(await self.recentProjectPaths())
             }
         }
-    }
-
-    func openIndexReader() {
-        indexReader = try? SessionIndexReader(databaseURL: SessionIndexReader.defaultDatabaseURL)
     }
 
     /// Feature gates: flags fail open, entitlements fail closed.

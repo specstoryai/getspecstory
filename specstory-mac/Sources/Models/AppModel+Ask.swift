@@ -17,7 +17,7 @@ extension AppModel {
         panelMode = .chat
 
         guard canAskCloud else {
-            askLocalFallback(query: query)
+            Task { await askLocalFallback(query: query) }
             return
         }
 
@@ -95,9 +95,10 @@ extension AppModel {
     }
 
     /// Signed-out experience: local FTS results plus a sign-in nudge.
-    private func askLocalFallback(query: String) {
+    private func askLocalFallback(query: String) async {
         var sources = [ChatSource]()
-        if let reader = indexReader, let locals = try? reader.search(query, limit: 8) {
+        do {
+            let locals = await indexBox.search(query, limit: 8)
             sources = locals.map { local in
                 ChatSource(
                     chunkID: "", exchangeID: "", exchangeChunkID: nil,

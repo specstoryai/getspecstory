@@ -89,6 +89,10 @@ public final class SessionIndexReader {
         }
         // The CLI's writer holds WAL write locks briefly; wait instead of erroring.
         sqlite3_busy_timeout(opened, 2000)
+        // The index can exceed multiple gigabytes; a large page cache makes
+        // SQLite's purgeable-memory shrinking stall for seconds on finalize.
+        // Reads here are shallow, so keep the cache tiny (2 MB).
+        sqlite3_exec(opened, "PRAGMA cache_size = -2000", nil, nil, nil)
         db = opened
         presentColumns = Self.columnNames(db: opened, table: "sessions")
         hasFTS = Self.tableExists(db: opened, name: "sessions_fts")

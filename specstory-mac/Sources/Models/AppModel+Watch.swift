@@ -4,7 +4,7 @@ import SpecStoryKit
 extension AppModel {
     // MARK: Watch fleet + tripwire
 
-    func startWatchers() {
+    func startWatchers() async {
         guard let binaryURL else { return }
         reapOrphanChildren(binary: binaryURL)
 
@@ -27,7 +27,7 @@ extension AppModel {
             Task { @MainActor in self?.handleWatchEvent(projectPath: projectPath, event: event) }
         }
         self.supervisor = supervisor
-        supervisor.setProjects(recentProjectPaths())
+        supervisor.setProjects(await recentProjectPaths())
 
         let tripwire = SessionTripwire(roots: ProviderRoots.all())
         tripwire.onActivity = { [weak self] provider, projectHint in
@@ -60,8 +60,8 @@ extension AppModel {
         }
     }
 
-    func recentProjectPaths(limit: Int = 8) -> [String] {
-        let paths = (try? indexReader?.distinctProjectPaths(limit: limit * 2)) ?? []
+    func recentProjectPaths(limit: Int = 8) async -> [String] {
+        let paths = await indexBox.distinctProjectPaths(limit: limit * 2)
         return Array(paths.filter { FileManager.default.fileExists(atPath: $0) }.prefix(limit))
     }
 

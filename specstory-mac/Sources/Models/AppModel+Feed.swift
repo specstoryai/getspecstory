@@ -6,11 +6,20 @@ extension AppModel {
 
     func refreshFeed() async {
         lastFeedRefreshAt = Date()
-        // SQLite work stays off the main actor (LIKE fallbacks can scan).
-        let reader = indexReader
-        let locals = await Task.detached(priority: .userInitiated) {
-            (try? reader?.recentSessions(limit: 500)) ?? [IndexedSession]()
-        }.value
+        var locals = await indexBox.recentSessions(limit: 500)
+
+        // Reindex rebuilds the database from scratch; a read that lands
+        // mid-rebuild sees emptiness that must not blow away a good feed.
+        if locals.isEmpty, reindexInFlight, !allItems.isEmpty {
+            locals = allItems.compactMap { item in
+                guard item.origin != .cloudOnly, let path = item.projectPath else { return nil }
+                return IndexedSession(
+                    sessionID: item.clientID, provider: item.provider, projectPath: path,
+                    title: item.title, slug: nil, createdAt: item.createdAt,
+                    updatedAt: item.updatedAt, userPromptCount: item.promptCount, markdownPath: nil
+                )
+            }
+        }
 
         var clouds = [CloudSession]()
         var projectNames = [String: String]()
@@ -68,7 +77,8 @@ extension AppModel {
         var results = [SessionItem]()
         var seen = Set<String>()
 
-        if let reader = indexReader, let locals = try? reader.search(query, limit: 30) {
+        do {
+            let locals = await indexBox.search(query, limit: 30)
             for local in locals {
                 let item = allItems.first { $0.clientID == local.sessionID } ?? SessionItem(local: local)
                 results.append(item)
