@@ -38,7 +38,11 @@ extension AppModel {
         }
 
         allItems = SessionItem.merge(local: locals, cloud: clouds, projectNames: projectNames)
-        feedSections = FeedSection.group(allItems)
+        rebuildFeedSections()
+    }
+
+    func rebuildFeedSections() {
+        feedSections = FeedSection.build(allItems, grouping: feedGrouping, sort: feedSort)
     }
 
     /// Debounced refresh for watch-event bursts, with a max-latency cap so a

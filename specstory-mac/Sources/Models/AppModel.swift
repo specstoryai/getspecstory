@@ -52,6 +52,18 @@ final class AppModel: ObservableObject {
 
     @Published var allItems: [SessionItem] = []
     @Published var feedSections: [FeedSection] = []
+    @Published var feedGrouping: FeedGrouping {
+        didSet {
+            UserDefaults.standard.set(feedGrouping.rawValue, forKey: "feedGrouping")
+            rebuildFeedSections()
+        }
+    }
+    @Published var feedSort: FeedSort {
+        didSet {
+            UserDefaults.standard.set(feedSort.rawValue, forKey: "feedSort")
+            rebuildFeedSections()
+        }
+    }
     @Published var liveSessions: [String: LiveSession] = [:]
     @Published var cloudProjects: [CloudProject] = []
 
@@ -128,6 +140,8 @@ final class AppModel: ObservableObject {
             baseURL: AppModel.cloudBaseURL,
             accessTokenProvider: { [auth] in try await auth.validAccessToken() }
         )
+        feedGrouping = FeedGrouping(rawValue: UserDefaults.standard.string(forKey: "feedGrouping") ?? "") ?? .time
+        feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .recent
         notificationsEnabled = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
         cloudSyncEnabled = UserDefaults.standard.object(forKey: "cloudSyncEnabled") as? Bool ?? true
         launchAtLoginEnabled = LaunchAtLogin.isEnabled

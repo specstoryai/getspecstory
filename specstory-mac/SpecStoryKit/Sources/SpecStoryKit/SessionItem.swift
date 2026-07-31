@@ -136,12 +136,100 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
     }
 }
 
+/// How the feed clusters sessions into sections.
+public enum FeedGrouping: String, CaseIterable, Codable, Sendable {
+    case time
+    case project
+    case provider
+
+    public var displayName: String {
+        switch self {
+        case .time: return "Time"
+        case .project: return "Project"
+        case .provider: return "Agent"
+        }
+    }
+}
+
+/// Ordering of sessions inside each section.
+public enum FeedSort: String, CaseIterable, Codable, Sendable {
+    case recent
+    case longest
+    case mostPrompts
+
+    public var displayName: String {
+        switch self {
+        case .recent: return "Most recent"
+        case .longest: return "Longest"
+        case .mostPrompts: return "Most prompts"
+        }
+    }
+}
+
+extension SessionItem {
+    /// Wall-clock session length when both ends are known.
+    public var duration: TimeInterval? {
+        guard let createdAt, let updatedAt, updatedAt > createdAt else { return nil }
+        return updatedAt.timeIntervalSince(createdAt)
+    }
+}
+
 /// A date-bucketed section of the feed (the Granola grouping).
 public struct FeedSection: Identifiable, Equatable, Sendable {
     public let title: String      // "Today", "Yesterday", "Tue, Jul 29", "July 2026"
     public let items: [SessionItem]
 
     public var id: String { title }
+
+    /// Sections the feed by the chosen grouping, ordering sessions inside
+    /// each section by the chosen sort. Section order: time buckets stay
+    /// chronological; project and provider sections order by most recent
+    /// activity so active work floats up.
+    public static func build(
+        _ items: [SessionItem],
+        grouping: FeedGrouping,
+        sort: FeedSort,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [FeedSection] {
+        let sorted = apply(sort, to: items)
+        switch grouping {
+        case .time:
+            // Time buckets need recency order to bucket correctly; re-sort
+            // inside each bucket afterwards.
+            let buckets = group(items.sorted { $0.sortDate > $1.sortDate }, now: now, calendar: calendar)
+            return buckets.map { FeedSection(title: $0.title, items: apply(sort, to: $0.items)) }
+        case .project:
+            return sectioned(sorted, by: { $0.projectName ?? "No project" })
+        case .provider:
+            return sectioned(sorted, by: { Provider(providerID: $0.provider)?.displayName ?? $0.provider.capitalized })
+        }
+    }
+
+    private static func apply(_ sort: FeedSort, to items: [SessionItem]) -> [SessionItem] {
+        switch sort {
+        case .recent:
+            return items.sorted { $0.sortDate > $1.sortDate }
+        case .longest:
+            return items.sorted { ($0.duration ?? -1) > ($1.duration ?? -1) }
+        case .mostPrompts:
+            return items.sorted { ($0.promptCount ?? -1) > ($1.promptCount ?? -1) }
+        }
+    }
+
+    private static func sectioned(_ items: [SessionItem], by key: (SessionItem) -> String) -> [FeedSection] {
+        var order = [String]()
+        var buckets = [String: [SessionItem]]()
+        var latest = [String: Date]()
+        for item in items {
+            let section = key(item)
+            if buckets[section] == nil { order.append(section) }
+            buckets[section, default: []].append(item)
+            latest[section] = max(latest[section] ?? .distantPast, item.sortDate)
+        }
+        let ranked = order.sorted { (latest[$0] ?? .distantPast) > (latest[$1] ?? .distantPast) }
+        return ranked.map { FeedSection(title: $0, items: buckets[$0] ?? []) }
+    }
 
     /// Groups items (already sorted descending) into display sections.
     public static func group(_ items: [SessionItem], now: Date = Date(), calendar: Calendar = .current) -> [FeedSection] {

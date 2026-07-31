@@ -25,6 +25,7 @@ struct FeedView: View {
                     emptyState
                         .padding(.top, 120)
                 } else {
+                    controlsRow
                     ForEach(model.feedSections) { section in
                         sectionHeader(section.title)
                         ForEach(section.items) { item in
@@ -61,6 +62,56 @@ struct FeedView: View {
                 LiveSessionCard(model: model, live: live)
             }
         }
+    }
+
+    /// Quiet browse controls: group-by pills, sort menu on the right.
+    private var controlsRow: some View {
+        HStack(spacing: 8) {
+            ForEach(FeedGrouping.allCases, id: \.self) { grouping in
+                Button {
+                    model.feedGrouping = grouping
+                } label: {
+                    Text(grouping.displayName)
+                        .font(Theme.body(11, weight: model.feedGrouping == grouping ? .semibold : .regular))
+                        .foregroundStyle(model.feedGrouping == grouping ? Theme.ink : Theme.inkSecondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(
+                            model.feedGrouping == grouping ? Theme.sidebarSelection : Color.clear,
+                            in: Capsule()
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer()
+
+            Menu {
+                ForEach(FeedSort.allCases, id: \.self) { sort in
+                    Button {
+                        model.feedSort = sort
+                    } label: {
+                        if model.feedSort == sort {
+                            Label(sort.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(sort.displayName)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .font(.system(size: 10))
+                    Text(model.feedSort.displayName)
+                        .font(Theme.body(11))
+                }
+                .foregroundStyle(Theme.inkSecondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .accessibilityLabel("Sort sessions")
+        }
+        .padding(.bottom, 6)
     }
 
     private func sectionHeader(_ title: String) -> some View {

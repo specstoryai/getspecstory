@@ -68,4 +68,45 @@ final class SessionItemTests: XCTestCase {
         XCTAssertEqual(SessionItem.folderName(of: "/Users/x/getspecstory"), "getspecstory")
         XCTAssertNil(SessionItem.folderName(of: ""))
     }
+
+    func testBuildGroupsByProjectOrderedByRecency() {
+        let now = Date()
+        let older = SessionItem(local: indexed(id: "a", path: "/u/alpha", updated: now.addingTimeInterval(-3600)))
+        let newer = SessionItem(local: indexed(id: "b", path: "/u/beta", updated: now))
+        let second = SessionItem(local: indexed(id: "c", path: "/u/alpha", updated: now.addingTimeInterval(-7200)))
+        let sections = FeedSection.build([older, newer, second], grouping: .project, sort: .recent)
+        XCTAssertEqual(sections.map(\.title), ["beta", "alpha"], "most recently active project first")
+        XCTAssertEqual(sections[1].items.map(\.clientID), ["a", "c"], "recent first inside a section")
+    }
+
+    func testBuildGroupsByProviderWithDisplayNames() {
+        let now = Date()
+        let claude = SessionItem(local: indexed(id: "a", provider: "claude", updated: now))
+        let codex = SessionItem(local: indexed(id: "b", provider: "codex", updated: now.addingTimeInterval(-60)))
+        let sections = FeedSection.build([claude, codex], grouping: .provider, sort: .recent)
+        XCTAssertEqual(sections.map(\.title), ["Claude Code", "Codex"])
+    }
+
+    func testSortLongestUsesDuration() {
+        let now = Date()
+        let short = SessionItem(local: IndexedSession(
+            sessionID: "s", provider: "claude", projectPath: "/u/p", title: "s", slug: nil,
+            createdAt: now.addingTimeInterval(-60), updatedAt: now, userPromptCount: 1, markdownPath: nil))
+        let long = SessionItem(local: IndexedSession(
+            sessionID: "l", provider: "claude", projectPath: "/u/p", title: "l", slug: nil,
+            createdAt: now.addingTimeInterval(-7200), updatedAt: now, userPromptCount: 1, markdownPath: nil))
+        let sections = FeedSection.build([short, long], grouping: .project, sort: .longest)
+        XCTAssertEqual(sections[0].items.map(\.clientID), ["l", "s"])
+    }
+
+    func testSortMostPrompts() {
+        let now = Date()
+        let few = SessionItem(local: indexed(id: "few", updated: now))
+        let many = SessionItem(local: IndexedSession(
+            sessionID: "many", provider: "claude", projectPath: "/Users/x/proj", title: "m", slug: nil,
+            createdAt: nil, updatedAt: now.addingTimeInterval(-60), userPromptCount: 99, markdownPath: nil))
+        let sections = FeedSection.build([few, many], grouping: .time, sort: .mostPrompts)
+        XCTAssertEqual(sections.first?.items.first?.clientID, "many")
+    }
 }
+
