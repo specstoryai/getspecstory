@@ -1,0 +1,172 @@
+import SwiftUI
+import SpecStoryKit
+
+/// The Granola-style home feed: pinned Live now section, then date-grouped
+/// session cards across every agent, project, and machine.
+struct FeedView: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 8, pinnedViews: []) {
+                if let bootError = model.bootError {
+                    ErrorBanner(text: bootError)
+                }
+                if let cloudError = model.cloudError {
+                    ErrorBanner(text: cloudError)
+                }
+
+                if !model.liveSessionsOrdered.isEmpty {
+                    liveSection
+                        .padding(.bottom, 14)
+                }
+
+                if model.feedSections.isEmpty && model.liveSessionsOrdered.isEmpty {
+                    emptyState
+                        .padding(.top, 120)
+                } else {
+                    ForEach(model.feedSections) { section in
+                        sectionHeader(section.title)
+                        ForEach(section.items) { item in
+                            SessionCardView(
+                                item: item,
+                                isLive: model.liveSessions[item.clientID] != nil,
+                                currentDeviceID: DeviceIdentity.current,
+                                onOpen: { model.openSession(item) },
+                                onResume: model.canResume(item) ? { model.requestResume(item) } : nil
+                            )
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 24)
+            .padding(.bottom, 96)
+            .frame(maxWidth: Theme.feedWidth)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Theme.paper)
+        .task {
+            await model.refreshFeed()
+        }
+    }
+
+    private var liveSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Happening now")
+                .font(Theme.display(22))
+                .foregroundStyle(Theme.ink)
+                .padding(.bottom, 4)
+            ForEach(model.liveSessionsOrdered) { live in
+                LiveSessionCard(model: model, live: live)
+            }
+        }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.body(12, weight: .semibold))
+            .foregroundStyle(Theme.inkTertiary)
+            .textCase(.uppercase)
+            .kerning(0.4)
+            .padding(.top, 14)
+            .padding(.bottom, 2)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "text.bubble")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(Theme.inkTertiary)
+            Text("Your sessions will appear here")
+                .font(Theme.display(20))
+                .foregroundStyle(Theme.ink)
+            Text("Start a session in Claude Code, Cursor, Codex, Gemini, or any supported agent and SpecStory picks it up automatically.")
+                .font(Theme.body(12))
+                .foregroundStyle(Theme.inkSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// A live session gets a warmer, more prominent card.
+struct LiveSessionCard: View {
+    @ObservedObject var model: AppModel
+    let live: LiveSession
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Theme.live)
+                .frame(width: 3, height: 34)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 8) {
+                    Text(live.projectName)
+                        .font(Theme.body(13, weight: .semibold))
+                        .foregroundStyle(Theme.ink)
+                    LivePill()
+                }
+                HStack(spacing: 5) {
+                    let provider = Provider(providerID: live.provider)
+                    Text(provider?.displayName ?? live.provider.capitalized)
+                        .foregroundStyle(provider?.badgeColor ?? Theme.inkSecondary)
+                    Text("·").foregroundStyle(Theme.inkTertiary)
+                    Text("\(live.promptCount) prompt\(live.promptCount == 1 ? "" : "s")")
+                    Text("·").foregroundStyle(Theme.inkTertiary)
+                    Text(syncLabel)
+                }
+                .font(Theme.body(11))
+                .foregroundStyle(Theme.inkSecondary)
+            }
+
+            Spacer()
+
+            Text(durationLabel)
+                .font(Theme.body(11))
+                .foregroundStyle(Theme.inkTertiary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .cardChrome(hovering: hovering)
+        .onHover { hovering = $0 }
+        .onTapGesture { model.revealSession(id: live.sessionID) }
+    }
+
+    private var syncLabel: String {
+        if case .signedIn = model.authState, model.cloudSyncEnabled {
+            return "Syncing to Cloud"
+        }
+        return "Saving locally"
+    }
+
+    private var durationLabel: String {
+        let minutes = max(0, Int(Date().timeIntervalSince(live.startedAt)) / 60)
+        if minutes < 1 { return "just started" }
+        if minutes < 60 { return "\(minutes)m" }
+        return "\(minutes / 60)h \(minutes % 60)m"
+    }
+}
+
+struct ErrorBanner: View {
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+            Text(text)
+                .font(Theme.body(12))
+                .foregroundStyle(Theme.ink)
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).strokeBorder(Color.orange.opacity(0.25)))
+    }
+}

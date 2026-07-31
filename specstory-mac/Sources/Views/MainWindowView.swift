@@ -1,38 +1,203 @@
 import SwiftUI
+import SpecStoryKit
 
-/// Granola-style shell: sidebar plus content. Fleshed out in the UI phases;
-/// this skeleton proves the window plumbing.
+/// The Granola-style shell: slim sidebar, content pane, floating Ask bar,
+/// search overlay, toasts, and the resume sheet.
 struct MainWindowView: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
-        NavigationSplitView {
-            List(selection: $model.panelMode) {
-                Label("Home", systemImage: "house").tag(PanelMode.home)
-                Label("Cloud", systemImage: "icloud").tag(PanelMode.cloud)
-                Label("Chat", systemImage: "sparkles").tag(PanelMode.chat)
-                Label("Providers", systemImage: "cpu").tag(PanelMode.providers)
-                Label("Settings", systemImage: "gearshape").tag(PanelMode.settings)
+        ZStack {
+            HStack(spacing: 0) {
+                SidebarView(model: model)
+                Divider().overlay(Theme.hairline)
+                content
             }
-            .navigationSplitViewColumnWidth(min: 200, ideal: 220)
-        } detail: {
-            switch model.panelMode {
-            case .home:
-                ContentUnavailableView(
-                    "Your sessions will appear here",
-                    systemImage: "text.bubble",
-                    description: Text("SpecStory watches your AI coding sessions across every agent.")
-                )
-            case .cloud:
-                ContentUnavailableView("Cloud", systemImage: "icloud")
-            case .chat:
-                ContentUnavailableView("Ask anything", systemImage: "sparkles")
-            case .providers:
-                ContentUnavailableView("Providers", systemImage: "cpu")
-            case .settings:
-                ContentUnavailableView("Settings", systemImage: "gearshape")
+            .background(Theme.paper)
+
+            if model.searchOverlayShown {
+                SearchOverlay(model: model)
+            }
+
+            if let toast = model.toast {
+                VStack {
+                    Spacer()
+                    Text(toast)
+                        .font(Theme.body(12, weight: .medium))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.regularMaterial, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.hairline))
+                        .padding(.bottom, 68)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                .animation(.spring(duration: 0.3), value: model.toast)
+                .allowsHitTesting(false)
             }
         }
-        .frame(minWidth: 760, minHeight: 480)
+        .frame(minWidth: 860, minHeight: 560)
+        .sheet(item: $model.resumeSheetItem) { item in
+            ResumeSheet(model: model, item: item)
+        }
+        .sheet(item: $model.folderPickItem) { item in
+            FolderPickSheet(model: model, item: item)
+        }
+        .background(KeyboardShortcuts(model: model))
+    }
+
+    @ViewBuilder private var content: some View {
+        switch model.panelMode {
+        case .home:
+            ZStack(alignment: .bottom) {
+                if let selected = model.selectedSession {
+                    SessionDetailView(model: model, item: selected)
+                } else {
+                    FeedView(model: model)
+                    AskBar(model: model)
+                }
+            }
+        case .chat:
+            ChatPanelView(model: model)
+        case .providers:
+            ProvidersView(model: model)
+        case .settings:
+            SettingsView(model: model)
+        }
+    }
+}
+
+/// Invisible helpers for window-level shortcuts.
+private struct KeyboardShortcuts: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        Group {
+            Button("") { model.searchOverlayShown = true }
+                .keyboardShortcut("k", modifiers: .command)
+            Button("") {
+                if model.selectedSession != nil {
+                    model.closeSession()
+                } else if model.searchOverlayShown {
+                    model.searchOverlayShown = false
+                }
+            }
+            .keyboardShortcut(.escape, modifiers: [])
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Left rail: nav, then account footer. Slim and quiet like Granola.
+struct SidebarView: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            searchButton
+                .padding(.bottom, 10)
+
+            navItem(.home, label: "Home", symbol: "house")
+            navItem(.chat, label: "Chat", symbol: "sparkles")
+            navItem(.providers, label: "Providers", symbol: "cpu")
+
+            Spacer()
+
+            footer
+        }
+        .padding(14)
+        .frame(width: 216)
+        .background(Theme.paper)
+    }
+
+    private var searchButton: some View {
+        Button {
+            model.searchOverlayShown = true
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11, weight: .medium))
+                Text("Search")
+                    .font(Theme.body(12))
+                Spacer()
+                Text("⌘K")
+                    .font(Theme.body(10))
+                    .foregroundStyle(Theme.inkTertiary)
+            }
+            .foregroundStyle(Theme.inkSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func navItem(_ mode: PanelMode, label: String, symbol: String) -> some View {
+        Button {
+            model.panelMode = mode
+            model.closeSession()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 16)
+                Text(label)
+                    .font(Theme.body(13, weight: model.panelMode == mode ? .semibold : .regular))
+                Spacer()
+                if mode == .chat && model.askStreaming {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+            .foregroundStyle(model.panelMode == mode ? Theme.ink : Theme.inkSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                model.panelMode == mode ? Theme.sidebarSelection : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !model.liveSessions.isEmpty {
+                HStack(spacing: 6) {
+                    Circle().fill(Theme.live).frame(width: 6, height: 6)
+                    Text(model.statusText)
+                        .font(Theme.body(11))
+                        .foregroundStyle(Theme.inkSecondary)
+                }
+                .padding(.horizontal, 10)
+            }
+            Button {
+                model.panelMode = .settings
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: model.signedInEmail == nil ? "person.crop.circle.badge.questionmark" : "person.crop.circle")
+                        .font(.system(size: 14))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(model.signedInEmail ?? "Not signed in")
+                            .font(Theme.body(11, weight: .medium))
+                            .lineLimit(1)
+                        Text(model.signedInEmail == nil ? "Sign in to sync" : "SpecStory Cloud")
+                            .font(Theme.body(10))
+                            .foregroundStyle(Theme.inkTertiary)
+                    }
+                    Spacer()
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.inkTertiary)
+                }
+                .foregroundStyle(Theme.inkSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(Theme.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
+            }
+            .buttonStyle(.plain)
+        }
     }
 }

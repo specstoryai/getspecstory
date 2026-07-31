@@ -65,7 +65,7 @@ final class SessionItemTests: XCTestCase {
     }
 
     func testProjectNameFromPath() {
-        XCTAssertEqual(SessionItem.projectName(fromPath: "/Users/x/getspecstory"), "getspecstory")
-        XCTAssertNil(SessionItem.projectName(fromPath: ""))
+        XCTAssertEqual(SessionItem.folderName(of: "/Users/x/getspecstory"), "getspecstory")
+        XCTAssertNil(SessionItem.folderName(of: ""))
     }
 }

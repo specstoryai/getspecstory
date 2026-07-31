@@ -45,7 +45,7 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         title = local.title
         projectPath = local.projectPath.isEmpty ? nil : local.projectPath
         projectID = nil
-        projectName = SessionItem.projectName(fromPath: local.projectPath)
+        projectName = SessionItem.folderName(of: local.projectPath)
         machineName = nil
         deviceID = nil
         createdAt = local.createdAt
@@ -78,7 +78,7 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         title = cloud.userTitle ?? cloud.metadata.title ?? local.title
         projectPath = local.projectPath.isEmpty ? nil : local.projectPath
         projectID = cloud.projectId
-        self.projectName = projectName ?? SessionItem.projectName(fromPath: local.projectPath)
+        self.projectName = projectName ?? SessionItem.folderName(of: local.projectPath)
         machineName = cloud.metadata.machineName
         deviceID = cloud.metadata.deviceId
         createdAt = local.createdAt ?? cloud.createdAtDate
@@ -115,7 +115,7 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         return items.sorted { $0.sortDate > $1.sortDate }
     }
 
-    static func projectName(fromPath path: String) -> String? {
+    public static func folderName(of path: String) -> String? {
         let trimmed = path.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         return URL(fileURLWithPath: trimmed).lastPathComponent

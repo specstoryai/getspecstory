@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let model = AppModel.shared else { return }
+        Task { await model.bootstrap() }
         let contentView = MainWindowView(model: model)
         let hostingController = NSHostingController(rootView: contentView)
 
