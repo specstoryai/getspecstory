@@ -33,11 +33,14 @@ CONTRACTS.md           module API contracts the services were built against
 
 ## The experience
 
-- **Menu bar, always on.** Live session count in the status item menu, recent sessions, quick open, graceful fleet shutdown on quit.
+- **Menu bar, always on.** The SpecStory book in your menu bar (full color while sessions record), live session count, recent sessions, quick open, graceful fleet shutdown on quit.
 - **Happening now.** New sessions in any supported agent appear within seconds, with provider brand marks, prompt counts, and sync state; a notification fires when one starts.
 - **The feed.** Every session across every agent, project, and machine, date-grouped, local and cloud rows merged by client id; sessions from other machines carry a machine badge.
-- **Search (⌘K).** Local FTS over `~/.specstory/sessions.db` merged with cloud search.
-- **Ask anything.** Streaming RAG answers over your synced chats, grounded with source pills that deep-link to sessions.
+- **Search (⌘K).** Local FTS over `~/.specstory/sessions.db` merged with cloud search; type @ to scope by project, agent, or time window (chips, like the cloud app).
+- **Ask anything.** Streaming RAG answers over your synced chats, grounded with source pills that deep-link to sessions; @ references scope the question; past conversations browsable in Chat.
+- **Session viewer.** The cloud reading experience natively: exchange cards, thinking and tool disclosures, diff-aware code blocks, element filters with Clean reading, a numbered exchange jump list, per-prompt copy.
+- **Skills and Analytics.** The Pro skills library and a native analytics dashboard (sessions per day, agent split, top projects, streaks) from your local index.
+- **Open anywhere.** Any session's markdown opens in VS Code, Cursor, Zed, or any installed editor, reveals in Finder, or copies whole; provider icons and grouping match SpecStory Cloud.
 - **Resume.** Any local or cloud-resumable session relaunches into its agent, in its project directory, in your terminal; cross-agent targets supported, commands copyable.
 
 ## Dev notes
