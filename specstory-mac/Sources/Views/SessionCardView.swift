@@ -7,6 +7,7 @@ struct SessionCardView: View {
     let item: SessionItem
     var isLive = false
     var currentDeviceID: String? = nil
+    var contextModel: AppModel? = nil
     var onOpen: () -> Void = {}
     var onResume: (() -> Void)? = nil
 
@@ -39,6 +40,11 @@ struct SessionCardView: View {
         .cardChrome(hovering: hovering)
         .onHover { hovering = $0 }
         .onTapGesture(perform: onOpen)
+        .contextMenu {
+            if let contextModel {
+                OpenInMenuContent(model: contextModel, item: item)
+            }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(item.title), \(providerDisplayName)")
         .accessibilityAddTraits(.isButton)

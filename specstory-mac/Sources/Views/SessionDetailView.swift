@@ -69,6 +69,16 @@ struct SessionDetailView: View {
                 }
                 Spacer()
                 HStack(spacing: 8) {
+                    Menu {
+                        OpenInMenuContent(model: model, item: item)
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 12))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help("Open, reveal, or copy this session's markdown")
+                    .accessibilityLabel("Open session markdown elsewhere")
                     if let projectID = item.projectID {
                         Link(destination: AppModel.cloudBaseURL.appendingPathComponent("projects/\(projectID)/sessions/\(item.clientID)")) {
                             Label("Open in Cloud", systemImage: "safari")

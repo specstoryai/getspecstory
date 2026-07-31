@@ -33,6 +33,7 @@ struct FeedView: View {
                                 item: item,
                                 isLive: model.liveSessions[item.clientID] != nil,
                                 currentDeviceID: DeviceIdentity.current,
+                                contextModel: model,
                                 onOpen: { model.openSession(item) },
                                 onResume: model.canResume(item) ? { model.requestResume(item) } : nil
                             )

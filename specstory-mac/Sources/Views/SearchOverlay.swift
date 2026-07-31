@@ -50,6 +50,7 @@ struct SearchOverlay: View {
                                     item: item,
                                     isLive: model.liveSessions[item.clientID] != nil,
                                     currentDeviceID: DeviceIdentity.current,
+                                    contextModel: model,
                                     onOpen: { open(item) },
                                     onResume: model.canResume(item) ? { model.requestResume(item) } : nil
                                 )
