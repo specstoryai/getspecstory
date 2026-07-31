@@ -124,7 +124,13 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
     /// CLI slugs ("so-here-is-the") read poorly as titles; humanize unless the
     /// title already looks like prose.
     public static func humanizeTitle(_ raw: String) -> String {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Prose titles lifted from first prompts can carry leading markdown
+        // (headers, quotes, list markers); strip it.
+        while let first = trimmed.first, "#>*`".contains(first) {
+            trimmed.removeFirst()
+            trimmed = trimmed.trimmingCharacters(in: .whitespaces)
+        }
         guard !trimmed.isEmpty else { return "Untitled session" }
         guard !trimmed.contains(" "), trimmed.contains("-") || trimmed.contains("_") else { return trimmed }
         let words = trimmed
