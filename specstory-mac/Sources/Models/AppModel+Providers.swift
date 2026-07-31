@@ -14,7 +14,7 @@ extension AppModel {
             }
         }
 
-        for provider in Provider.allCases {
+        for provider in Provider.allCases where provider.watchableByCLI {
             let result = try? await CLIRunner.runDetailed(
                 binary: binaryURL,
                 arguments: ["check", "--providers", provider.rawValue, "--silent"],

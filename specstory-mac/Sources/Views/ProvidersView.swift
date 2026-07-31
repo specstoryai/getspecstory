@@ -1,8 +1,8 @@
 import SwiftUI
 import SpecStoryKit
 
-/// Provider management: install health from `specstory check`, notification
-/// preferences, store locations.
+/// Provider management, grouped: IDE integrations first, then terminal
+/// agents. Health from `specstory check`; muting silences notifications only.
 struct ProvidersView: View {
     @ObservedObject var model: AppModel
 
@@ -17,7 +17,14 @@ struct ProvidersView: View {
                     .foregroundStyle(Theme.inkSecondary)
                     .padding(.bottom, 10)
 
-                ForEach(model.providerStatuses) { status in
+                sectionHeader("In your IDE")
+                ForEach(ideStatuses) { status in
+                    ProviderRow(model: model, status: status)
+                }
+
+                sectionHeader("In your terminal")
+                    .padding(.top, 14)
+                ForEach(terminalStatuses) { status in
                     ProviderRow(model: model, status: status)
                 }
             }
@@ -29,6 +36,23 @@ struct ProvidersView: View {
         .task {
             await model.refreshProviderStatuses()
         }
+    }
+
+    private var ideStatuses: [ProviderStatus] {
+        model.providerStatuses.filter { $0.provider.isIDE }
+    }
+
+    private var terminalStatuses: [ProviderStatus] {
+        model.providerStatuses.filter { !$0.provider.isIDE }
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(Theme.body(11, weight: .semibold))
+            .foregroundStyle(Theme.inkTertiary)
+            .textCase(.uppercase)
+            .kerning(0.4)
+            .padding(.bottom, 2)
     }
 }
 
@@ -64,24 +88,31 @@ struct ProviderRow: View {
     }
 
     @ViewBuilder private var healthLabel: some View {
-        switch status.healthy {
-        case .none:
-            HStack(spacing: 5) {
-                ProgressView().controlSize(.mini)
-                Text("Checking")
-            }
-            .font(Theme.body(11))
-            .foregroundStyle(Theme.inkTertiary)
-        case .some(true):
-            Label("Ready", systemImage: "checkmark.circle.fill")
+        if !status.provider.watchableByCLI {
+            Label("Captured by the SpecStory extension in VS Code", systemImage: "puzzlepiece.extension")
                 .font(Theme.body(11))
-                .foregroundStyle(Theme.synced)
+                .foregroundStyle(Theme.inkSecondary)
                 .labelStyle(.titleAndIcon)
-        case .some(false):
-            Label("Not detected on this Mac", systemImage: "minus.circle")
+        } else {
+            switch status.healthy {
+            case .none:
+                HStack(spacing: 5) {
+                    ProgressView().controlSize(.mini)
+                    Text("Checking")
+                }
                 .font(Theme.body(11))
                 .foregroundStyle(Theme.inkTertiary)
-                .labelStyle(.titleAndIcon)
+            case .some(true):
+                Label("Ready", systemImage: "checkmark.circle.fill")
+                    .font(Theme.body(11))
+                    .foregroundStyle(Theme.synced)
+                    .labelStyle(.titleAndIcon)
+            case .some(false):
+                Label("Not detected on this Mac", systemImage: "minus.circle")
+                    .font(Theme.body(11))
+                    .foregroundStyle(Theme.inkTertiary)
+                    .labelStyle(.titleAndIcon)
+            }
         }
     }
 }

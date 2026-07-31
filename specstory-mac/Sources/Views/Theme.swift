@@ -89,6 +89,9 @@ extension Provider {
         case .droid:
             return Theme.dynamicColor(light: NSColor(red: 0.55, green: 0.53, blue: 0.50, alpha: 1),
                                       dark: NSColor(red: 0.72, green: 0.70, blue: 0.67, alpha: 1))
+        case .copilotide:
+            return Theme.dynamicColor(light: NSColor(red: 0.14, green: 0.16, blue: 0.18, alpha: 1),
+                                      dark: NSColor(red: 0.80, green: 0.82, blue: 0.85, alpha: 1))
         }
     }
 
@@ -97,6 +100,7 @@ extension Provider {
     var iconAssetName: String {
         switch self {
         case .cursoride: return "provider-cursor"
+        case .copilotide: return "provider-copilot"
         default: return "provider-\(rawValue)"
         }
     }
@@ -105,7 +109,7 @@ extension Provider {
     /// Cursor, Droid, and Antigravity ship their own colors.
     var iconIsTemplate: Bool {
         switch self {
-        case .claude, .codex, .gemini, .deepseek: return true
+        case .claude, .codex, .gemini, .deepseek, .copilotide: return true
         case .cursor, .cursoride, .droid, .antigravity: return false
         }
     }

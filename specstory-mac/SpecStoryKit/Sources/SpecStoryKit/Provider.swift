@@ -5,6 +5,7 @@ public enum Provider: String, CaseIterable, Codable, Sendable, Identifiable {
     case antigravity
     case claude
     case codex
+    case copilotide
     case cursor
     case cursoride
     case deepseek
@@ -18,6 +19,7 @@ public enum Provider: String, CaseIterable, Codable, Sendable, Identifiable {
         case .antigravity: return "Antigravity"
         case .claude: return "Claude Code"
         case .codex: return "Codex"
+        case .copilotide: return "VS Code Copilot"
         case .cursor: return "Cursor CLI"
         case .cursoride: return "Cursor"
         case .deepseek: return "DeepSeek"
@@ -26,8 +28,30 @@ public enum Provider: String, CaseIterable, Codable, Sendable, Identifiable {
         }
     }
 
+    /// IDE-hosted providers versus terminal agents; the Providers panel
+    /// groups by this.
+    public var isIDE: Bool {
+        switch self {
+        case .cursoride, .copilotide: return true
+        default: return false
+        }
+    }
+
+    /// Copilot capture happens through the SpecStory VS Code extension; the
+    /// bundled CLI has no copilotide provider, so health checks and watch
+    /// children skip it.
+    public var watchableByCLI: Bool {
+        self != .copilotide
+    }
+
     /// Registry IDs are matched case-insensitively, like the CLI does.
+    /// "copilot" appears as a cloud agentName alias for copilotide.
     public init?(providerID: String) {
-        self.init(rawValue: providerID.lowercased())
+        let normalized = providerID.lowercased()
+        if normalized == "copilot" {
+            self = .copilotide
+            return
+        }
+        self.init(rawValue: normalized)
     }
 }

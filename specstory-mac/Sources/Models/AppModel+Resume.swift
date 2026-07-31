@@ -12,7 +12,7 @@ extension AppModel {
     func resumeTarget(for item: SessionItem) -> Provider {
         guard let provider = Provider(providerID: item.provider) else { return .claude }
         switch provider {
-        case .antigravity: return .claude
+        case .antigravity, .copilotide: return .claude
         case .cursoride: return .cursor
         default: return provider
         }

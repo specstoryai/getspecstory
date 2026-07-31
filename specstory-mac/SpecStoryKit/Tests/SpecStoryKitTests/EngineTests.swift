@@ -144,10 +144,13 @@ final class BinaryLocatorTests: XCTestCase {
 }
 
 final class ProviderRootsTests: XCTestCase {
-    func testAllCoversEveryProviderExactlyOnce() {
+    func testAllCoversEveryCLIWatchableProviderExactlyOnce() {
+        // copilotide is captured by the VS Code extension, not the CLI, so
+        // it has no filesystem root to trip on.
+        let watchable = Provider.allCases.filter(\.watchableByCLI)
         let roots = ProviderRoots.all()
-        XCTAssertEqual(roots.count, Provider.allCases.count)
-        XCTAssertEqual(Set(roots.map { $0.provider }), Set(Provider.allCases))
+        XCTAssertEqual(roots.count, watchable.count)
+        XCTAssertEqual(Set(roots.map { $0.provider }), Set(watchable))
         for root in roots {
             XCTAssertTrue(root.path.hasPrefix("/"), "\(root.provider) root is not absolute: \(root.path)")
             XCTAssertFalse(root.path.contains("~"), "\(root.provider) root has an unexpanded tilde")
