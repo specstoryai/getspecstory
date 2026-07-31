@@ -25,7 +25,13 @@ public final class ChatStreamClient {
 
     /// Session injection point for URLProtocol-stubbed tests.
     public init(baseURL: URL, accessTokenProvider: @escaping () async throws -> String?, session: URLSession) {
-        self.baseURL = baseURL
+        // Accept either the host root (https://cloud.specstory.com) or a URL
+        // already ending in /api/v1, exactly like CloudAPI.
+        if baseURL.path.hasSuffix("/api/v1") {
+            self.baseURL = baseURL
+        } else {
+            self.baseURL = baseURL.appendingPathComponent("api/v1")
+        }
         self.accessTokenProvider = accessTokenProvider
         self.session = session
     }

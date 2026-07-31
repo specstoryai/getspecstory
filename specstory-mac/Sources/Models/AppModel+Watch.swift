@@ -6,13 +6,16 @@ extension AppModel {
 
     func startWatchers() {
         guard let binaryURL else { return }
+        reapOrphanChildren(binary: binaryURL)
 
+        // Captured directly so the closure never touches main-actor state
+        // from the supervisor queue (AuthManager and UserDefaults are safe
+        // off-main).
+        let auth = self.auth
         let supervisor = WatchSupervisor(binary: binaryURL, maxChildren: 8, environmentProvider: {
-            // Runs on the supervisor queue: read UserDefaults/Keychain, never
-            // main-actor state.
             var env = [String: String]()
             let syncOn = UserDefaults.standard.object(forKey: "cloudSyncEnabled") as? Bool ?? true
-            if syncOn, let token = AppModel.shared?.auth.refreshTokenForCLI {
+            if syncOn, let token = auth.refreshTokenForCLI {
                 env["SPECSTORY_CLOUD_TOKEN"] = token
             }
             if let override = AppModel.cloudURLOverride {
@@ -32,6 +35,29 @@ extension AppModel {
         }
         self.tripwire = tripwire
         tripwire.start()
+    }
+
+    /// CLI children survive an app crash or force-quit (no parent-death
+    /// signal on macOS). Anything running our bundled binary before our own
+    /// fleet starts is an orphan from a previous run: terminate it.
+    private func reapOrphanChildren(binary: URL) {
+        let pgrep = Process()
+        pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-f", binary.path]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        do {
+            try pgrep.run()
+            pgrep.waitUntilExit()
+        } catch {
+            return
+        }
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        for pidString in output.split(separator: "\n") {
+            if let pid = Int32(pidString.trimmingCharacters(in: .whitespaces)) {
+                kill(pid, SIGTERM)
+            }
+        }
     }
 
     func recentProjectPaths(limit: Int = 8) -> [String] {

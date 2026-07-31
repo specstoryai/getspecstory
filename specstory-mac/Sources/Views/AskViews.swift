@@ -12,7 +12,7 @@ struct AskBar: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.accent)
-            TextField("Ask anything about your sessions", text: $model.askQuery)
+            TextField(model.askStreaming ? "Answering..." : "Ask anything about your sessions", text: $model.askQuery)
                 .textFieldStyle(.plain)
                 .font(Theme.body(13))
                 .focused($focused)
@@ -23,9 +23,11 @@ struct AskBar: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 18))
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(model.askStreaming ? Theme.inkTertiary : Theme.accent)
                 }
                 .buttonStyle(.plain)
+                .disabled(model.askStreaming)
+                .accessibilityLabel("Ask")
             }
         }
         .padding(.horizontal, 16)

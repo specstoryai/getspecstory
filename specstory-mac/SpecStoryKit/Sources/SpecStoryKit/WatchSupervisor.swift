@@ -1,6 +1,7 @@
 import Foundation
 
-/// Fleet of `specstory watch --json --silent` children, one per project path,
+/// Fleet of `specstory watch --json` children, one per project path (--silent
+/// would suppress the JSON event lines themselves),
 /// capped at maxChildren with LRU eviction by last event time.
 ///
 /// All callbacks are delivered on an internal serial queue (never the main
@@ -69,19 +70,28 @@ public final class WatchSupervisor {
     public func restartAll() {
         queue.async {
             self.generation += 1
-            for (path, child) in self.children where self.desired.contains(path) {
-                child.respawnGeneration = self.generation
-                if !child.stopping {
-                    child.stopping = true
-                    child.runner.terminate(patience: self.evictionPatience)
+            // Iterate desired, not children: a crashed child awaiting its
+            // delayed respawn has no entry in children, and the generation
+            // bump just cancelled that respawn. Spawn those immediately.
+            for path in self.desired {
+                if let child = self.children[path] {
+                    child.respawnGeneration = self.generation
+                    if !child.stopping {
+                        child.stopping = true
+                        child.runner.terminate(patience: self.evictionPatience)
+                    }
+                } else {
+                    self.startIfNeeded(path)
                 }
                 if !self.order.contains(path) { self.order.append(path) }
             }
         }
     }
 
+    /// Synchronous: every child has been sent SIGTERM by the time this
+    /// returns, so app termination cannot outrun signal delivery.
     public func stopAll(patience: TimeInterval) {
-        queue.async {
+        queue.sync {
             self.generation += 1
             self.desired.removeAll()
             self.order.removeAll()
@@ -164,7 +174,7 @@ public final class WatchSupervisor {
     private func spawn(_ path: String) {
         let runner = CLIRunner(
             binary: binary,
-            arguments: ["watch", "--json", "--silent"],
+            arguments: ["watch", "--json"],
             workingDirectory: path,
             environment: environmentProvider())
         let child = Child(runner: runner)

@@ -83,7 +83,13 @@ public actor CloudAPI {
         let (data, response) = try await perform(request, retries: 0)
         switch response.statusCode {
         case 200...299:
-            return try unwrapEnvelope(DeviceLoginResult.self, from: data, status: response.statusCode)
+            // Device-auth endpoints are the documented exception to the
+            // {"success":true,"data":...} envelope: they respond top-level.
+            do {
+                return try decoder.decode(DeviceLoginResult.self, from: data)
+            } catch {
+                throw CloudAPIError.decoding(error)
+            }
         case 400:
             throw CloudAPIError.deviceCodeRejected(message: Self.malformedCodeCopy)
         case 401:
@@ -101,7 +107,12 @@ public actor CloudAPI {
         guard (200...299).contains(response.statusCode) else {
             throw statusError(response.statusCode, data: data)
         }
-        return try unwrapEnvelope(AccessTokenResult.self, from: data, status: response.statusCode)
+        // Top-level response, no envelope (device-auth exception).
+        do {
+            return try decoder.decode(AccessTokenResult.self, from: data)
+        } catch {
+            throw CloudAPIError.decoding(error)
+        }
     }
 
     public func deviceLogout(refreshToken: String) async {
@@ -149,15 +160,15 @@ public actor CloudAPI {
     }
 
     public func sessionMarkdown(projectID: String, sessionID: String, etag: String?) async throws -> SessionMarkdown {
+        // The markdown response drops the ETag header and the server 500s on a
+        // matching If-None-Match, so conditional refresh happens client-side:
+        // compare the caller's cached etag against sessionHead() before
+        // fetching. The etag parameter is accepted for that comparison flow
+        // but never sent on the wire.
+        _ = etag
         var request = try await authorizedRequest("projects/\(escape(projectID))/sessions/\(escape(sessionID))")
         request.setValue("text/markdown", forHTTPHeaderField: "Accept")
-        if let etag, !etag.isEmpty {
-            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
-        }
         let (data, response) = try await perform(request, retries: Self.retryDelays.count)
-        if response.statusCode == 304 {
-            return .notModified
-        }
         guard (200...299).contains(response.statusCode) else {
             throw statusError(response.statusCode, data: data)
         }
@@ -232,7 +243,7 @@ public actor CloudAPI {
             total
             results {
               id
-              clientId
+              sessionId
               projectId
               name
               userTitle

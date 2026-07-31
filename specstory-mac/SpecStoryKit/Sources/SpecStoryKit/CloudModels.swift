@@ -401,7 +401,7 @@ public struct SearchHit: Decodable, Equatable, Sendable {
     public let project: SearchProjectRef?
 
     private enum CodingKeys: String, CodingKey {
-        case id, clientId, projectId, name, userTitle, rank, matchingExchanges, project
+        case id, clientId, sessionId, projectId, name, userTitle, rank, matchingExchanges, project
     }
 
     public init(id: String, clientId: String? = nil, projectId: String? = nil, name: String? = nil,
@@ -420,8 +420,10 @@ public struct SearchHit: Decodable, Equatable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decodeIfPresent(String.self, forKey: .id) ?? ""
+        // The GraphQL result exposes the session client id as `sessionId`
+        // (there is no clientId field on SearchResultItem).
         clientId = try c.decodeIfPresent(String.self, forKey: .clientId)
-        projectId = try c.decodeIfPresent(String.self, forKey: .projectId)
+            ?? c.decodeIfPresent(String.self, forKey: .sessionId)
         name = try c.decodeIfPresent(String.self, forKey: .name)
         userTitle = try c.decodeIfPresent(String.self, forKey: .userTitle)
         // rank can arrive as Float or Int depending on the SQL path.
@@ -433,6 +435,11 @@ public struct SearchHit: Decodable, Equatable, Sendable {
             rank = nil
         }
         matchingExchanges = try? c.decodeIfPresent([SearchExchange].self, forKey: .matchingExchanges)
-        project = try? c.decodeIfPresent(SearchProjectRef.self, forKey: .project)
+        let projectRef = try? c.decodeIfPresent(SearchProjectRef.self, forKey: .project)
+        project = projectRef
+        // Prefer the project ref's client id (workspaces.project_id); the
+        // top-level projectId is the server-side row id.
+        let topLevelProjectID = try c.decodeIfPresent(String.self, forKey: .projectId)
+        projectId = projectRef?.id ?? topLevelProjectID
     }
 }

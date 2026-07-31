@@ -119,14 +119,18 @@ struct SessionCardView: View {
         Provider(providerID: item.provider)?.badgeColor ?? Theme.inkSecondary
     }
 
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
     private var relativeTime: String {
         guard let date = item.updatedAt ?? item.createdAt else { return "" }
         if isLive || Date().timeIntervalSince(date) < 90 {
             return "now"
         }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        return Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

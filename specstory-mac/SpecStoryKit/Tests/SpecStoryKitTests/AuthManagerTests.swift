@@ -43,7 +43,7 @@ final class AuthManagerTests: XCTestCase {
 
     private func enqueueRefreshSuccess(token: String = "fresh-access", expiresIn: TimeInterval = 3600, delay: TimeInterval = 0) {
         StubURLProtocol.enqueue(json: """
-        {"success":true,"data":{"accessToken":"\(token)","createdAt":"\(iso(0))","expiresAt":"\(iso(expiresIn))"}}
+        {"accessToken":"\(token)","createdAt":"\(iso(0))","expiresAt":"\(iso(expiresIn))"}
         """, delay: delay)
     }
 
@@ -175,8 +175,8 @@ final class AuthManagerTests: XCTestCase {
         var observed: [AuthState] = []
         manager.onStateChange = { observed.append($0) }
         StubURLProtocol.enqueue(json: """
-        {"success":true,"data":{"refreshToken":"new-refresh","createdAt":"\(iso(0))",
-         "expiresAt":"\(iso(315_360_000))","user":{"email":"greg@example.com"}}}
+        {"refreshToken":"new-refresh","createdAt":"\(iso(0))",
+         "expiresAt":"\(iso(315_360_000))","user":{"email":"greg@example.com"}}
         """)
 
         let email = try await manager.signIn(deviceCode: "Abc-123")

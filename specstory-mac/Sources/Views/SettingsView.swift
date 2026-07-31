@@ -4,9 +4,6 @@ import SpecStoryKit
 /// Account (device-flow sign in), sync, notifications, startup, about.
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @State private var deviceCode = ""
-    @State private var signingIn = false
-    @State private var signInError: String?
 
     var body: some View {
         ScrollView {
@@ -51,50 +48,17 @@ struct SettingsView: View {
                 Text("Sign in to sync sessions, browse other machines, and ask questions across your whole history.")
                     .font(Theme.body(12))
                     .foregroundStyle(Theme.inkSecondary)
-                HStack(spacing: 8) {
-                    Button("Get code in browser") {
-                        model.beginSignIn()
-                    }
-                    .controlSize(.small)
-                    TextField("ABC-123", text: $deviceCode)
-                        .textFieldStyle(.roundedBorder)
-                        .font(Theme.mono(13))
-                        .frame(width: 110)
-                        .onSubmit { submitCode() }
-                    Button(signingIn ? "Connecting" : "Connect") {
-                        submitCode()
-                    }
-                    .controlSize(.small)
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.accent)
-                    .disabled(signingIn || deviceCode.trimmingCharacters(in: .whitespaces).isEmpty)
+                Button("Sign in to SpecStory Cloud") {
+                    model.signInSheetShown = true
                 }
-                if let signInError {
-                    Text(signInError)
-                        .font(Theme.body(11))
-                        .foregroundStyle(Theme.live)
-                }
+                .buttonStyle(.borderedProminent)
+                .tint(Theme.accent)
+                .controlSize(.regular)
             }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .cardChrome()
-    }
-
-    private func submitCode() {
-        let code = deviceCode.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !code.isEmpty else { return }
-        signingIn = true
-        signInError = nil
-        Task {
-            do {
-                try await model.completeSignIn(code: code)
-                deviceCode = ""
-            } catch {
-                signInError = error.localizedDescription
-            }
-            signingIn = false
-        }
     }
 
     // MARK: General

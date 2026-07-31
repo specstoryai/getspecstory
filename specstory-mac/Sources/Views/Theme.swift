@@ -56,24 +56,39 @@ enum Theme {
     static let cardRadius: CGFloat = 10
     static let feedWidth: CGFloat = 720
 
-    private static func dynamicColor(light: NSColor, dark: NSColor) -> Color {
+    static func dynamicColor(light: NSColor, dark: NSColor) -> Color {
         Color(nsColor: NSColor(name: nil) { appearance in
             appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? dark : light
         })
     }
 }
 
-/// Visual identity per agent for badges and dots.
+/// Visual identity per agent for badges and dots. Every color adapts to dark
+/// mode; near-black brand tones (Cursor) especially need a light variant.
 extension Provider {
     var badgeColor: Color {
         switch self {
-        case .claude: return Color(red: 0.85, green: 0.47, blue: 0.34)
-        case .codex: return Color(red: 0.06, green: 0.64, blue: 0.50)
-        case .cursor, .cursoride: return Color(red: 0.35, green: 0.34, blue: 0.33)
-        case .gemini: return Color(red: 0.26, green: 0.52, blue: 0.96)
-        case .antigravity: return Color(red: 0.55, green: 0.36, blue: 0.86)
-        case .deepseek: return Color(red: 0.30, green: 0.42, blue: 1.00)
-        case .droid: return Color(red: 0.55, green: 0.53, blue: 0.50)
+        case .claude:
+            return Theme.dynamicColor(light: NSColor(red: 0.85, green: 0.47, blue: 0.34, alpha: 1),
+                                      dark: NSColor(red: 0.93, green: 0.58, blue: 0.45, alpha: 1))
+        case .codex:
+            return Theme.dynamicColor(light: NSColor(red: 0.06, green: 0.64, blue: 0.50, alpha: 1),
+                                      dark: NSColor(red: 0.25, green: 0.78, blue: 0.63, alpha: 1))
+        case .cursor, .cursoride:
+            return Theme.dynamicColor(light: NSColor(red: 0.35, green: 0.34, blue: 0.33, alpha: 1),
+                                      dark: NSColor(red: 0.78, green: 0.77, blue: 0.75, alpha: 1))
+        case .gemini:
+            return Theme.dynamicColor(light: NSColor(red: 0.26, green: 0.52, blue: 0.96, alpha: 1),
+                                      dark: NSColor(red: 0.45, green: 0.65, blue: 1.00, alpha: 1))
+        case .antigravity:
+            return Theme.dynamicColor(light: NSColor(red: 0.55, green: 0.36, blue: 0.86, alpha: 1),
+                                      dark: NSColor(red: 0.70, green: 0.55, blue: 0.95, alpha: 1))
+        case .deepseek:
+            return Theme.dynamicColor(light: NSColor(red: 0.30, green: 0.42, blue: 1.00, alpha: 1),
+                                      dark: NSColor(red: 0.50, green: 0.60, blue: 1.00, alpha: 1))
+        case .droid:
+            return Theme.dynamicColor(light: NSColor(red: 0.55, green: 0.53, blue: 0.50, alpha: 1),
+                                      dark: NSColor(red: 0.72, green: 0.70, blue: 0.67, alpha: 1))
         }
     }
 

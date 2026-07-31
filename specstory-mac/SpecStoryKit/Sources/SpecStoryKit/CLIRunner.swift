@@ -129,9 +129,11 @@ public final class CLIRunner {
 
     /// SIGTERM first so the CLI can flush cloud sync (up to 180 s); escalate
     /// to SIGKILL only after `patience`. Callers pass a longer patience when
-    /// uploads may be pending.
+    /// uploads may be pending. The SIGTERM itself is delivered synchronously
+    /// so a caller that exits the process right after (app quit) still gets
+    /// the signal out; only the SIGKILL escalation is deferred.
     public func terminate(patience: TimeInterval = 20) {
-        queue.async { [self] in
+        queue.sync { [self] in
             guard launched, process.isRunning else { return }
             let pid = process.processIdentifier
             process.terminate()
@@ -209,8 +211,12 @@ public final class CLIRunner {
                 lock.unlock()
                 if process.isRunning { kill(pid, SIGKILL) }
                 // Report the timeout shortly even if an orphaned grandchild
-                // still holds the pipes open past the kill.
+                // still holds the pipes open past the kill, and close our
+                // read ends so the two reader threads unblock instead of
+                // leaking from the global pool on every timeout.
                 DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+                    try? stdoutPipe.fileHandleForReading.close()
+                    try? stderrPipe.fileHandleForReading.close()
                     resumeOnce(.failure(CLIRunnerError.timeout(timeout)))
                 }
             }

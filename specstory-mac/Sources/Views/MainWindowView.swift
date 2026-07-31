@@ -39,6 +39,9 @@ struct MainWindowView: View {
         .sheet(item: $model.resumeSheetItem) { item in
             ResumeSheet(model: model, item: item)
         }
+        .sheet(isPresented: $model.signInSheetShown) {
+            SignInSheet(model: model)
+        }
         .sheet(item: $model.folderPickItem) { item in
             FolderPickSheet(model: model, item: item)
         }
@@ -72,13 +75,14 @@ private struct KeyboardShortcuts: View {
 
     var body: some View {
         Group {
-            Button("") { model.searchOverlayShown = true }
+            Button("") { model.toggleSearchOverlay() }
                 .keyboardShortcut("k", modifiers: .command)
             Button("") {
-                if model.selectedSession != nil {
+                // Topmost layer consumes Escape first.
+                if model.searchOverlayShown {
+                    model.dismissSearchOverlay()
+                } else if model.selectedSession != nil {
                     model.closeSession()
-                } else if model.searchOverlayShown {
-                    model.searchOverlayShown = false
                 }
             }
             .keyboardShortcut(.escape, modifiers: [])
@@ -113,7 +117,7 @@ struct SidebarView: View {
 
     private var searchButton: some View {
         Button {
-            model.searchOverlayShown = true
+            model.toggleSearchOverlay()
         } label: {
             HStack(spacing: 7) {
                 Image(systemName: "magnifyingglass")
@@ -173,7 +177,11 @@ struct SidebarView: View {
                 .padding(.horizontal, 10)
             }
             Button {
-                model.panelMode = .settings
+                if model.signedInEmail == nil {
+                    model.signInSheetShown = true
+                } else {
+                    model.panelMode = .settings
+                }
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: model.signedInEmail == nil ? "person.crop.circle.badge.questionmark" : "person.crop.circle")

@@ -24,18 +24,21 @@ extension AppModel {
         askStreaming = true
         var assistant = AskMessage(role: .assistant, text: "", status: "Searching your sessions...")
         askMessages.append(assistant)
-        let index = askMessages.count - 1
+        let assistantID = assistant.id
 
         askTask = Task { [weak self] in
             guard let self else { return }
             var pendingText = ""
             var lastFlush = Date.distantPast
 
+            // The thread can be cleared mid-stream; locate the message by
+            // identity every flush and stop writing once it is gone.
             @MainActor func flush(force: Bool = false) {
                 guard force || Date().timeIntervalSince(lastFlush) > 0.016 else { return }
                 lastFlush = Date()
+                guard let slot = self.askMessages.firstIndex(where: { $0.id == assistantID }) else { return }
                 assistant.text = pendingText
-                self.askMessages[index] = assistant
+                self.askMessages[slot] = assistant
             }
 
             do {
@@ -45,6 +48,7 @@ extension AppModel {
                     projectIDs: nil, timeFilter: nil, agentNames: nil
                 )
                 for try await event in stream {
+                    guard !Task.isCancelled else { break }
                     switch event {
                     case .start(let chatSessionID):
                         self.chatSessionID = chatSessionID
@@ -72,16 +76,21 @@ extension AppModel {
                         }
                     }
                 }
+                assistant.status = nil
                 flush(force: true)
             } catch {
-                assistant.failed = true
-                assistant.status = nil
-                if pendingText.isEmpty {
-                    pendingText = self.friendlyCloudError(error)
+                if !Task.isCancelled {
+                    assistant.failed = true
+                    assistant.status = nil
+                    if pendingText.isEmpty {
+                        pendingText = self.friendlyCloudError(error)
+                    }
+                    flush(force: true)
                 }
-                flush(force: true)
             }
-            self.askStreaming = false
+            if !Task.isCancelled {
+                self.askStreaming = false
+            }
         }
     }
 
@@ -112,6 +121,7 @@ extension AppModel {
 
     func clearAskThread() {
         askTask?.cancel()
+        askTask = nil
         askStreaming = false
         askMessages = []
         chatSessionID = nil

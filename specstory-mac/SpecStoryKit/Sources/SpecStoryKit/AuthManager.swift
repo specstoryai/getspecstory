@@ -65,6 +65,9 @@ public final class AuthManager {
     private var refreshTask: Task<String?, Error>?
     private var cooldownUntil: Date?
     private var lastNetworkError: CloudAPIError?
+    /// Bumped by clearLocalState so an in-flight refresh that raced a
+    /// sign-out cannot resurrect tokens it fetched under the old identity.
+    private var authEpoch = 0
 
     public private(set) var state: AuthState {
         get {
@@ -155,6 +158,10 @@ public final class AuthManager {
     public func validAccessToken() async throws -> String? {
         let task: Task<String?, Error>
         lock.lock()
+        if case .signedOut = stateStorage {
+            lock.unlock()
+            return nil
+        }
         if let record = accessRecord, let expiry = record.expiryDate,
            expiry.timeIntervalSinceNow > Self.expiryMargin {
             lock.unlock()
@@ -202,10 +209,19 @@ public final class AuthManager {
         guard let refresh = keychain.string(for: Keys.refresh) else {
             return nil
         }
+        lock.lock()
+        let startEpoch = authEpoch
+        lock.unlock()
         do {
             let result = try await api.deviceRefresh(refreshToken: refresh)
             let record = AccessRecord(token: result.accessToken, expiresAt: result.expiresAt)
             lock.lock()
+            // A sign-out landed while this refresh was in flight: drop the
+            // token instead of resurrecting a signed-out identity.
+            guard authEpoch == startEpoch else {
+                lock.unlock()
+                return nil
+            }
             accessRecord = record
             cooldownUntil = nil
             lastNetworkError = nil
@@ -239,7 +255,10 @@ public final class AuthManager {
         accessRecord = nil
         cooldownUntil = nil
         lastNetworkError = nil
+        authEpoch += 1
+        let inFlight = refreshTask
         lock.unlock()
+        inFlight?.cancel()
         setState(.signedOut)
     }
 

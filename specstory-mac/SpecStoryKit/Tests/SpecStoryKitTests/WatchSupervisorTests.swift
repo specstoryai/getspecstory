@@ -2,7 +2,7 @@ import XCTest
 
 @testable import SpecStoryKit
 
-/// The supervisor always spawns `<binary> watch --json --silent
+/// The supervisor always spawns `<binary> watch --json
 /// --no-version-check`. With /bin/sh as the binary, sh reads the file named
 /// "watch" in the child's working directory (the project path) as its command
 /// file, so each fake project carries its own fake-CLI body. No fixture is

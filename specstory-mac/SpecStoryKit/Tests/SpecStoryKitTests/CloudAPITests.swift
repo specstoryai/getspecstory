@@ -71,8 +71,8 @@ final class CloudAPITests: XCTestCase {
 
     func testDeviceLoginHappyPathStripsDashAndSendsNoAuthHeader() async throws {
         StubURLProtocol.enqueue(json: """
-        {"success":true,"data":{"refreshToken":"refresh-jwt","createdAt":"2026-07-31T00:00:00Z",
-         "expiresAt":"2036-07-31T00:00:00Z","user":{"email":"greg@example.com"}}}
+        {"refreshToken":"refresh-jwt","createdAt":"2026-07-31T00:00:00Z",
+         "expiresAt":"2036-07-31T00:00:00Z","user":{"email":"greg@example.com"}}
         """)
 
         let result = try await api.deviceLogin(code: " Abc-123 ", metadata: metadata())
@@ -142,7 +142,7 @@ final class CloudAPITests: XCTestCase {
 
     func testDeviceRefreshSendsBearerRefreshToken() async throws {
         StubURLProtocol.enqueue(json: """
-        {"success":true,"data":{"accessToken":"access-jwt","createdAt":"2026-07-31T00:00:00Z","expiresAt":"2026-07-31T01:00:00Z"}}
+        {"accessToken":"access-jwt","createdAt":"2026-07-31T00:00:00Z","expiresAt":"2026-07-31T01:00:00Z"}
         """)
         let result = try await api.deviceRefresh(refreshToken: "refresh-jwt")
         XCTAssertEqual(result.accessToken, "access-jwt")
@@ -161,15 +161,18 @@ final class CloudAPITests: XCTestCase {
 
     // MARK: - Markdown + HEAD
 
-    func testSessionMarkdown304ReturnsNotModified() async throws {
-        StubURLProtocol.enqueue(status: 304)
+    func testSessionMarkdownNeverSendsIfNoneMatch() async throws {
+        // The server 500s on a matching If-None-Match and drops the ETag on
+        // markdown responses, so conditional refresh is HEAD-driven and the
+        // etag parameter must never reach the wire.
+        StubURLProtocol.enqueue(json: "# Session")
         let result = try await api.sessionMarkdown(projectID: "proj-1", sessionID: "sess-1", etag: "W/\"abc\"")
-        XCTAssertEqual(result, .notModified)
+        XCTAssertEqual(result, .content(markdown: "# Session", etag: nil))
 
         let request = try XCTUnwrap(StubURLProtocol.requests.first)
         XCTAssertEqual(request.url.path, "/api/v1/projects/proj-1/sessions/sess-1")
         XCTAssertEqual(request.header("Accept"), "text/markdown")
-        XCTAssertEqual(request.header("If-None-Match"), "W/\"abc\"")
+        XCTAssertNil(request.header("If-None-Match"))
     }
 
     func testSessionMarkdown200CapturesETagHeader() async throws {

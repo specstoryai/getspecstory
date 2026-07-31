@@ -70,6 +70,7 @@ final class AppModel: ObservableObject {
     @Published var providerStatuses: [ProviderStatus] = []
     @Published var resumeSheetItem: SessionItem?
     @Published var folderPickItem: SessionItem?
+    @Published var signInSheetShown = false
 
     // MARK: Settings (UserDefaults-backed)
 
@@ -99,9 +100,12 @@ final class AppModel: ObservableObject {
     var searchTask: Task<Void, Never>?
     var askTask: Task<Void, Never>?
     var feedRefreshTask: Task<Void, Never>?
+    var detailLoadTask: Task<Void, Never>?
+    var lastFeedRefreshAt = Date.distantPast
     var livePruneTimer: Timer?
     var currentEntitlement: Entitlement?
     var currentFlags: [String: Bool] = [:]
+    private var toastGeneration = 0
     private var booted = false
 
     init() {
@@ -208,17 +212,34 @@ final class AppModel: ObservableObject {
 
     var menuBarHelp: String { "SpecStory: \(statusText)" }
 
+    func toggleSearchOverlay() {
+        if searchOverlayShown {
+            dismissSearchOverlay()
+        } else {
+            searchOverlayShown = true
+        }
+    }
+
+    func dismissSearchOverlay() {
+        searchOverlayShown = false
+        searchQuery = ""
+        searchResults = []
+        searchTask?.cancel()
+    }
+
     func showToast(_ message: String) {
+        toastGeneration += 1
+        let generation = toastGeneration
         toast = message
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
-            if toast == message { toast = nil }
+            if toastGeneration == generation { toast = nil }
         }
     }
 
     func quitApp() {
-        supervisor?.stopAll(patience: 20)
-        tripwire?.stop()
+        // AppDelegate.applicationShouldTerminate owns the graceful fleet
+        // shutdown so every quit path (menu, Cmd-Q, logout) goes through it.
         NSApplication.shared.terminate(nil)
     }
 }

@@ -32,6 +32,9 @@ extension AppModel {
         let wasSignedIn = authState != .signedOut
         authState = state
         if case .signedOut = state, wasSignedIn {
+            // Entitlements fail closed: a signed-out identity keeps no gates.
+            currentEntitlement = nil
+            currentFlags = [:]
             if notificationsEnabled {
                 NotificationService.shared.notifySignInNeeded()
             }

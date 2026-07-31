@@ -36,6 +36,7 @@ struct SearchOverlay: View {
                                 .foregroundStyle(Theme.inkTertiary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
                     }
                 }
                 .padding(16)
@@ -83,6 +84,6 @@ struct SearchOverlay: View {
     }
 
     private func dismiss() {
-        model.searchOverlayShown = false
+        model.dismissSearchOverlay()
     }
 }

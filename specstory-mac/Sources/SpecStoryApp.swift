@@ -8,6 +8,7 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var mainWindow: NSWindow?
+    private var terminationPrepared = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The SwiftUI scene may not have created the model yet; open the
@@ -20,6 +21,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         showMainWindow()
         return true
+    }
+
+    /// Deliver SIGTERM to the watch fleet and give children a brief head
+    /// start on their cloud flush before the process (and their pipes) go
+    /// away. Without this, terminate() outruns signal delivery and orphans
+    /// the fleet.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model = AppModel.shared, model.supervisor != nil, !terminationPrepared else {
+            return .terminateNow
+        }
+        terminationPrepared = true
+        model.supervisor?.stopAll(patience: 20)
+        model.tripwire?.stop()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) {
+            DispatchQueue.main.async {
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
+        }
+        return .terminateLater
     }
 
     /// Builds the window lazily so it never depends on launch ordering.

@@ -5,10 +5,12 @@ extension AppModel {
     // MARK: Feed assembly (local + cloud merge)
 
     func refreshFeed() async {
-        var locals = [IndexedSession]()
-        if let reader = indexReader {
-            locals = (try? reader.recentSessions(limit: 500)) ?? []
-        }
+        lastFeedRefreshAt = Date()
+        // SQLite work stays off the main actor (LIKE fallbacks can scan).
+        let reader = indexReader
+        let locals = await Task.detached(priority: .userInitiated) {
+            (try? reader?.recentSessions(limit: 500)) ?? [IndexedSession]()
+        }.value
 
         var clouds = [CloudSession]()
         var projectNames = [String: String]()
@@ -30,8 +32,14 @@ extension AppModel {
         feedSections = FeedSection.group(allItems)
     }
 
-    /// Debounced refresh for watch-event bursts.
+    /// Debounced refresh for watch-event bursts, with a max-latency cap so a
+    /// continuous event stream cannot starve the feed forever.
     func scheduleFeedRefresh(after seconds: Double = 5) {
+        if Date().timeIntervalSince(lastFeedRefreshAt) > 12 {
+            feedRefreshTask?.cancel()
+            Task { await refreshFeed() }
+            return
+        }
         feedRefreshTask?.cancel()
         feedRefreshTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
@@ -111,7 +119,8 @@ extension AppModel {
 
     func openSession(_ item: SessionItem) {
         selectedSession = item
-        Task { await loadMarkdown(for: item) }
+        detailLoadTask?.cancel()
+        detailLoadTask = Task { await loadMarkdown(for: item) }
     }
 
     func revealSession(id: String) {
@@ -130,7 +139,12 @@ extension AppModel {
     func loadMarkdown(for item: SessionItem) async {
         detailLoading = true
         sessionMarkdown = nil
-        defer { detailLoading = false }
+        // A superseded load must not touch the newer session's state.
+        defer {
+            if selectedSession?.clientID == item.clientID, !Task.isCancelled {
+                detailLoading = false
+            }
+        }
 
         // Local first: the CLI renders redacted markdown from the provider store.
         if item.origin != .cloudOnly, let projectPath = item.projectPath, let binaryURL {
@@ -139,22 +153,39 @@ extension AppModel {
                 arguments: ["sync", "-s", item.clientID, "--print", "--no-cloud-sync", "--silent"],
                 workingDirectory: projectPath, environment: [:], timeout: 60
             )
+            guard !Task.isCancelled else { return }
             if let output, !output.isEmpty, selectedSession?.clientID == item.clientID {
                 sessionMarkdown = output
                 return
             }
         }
 
-        // Cloud fallback with ETag caching.
+        // Cloud fallback. The markdown GET carries no usable ETag semantics
+        // server-side, so conditional refresh is client-driven: compare the
+        // cached etag against HEAD before re-downloading.
         if let projectID = item.projectID, case .signedIn = authState {
             let cached = markdownCache[item.clientID]
+            if let cached, let cachedTag = cached.etag,
+               let head = try? await auth.api.sessionHead(projectID: projectID, sessionID: item.clientID),
+               head.etag == cachedTag {
+                guard selectedSession?.clientID == item.clientID, !Task.isCancelled else { return }
+                sessionMarkdown = cached.markdown
+                return
+            }
             let result = try? await auth.api.sessionMarkdown(
-                projectID: projectID, sessionID: item.clientID, etag: cached?.etag
+                projectID: projectID, sessionID: item.clientID, etag: nil
             )
-            guard selectedSession?.clientID == item.clientID else { return }
+            guard selectedSession?.clientID == item.clientID, !Task.isCancelled else { return }
             switch result {
             case .content(let markdown, let etag):
-                markdownCache[item.clientID] = (etag, markdown)
+                // The GET drops the ETag header; fetch it from HEAD so the
+                // next open can skip the download.
+                var storedTag = etag
+                if storedTag == nil {
+                    storedTag = (try? await auth.api.sessionHead(projectID: projectID, sessionID: item.clientID))?.etag
+                }
+                markdownCache[item.clientID] = (storedTag, markdown)
+                guard selectedSession?.clientID == item.clientID, !Task.isCancelled else { return }
                 sessionMarkdown = markdown
             case .notModified:
                 sessionMarkdown = cached?.markdown

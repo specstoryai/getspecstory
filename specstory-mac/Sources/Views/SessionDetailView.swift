@@ -137,8 +137,42 @@ struct MarkdownScrollView: View {
         }
     }
 
+    /// Fence-aware block splitter: blank lines separate prose blocks, but a
+    /// ``` fence swallows everything (including blank lines) until it closes,
+    /// so code renders as one block with its content intact.
     private var blocks: [String] {
-        markdown.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        var result = [String]()
+        var current = [String]()
+        var inFence = false
+
+        func flush() {
+            let block = current.joined(separator: "\n")
+            if !block.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                result.append(block)
+            }
+            current = []
+        }
+
+        for line in markdown.components(separatedBy: "\n") {
+            let isFenceLine = line.trimmingCharacters(in: .whitespaces).hasPrefix("```")
+            if isFenceLine {
+                if inFence {
+                    current.append(line)
+                    flush()
+                    inFence = false
+                } else {
+                    flush()
+                    inFence = true
+                    current.append(line)
+                }
+            } else if !inFence, line.trimmingCharacters(in: .whitespaces).isEmpty {
+                flush()
+            } else {
+                current.append(line)
+            }
+        }
+        flush()
+        return result
     }
 }
 
@@ -147,7 +181,7 @@ struct MarkdownBlockView: View {
 
     var body: some View {
         if block.hasPrefix("```") {
-            Text(block.trimmingCharacters(in: CharacterSet(charactersIn: "`\n")))
+            Text(fenceContent)
                 .font(Theme.mono(11))
                 .foregroundStyle(Theme.ink)
                 .textSelection(.enabled)
@@ -167,6 +201,19 @@ struct MarkdownBlockView: View {
                 .textSelection(.enabled)
                 .lineSpacing(3)
         }
+    }
+
+    /// Drops the ```lang opening line and the closing ``` line whole, never
+    /// character-trimming (which mangles content containing backticks).
+    private var fenceContent: String {
+        var lines = block.components(separatedBy: "\n")
+        if lines.first?.trimmingCharacters(in: .whitespaces).hasPrefix("```") == true {
+            lines.removeFirst()
+        }
+        if lines.last?.trimmingCharacters(in: .whitespaces).hasPrefix("```") == true {
+            lines.removeLast()
+        }
+        return lines.joined(separator: "\n")
     }
 
     private var rendered: AttributedString {
