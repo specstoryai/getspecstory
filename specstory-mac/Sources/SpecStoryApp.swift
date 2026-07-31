@@ -71,6 +71,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         makeWindowIfNeeded()
         guard let mainWindow else { return }
         NSApp.setActivationPolicy(.regular)
+        // An LSUIElement app that flips to .regular gets the generic Dock
+        // tile unless the icon is set at runtime.
+        NSApp.applicationIconImage = NSImage(named: "AppIcon")
         mainWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

@@ -127,6 +127,11 @@ final class AppModel: ObservableObject {
     private var toastGeneration = 0
     private var booted = false
     var reindexInFlight = false
+    var cloudSweepSessions: [String: CloudSession] = [:]
+    var lastCloudSweepAt = Date.distantPast
+    var cloudSweepRunning = false
+    var latestLocals: [IndexedSession] = []
+    var latestProjectNames: [String: String] = [:]
 
     /// The index is maintained live by watch children; a full rebuild is only
     /// worth its cost when the database is missing or has gone stale.

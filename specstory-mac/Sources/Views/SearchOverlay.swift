@@ -36,15 +36,6 @@ struct SearchOverlay: View {
                         .onChange(of: mention.selectedProjectIDs) { _ in model.searchQueryChanged() }
                         .onChange(of: mention.selectedAgents) { _ in model.searchQueryChanged() }
                         .onChange(of: mention.timeFilter) { _ in model.searchQueryChanged() }
-                        .popover(
-                            isPresented: Binding(
-                                get: { mention.popoverShown },
-                                set: { mention.popoverShown = $0 }
-                            ),
-                            attachmentAnchor: .rect(.bounds), arrowEdge: .top
-                        ) {
-                            MentionTypeaheadPopover(state: mention, candidates: candidatesProvider())
-                        }
                         .onSubmit {
                             if mention.consumeReturn(candidates: candidatesProvider()) { return }
                             if let first = model.searchResults.first {
@@ -70,6 +61,12 @@ struct SearchOverlay: View {
                     MentionChipRow(state: mention)
                         .padding(.horizontal, 16)
                         .padding(.bottom, 10)
+                }
+
+                if mention.popoverShown {
+                    MentionPanel(model: model, state: mention)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
                 }
 
                 if !model.searchResults.isEmpty {

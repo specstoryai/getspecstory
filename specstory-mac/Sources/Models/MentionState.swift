@@ -84,6 +84,25 @@ final class MentionState: ObservableObject {
         highlightedIndex = 0
     }
 
+    /// Panel pill taps (time, agents) keep the panel open for stacking
+    /// context; project rows close it via select(_:).
+    func selectKeepingPanel(_ item: MentionItem) {
+        let wasShown = popoverShown
+        let query = activeQuery
+        select(item)
+        popoverShown = wasShown
+        activeQuery = query
+    }
+
+    /// Toggle helpers for the panel's pill rows.
+    func togglePanel() {
+        if popoverShown {
+            dismissPopover()
+        } else {
+            popoverShown = true
+        }
+    }
+
     func removeChip(kind: MentionKind, value: String) {
         switch kind {
         case .project:

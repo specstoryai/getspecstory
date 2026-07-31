@@ -61,15 +61,15 @@ struct AskBar: View {
                 .strokeBorder(Theme.accent.opacity(0.35), lineWidth: 1.5)
         )
         .shadow(color: .black.opacity(0.08), radius: 14, y: 5)
-        .popover(
-            isPresented: Binding(
-                get: { mention.popoverShown },
-                set: { mention.popoverShown = $0 }
-            ),
-            attachmentAnchor: .rect(.bounds), arrowEdge: .top
-        ) {
-            MentionTypeaheadPopover(state: mention, candidates: candidatesProvider())
+        .overlay(alignment: .bottom) {
+            if mention.popoverShown {
+                MentionPanel(model: model, state: mention)
+                    .frame(maxWidth: 560)
+                    .padding(.bottom, barPanelSpacing)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
         }
+        .animation(.spring(duration: 0.25), value: mention.popoverShown)
         .padding(.horizontal, 40)
         .padding(.bottom, 16)
         .frame(maxWidth: Theme.feedWidth)
@@ -77,6 +77,11 @@ struct AskBar: View {
 
     private func candidatesProvider() -> [MentionItem] {
         mention.candidatesFromApp(cloudProjects: model.cloudProjects)
+    }
+
+    /// Panel floats above the bar: bar height plus breathing room.
+    private var barPanelSpacing: CGFloat {
+        mention.hasChips ? 96 : 64
     }
 }
 

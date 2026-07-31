@@ -35,10 +35,60 @@ extension AppModel {
             } catch {
                 cloudError = friendlyCloudError(error)
             }
+            // The recent head is fast; the full per-project sweep fills in
+            // everything else behind it.
+            scheduleCloudSweep()
         }
 
+        // Sessions beyond the recent head, from the last full sweep.
+        let sweep = cloudSweepSessions.values.filter { session in
+            !clouds.contains { $0.clientId == session.clientId }
+        }
+        clouds.append(contentsOf: sweep)
+
+        latestLocals = locals
+        latestProjectNames = projectNames
         allItems = SessionItem.merge(local: locals, cloud: clouds, projectNames: projectNames)
         rebuildFeedSections()
+    }
+
+    /// Cloud parity browsing: every synced session across every project, not
+    /// just the recent head. Sweeps are bounded (4 projects at a time) and
+    /// throttled to one per five minutes.
+    private func scheduleCloudSweep() {
+        guard Date().timeIntervalSince(lastCloudSweepAt) > 300, !cloudSweepRunning else { return }
+        cloudSweepRunning = true
+        let projects = cloudProjects
+        Task { [weak self] in
+            guard let self else { return }
+            var collected = [String: CloudSession]()
+            var index = 0
+            while index < projects.count {
+                let batch = Array(projects[index..<min(index + 4, projects.count)])
+                await withTaskGroup(of: [CloudSession].self) { group in
+                    for project in batch {
+                        group.addTask { [auth = self.auth] in
+                            (try? await auth.api.sessions(projectID: project.id, limit: 200)) ?? []
+                        }
+                    }
+                    for await sessions in group {
+                        for session in sessions {
+                            collected[session.clientId] = session
+                        }
+                    }
+                }
+                index += batch.count
+            }
+            self.cloudSweepSessions = collected
+            self.lastCloudSweepAt = Date()
+            self.cloudSweepRunning = false
+            // Remerge with the sweep's fuller picture.
+            self.allItems = SessionItem.merge(
+                local: self.latestLocals, cloud: Array(collected.values),
+                projectNames: self.latestProjectNames
+            )
+            self.rebuildFeedSections()
+        }
     }
 
     func rebuildFeedSections() {
