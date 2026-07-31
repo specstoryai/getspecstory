@@ -11,10 +11,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var terminationPrepared = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Debug-only hooks for automated visual verification.
+        let env = ProcessInfo.processInfo.environment
+        if env["SPECSTORY_DEBUG_APPEARANCE"] == "dark" {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
         // The SwiftUI scene may not have created the model yet; open the
         // window on the next runloop turn once it exists.
         DispatchQueue.main.async { [weak self] in
             self?.showMainWindow()
+            if env["SPECSTORY_DEBUG_OPEN_RECENT"] == "1" {
+                // Poll until the feed has content, then open the newest session.
+                func tryOpen(attempt: Int) {
+                    guard attempt < 20 else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        guard let model = AppModel.shared else { return }
+                        if let first = model.allItems.first, model.selectedSession == nil {
+                            model.openSession(first)
+                        } else if model.allItems.isEmpty {
+                            tryOpen(attempt: attempt + 1)
+                        }
+                    }
+                }
+                tryOpen(attempt: 0)
+            }
         }
     }
 
