@@ -38,14 +38,7 @@ struct ProviderRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(status.provider.badgeColor.opacity(0.14))
-                    .frame(width: 30, height: 30)
-                Text(String(status.provider.displayName.prefix(1)))
-                    .font(Theme.body(13, weight: .semibold))
-                    .foregroundStyle(status.provider.badgeColor)
-            }
+            ProviderIcon(provider: status.provider, size: 32)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(status.provider.displayName)

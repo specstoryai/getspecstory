@@ -45,14 +45,7 @@ struct SessionCardView: View {
     }
 
     private var providerMark: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(providerColor.opacity(0.14))
-                .frame(width: 30, height: 30)
-            Text(String(providerDisplayName.prefix(1)))
-                .font(Theme.body(13, weight: .semibold))
-                .foregroundStyle(providerColor)
-        }
+        ProviderIcon(provider: Provider(providerID: item.provider), fallbackName: providerDisplayName)
     }
 
     private var contextLine: some View {
@@ -80,14 +73,14 @@ struct SessionCardView: View {
 
     private var trailing: some View {
         HStack(spacing: 10) {
-            if hovering, let onResume {
+            if let onResume {
                 Button(action: onResume) {
                     Label("Resume", systemImage: "arrow.uturn.forward")
                         .font(Theme.body(11, weight: .medium))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .transition(.opacity)
+                .opacity(hovering ? 1 : 0.55)
             }
             VStack(alignment: .trailing, spacing: 3) {
                 Text(relativeTime)
@@ -100,6 +93,7 @@ struct SessionCardView: View {
         .animation(.easeOut(duration: 0.12), value: hovering)
     }
 
+    /// Local-only is the default state; badge only what carries signal.
     @ViewBuilder private var originBadge: some View {
         switch item.origin {
         case .both:
@@ -113,10 +107,7 @@ struct SessionCardView: View {
                 .foregroundStyle(Theme.inkTertiary)
                 .help("In SpecStory Cloud")
         case .localOnly:
-            Image(systemName: "internaldrive")
-                .font(.system(size: 10))
-                .foregroundStyle(Theme.inkTertiary)
-                .help("On this Mac only")
+            EmptyView()
         }
     }
 

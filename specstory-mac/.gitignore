@@ -12,3 +12,6 @@ SpecStoryKit/.swiftpm/
 # Xcode
 DerivedData/
 xcuserdata/
+
+# Pinned local build output
+build/

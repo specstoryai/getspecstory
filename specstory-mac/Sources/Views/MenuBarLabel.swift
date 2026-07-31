@@ -9,6 +9,11 @@ struct MenuBarLabel: View {
         Image(systemName: symbolName)
             .accessibilityLabel("SpecStory")
             .help(model.menuBarHelp)
+            .task {
+                // The label exists for the app's whole life, making it a
+                // reliable bootstrap hook regardless of launch ordering.
+                await model.bootstrap()
+            }
     }
 
     private var symbolName: String {

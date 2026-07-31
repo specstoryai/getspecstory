@@ -143,20 +143,28 @@ final class AppModel: ObservableObject {
             bootError = "The bundled specstory binary is unavailable: \(error.localizedDescription)"
         }
 
-        if let binaryURL {
-            // Rebuild the cross-project index so the feed is complete; watch
-            // children keep it live afterwards.
-            _ = try? await CLIRunner.run(
-                binary: binaryURL, arguments: ["reindex", "--silent"],
-                workingDirectory: NSHomeDirectory(), environment: [:], timeout: 300
-            )
-        }
+        // Show whatever the existing index has immediately; freshen behind it.
         openIndexReader()
         await refreshFeed()
-        await refreshGates()
         startWatchers()
         startLivePruneTimer()
+        Task { await refreshGates() }
         Task { await refreshProviderStatuses() }
+
+        if let binaryURL {
+            // Rebuild the cross-project index in the background so the feed
+            // becomes complete; watch children keep it live afterwards.
+            Task { [weak self] in
+                _ = try? await CLIRunner.run(
+                    binary: binaryURL, arguments: ["reindex", "--silent"],
+                    workingDirectory: NSHomeDirectory(), environment: [:], timeout: 600
+                )
+                guard let self else { return }
+                self.openIndexReader()
+                await self.refreshFeed()
+                self.supervisor?.setProjects(self.recentProjectPaths())
+            }
+        }
     }
 
     func openIndexReader() {

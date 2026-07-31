@@ -5,14 +5,27 @@ import SwiftUI
 /// Manages the main window, handles reopen events, and flips the activation
 /// policy so the Dock icon appears only while the desktop window is open
 /// (Granola behavior for an LSUIElement app).
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var mainWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        guard let model = AppModel.shared else { return }
-        Task { await model.bootstrap() }
-        let contentView = MainWindowView(model: model)
-        let hostingController = NSHostingController(rootView: contentView)
+        // The SwiftUI scene may not have created the model yet; open the
+        // window on the next runloop turn once it exists.
+        DispatchQueue.main.async { [weak self] in
+            self?.showMainWindow()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showMainWindow()
+        return true
+    }
+
+    /// Builds the window lazily so it never depends on launch ordering.
+    private func makeWindowIfNeeded() {
+        guard mainWindow == nil, let model = AppModel.shared else { return }
+        let hostingController = NSHostingController(rootView: MainWindowView(model: model))
 
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
@@ -32,18 +45,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.center()
         }
         mainWindow = window
-
-        showMainWindow()
-    }
-
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showMainWindow()
-        return true
     }
 
     func showMainWindow() {
+        makeWindowIfNeeded()
+        guard let mainWindow else { return }
         NSApp.setActivationPolicy(.regular)
-        mainWindow?.makeKeyAndOrderFront(nil)
+        mainWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 

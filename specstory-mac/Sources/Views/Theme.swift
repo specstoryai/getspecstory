@@ -76,6 +76,51 @@ extension Provider {
         case .droid: return Color(red: 0.55, green: 0.53, blue: 0.50)
         }
     }
+
+    /// Brand icon assets sourced from the SpecStory Cloud web app
+    /// (sync-cloud/public/assets). Cursor CLI and Cursor IDE share a mark.
+    var iconAssetName: String {
+        switch self {
+        case .cursoride: return "provider-cursor"
+        default: return "provider-\(rawValue)"
+        }
+    }
+
+    /// currentColor SVGs became template images: tint with the brand color.
+    /// Cursor, Droid, and Antigravity ship their own colors.
+    var iconIsTemplate: Bool {
+        switch self {
+        case .claude, .codex, .gemini, .deepseek: return true
+        case .cursor, .cursoride, .droid, .antigravity: return false
+        }
+    }
+}
+
+/// The rounded provider mark used on cards, rows, and detail headers.
+struct ProviderIcon: View {
+    let provider: Provider?
+    var fallbackName: String = "?"
+    var size: CGFloat = 30
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
+                .fill((provider?.badgeColor ?? Theme.inkSecondary).opacity(0.12))
+            if let provider {
+                Image(provider.iconAssetName)
+                    .resizable()
+                    .renderingMode(provider.iconIsTemplate ? .template : .original)
+                    .scaledToFit()
+                    .foregroundStyle(provider.badgeColor)
+                    .frame(width: size * 0.60, height: size * 0.60)
+            } else {
+                Text(String(fallbackName.prefix(1)).uppercased())
+                    .font(Theme.body(size * 0.43, weight: .semibold))
+                    .foregroundStyle(Theme.inkSecondary)
+            }
+        }
+        .frame(width: size, height: size)
+    }
 }
 
 /// Card chrome shared by feed rows, source pills, and popover rows.

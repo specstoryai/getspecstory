@@ -46,7 +46,7 @@ struct LiveSession: Identifiable, Equatable {
         SessionItem(
             local: IndexedSession(
                 sessionID: sessionID, provider: provider, projectPath: projectPath,
-                title: "Session in \(projectName)", slug: nil,
+                title: "Live session in \(projectName)", slug: nil,
                 createdAt: startedAt, updatedAt: lastEventAt,
                 userPromptCount: promptCount, markdownPath: markdownFile
             )

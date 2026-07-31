@@ -42,7 +42,7 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         clientID = local.sessionID
         origin = .localOnly
         provider = local.provider
-        title = local.title
+        title = SessionItem.humanizeTitle(local.title)
         projectPath = local.projectPath.isEmpty ? nil : local.projectPath
         projectID = nil
         projectName = SessionItem.folderName(of: local.projectPath)
@@ -58,7 +58,7 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         clientID = cloud.clientId
         origin = .cloudOnly
         provider = cloud.metadata.agentName ?? "unknown"
-        title = cloud.displayTitle
+        title = SessionItem.humanizeTitle(cloud.displayTitle)
         projectPath = nil
         projectID = cloud.projectId
         self.projectName = projectName
@@ -75,7 +75,7 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         origin = .both
         provider = local.provider
         // Cloud carries user-editable titles; prefer them over the CLI slug.
-        title = cloud.userTitle ?? cloud.metadata.title ?? local.title
+        title = SessionItem.humanizeTitle(cloud.userTitle ?? cloud.metadata.title ?? local.title)
         projectPath = local.projectPath.isEmpty ? nil : local.projectPath
         projectID = cloud.projectId
         self.projectName = projectName ?? SessionItem.folderName(of: local.projectPath)
@@ -119,6 +119,20 @@ public struct SessionItem: Identifiable, Equatable, Sendable {
         let trimmed = path.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }
         return URL(fileURLWithPath: trimmed).lastPathComponent
+    }
+
+    /// CLI slugs ("so-here-is-the") read poorly as titles; humanize unless the
+    /// title already looks like prose.
+    public static func humanizeTitle(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Untitled session" }
+        guard !trimmed.contains(" "), trimmed.contains("-") || trimmed.contains("_") else { return trimmed }
+        let words = trimmed
+            .replacingOccurrences(of: "_", with: "-")
+            .split(separator: "-")
+            .map(String.init)
+        guard let first = words.first else { return trimmed }
+        return ([first.prefix(1).uppercased() + first.dropFirst()] + words.dropFirst()).joined(separator: " ")
     }
 }
 
