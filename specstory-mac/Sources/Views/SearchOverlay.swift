@@ -42,6 +42,10 @@ struct SearchOverlay: View {
                                 open(first.item)
                             }
                         }
+                    if model.searchingLocal || model.searchingCloud {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
                     if !mention.text.isEmpty || mention.hasChips {
                         Button {
                             mention.text = ""
@@ -69,39 +73,30 @@ struct SearchOverlay: View {
                         .padding(.bottom, 12)
                 }
 
-                if !model.searchResults.isEmpty {
-                    Divider().overlay(Theme.hairline)
-                    ScrollView {
-                        LazyVStack(spacing: 4) {
-                            ForEach(model.searchResults) { row in
-                                VStack(alignment: .leading, spacing: 0) {
-                                    SessionCardView(
-                                        item: row.item,
-                                        isLive: model.liveSessions[row.item.clientID] != nil,
-                                        currentDeviceID: DeviceIdentity.current,
-                                        contextModel: model,
-                                        onOpen: { open(row.item) },
-                                        onResume: model.canResume(row.item) ? { model.requestResume(row.item) } : nil
-                                    )
-                                    if let snippet = row.snippet {
-                                        SnippetLineView(snippet: snippet)
-                                            .padding(.horizontal, 16)
-                                            .padding(.top, 4)
-                                            .padding(.bottom, 6)
-                                    }
-                                }
-                            }
-                        }
-                        .padding(10)
+                Divider().overlay(Theme.hairline)
+
+                if !model.queryReady(mention.text) && !mention.hasChips {
+                    // Resting state: the palette is alive before a query.
+                    resultsList(model.recentSearchRows, header: "Recent")
+                } else if !model.searchResults.isEmpty {
+                    resultsList(model.searchResults, header: nil)
+                } else if model.searchingLocal || model.searchingCloud {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Searching your sessions")
+                            .font(Theme.body(12))
+                            .foregroundStyle(Theme.inkSecondary)
                     }
-                    .frame(maxHeight: 380)
-                } else if !mention.text.isEmpty || mention.hasChips {
-                    Divider().overlay(Theme.hairline)
-                    Text("No sessions match yet")
+                    .padding(18)
+                } else {
+                    Text("No sessions match")
                         .font(Theme.body(12))
                         .foregroundStyle(Theme.inkTertiary)
                         .padding(18)
                 }
+
+                Divider().overlay(Theme.hairline)
+                hintBar
             }
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.hairline))
@@ -112,6 +107,78 @@ struct SearchOverlay: View {
         }
         .onAppear { focused = true }
         .transition(.opacity)
+    }
+
+    @ViewBuilder private func resultsList(_ rows: [SearchResultRow], header: String?) -> some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 4) {
+                if let header {
+                    Text(header)
+                        .font(Theme.body(10, weight: .semibold))
+                        .foregroundStyle(Theme.inkTertiary)
+                        .textCase(.uppercase)
+                        .kerning(0.4)
+                        .padding(.horizontal, 8)
+                        .padding(.top, 4)
+                }
+                ForEach(rows) { row in
+                    VStack(alignment: .leading, spacing: 0) {
+                        SessionCardView(
+                            item: row.item,
+                            isLive: model.liveSessions[row.item.clientID] != nil,
+                            currentDeviceID: DeviceIdentity.current,
+                            contextModel: model,
+                            onOpen: { open(row.item) },
+                            onResume: model.canResume(row.item) ? { model.requestResume(row.item) } : nil
+                        )
+                        if let snippet = row.snippet {
+                            SnippetLineView(snippet: snippet)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 4)
+                                .padding(.bottom, 6)
+                        }
+                    }
+                }
+                if model.searchingCloud && header == nil {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini)
+                        Text("Searching Cloud")
+                            .font(Theme.body(11))
+                            .foregroundStyle(Theme.inkTertiary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                }
+            }
+            .padding(10)
+        }
+        .frame(maxHeight: 380)
+    }
+
+    /// The palette legend: what the keys do, always visible.
+    private var hintBar: some View {
+        HStack(spacing: 14) {
+            hint(key: "return", text: "open first result")
+            hint(key: "@", text: "filter by project, agent, or time")
+            hint(key: "esc", text: "close")
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private func hint(key: String, text: String) -> some View {
+        HStack(spacing: 4) {
+            Text(key)
+                .font(Theme.mono(9))
+                .foregroundStyle(Theme.inkSecondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Theme.sidebarSelection, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            Text(text)
+                .font(Theme.body(10))
+                .foregroundStyle(Theme.inkTertiary)
+        }
     }
 
     private func open(_ item: SessionItem) {

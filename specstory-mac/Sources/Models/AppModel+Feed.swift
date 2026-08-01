@@ -149,7 +149,7 @@ extension AppModel {
     // MARK: Search (the ⌘K overlay, CLI session-search parity)
 
     /// The CLI's minimum: two letters or digits before search fires.
-    private func queryReady(_ text: String) -> Bool {
+    func queryReady(_ text: String) -> Bool {
         text.unicodeScalars.filter { $0.properties.isAlphabetic || ($0.value >= 48 && $0.value <= 57) }.count >= 2
     }
 
@@ -167,12 +167,18 @@ extension AppModel {
         guard queryReady(query) || searchMention.hasChips else {
             localSearchRows = []
             searchResults = []
+            searchingLocal = false
+            searchingCloud = false
             return
         }
 
-        // Local FTS on a short debounce; cloud fires on a typing pause.
+        // Local FTS on a short debounce; cloud fires on a typing pause. The
+        // debounce is long enough that queued index queries cannot pile up
+        // behind a fast typist on a large database.
+        searchingLocal = true
+        searchingCloud = case1SignedIn()
         searchTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            try? await Task.sleep(nanoseconds: 180_000_000)
             guard !Task.isCancelled else { return }
             await self?.runLocalSearch(query, seq: seq)
         }
@@ -183,20 +189,49 @@ extension AppModel {
         }
     }
 
+    private func case1SignedIn() -> Bool {
+        if case .signedIn = authState, cloudSyncEnabled { return true }
+        return false
+    }
+
+    /// The overlay's resting content: most recent sessions, palette style.
+    var recentSearchRows: [SearchResultRow] {
+        allItems.prefix(8).map { SearchResultRow(item: $0, snippet: nil) }
+    }
+
     private func runLocalSearch(_ query: String, seq: Int) async {
-        var rows = [SearchResultRow]()
+        // Phase 1: rows without snippets render fast; phase 2 attaches
+        // matching context. snippet() over a multi-gigabyte FTS table is the
+        // expensive half, so it must never block first paint.
         if queryReady(query) {
-            let hits = await indexBox.searchWithSnippets(query, limit: 500, snippetLimit: 12)
-            for hit in hits {
-                let item = allItems.first { $0.clientID == hit.session.sessionID } ?? SessionItem(local: hit.session)
-                rows.append(SearchResultRow(
-                    item: item,
-                    snippet: hit.snippet.map(HighlightedSnippet.parse)
-                ))
+            let fast = await indexBox.searchWithSnippets(query, limit: 500, snippetLimit: 0)
+            guard searchSeq == seq else { return }
+            localSearchRows = applyChipFilters(fast.map { hit in
+                SearchResultRow(
+                    item: allItems.first { $0.clientID == hit.session.sessionID } ?? SessionItem(local: hit.session),
+                    snippet: nil
+                )
+            })
+            searchingLocal = false
+            blendSearchResults()
+
+            let withSnippets = await indexBox.searchWithSnippets(query, limit: 30, snippetLimit: 12)
+            guard searchSeq == seq else { return }
+            var snippetByID = [String: HighlightedSnippet]()
+            for hit in withSnippets {
+                if let raw = hit.snippet {
+                    snippetByID[hit.session.sessionID] = HighlightedSnippet.parse(raw)
+                }
             }
+            localSearchRows = localSearchRows.map { row in
+                guard let snippet = snippetByID[row.item.clientID] else { return row }
+                return SearchResultRow(item: row.item, snippet: snippet)
+            }
+        } else {
+            guard searchSeq == seq else { return }
+            localSearchRows = applyChipFilters([])
+            searchingLocal = false
         }
-        guard searchSeq == seq else { return }
-        localSearchRows = applyChipFilters(rows)
         blendSearchResults()
     }
 
@@ -248,6 +283,7 @@ extension AppModel {
 
         guard searchSeq == seq else { return }
         cloudSearchRows = applyChipFilters(rows)
+        searchingCloud = false
         blendSearchResults()
     }
 

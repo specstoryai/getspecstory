@@ -25,6 +25,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     AppModel.shared?.panelMode = panel
                 }
             }
+            if env["SPECSTORY_DEBUG_SEARCH"] == "1" {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                    AppModel.shared?.searchOverlayShown = true
+                }
+            }
             if env["SPECSTORY_DEBUG_OPEN_RECENT"] == "1" {
                 // Poll until the feed has content, then open the newest session.
                 func tryOpen(attempt: Int) {

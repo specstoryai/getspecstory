@@ -91,6 +91,8 @@ final class AppModel: ObservableObject {
     @Published var searchQuery = ""
     @Published var searchResults: [SearchResultRow] = []
     @Published var searchOverlayShown = false
+    @Published var searchingLocal = false
+    @Published var searchingCloud = false
 
     @Published var selectedSession: SessionItem?
     @Published var sessionMarkdown: String?
@@ -293,7 +295,10 @@ final class AppModel: ObservableObject {
         searchMention.text = ""
         searchMention.clearAll()
         searchResults = []
+        searchingLocal = false
+        searchingCloud = false
         searchTask?.cancel()
+        cloudSearchTask?.cancel()
     }
 
     func showToast(_ message: String, kind: Toast.Kind = .success) {
