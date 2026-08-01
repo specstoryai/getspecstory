@@ -54,7 +54,13 @@ final class AppModel: ObservableObject {
     @Published var authState: AuthState = .signedOut
     @Published var bootError: String?
     @Published var cloudError: String?
-    @Published var toast: String?
+    @Published var toast: Toast?
+
+    struct Toast: Equatable {
+        enum Kind { case success, warning }
+        let message: String
+        let kind: Kind
+    }
 
     @Published var allItems: [SessionItem] = []
     @Published var feedSections: [FeedSection] = []
@@ -119,7 +125,7 @@ final class AppModel: ObservableObject {
     @Published var launchAtLoginEnabled: Bool {
         didSet {
             do { try LaunchAtLogin.setEnabled(launchAtLoginEnabled) } catch {
-                toast = "Could not update login item"
+                showToast("Could not update login item", kind: .warning)
                 launchAtLoginEnabled = LaunchAtLogin.isEnabled
             }
         }
@@ -289,10 +295,10 @@ final class AppModel: ObservableObject {
         searchTask?.cancel()
     }
 
-    func showToast(_ message: String) {
+    func showToast(_ message: String, kind: Toast.Kind = .success) {
         toastGeneration += 1
         let generation = toastGeneration
-        toast = message
+        toast = Toast(message: message, kind: kind)
         Task {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             if toastGeneration == generation { toast = nil }

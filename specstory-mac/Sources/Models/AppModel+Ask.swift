@@ -210,7 +210,7 @@ extension AppModel {
         askStreaming = false
         chatSessionID = summary.id
         guard let thread = try? await chatClient.chat(id: summary.id) else {
-            showToast("Could not load that chat")
+            showToast("Could not load that chat", kind: .warning)
             return
         }
         var messages = [AskMessage]()

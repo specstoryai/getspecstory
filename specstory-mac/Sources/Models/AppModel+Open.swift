@@ -50,7 +50,7 @@ extension AppModel {
     func openMarkdown(_ item: SessionItem, in editor: EditorApp) {
         Task {
             guard let file = await externalFile(for: item) else {
-                showToast("This session's markdown is not available yet")
+                showToast("This session's markdown is not available yet", kind: .warning)
                 return
             }
             MarkdownOpener.open(file, in: editor)
@@ -60,7 +60,7 @@ extension AppModel {
     func revealMarkdownInFinder(_ item: SessionItem) {
         Task {
             guard let file = await externalFile(for: item) else {
-                showToast("This session's markdown is not available yet")
+                showToast("This session's markdown is not available yet", kind: .warning)
                 return
             }
             MarkdownOpener.revealInFinder(file)
@@ -78,7 +78,7 @@ extension AppModel {
                 markdown = markdownCache[item.clientID]?.markdown
             }
             guard let markdown, !markdown.isEmpty else {
-                showToast("This session's markdown is not available yet")
+                showToast("This session's markdown is not available yet", kind: .warning)
                 return
             }
             MarkdownOpener.copyToPasteboard(markdown)

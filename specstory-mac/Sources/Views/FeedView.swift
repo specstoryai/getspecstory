@@ -12,9 +12,9 @@ struct FeedView: View {
                 if let bootError = model.bootError {
                     ErrorBanner(text: bootError)
                 }
-                if let cloudError = model.cloudError {
-                    ErrorBanner(text: cloudError)
-                }
+
+                SyncStatusStrip(model: model)
+                    .padding(.bottom, 10)
 
                 if !model.liveSessionsOrdered.isEmpty {
                     liveSection
@@ -283,5 +283,73 @@ struct FeedSectionHeader: View {
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: collapsed)
         .accessibilityLabel("\(title), \(count) sessions, \(collapsed ? "collapsed" : "expanded")")
+    }
+}
+
+/// The Home heads-up strip: session totals, sync coverage, live activity,
+/// and cloud connectivity as a quiet one-line readout.
+struct SyncStatusStrip: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            connectivityDot
+            Text(connectivityLabel)
+                .foregroundStyle(model.cloudError == nil ? Theme.inkSecondary : Color.orange)
+
+            divider
+            Text("\(model.allItems.count) sessions")
+
+            if model.signedInEmail != nil {
+                divider
+                Text("\(syncedCount) synced")
+                if otherMachineCount > 0 {
+                    divider
+                    Text("\(otherMachineCount) from other machines")
+                }
+            }
+
+            if !model.liveSessions.isEmpty {
+                divider
+                HStack(spacing: 4) {
+                    Circle().fill(Theme.live).frame(width: 5, height: 5)
+                    Text("\(model.liveSessions.count) syncing now")
+                        .foregroundStyle(Theme.live)
+                }
+            }
+
+            Spacer()
+        }
+        .font(Theme.body(11))
+        .foregroundStyle(Theme.inkTertiary)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var divider: some View {
+        Text("·").foregroundStyle(Theme.inkTertiary.opacity(0.6))
+    }
+
+    private var syncedCount: Int {
+        model.allItems.filter { $0.origin == .both }.count
+    }
+
+    private var otherMachineCount: Int {
+        model.allItems.filter { $0.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) }.count
+    }
+
+    @ViewBuilder private var connectivityDot: some View {
+        Circle()
+            .fill(dotColor)
+            .frame(width: 6, height: 6)
+    }
+
+    private var dotColor: Color {
+        if model.signedInEmail == nil { return Theme.inkTertiary }
+        return model.cloudError == nil ? Theme.synced : Color.orange
+    }
+
+    private var connectivityLabel: String {
+        if model.signedInEmail == nil { return "Local only" }
+        return model.cloudError == nil ? "Cloud connected" : "Reconnecting to Cloud"
     }
 }

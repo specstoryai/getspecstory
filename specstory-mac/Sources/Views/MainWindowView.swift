@@ -33,14 +33,13 @@ struct MainWindowView: View {
             if let toast = model.toast {
                 VStack {
                     Spacer()
-                    Text(toast)
-                        .font(Theme.body(12, weight: .medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(.regularMaterial, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Theme.hairline))
-                        .padding(.bottom, 68)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    HStack {
+                        Spacer()
+                        ToastCard(toast: toast)
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 20)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
                 .animation(.spring(duration: 0.3), value: model.toast)
                 .allowsHitTesting(false)
@@ -423,5 +422,30 @@ struct SidebarNavItem: View {
         .onHover { hovering = $0 }
         .animation(.spring(duration: 0.22), value: hovering)
         .accessibilityLabel(label)
+    }
+}
+
+/// Bottom-right confirmation card: filled icon circle plus the action text.
+struct ToastCard: View {
+    let toast: AppModel.Toast
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: toast.kind == .success ? "checkmark" : "exclamationmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Theme.card)
+                .frame(width: 20, height: 20)
+                .background(toast.kind == .success ? Theme.inkSecondary : Color.orange, in: Circle())
+            Text(toast.message)
+                .font(Theme.body(13))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(2)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.hairline))
+        .shadow(color: .black.opacity(0.12), radius: 16, y: 5)
+        .accessibilityLabel(toast.message)
     }
 }
