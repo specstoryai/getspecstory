@@ -9,16 +9,22 @@ struct MainWindowView: View {
     var body: some View {
         ZStack {
             HStack(spacing: 0) {
-                if model.sidebarCollapsed {
-                    CollapsedSidebarRail(model: model)
-                } else {
+                if !model.sidebarCollapsed {
                     SidebarView(model: model)
+                    Divider().overlay(Theme.hairline)
                 }
-                Divider().overlay(Theme.hairline)
                 content
             }
             .animation(.easeInOut(duration: 0.18), value: model.sidebarCollapsed)
             .background(Theme.paper)
+            .overlay(alignment: .topLeading) {
+                if model.sidebarCollapsed {
+                    SidebarToggleButton(model: model)
+                        .padding(.leading, 74)
+                        .padding(.top, 5)
+                        .ignoresSafeArea(edges: .top)
+                }
+            }
 
             if model.searchOverlayShown {
                 SearchOverlay(model: model)
@@ -112,11 +118,10 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Spacer()
-                SidebarToggleButton(model: model)
-            }
-            .padding(.bottom, 2)
+            SidebarToggleButton(model: model)
+                .padding(.leading, 60)
+                .padding(.top, 5)
+                .padding(.bottom, 10)
 
             searchButton
                 .padding(.bottom, 10)
@@ -131,9 +136,10 @@ struct SidebarView: View {
 
             footer
         }
-        .padding(14)
+        .padding([.horizontal, .bottom], 14)
         .frame(width: 216)
         .background(Theme.paper)
+        .ignoresSafeArea(edges: .top)
     }
 
     private var searchButton: some View {
@@ -251,44 +257,5 @@ struct SidebarToggleButton: View {
         .help(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
         .accessibilityLabel(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
         .keyboardShortcut("s", modifiers: [.command, .control])
-    }
-}
-
-/// Collapsed state: a slim rail with the toggle up top and the account
-/// circle anchored at the bottom.
-struct CollapsedSidebarRail: View {
-    @ObservedObject var model: AppModel
-
-    var body: some View {
-        VStack(spacing: 0) {
-            SidebarToggleButton(model: model)
-                .padding(.top, 34)
-
-            Spacer()
-
-            Button {
-                if model.signedInEmail == nil {
-                    model.signInSheetShown = true
-                } else {
-                    model.panelMode = .settings
-                }
-            } label: {
-                Text(accountInitial)
-                    .font(Theme.display(15))
-                    .foregroundStyle(Theme.accent)
-                    .frame(width: 32, height: 32)
-                    .background(Theme.accent.opacity(0.12), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .help(model.signedInEmail ?? "Sign in to SpecStory Cloud")
-            .padding(.bottom, 16)
-        }
-        .frame(width: 52)
-        .background(Theme.paper)
-    }
-
-    private var accountInitial: String {
-        guard let email = model.signedInEmail, let first = email.first else { return "?" }
-        return String(first).uppercased()
     }
 }
