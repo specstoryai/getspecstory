@@ -18,12 +18,12 @@ extension AppModel {
         }
     }
 
-    /// Whether the Resume affordance shows. Cloud-only sessions with resume
-    /// material show it even without entitlement; the tap routes to the
-    /// upgrade path (Granola pattern) via requestResume.
+    /// Whether the Resume affordance shows. Cloud sessions always show it:
+    /// listings do not carry sessionDataSize, so resumability is verified at
+    /// action time; without entitlement the tap routes to the upgrade path.
     func canResume(_ item: SessionItem) -> Bool {
         if item.origin != .cloudOnly, item.projectPath != nil { return true }
-        return (item.sessionDataSize ?? 0) > 0
+        return item.origin == .cloudOnly
     }
 
     /// Whether resume can actually run for this item right now.
@@ -64,6 +64,20 @@ extension AppModel {
     func requestResume(_ item: SessionItem) {
         guard resumeEntitled(item) else {
             resumeUpsellShown = true
+            return
+        }
+        // Entitled cloud pull: listings omit sessionDataSize, so verify the
+        // resume blob exists before offering the sheet.
+        if item.origin == .cloudOnly, (item.sessionDataSize ?? 0) == 0, let projectID = item.projectID {
+            Task { [weak self] in
+                guard let self else { return }
+                let head = try? await self.auth.api.sessionHead(projectID: projectID, sessionID: item.clientID)
+                if let head, head.sessionDataSize > 0 {
+                    self.resumeSheetItem = item
+                } else {
+                    self.showToast("This session was synced without resume data", kind: .warning)
+                }
+            }
             return
         }
         resumeSheetItem = item

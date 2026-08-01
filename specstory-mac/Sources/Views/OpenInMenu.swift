@@ -9,6 +9,12 @@ struct OpenInMenuContent: View {
     let item: SessionItem
 
     var body: some View {
+        if let projectID = item.projectID {
+            Link(destination: AppModel.cloudBaseURL.appendingPathComponent("projects/\(projectID)/sessions/\(item.clientID)")) {
+                Label("Open in SpecStory Cloud", systemImage: "safari")
+            }
+            Divider()
+        }
         Section("Open markdown in") {
             ForEach(model.installedEditors) { editor in
                 Button {
