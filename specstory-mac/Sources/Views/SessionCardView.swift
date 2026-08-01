@@ -85,12 +85,28 @@ struct SessionCardView: View {
         HStack(spacing: 10) {
             if let onResume {
                 Button(action: onResume) {
-                    Label("Resume", systemImage: "arrow.uturn.forward")
+                    HStack(spacing: 5) {
+                        Label(
+                            crossMachine ? "Resume on this Mac" : "Resume",
+                            systemImage: crossMachine ? "arrow.down.on.square" : "arrow.uturn.forward"
+                        )
                         .font(Theme.body(11, weight: .medium))
+                        if needsPro {
+                            Text("PRO")
+                                .font(Theme.body(8, weight: .bold))
+                                .foregroundStyle(Theme.accent)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Theme.accent.opacity(0.14), in: Capsule())
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .opacity(hovering ? 1 : 0.55)
+                .help(crossMachine
+                    ? (needsPro ? "Pull this session onto this Mac with SpecStory Pro" : "Rebuild this session on this Mac and resume it")
+                    : "Resume this session in its agent")
             }
             VStack(alignment: .trailing, spacing: 3) {
                 Text(relativeTime)
@@ -119,6 +135,15 @@ struct SessionCardView: View {
         case .localOnly:
             EmptyView()
         }
+    }
+
+    private var crossMachine: Bool {
+        item.isFromOtherMachine(currentDeviceID: currentDeviceID)
+    }
+
+    private var needsPro: Bool {
+        guard let contextModel else { return false }
+        return !contextModel.resumeEntitled(item)
     }
 
     private var providerDisplayName: String {

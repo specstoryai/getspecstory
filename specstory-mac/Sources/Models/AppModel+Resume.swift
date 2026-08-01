@@ -27,7 +27,7 @@ extension AppModel {
     }
 
     /// Whether resume can actually run for this item right now.
-    private func resumeEntitled(_ item: SessionItem) -> Bool {
+    func resumeEntitled(_ item: SessionItem) -> Bool {
         if item.origin != .cloudOnly, item.projectPath != nil { return true }
         return resumeFromCloudAllowed || pro.resumeGate == .enabled
     }
