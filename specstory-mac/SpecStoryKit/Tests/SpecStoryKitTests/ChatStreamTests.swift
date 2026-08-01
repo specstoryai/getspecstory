@@ -339,4 +339,14 @@ final class ChatStreamTests: XCTestCase {
         XCTAssertEqual(detail.workspaceName, "proj")
         XCTAssertEqual(ChatStubProtocol.requests[0].request.url?.path, "/api/v1/chunks/ec1")
     }
+
+    func testChatThreadSummaryDecodesStringMessageCount() throws {
+        let json = """
+        {"id":"t1","title":"What did i do","created_at":"2026-07-31T22:05:46.051Z",
+         "updated_at":"2026-07-31T22:06:30.480Z","user_id":"u1","messages_count":"2"}
+        """
+        let summary = try JSONDecoder().decode(ChatThreadSummary.self, from: Data(json.utf8))
+        XCTAssertEqual(summary.messageCount, 2)
+        XCTAssertEqual(summary.title, "What did i do")
+    }
 }

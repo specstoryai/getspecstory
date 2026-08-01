@@ -15,6 +15,23 @@ struct AskBar: View {
     }
 
     var body: some View {
+        VStack(spacing: 10) {
+            // The context panel lives in layout flow above the bar so its
+            // projects list gets real height (an overlay collapses it).
+            if mention.popoverShown {
+                MentionPanel(model: model, state: mention)
+                    .frame(maxWidth: 560)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+            barBody
+        }
+        .animation(.spring(duration: 0.25), value: mention.popoverShown)
+        .padding(.horizontal, 40)
+        .padding(.bottom, 16)
+        .frame(maxWidth: Theme.feedWidth)
+    }
+
+    private var barBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             if mention.hasChips {
                 MentionChipRow(state: mention)
@@ -61,27 +78,10 @@ struct AskBar: View {
                 .strokeBorder(Theme.accent.opacity(0.35), lineWidth: 1.5)
         )
         .shadow(color: .black.opacity(0.08), radius: 14, y: 5)
-        .overlay(alignment: .bottom) {
-            if mention.popoverShown {
-                MentionPanel(model: model, state: mention)
-                    .frame(maxWidth: 560)
-                    .padding(.bottom, barPanelSpacing)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-        }
-        .animation(.spring(duration: 0.25), value: mention.popoverShown)
-        .padding(.horizontal, 40)
-        .padding(.bottom, 16)
-        .frame(maxWidth: Theme.feedWidth)
     }
 
     private func candidatesProvider() -> [MentionItem] {
         mention.candidatesFromApp(cloudProjects: model.cloudProjects)
-    }
-
-    /// Panel floats above the bar: bar height plus breathing room.
-    private var barPanelSpacing: CGFloat {
-        mention.hasChips ? 96 : 64
     }
 }
 

@@ -203,6 +203,22 @@ public struct ChatThreadSummary: Codable, Equatable, Sendable, Identifiable {
         case updatedAt = "updated_at"
         case messageCount = "messages_count"
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+        // The server serializes the count as a string ("1"); tolerate both.
+        if let count = try? container.decodeIfPresent(Int.self, forKey: .messageCount) {
+            messageCount = count
+        } else if let raw = try? container.decodeIfPresent(String.self, forKey: .messageCount) {
+            messageCount = Int(raw)
+        } else {
+            messageCount = nil
+        }
+    }
 }
 
 /// One persisted turn in a chat thread: user query plus assistant response

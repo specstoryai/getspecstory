@@ -17,6 +17,7 @@ extension AppModel {
         supervisor?.restartAll()
         await refreshGates()
         Task { await pro.refresh(signedIn: true) }
+        Task { await refreshChatThreads() }
         await refreshFeed()
     }
 

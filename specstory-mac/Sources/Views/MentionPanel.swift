@@ -102,7 +102,9 @@ struct MentionPanel: View {
                     .padding(.horizontal, 10)
                     .padding(.bottom, 10)
                 }
-                .frame(maxHeight: 280)
+                // Explicit height: inside overlays and tight layouts a bare
+                // maxHeight lets the scroll view collapse to nothing.
+                .frame(height: min(280, CGFloat(projectCandidates.count) * 38 + 14))
             }
         }
         .background(Theme.card, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
