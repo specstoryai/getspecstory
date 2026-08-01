@@ -67,6 +67,10 @@ final class ProAPITests: XCTestCase {
         XCTAssertEqual(first.dossierId, "d-1")
         XCTAssertEqual(first.installedAgents, ["claude", "codex"])
         XCTAssertNotNil(first.updatedAtDate)
+        XCTAssertEqual(first.clusterKey, "ck1")
+        XCTAssertEqual(first.evidenceRefs, ["s1", "s2"])
+        XCTAssertEqual(first.kind, "theme")
+        XCTAssertTrue(first.isLatentTheme)
 
         // Tolerant decode: absent fields default rather than failing the row.
         let minimal = skills[1]
@@ -97,6 +101,280 @@ final class ProAPITests: XCTestCase {
         XCTAssertEqual(request.url.path, "/api/v1/lore/skills/fix-flaky-tests")
         XCTAssertEqual(request.method, "PATCH")
         XCTAssertEqual(request.bodyJSON?["install_state"] as? String, "installed")
+    }
+
+    // MARK: - Skill runs
+
+    func testSkillRunsDecodeFullShape() async throws {
+        // The runs listing answers {success, runs}: list and detail in one.
+        StubURLProtocol.enqueue(json: """
+        {"success":true,"runs":[
+          {"id":"run-1","status":"judging","trigger":"manual","shardCount":2,"shardsDone":1,
+           "sessionCount":40,"spanCount":320,
+           "watermarkFrom":"2026-07-01T00:00:00Z","watermarkTo":"2026-07-30T00:00:00Z",
+           "createdAt":"2026-07-30T12:00:00Z","startedAt":"2026-07-30T12:00:05Z",
+           "endedAt":null,"updatedAt":"2026-07-30T12:04:00Z","error":null,"sessionsMined":34,
+           "shards":[
+             {"shardKey":"proj-a","scopeKind":"project","scope":{"project_id":"proj-a"},
+              "status":"done","sandboxId":"sbx-1","sessionCount":21,"spanCount":180,
+              "startedAt":"2026-07-30T12:00:10Z","endedAt":"2026-07-30T12:03:00Z","error":null},
+             {"shardKey":"bucket:xyz","scopeKind":"bucket","scope":{"project_ids":["p1","p2","p3"]},
+              "status":"reducing","sandboxId":"sbx-2","sessionCount":13,"spanCount":140,
+              "startedAt":"2026-07-30T12:00:12Z","endedAt":null,"error":null}
+           ],
+           "dossierVerdicts":{"confirmed":2,"needs-edits":1,"unverified":1},
+           "dossierTotal":4,
+           "dossiers":[
+             {"name":"prove-it-harness-setup","clusterKey":"ck-9","verdict":"confirmed",
+              "confidence":0.9,"adjudicated":false,"hasSkill":true},
+             {"name":"workflow-fan-out-review","clusterKey":"ck-4","verdict":"needs-edits",
+              "confidence":0.62,"adjudicated":true,"hasSkill":false}
+           ]}
+        ]}
+        """)
+
+        let runs = try await api.skillRuns()
+        XCTAssertEqual(runs.count, 1)
+        let run = runs[0]
+        XCTAssertEqual(run.id, "run-1")
+        XCTAssertEqual(run.status, "judging")
+        XCTAssertEqual(run.phase, .judging)
+        XCTAssertTrue(run.isInProgress)
+        XCTAssertEqual(run.trigger, "manual")
+        XCTAssertEqual(run.shardCount, 2)
+        XCTAssertEqual(run.shardsDone, 1)
+        XCTAssertEqual(run.sessionsMined, 34)
+        XCTAssertEqual(run.dossierTotal, 4)
+        XCTAssertEqual(run.watermarkFrom, "2026-07-01T00:00:00Z")
+        XCTAssertNil(run.endedAtDate)
+        XCTAssertNotNil(run.startedAtDate)
+
+        XCTAssertEqual(run.shards.count, 2)
+        XCTAssertEqual(run.shards[0].scopeLabel, "proj-a")
+        XCTAssertEqual(run.shards[0].phase, .done)
+        XCTAssertEqual(run.shards[1].scopeLabel, "3 projects")
+        XCTAssertEqual(run.shards[1].sandboxId, "sbx-2")
+
+        XCTAssertEqual(run.dossiers.count, 2)
+        XCTAssertEqual(run.dossiers[0].verdict, "confirmed")
+        XCTAssertTrue(run.dossiers[0].hasSkill)
+        XCTAssertTrue(run.dossiers[1].adjudicated)
+        XCTAssertFalse(run.dossiers[1].hasSkill)
+
+        XCTAssertEqual(run.verdictTallies.map(\.verdict), ["confirmed", "needs-edits", "unverified"])
+        XCTAssertEqual(run.verdictTallies.map(\.count), [2, 1, 1])
+
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/runs")
+        XCTAssertEqual(request.header("Authorization"), "Bearer test-access-token")
+    }
+
+    func testSkillRunsTolerateMinimalRowAndNullScope() async throws {
+        StubURLProtocol.enqueue(json: """
+        {"success":true,"runs":[
+          {"id":"run-2","status":"done",
+           "shards":[{"shardKey":"__all__","scopeKind":"owner","scope":null,"status":"done"}]}
+        ]}
+        """)
+        let runs = try await api.skillRuns()
+        XCTAssertEqual(runs.count, 1)
+        let run = runs[0]
+        XCTAssertEqual(run.shardCount, 0)
+        XCTAssertEqual(run.sessionsMined, 0)
+        XCTAssertTrue(run.dossiers.isEmpty)
+        XCTAssertTrue(run.dossierVerdicts.isEmpty)
+        XCTAssertTrue(run.verdictTallies.isEmpty)
+        XCTAssertFalse(run.isInProgress)
+        // A null scope falls back to the shard key for the label.
+        XCTAssertEqual(run.shards[0].scopeLabel, "__all__")
+    }
+
+    func testSkillRunDurationRules() {
+        // Terminal runs freeze at endedAt ?? updatedAt; without the fallback
+        // the timer would tick forever on failed runs that never set endedAt.
+        let failed = SkillRun(
+            id: "r", status: "failed",
+            startedAt: "2026-07-30T12:00:00Z", endedAt: nil, updatedAt: "2026-07-30T12:05:00Z"
+        )
+        let farFuture = Date(timeIntervalSince1970: 4_000_000_000)
+        XCTAssertEqual(failed.duration(now: farFuture), 300)
+
+        let done = SkillRun(
+            id: "r2", status: "done",
+            startedAt: "2026-07-30T12:00:00Z", endedAt: "2026-07-30T12:02:00Z",
+            updatedAt: "2026-07-30T12:09:00Z"
+        )
+        XCTAssertEqual(done.duration(now: farFuture), 120)
+
+        // In-progress runs tick live against now.
+        let running = SkillRun(id: "r3", status: "running", startedAt: "2026-07-30T12:00:00Z")
+        let start = CloudDate.parse("2026-07-30T12:00:00Z")!
+        XCTAssertEqual(running.duration(now: start.addingTimeInterval(42)), 42)
+
+        // No timestamps at all: no duration rather than a garbage value.
+        XCTAssertNil(SkillRun(id: "r4", status: "queued").duration(now: farFuture))
+
+        // Shards follow the same rule; a reducing shard keeps ticking.
+        let reducing = SkillRunShard(shardKey: "__all__", status: "reducing",
+                                     startedAt: "2026-07-30T12:00:00Z")
+        let shardStart = CloudDate.parse("2026-07-30T12:00:00Z")!
+        XCTAssertEqual(reducing.duration(now: shardStart.addingTimeInterval(9)), 9)
+        let doneShard = SkillRunShard(shardKey: "p", status: "done",
+                                      startedAt: "2026-07-30T12:00:00Z",
+                                      endedAt: "2026-07-30T12:01:30Z")
+        XCTAssertEqual(doneShard.duration(now: farFuture), 90)
+    }
+
+    func testSkillRunPhaseGatingMatchesWebClient() {
+        // RUN_IN_PROGRESS_STATUSES is exactly these four.
+        for status in ["queued", "sharding", "running", "judging"] {
+            XCTAssertTrue(SkillRunPhase(status: status).isRunInProgress, status)
+        }
+        for status in ["reducing", "done", "failed", "", "mystery"] {
+            XCTAssertFalse(SkillRunPhase(status: status).isRunInProgress, status)
+        }
+        XCTAssertEqual(SkillRunPhase(status: "DONE"), .done)
+        XCTAssertEqual(SkillRunPhase(status: "mystery"), .unknown)
+        XCTAssertTrue(SkillRunPhase(status: "failed").isTerminal)
+        XCTAssertFalse(SkillRunPhase(status: "reducing").isTerminal)
+    }
+
+    func testTriggerSkillRunPostsAndReturnsRunId() async throws {
+        StubURLProtocol.enqueue(json: #"{"success":true,"runId":"run-9"}"#)
+        let runId = try await api.triggerSkillRun()
+        XCTAssertEqual(runId, "run-9")
+
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/run")
+        XCTAssertEqual(request.method, "POST")
+    }
+
+    func testTriggerSkillRunConflictMapsToRunAlreadyInProgress() async {
+        StubURLProtocol.enqueue(status: 409, json: #"{"success":false,"error":"run already in progress for owner u-1"}"#)
+        do {
+            _ = try await api.triggerSkillRun()
+            XCTFail("expected error")
+        } catch let error as CloudProError {
+            guard case .runAlreadyInProgress = error else {
+                return XCTFail("wrong error: \(error)")
+            }
+        } catch {
+            XCTFail("wrong error type: \(error)")
+        }
+    }
+
+    func testTriggerSkillRunForbiddenMapsToUpgradeRequired() async {
+        // 403 covers both upgrade_required and the LORE_RUN_ENABLED kill switch.
+        StubURLProtocol.enqueue(status: 403, json: #"{"success":false,"error":"lore runs disabled (LORE_RUN_ENABLED off)"}"#)
+        do {
+            _ = try await api.triggerSkillRun()
+            XCTFail("expected error")
+        } catch let error as CloudProError {
+            guard case .upgradeRequired = error else {
+                return XCTFail("wrong error: \(error)")
+            }
+        } catch {
+            XCTFail("wrong error type: \(error)")
+        }
+    }
+
+    // MARK: - Review queue
+
+    func testPendingDossiersSendsStatusQueryAndDecodes() async throws {
+        StubURLProtocol.enqueue(json: """
+        {"success":true,"dossiers":[
+          {"id":"d-1","name":"workflow-fan-out-review","clusterKey":"ck-4","status":"pending",
+           "verdict":"needs-edits","confidence":0.62,"skillMd":"# Fan-out review",
+           "createdAt":"2026-07-28T10:00:00Z"},
+          {"id":"d-2","clusterKey":"ck-7","status":"pending"}
+        ]}
+        """)
+
+        let dossiers = try await api.pendingDossiers()
+        XCTAssertEqual(dossiers.count, 2)
+        XCTAssertEqual(dossiers[0].id, "d-1")
+        XCTAssertEqual(dossiers[0].displayName, "workflow-fan-out-review")
+        XCTAssertEqual(dossiers[0].confidence, 0.62)
+        XCTAssertEqual(dossiers[0].skillMd, "# Fan-out review")
+        // Unnamed review dossiers fall back to the cluster key.
+        XCTAssertEqual(dossiers[1].displayName, "ck-7")
+
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/dossiers")
+        XCTAssertEqual(request.url.query, "status=pending")
+    }
+
+    func testReviewDossierApprovePatchesAction() async throws {
+        StubURLProtocol.enqueue(json: #"{"success":true}"#)
+        try await api.reviewDossier(id: "d-1", action: .approve)
+
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/dossiers/d-1")
+        XCTAssertEqual(request.method, "PATCH")
+        XCTAssertEqual(request.bodyJSON?["action"] as? String, "approve")
+        XCTAssertNil(request.bodyJSON?["note"])
+    }
+
+    func testReviewDossierDeclineSendsEmptyNote() async throws {
+        StubURLProtocol.enqueue(json: #"{"success":true}"#)
+        try await api.reviewDossier(id: "d-2", action: .decline, note: "")
+
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/dossiers/d-2")
+        XCTAssertEqual(request.bodyJSON?["action"] as? String, "decline")
+        XCTAssertEqual(request.bodyJSON?["note"] as? String, "")
+    }
+
+    func testReviewDossierNotOwnerMapsToUpgradeRequiredShape() async {
+        // The worker answers 403 for a foreign dossier; it surfaces through
+        // the same mapping as the entitlement gate.
+        StubURLProtocol.enqueue(status: 403, json: #"{"success":false,"error":"forbidden"}"#)
+        do {
+            try await api.reviewDossier(id: "d-3", action: .decline, note: "")
+            XCTFail("expected error")
+        } catch let error as CloudProError {
+            guard case .upgradeRequired = error else {
+                return XCTFail("wrong error: \(error)")
+            }
+        } catch {
+            XCTFail("wrong error type: \(error)")
+        }
+    }
+
+    // MARK: - Forged skills down-channel
+
+    func testForgedSkillsSendsInstallStateAndDecodes() async throws {
+        StubURLProtocol.enqueue(json: """
+        {"success":true,"skills":[
+          {"name":"prove-it-harness-setup","status":"active","skillMd":"# Prove it",
+           "clusterKey":"ck-9","fingerprint":"fp-1","contentSha":"sha-1",
+           "installState":"available","recommendation":"up-to-date"},
+          {"name":"vendored-cli-refresh","installState":"installed",
+           "recommendation":{"recommendation":"minor-drift","reason":"evidence grew"}}
+        ]}
+        """)
+
+        let skills = try await api.forgedSkills(installState: "available")
+        XCTAssertEqual(skills.count, 2)
+        XCTAssertEqual(skills[0].name, "prove-it-harness-setup")
+        XCTAssertEqual(skills[0].contentSha, "sha-1")
+        XCTAssertEqual(skills[0].recommendation, "up-to-date")
+        XCTAssertFalse(skills[0].isInstalled)
+        // Structured recommendation objects flatten to their badge string.
+        XCTAssertEqual(skills[1].recommendation, "minor-drift")
+        XCTAssertTrue(skills[1].isInstalled)
+
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/skills")
+        XCTAssertEqual(request.url.query, "install_state=available")
+    }
+
+    func testForgedSkillsOmitsQueryWhenUnfiltered() async throws {
+        StubURLProtocol.enqueue(json: #"{"success":true,"skills":[]}"#)
+        _ = try await api.forgedSkills()
+        let request = try XCTUnwrap(StubURLProtocol.requests.first)
+        XCTAssertEqual(request.url.path, "/api/v1/lore/skills")
+        XCTAssertNil(request.url.query)
     }
 
     // MARK: - Gate degrade states

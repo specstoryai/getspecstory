@@ -20,13 +20,13 @@ struct ProGateView<Content: View>: View {
         case .hidden, .upsell:
             ZStack {
                 content()
-                    .blur(radius: 9)
-                    .saturation(0.85)
+                    .blur(radius: 5)
+                    .saturation(0.9)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
 
                 // Soft wash so the blur reads as locked, not broken.
-                Theme.paper.opacity(0.25)
+                Theme.paper.opacity(0.12)
                     .allowsHitTesting(false)
 
                 upgradeCard

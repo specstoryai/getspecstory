@@ -68,7 +68,7 @@ struct MainWindowView: View {
         case .skills:
             SkillsView(model: model, pro: model.pro)
         case .analytics:
-            AnalyticsView(analytics: model.analytics)
+            AnalyticsView(analytics: model.analytics, pro: model.pro, model: model)
         case .providers:
             ProvidersView(model: model)
         case .settings:

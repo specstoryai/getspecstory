@@ -7,6 +7,7 @@ public enum CloudProError: Error {
     case unauthorized                       // 401 after retries
     case upgradeRequired(feature: String?)  // 403 {"error":"upgrade_required","data":{"feature"}}
     case featureDark                        // 404: the environment flag is off, the feature "does not exist"
+    case runAlreadyInProgress               // 409 on POST /lore/run: single writer per owner
     case http(status: Int, body: String)
     case network(Error)
     case decoding(Error)
@@ -21,6 +22,8 @@ extension CloudProError: LocalizedError {
             return "This feature requires a SpecStory Pro plan."
         case .featureDark:
             return "This feature is not available yet."
+        case .runAlreadyInProgress:
+            return "A skills run is already in progress."
         case .http(let status, _):
             return "SpecStory Cloud request failed (HTTP \(status))."
         case .network:
@@ -112,7 +115,8 @@ public actor CloudProAPI {
     }
 
     /// PATCH /api/v1/lore/skills/:name {install_state}: the client flips this
-    /// after a local install or uninstall.
+    /// after a local install or uninstall. Only available <-> installed
+    /// transitions are legal server-side (400 otherwise, 404 unknown skill).
     public func setSkillInstallState(name: String, installed: Bool) async throws {
         var request = try await authorizedRequest("lore/skills/\(escape(name))")
         request.httpMethod = "PATCH"
@@ -120,6 +124,115 @@ public actor CloudProAPI {
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "install_state": installed ? "installed" : "available"
         ])
+        let (data, response) = try await perform(request, retries: 0)
+        guard (200...299).contains(response.statusCode) else {
+            throw statusError(response.statusCode, data: data)
+        }
+    }
+
+    /// GET /api/v1/lore/skills?install_state=...: the forged-skill
+    /// down-channel with install state and drift recommendation. This is the
+    /// installed-agents source of truth server-side. Pass nil for all states.
+    public func forgedSkills(installState: String? = nil) async throws -> [ForgedSkill] {
+        var query: [URLQueryItem] = []
+        if let installState, !installState.isEmpty {
+            query.append(URLQueryItem(name: "install_state", value: installState))
+        }
+        let request = try await authorizedRequest("lore/skills", query: query)
+        let data = try await readData(request)
+        struct Listing: Decodable { let success: Bool?; let skills: [ForgedSkill]? }
+        if let listing = try? decoder.decode(Listing.self, from: data), let skills = listing.skills {
+            return skills
+        }
+        struct Payload: Decodable { let skills: [ForgedSkill]? }
+        if let nested = try? decoder.decode(APIEnvelope<Payload>.self, from: data), let skills = nested.data?.skills {
+            return skills
+        }
+        return try unwrapEnvelope([ForgedSkill].self, from: data)
+    }
+
+    // MARK: - Skill runs
+
+    /// GET /api/v1/lore/runs: the last 50 runs, newest first. List and detail
+    /// in one: every row carries shards, produced dossiers, and verdict
+    /// tallies. Poll every 4 s while any run is in progress; stop when idle.
+    public func skillRuns() async throws -> [SkillRun] {
+        let request = try await authorizedRequest("lore/runs")
+        let data = try await readData(request)
+        struct Listing: Decodable { let success: Bool?; let runs: [SkillRun]? }
+        if let listing = try? decoder.decode(Listing.self, from: data), let runs = listing.runs {
+            return runs
+        }
+        struct Payload: Decodable { let runs: [SkillRun]? }
+        if let nested = try? decoder.decode(APIEnvelope<Payload>.self, from: data), let runs = nested.data?.runs {
+            return runs
+        }
+        return try unwrapEnvelope([SkillRun].self, from: data)
+    }
+
+    /// POST /api/v1/lore/run: trigger a background skills run for the caller.
+    /// Returns the new run id. One writer per owner: 409 maps to
+    /// .runAlreadyInProgress. 403 covers both upgrade_required and the
+    /// environment kill switch (lore runs disabled).
+    public func triggerSkillRun() async throws -> String {
+        var request = try await authorizedRequest("lore/run")
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data("{}".utf8)
+
+        let (data, response) = try await perform(request, retries: 0)
+        if response.statusCode == 409 {
+            throw CloudProError.runAlreadyInProgress
+        }
+        guard (200...299).contains(response.statusCode) else {
+            throw statusError(response.statusCode, data: data)
+        }
+        struct Trigger: Decodable { let success: Bool?; let runId: String? }
+        if let trigger = try? decoder.decode(Trigger.self, from: data), let runId = trigger.runId {
+            return runId
+        }
+        struct Payload: Decodable { let runId: String? }
+        if let nested = try? decoder.decode(APIEnvelope<Payload>.self, from: data), let runId = nested.data?.runId {
+            return runId
+        }
+        throw CloudProError.decoding(URLError(.cannotParseResponse))
+    }
+
+    // MARK: - Review queue
+
+    /// GET /api/v1/lore/dossiers?status=pending: the raw review queue, the
+    /// borderline needs-edits dossiers that carry a SKILL.md. Answers
+    /// top-level {success, dossiers}.
+    public func pendingDossiers() async throws -> [SkillDossier] {
+        let request = try await authorizedRequest(
+            "lore/dossiers",
+            query: [URLQueryItem(name: "status", value: "pending")]
+        )
+        let data = try await readData(request)
+        struct Listing: Decodable { let success: Bool?; let dossiers: [SkillDossier]? }
+        if let listing = try? decoder.decode(Listing.self, from: data), let dossiers = listing.dossiers {
+            return dossiers
+        }
+        struct Payload: Decodable { let dossiers: [SkillDossier]? }
+        if let nested = try? decoder.decode(APIEnvelope<Payload>.self, from: data), let dossiers = nested.data?.dossiers {
+            return dossiers
+        }
+        return try unwrapEnvelope([SkillDossier].self, from: data)
+    }
+
+    /// PATCH /api/v1/lore/dossiers/:id {action, note?}: Keep (approve, which
+    /// forges the skill server-side) or Dismiss (decline). 403 when the
+    /// dossier belongs to another owner. The web client sends an empty note
+    /// on decline.
+    public func reviewDossier(id: String, action: SkillDossierAction, note: String? = nil) async throws {
+        var body: [String: Any] = ["action": action.rawValue]
+        if let note { body["note"] = note }
+
+        var request = try await authorizedRequest("lore/dossiers/\(escape(id))")
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
         let (data, response) = try await perform(request, retries: 0)
         guard (200...299).contains(response.statusCode) else {
             throw statusError(response.statusCode, data: data)

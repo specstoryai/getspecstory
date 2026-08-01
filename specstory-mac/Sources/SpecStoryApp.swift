@@ -20,6 +20,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // window on the next runloop turn once it exists.
         DispatchQueue.main.async { [weak self] in
             self?.showMainWindow()
+            if let panel = env["SPECSTORY_DEBUG_PANEL"].flatMap(PanelMode.init(rawValue:)) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    AppModel.shared?.panelMode = panel
+                }
+            }
             if env["SPECSTORY_DEBUG_OPEN_RECENT"] == "1" {
                 // Poll until the feed has content, then open the newest session.
                 func tryOpen(attempt: Int) {

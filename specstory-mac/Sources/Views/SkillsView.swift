@@ -1,75 +1,76 @@
-import AppKit
 import SwiftUI
 import SpecStoryKit
 
-/// The Skills panel, gate-aware. Enabled shows the mined skills library with
-/// a SKILL.md detail sheet; upsell shows the Pro upgrade card; hidden means
-/// the feature is dark in this environment.
+/// The Skills panel: the full cloud Skills workspace (library plus run
+/// activity), wrapped in the Granola-style Pro gate. When the gate is not
+/// enabled the same panel renders sample fixtures blurred under the upgrade
+/// card so free users see the shape of the feature.
 struct SkillsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var pro: ProModel
-    @State private var detailSkill: SkillRow?
 
     var body: some View {
-        Group {
-            switch pro.skillsGate {
-            case .enabled:
-                library
-            case .upsell:
-                upsell
-            case .hidden:
-                ContentUnavailableView(
-                    "Skills are not available yet",
-                    systemImage: "wand.and.stars",
-                    description: Text("Check back soon.")
-                )
-            }
+        ProGateView(
+            gate: pro.skillsGate,
+            featureBlurb: "Skills distilled from your sessions are part of SpecStory Pro.",
+            planName: "Pro",
+            planPrice: "$25/mo",
+            onUpgrade: { pro.openCheckout() },
+            onManagePlan: { pro.openPortal() }
+        ) {
+            SkillsWorkspacePanel(model: model, pro: pro, isPreview: pro.skillsGate != .enabled)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.paper)
-        .task(id: pro.skillsGate) {
-            if pro.skillsGate == .enabled, !pro.skillsLoadedOnce {
-                await pro.refreshSkills()
-            }
-        }
-        .sheet(item: $detailSkill) { skill in
-            SkillDetailSheet(model: model, pro: pro, skill: skill)
-        }
+    }
+}
+
+/// The workspace itself: header, Library and Run Activity tabs. `isPreview`
+/// swaps live state for the static sample fixtures and disables actions
+/// (the gated underlay).
+private struct SkillsWorkspacePanel: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var pro: ProModel
+    let isPreview: Bool
+
+    private enum Tab {
+        case library
+        case activity
     }
 
-    // MARK: Enabled
+    @State private var tab: Tab = .library
 
-    private var library: some View {
+    private var skills: [SkillRow] { isPreview ? ProModel.sampleSkills : pro.skills }
+    private var runs: [SkillRun] { isPreview ? ProModel.sampleRuns : pro.skillRuns }
+
+    var body: some View {
         VStack(spacing: 0) {
             header
-            if pro.skillsLoading && pro.skills.isEmpty {
-                Spacer()
-                ProgressView("Loading skills")
-                    .controlSize(.small)
-                Spacer()
-            } else if let error = pro.skillsError, pro.skills.isEmpty {
-                Spacer()
-                errorState(error)
-                Spacer()
-            } else if pro.skills.isEmpty {
-                Spacer()
-                emptyState
-                Spacer()
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(pro.skills) { skill in
-                            SkillCardView(skill: skill) {
-                                detailSkill = skill
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 16)
-                    .frame(maxWidth: Theme.feedWidth)
-                    .frame(maxWidth: .infinity)
-                }
+            tabBar
+            Divider().overlay(Theme.hairline)
+
+            switch tab {
+            case .library:
+                SkillLibraryPanel(model: model, pro: pro, skills: skills, isPreview: isPreview)
+            case .activity:
+                SkillRunsPanel(model: model, pro: pro, runs: runs, isPreview: isPreview)
             }
+        }
+        .task(id: pro.skillsGate) {
+            guard pro.skillsGate == .enabled else { return }
+            if !pro.skillsLoadedOnce { await pro.refreshSkills() }
+            if !pro.runsLoadedOnce { await pro.refreshRuns() }
+        }
+        .onAppear {
+            // Rearm the 4 s live poll if a run was in flight when the panel
+            // was last closed.
+            if pro.skillsGate == .enabled, pro.runsLoadedOnce {
+                Task { await pro.refreshRuns(quiet: true) }
+            }
+        }
+        .onDisappear { pro.stopRunPolling() }
+        .sheet(item: $pro.selectedSkill) { skill in
+            SkillDetailSheet(model: model, pro: pro, skill: skill)
         }
     }
 
@@ -87,218 +88,62 @@ struct SkillsView: View {
                     .background(Theme.accent.opacity(0.12), in: Capsule())
             }
             Spacer()
-            if pro.skillsLoading {
-                ProgressView().controlSize(.small)
-            } else {
-                Button {
-                    Task { await pro.refreshSkills() }
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Theme.inkSecondary)
+            if !isPreview {
+                if pro.skillsLoading || pro.runsLoading {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button {
+                        Task {
+                            await pro.refreshSkills()
+                            await pro.refreshRuns()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Theme.inkSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Refresh skills and runs")
                 }
-                .buttonStyle(.plain)
-                .help("Refresh skills")
             }
         }
         .padding(.horizontal, 28)
         .padding(.top, 24)
-        .padding(.bottom, 12)
+        .padding(.bottom, 10)
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 30, weight: .light))
-                .foregroundStyle(Theme.accent)
-            Text("No skills yet")
-                .font(Theme.display(20))
-                .foregroundStyle(Theme.ink)
-            Text("SpecStory mines your synced sessions into reusable skills. Keep syncing and new skills will appear here.")
-                .font(Theme.body(12))
-                .foregroundStyle(Theme.inkSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 380)
-        }
-    }
-
-    private func errorState(_ message: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 26, weight: .light))
-                .foregroundStyle(Theme.inkTertiary)
-            Text(message)
-                .font(Theme.body(12))
-                .foregroundStyle(Theme.inkSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 380)
-            Button("Try again") {
-                Task { await pro.refreshSkills() }
-            }
-            .buttonStyle(.bordered)
-            .font(Theme.body(12))
-        }
-    }
-
-    // MARK: Upsell
-
-    private var upsell: some View {
-        VStack {
-            Spacer()
-            UpsellCard(
-                copy: ProModel.skillsUpsell,
-                busy: pro.billingBusy,
-                upgradeAction: { pro.openCheckout(plan: .pro) },
-                manageAction: model.signedInEmail == nil ? nil : { pro.openPortal() },
-                footnote: model.signedInEmail == nil ? "Already on Pro? Sign in to unlock skills here." : nil
-            )
+    private var tabBar: some View {
+        HStack(spacing: 20) {
+            tabButton("Library", target: .library, live: false)
+            tabButton("Run Activity", target: .activity, live: runs.contains { $0.isInProgress })
             Spacer()
         }
-        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
     }
-}
 
-/// One skill in the library list: name, description, state badge, install
-/// targets, and when it last changed.
-private struct SkillCardView: View {
-    let skill: SkillRow
-    let onOpen: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    Text(skill.name)
-                        .font(Theme.body(13, weight: .semibold))
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1)
-                    stateBadge
-                    Spacer()
-                    if let date = skill.updatedAtDate {
-                        Text(date.formatted(date: .abbreviated, time: .omitted))
-                            .font(Theme.body(11))
-                            .foregroundStyle(Theme.inkTertiary)
+    private func tabButton(_ label: String, target: Tab, live: Bool) -> some View {
+        let active = tab == target
+        return Button {
+            tab = target
+        } label: {
+            VStack(spacing: 6) {
+                HStack(spacing: 5) {
+                    Text(label)
+                        .font(Theme.body(12.5, weight: active ? .semibold : .regular))
+                        .foregroundStyle(active ? Theme.ink : Theme.inkSecondary)
+                    if live {
+                        Circle()
+                            .fill(Theme.accent)
+                            .frame(width: 6, height: 6)
                     }
                 }
-                if let description = skill.description, !description.isEmpty {
-                    Text(description)
-                        .font(Theme.body(12))
-                        .foregroundStyle(Theme.inkSecondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                }
-                if let agents = skill.installedAgents, !agents.isEmpty {
-                    HStack(spacing: 5) {
-                        Image(systemName: "checkmark.seal")
-                            .font(.system(size: 10))
-                        Text("Installed in \(agents.joined(separator: ", "))")
-                            .lineLimit(1)
-                    }
-                    .font(Theme.body(11))
-                    .foregroundStyle(Theme.synced)
-                }
+                Rectangle()
+                    .fill(active ? Theme.accent : Color.clear)
+                    .frame(height: 2)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardChrome(hovering: hovering)
+            .fixedSize(horizontal: true, vertical: false)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-
-    @ViewBuilder private var stateBadge: some View {
-        switch skill.state {
-        case "review":
-            badge("Needs review", color: Theme.live)
-        case "installed":
-            badge("Installed", color: Theme.synced)
-        case "ready":
-            badge("Ready", color: Theme.accent)
-        default:
-            EmptyView()
-        }
-    }
-
-    private func badge(_ label: String, color: Color) -> some View {
-        Text(label)
-            .font(Theme.body(10, weight: .medium))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: Capsule())
-    }
-}
-
-/// Detail sheet: rendered SKILL.md plus a Copy content button.
-private struct SkillDetailSheet: View {
-    @ObservedObject var model: AppModel
-    @ObservedObject var pro: ProModel
-    let skill: SkillRow
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(skill.name)
-                    .font(Theme.display(20))
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(2)
-                HStack(spacing: 6) {
-                    if let description = skill.description, !description.isEmpty {
-                        Text(description).lineLimit(1)
-                    }
-                    if let date = skill.updatedAtDate {
-                        if skill.description?.isEmpty == false {
-                            Text("·").foregroundStyle(Theme.inkTertiary)
-                        }
-                        Text("Updated \(date.formatted(date: .abbreviated, time: .shortened))")
-                    }
-                }
-                .font(Theme.body(12))
-                .foregroundStyle(Theme.inkSecondary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
-
-            Divider().overlay(Theme.hairline)
-
-            if skill.content.isEmpty {
-                Spacer()
-                Text("This skill has no content yet.")
-                    .font(Theme.body(12))
-                    .foregroundStyle(Theme.inkSecondary)
-                Spacer()
-            } else {
-                RawMarkdownFallbackView(markdown: skill.content)
-            }
-
-            Divider().overlay(Theme.hairline)
-
-            HStack {
-                Button {
-                    pro.copySkillContent(skill)
-                    model.showToast("Skill content copied")
-                } label: {
-                    Label("Copy content", systemImage: "doc.on.doc")
-                        .font(Theme.body(12))
-                }
-                .buttonStyle(.bordered)
-                .disabled(skill.content.isEmpty)
-
-                Spacer()
-
-                Button("Done") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.accent)
-                    .keyboardShortcut(.defaultAction)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
-        }
-        .frame(width: 640, height: 540)
-        .background(Theme.paper)
     }
 }
