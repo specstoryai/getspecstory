@@ -180,37 +180,181 @@ struct SidebarView: View {
                 }
                 .padding(.horizontal, 10)
             }
-            Button {
-                if model.signedInEmail == nil {
-                    model.signInSheetShown = true
-                } else {
-                    model.panelMode = .settings
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: model.signedInEmail == nil ? "person.crop.circle.badge.questionmark" : "person.crop.circle")
-                        .font(.system(size: 14))
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(model.signedInEmail ?? "Not signed in")
-                            .font(Theme.body(11, weight: .medium))
-                            .lineLimit(1)
-                        Text(model.signedInEmail == nil ? "Sign in to sync" : "SpecStory Cloud")
-                            .font(Theme.body(10))
-                            .foregroundStyle(Theme.inkTertiary)
-                    }
-                    Spacer()
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 11))
+            AccountFooterView(model: model)
+        }
+    }
+}
+
+/// The account hub anchored at the sidebar's bottom: identity, plan badge,
+/// and a popover with plan and account actions (the web app's footer,
+/// natively). Local-only concerns stay in the Settings panel.
+struct AccountFooterView: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var pro: ProModel
+
+    @State private var menuShown = false
+    @State private var hovering = false
+
+    init(model: AppModel) {
+        self.model = model
+        self.pro = model.pro
+    }
+
+    var body: some View {
+        Button {
+            menuShown.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                Text(accountInitial)
+                    .font(Theme.display(13))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 26, height: 26)
+                    .background(Theme.accent.opacity(0.12), in: Circle())
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(displayName)
+                        .font(Theme.body(11, weight: .medium))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                    Text(model.signedInEmail == nil ? "Sign in to sync" : "SpecStory Cloud")
+                        .font(Theme.body(10))
                         .foregroundStyle(Theme.inkTertiary)
                 }
-                .foregroundStyle(Theme.inkSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
+                Spacer()
+                planBadge
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9))
+                    .foregroundStyle(Theme.inkTertiary)
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(hovering ? Theme.cardHover : Theme.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .popover(isPresented: $menuShown, arrowEdge: .top) {
+            AccountMenu(model: model, pro: pro, dismiss: { menuShown = false })
+        }
+        .accessibilityLabel("Account and plan")
+    }
+
+    @ViewBuilder private var planBadge: some View {
+        if model.signedInEmail != nil {
+            Text(pro.plan.displayName)
+                .font(Theme.body(9, weight: .semibold))
+                .foregroundStyle(pro.plan == .free ? Theme.inkSecondary : Theme.accent)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(
+                    (pro.plan == .free ? Theme.sidebarSelection : Theme.accent.opacity(0.12)),
+                    in: Capsule()
+                )
+        }
+    }
+
+    private var accountInitial: String {
+        guard let email = model.signedInEmail, let first = email.first else { return "?" }
+        return String(first).uppercased()
+    }
+
+    private var displayName: String {
+        guard let email = model.signedInEmail else { return "Not signed in" }
+        return String(email.split(separator: "@").first ?? Substring(email))
+    }
+}
+
+/// The footer popover: plan actions, the web app bridge, settings, session.
+private struct AccountMenu: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var pro: ProModel
+    let dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if let email = model.signedInEmail {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(email)
+                        .font(Theme.body(11, weight: .medium))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                    Text("\(pro.plan.displayName) plan")
+                        .font(Theme.body(10))
+                        .foregroundStyle(Theme.inkTertiary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                Divider().overlay(Theme.hairline)
+            }
+
+            if model.signedInEmail == nil {
+                menuRow("Sign in to SpecStory Cloud", symbol: "person.crop.circle.badge.plus", accent: true) {
+                    model.signInSheetShown = true
+                }
+            } else if pro.plan == .free {
+                menuRow("Upgrade to Pro", symbol: "arrow.up.circle", accent: true) {
+                    pro.openCheckout()
+                }
+            } else {
+                menuRow("Manage plan and billing", symbol: "creditcard") {
+                    pro.openPortal()
+                }
+            }
+
+            menuRow("Open SpecStory Cloud", symbol: "safari") {
+                NSWorkspace.shared.open(AppModel.cloudBaseURL)
+            }
+            menuRow("App settings", symbol: "gearshape") {
+                model.panelMode = .settings
+            }
+
+            if model.signedInEmail != nil {
+                Divider().overlay(Theme.hairline)
+                menuRow("Sign out", symbol: "rectangle.portrait.and.arrow.right") {
+                    Task { await model.signOut() }
+                }
+            }
+        }
+        .padding(.bottom, 6)
+        .frame(width: 230)
+    }
+
+    private func menuRow(_ title: String, symbol: String, accent: Bool = false, action: @escaping () -> Void) -> some View {
+        MenuRowButton(title: title, symbol: symbol, accent: accent) {
+            dismiss()
+            action()
+        }
+    }
+}
+
+private struct MenuRowButton: View {
+    let title: String
+    let symbol: String
+    var accent = false
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 11))
+                    .frame(width: 16)
+                Text(title)
+                    .font(Theme.body(12, weight: accent ? .semibold : .regular))
+                Spacer()
+            }
+            .foregroundStyle(accent ? Theme.accent : (hovering ? Theme.ink : Theme.inkSecondary))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .padding(.horizontal, 6)
     }
 }
 
