@@ -292,34 +292,154 @@ struct AskMessageView: View {
                             .foregroundStyle(Theme.inkSecondary)
                     }
                 }
-                if !message.sources.isEmpty {
-                    SourcePillRow(model: model, sources: message.sources)
-                }
                 if !message.text.isEmpty {
-                    Text(renderedAnswer)
-                        .font(Theme.body(13))
-                        .foregroundStyle(message.failed ? Theme.inkSecondary : Theme.ink)
-                        .textSelection(.enabled)
-                        .lineSpacing(3)
+                    CitedAnswerView(model: model, message: message)
+                } else if !message.sources.isEmpty {
+                    // Streaming: sources arrive before the first delta.
+                    SourcePillRow(model: model, sources: message.sources)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
+}
 
-    /// Inline markdown with [chunk:ID] citations reduced to superscript dots.
-    private var renderedAnswer: AttributedString {
-        var text = message.text
-        text = text.replacingOccurrences(
-            of: #"\[chunk:[^\]]+\]"#, with: "", options: .regularExpression
-        )
-        if let attributed = try? AttributedString(
+/// Answer text with [chunk:ID] markers rendered as inline numbered citations
+/// that open their session, plus a footnote list with one-click open and
+/// resume (the cited-session affordance replaces the pill row on top).
+struct CitedAnswerView: View {
+    @ObservedObject var model: AppModel
+    let message: AskMessage
+
+    private struct Citation: Identifiable {
+        let number: Int
+        let chunkID: String
+        let source: ChatSource?
+        var id: Int { number }
+    }
+
+    var body: some View {
+        let parsed = parse()
+        VStack(alignment: .leading, spacing: 10) {
+            Text(parsed.text)
+                .font(Theme.body(13))
+                .foregroundStyle(message.failed ? Theme.inkSecondary : Theme.ink)
+                .textSelection(.enabled)
+                .lineSpacing(3)
+                .environment(\.openURL, OpenURLAction { url in
+                    guard url.scheme == "specstory-cite",
+                          let number = Int(url.host() ?? ""),
+                          let citation = parsed.citations.first(where: { $0.number == number }),
+                          let source = citation.source else { return .discarded }
+                    model.openAskSource(source)
+                    return .handled
+                })
+
+            if !parsed.citations.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(parsed.citations) { citation in
+                        if let source = citation.source {
+                            CitationFootnoteRow(model: model, number: citation.number, source: source)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func parse() -> (text: AttributedString, citations: [Citation]) {
+        var numbers = [String: Int]()
+        var citations = [Citation]()
+        var result = AttributedString()
+
+        let pattern = /\[chunk:([^\]]+)\]/
+        var remainder = Substring(message.text)
+        while let match = remainder.firstMatch(of: pattern) {
+            let before = String(remainder[remainder.startIndex..<match.range.lowerBound])
+            if !before.isEmpty {
+                result.append(inlineMarkdown(before))
+            }
+            let chunkID = String(match.output.1)
+            let number: Int
+            if let existing = numbers[chunkID] {
+                number = existing
+            } else {
+                number = numbers.count + 1
+                numbers[chunkID] = number
+                citations.append(Citation(
+                    number: number,
+                    chunkID: chunkID,
+                    source: message.sources.first { $0.chunkID == chunkID } ?? message.sources.first { $0.exchangeChunkID == chunkID }
+                ))
+            }
+            var marker = AttributedString("\(number)")
+            marker.font = Theme.body(9, weight: .semibold)
+            marker.foregroundColor = Theme.accent
+            marker.baselineOffset = 4
+            marker.link = URL(string: "specstory-cite://\(number)")
+            result.append(AttributedString("\u{2009}"))
+            result.append(marker)
+            remainder = remainder[match.range.upperBound...]
+        }
+        if !remainder.isEmpty {
+            result.append(inlineMarkdown(String(remainder)))
+        }
+        return (result, citations)
+    }
+
+    private func inlineMarkdown(_ text: String) -> AttributedString {
+        (try? AttributedString(
             markdown: text,
             options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        ) {
-            return attributed
+        )) ?? AttributedString(text)
+    }
+}
+
+/// One cited session: number, title, project, open and resume in one click.
+struct CitationFootnoteRow: View {
+    @ObservedObject var model: AppModel
+    let number: Int
+    let source: ChatSource
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("\(number)")
+                .font(Theme.body(9, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 14, height: 14)
+                .background(Theme.accent.opacity(0.12), in: Circle())
+            Text(source.userTitle ?? source.sessionName)
+                .font(Theme.body(11, weight: .medium))
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+            if let project = source.projectName {
+                Text(project)
+                    .font(Theme.body(10))
+                    .foregroundStyle(Theme.inkTertiary)
+            }
+            Spacer()
+            if hovering {
+                Button("Open") { model.openAskSource(source) }
+                    .buttonStyle(.plain)
+                    .font(Theme.body(10, weight: .medium))
+                    .foregroundStyle(Theme.accent)
+                if let item = model.allItems.first(where: { $0.clientID == source.sessionClientID }),
+                   model.canResume(item) {
+                    Button("Resume") { model.requestResume(item) }
+                        .buttonStyle(.plain)
+                        .font(Theme.body(10, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                }
+            }
         }
-        return AttributedString(text)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .onHover { hovering = $0 }
+        .contentShape(Rectangle())
+        .onTapGesture { model.openAskSource(source) }
     }
 }
 

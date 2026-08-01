@@ -39,7 +39,7 @@ struct SearchOverlay: View {
                         .onSubmit {
                             if mention.consumeReturn(candidates: candidatesProvider()) { return }
                             if let first = model.searchResults.first {
-                                open(first)
+                                open(first.item)
                             }
                         }
                     if !mention.text.isEmpty || mention.hasChips {
@@ -73,15 +73,23 @@ struct SearchOverlay: View {
                     Divider().overlay(Theme.hairline)
                     ScrollView {
                         LazyVStack(spacing: 4) {
-                            ForEach(model.searchResults) { item in
-                                SessionCardView(
-                                    item: item,
-                                    isLive: model.liveSessions[item.clientID] != nil,
-                                    currentDeviceID: DeviceIdentity.current,
-                                    contextModel: model,
-                                    onOpen: { open(item) },
-                                    onResume: model.canResume(item) ? { model.requestResume(item) } : nil
-                                )
+                            ForEach(model.searchResults) { row in
+                                VStack(alignment: .leading, spacing: 0) {
+                                    SessionCardView(
+                                        item: row.item,
+                                        isLive: model.liveSessions[row.item.clientID] != nil,
+                                        currentDeviceID: DeviceIdentity.current,
+                                        contextModel: model,
+                                        onOpen: { open(row.item) },
+                                        onResume: model.canResume(row.item) ? { model.requestResume(row.item) } : nil
+                                    )
+                                    if let snippet = row.snippet {
+                                        SnippetLineView(snippet: snippet)
+                                            .padding(.horizontal, 16)
+                                            .padding(.top, 4)
+                                            .padding(.bottom, 6)
+                                    }
+                                }
                             }
                         }
                         .padding(10)

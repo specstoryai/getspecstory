@@ -111,37 +111,89 @@ extension AppModel {
         }
     }
 
-    // MARK: Search (the ⌘K overlay)
+    // MARK: Search (the ⌘K overlay, CLI session-search parity)
+
+    /// The CLI's minimum: two letters or digits before search fires.
+    private func queryReady(_ text: String) -> Bool {
+        text.unicodeScalars.filter { $0.properties.isAlphabetic || ($0.value >= 48 && $0.value <= 57) }.count >= 2
+    }
 
     func searchQueryChanged() {
         searchTask?.cancel()
+        cloudSearchTask?.cancel()
+        searchSeq += 1
+        let seq = searchSeq
         let query = searchMention.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Chips alone are a valid cloud query scope.
-        guard !query.isEmpty || searchMention.hasChips else {
+
+        // CLI parity: every keystroke drops prior cloud rows so stale-query
+        // hits never blend with fresh local results.
+        cloudSearchRows = []
+
+        guard queryReady(query) || searchMention.hasChips else {
+            localSearchRows = []
             searchResults = []
             return
         }
+
+        // Local FTS on a short debounce; cloud fires on a typing pause.
         searchTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 250_000_000)
-            guard let self, !Task.isCancelled else { return }
-            await self.runSearch(query)
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.runLocalSearch(query, seq: seq)
+        }
+        cloudSearchTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            await self?.runCloudSearch(query, seq: seq)
         }
     }
 
-    private func runSearch(_ query: String) async {
-        var results = [SessionItem]()
-        var seen = Set<String>()
-
-        do {
-            let locals = await indexBox.search(query, limit: 30)
-            for local in locals {
-                let item = allItems.first { $0.clientID == local.sessionID } ?? SessionItem(local: local)
-                results.append(item)
-                seen.insert(item.clientID)
+    private func runLocalSearch(_ query: String, seq: Int) async {
+        var rows = [SearchResultRow]()
+        if queryReady(query) {
+            let hits = await indexBox.searchWithSnippets(query, limit: 500, snippetLimit: 12)
+            for hit in hits {
+                let item = allItems.first { $0.clientID == hit.session.sessionID } ?? SessionItem(local: hit.session)
+                rows.append(SearchResultRow(
+                    item: item,
+                    snippet: hit.snippet.map(HighlightedSnippet.parse)
+                ))
             }
         }
+        guard searchSeq == seq else { return }
+        localSearchRows = applyChipFilters(rows)
+        blendSearchResults()
+    }
 
-        if case .signedIn = authState, cloudSyncEnabled {
+    private func runCloudSearch(_ query: String, seq: Int) async {
+        guard case .signedIn = authState, cloudSyncEnabled else { return }
+        var rows = [SearchResultRow]()
+
+        if let hits = await pro.resumeSearch(query: query, projectID: searchMention.selectedProjectIDs.first) {
+            // Pro path: server-side FTS with STX/ETX snippets (CLI parity).
+            for hit in hits {
+                // CLI parity: hits whose agent cannot be resolved are dropped.
+                guard let provider = Provider(providerID: hit.metadata.agentName ?? "") else { continue }
+                let cloud = CloudSession(
+                    id: hit.id, clientId: hit.clientId, projectId: hit.projectId,
+                    name: hit.name, userTitle: hit.userTitle,
+                    createdAt: hit.createdAt, updatedAt: hit.updatedAt,
+                    startedAt: hit.startedAt, endedAt: hit.endedAt,
+                    sessionDataSize: hit.sessionDataSize,
+                    metadata: CloudSessionMetadata(
+                        agentName: provider.rawValue,
+                        deviceId: hit.metadata.deviceId,
+                        machineName: hit.metadata.machineName,
+                        title: hit.metadata.title
+                    )
+                )
+                rows.append(SearchResultRow(
+                    item: SessionItem(cloud: cloud, projectName: hit.projectName),
+                    snippet: hit.snippet
+                ))
+            }
+        } else if queryReady(query) {
+            // Free tier: GraphQL search, no snippets.
             let hits = (try? await auth.api.searchSessions(
                 query: query,
                 projectIDs: searchMention.projectIDsParam,
@@ -150,38 +202,76 @@ extension AppModel {
                 limit: 30
             )) ?? []
             for hit in hits {
-                guard let clientID = hit.clientId, !seen.contains(clientID) else { continue }
-                seen.insert(clientID)
+                guard let clientID = hit.clientId else { continue }
                 if let known = allItems.first(where: { $0.clientID == clientID }) {
-                    results.append(known)
+                    rows.append(SearchResultRow(item: known, snippet: nil))
                 } else if let projectID = hit.projectId {
-                    results.append(searchHitItem(hit, clientID: clientID, projectID: projectID))
+                    rows.append(SearchResultRow(item: searchHitItem(hit, clientID: clientID, projectID: projectID), snippet: nil))
                 }
             }
         }
 
-        guard !Task.isCancelled else { return }
-        searchResults = results
+        guard searchSeq == seq else { return }
+        cloudSearchRows = applyChipFilters(rows)
+        blendSearchResults()
     }
 
-    /// Minimal item for a cloud search hit we have not merged yet.
-    private func searchHitItem(_ hit: SearchHit, clientID: String, projectID: String) -> SessionItem {
-        let json = """
-        {"id":"\(hit.id)","clientId":"\(clientID)","projectId":"\(projectID)",
-         "name":"\(hit.name ?? "Session")","userTitle":\(hit.userTitle.map { "\"\($0)\"" } ?? "null"),
-         "createdAt":"","updatedAt":"","metadata":{}}
-        """
-        if let session = try? JSONDecoder().decode(CloudSession.self, from: Data(json.utf8)) {
-            return SessionItem(cloud: session, projectName: hit.project?.name)
+    /// Mention chips filter both legs client-side (the CLI applies agent and
+    /// machine filters after its merge too). Project chips scope the cloud
+    /// query server-side; locals match by project folder name.
+    private func applyChipFilters(_ rows: [SearchResultRow]) -> [SearchResultRow] {
+        var filtered = rows
+        if !searchMention.selectedAgents.isEmpty {
+            let providers = Set(searchMention.selectedAgents.compactMap { Provider(providerID: $0)?.rawValue })
+            filtered = filtered.filter { providers.contains(Provider(providerID: $0.item.provider)?.rawValue ?? "") }
         }
-        // Decoding a hand-built row only fails if the hit contains quotes;
-        // fall back to a bare cloud row via the search title.
-        let fallback = IndexedSession(
-            sessionID: clientID, provider: "unknown", projectPath: "",
-            title: hit.userTitle ?? hit.name ?? "Session", slug: nil,
-            createdAt: nil, updatedAt: nil, userPromptCount: nil, markdownPath: nil
+        if let window = timeWindow(searchMention.timeFilter) {
+            filtered = filtered.filter { ($0.item.updatedAt ?? $0.item.createdAt).map { $0 >= window } ?? false }
+        }
+        if !searchMention.selectedProjectIDs.isEmpty {
+            let ids = Set(searchMention.selectedProjectIDs)
+            let names = Set(cloudProjects.filter { ids.contains($0.id) }.map { $0.name.lowercased() })
+            filtered = filtered.filter { row in
+                if let projectID = row.item.projectID { return ids.contains(projectID) }
+                return names.contains((row.item.projectName ?? "").lowercased())
+            }
+        }
+        return filtered
+    }
+
+    /// Minimal item for a GraphQL hit not present in the merged feed yet.
+    private func searchHitItem(_ hit: SearchHit, clientID: String, projectID: String) -> SessionItem {
+        let cloud = CloudSession(
+            id: hit.id, clientId: clientID, projectId: projectID,
+            name: hit.name ?? "Session", userTitle: hit.userTitle
         )
-        return SessionItem(local: fallback)
+        return SessionItem(cloud: cloud, projectName: hit.project?.name)
+    }
+
+    private func timeWindow(_ filter: String?) -> Date? {
+        switch filter {
+        case "today": return Calendar.current.startOfDay(for: Date())
+        case "week": return Calendar.current.date(byAdding: .day, value: -7, to: Date())
+        case "month": return Calendar.current.date(byAdding: .month, value: -1, to: Date())
+        default: return nil
+        }
+    }
+
+    /// CLI merge semantics (session_tui_cloud.go mergeCloudRows): dedupe by
+    /// provider + session id with local winning, then one stable recency sort
+    /// of the union by parsed timestamps.
+    private func blendSearchResults() {
+        var seen = Set<String>()
+        var union = [SearchResultRow]()
+        for row in localSearchRows {
+            let key = (Provider(providerID: row.item.provider)?.rawValue ?? row.item.provider) + "\u{0}" + row.item.clientID
+            if seen.insert(key).inserted { union.append(row) }
+        }
+        for row in cloudSearchRows {
+            let key = (Provider(providerID: row.item.provider)?.rawValue ?? row.item.provider) + "\u{0}" + row.item.clientID
+            if seen.insert(key).inserted { union.append(row) }
+        }
+        searchResults = union.sorted { $0.item.sortDate > $1.item.sortDate }
     }
 
     // MARK: Session detail

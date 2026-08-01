@@ -36,6 +36,13 @@ final class ProModel: ObservableObject {
     @Published private(set) var billingBusy = false
 
     private var api: CloudProAPI?
+
+    /// Pro cloud search (search/resume) for the ⌘K blend; nil when the gate
+    /// is not enabled so callers fall back to GraphQL search.
+    func resumeSearch(query: String, projectID: String?) async -> [ResumeSearchHit]? {
+        guard resumeGate == .enabled, let api else { return nil }
+        return (try? await api.searchResume(query: query, projectID: projectID)) ?? []
+    }
     private(set) var signedIn = false
 
     // MARK: Configuration

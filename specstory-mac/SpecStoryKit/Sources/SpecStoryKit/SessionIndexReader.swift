@@ -121,16 +121,143 @@ public final class SessionIndexReader {
     /// or unbalanced queries with a syntax error, in which case this falls back
     /// to a plain LIKE substring scan so the user always gets results.
     public func search(_ text: String, limit: Int) throws -> [IndexedSession] {
+        try searchWithSnippets(text, limit: limit, snippetLimit: 0).map(\.session)
+    }
+
+    /// One ⌘K result: the session plus its best matching context, with the
+    /// CLI's STX/ETX highlight delimiters intact.
+    public struct SnippetHit: Equatable, Sendable {
+        public let session: IndexedSession
+        public let snippet: String?
+    }
+
+    /// The CLI's session search, ported faithfully (session_tui_search.go,
+    /// store.go): a syntax-error-proof MATCH built by ftsQuery, results
+    /// ordered by recency (deliberately not bm25: transcripts make it noisy),
+    /// and snippet(...) context fetched in a second query for the head of the
+    /// result list.
+    public func searchWithSnippets(_ text: String, limit: Int, snippetLimit: Int = 30) throws -> [SnippetHit] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, hasCoreColumns else { return [] }
-        if hasFTS {
-            do {
-                return try matchSessions(query: trimmed, limit: limit)
-            } catch {
-                // Fall through to LIKE on FTS syntax errors (surfaced at step time).
+        guard hasFTS, let match = Self.ftsQuery(from: trimmed) else {
+            // No FTS table, or under the CLI's two-alphanumeric minimum:
+            // LIKE keeps short queries useful rather than silently empty.
+            return try likeSessions(text: trimmed, limit: limit).map { SnippetHit(session: $0, snippet: nil) }
+        }
+        let sessions = try matchSessions(query: match, limit: limit)
+        guard snippetLimit > 0, !sessions.isEmpty else {
+            return sessions.map { SnippetHit(session: $0, snippet: nil) }
+        }
+        let snippets = try snippetMap(match: match, sessions: Array(sessions.prefix(snippetLimit)))
+        return sessions.map { session in
+            SnippetHit(session: session, snippet: snippets[session.provider + "\u{0}" + session.sessionID])
+        }
+    }
+
+    /// Builds the FTS5 MATCH expression the way the CLI does
+    /// (session_tui_search.go:54-79): tokens mirror the unicode61 tokenizer
+    /// (runs of letters/digits), so the expression can never syntax-error.
+    /// Bare words become prefix terms, punctuated words adjacency chains with
+    /// a prefixed last token, closed quotes exact phrases, an unclosed quote
+    /// a prefix chain. Returns nil under two alphanumeric characters (the
+    /// CLI's minimum query).
+    public static func ftsQuery(from raw: String) -> String? {
+        guard raw.unicodeScalars.filter({ $0.properties.isAlphabetic || ($0.value >= 48 && $0.value <= 57) }).count >= 2 else {
+            return nil
+        }
+
+        func tokens(_ text: Substring) -> [String] {
+            var result = [String]()
+            var current = ""
+            for character in text {
+                if character.isLetter || character.isNumber {
+                    current.append(character)
+                } else if !current.isEmpty {
+                    result.append(current)
+                    current = ""
+                }
+            }
+            if !current.isEmpty { result.append(current) }
+            return result
+        }
+
+        var parts = [String]()
+        var remainder = Substring(raw)
+        while let quote = remainder.firstIndex(of: "\"") {
+            // Bare words before the quote.
+            for word in remainder[..<quote].split(whereSeparator: { $0.isWhitespace }) {
+                if let part = Self.wordPart(tokens(word)) { parts.append(part) }
+            }
+            let afterOpen = remainder.index(after: quote)
+            if let close = remainder[afterOpen...].firstIndex(of: "\"") {
+                let phraseTokens = tokens(remainder[afterOpen..<close])
+                if !phraseTokens.isEmpty {
+                    parts.append("\"\(phraseTokens.joined(separator: " "))\"")
+                }
+                remainder = remainder[remainder.index(after: close)...]
+            } else {
+                // Unclosed quote: prefix chain over what follows.
+                let chain = tokens(remainder[afterOpen...])
+                if let part = Self.chainPart(chain) { parts.append(part) }
+                remainder = Substring("")
             }
         }
-        return try likeSessions(text: trimmed, limit: limit)
+        for word in remainder.split(whereSeparator: { $0.isWhitespace }) {
+            if let part = Self.wordPart(tokens(word)) { parts.append(part) }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    private static func wordPart(_ tokens: [String]) -> String? {
+        guard !tokens.isEmpty else { return nil }
+        guard tokens.count > 1 else { return tokens[0] + "*" }
+        return chainPart(tokens)
+    }
+
+    private static func chainPart(_ tokens: [String]) -> String? {
+        guard !tokens.isEmpty else { return nil }
+        var chain = tokens
+        let last = chain.removeLast() + "*"
+        return (chain + [last]).joined(separator: " + ")
+    }
+
+    /// The CLI's snippet query (store.go:878-880): body is FTS column 3,
+    /// char(2)/char(3) mark highlights, 12 tokens of context.
+    private func snippetMap(match: String, sessions: [IndexedSession]) throws -> [String: String] {
+        guard !sessions.isEmpty else { return [:] }
+        let pairClause = sessions
+            .map { _ in "(sessions_fts.agent = ? AND sessions_fts.session_id = ?)" }
+            .joined(separator: " OR ")
+        let sql = """
+        SELECT sessions_fts.agent, sessions_fts.session_id,
+               snippet(sessions_fts, 3, char(2), char(3), '…', 12)
+        FROM sessions_fts
+        WHERE sessions_fts MATCH ? AND (\(pairClause))
+        """
+        let statement = try prepare(sql)
+        defer { sqlite3_finalize(statement) }
+        sqlite3_bind_text(statement, 1, match, -1, sqliteTransient)
+        var index: Int32 = 2
+        for session in sessions {
+            sqlite3_bind_text(statement, index, session.provider, -1, sqliteTransient)
+            sqlite3_bind_text(statement, index + 1, session.sessionID, -1, sqliteTransient)
+            index += 2
+        }
+        var map = [String: String]()
+        while true {
+            let rc = sqlite3_step(statement)
+            if rc == SQLITE_ROW {
+                guard let agent = sqlite3_column_text(statement, 0),
+                      let sessionID = sqlite3_column_text(statement, 1),
+                      let snippet = sqlite3_column_text(statement, 2) else { continue }
+                map[String(cString: agent) + "\u{0}" + String(cString: sessionID)] = String(cString: snippet)
+            } else if rc == SQLITE_DONE {
+                break
+            } else {
+                throw ReaderError.sqlite(String(cString: sqlite3_errmsg(db)))
+            }
+        }
+        return map
     }
 
     /// Distinct project directories, most recently active first.

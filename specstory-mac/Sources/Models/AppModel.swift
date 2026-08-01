@@ -74,7 +74,7 @@ final class AppModel: ObservableObject {
     @Published var cloudProjects: [CloudProject] = []
 
     @Published var searchQuery = ""
-    @Published var searchResults: [SessionItem] = []
+    @Published var searchResults: [SearchResultRow] = []
     @Published var searchOverlayShown = false
 
     @Published var selectedSession: SessionItem?
@@ -117,6 +117,10 @@ final class AppModel: ObservableObject {
     var chatSessionID: String?
     var markdownCache: [String: (etag: String?, markdown: String)] = [:]
     var searchTask: Task<Void, Never>?
+    var cloudSearchTask: Task<Void, Never>?
+    var searchSeq = 0
+    var localSearchRows: [SearchResultRow] = []
+    var cloudSearchRows: [SearchResultRow] = []
     var askTask: Task<Void, Never>?
     var feedRefreshTask: Task<Void, Never>?
     var detailLoadTask: Task<Void, Never>?
