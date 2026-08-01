@@ -295,18 +295,29 @@ struct SyncStatusStrip: View {
         HStack(spacing: 6) {
             connectivityDot
             Text(connectivityLabel)
-                .foregroundStyle(model.cloudError == nil ? Theme.inkSecondary : Color.orange)
+                .foregroundStyle(connectivityColor)
+            if settling {
+                ProgressView()
+                    .controlSize(.mini)
+                    .padding(.leading, 2)
+            }
 
-            divider
-            Text("\(model.allItems.count) sessions")
-
-            if model.signedInEmail != nil {
+            if let total = model.localTotalSessions {
                 divider
-                Text("\(syncedCount) synced")
-                if otherMachineCount > 0 {
-                    divider
-                    Text("\(otherMachineCount) from other machines")
+                Text("\(total.formatted()) sessions")
+            }
+
+            if model.signedInEmail != nil, model.cloudReachable == true, let synced = model.cloudSyncedTotal {
+                divider
+                Text("\(synced.formatted()) synced")
+                if let bytes = model.cloudSyncedBytes {
+                    Text("(\(ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)))")
                 }
+            }
+
+            if let others = model.otherMachineTotal, others > 0 {
+                divider
+                Text("\(others.formatted()) from other machines")
             }
 
             if !model.liveSessions.isEmpty {
@@ -325,16 +336,17 @@ struct SyncStatusStrip: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Facts still resolving: local count pending, or the first cloud round
+    /// trip has not settled while signed in.
+    private var settling: Bool {
+        if model.localTotalSessions == nil { return true }
+        if model.signedInEmail != nil, model.cloudReachable == nil { return true }
+        if model.signedInEmail != nil, model.cloudReachable == true, model.cloudSyncedTotal == nil { return true }
+        return false
+    }
+
     private var divider: some View {
         Text("·").foregroundStyle(Theme.inkTertiary.opacity(0.6))
-    }
-
-    private var syncedCount: Int {
-        model.allItems.filter { $0.origin == .both }.count
-    }
-
-    private var otherMachineCount: Int {
-        model.allItems.filter { $0.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) }.count
     }
 
     @ViewBuilder private var connectivityDot: some View {
@@ -344,12 +356,24 @@ struct SyncStatusStrip: View {
     }
 
     private var dotColor: Color {
-        if model.signedInEmail == nil { return Theme.inkTertiary }
-        return model.cloudError == nil ? Theme.synced : Color.orange
+        guard model.signedInEmail != nil else { return Theme.inkTertiary }
+        switch model.cloudReachable {
+        case .some(true): return Theme.synced
+        case .some(false): return Color.orange
+        case .none: return Theme.inkTertiary
+        }
+    }
+
+    private var connectivityColor: Color {
+        model.cloudReachable == false ? Color.orange : Theme.inkSecondary
     }
 
     private var connectivityLabel: String {
-        if model.signedInEmail == nil { return "Local only" }
-        return model.cloudError == nil ? "Cloud connected" : "Reconnecting to Cloud"
+        guard model.signedInEmail != nil else { return "Local only" }
+        switch model.cloudReachable {
+        case .some(true): return "Cloud connected"
+        case .some(false): return "Reconnecting to Cloud"
+        case .none: return "Connecting to Cloud"
+        }
     }
 }

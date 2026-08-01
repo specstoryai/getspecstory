@@ -93,6 +93,13 @@ final class AppModel: ObservableObject {
     @Published var searchOverlayShown = false
     @Published var searchingLocal = false
     @Published var searchingCloud = false
+    /// HUD facts: nil means not yet known and therefore not shown.
+    @Published var localTotalSessions: Int?
+    @Published var cloudSyncedTotal: Int?
+    @Published var cloudSyncedBytes: Int?
+    @Published var otherMachineTotal: Int?
+    /// nil until the first cloud round trip settles the question.
+    @Published var cloudReachable: Bool?
 
     @Published var selectedSession: SessionItem?
     @Published var sessionMarkdown: String?

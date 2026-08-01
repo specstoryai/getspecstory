@@ -13,6 +13,11 @@ actor IndexReaderBox {
 
     var isOpen: Bool { reader != nil }
 
+    func count() -> Int? {
+        guard let reader else { return nil }
+        return try? reader.count()
+    }
+
     func recentSessions(limit: Int) -> [IndexedSession] {
         guard let reader else { return [] }
         return (try? reader.recentSessions(limit: limit)) ?? []

@@ -104,6 +104,15 @@ public final class SessionIndexReader {
 
     // MARK: - Public queries
 
+    /// Exact number of live (non-tombstoned) sessions in the index.
+    public func count() throws -> Int {
+        guard hasCoreColumns else { return 0 }
+        let statement = try prepare("SELECT COUNT(*) FROM sessions WHERE \(notDeletedClause(prefix: ""))")
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return 0 }
+        return Int(sqlite3_column_int64(statement, 0))
+    }
+
     /// Sessions ordered most recently active first.
     public func recentSessions(limit: Int) throws -> [IndexedSession] {
         guard hasCoreColumns else { return [] }

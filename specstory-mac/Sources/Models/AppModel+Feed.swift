@@ -6,6 +6,7 @@ extension AppModel {
 
     func refreshFeed() async {
         lastFeedRefreshAt = Date()
+        localTotalSessions = await indexBox.count()
         var locals = await indexBox.recentSessions(limit: 500)
 
         // Reindex rebuilds the database from scratch; a read that lands
@@ -33,6 +34,13 @@ extension AppModel {
                 projectNames = Dictionary(projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
                 cloudError = nil
                 cloudFailureStreak = 0
+                cloudReachable = true
+                // The projects listing carries per-project session counts;
+                // their sum is the true synced total, not a page size.
+                let counts = projects.compactMap(\.sessionCount)
+                cloudSyncedTotal = counts.isEmpty ? nil : counts.reduce(0, +)
+                let sizes = projects.compactMap(\.totalMarkdownSize)
+                cloudSyncedBytes = sizes.isEmpty ? nil : sizes.reduce(0, +)
             } catch {
                 // Transient blips (sleep wake, brief offline, the auth
                 // manager's two-minute network cooldown) should not paint
@@ -41,6 +49,7 @@ extension AppModel {
                 cloudFailureStreak += 1
                 if cloudFailureStreak >= 2 {
                     cloudError = friendlyCloudError(error)
+                    cloudReachable = false
                 }
                 scheduleFeedRefresh(after: 45)
             }
@@ -91,6 +100,10 @@ extension AppModel {
             self.cloudSweepSessions = collected
             self.lastCloudSweepAt = Date()
             self.cloudSweepRunning = false
+            // A full sweep makes the cross-machine number real.
+            self.otherMachineTotal = collected.values.filter {
+                $0.metadata.deviceId != nil && $0.metadata.deviceId != DeviceIdentity.current
+            }.count
             // Remerge with the sweep's fuller picture.
             self.allItems = SessionItem.merge(
                 local: self.latestLocals, cloud: Array(collected.values),

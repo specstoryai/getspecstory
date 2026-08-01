@@ -8,10 +8,19 @@ struct SnippetLineView: View {
 
     var body: some View {
         Text(attributed)
-            .font(Theme.body(11))
+            .font(Theme.body(12.5))
             .foregroundStyle(Theme.inkSecondary)
-            .lineLimit(2)
+            .lineLimit(3)
+            .lineSpacing(2)
             .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(Theme.hairline.opacity(0.6))
+            )
     }
 
     private var attributed: AttributedString {
@@ -25,8 +34,9 @@ struct SnippetLineView: View {
             guard !cleaned.isEmpty else { continue }
             var piece = AttributedString(cleaned + " ")
             if span.isHighlighted {
-                piece.font = Theme.body(11, weight: .bold)
+                piece.font = Theme.body(12.5, weight: .bold)
                 piece.foregroundColor = Theme.accent
+                piece.backgroundColor = Theme.accent.opacity(0.12)
             }
             result.append(piece)
         }

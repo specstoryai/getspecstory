@@ -29,7 +29,7 @@ struct SearchOverlay: View {
                         .foregroundStyle(Theme.inkTertiary)
                     TextField("Search sessions, @ to filter by project, agent, or time", text: $mention.text)
                         .textFieldStyle(.plain)
-                        .font(Theme.body(15))
+                        .font(Theme.body(16))
                         .focused($focused)
                         .mentionTextFieldSupport(mention, candidates: candidatesProvider)
                         .onChange(of: mention.text) { _ in model.searchQueryChanged() }
@@ -101,8 +101,8 @@ struct SearchOverlay: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.hairline))
             .shadow(color: .black.opacity(0.25), radius: 30, y: 10)
-            .frame(maxWidth: 640)
-            .padding(.top, 90)
+            .frame(maxWidth: 820)
+            .padding(.top, 56)
             .padding(.horizontal, 40)
         }
         .onAppear { focused = true }
@@ -152,7 +152,7 @@ struct SearchOverlay: View {
             }
             .padding(10)
         }
-        .frame(maxHeight: 380)
+        .frame(maxHeight: 560)
     }
 
     /// The palette legend: what the keys do, always visible.
