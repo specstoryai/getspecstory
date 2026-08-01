@@ -237,13 +237,15 @@ struct SidebarToggleButton: View {
     }
 }
 
-/// One sidebar destination. Hovering switches the panel immediately (no
-/// click needed); clicking additionally closes an open session detail.
+/// One sidebar destination. Hovering animates a highlight onto the row;
+/// clicking navigates (and closes an open session detail).
 struct SidebarNavItem: View {
     @ObservedObject var model: AppModel
     let mode: PanelMode
     let label: String
     let symbol: String
+
+    @State private var hovering = false
 
     var body: some View {
         let selected = model.panelMode == mode
@@ -255,6 +257,7 @@ struct SidebarNavItem: View {
                 Image(systemName: symbol)
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 16)
+                    .scaleEffect(hovering && !selected ? 1.12 : 1)
                 Text(label)
                     .font(Theme.body(13, weight: selected ? .semibold : .regular))
                 Spacer()
@@ -262,21 +265,19 @@ struct SidebarNavItem: View {
                     ProgressView().controlSize(.mini)
                 }
             }
-            .foregroundStyle(selected ? Theme.ink : Theme.inkSecondary)
+            .foregroundStyle(selected ? Theme.ink : (hovering ? Theme.ink : Theme.inkSecondary))
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(
-                selected ? Theme.sidebarSelection : Color.clear,
+                selected ? Theme.sidebarSelection : (hovering ? Theme.sidebarSelection.opacity(0.55) : Color.clear),
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .offset(x: hovering && !selected ? 2 : 0)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            if hovering, model.panelMode != mode {
-                model.panelMode = mode
-            }
-        }
+        .onHover { hovering = $0 }
+        .animation(.spring(duration: 0.22), value: hovering)
         .accessibilityLabel(label)
     }
 }
