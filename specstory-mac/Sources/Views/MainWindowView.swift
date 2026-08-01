@@ -42,6 +42,9 @@ struct MainWindowView: View {
         .sheet(isPresented: $model.signInSheetShown) {
             SignInSheet(model: model)
         }
+        .sheet(isPresented: $model.resumeUpsellShown) {
+            ResumeUpsellSheet(model: model)
+        }
         .sheet(item: $model.folderPickItem) { item in
             FolderPickSheet(model: model, item: item)
         }

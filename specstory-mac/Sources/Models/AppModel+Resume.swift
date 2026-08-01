@@ -18,9 +18,18 @@ extension AppModel {
         }
     }
 
+    /// Whether the Resume affordance shows. Cloud-only sessions with resume
+    /// material show it even without entitlement; the tap routes to the
+    /// upgrade path (Granola pattern) via requestResume.
     func canResume(_ item: SessionItem) -> Bool {
         if item.origin != .cloudOnly, item.projectPath != nil { return true }
-        return (item.sessionDataSize ?? 0) > 0 && resumeFromCloudAllowed
+        return (item.sessionDataSize ?? 0) > 0
+    }
+
+    /// Whether resume can actually run for this item right now.
+    private func resumeEntitled(_ item: SessionItem) -> Bool {
+        if item.origin != .cloudOnly, item.projectPath != nil { return true }
+        return resumeFromCloudAllowed || pro.resumeGate == .enabled
     }
 
     /// The command shown and executed. Prefers a user-installed CLI so the
@@ -53,6 +62,10 @@ extension AppModel {
     }
 
     func requestResume(_ item: SessionItem) {
+        guard resumeEntitled(item) else {
+            resumeUpsellShown = true
+            return
+        }
         resumeSheetItem = item
     }
 

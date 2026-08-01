@@ -90,6 +90,7 @@ final class AppModel: ObservableObject {
     @Published var resumeSheetItem: SessionItem?
     @Published var folderPickItem: SessionItem?
     @Published var signInSheetShown = false
+    @Published var resumeUpsellShown = false
 
     // MARK: Settings (UserDefaults-backed)
 
