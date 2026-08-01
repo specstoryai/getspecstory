@@ -114,7 +114,10 @@ extension AppModel {
     }
 
     func rebuildFeedSections() {
-        feedSections = FeedSection.build(allItems, grouping: feedGrouping, sort: feedSort)
+        feedSections = FeedSection.build(
+            allItems, grouping: feedGrouping, sort: feedSort,
+            currentDeviceID: DeviceIdentity.current
+        )
     }
 
     // MARK: Section collapse

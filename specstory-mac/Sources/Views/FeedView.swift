@@ -326,7 +326,14 @@ struct SyncStatusStrip: View {
 
             if let others = model.otherMachineTotal, others > 0 {
                 divider
-                Text("\(others.formatted()) from other machines")
+                Button {
+                    model.feedGrouping = .machine
+                } label: {
+                    Text("\(others.formatted()) from other machines")
+                        .underline()
+                }
+                .buttonStyle(.tactile)
+                .help("Browse sessions by machine")
             }
 
             if !model.liveSessions.isEmpty {

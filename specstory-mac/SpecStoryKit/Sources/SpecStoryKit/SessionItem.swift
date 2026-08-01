@@ -153,12 +153,14 @@ public enum FeedGrouping: String, CaseIterable, Codable, Sendable {
     case time
     case project
     case provider
+    case machine
 
     public var displayName: String {
         switch self {
         case .time: return "Time"
         case .project: return "Project"
         case .provider: return "Agent"
+        case .machine: return "Machine"
         }
     }
 }
@@ -201,6 +203,7 @@ public struct FeedSection: Identifiable, Equatable, Sendable {
         _ items: [SessionItem],
         grouping: FeedGrouping,
         sort: FeedSort,
+        currentDeviceID: String? = nil,
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> [FeedSection] {
@@ -215,6 +218,20 @@ public struct FeedSection: Identifiable, Equatable, Sendable {
             return sectioned(sorted, by: { $0.projectName ?? "No project" })
         case .provider:
             return sectioned(sorted, by: { Provider(providerID: $0.provider)?.displayName ?? $0.provider.capitalized })
+        case .machine:
+            // The cross-machine browse: local work first, then each remote
+            // machine by name (the paid resume-to-this-machine surface).
+            let sections = sectioned(sorted, by: { item in
+                if item.isFromOtherMachine(currentDeviceID: currentDeviceID) {
+                    return item.machineName ?? "Another machine"
+                }
+                return "This Mac"
+            })
+            return sections.sorted { lhs, rhs in
+                if lhs.title == "This Mac" { return true }
+                if rhs.title == "This Mac" { return false }
+                return false
+            }
         }
     }
 
