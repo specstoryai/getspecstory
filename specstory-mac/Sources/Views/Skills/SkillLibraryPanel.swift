@@ -148,7 +148,7 @@ struct SkillLibraryPanel: View {
             .background(active ? AnyShapeStyle(Theme.ink) : AnyShapeStyle(Theme.card), in: Capsule())
             .overlay(Capsule().strokeBorder(active ? Color.clear : Theme.hairline, lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private var searchField: some View {

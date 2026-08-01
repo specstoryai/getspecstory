@@ -77,7 +77,7 @@ struct TranscriptTOCList: View {
             )
             .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .help(exchange.title)
     }
 }
@@ -120,7 +120,7 @@ struct ElementFilterRow: View {
                     Button("Show everything") {
                         state.showEverything()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                     .font(Theme.body(11, weight: .medium))
                     .foregroundStyle(Theme.accent)
                 }
@@ -156,7 +156,7 @@ struct FilterPill: View {
             .overlay(Capsule().strokeBorder(selected ? Theme.accent.opacity(0.35) : Theme.hairline, lineWidth: 1))
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .accessibilityLabel(count.map { "\(label), \($0)" } ?? label)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }

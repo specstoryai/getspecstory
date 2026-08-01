@@ -34,7 +34,7 @@ struct SessionDetailView: View {
                     .font(Theme.body(12, weight: .medium))
                     .foregroundStyle(Theme.inkSecondary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
 
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 6) {
@@ -208,7 +208,7 @@ private struct TranscriptContentView: View {
                 .background(Theme.card, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Theme.hairline))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .help("Jump to a prompt")
         .popover(isPresented: $tocPopoverShown, arrowEdge: .bottom) {
             TranscriptTOCList(

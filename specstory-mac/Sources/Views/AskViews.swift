@@ -65,7 +65,7 @@ struct AskBar: View {
                             .font(.system(size: 18))
                             .foregroundStyle(model.askStreaming ? Theme.inkTertiary : Theme.accent)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                     .disabled(model.askStreaming)
                     .accessibilityLabel("Ask")
                 }
@@ -131,7 +131,7 @@ struct ChatPanelView: View {
                 }
                 if !model.askMessages.isEmpty {
                     Button("New chat") { model.clearAskThread() }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile)
                         .font(Theme.body(12))
                         .foregroundStyle(Theme.accent)
                 }
@@ -227,6 +227,15 @@ struct ChatThreadRow: View {
     @State private var hovering = false
 
     var body: some View {
+        Button {
+            Task { await model.openChatThread(thread) }
+        } label: {
+            rowBody
+        }
+        .buttonStyle(.tactileCard)
+    }
+
+    private var rowBody: some View {
         HStack(spacing: 10) {
             Image(systemName: "bubble.left.and.text.bubble.right")
                 .font(.system(size: 13))
@@ -252,7 +261,7 @@ struct ChatThreadRow: View {
                         .font(.system(size: 11))
                         .foregroundStyle(Theme.inkTertiary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .accessibilityLabel("Delete chat")
             }
         }
@@ -261,9 +270,6 @@ struct ChatThreadRow: View {
         .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .cardChrome(hovering: hovering)
         .onHover { hovering = $0 }
-        .onTapGesture {
-            Task { await model.openChatThread(thread) }
-        }
     }
 }
 
@@ -353,7 +359,7 @@ struct AskMessageView: View {
                 }
                 .foregroundStyle(Theme.inkSecondary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
             .help("Ask a follow-up question")
         }
         .animation(.easeOut(duration: 0.12), value: hovering)
@@ -376,7 +382,7 @@ struct ActionIcon: View {
                 .frame(width: 22, height: 22)
                 .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .onHover { hovering = $0 }
         .help(help)
         .accessibilityLabel(help)
@@ -501,13 +507,13 @@ struct CitationFootnoteRow: View {
             Spacer()
             if hovering {
                 Button("Open") { model.openAskSource(source) }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                     .font(Theme.body(10, weight: .medium))
                     .foregroundStyle(Theme.accent)
                 if let item = model.allItems.first(where: { $0.clientID == source.sessionClientID }),
                    model.canResume(item) {
                     Button("Resume") { model.requestResume(item) }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile)
                         .font(Theme.body(10, weight: .medium))
                         .foregroundStyle(Theme.accent)
                 }
@@ -554,7 +560,7 @@ struct SourcePillRow: View {
                         .background(Theme.card, in: Capsule())
                         .overlay(Capsule().strokeBorder(Theme.hairline))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                 }
             }
         }

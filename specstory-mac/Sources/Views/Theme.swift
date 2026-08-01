@@ -163,3 +163,34 @@ extension View {
         modifier(CardBackground(hovering: hovering))
     }
 }
+
+// MARK: - Tactility
+
+/// The app-wide press response: a quick compression under the pointer with a
+/// springy release. Replaces .plain everywhere something is clickable.
+struct TactileButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .animation(.spring(response: 0.24, dampingFraction: 0.65), value: configuration.isPressed)
+    }
+}
+
+/// Press response for large surfaces (cards, rows): a smaller compression so
+/// the motion reads as weight, not shrinking.
+struct TactileCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
+            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == TactileButtonStyle {
+    static var tactile: TactileButtonStyle { TactileButtonStyle() }
+}
+
+extension ButtonStyle where Self == TactileCardButtonStyle {
+    static var tactileCard: TactileCardButtonStyle { TactileCardButtonStyle() }
+}

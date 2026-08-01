@@ -47,7 +47,7 @@ struct ResumeUpsellSheet: View {
                 .padding(.vertical, 9)
                 .background(Theme.ink, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
 
             Button("Not now") {
                 model.resumeUpsellShown = false

@@ -161,7 +161,7 @@ struct SidebarView: View {
             .background(Theme.card, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private func navItem(_ mode: PanelMode, label: String, symbol: String) -> some View {
@@ -230,7 +230,7 @@ struct AccountFooterView: View {
             .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline))
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .onHover { hovering = $0 }
         .popover(isPresented: $menuShown, arrowEdge: .top) {
             AccountMenu(model: model, pro: pro, dismiss: { menuShown = false })
@@ -351,7 +351,7 @@ private struct MenuRowButton: View {
             .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .onHover { hovering = $0 }
         .padding(.horizontal, 6)
     }
@@ -372,7 +372,7 @@ struct SidebarToggleButton: View {
                 .frame(width: 28, height: 28)
                 .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .onHover { hovering = $0 }
         .help(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
         .accessibilityLabel(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
@@ -418,7 +418,7 @@ struct SidebarNavItem: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .offset(x: hovering && !selected ? 2 : 0)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .onHover { hovering = $0 }
         .animation(.spring(duration: 0.22), value: hovering)
         .accessibilityLabel(label)

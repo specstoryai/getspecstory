@@ -172,7 +172,7 @@ struct PromptBubbleView: View {
                 Button(expanded ? "Show less" : "Show more") {
                     withAnimation(.easeOut(duration: 0.15)) { expanded.toggle() }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .font(Theme.body(11, weight: .medium))
                 .foregroundStyle(Theme.accent)
             }

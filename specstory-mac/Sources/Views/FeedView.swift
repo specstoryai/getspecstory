@@ -90,7 +90,7 @@ struct FeedView: View {
                             in: Capsule()
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
             }
 
             Spacer()
@@ -103,7 +103,7 @@ struct FeedView: View {
                     .foregroundStyle(Theme.inkSecondary)
                     .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
             .help("Expand all sections")
             .accessibilityLabel("Expand all sections")
 
@@ -115,7 +115,7 @@ struct FeedView: View {
                     .foregroundStyle(Theme.inkSecondary)
                     .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
             .help("Collapse all sections")
             .accessibilityLabel("Collapse all sections")
 
@@ -174,6 +174,15 @@ struct LiveSessionCard: View {
     @State private var hovering = false
 
     var body: some View {
+        Button {
+            model.revealSession(id: live.sessionID)
+        } label: {
+            cardBody
+        }
+        .buttonStyle(.tactileCard)
+    }
+
+    private var cardBody: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(Theme.live)
@@ -210,7 +219,7 @@ struct LiveSessionCard: View {
         .padding(.vertical, 12)
         .cardChrome(hovering: hovering)
         .onHover { hovering = $0 }
-        .onTapGesture { model.revealSession(id: live.sessionID) }
+        .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
     }
 
     private var syncLabel: String {
@@ -279,7 +288,7 @@ struct FeedSectionHeader: View {
             .padding(.bottom, 2)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.15), value: collapsed)
         .accessibilityLabel("\(title), \(count) sessions, \(collapsed ? "collapsed" : "expanded")")

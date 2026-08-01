@@ -200,7 +200,7 @@ struct SkillDetailSheet: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .help("Copy the CLI command that installs this skill to disk")
     }
 

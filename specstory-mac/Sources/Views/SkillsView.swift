@@ -102,7 +102,7 @@ private struct SkillsWorkspacePanel: View {
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Theme.inkSecondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                     .help("Refresh skills and runs")
                 }
             }
@@ -144,6 +144,6 @@ private struct SkillsWorkspacePanel: View {
             .fixedSize(horizontal: true, vertical: false)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 }

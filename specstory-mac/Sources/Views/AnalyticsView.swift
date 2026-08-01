@@ -163,7 +163,7 @@ private struct AnalyticsPanel: View {
             Button("Retry") {
                 analytics.refresh(force: true)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
             .font(Theme.body(11, weight: .semibold))
             .foregroundStyle(Theme.accent)
         }

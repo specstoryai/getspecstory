@@ -55,7 +55,7 @@ struct SearchOverlay: View {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(Theme.inkTertiary)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile)
                         .accessibilityLabel("Clear search")
                     }
                 }

@@ -396,7 +396,7 @@ struct AnalyticsTabBar: View {
                     .fixedSize(horizontal: true, vertical: false)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .accessibilityAddTraits(selection == tab ? [.isSelected] : [])
             }
             Spacer()

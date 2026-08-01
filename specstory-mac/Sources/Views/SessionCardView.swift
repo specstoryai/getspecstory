@@ -14,6 +14,19 @@ struct SessionCardView: View {
     @State private var hovering = false
 
     var body: some View {
+        Button(action: onOpen) {
+            cardBody
+        }
+        .buttonStyle(.tactileCard)
+        .contextMenu {
+            if let contextModel {
+                OpenInMenuContent(model: contextModel, item: item)
+            }
+        }
+        .accessibilityLabel("\(item.title), \(providerDisplayName)")
+    }
+
+    private var cardBody: some View {
         HStack(alignment: .center, spacing: 12) {
             providerMark
 
@@ -39,15 +52,6 @@ struct SessionCardView: View {
         .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .cardChrome(hovering: hovering)
         .onHover { hovering = $0 }
-        .onTapGesture(perform: onOpen)
-        .contextMenu {
-            if let contextModel {
-                OpenInMenuContent(model: contextModel, item: item)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(item.title), \(providerDisplayName)")
-        .accessibilityAddTraits(.isButton)
     }
 
     private var providerMark: some View {

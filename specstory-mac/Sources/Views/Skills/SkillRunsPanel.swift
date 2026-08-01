@@ -184,7 +184,7 @@ private struct SkillRunCard: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private var triggerLine: String {

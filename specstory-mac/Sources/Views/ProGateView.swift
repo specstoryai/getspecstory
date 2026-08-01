@@ -64,7 +64,7 @@ struct ProGateView<Content: View>: View {
                 .padding(.vertical, 9)
                 .background(Theme.ink, in: Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
 
             if let onManagePlan {
                 Button("Or manage your existing plan") {

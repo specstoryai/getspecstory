@@ -27,7 +27,7 @@ struct MentionPanel: View {
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Theme.inkTertiary)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
                 .accessibilityLabel("Close context panel")
             }
             .padding(.horizontal, 18)
@@ -85,7 +85,7 @@ struct MentionPanel: View {
                         .background(selected ? Theme.sidebarSelection : Theme.card, in: Capsule())
                         .overlay(Capsule().strokeBorder(selected ? Theme.accent.opacity(0.4) : Theme.hairline))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                 }
             }
             .padding(.horizontal, 18)
@@ -166,7 +166,7 @@ struct MentionPanel: View {
             .background(selected ? Theme.sidebarSelection : Theme.card, in: Capsule())
             .overlay(Capsule().strokeBorder(selected ? Theme.accent.opacity(0.4) : Theme.hairline))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private func projectRow(_ project: ProjectCandidate) -> some View {
@@ -210,6 +210,6 @@ struct MentionPanel: View {
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 }

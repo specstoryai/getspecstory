@@ -202,7 +202,7 @@ struct ThinkingSegmentView: View {
                     .foregroundStyle(Theme.inkTertiary)
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.tactile)
 
                 if expanded {
                     scrollableIfTall {
@@ -272,7 +272,7 @@ struct ToolPillView: View {
                 .padding(.vertical, 6)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
             .background(Theme.card)
 
             if expanded {
@@ -390,7 +390,7 @@ struct CodeBlockView: View {
                     Button(showAll ? "Show less" : "Show all") {
                         withAnimation(.easeOut(duration: 0.15)) { showAll.toggle() }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.tactile)
                     .font(Theme.body(10, weight: .medium))
                     .foregroundStyle(Theme.accent)
                 }
@@ -495,7 +495,7 @@ struct CopyIconButton: View {
                 .foregroundStyle(copied ? Theme.synced : Theme.inkSecondary)
                 .frame(width: 14, height: 14)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .padding(4)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(

@@ -80,7 +80,7 @@ struct UpsellCard: View {
 
                 if let manageAction {
                     Button("Manage plan", action: manageAction)
-                        .buttonStyle(.plain)
+                        .buttonStyle(.tactile)
                         .font(Theme.body(12))
                         .foregroundStyle(Theme.accent)
                         .disabled(busy)

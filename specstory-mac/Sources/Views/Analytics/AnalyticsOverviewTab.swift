@@ -77,7 +77,7 @@ struct AnalyticsOverviewTab: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private var streakTile: some View {
@@ -93,7 +93,7 @@ struct AnalyticsOverviewTab: View {
                     .foregroundStyle(Theme.inkTertiary)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private var messagesTile: some View {
@@ -111,7 +111,7 @@ struct AnalyticsOverviewTab: View {
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     private var spendTile: some View {
@@ -131,7 +131,7 @@ struct AnalyticsOverviewTab: View {
                 .foregroundStyle(Theme.accent)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
     }
 
     // MARK: - Month at a glance

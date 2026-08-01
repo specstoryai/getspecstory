@@ -62,7 +62,7 @@ private struct MentionChipView: View {
                     .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(Theme.inkTertiary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.tactile)
             .accessibilityLabel("Remove \(chip.label)")
         }
         .padding(.horizontal, 9)
@@ -192,7 +192,7 @@ struct MentionTypeaheadPopover: View {
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.tactile)
         .accessibilityAddTraits(highlighted ? .isSelected : [])
     }
 }
