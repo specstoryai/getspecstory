@@ -81,21 +81,28 @@ struct SessionCardView: View {
         .lineLimit(1)
     }
 
+    /// Metadata owns the trailing edge; resume is a quiet affordance that
+    /// only fills in on hover and never displaces the time or sync badge.
     private var trailing: some View {
         HStack(spacing: 10) {
-            if let onResume {
+            if let onResume, hovering {
                 Button(action: onResume) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 5) {
                         Image(systemName: crossMachine ? "arrow.down.on.square" : "arrow.uturn.forward")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(crossMachine ? "Resume on this Mac" : "Resume")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(crossMachine ? "Resume here" : "Resume")
+                            .font(Theme.body(10.5, weight: .medium))
                         if needsPro {
                             ProTag()
                         }
                     }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Theme.accent.opacity(0.08), in: Capsule())
                 }
-                .buttonStyle(.outlineCTA)
-                .opacity(hovering ? 1 : 0.6)
+                .buttonStyle(.tactile)
+                .transition(.opacity)
                 .help(crossMachine
                     ? (needsPro ? "Pull this session onto this Mac with SpecStory Pro" : "Rebuild this session on this Mac and resume it")
                     : "Resume this session in its agent")

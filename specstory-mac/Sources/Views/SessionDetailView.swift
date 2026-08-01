@@ -68,7 +68,7 @@ struct SessionDetailView: View {
                     .foregroundStyle(Theme.inkSecondary)
                 }
                 Spacer()
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     Menu {
                         OpenInMenuContent(model: model, item: item)
                     } label: {
@@ -81,10 +81,14 @@ struct SessionDetailView: View {
                     .accessibilityLabel("Open session markdown elsewhere")
                     if let projectID = item.projectID {
                         Link(destination: AppModel.cloudBaseURL.appendingPathComponent("projects/\(projectID)/sessions/\(item.clientID)")) {
-                            Label("Open in Cloud", systemImage: "safari")
-                                .font(Theme.body(12))
+                            HStack(spacing: 5) {
+                                Image(systemName: "safari")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("Open in Cloud")
+                            }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.outlineCTA)
+                        .help("View this session in the SpecStory Cloud web app")
                     }
                     if model.canResume(item) {
                         Button {
@@ -92,14 +96,14 @@ struct SessionDetailView: View {
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) ? "arrow.down.on.square" : "arrow.uturn.forward")
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(.system(size: 10, weight: .semibold))
                                 Text(item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) ? "Resume on this Mac" : "Resume")
                                 if !model.resumeEntitled(item) {
-                                    ProTag(onFilled: true)
+                                    ProTag()
                                 }
                             }
                         }
-                        .buttonStyle(.primaryCTA)
+                        .buttonStyle(.outlineCTA)
                         .help(item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current)
                             ? "Rebuild this session on this Mac and resume it"
                             : "Resume this session in its agent")
