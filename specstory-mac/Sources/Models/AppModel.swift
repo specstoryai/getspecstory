@@ -147,6 +147,7 @@ final class AppModel: ObservableObject {
     var cloudSweepSessions: [String: CloudSession] = [:]
     var lastCloudSweepAt = Date.distantPast
     var cloudSweepRunning = false
+    var cloudFailureStreak = 0
     var latestLocals: [IndexedSession] = []
     var latestProjectNames: [String: String] = [:]
 

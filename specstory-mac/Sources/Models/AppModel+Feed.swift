@@ -32,8 +32,17 @@ extension AppModel {
                 cloudProjects = projects
                 projectNames = Dictionary(projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
                 cloudError = nil
+                cloudFailureStreak = 0
             } catch {
-                cloudError = friendlyCloudError(error)
+                // Transient blips (sleep wake, brief offline, the auth
+                // manager's two-minute network cooldown) should not paint
+                // the banner: stay quiet on the first failure and retry
+                // shortly; surface it only when trouble persists.
+                cloudFailureStreak += 1
+                if cloudFailureStreak >= 2 {
+                    cloudError = friendlyCloudError(error)
+                }
+                scheduleFeedRefresh(after: 45)
             }
             // The recent head is fast; the full per-project sweep fills in
             // everything else behind it.
