@@ -166,30 +166,7 @@ struct SidebarView: View {
     }
 
     private func navItem(_ mode: PanelMode, label: String, symbol: String) -> some View {
-        Button {
-            model.panelMode = mode
-            model.closeSession()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 12, weight: .medium))
-                    .frame(width: 16)
-                Text(label)
-                    .font(Theme.body(13, weight: model.panelMode == mode ? .semibold : .regular))
-                Spacer()
-                if mode == .chat && model.askStreaming {
-                    ProgressView().controlSize(.mini)
-                }
-            }
-            .foregroundStyle(model.panelMode == mode ? Theme.ink : Theme.inkSecondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                model.panelMode == mode ? Theme.sidebarSelection : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-        }
-        .buttonStyle(.plain)
+        SidebarNavItem(model: model, mode: mode, label: label, symbol: symbol)
     }
 
     private var footer: some View {
@@ -257,5 +234,49 @@ struct SidebarToggleButton: View {
         .help(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
         .accessibilityLabel(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
         .keyboardShortcut("s", modifiers: [.command, .control])
+    }
+}
+
+/// One sidebar destination. Hovering switches the panel immediately (no
+/// click needed); clicking additionally closes an open session detail.
+struct SidebarNavItem: View {
+    @ObservedObject var model: AppModel
+    let mode: PanelMode
+    let label: String
+    let symbol: String
+
+    var body: some View {
+        let selected = model.panelMode == mode
+        Button {
+            model.panelMode = mode
+            model.closeSession()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: symbol)
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 16)
+                Text(label)
+                    .font(Theme.body(13, weight: selected ? .semibold : .regular))
+                Spacer()
+                if mode == .chat && model.askStreaming {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+            .foregroundStyle(selected ? Theme.ink : Theme.inkSecondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                selected ? Theme.sidebarSelection : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            if hovering, model.panelMode != mode {
+                model.panelMode = mode
+            }
+        }
+        .accessibilityLabel(label)
     }
 }

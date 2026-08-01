@@ -95,6 +95,32 @@ extension AppModel {
         feedSections = FeedSection.build(allItems, grouping: feedGrouping, sort: feedSort)
     }
 
+    // MARK: Section collapse
+
+    func reloadCollapsedSections() {
+        collapsedSections = Set(UserDefaults.standard.stringArray(forKey: "collapsedSections.\(feedGrouping.rawValue)") ?? [])
+    }
+
+    func isSectionCollapsed(_ section: FeedSection) -> Bool {
+        collapsedSections.contains(section.title)
+    }
+
+    func toggleSection(_ section: FeedSection) {
+        if collapsedSections.contains(section.title) {
+            collapsedSections.remove(section.title)
+        } else {
+            collapsedSections.insert(section.title)
+        }
+    }
+
+    func collapseAllSections() {
+        collapsedSections = Set(feedSections.map(\.title))
+    }
+
+    func expandAllSections() {
+        collapsedSections = []
+    }
+
     /// Debounced refresh for watch-event bursts, with a max-latency cap so a
     /// continuous event stream cannot starve the feed forever.
     func scheduleFeedRefresh(after seconds: Double = 5) {

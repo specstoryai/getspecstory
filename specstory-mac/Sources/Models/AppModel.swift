@@ -61,6 +61,7 @@ final class AppModel: ObservableObject {
     @Published var feedGrouping: FeedGrouping {
         didSet {
             UserDefaults.standard.set(feedGrouping.rawValue, forKey: "feedGrouping")
+            reloadCollapsedSections()
             rebuildFeedSections()
         }
     }
@@ -68,6 +69,13 @@ final class AppModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(feedSort.rawValue, forKey: "feedSort")
             rebuildFeedSections()
+        }
+    }
+    /// Collapsed section titles, kept separately per grouping mode so the
+    /// time, project, and agent views each remember their own shape.
+    @Published var collapsedSections: Set<String> = [] {
+        didSet {
+            UserDefaults.standard.set(Array(collapsedSections).sorted(), forKey: "collapsedSections.\(feedGrouping.rawValue)")
         }
     }
     @Published var liveSessions: [String: LiveSession] = [:]
@@ -161,8 +169,10 @@ final class AppModel: ObservableObject {
             baseURL: AppModel.cloudBaseURL,
             accessTokenProvider: { [auth] in try await auth.validAccessToken() }
         )
-        feedGrouping = FeedGrouping(rawValue: UserDefaults.standard.string(forKey: "feedGrouping") ?? "") ?? .time
+        let grouping = FeedGrouping(rawValue: UserDefaults.standard.string(forKey: "feedGrouping") ?? "") ?? .time
+        feedGrouping = grouping
         feedSort = FeedSort(rawValue: UserDefaults.standard.string(forKey: "feedSort") ?? "") ?? .recent
+        collapsedSections = Set(UserDefaults.standard.stringArray(forKey: "collapsedSections.\(grouping.rawValue)") ?? [])
         notificationsEnabled = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true
         cloudSyncEnabled = UserDefaults.standard.object(forKey: "cloudSyncEnabled") as? Bool ?? true
         launchAtLoginEnabled = LaunchAtLogin.isEnabled

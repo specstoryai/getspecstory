@@ -27,16 +27,24 @@ struct FeedView: View {
                 } else {
                     controlsRow
                     ForEach(model.feedSections) { section in
-                        sectionHeader(section.title)
-                        ForEach(section.items) { item in
-                            SessionCardView(
-                                item: item,
-                                isLive: model.liveSessions[item.clientID] != nil,
-                                currentDeviceID: DeviceIdentity.current,
-                                contextModel: model,
-                                onOpen: { model.openSession(item) },
-                                onResume: model.canResume(item) ? { model.requestResume(item) } : nil
-                            )
+                        FeedSectionHeader(
+                            title: section.title,
+                            count: section.items.count,
+                            collapsed: model.isSectionCollapsed(section)
+                        ) {
+                            model.toggleSection(section)
+                        }
+                        if !model.isSectionCollapsed(section) {
+                            ForEach(section.items) { item in
+                                SessionCardView(
+                                    item: item,
+                                    isLive: model.liveSessions[item.clientID] != nil,
+                                    currentDeviceID: DeviceIdentity.current,
+                                    contextModel: model,
+                                    onOpen: { model.openSession(item) },
+                                    onResume: model.canResume(item) ? { model.requestResume(item) } : nil
+                                )
+                            }
                         }
                     }
                 }
@@ -87,6 +95,30 @@ struct FeedView: View {
 
             Spacer()
 
+            Button {
+                model.expandAllSections()
+            } label: {
+                Image(systemName: "rectangle.expand.vertical")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.inkSecondary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help("Expand all sections")
+            .accessibilityLabel("Expand all sections")
+
+            Button {
+                model.collapseAllSections()
+            } label: {
+                Image(systemName: "rectangle.compress.vertical")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Theme.inkSecondary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help("Collapse all sections")
+            .accessibilityLabel("Collapse all sections")
+
             Menu {
                 ForEach(FeedSort.allCases, id: \.self) { sort in
                     Button {
@@ -115,15 +147,6 @@ struct FeedView: View {
         .padding(.bottom, 6)
     }
 
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title)
-            .font(Theme.body(12, weight: .semibold))
-            .foregroundStyle(Theme.inkTertiary)
-            .textCase(.uppercase)
-            .kerning(0.4)
-            .padding(.top, 14)
-            .padding(.bottom, 2)
-    }
 
     private var emptyState: some View {
         VStack(spacing: 10) {
@@ -220,5 +243,45 @@ struct ErrorBanner: View {
         .padding(12)
         .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous).strokeBorder(Color.orange.opacity(0.25)))
+    }
+}
+
+/// A tappable feed section header: chevron, uppercase title, session count.
+struct FeedSectionHeader: View {
+    let title: String
+    let count: Int
+    let collapsed: Bool
+    let toggle: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: toggle) {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Theme.inkTertiary)
+                    .rotationEffect(.degrees(collapsed ? -90 : 0))
+                Text(title)
+                    .font(Theme.body(12, weight: .semibold))
+                    .foregroundStyle(hovering ? Theme.inkSecondary : Theme.inkTertiary)
+                    .textCase(.uppercase)
+                    .kerning(0.4)
+                Text("\(count)")
+                    .font(Theme.body(10, weight: .medium))
+                    .foregroundStyle(Theme.inkTertiary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 1)
+                    .background(Theme.sidebarSelection, in: Capsule())
+                Spacer()
+            }
+            .padding(.top, 14)
+            .padding(.bottom, 2)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.15), value: collapsed)
+        .accessibilityLabel("\(title), \(count) sessions, \(collapsed ? "collapsed" : "expanded")")
     }
 }
