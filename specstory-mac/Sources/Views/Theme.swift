@@ -31,8 +31,8 @@ enum Theme {
 
     static let accent = dynamicColor(light: NSColor(red: 0.20, green: 0.55, blue: 0.72, alpha: 1),
                                      dark: NSColor(red: 0.38, green: 0.70, blue: 0.85, alpha: 1))
-    static let live = dynamicColor(light: NSColor(red: 0.85, green: 0.33, blue: 0.25, alpha: 1),
-                                   dark: NSColor(red: 0.95, green: 0.45, blue: 0.36, alpha: 1))
+    static let live = dynamicColor(light: NSColor(red: 0.16, green: 0.45, blue: 0.94, alpha: 1),
+                                   dark: NSColor(red: 0.45, green: 0.66, blue: 1.00, alpha: 1))
     static let synced = dynamicColor(light: NSColor(red: 0.23, green: 0.60, blue: 0.36, alpha: 1),
                                      dark: NSColor(red: 0.38, green: 0.75, blue: 0.50, alpha: 1))
 
