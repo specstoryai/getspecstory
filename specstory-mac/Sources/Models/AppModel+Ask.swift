@@ -119,8 +119,27 @@ extension AppModel {
         askMessages.append(AskMessage(role: .assistant, text: text, sources: sources))
     }
 
+    /// Opens a cited session from Chat: switches to Home (the detail pane
+    /// lives there) and falls back to a cloud-addressed item when the session
+    /// is not in the merged feed yet.
     func openAskSource(_ source: ChatSource) {
-        revealSession(id: source.sessionClientID)
+        panelMode = .home
+        if let item = allItems.first(where: { $0.clientID == source.sessionClientID }) {
+            openSession(item)
+            return
+        }
+        if let live = liveSessions[source.sessionClientID] {
+            openSession(live.asSessionItem)
+            return
+        }
+        // Not merged yet: address it directly by client ids; the detail view
+        // loads markdown from the cloud with exactly these two fields.
+        let cloud = CloudSession(
+            id: source.sessionID, clientId: source.sessionClientID,
+            projectId: source.projectID,
+            name: source.userTitle ?? source.sessionName
+        )
+        openSession(SessionItem(cloud: cloud, projectName: source.projectName))
     }
 
     func clearAskThread() {
