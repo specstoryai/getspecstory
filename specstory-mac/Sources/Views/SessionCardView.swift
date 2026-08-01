@@ -85,25 +85,17 @@ struct SessionCardView: View {
         HStack(spacing: 10) {
             if let onResume {
                 Button(action: onResume) {
-                    HStack(spacing: 5) {
-                        Label(
-                            crossMachine ? "Resume on this Mac" : "Resume",
-                            systemImage: crossMachine ? "arrow.down.on.square" : "arrow.uturn.forward"
-                        )
-                        .font(Theme.body(11, weight: .medium))
+                    HStack(spacing: 6) {
+                        Image(systemName: crossMachine ? "arrow.down.on.square" : "arrow.uturn.forward")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(crossMachine ? "Resume on this Mac" : "Resume")
                         if needsPro {
-                            Text("PRO")
-                                .font(Theme.body(8, weight: .bold))
-                                .foregroundStyle(Theme.accent)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Theme.accent.opacity(0.14), in: Capsule())
+                            ProTag()
                         }
                     }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .opacity(hovering ? 1 : 0.55)
+                .buttonStyle(.outlineCTA)
+                .opacity(hovering ? 1 : 0.6)
                 .help(crossMachine
                     ? (needsPro ? "Pull this session onto this Mac with SpecStory Pro" : "Rebuild this session on this Mac and resume it")
                     : "Resume this session in its agent")

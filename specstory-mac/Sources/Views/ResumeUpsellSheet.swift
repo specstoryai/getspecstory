@@ -23,10 +23,15 @@ struct ResumeUpsellSheet: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 2) {
-                Text("Pro")
-                    .font(Theme.display(24))
-                    .foregroundStyle(Theme.ink)
+            VStack(spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                    Text("Pro")
+                        .font(Theme.display(24))
+                        .foregroundStyle(Theme.ink)
+                }
                 Text("$25/mo")
                     .font(Theme.body(13))
                     .foregroundStyle(Theme.inkSecondary)
@@ -38,22 +43,18 @@ struct ResumeUpsellSheet: View {
             } label: {
                 HStack(spacing: 6) {
                     Text("Upgrade")
-                        .font(Theme.body(13, weight: .semibold))
                     Image(systemName: "arrow.up.circle")
                         .font(.system(size: 13, weight: .semibold))
                 }
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 9)
-                .background(Theme.ink, in: Capsule())
             }
-            .buttonStyle(.tactile)
+            .buttonStyle(.primaryCTA)
 
             Button("Not now") {
                 model.resumeUpsellShown = false
             }
-            .buttonStyle(.link)
+            .buttonStyle(.tactile)
             .font(Theme.body(11))
+            .foregroundStyle(Theme.inkSecondary)
             .keyboardShortcut(.escape, modifiers: [])
         }
         .padding(28)

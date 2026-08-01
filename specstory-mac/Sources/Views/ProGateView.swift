@@ -43,10 +43,15 @@ struct ProGateView<Content: View>: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(spacing: 2) {
-                Text(planName)
-                    .font(Theme.display(26))
-                    .foregroundStyle(Theme.ink)
+            VStack(spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                    Text(planName)
+                        .font(Theme.display(26))
+                        .foregroundStyle(Theme.ink)
+                }
                 Text(planPrice)
                     .font(Theme.body(13))
                     .foregroundStyle(Theme.inkSecondary)
@@ -55,23 +60,19 @@ struct ProGateView<Content: View>: View {
             Button(action: onUpgrade) {
                 HStack(spacing: 6) {
                     Text("Upgrade")
-                        .font(Theme.body(13, weight: .semibold))
                     Image(systemName: "arrow.up.circle")
                         .font(.system(size: 13, weight: .semibold))
                 }
-                .foregroundStyle(Color.white)
-                .padding(.horizontal, 22)
-                .padding(.vertical, 9)
-                .background(Theme.ink, in: Capsule())
             }
-            .buttonStyle(.tactile)
+            .buttonStyle(.primaryCTA)
 
             if let onManagePlan {
                 Button("Or manage your existing plan") {
                     onManagePlan()
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.tactile)
                 .font(Theme.body(11))
+                .foregroundStyle(Theme.accent)
             }
         }
         .padding(28)

@@ -194,3 +194,78 @@ extension ButtonStyle where Self == TactileButtonStyle {
 extension ButtonStyle where Self == TactileCardButtonStyle {
     static var tactileCard: TactileCardButtonStyle { TactileCardButtonStyle() }
 }
+
+// MARK: - Pro visual family
+
+extension Theme {
+    /// The premium CTA surface: a soft vertical accent gradient.
+    static var accentGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                dynamicColor(light: NSColor(red: 0.25, green: 0.62, blue: 0.80, alpha: 1),
+                             dark: NSColor(red: 0.42, green: 0.74, blue: 0.90, alpha: 1)),
+                dynamicColor(light: NSColor(red: 0.13, green: 0.47, blue: 0.65, alpha: 1),
+                             dark: NSColor(red: 0.28, green: 0.60, blue: 0.78, alpha: 1)),
+            ],
+            startPoint: .top, endPoint: .bottom
+        )
+    }
+}
+
+/// The one PRO tag, everywhere: accent-tinted on light surfaces, glassy on
+/// filled CTAs.
+struct ProTag: View {
+    var onFilled = false
+
+    var body: some View {
+        Text("PRO")
+            .font(.system(size: 8.5, weight: .heavy))
+            .kerning(0.5)
+            .foregroundStyle(onFilled ? Color.white : Theme.accent)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                onFilled ? Color.white.opacity(0.22) : Theme.accent.opacity(0.14),
+                in: Capsule()
+            )
+    }
+}
+
+/// Filled premium CTA: accent gradient capsule, white label, press response.
+struct PrimaryCTAButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.body(13, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 9)
+            .background(Theme.accentGradient, in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+            .shadow(color: Theme.accent.opacity(0.35), radius: configuration.isPressed ? 4 : 9, y: 3)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.24, dampingFraction: 0.65), value: configuration.isPressed)
+    }
+}
+
+/// Outline sibling of the primary CTA for rows and cards.
+struct OutlineCTAButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.body(11, weight: .semibold))
+            .foregroundStyle(Theme.accent)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 5.5)
+            .background(configuration.isPressed ? Theme.accent.opacity(0.10) : Theme.card, in: Capsule())
+            .overlay(Capsule().strokeBorder(Theme.accent.opacity(0.45), lineWidth: 1))
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.24, dampingFraction: 0.65), value: configuration.isPressed)
+    }
+}
+
+extension ButtonStyle where Self == PrimaryCTAButtonStyle {
+    static var primaryCTA: PrimaryCTAButtonStyle { PrimaryCTAButtonStyle() }
+}
+
+extension ButtonStyle where Self == OutlineCTAButtonStyle {
+    static var outlineCTA: OutlineCTAButtonStyle { OutlineCTAButtonStyle() }
+}

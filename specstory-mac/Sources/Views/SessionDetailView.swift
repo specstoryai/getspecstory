@@ -91,22 +91,15 @@ struct SessionDetailView: View {
                             model.requestResume(item)
                         } label: {
                             HStack(spacing: 6) {
-                                Label(
-                                    item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) ? "Resume on this Mac" : "Resume",
-                                    systemImage: item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) ? "arrow.down.on.square" : "arrow.uturn.forward"
-                                )
-                                .font(Theme.body(12, weight: .medium))
+                                Image(systemName: item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) ? "arrow.down.on.square" : "arrow.uturn.forward")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current) ? "Resume on this Mac" : "Resume")
                                 if !model.resumeEntitled(item) {
-                                    Text("PRO")
-                                        .font(Theme.body(8, weight: .bold))
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.white.opacity(0.25), in: Capsule())
+                                    ProTag(onFilled: true)
                                 }
                             }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Theme.accent)
+                        .buttonStyle(.primaryCTA)
                         .help(item.isFromOtherMachine(currentDeviceID: DeviceIdentity.current)
                             ? "Rebuild this session on this Mac and resume it"
                             : "Resume this session in its agent")
