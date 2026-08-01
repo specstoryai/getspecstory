@@ -47,6 +47,7 @@ struct AskBar: View {
                     .textFieldStyle(.plain)
                     .font(Theme.body(13))
                     .focused($focused)
+                    .onChange(of: model.askFocusTick) { _ in focused = true }
                     .mentionTextFieldSupport(mention, candidates: candidatesProvider)
                     .onSubmit {
                         if mention.consumeReturn(candidates: candidatesProvider()) { return }
@@ -141,7 +142,7 @@ struct ChatPanelView: View {
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 14) {
+                    LazyVStack(alignment: .leading, spacing: 20) {
                         if model.askMessages.isEmpty {
                             if model.chatThreads.isEmpty {
                                 emptyState.padding(.top, 100)
@@ -270,18 +271,28 @@ struct AskMessageView: View {
     @ObservedObject var model: AppModel
     let message: AskMessage
 
+    @State private var hovering = false
+
     var body: some View {
         switch message.role {
         case .user:
-            HStack {
-                Spacer(minLength: 60)
-                Text(message.text)
-                    .font(Theme.body(13))
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(Theme.sidebarSelection, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .trailing, spacing: 4) {
+                HStack {
+                    Spacer(minLength: 60)
+                    Text(message.text)
+                        .font(Theme.body(13))
+                        .foregroundStyle(Theme.ink)
+                        .textSelection(.enabled)
+                        .lineSpacing(2)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(Theme.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Theme.accent.opacity(0.18)))
+                }
+                promptActions
+                    .opacity(hovering ? 1 : 0)
             }
+            .onHover { hovering = $0 }
         case .assistant:
             VStack(alignment: .leading, spacing: 10) {
                 if let status = message.status {
@@ -298,9 +309,77 @@ struct AskMessageView: View {
                     // Streaming: sources arrive before the first delta.
                     SourcePillRow(model: model, sources: message.sources)
                 }
+                if !message.text.isEmpty, message.status == nil {
+                    responseActions
+                        .opacity(hovering ? 1 : 0)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onHover { hovering = $0 }
         }
+    }
+
+    /// Quiet icon row under the prompt: regenerate, copy, edit (the edit
+    /// forks the conversation from this point).
+    private var promptActions: some View {
+        HStack(spacing: 14) {
+            ActionIcon(symbol: "arrow.clockwise", help: "Regenerate from here") {
+                model.regeneratePrompt(message)
+            }
+            .disabled(model.askStreaming)
+            ActionIcon(symbol: "doc.on.doc", help: "Copy prompt") {
+                model.copyMessageText(message)
+            }
+            ActionIcon(symbol: "pencil", help: "Edit and rewrite from here") {
+                model.editPrompt(message)
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+
+    private var responseActions: some View {
+        HStack(spacing: 14) {
+            ActionIcon(symbol: "doc.on.doc", help: "Copy answer") {
+                model.copyMessageText(message)
+            }
+            Button {
+                model.askFollowUp()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 10))
+                    Text("Ask follow-up")
+                        .font(Theme.body(11))
+                }
+                .foregroundStyle(Theme.inkSecondary)
+            }
+            .buttonStyle(.plain)
+            .help("Ask a follow-up question")
+        }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+    }
+}
+
+/// A small, quiet icon button for message hover actions.
+struct ActionIcon: View {
+    let symbol: String
+    let help: String
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11))
+                .foregroundStyle(hovering ? Theme.ink : Theme.inkSecondary)
+                .frame(width: 22, height: 22)
+                .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
+        .accessibilityLabel(help)
     }
 }
 

@@ -9,10 +9,15 @@ struct MainWindowView: View {
     var body: some View {
         ZStack {
             HStack(spacing: 0) {
-                SidebarView(model: model)
+                if model.sidebarCollapsed {
+                    CollapsedSidebarRail(model: model)
+                } else {
+                    SidebarView(model: model)
+                }
                 Divider().overlay(Theme.hairline)
                 content
             }
+            .animation(.easeInOut(duration: 0.18), value: model.sidebarCollapsed)
             .background(Theme.paper)
 
             if model.searchOverlayShown {
@@ -107,6 +112,12 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Spacer()
+                SidebarToggleButton(model: model)
+            }
+            .padding(.bottom, 2)
+
             searchButton
                 .padding(.bottom, 10)
 
@@ -217,5 +228,67 @@ struct SidebarView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// The tray toggle that collapses and expands the navigation strip.
+struct SidebarToggleButton: View {
+    @ObservedObject var model: AppModel
+    @State private var hovering = false
+
+    var body: some View {
+        Button {
+            model.sidebarCollapsed.toggle()
+        } label: {
+            Image(systemName: "sidebar.left")
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.inkSecondary)
+                .frame(width: 28, height: 28)
+                .background(hovering ? Theme.sidebarSelection : Color.clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
+        .accessibilityLabel(model.sidebarCollapsed ? "Show sidebar" : "Hide sidebar")
+        .keyboardShortcut("s", modifiers: [.command, .control])
+    }
+}
+
+/// Collapsed state: a slim rail with the toggle up top and the account
+/// circle anchored at the bottom.
+struct CollapsedSidebarRail: View {
+    @ObservedObject var model: AppModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            SidebarToggleButton(model: model)
+                .padding(.top, 34)
+
+            Spacer()
+
+            Button {
+                if model.signedInEmail == nil {
+                    model.signInSheetShown = true
+                } else {
+                    model.panelMode = .settings
+                }
+            } label: {
+                Text(accountInitial)
+                    .font(Theme.display(15))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 32, height: 32)
+                    .background(Theme.accent.opacity(0.12), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(model.signedInEmail ?? "Sign in to SpecStory Cloud")
+            .padding(.bottom, 16)
+        }
+        .frame(width: 52)
+        .background(Theme.paper)
+    }
+
+    private var accountInitial: String {
+        guard let email = model.signedInEmail, let first = email.first else { return "?" }
+        return String(first).uppercased()
     }
 }

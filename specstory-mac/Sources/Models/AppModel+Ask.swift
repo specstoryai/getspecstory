@@ -122,6 +122,48 @@ extension AppModel {
     /// Opens a cited session from Chat: switches to Home (the detail pane
     /// lives there) and falls back to a cloud-addressed item when the session
     /// is not in the merged feed yet.
+    // MARK: Prompt and response actions
+
+    /// Copy the raw prompt or answer text.
+    func copyMessageText(_ message: AskMessage) {
+        MarkdownOpener.copyToPasteboard(message.text)
+        showToast(message.role == .user ? "Prompt copied" : "Answer copied")
+    }
+
+    /// Edit a prompt: the conversation forks at that point. Everything from
+    /// the message on is removed, its text lands back in the ask bar for
+    /// editing, and the next submit starts a fresh server thread so the
+    /// rewritten conversation is not haunted by the replaced turns.
+    func editPrompt(_ message: AskMessage) {
+        guard message.role == .user else { return }
+        askTask?.cancel()
+        askStreaming = false
+        if let index = askMessages.firstIndex(where: { $0.id == message.id }) {
+            askMessages.removeSubrange(index...)
+        }
+        chatSessionID = nil
+        askMention.text = message.text
+        requestAskFocus()
+    }
+
+    /// Regenerate from a prompt: fork exactly like editPrompt, then resend
+    /// the same text immediately.
+    func regeneratePrompt(_ message: AskMessage) {
+        guard message.role == .user, !askStreaming else { return }
+        editPrompt(message)
+        submitAsk()
+    }
+
+    /// Response follow-up affordance: park the caret in the ask bar.
+    func askFollowUp() {
+        panelMode = .chat
+        requestAskFocus()
+    }
+
+    func requestAskFocus() {
+        askFocusTick += 1
+    }
+
     func openAskSource(_ source: ChatSource) {
         panelMode = .home
         if let item = allItems.first(where: { $0.clientID == source.sessionClientID }) {

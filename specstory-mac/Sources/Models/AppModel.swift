@@ -85,6 +85,10 @@ final class AppModel: ObservableObject {
     @Published var askMessages: [AskMessage] = []
     @Published var askStreaming = false
     @Published var chatThreads: [ChatThreadSummary] = []
+    @Published var askFocusTick = 0
+    @Published var sidebarCollapsed: Bool = UserDefaults.standard.bool(forKey: "sidebarCollapsed") {
+        didSet { UserDefaults.standard.set(sidebarCollapsed, forKey: "sidebarCollapsed") }
+    }
 
     @Published var providerStatuses: [ProviderStatus] = []
     @Published var resumeSheetItem: SessionItem?

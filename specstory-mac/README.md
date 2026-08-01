@@ -1,6 +1,6 @@
 # SpecStory for Mac
 
-Always-on menu bar app with a Granola-style desktop window for your AI coding sessions. It vendors the `specstory` CLI, watches every supported agent (Claude Code, Codex, Cursor, Cursor CLI, Gemini, Antigravity, DeepSeek, Droid), notifies you when a new session starts, syncs with SpecStory Cloud, and answers questions about your whole coding history with resume-into-session one click away.
+Always-on menu bar app with a polished desktop window for your AI coding sessions. It vendors the `specstory` CLI, watches every supported agent (Claude Code, Codex, Cursor, Cursor CLI, Gemini, Antigravity, DeepSeek, Droid), notifies you when a new session starts, syncs with SpecStory Cloud, and answers questions about your whole coding history with resume-into-session one click away.
 
 ## Build and run
 
