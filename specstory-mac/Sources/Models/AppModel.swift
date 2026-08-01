@@ -44,6 +44,7 @@ final class AppModel: ObservableObject {
     let analytics = AnalyticsModel()
     let askMention = MentionState()
     let searchMention = MentionState()
+    let updates = UpdateChecker()
     var supervisor: WatchSupervisor?
     var tripwire: SessionTripwire?
     private(set) var binaryURL: URL?

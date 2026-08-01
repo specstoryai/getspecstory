@@ -14,6 +14,7 @@ struct SettingsView: View {
 
                 accountCard
                 generalCard
+                cliCard
                 aboutCard
             }
             .padding(28)
@@ -96,6 +97,61 @@ struct SettingsView: View {
         .padding(.trailing, 8)
     }
 
+    // MARK: CLI
+
+    private var cliCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("Command line tool")
+            Text("The app bundles its own engine, so nothing here is required. Installing the CLI in your PATH makes terminal resume commands portable and keeps them working if the app moves.")
+                .font(Theme.body(11))
+                .foregroundStyle(Theme.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            switch model.updates.cliStatus {
+            case .checking, .unknown:
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.mini)
+                    Text("Checking your installed CLI")
+                        .font(Theme.body(12))
+                        .foregroundStyle(Theme.inkSecondary)
+                }
+            case .upToDate(let version):
+                Label("Installed and current (\(version))", systemImage: "checkmark.circle.fill")
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.synced)
+            case .updateAvailable(let installed, let latest):
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("\(installed) installed, \(latest) available", systemImage: "arrow.up.circle")
+                        .font(Theme.body(12))
+                        .foregroundStyle(Theme.ink)
+                    updateButton(title: "Update CLI in Terminal")
+                }
+            case .notInstalled(let latest):
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(latest.map { "Not installed (latest is \($0))" } ?? "Not installed",
+                          systemImage: "minus.circle")
+                        .font(Theme.body(12))
+                        .foregroundStyle(Theme.inkSecondary)
+                    updateButton(title: "Install CLI in Terminal")
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardChrome()
+        .task {
+            await model.updates.refreshCLIStatus()
+        }
+    }
+
+    private func updateButton(title: String) -> some View {
+        Button(title) {
+            _ = TerminalLauncher.launch(command: UpdateChecker.installCommand, workingDirectory: nil)
+        }
+        .controlSize(.small)
+        .help("Runs the documented installer from docs.specstory.com in your terminal")
+    }
+
     // MARK: About
 
     private var aboutCard: some View {
@@ -106,6 +162,19 @@ struct SettingsView: View {
             infoRow("Bundled CLI", bundledCLIVersion)
             if let path = AppModel.userInstalledCLI() {
                 infoRow("CLI on PATH", path)
+            }
+            HStack(spacing: 10) {
+                Button(model.updates.checkingAppUpdate ? "Checking..." : "Check for app updates") {
+                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+                    Task { await model.updates.checkForAppUpdate(currentVersion: version) }
+                }
+                .controlSize(.small)
+                .disabled(model.updates.checkingAppUpdate)
+                if let message = model.updates.appUpdateMessage {
+                    Text(message)
+                        .font(Theme.body(11))
+                        .foregroundStyle(Theme.inkSecondary)
+                }
             }
         }
         .padding(16)
