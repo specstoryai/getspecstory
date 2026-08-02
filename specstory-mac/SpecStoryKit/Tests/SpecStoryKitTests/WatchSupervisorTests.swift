@@ -176,6 +176,49 @@ final class WatchSupervisorTests: XCTestCase {
         XCTAssertEqual(spawnCounts()[a], 1, "stopAll must not respawn")
     }
 
+    func testPauseWatchingStopsOnlyThatChild() throws {
+        let supervisor = makeSupervisor(cap: 4)
+        let a = try makeProject("a")
+        let b = try makeProject("b")
+
+        supervisor.setProjects([a, b])
+        EngineFixtures.waitUntil(message: "a and b did not spawn") {
+            self.spawnCounts()[a] == 1 && self.spawnCounts()[b] == 1
+        }
+
+        supervisor.pauseWatching(a, patience: 0.2)
+        EngineFixtures.waitUntil(message: "a was not removed from the fleet") {
+            supervisor.watchedProjects == [b]
+        }
+        // Long enough for a wrongly scheduled respawn to have fired.
+        usleep(400_000)
+        XCTAssertEqual(spawnCounts()[a], 1, "paused project must not respawn")
+        XCTAssertEqual(spawnCounts()[b], 1, "sibling child must be untouched")
+        XCTAssertEqual(supervisor.watchedProjects, [b])
+    }
+
+    func testResumeWatchingRestartsPausedProject() throws {
+        let supervisor = makeSupervisor(cap: 4)
+        let a = try makeProject("a")
+
+        supervisor.setProjects([a])
+        EngineFixtures.waitUntil(message: "a did not spawn") { self.spawnCounts()[a] == 1 }
+
+        supervisor.pauseWatching(a, patience: 0.2)
+        EngineFixtures.waitUntil(message: "a was not removed from the fleet") {
+            supervisor.watchedProjects.isEmpty
+        }
+
+        supervisor.resumeWatching(a)
+        EngineFixtures.waitUntil(message: "a did not respawn after resume") {
+            self.spawnCounts()[a] == 2
+        }
+        XCTAssertEqual(supervisor.watchedProjects, [a])
+        // Exactly one respawn: resume must not double-spawn.
+        usleep(300_000)
+        XCTAssertEqual(spawnCounts()[a], 2)
+    }
+
     func testWatchEventsAreForwardedWithProjectPath() throws {
         let supervisor = makeSupervisor(cap: 2)
         let a = try makeProject(

@@ -45,6 +45,8 @@ final class AppModel: ObservableObject {
     let askMention = MentionState()
     let searchMention = MentionState()
     let updates = UpdateChecker()
+    let cockpit = CockpitModel()
+    let storage = StorageModel()
     var supervisor: WatchSupervisor?
     var tripwire: SessionTripwire?
     private(set) var binaryURL: URL?
@@ -214,6 +216,12 @@ final class AppModel: ObservableObject {
 
         auth.bootstrap()
         authState = auth.state
+        cockpit.configure(
+            supervisorPause: { [weak self] path in Task { @MainActor in self?.supervisor?.pauseWatching(path) } },
+            supervisorResume: { [weak self] path in Task { @MainActor in self?.supervisor?.resumeWatching(path) } }
+        )
+        storage.onChanged = { [weak self] in self?.supervisor?.restartAll() }
+        storage.onError = { [weak self] in self?.showToast($0, kind: .warning) }
         pro.configure(auth: auth)
         Task { await pro.refresh(signedIn: authState != .signedOut) }
 

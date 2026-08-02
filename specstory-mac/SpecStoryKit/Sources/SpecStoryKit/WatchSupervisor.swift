@@ -105,6 +105,26 @@ public final class WatchSupervisor {
         }
     }
 
+    /// Cockpit pause: mark the path not desired and stop that child only.
+    /// The rest of the fleet is untouched, and dropping the path from the
+    /// desired set means neither the crash-restart path nor a pending
+    /// respawn can bring it back. A later setProjects reconcile may re-add
+    /// it; callers wanting a durable pause filter their reconcile input.
+    public func pauseWatching(_ path: String, patience: TimeInterval = 20) {
+        queue.async {
+            self.desired.remove(path)
+            self.stopChild(at: path, patience: patience)
+        }
+    }
+
+    /// Cockpit resume: re-add the path to the desired set and start it,
+    /// evicting the least recently active child when at capacity (the exact
+    /// ensureWatching policy, kept as a separate name so call sites read as
+    /// the pause counterpart).
+    public func resumeWatching(_ path: String) {
+        queue.async { self.ensure(path) }
+    }
+
     // MARK: - Queue-confined implementation
 
     private func reconcile(_ paths: [String]) {

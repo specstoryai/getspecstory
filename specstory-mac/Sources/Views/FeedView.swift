@@ -68,7 +68,7 @@ struct FeedView: View {
                 .foregroundStyle(Theme.ink)
                 .padding(.bottom, 4)
             ForEach(model.liveSessionsOrdered) { live in
-                LiveSessionCard(model: model, live: live)
+                LiveSessionCard(model: model, cockpit: model.cockpit, live: live)
             }
         }
     }
@@ -166,23 +166,49 @@ struct FeedView: View {
     }
 }
 
-/// A live session gets a warmer, more prominent card.
+/// A live session gets a warmer, more prominent card. Tapping the row still
+/// reveals the session; the gauge button discloses the agent cockpit inside
+/// the same card chrome.
 struct LiveSessionCard: View {
     @ObservedObject var model: AppModel
+    @ObservedObject var cockpit: CockpitModel
     let live: LiveSession
 
     @State private var hovering = false
 
+    private var expanded: Bool { cockpit.expandedSessionID == live.sessionID }
+
     var body: some View {
-        Button {
-            model.revealSession(id: live.sessionID)
-        } label: {
-            cardBody
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Button {
+                    model.revealSession(id: live.sessionID)
+                } label: {
+                    rowBody
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.tactileCard)
+
+                cockpitDisclosure
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+
+            if expanded {
+                CockpitView(cockpit: cockpit, live: live) {
+                    model.revealSession(id: live.sessionID)
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
+                .transition(.opacity)
+            }
         }
-        .buttonStyle(.tactileCard)
+        .cardChrome(hovering: hovering)
+        .onHover { hovering = $0 }
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: expanded)
     }
 
-    private var cardBody: some View {
+    private var rowBody: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 2)
                 .fill(Theme.live)
@@ -215,11 +241,33 @@ struct LiveSessionCard: View {
                 .foregroundStyle(Theme.inkTertiary)
                 .monospacedDigit()
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .cardChrome(hovering: hovering)
-        .onHover { hovering = $0 }
-        .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+    }
+
+    /// The dedicated cockpit affordance: gauge plus a chevron that flips
+    /// while the cockpit is open.
+    private var cockpitDisclosure: some View {
+        Button {
+            cockpit.toggle(session: live)
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "gauge")
+                    .font(.system(size: 12, weight: .medium))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .rotationEffect(.degrees(expanded ? 180 : 0))
+            }
+            .foregroundStyle(expanded ? Theme.live : Theme.inkTertiary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 6)
+            .background(
+                expanded ? Theme.live.opacity(0.10) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.tactile)
+        .help(expanded ? "Close cockpit" : "Open cockpit")
+        .accessibilityLabel(expanded ? "Close cockpit" : "Open cockpit")
     }
 
     private var syncLabel: String {

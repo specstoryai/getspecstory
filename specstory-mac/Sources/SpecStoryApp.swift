@@ -25,6 +25,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     AppModel.shared?.panelMode = panel
                 }
             }
+            if env["SPECSTORY_DEBUG_COCKPIT"] == "1" {
+                func tryExpand(attempt: Int) {
+                    guard attempt < 15 else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        guard let model = AppModel.shared else { return }
+                        if let live = model.liveSessionsOrdered.first {
+                            model.cockpit.toggle(session: live)
+                        } else {
+                            tryExpand(attempt: attempt + 1)
+                        }
+                    }
+                }
+                tryExpand(attempt: 0)
+            }
             if env["SPECSTORY_DEBUG_SEARCH"] == "1" {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                     AppModel.shared?.searchOverlayShown = true

@@ -1,9 +1,23 @@
 import SwiftUI
 import SpecStoryKit
 
-/// Account (device-flow sign in), sync, notifications, startup, about.
+/// Settings, split into a native segmented tab bar: General (account, sync,
+/// notifications, startup, CLI), Storage (history destinations and git
+/// hygiene), and About.
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @State private var tab: SettingsTab = {
+        // Debug hook for automated captures.
+        SettingsTab(rawValue: ProcessInfo.processInfo.environment["SPECSTORY_DEBUG_SETTINGS_TAB"] ?? "") ?? .general
+    }()
+
+    private enum SettingsTab: String, CaseIterable, Identifiable {
+        case general = "General"
+        case storage = "Storage"
+        case about = "About"
+
+        var id: String { rawValue }
+    }
 
     var body: some View {
         ScrollView {
@@ -12,16 +26,47 @@ struct SettingsView: View {
                     .font(Theme.display(24))
                     .foregroundStyle(Theme.ink)
 
-                accountCard
-                generalCard
-                cliCard
-                aboutCard
+                Picker("Settings section", selection: $tab) {
+                    ForEach(SettingsTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+
+                switch tab {
+                case .general:
+                    accountCard
+                    generalCard
+                    cliCard
+                case .storage:
+                    StorageSettingsView(storage: model.storage)
+                        .task { await refreshStorage() }
+                case .about:
+                    aboutCard
+                }
             }
             .padding(28)
             .frame(maxWidth: 560, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(Theme.paper)
+    }
+
+    // MARK: Storage wiring
+
+    /// Rows come from the same substrate the watch fleet uses: recently
+    /// active projects plus whatever is currently watched. Callbacks are only
+    /// wired here when AppModel has not claimed them already.
+    private func refreshStorage() async {
+        if model.storage.onChanged == nil {
+            model.storage.onChanged = { [weak model] in model?.supervisor?.restartAll() }
+        }
+        if model.storage.onError == nil {
+            model.storage.onError = { [weak model] message in model?.showToast(message, kind: .warning) }
+        }
+        let paths = await model.recentProjectPaths(limit: 24) + (model.supervisor?.watchedProjects ?? [])
+        await model.storage.refresh(projectPaths: paths)
     }
 
     // MARK: Account
