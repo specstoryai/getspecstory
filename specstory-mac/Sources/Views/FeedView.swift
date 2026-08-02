@@ -16,7 +16,7 @@ struct FeedView: View {
                 SyncStatusStrip(model: model)
                     .padding(.bottom, 10)
 
-                if !model.liveSessionsOrdered.isEmpty {
+                if !model.displayLiveSessions.isEmpty {
                     liveSection
                         .padding(.bottom, 14)
                 }
@@ -67,7 +67,7 @@ struct FeedView: View {
                 .font(Theme.display(22))
                 .foregroundStyle(Theme.ink)
                 .padding(.bottom, 4)
-            ForEach(model.liveSessionsOrdered) { live in
+            ForEach(model.displayLiveSessions) { live in
                 LiveSessionCard(model: model, cockpit: model.cockpit, live: live)
             }
         }

@@ -166,6 +166,7 @@ final class AppModel: ObservableObject {
     var lastCloudSweepAt = Date.distantPast
     var cloudSweepRunning = false
     var cloudFailureStreak = 0
+    var frozenLiveOrder: [String]?
     var latestLocals: [IndexedSession] = []
     var latestProjectNames: [String: String] = [:]
 
@@ -216,6 +217,10 @@ final class AppModel: ObservableObject {
 
         auth.bootstrap()
         authState = auth.state
+        cockpit.onExpansionChange = { [weak self] expanded in
+            guard let self else { return }
+            self.frozenLiveOrder = expanded != nil ? self.liveSessionsOrdered.map(\.sessionID) : nil
+        }
         cockpit.configure(
             supervisorPause: { [weak self] path in Task { @MainActor in self?.supervisor?.pauseWatching(path) } },
             supervisorResume: { [weak self] path in Task { @MainActor in self?.supervisor?.resumeWatching(path) } }

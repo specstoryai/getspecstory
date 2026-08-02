@@ -106,10 +106,13 @@ extension AppModel {
         }
     }
 
-    /// A session stops being "live" after 10 minutes without events.
+    /// A session stops being "live" after 10 minutes without events. The
+    /// session under an open cockpit is never pruned mid-inspection.
     func pruneLiveSessions() {
         let cutoff = Date().addingTimeInterval(-600)
-        let stale = liveSessions.values.filter { $0.lastEventAt < cutoff }.map(\.sessionID)
+        let stale = liveSessions.values
+            .filter { $0.lastEventAt < cutoff && $0.sessionID != cockpit.expandedSessionID }
+            .map(\.sessionID)
         guard !stale.isEmpty else { return }
         for id in stale {
             liveSessions.removeValue(forKey: id)
@@ -120,5 +123,23 @@ extension AppModel {
     /// Live sessions newest-first for the pinned section.
     var liveSessionsOrdered: [LiveSession] {
         liveSessions.values.sorted { $0.lastEventAt > $1.lastEventAt }
+    }
+
+    /// What Happening now renders: while a cockpit is expanded the order is
+    /// frozen at expansion time (new arrivals append below) so the inspected
+    /// card never moves under the pointer.
+    var displayLiveSessions: [LiveSession] {
+        guard let frozen = frozenLiveOrder else { return liveSessionsOrdered }
+        var seen = Set<String>()
+        var result = [LiveSession]()
+        for id in frozen {
+            if let live = liveSessions[id], seen.insert(id).inserted {
+                result.append(live)
+            }
+        }
+        for live in liveSessionsOrdered where seen.insert(live.sessionID).inserted {
+            result.append(live)
+        }
+        return result
     }
 }

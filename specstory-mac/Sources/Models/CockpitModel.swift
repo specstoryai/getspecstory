@@ -10,7 +10,12 @@ import SpecStoryKit
 /// and git state, with all inspection work detached off the main actor.
 @MainActor
 final class CockpitModel: ObservableObject {
-    @Published var expandedSessionID: String?
+    @Published var expandedSessionID: String? {
+        didSet { onExpansionChange?(expandedSessionID) }
+    }
+    /// AppModel freezes the Happening-now ordering while a cockpit is open
+    /// so the inspected card cannot jump under the pointer.
+    var onExpansionChange: ((String?) -> Void)?
     @Published var insight: LiveSessionInsight?
     @Published var gitState: GitWorkingState?
     @Published var diffText: String?

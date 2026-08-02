@@ -148,7 +148,7 @@ struct CockpitView: View {
     private var filesRow: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text("Changed files")
+                Text("Changed files (\(touchedFiles.count))")
                     .font(Theme.body(10, weight: .semibold))
                     .foregroundStyle(Theme.inkTertiary)
                     .textCase(.uppercase)
@@ -163,17 +163,17 @@ struct CockpitView: View {
                 }
                 .buttonStyle(.tactile)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                ForEach(touchedFiles.prefix(6), id: \.self) { path in
-                    fileListRow(path)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(touchedFiles, id: \.self) { path in
+                        fileListRow(path)
+                    }
                 }
-                if touchedFiles.count > 6 {
-                    Text("and \(touchedFiles.count - 6) more in the full diff")
-                        .font(Theme.body(10))
-                        .foregroundStyle(Theme.inkTertiary)
-                        .padding(.leading, 18)
-                }
+                .padding(4)
             }
+            .frame(maxHeight: touchedFiles.count > 4 ? 132 : CGFloat(touchedFiles.count) * 26 + 8)
+            .background(Theme.paper.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Theme.hairline.opacity(0.7)))
         }
     }
 
