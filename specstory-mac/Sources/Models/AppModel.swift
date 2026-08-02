@@ -94,6 +94,11 @@ final class AppModel: ObservableObject {
     @Published var searchResults: [SearchResultRow] = []
     @Published var searchOverlayShown = false
     @Published var searchingLocal = false
+    @Published var activeLens: SearchLens?
+    @Published var savedSearches: [SavedSearch] = SavedSearch.load()
+    /// Set when a search result row is opened; the transcript viewer consumes
+    /// it to scroll straight to the matching exchange.
+    var pendingSearchSnippet: HighlightedSnippet?
     @Published var searchingCloud = false
     /// HUD facts: nil means not yet known and therefore not shown.
     @Published var localTotalSessions: Int?
@@ -327,6 +332,7 @@ final class AppModel: ObservableObject {
         searchResults = []
         searchingLocal = false
         searchingCloud = false
+        activeLens = nil
         searchTask?.cancel()
         cloudSearchTask?.cancel()
     }

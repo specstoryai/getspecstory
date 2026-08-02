@@ -57,6 +57,11 @@ final class TranscriptState: ObservableObject {
     @Published private(set) var transcript: SessionTranscript?
     @Published private(set) var parsing = false
     @Published var activeExchangeID: Int?
+    /// Search deep link: set after parse when a snippet located its exchange;
+    /// the content view scrolls to it and clears it.
+    @Published var pendingJumpExchangeID: Int?
+    /// Snippet awaiting the parse, handed over by the search overlay.
+    var pendingSnippet: HighlightedSnippet?
     @Published var visible: Set<TranscriptElement> {
         didSet {
             UserDefaults.standard.set(visible.map(\.rawValue).sorted(), forKey: Self.filterDefaultsKey)
@@ -78,7 +83,18 @@ final class TranscriptState: ObservableObject {
     /// Parses new markdown in a detached task so a megabyte session never
     /// blocks the main actor; results publish back here.
     func update(markdown: String?) {
-        guard markdown != parsedMarkdown else { return }
+        guard markdown != parsedMarkdown else {
+            // Same session reopened from search: the parse is already done,
+            // so consume the deep link against the existing transcript.
+            if let snippet = pendingSnippet {
+                pendingSnippet = nil
+                if let transcript, let target = transcript.locateExchange(matching: snippet) {
+                    activeExchangeID = target
+                    pendingJumpExchangeID = target
+                }
+            }
+            return
+        }
         parsedMarkdown = markdown
         parseTask?.cancel()
         guard let markdown, !markdown.isEmpty else {
@@ -96,6 +112,13 @@ final class TranscriptState: ObservableObject {
             self.transcript = parsed
             self.parsing = false
             self.activeExchangeID = parsed.exchanges.first?.id
+            if let snippet = self.pendingSnippet {
+                self.pendingSnippet = nil
+                if let target = parsed.locateExchange(matching: snippet) {
+                    self.activeExchangeID = target
+                    self.pendingJumpExchangeID = target
+                }
+            }
         }
     }
 

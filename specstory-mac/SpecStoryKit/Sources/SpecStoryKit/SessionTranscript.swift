@@ -719,3 +719,44 @@ public struct SessionTranscript: Equatable, Sendable {
         }
     }
 }
+
+extension SessionTranscript {
+    /// Locates the exchange a search snippet came from by matching its plain
+    /// text (whitespace-collapsed) against each exchange's raw markdown.
+    /// Prefers the exchange containing the longest highlighted span together
+    /// with snippet context; falls back to the first exchange containing any
+    /// highlighted term. Nil when nothing matches (snippet from FTS body
+    /// text that markdown rendering rewrote).
+    public func locateExchange(matching snippet: HighlightedSnippet) -> Int? {
+        func collapse(_ text: String) -> String {
+            text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ").lowercased()
+        }
+        let spans = snippet.spans
+        let highlighted = spans.filter(\.isHighlighted).map { collapse($0.text) }.filter { $0.count >= 2 }
+        // The longest contiguous plain run is the most discriminating anchor.
+        let anchor = spans.map { collapse($0.text) }
+            .filter { $0.count >= 12 }
+            .max(by: { $0.count < $1.count })
+
+        var textByExchange = [Int: String]()
+        for exchange in exchanges {
+            textByExchange[exchange.id] = collapse(exchange.rawUserMarkdown + " " + exchange.rawAgentMarkdown)
+        }
+        if let anchor {
+            if let hit = exchanges.first(where: { textByExchange[$0.id]?.contains(anchor) == true }) {
+                return hit.id
+            }
+        }
+        guard !highlighted.isEmpty else { return nil }
+        // Best exchange = most highlighted terms present.
+        var best: (id: Int, score: Int)?
+        for exchange in exchanges {
+            guard let text = textByExchange[exchange.id] else { continue }
+            let score = highlighted.filter { text.contains($0) }.count
+            if score > 0, score > (best?.score ?? 0) {
+                best = (exchange.id, score)
+            }
+        }
+        return best?.id
+    }
+}

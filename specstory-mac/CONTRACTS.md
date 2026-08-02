@@ -123,8 +123,12 @@ public struct IndexedSession: Equatable, Sendable {
 
 // Read-only connection to ~/.specstory/sessions.db (SQLite + FTS5, WAL).
 // It is a rebuildable cache owned by the CLI: open read-only (SQLITE_OPEN_READONLY),
-// tolerate absence (throws .databaseMissing), never write. Schema per
-// specstory-cli/docs/SESSIONS-DB.md.
+// tolerate absence (throws .databaseMissing), never write rows or schema.
+// One exception: a writer killed mid-transaction leaves a hot WAL that a
+// readonly connection cannot recover (SQLITE_READONLY_RECOVERY makes every
+// query fail, so the index reads as empty); when the init probe sees that,
+// a brief read-write open runs a passive checkpoint to recover, then
+// readonly service resumes. Schema per specstory-cli/docs/SESSIONS-DB.md.
 public final class SessionIndexReader {
     public enum ReaderError: Error { case databaseMissing, sqlite(String) }
     public init(databaseURL: URL) throws

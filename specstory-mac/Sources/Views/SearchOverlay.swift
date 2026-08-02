@@ -39,7 +39,7 @@ struct SearchOverlay: View {
                         .onSubmit {
                             if mention.consumeReturn(candidates: candidatesProvider()) { return }
                             if let first = model.searchResults.first {
-                                open(first.item)
+                                open(first.item, snippet: first.snippet)
                             }
                         }
                     if model.searchingLocal || model.searchingCloud {
@@ -75,9 +75,16 @@ struct SearchOverlay: View {
 
                 Divider().overlay(Theme.hairline)
 
-                if !model.queryReady(mention.text) && !mention.hasChips {
+                lensRow
+
+                if !model.queryReady(mention.text) && !mention.hasChips && model.activeLens == nil {
                     // Resting state: the palette is alive before a query.
-                    resultsList(model.recentSearchRows, header: "Recent")
+                    VStack(alignment: .leading, spacing: 0) {
+                        if !model.savedSearches.isEmpty {
+                            savedRow
+                        }
+                        resultsList(model.recentSearchRows, header: "Recent")
+                    }
                 } else if !model.searchResults.isEmpty {
                     resultsList(model.searchResults, header: nil)
                 } else if model.searchingLocal || model.searchingCloud {
@@ -109,6 +116,91 @@ struct SearchOverlay: View {
         .transition(.opacity)
     }
 
+    /// Lens pills plus save affordance; saved searches render in the resting list.
+    private var lensRow: some View {
+        HStack(spacing: 6) {
+            ForEach(SearchLens.allCases) { lens in
+                Button {
+                    model.activateLens(lens)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: lens.symbol)
+                            .font(.system(size: 9))
+                        Text(lens.displayName)
+                            .font(Theme.body(10.5, weight: model.activeLens == lens ? .semibold : .regular))
+                    }
+                    .foregroundStyle(model.activeLens == lens ? Theme.accent : Theme.inkSecondary)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(model.activeLens == lens ? Theme.accent.opacity(0.10) : Theme.card, in: Capsule())
+                    .overlay(Capsule().strokeBorder(model.activeLens == lens ? Theme.accent.opacity(0.4) : Theme.hairline))
+                }
+                .buttonStyle(.tactile)
+            }
+            Spacer()
+            if model.activeLens != nil || model.queryReady(mention.text) || mention.hasChips {
+                Button {
+                    model.saveCurrentSearch()
+                } label: {
+                    Label("Save", systemImage: "bookmark")
+                        .font(Theme.body(10.5, weight: .medium))
+                        .foregroundStyle(Theme.inkSecondary)
+                }
+                .buttonStyle(.tactile)
+                .help("Save this search")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
+    }
+
+    private var savedRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Saved searches")
+                .font(Theme.body(10, weight: .semibold))
+                .foregroundStyle(Theme.inkTertiary)
+                .textCase(.uppercase)
+                .kerning(0.4)
+                .padding(.horizontal, 18)
+                .padding(.top, 10)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(model.savedSearches) { saved in
+                        HStack(spacing: 5) {
+                            Button {
+                                model.runSavedSearch(saved)
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: saved.lens?.symbol ?? "bookmark")
+                                        .font(.system(size: 9))
+                                    Text(saved.name)
+                                        .font(Theme.body(10.5, weight: .medium))
+                                        .lineLimit(1)
+                                }
+                                .foregroundStyle(Theme.inkSecondary)
+                            }
+                            .buttonStyle(.tactile)
+                            Button {
+                                model.deleteSavedSearch(saved)
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 7, weight: .bold))
+                                    .foregroundStyle(Theme.inkTertiary)
+                            }
+                            .buttonStyle(.tactile)
+                            .accessibilityLabel("Delete saved search")
+                        }
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(Theme.card, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Theme.hairline))
+                    }
+                }
+                .padding(.horizontal, 18)
+            }
+        }
+    }
+
     @ViewBuilder private func resultsList(_ rows: [SearchResultRow], header: String?) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 4) {
@@ -128,7 +220,7 @@ struct SearchOverlay: View {
                             isLive: model.liveSessions[row.item.clientID] != nil,
                             currentDeviceID: DeviceIdentity.current,
                             contextModel: model,
-                            onOpen: { open(row.item) },
+                            onOpen: { open(row.item, snippet: row.snippet) },
                             onResume: model.canResume(row.item) ? { model.requestResume(row.item) } : nil
                         )
                         if let snippet = row.snippet {
@@ -182,6 +274,11 @@ struct SearchOverlay: View {
     }
 
     private func open(_ item: SessionItem) {
+        open(item, snippet: nil)
+    }
+
+    private func open(_ item: SessionItem, snippet: HighlightedSnippet?) {
+        model.pendingSearchSnippet = snippet
         dismiss()
         model.panelMode = .home
         model.openSession(item)

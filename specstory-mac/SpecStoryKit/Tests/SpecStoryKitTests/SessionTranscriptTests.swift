@@ -656,4 +656,48 @@ final class SessionTranscriptTests: XCTestCase {
             return nil
         }
     }
+
+    // MARK: - locateExchange (search deep links)
+
+    func testLocateExchangeByAnchorSpan() throws {
+        let transcript = try XCTUnwrap(SessionTranscript.parse(markdown: fixture))
+        // A long unhighlighted anchor from exchange 1's agent text.
+        let snippet = HighlightedSnippet(spans: [
+            .init(text: "I will look at the ", isHighlighted: false),
+            .init(text: "tokenizer", isHighlighted: true),
+            .init(text: ".", isHighlighted: false),
+        ])
+        XCTAssertEqual(transcript.locateExchange(matching: snippet), transcript.exchanges.first?.id)
+    }
+
+    func testLocateExchangeByHighlightedTermScore() throws {
+        let transcript = try XCTUnwrap(SessionTranscript.parse(markdown: fixture))
+        // No span long enough to anchor; falls back to highlighted-term
+        // scoring. "fences" and "nest" only appear in the first exchange.
+        let snippet = HighlightedSnippet(spans: [
+            .init(text: "fences", isHighlighted: true),
+            .init(text: " ", isHighlighted: false),
+            .init(text: "nest", isHighlighted: true),
+        ])
+        XCTAssertEqual(transcript.locateExchange(matching: snippet), transcript.exchanges.first?.id)
+    }
+
+    func testLocateExchangeMissReturnsNil() throws {
+        let transcript = try XCTUnwrap(SessionTranscript.parse(markdown: fixture))
+        let snippet = HighlightedSnippet(spans: [
+            .init(text: "zebra", isHighlighted: true),
+            .init(text: " quantum flamingo carousel", isHighlighted: false),
+        ])
+        XCTAssertNil(transcript.locateExchange(matching: snippet))
+    }
+
+    func testLocateExchangeNormalizesWhitespaceAndCase() throws {
+        let transcript = try XCTUnwrap(SessionTranscript.parse(markdown: fixture))
+        // FTS snippets collapse runs of whitespace and lowercase nothing;
+        // the locator must match despite newlines in the source markdown.
+        let snippet = HighlightedSnippet(spans: [
+            .init(text: "HERE IS THE FIX:", isHighlighted: false),
+        ])
+        XCTAssertEqual(transcript.locateExchange(matching: snippet), transcript.exchanges.first?.id)
+    }
 }

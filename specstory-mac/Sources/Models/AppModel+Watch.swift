@@ -38,12 +38,17 @@ extension AppModel {
     }
 
     /// CLI children survive an app crash or force-quit (no parent-death
-    /// signal on macOS). Anything running our bundled binary before our own
-    /// fleet starts is an orphan from a previous run: terminate it.
+    /// signal on macOS). Anything running a bundled watch binary before our
+    /// own fleet starts is an orphan from a previous run: terminate it.
+    /// Matched by binary name, not full path, so a Debug build reaps the
+    /// installed app's orphans and vice versa; each leaked child can hold
+    /// tens of thousands of file descriptors, enough to exhaust the system
+    /// table when they accumulate. Restricted to children of launchd (-P 1)
+    /// so another running instance's live fleet is never touched.
     private func reapOrphanChildren(binary: URL) {
         let pgrep = Process()
         pgrep.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        pgrep.arguments = ["-f", binary.path]
+        pgrep.arguments = ["-P", "1", "-f", "specstory_darwin_[a-z0-9_]* watch --json"]
         let pipe = Pipe()
         pgrep.standardOutput = pipe
         do {

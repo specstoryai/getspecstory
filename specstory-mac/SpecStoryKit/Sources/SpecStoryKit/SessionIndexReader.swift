@@ -51,7 +51,8 @@ public struct IndexedSession: Equatable, Sendable {
 /// the CLI-owned rebuildable session index. Schema v7 per
 /// specstory-cli/docs/SESSIONS-DB.md.
 ///
-/// Invariants: opened with SQLITE_OPEN_READONLY (never writes, never creates),
+/// Invariants: opened with SQLITE_OPEN_READONLY (never creates; the sole
+/// write-mode touch is a passive WAL-recovery checkpoint after a crashed writer),
 /// tolerates a missing file (`ReaderError.databaseMissing`), and tolerates
 /// schema drift by probing columns at init and substituting NULL for absent
 /// optional columns; empty results beat crashes.
@@ -80,6 +81,25 @@ public final class SessionIndexReader {
               !isDirectory.boolValue else {
             throw ReaderError.databaseMissing
         }
+        var opened = try Self.openReadonly(path: path)
+        var columns = Self.columnNames(db: opened, table: "sessions")
+        if columns.isEmpty {
+            // A writer killed mid-transaction leaves a WAL that a readonly
+            // connection cannot recover (SQLITE_READONLY_RECOVERY): the open
+            // succeeds but every query fails, so the index reads as empty.
+            // A brief read-write open performs the recovery, then readonly
+            // service resumes.
+            sqlite3_close(opened)
+            Self.recoverWAL(path: path)
+            opened = try Self.openReadonly(path: path)
+            columns = Self.columnNames(db: opened, table: "sessions")
+        }
+        db = opened
+        presentColumns = columns
+        hasFTS = Self.tableExists(db: opened, name: "sessions_fts")
+    }
+
+    private static func openReadonly(path: String) throws -> OpaquePointer {
         var handle: OpaquePointer?
         let rc = sqlite3_open_v2(path, &handle, SQLITE_OPEN_READONLY, nil)
         guard rc == SQLITE_OK, let opened = handle else {
@@ -93,9 +113,22 @@ public final class SessionIndexReader {
         // SQLite's purgeable-memory shrinking stall for seconds on finalize.
         // Reads here are shallow, so keep the cache tiny (2 MB).
         sqlite3_exec(opened, "PRAGMA cache_size = -2000", nil, nil, nil)
-        db = opened
-        presentColumns = Self.columnNames(db: opened, table: "sessions")
-        hasFTS = Self.tableExists(db: opened, name: "sessions_fts")
+        return opened
+    }
+
+    /// The one place this reader touches the database read-write, and only
+    /// when the readonly probe found nothing: a passive checkpoint makes
+    /// SQLite run WAL recovery after a crashed writer. No schema or row is
+    /// ever written.
+    private static func recoverWAL(path: String) {
+        var handle: OpaquePointer?
+        guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE, nil) == SQLITE_OK, let rw = handle else {
+            sqlite3_close(handle)
+            return
+        }
+        sqlite3_busy_timeout(rw, 2000)
+        sqlite3_exec(rw, "PRAGMA wal_checkpoint(PASSIVE)", nil, nil, nil)
+        sqlite3_close(rw)
     }
 
     deinit {
@@ -145,6 +178,21 @@ public final class SessionIndexReader {
     /// ordered by recency (deliberately not bm25: transcripts make it noisy),
     /// and snippet(...) context fetched in a second query for the head of the
     /// result list.
+    /// Lens search: the caller supplies a prebuilt FTS5 MATCH expression
+    /// (curated lens queries use OR, which the safe user grammar never
+    /// emits). Only pass app-authored expressions here.
+    public func searchWithSnippets(matchExpression: String, limit: Int, snippetLimit: Int = 30) throws -> [SnippetHit] {
+        guard hasCoreColumns, hasFTS else { return [] }
+        let sessions = (try? matchSessions(query: matchExpression, limit: limit)) ?? []
+        guard snippetLimit > 0, !sessions.isEmpty else {
+            return sessions.map { SnippetHit(session: $0, snippet: nil) }
+        }
+        let snippets = (try? snippetMap(match: matchExpression, sessions: Array(sessions.prefix(snippetLimit)))) ?? [:]
+        return sessions.map { session in
+            SnippetHit(session: session, snippet: snippets[session.provider + "\u{0}" + session.sessionID])
+        }
+    }
+
     public func searchWithSnippets(_ text: String, limit: Int, snippetLimit: Int = 30) throws -> [SnippetHit] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, hasCoreColumns else { return [] }

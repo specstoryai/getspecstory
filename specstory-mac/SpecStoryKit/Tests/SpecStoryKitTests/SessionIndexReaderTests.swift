@@ -210,4 +210,42 @@ final class SessionIndexReaderTests: XCTestCase {
         XCTAssertFalse(url.path.contains("~"))
         XCTAssertTrue(url.path.hasSuffix("/.specstory/sessions.db"))
     }
+
+    // MARK: - Crashed-writer WAL recovery
+
+    func testRecoversHotWALFromCrashedWriter() throws {
+        // Reopen the fixture read-write and add a row so the WAL holds
+        // uncheckpointed frames again.
+        var handle: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(dbURL.path, &handle), SQLITE_OK)
+        let db = try XCTUnwrap(handle)
+        exec(db, "PRAGMA journal_mode=WAL")
+        exec(db, """
+        INSERT INTO sessions (project_id, project_name, agent, session_id, created_at, updated_at,
+            user_turns, total_turns, slug, name, native_path, origin_cwd,
+            size, mtime, index_version, indexed_at, fts_rowid, deleted)
+        VALUES ('proj-c', 'proj-c', 'claude', 's6-crashed',
+            '2025-01-07T07:00:00Z', '2025-01-07T07:45:00Z', 1, 2,
+            'crashed', 'Crashed writer row', '/native/s6', '/tmp/projC',
+            100, 1700000000000, 7, '2025-01-07T07:45:00Z', NULL, 0)
+        """)
+
+        // Copy the database with its hot WAL while the writer still holds
+        // it, mimicking a writer killed mid-flight: the copy's WAL index was
+        // never cleanly shut down, which a readonly connection cannot
+        // recover on its own (SQLITE_READONLY_RECOVERY).
+        let crashed = tempDir.appendingPathComponent("crashed.db")
+        for ext in ["", "-wal", "-shm"] {
+            let source = URL(fileURLWithPath: dbURL.path + ext)
+            if FileManager.default.fileExists(atPath: source.path) {
+                try FileManager.default.copyItem(
+                    at: source, to: URL(fileURLWithPath: crashed.path + ext))
+            }
+        }
+        sqlite3_close(db)
+
+        let reader = try SessionIndexReader(databaseURL: crashed)
+        XCTAssertEqual(try reader.count(), 5)
+        XCTAssertTrue(try reader.recentSessions(limit: 10).contains { $0.sessionID == "s6-crashed" })
+    }
 }

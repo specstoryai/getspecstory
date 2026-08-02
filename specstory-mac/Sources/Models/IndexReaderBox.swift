@@ -33,6 +33,11 @@ actor IndexReaderBox {
         return (try? reader.searchWithSnippets(text, limit: limit, snippetLimit: snippetLimit)) ?? []
     }
 
+    func searchLens(matchExpression: String, limit: Int, snippetLimit: Int) -> [SessionIndexReader.SnippetHit] {
+        guard let reader else { return [] }
+        return (try? reader.searchWithSnippets(matchExpression: matchExpression, limit: limit, snippetLimit: snippetLimit)) ?? []
+    }
+
     func distinctProjectPaths(limit: Int) -> [String] {
         guard let reader else { return [] }
         return (try? reader.distinctProjectPaths(limit: limit)) ?? []

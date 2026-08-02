@@ -17,10 +17,25 @@ struct SessionDetailView: View {
             contentBody
         }
         .background(Theme.paper)
-        .onAppear { state.update(markdown: model.sessionMarkdown) }
+        .onAppear {
+            takePendingSnippet()
+            state.update(markdown: model.sessionMarkdown)
+        }
         .onChange(of: model.sessionMarkdown) { _, markdown in
+            // The detail view is reused across sessions; a search deep link
+            // arriving while another session is open lands here, not onAppear.
+            takePendingSnippet()
             state.update(markdown: markdown)
         }
+    }
+
+    /// Moves the search deep link from the model into the transcript state
+    /// without clobbering one already waiting (the markdown loads async, so
+    /// onChange fires after onAppear consumed the model's copy).
+    private func takePendingSnippet() {
+        guard let snippet = model.pendingSearchSnippet else { return }
+        state.pendingSnippet = snippet
+        model.pendingSearchSnippet = nil
     }
 
     // MARK: Header (sticky above the scroll)
@@ -179,7 +194,26 @@ private struct TranscriptContentView: View {
         GeometryReader { geometry in
             let wide = geometry.size.width >= Self.wideThreshold
             ScrollViewReader { proxy in
+
                 VStack(spacing: 0) {
+                    Color.clear.frame(height: 0)
+                        .onChange(of: state.pendingJumpExchangeID) { _, target in
+                            guard let target else { return }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    proxy.scrollTo(target, anchor: .top)
+                                }
+                                state.pendingJumpExchangeID = nil
+                            }
+                        }
+                        .onAppear {
+                            if let target = state.pendingJumpExchangeID {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    proxy.scrollTo(target, anchor: .top)
+                                    state.pendingJumpExchangeID = nil
+                                }
+                            }
+                        }
                     HStack(spacing: 0) {
                         ElementFilterRow(state: state)
                         if !wide {

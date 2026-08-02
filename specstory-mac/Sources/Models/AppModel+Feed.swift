@@ -180,7 +180,7 @@ extension AppModel {
         // hits never blend with fresh local results.
         cloudSearchRows = []
 
-        guard queryReady(query) || searchMention.hasChips else {
+        guard queryReady(query) || searchMention.hasChips || activeLens != nil else {
             localSearchRows = []
             searchResults = []
             searchingLocal = false
@@ -192,12 +192,15 @@ extension AppModel {
         // debounce is long enough that queued index queries cannot pile up
         // behind a fast typist on a large database.
         searchingLocal = true
-        searchingCloud = case1SignedIn()
+        // Lenses run against the local index only; cloud rows from a plain
+        // text query would dilute a curated lens.
+        searchingCloud = activeLens == nil && case1SignedIn()
         searchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 180_000_000)
             guard !Task.isCancelled else { return }
             await self?.runLocalSearch(query, seq: seq)
         }
+        guard activeLens == nil else { return }
         cloudSearchTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 600_000_000)
             guard !Task.isCancelled else { return }
@@ -219,6 +222,24 @@ extension AppModel {
         // Phase 1: rows without snippets render fast; phase 2 attaches
         // matching context. snippet() over a multi-gigabyte FTS table is the
         // expensive half, so it must never block first paint.
+        if let lens = activeLens {
+            // A typed query narrows the lens: (user) AND (lens).
+            var expression = lens.matchExpression
+            if queryReady(query), let userExpr = SessionIndexReader.ftsQuery(from: query) {
+                expression = "(\(userExpr)) AND (\(lens.matchExpression))"
+            }
+            let hits = await indexBox.searchLens(matchExpression: expression, limit: 200, snippetLimit: 20)
+            guard searchSeq == seq else { return }
+            localSearchRows = applyChipFilters(hits.map { hit in
+                SearchResultRow(
+                    item: allItems.first { $0.clientID == hit.session.sessionID } ?? SessionItem(local: hit.session),
+                    snippet: hit.snippet.map(HighlightedSnippet.parse)
+                )
+            })
+            searchingLocal = false
+            blendSearchResults()
+            return
+        }
         if queryReady(query) {
             let fast = await indexBox.searchWithSnippets(query, limit: 500, snippetLimit: 0)
             guard searchSeq == seq else { return }
@@ -359,6 +380,50 @@ extension AppModel {
             if seen.insert(key).inserted { union.append(row) }
         }
         searchResults = union.sorted { $0.item.sortDate > $1.item.sortDate }
+    }
+
+    // MARK: Lenses and saved searches
+
+    func activateLens(_ lens: SearchLens?) {
+        activeLens = activeLens == lens ? nil : lens
+        searchQueryChanged()
+    }
+
+    func saveCurrentSearch() {
+        let query = searchMention.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = activeLens?.displayName ?? (query.isEmpty ? "Untitled search" : String(query.prefix(40)))
+        let saved = SavedSearch(
+            name: name, query: query, lens: activeLens,
+            projectIDs: searchMention.selectedProjectIDs,
+            agents: searchMention.selectedAgents,
+            timeFilter: searchMention.timeFilter
+        )
+        savedSearches.insert(saved, at: 0)
+        savedSearches = Array(savedSearches.prefix(12))
+        SavedSearch.store(savedSearches)
+        showToast("Search saved")
+    }
+
+    func runSavedSearch(_ saved: SavedSearch) {
+        searchMention.clearAll()
+        searchMention.text = saved.query
+        for id in saved.projectIDs {
+            let name = cloudProjects.first { $0.id == id }?.name ?? id
+            searchMention.select(MentionItem(id: "project-\(id)", kind: .project, value: id, label: name))
+        }
+        for agent in saved.agents {
+            searchMention.select(MentionItem(id: "agent-\(agent)", kind: .agent, value: agent, label: agent))
+        }
+        if let time = saved.timeFilter, let option = timeMentions.first(where: { $0.value == time }) {
+            searchMention.select(MentionItem(id: "time-\(time)", kind: .time, value: time, label: option.label))
+        }
+        activeLens = saved.lens
+        searchQueryChanged()
+    }
+
+    func deleteSavedSearch(_ saved: SavedSearch) {
+        savedSearches.removeAll { $0.id == saved.id }
+        SavedSearch.store(savedSearches)
     }
 
     // MARK: Session detail

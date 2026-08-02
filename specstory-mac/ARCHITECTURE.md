@@ -40,7 +40,7 @@ Tests: `cd SpecStoryKit && swift test`.
 10. **Notifications**: new-session-started (primary), sync error, sign-in needed. Per-session "synced" stays a UI pill, not a notification. Authorization requested on first session detection.
 11. **Analytics**: none app-side; the CLI's built-in PostHog stays as is.
 12. **RAG scope**: cloud `/api/v1/chat` when signed in; signed out, the Ask panel serves local FTS results with a sign-in upsell for AI answers.
-13. **Search vs Ask**: Granola pattern. Sidebar Search (⌘K) is a search overlay (local FTS + cloud GraphQL merged); the floating bottom bar is Ask (RAG).
+13. **Search vs Ask**: Granola pattern. Sidebar Search (⌘K) is a search overlay (local FTS + cloud GraphQL merged); the floating bottom bar is Ask (RAG). Search is exchange-addressable: opening a snippet hands it to the transcript view, which locates the matching exchange (SessionTranscript.locateExchange) and scrolls to it. Lenses (Decisions, Corrections, Errors, Commands, Unresolved) are curated FTS5 expressions run locally only; saved searches persist query + chips + lens in UserDefaults.
 14. **SpecStoryKit exists day one**: parsing, API models, Keychain, tokens are unit-tested there (`swift test`); the app target has no test bundle (Rook precedent).
 15. **Reindex**: `specstory reindex` on launch (async); watch children keep the index live afterwards.
 16. **Menu bar content**: rich `MenuBarExtra(.window)` popover: live sessions, recent sessions, sync state, quick actions. Not launch-window-only.

@@ -42,6 +42,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if env["SPECSTORY_DEBUG_SEARCH"] == "1" {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                     AppModel.shared?.searchOverlayShown = true
+                    if let raw = env["SPECSTORY_DEBUG_SEARCH_LENS"],
+                        let lens = SearchLens(rawValue: raw) {
+                        AppModel.shared?.activateLens(lens)
+                    }
+                    if let query = env["SPECSTORY_DEBUG_SEARCH_QUERY"], !query.isEmpty {
+                        AppModel.shared?.searchMention.text = query
+                        AppModel.shared?.searchQueryChanged()
+                    }
+                    if env["SPECSTORY_DEBUG_SEARCH_OPEN_HIT"] == "1" {
+                        // Open the first result through the snippet deep-link
+                        // path once results settle.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                            guard let model = AppModel.shared,
+                                // A settled session with a snippet: live ones
+                                // re-parse as markdown streams in, resetting
+                                // the scroll under the verification.
+                                let hit = model.searchResults.filter({
+                                    $0.snippet != nil &&
+                                    ($0.item.updatedAt ?? .distantPast) < Date().addingTimeInterval(-1800)
+                                }).max(by: { ($0.item.promptCount ?? 0) < ($1.item.promptCount ?? 0) })
+                                    ?? model.searchResults.first else { return }
+                            model.pendingSearchSnippet = hit.snippet
+                            model.searchOverlayShown = false
+                            model.panelMode = .home
+                            model.openSession(hit.item)
+                        }
+                    }
                 }
             }
             if env["SPECSTORY_DEBUG_OPEN_RECENT"] == "1" {
