@@ -49,69 +49,71 @@ struct CockpitView: View {
 
     // MARK: Header strip
 
+    /// Fixed context reads as a stable labeled grid: same rows every time,
+    /// values change in place. No pills; pills are for actions.
     private var headerStrip: some View {
-        ChipWrapLayout(spacing: 8) {
-            pathBadge
-            if let branch = branchName {
-                branchPill(branch)
-            }
-            if let model = modelName {
-                HStack(spacing: 4) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 9))
-                    Text(model)
-                        .font(Theme.body(11))
+        Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 5) {
+            GridRow {
+                gridLabel("Worktree")
+                HStack(spacing: 6) {
+                    Text(CockpitFormat.abbreviatePath(workingPath))
+                        .font(Theme.mono(11))
+                        .foregroundStyle(Theme.ink)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                        .help(workingPath)
+                    if cockpit.gitState?.isWorktree == true {
+                        Text("worktree")
+                            .font(Theme.body(9, weight: .semibold))
+                            .foregroundStyle(Theme.accent)
+                    }
                 }
-                .foregroundStyle(Theme.inkSecondary)
             }
-            if let usage = tokenUsage {
-                Text(usage)
-                    .font(Theme.body(11))
-                    .foregroundStyle(Theme.inkTertiary)
-                    .monospacedDigit()
+            if let branch = branchName {
+                GridRow {
+                    gridLabel("Branch")
+                    HStack(spacing: 6) {
+                        Text(branch)
+                            .font(Theme.mono(11))
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1)
+                        if let churn = churnLabel {
+                            Text(churn)
+                                .font(Theme.mono(10))
+                                .foregroundStyle(Theme.inkTertiary)
+                        }
+                    }
+                }
+            }
+            if modelName != nil || tokenUsage != nil {
+                GridRow {
+                    gridLabel("Model")
+                    HStack(spacing: 10) {
+                        if let model = modelName {
+                            Text(model)
+                                .font(Theme.mono(11))
+                                .foregroundStyle(Theme.ink)
+                        }
+                        if let usage = tokenUsage {
+                            Text(usage)
+                                .font(Theme.body(10.5))
+                                .foregroundStyle(Theme.inkTertiary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
             }
         }
     }
 
-    private var pathBadge: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "folder")
-                .font(.system(size: 9))
-                .foregroundStyle(Theme.inkTertiary)
-            Text(CockpitFormat.abbreviatePath(workingPath))
-                .font(Theme.mono(10.5))
-                .foregroundStyle(Theme.inkSecondary)
-                .lineLimit(1)
-                .truncationMode(.head)
-            if cockpit.gitState?.isWorktree == true {
-                Text("worktree")
-                    .font(Theme.body(9, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(Theme.accent.opacity(0.12), in: Capsule())
-            }
-        }
-        .help(workingPath)
-    }
-
-    private func branchPill(_ branch: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.system(size: 9, weight: .medium))
-            Text(branch)
-                .font(Theme.mono(10.5))
-                .lineLimit(1)
-            if let churn = churnLabel {
-                Text(churn)
-                    .font(Theme.mono(9.5))
-                    .foregroundStyle(Theme.inkTertiary)
-            }
-        }
-        .foregroundStyle(Theme.inkSecondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(Theme.sidebarSelection, in: Capsule())
+    private func gridLabel(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.body(10, weight: .semibold))
+            .foregroundStyle(Theme.inkTertiary)
+            .textCase(.uppercase)
+            .kerning(0.4)
+            .gridColumnAlignment(.leading)
+            .frame(width: 66, alignment: .leading)
     }
 
     // MARK: Status line
@@ -144,25 +146,59 @@ struct CockpitView: View {
     // MARK: Touched files
 
     private var filesRow: some View {
-        ChipWrapLayout(spacing: 6) {
-            ForEach(touchedFiles, id: \.self) { path in
-                CockpitFileChip(
-                    label: CockpitFormat.fileName(path),
-                    selected: cockpit.diffFile == path && (cockpit.diffText != nil || cockpit.diffLoading),
-                    help: path
-                ) {
-                    cockpit.showDiff(file: path)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Changed files")
+                    .font(Theme.body(10, weight: .semibold))
+                    .foregroundStyle(Theme.inkTertiary)
+                    .textCase(.uppercase)
+                    .kerning(0.4)
+                Spacer()
+                Button {
+                    cockpit.showDiff(file: nil)
+                } label: {
+                    Text("View full diff")
+                        .font(Theme.body(10.5, weight: .medium))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.tactile)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(touchedFiles.prefix(6), id: \.self) { path in
+                    fileListRow(path)
+                }
+                if touchedFiles.count > 6 {
+                    Text("and \(touchedFiles.count - 6) more in the full diff")
+                        .font(Theme.body(10))
+                        .foregroundStyle(Theme.inkTertiary)
+                        .padding(.leading, 18)
                 }
             }
-            CockpitFileChip(
-                label: "Full diff",
-                icon: "plus.forwardslash.minus",
-                selected: cockpit.diffFile == nil && (cockpit.diffText != nil || cockpit.diffLoading),
-                help: "Show the full working diff"
-            ) {
-                cockpit.showDiff(file: nil)
-            }
         }
+    }
+
+    private func fileListRow(_ path: String) -> some View {
+        let selected = cockpit.diffFile == path && (cockpit.diffText != nil || cockpit.diffLoading)
+        return Button {
+            cockpit.showDiff(file: path)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.text")
+                    .font(.system(size: 9))
+                    .foregroundStyle(selected ? Theme.accent : Theme.inkTertiary)
+                Text(CockpitFormat.fileName(path))
+                    .font(Theme.mono(10.5))
+                    .foregroundStyle(selected ? Theme.accent : Theme.inkSecondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2.5)
+            .background(selected ? Theme.accent.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.tactile)
+        .help(path)
     }
 
     // MARK: Footer controls

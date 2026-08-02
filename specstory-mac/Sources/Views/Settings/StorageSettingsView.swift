@@ -80,21 +80,69 @@ struct StorageSettingsView: View {
 
     // MARK: Projects
 
+    @State private var projectFilter = ""
+    @State private var showAllProjects = false
+    private static let collapsedProjectCount = 6
+
+    private var filteredProjects: [StorageModel.ProjectStorageRow] {
+        let query = projectFilter.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return storage.projects }
+        return storage.projects.filter {
+            $0.name.lowercased().contains(query) || $0.path.lowercased().contains(query)
+        }
+    }
+
+    private var visibleProjects: [StorageModel.ProjectStorageRow] {
+        let all = filteredProjects
+        if showAllProjects || !projectFilter.isEmpty { return all }
+        return Array(all.prefix(Self.collapsedProjectCount))
+    }
+
     private var projectsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("Projects")
+            HStack(spacing: 10) {
+                sectionTitle("Projects")
+                Spacer()
+                HStack(spacing: 5) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.inkTertiary)
+                    TextField("Filter projects", text: $projectFilter)
+                        .textFieldStyle(.plain)
+                        .font(Theme.body(11))
+                        .frame(width: 150)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Theme.paper, in: Capsule())
+                .overlay(Capsule().strokeBorder(Theme.hairline))
+            }
             if storage.projects.isEmpty {
                 Text("Projects appear here once SpecStory has seen sessions in them.")
                     .font(Theme.body(12))
                     .foregroundStyle(Theme.inkSecondary)
+            } else if filteredProjects.isEmpty {
+                Text("No projects match")
+                    .font(Theme.body(12))
+                    .foregroundStyle(Theme.inkTertiary)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(storage.projects) { row in
+                    ForEach(visibleProjects) { row in
                         projectRow(row)
-                        if row.id != storage.projects.last?.id {
+                        if row.id != visibleProjects.last?.id {
                             Divider().overlay(Theme.hairline)
                         }
                     }
+                }
+                if projectFilter.isEmpty, filteredProjects.count > Self.collapsedProjectCount {
+                    Button {
+                        showAllProjects.toggle()
+                    } label: {
+                        Text(showAllProjects ? "Show fewer" : "Show all \(filteredProjects.count) projects")
+                            .font(Theme.body(11, weight: .medium))
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.tactile)
                 }
             }
         }
@@ -119,18 +167,20 @@ struct StorageSettingsView: View {
                         .background(Theme.accent.opacity(0.12), in: Capsule())
                 }
                 Spacer(minLength: 8)
+                if row.sessionCount > 0 {
+                    Text(metadataLabel(row))
+                        .font(Theme.body(10.5))
+                        .foregroundStyle(Theme.inkTertiary)
+                }
                 projectMenu(row)
             }
-            Text(row.path)
-                .font(Theme.body(11))
+            // One line: the destination already contains the full path story.
+            Text(row.effectiveDir)
+                .font(Theme.mono(11))
                 .foregroundStyle(Theme.inkSecondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-            Text(row.effectiveDir)
-                .font(Theme.mono(11))
-                .foregroundStyle(Theme.inkTertiary)
-                .lineLimit(1)
-                .truncationMode(.middle)
+                .help("Project: \(row.path)")
             Toggle(isOn: projectIgnoreBinding(row)) {
                 Text("Ignore history in this repo's .gitignore")
                     .font(Theme.body(11))
@@ -216,5 +266,21 @@ struct StorageSettingsView: View {
             .foregroundStyle(Theme.inkTertiary)
             .textCase(.uppercase)
             .kerning(0.4)
+    }
+}
+
+extension StorageSettingsView {
+    private static let metadataFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    func metadataLabel(_ row: StorageModel.ProjectStorageRow) -> String {
+        var parts = ["\(row.sessionCount.formatted()) sessions"]
+        if let last = row.lastActivity {
+            parts.append(Self.metadataFormatter.localizedString(for: last, relativeTo: Date()))
+        }
+        return parts.joined(separator: " · ")
     }
 }

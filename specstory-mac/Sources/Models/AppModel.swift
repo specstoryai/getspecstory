@@ -221,6 +221,16 @@ final class AppModel: ObservableObject {
             supervisorResume: { [weak self] path in Task { @MainActor in self?.supervisor?.resumeWatching(path) } }
         )
         storage.onChanged = { [weak self] in self?.supervisor?.restartAll() }
+        storage.metadataProvider = { [weak self] in
+            guard let self else { return [:] }
+            var metadata = [String: (count: Int, last: Date?)]()
+            for item in self.allItems {
+                guard let path = item.projectPath else { continue }
+                let existing = metadata[path] ?? (0, nil)
+                metadata[path] = (existing.count + 1, max(existing.last ?? .distantPast, item.sortDate))
+            }
+            return metadata
+        }
         storage.onError = { [weak self] in self?.showToast($0, kind: .warning) }
         pro.configure(auth: auth)
         Task { await pro.refresh(signedIn: authState != .signedOut) }

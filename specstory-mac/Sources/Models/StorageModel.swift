@@ -13,8 +13,14 @@ final class StorageModel: ObservableObject {
         let overrideDir: String?
         let effectiveDir: String
         let historyIgnored: Bool
+        var sessionCount: Int = 0
+        var lastActivity: Date?
         var id: String { path }
     }
+
+    /// Session metadata per project path, supplied by AppModel from the
+    /// merged feed so rows can carry counts and recency.
+    var metadataProvider: (() -> [String: (count: Int, last: Date?)])?
 
     @Published private(set) var globalOutputDir: String?
     @Published private(set) var projects: [ProjectStorageRow] = []
@@ -39,6 +45,18 @@ final class StorageModel: ObservableObject {
         globalOutputDir = snapshot.globalOutputDir
         globalGitIgnored = snapshot.globalGitIgnored
         projects = snapshot.rows
+        if let metadata = metadataProvider?() {
+            projects = projects.map { row in
+                var enriched = row
+                if let meta = metadata[row.path] {
+                    enriched.sessionCount = meta.count
+                    enriched.lastActivity = meta.last
+                }
+                return enriched
+            }
+            // Busiest projects first; endless alphabetical scrolling is useless.
+            projects.sort { ($0.lastActivity ?? .distantPast) > ($1.lastActivity ?? .distantPast) }
+        }
     }
 
     // MARK: Output folders
