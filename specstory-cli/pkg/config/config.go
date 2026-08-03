@@ -131,6 +131,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Gemini CLI command
 # gemini_cmd = "gemini"
 
+# Qwen Code command
+# qwen_cmd = "qwen"
+
 # DeepSeek TUI command
 # deepseek_cmd = "deepseek"
 
@@ -250,6 +253,7 @@ type ProvidersConfig struct {
 	DeepSeekCmd    string `toml:"deepseek_cmd"`
 	DroidCmd       string `toml:"droid_cmd"`
 	GeminiCmd      string `toml:"gemini_cmd"`
+	QwenCmd        string `toml:"qwen_cmd"`
 	AntigravityCmd string `toml:"antigravity_cmd"`
 }
 
@@ -951,7 +955,7 @@ func (c *Config) IsRedactionEnabled() bool {
 // GetProviderCmd returns the custom execution command for a provider, or empty
 // string if none is configured. The providerID should match a registered
 // provider ID (e.g., "claude", "codex", "cursor", "deepseek", "droid",
-// "gemini", "antigravity").
+// "gemini", "qwen", "antigravity").
 func (c *Config) GetProviderCmd(providerID string) string {
 	switch strings.ToLower(providerID) {
 	case "claude":
@@ -968,6 +972,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.DroidCmd
 	case "gemini":
 		return c.Providers.GeminiCmd
+	case "qwen":
+		return c.Providers.QwenCmd
 	case "antigravity":
 		return c.Providers.AntigravityCmd
 	default:

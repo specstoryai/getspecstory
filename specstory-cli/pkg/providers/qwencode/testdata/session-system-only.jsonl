@@ -1,0 +1,1 @@
+{"uuid":"bbbb2222-0000-0000-0000-000000000001","parentUuid":null,"sessionId":"0f0e0d0c-aaaa-bbbb-cccc-ddddeeeeffff","timestamp":"2026-08-02T11:00:00.000Z","type":"system","provenance":"system","cwd":"/tmp/qwen-fixture-project","version":"0.21.4","subtype":"ui_telemetry","systemPayload":{"uiEvent":{"event.name":"qwen-code.api_response"}}}

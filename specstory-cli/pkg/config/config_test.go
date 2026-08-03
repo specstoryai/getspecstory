@@ -1146,6 +1146,7 @@ func TestGetProviderCmd(t *testing.T) {
 			DeepSeekCmd:    "deepseek --model r1",
 			DroidCmd:       "droid --verbose",
 			GeminiCmd:      "gemini --model pro",
+			QwenCmd:        "qwen --model qwen3-coder",
 			AntigravityCmd: "agy --sandbox",
 		},
 	}
@@ -1160,9 +1161,11 @@ func TestGetProviderCmd(t *testing.T) {
 		{"deepseek", "deepseek --model r1"},
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
+		{"qwen", "qwen --model qwen3-coder"},
 		{"antigravity", "agy --sandbox"},
 		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
 		{"CODEX", "/usr/local/bin/codex"},                   // case-insensitive
+		{"QWEN", "qwen --model qwen3-coder"},                // case-insensitive
 		{"ANTIGRAVITY", "agy --sandbox"},                    // case-insensitive
 		{"unknown", ""},                                     // unknown provider
 		{"", ""},                                            // empty provider

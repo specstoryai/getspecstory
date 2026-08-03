@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE.
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Qwen Code, Droid CLI, Antigravity CLI) as well as the Cursor IDE.
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -32,6 +32,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/` |
 | [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`       |
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
+| [Qwen Code](https://github.com/QwenLM/qwen-code)          | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`          |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
 | [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
 
@@ -295,6 +296,9 @@ The configuration is determined with the following priority (highest priority to
 # Gemini CLI command
 # gemini_cmd = "gemini"
 
+# Qwen Code command
+# qwen_cmd = "qwen"
+
 # Antigravity CLI command
 # antigravity_cmd = "agy"
 ```
@@ -324,6 +328,7 @@ The configuration is determined with the following priority (highest priority to
 | `[providers]`     | `deepseek_cmd`    | `"deepseek"`         | DeepSeek TUI command                       |
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
+| `[providers]`     | `qwen_cmd`        | `"qwen"`             | Qwen Code command                          |
 | `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
