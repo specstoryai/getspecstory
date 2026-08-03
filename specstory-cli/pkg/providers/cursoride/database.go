@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
@@ -18,18 +19,12 @@ import (
 // well under that limit.
 const composerBatchSize = 200
 
-// busyTimeoutPragma is appended to every DSN so each new connection waits for a
-// briefly-held lock instead of failing immediately with SQLITE_BUSY. Cursor itself
-// may be running and writing to these databases (e.g. during a checkpoint), so
-// without a busy timeout a resume or watch operation can fail on a transient lock.
-const busyTimeoutPragma = "_pragma=busy_timeout(5000)"
-
 // OpenDatabase opens a SQLite database in read-only mode with controlled
 // connection pooling. Callers that need WAL mode guaranteed should call
-// EnsureWALMode once before using this function (e.g. at watcher startup).
+// spi.EnsureWALMode once before using this function (e.g. at watcher startup).
 func OpenDatabase(dbPath string) (*sql.DB, error) {
 	// Open in read-only mode
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+busyTimeoutPragma)
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -45,53 +40,11 @@ func OpenDatabase(dbPath string) (*sql.DB, error) {
 	return db, nil
 }
 
-// EnsureWALMode ensures the database is running in WAL journal mode.
-// WAL mode is required so that the -wal file exists for fsnotify to watch.
-// This must be called with a read-write connection because PRAGMA journal_mode
-// cannot change the mode on a read-only connection. It is intended to be called
-// once at watcher startup, not on every query.
-func EnsureWALMode(dbPath string) error {
-	// Open read-write to be able to change journal mode
-	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
-	if err != nil {
-		return fmt.Errorf("failed to open database for WAL check: %w", err)
-	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			slog.Warn("Failed to close database after WAL check", "error", closeErr)
-		}
-	}()
-
-	// Check current journal mode
-	var currentMode string
-	if err := db.QueryRow("PRAGMA journal_mode").Scan(&currentMode); err != nil {
-		return fmt.Errorf("failed to query journal mode: %w", err)
-	}
-
-	if strings.EqualFold(currentMode, "wal") {
-		slog.Debug("Database already in WAL mode", "path", dbPath)
-		return nil
-	}
-
-	// Switch to WAL mode
-	var newMode string
-	if err := db.QueryRow("PRAGMA journal_mode=WAL").Scan(&newMode); err != nil {
-		return fmt.Errorf("failed to set WAL mode: %w", err)
-	}
-
-	if !strings.EqualFold(newMode, "wal") {
-		return fmt.Errorf("failed to enable WAL mode: got %q instead", newMode)
-	}
-
-	slog.Info("Enabled WAL mode on database", "path", dbPath)
-	return nil
-}
-
 // createEmptyWorkspaceDB creates a state.vscdb containing VS Code's exact ItemTable
 // schema (key UNIQUE ON CONFLICT REPLACE, BLOB value), so Cursor adopts a minted
 // workspace entry as its own on first open instead of treating it as corrupt.
 func createEmptyWorkspaceDB(dbPath string) error {
-	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
+	db, err := sql.Open("sqlite", dbPath+"?"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return fmt.Errorf("failed to create workspace database: %w", err)
 	}
@@ -371,13 +324,13 @@ func assembleComposerConversations(composers map[string]*ComposerData, bubbles m
 }
 
 // OpenDatabaseReadWrite opens a SQLite database in read-write mode with controlled
-// connection pooling. It calls EnsureWALMode before returning so the database is
+// connection pooling. It calls spi.EnsureWALMode before returning so the database is
 // in WAL mode when the caller starts writing.
 func OpenDatabaseReadWrite(dbPath string) (*sql.DB, error) {
-	if err := EnsureWALMode(dbPath); err != nil {
+	if err := spi.EnsureWALMode(dbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode before opening read-write database", "error", err)
 	}
-	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
+	db, err := sql.Open("sqlite", dbPath+"?"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database for writing: %w", err)
 	}
