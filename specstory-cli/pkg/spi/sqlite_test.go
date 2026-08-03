@@ -88,6 +88,13 @@ func TestEnsureWALMode(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "nonexistent path returns error without creating a database",
+			setup: func(t *testing.T, dbPath string) {
+				// No setup - the path must not exist
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {

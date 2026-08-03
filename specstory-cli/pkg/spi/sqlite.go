@@ -22,8 +22,11 @@ const BusyTimeoutPragma = "_pragma=busy_timeout(5000)"
 // journal_mode cannot change the mode on a read-only connection. It is intended to
 // be called once per database, not on every read.
 func EnsureWALMode(dbPath string) error {
-	// Open read-write to be able to change journal mode
-	db, err := sql.Open("sqlite", dbPath+"?"+BusyTimeoutPragma)
+	// Open read-write to be able to change journal mode. mode=rw (not the
+	// default create-if-missing) so a wrong path errors instead of leaving a
+	// stray empty database behind; the file: scheme is required because the
+	// driver only honors mode= on URI-form DSNs.
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=rw&"+BusyTimeoutPragma)
 	if err != nil {
 		return fmt.Errorf("failed to open database for WAL check: %w", err)
 	}
