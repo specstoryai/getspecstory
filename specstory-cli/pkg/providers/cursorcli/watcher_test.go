@@ -30,6 +30,7 @@ func TestCursorWatcherBasics(t *testing.T) {
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		sessionCallback: callback,
 	}
@@ -63,6 +64,7 @@ func TestCursorWatcherStartStop(t *testing.T) {
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		sessionCallback: nil,
 	}
@@ -129,12 +131,13 @@ func TestCursorWatcherSessionDetection(t *testing.T) {
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		sessionCallback: nil,
 	}
 
 	// Check session change detection
-	hasChanged := watcher.hasSessionChanged(sessionID, mustGetFileInfo(t, dbPath), dbPath)
+	hasChanged := watcher.hasSessionChanged(sessionID, dbPath)
 
 	// The function will try to open the database and count blobs
 	// Since this is not a real SQLite database with a blobs table, it will fail gracefully
@@ -180,13 +183,4 @@ func TestCursorWatcherCallbackInvocation(t *testing.T) {
 		t.Error("Expected callback to receive correct session")
 	}
 	callbackMu.Unlock()
-}
-
-// Helper function to get FileInfo for a file
-func mustGetFileInfo(t *testing.T, path string) os.FileInfo {
-	info, err := os.Stat(path)
-	if err != nil {
-		t.Fatalf("Failed to stat file %s: %v", path, err)
-	}
-	return info
 }

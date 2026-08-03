@@ -139,13 +139,13 @@ func (w *CursorIDEWatcher) Start() error {
 	// WAL mode is required so that the -wal file exists for fsnotify to detect changes.
 	// This is a one-time read-write operation at startup; all subsequent reads are read-only.
 	for _, ws := range w.workspaces {
-		if err := EnsureWALMode(ws.DBPath); err != nil {
+		if err := spi.EnsureWALMode(ws.DBPath); err != nil {
 			slog.Warn("Failed to ensure WAL mode on workspace database",
 				"workspaceID", ws.ID,
 				"error", err)
 		}
 	}
-	if err := EnsureWALMode(w.globalDbPath); err != nil {
+	if err := spi.EnsureWALMode(w.globalDbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
 	}
 
