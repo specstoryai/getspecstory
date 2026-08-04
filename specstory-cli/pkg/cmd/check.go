@@ -141,7 +141,11 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 	// Display results with the nice formatting
 	if result.Success {
 		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-		fmt.Printf("  📦 Version: %s\n", result.Version)
+		// IDE-backed providers report no version (none is discoverable cheaply);
+		// omit the line rather than printing an empty value.
+		if result.Version != "" {
+			fmt.Printf("  📦 Version: %s\n", result.Version)
+		}
 		fmt.Printf("  📍 Location: %s\n", result.Location)
 		fmt.Printf("  ✅ Status: All systems go!\n\n")
 
@@ -201,7 +205,11 @@ func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 			anySuccess = true
 			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
 			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-			fmt.Printf("  📦 Version: %s\n", result.Version)
+			// IDE-backed providers report no version; omit the line rather than
+			// printing an empty value.
+			if result.Version != "" {
+				fmt.Printf("  📦 Version: %s\n", result.Version)
+			}
 			fmt.Printf("  📍 Location: %s\n", result.Location)
 			fmt.Printf("  ✅ Status: All systems go!\n")
 		} else {

@@ -114,8 +114,12 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	})
 
 	return spi.CheckResult{
-		Success:      true,
-		Version:      p.variant.AppName + " Copilot",
+		Success: true,
+		// The app's version would be discoverable via `code --version`, but Check
+		// also gates provider availability in latency-sensitive paths (search,
+		// session TUI) across four registered variants, so no subprocess is spawned
+		// and no version is reported rather than a label that isn't actually one.
+		Version:      "",
 		Location:     storagePath,
 		ErrorMessage: "",
 	}
@@ -526,8 +530,11 @@ func collectWorkspaceSessionRefs(workspaceDir string, refByID map[string]spi.Glo
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Debug("WatchAgent", "projectPath", projectPath, "debugRaw", debugRaw)
 
-	// Find workspace for project
-	workspace, err := p.FindWorkspaceForProject(projectPath)
+	// The workspace lookup must not require a chatSessions directory: that
+	// directory only appears with the workspace's first Copilot chat, and the
+	// watcher waits for its creation. Requiring it here would keep a watch
+	// started before the first chat from ever seeing it.
+	workspace, err := p.findWorkspaceForProject(projectPath, false)
 	if err != nil {
 		return fmt.Errorf("failed to find workspace: %w", err)
 	}

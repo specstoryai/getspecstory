@@ -23,15 +23,6 @@ func ParseResponseKind(rawResponse json.RawMessage) (string, error) {
 	return kindOnly.Kind, nil
 }
 
-// IsHiddenTool checks if a tool invocation response is marked as hidden
-func IsHiddenTool(rawResponse json.RawMessage) bool {
-	var invocation VSCodeToolInvocationResponse
-	if err := json.Unmarshal(rawResponse, &invocation); err != nil {
-		return false
-	}
-	return invocation.Presentation == "hidden"
-}
-
 // BuildToolCallMap creates a lookup map from toolCallId to tool call info
 // NOTE: This is kept for backward compatibility but sequence-based matching is preferred
 func BuildToolCallMap(metadata VSCodeResultMetadata) map[string]VSCodeToolCallInfo {
