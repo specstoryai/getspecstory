@@ -421,7 +421,10 @@ func TestUriToPath(t *testing.T) {
 		{"space decoded", "file:///Users/me/My%20Project", "/Users/me/My Project", false},
 		{"unicode decoded", "file:///Users/me/caf%C3%A9", "/Users/me/café", false},
 		{"literal percent preserved", "file:///Users/me/literal%2520pct", "/Users/me/literal%20pct", false},
-		{"non-file scheme rejected", "vscode-remote://wsl/home/me/proj", "", true},
+		{"remote SSH URI yields remote path", "vscode-remote://ssh-remote%2Bmyhost/home/me/proj", "/home/me/proj", false},
+		{"remote WSL URI yields in-distro path", "vscode-remote://wsl%2Bubuntu/home/me/proj", "/home/me/proj", false},
+		{"dev container URI yields container path", "vscode-remote://dev-container%2Babc123/workspaces/proj", "/workspaces/proj", false},
+		{"unsupported scheme rejected", "https://example.com/proj", "", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -39,10 +39,27 @@ func (p *Provider) WatchChatSessions(
 		}
 	}()
 
-	// Tracks in-flight sessionCallback goroutines so we don't return while a
-	// callback is still writing. Runs before the watcher-close defer (LIFO).
+	// Sessions are delivered to sessionCallback from a single worker goroutine,
+	// in arrival order. Delivery must be off the event loop (slow callback I/O —
+	// markdown writes, cloud sync — must not stall fsnotify event handling), but
+	// it must not be concurrent either: two in-flight callbacks for the same
+	// session have no ordering guarantee, and the older snapshot could be
+	// written last, leaving stale markdown until the next event. The buffer
+	// absorbs event bursts; if it ever fills, the event loop blocks (the
+	// per-file debounce bounds the event rate, so this is effectively never).
+	sessionQueue := make(chan *spi.AgentChatSession, 64)
 	var callbackWg sync.WaitGroup
-	defer callbackWg.Wait()
+	callbackWg.Go(func() {
+		for session := range sessionQueue {
+			deliverSession(session, sessionCallback)
+		}
+	})
+	// On return: stop accepting deliveries, then drain the queue so no callback
+	// is still writing when we exit. Runs before the watcher-close defer (LIFO).
+	defer func() {
+		close(sessionQueue)
+		callbackWg.Wait()
+	}()
 
 	// Watch the chatSessions directory
 	if err := watcher.Add(chatSessionsPath); err != nil {
@@ -142,6 +159,16 @@ func (p *Provider) WatchChatSessions(
 					slog.Warn("Failed to load state file", "sessionId", sessionID, "error", err)
 				}
 
+				// Same emptiness rule as the read paths (GetAgentChatSessions et al):
+				// a just-opened chat writes its session file before any content
+				// exists, and emitting it would create an empty markdown file. The
+				// session stays tracked in knownSessions, so the first real message
+				// still arrives as an update once lastMessageDate advances.
+				if len(composer.Requests) == 0 && !hasEditingActivity(state) {
+					slog.Debug("Skipping empty session (no chat or editing activity)", "sessionId", sessionID)
+					continue
+				}
+
 				// Convert to AgentChatSession
 				session := p.ConvertToSessionData(*composer, projectPath, state)
 
@@ -152,20 +179,14 @@ func (p *Provider) WatchChatSessions(
 					}
 				}
 
-				// Invoke callback asynchronously so a panic during processing (e.g.
-				// markdown write or cloud sync) doesn't crash the watcher, and slow
-				// callback I/O doesn't block the fsnotify event loop.
-				slog.Info("Invoking callback for session", "sessionId", sessionID, "slug", session.Slug)
-				callbackWg.Add(1)
-				go func(s *spi.AgentChatSession) {
-					defer callbackWg.Done()
-					defer func() {
-						if r := recover(); r != nil {
-							slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
-						}
-					}()
-					sessionCallback(s)
-				}(&session)
+				// Hand off to the delivery worker; bail out if the user interrupts
+				// while the queue is full so shutdown can't hang on a stuck callback.
+				slog.Info("Queueing callback for session", "sessionId", sessionID, "slug", session.Slug)
+				select {
+				case sessionQueue <- &session:
+				case <-ctx.Done():
+					return nil
+				}
 			}
 
 		case err, ok := <-watcher.Errors:
@@ -175,6 +196,17 @@ func (p *Provider) WatchChatSessions(
 			slog.Warn("Watcher error", "error", err)
 		}
 	}
+}
+
+// deliverSession invokes the callback with panic isolation so a failure during
+// processing (e.g. markdown write or cloud sync) can't crash the watcher.
+func deliverSession(session *spi.AgentChatSession, sessionCallback func(*spi.AgentChatSession)) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("Session callback panicked", "panic", r, "sessionId", session.SessionID)
+		}
+	}()
+	sessionCallback(session)
 }
 
 // GetSessionIDFromPath extracts session ID from a file path

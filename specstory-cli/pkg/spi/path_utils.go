@@ -393,10 +393,11 @@ func FileURIToPath(uri string) (string, error) {
 		return "", fmt.Errorf("unsupported URI scheme %q: %s", parsed.Scheme, uri)
 	}
 
-	path, err := url.PathUnescape(parsed.Path)
-	if err != nil {
-		return "", fmt.Errorf("failed to decode URI path: %w", err)
-	}
+	// url.Parse already percent-decodes into Path (e.g. %20 -> space), so no
+	// extra PathUnescape is needed — unescaping again would corrupt paths
+	// containing literal % sequences (a folder named "a%20b" arrives encoded
+	// as "a%2520b" and must decode to "a%20b", not "a b").
+	path := parsed.Path
 
 	// WSL URIs carry the distro as the first path segment under a wsl host;
 	// the usable path is what remains inside the distro.
@@ -420,4 +421,88 @@ func FileURIToPath(uri string) (string, error) {
 	}
 
 	return path, nil
+}
+
+// ParseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI,
+// the scheme VS Code-lineage IDEs (VS Code, Cursor, VSCodium, ...) store in
+// workspace.json when a folder is opened through a remote extension.
+// Handles four types of remote URIs:
+//  1. WSL: vscode-remote://wsl%2B{distro}/{path} - path is the WSL filesystem path
+//  2. SSH: vscode-remote://ssh-remote%2B{config-hex}/{path} - path is the remote filesystem path
+//  3. Tunnel: vscode-remote://tunnel%2B{host}/{path} - path is the remote filesystem path
+//  4. Dev container: vscode-remote://dev-container%2B{config-hex}/{path} - path is the container-internal path
+//
+// Go's url.Parse rejects %2B in the host component, so we parse manually.
+func ParseVSCodeRemoteURI(uri string) (string, error) {
+	// Strip scheme prefix: "vscode-remote://"
+	remainder := strings.TrimPrefix(uri, "vscode-remote://")
+
+	// Split host from path at the first unencoded slash after the host
+	// The host is percent-encoded (e.g., "wsl%2Bubuntu" or "ssh-remote%2B{config-hex}")
+	slashIdx := strings.Index(remainder, "/")
+	if slashIdx < 0 {
+		return "", fmt.Errorf("malformed vscode-remote URI (no path): %s", uri)
+	}
+
+	host := remainder[:slashIdx]
+	pathPart := remainder[slashIdx:]
+
+	// Decode the host to determine remote type
+	decodedHost, err := url.PathUnescape(host)
+	if err != nil {
+		decodedHost = host
+	}
+
+	hostLower := strings.ToLower(decodedHost)
+
+	// Check if it's a supported remote type: each host is either bare ("wsl") or
+	// carries a "+{config}" suffix ("wsl+ubuntu", "ssh-remote+{config-hex}").
+	supportedHosts := []string{"wsl", "ssh-remote", "tunnel", "dev-container"}
+	supported := false
+	for _, host := range supportedHosts {
+		if hostLower == host || strings.HasPrefix(hostLower, host+"+") {
+			supported = true
+			break
+		}
+	}
+	if !supported {
+		return "", fmt.Errorf("unsupported vscode-remote host %q: %s", decodedHost, uri)
+	}
+
+	// Decode the path portion
+	path, err := url.PathUnescape(pathPart)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode vscode-remote URI path: %w", err)
+	}
+
+	// Log the conversion with appropriate context
+	switch {
+	case strings.HasPrefix(hostLower, "ssh-remote"):
+		slog.Debug("Converted vscode-remote SSH URI to path", "uri", uri, "path", path)
+	case strings.HasPrefix(hostLower, "tunnel"):
+		slog.Debug("Converted vscode-remote tunnel URI to path", "uri", uri, "path", path)
+	case strings.HasPrefix(hostLower, "dev-container"):
+		slog.Debug("Converted vscode-remote dev container URI to path", "uri", uri, "path", path)
+	default:
+		slog.Debug("Converted vscode-remote WSL URI to path", "uri", uri, "path", path)
+	}
+
+	return path, nil
+}
+
+// IsRemoteURIRequiringBasenameMatch checks if a URI is a vscode-remote SSH, tunnel, or
+// dev-container URI. Case-insensitive to stay consistent with ParseVSCodeRemoteURI, which
+// accepts uppercase authorities — this check gates basename matching, so a case mismatch
+// would silently drop remote workspaces instead of just changing a log line.
+//
+// SSH, tunnel, and dev-container workspace paths all live outside the local filesystem (a
+// remote machine or a container), so direct path comparison can never succeed for them and
+// the folder basename is the only usable signal. WSL is deliberately excluded: WSL paths are
+// reachable from the host via \\wsl.localhost\... / /mnt/wsl/..., so direct path matching
+// already works there and doesn't need the (weaker, name-collision-prone) basename fallback.
+func IsRemoteURIRequiringBasenameMatch(uri string) bool {
+	lower := strings.ToLower(uri)
+	return strings.HasPrefix(lower, "vscode-remote://ssh-remote") ||
+		strings.HasPrefix(lower, "vscode-remote://tunnel") ||
+		strings.HasPrefix(lower, "vscode-remote://dev-container")
 }

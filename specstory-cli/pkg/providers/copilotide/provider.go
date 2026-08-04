@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -93,6 +94,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check for workspace storage directory
 	storagePath := p.workspaceStoragePath()
 	if storagePath == "" {
+		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
+			"provider":   p.variant.ID,
+			"error_type": "workspace_storage_not_found",
+		})
 		return spi.CheckResult{
 			Success:      false,
 			Version:      "",
@@ -102,6 +107,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	slog.Debug("Copilot check successful", "app", p.variant.AppName, "storagePath", storagePath)
+
+	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
+		"provider": p.variant.ID,
+		"location": storagePath,
+	})
 
 	return spi.CheckResult{
 		Success:      true,

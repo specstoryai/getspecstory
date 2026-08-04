@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -128,8 +127,27 @@ func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessio
 			canonicalWorkspacePath = workspaceFilePath
 		}
 
-		// Direct path match (folder opened directly).
+		// Method 1: Direct path match (folder opened directly).
 		isMatch := canonicalProjectPath == canonicalWorkspacePath
+
+		// Method 2: Basename matching (SSH remotes, tunnels, and dev containers only).
+		// These workspace paths live on a different machine or inside a container, so
+		// direct path comparison can never succeed and the folder basename is the only
+		// usable signal. The fallback must not apply to local workspaces: two unrelated
+		// projects sharing a directory name (e.g. two different "backend" folders)
+		// would otherwise match and export each other's sessions.
+		if !isMatch && spi.IsRemoteURIRequiringBasenameMatch(workspaceURI) {
+			workspaceBasename := filepath.Base(canonicalWorkspacePath)
+			if filepath.Base(canonicalProjectPath) == workspaceBasename {
+				isMatch = true
+				slog.Info("Matched remote workspace by folder basename",
+					"workspaceID", workspaceID,
+					"workspaceURI", workspaceURI,
+					"localPath", canonicalProjectPath,
+					"remotePath", canonicalWorkspacePath,
+					"repoName", workspaceBasename)
+			}
+		}
 
 		// Method 3: Code workspace file matching.
 		// When VS Code is opened via a .code-workspace file, workspace.json stores
@@ -303,26 +321,18 @@ func readWorkspaceJSON(path string) (*WorkspaceJSON, error) {
 	return &workspace, nil
 }
 
-// uriToPath converts a file:// URI to a local file path
+// uriToPath converts a workspace URI to a file path. Both the vscode-remote://
+// forms (wsl+distro, ssh-remote+config, tunnel+host, dev-container+config) and
+// plain file:// URIs are converted by shared spi helpers so every provider
+// translates them identically. Remote URIs yield the path on the remote
+// machine / inside the container — matching against a local project path is
+// handled by the basename fallback in findWorkspaceForProject.
 func uriToPath(uri string) (string, error) {
-	// Handle file:// URIs
-	if !strings.HasPrefix(uri, "file://") {
-		return "", fmt.Errorf("URI must start with file://: %s", uri)
+	// Handle vscode-remote:// URIs before url.Parse because Go's URL parser
+	// rejects percent-encoded characters like %2B in the host component
+	// (e.g., vscode-remote://ssh-remote%2Bmyhost/home/user/project)
+	if strings.HasPrefix(uri, "vscode-remote://") {
+		return spi.ParseVSCodeRemoteURI(uri)
 	}
-
-	// Parse the URI
-	parsedURI, err := url.Parse(uri)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse URI: %w", err)
-	}
-
-	// url.Parse already percent-decodes into Path (e.g. %20 -> space), so no
-	// extra PathUnescape is needed — unescaping again would corrupt paths
-	// containing literal % sequences.
-	path := parsedURI.Path
-
-	// On Windows, URL paths have an extra leading slash (e.g., /C:/Users)
-	// but we don't support Windows, so we can just use the path as-is
-
-	return path, nil
+	return spi.FileURIToPath(uri)
 }

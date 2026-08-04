@@ -270,8 +270,14 @@ func GenerateSlug(composer VSCodeComposer) string {
 	return "untitled"
 }
 
-// FormatTimestamp converts Unix timestamp (ms) to ISO 8601
+// FormatTimestamp converts Unix timestamp (ms) to ISO 8601. A zero or negative
+// timestamp means the field was absent from the session file; fall back to the
+// current time rather than emitting a misleading 1970 epoch date (which would
+// also sort the session before every real one), matching the Cursor IDE provider.
 func FormatTimestamp(unixMs int64) string {
+	if unixMs <= 0 {
+		return time.Now().Format(time.RFC3339)
+	}
 	t := time.Unix(0, unixMs*int64(time.Millisecond))
 	return t.Format(time.RFC3339)
 }
