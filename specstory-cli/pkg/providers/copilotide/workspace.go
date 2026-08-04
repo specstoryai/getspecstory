@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -26,17 +28,47 @@ type WorkspaceJSON struct {
 	Folder    string `json:"folder,omitempty"`    // For single folder workspaces
 }
 
-// FindWorkspaceForProject finds the workspace directory that matches the given project path
-// Returns the workspace match or an error if not found
+// FindWorkspaceForProject finds the single best workspace directory that matches the
+// given project path. Callers that need exactly one target (e.g. reconstruction writes)
+// use this; read paths should use FindWorkspacesForProject instead, because a project
+// can legitimately match several workspace entries (opened directly as a folder AND
+// listed in one or more .code-workspace files) and sessions may live in any of them.
 func (p *Provider) FindWorkspaceForProject(projectPath string) (*WorkspaceMatch, error) {
 	return p.findWorkspaceForProject(projectPath, true)
 }
 
-// findWorkspaceForProject matches projectPath against every workspace.json in the
-// variant's storage directory. requireChatSessions filters out matches that have never
-// had a chat session — wanted when reading sessions, not when picking a write target
-// for reconstruction (the resume flow creates the chatSessions directory when writing).
+// FindWorkspacesForProject finds ALL workspace directories that match the given project
+// path, sorted newest-first by state.vscdb modification time (so the most-likely-active
+// workspace is tried first and iteration order is deterministic).
+func (p *Provider) FindWorkspacesForProject(projectPath string) ([]WorkspaceMatch, error) {
+	return p.findWorkspacesForProject(projectPath, true)
+}
+
+// findWorkspaceForProject is "first of plural": it returns the newest matching workspace.
+// Kept for callers that need exactly one target — the reconstruction write path — where
+// newest ≈ the VS Code window the user is most likely to open next.
 func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*WorkspaceMatch, error) {
+	matches, err := p.findWorkspacesForProject(projectPath, requireChatSessions)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(matches) > 1 {
+		slog.Warn("Multiple workspaces match project path, selecting newest",
+			"projectPath", projectPath,
+			"matchCount", len(matches),
+			"selectedWorkspaceID", matches[0].ID)
+	}
+
+	return &matches[0], nil
+}
+
+// findWorkspacesForProject matches projectPath against every workspace.json in the
+// variant's storage directory and returns all matches, sorted newest-first by
+// state.vscdb mtime. requireChatSessions filters out matches that have never had a
+// chat session — wanted when reading sessions, not when picking a write target for
+// reconstruction (the resume flow creates the chatSessions directory when writing).
+func (p *Provider) findWorkspacesForProject(projectPath string, requireChatSessions bool) ([]WorkspaceMatch, error) {
 	// Get canonical project path (resolve symlinks, normalize case)
 	absProjectPath, err := filepath.Abs(projectPath)
 	if err != nil {
@@ -189,45 +221,53 @@ func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessio
 		return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, workspaceStoragePath)
 	}
 
-	// If multiple matches, return the newest one (based on state.vscdb modification time)
-	if len(matches) > 1 {
-		slog.Warn("Multiple workspaces match project path, selecting newest",
-			"projectPath", projectPath,
-			"matchCount", len(matches))
-		return selectNewestWorkspace(matches)
-	}
-
-	return &matches[0], nil
+	sortWorkspacesNewestFirst(matches)
+	return matches, nil
 }
 
-// selectNewestWorkspace returns the workspace with the newest state.vscdb modification time
-func selectNewestWorkspace(matches []WorkspaceMatch) (*WorkspaceMatch, error) {
-	var newest *WorkspaceMatch
-	var newestTime int64
-
-	for i := range matches {
-		match := &matches[i]
+// sortWorkspacesNewestFirst orders matches by descending state.vscdb modification time,
+// so the workspace the user most recently had open comes first. A workspace whose
+// state.vscdb can't be stat'd gets the zero time and sorts last rather than erroring
+// out the whole lookup. The sort is stable so ties keep directory-listing order,
+// keeping iteration deterministic across calls.
+func sortWorkspacesNewestFirst(matches []WorkspaceMatch) {
+	modTimes := make(map[string]time.Time, len(matches))
+	for _, match := range matches {
 		stateDBPath := GetWorkspaceStateDBPath(match.Dir)
-
 		info, err := os.Stat(stateDBPath)
 		if err != nil {
 			slog.Debug("Failed to stat state.vscdb", "path", stateDBPath, "error", err)
 			continue
 		}
-
-		modTime := info.ModTime().Unix()
-		if newest == nil || modTime > newestTime {
-			newest = match
-			newestTime = modTime
-		}
+		modTimes[match.ID] = info.ModTime()
 	}
 
-	if newest == nil {
-		return &matches[0], nil // Fall back to first match
-	}
+	sort.SliceStable(matches, func(i, j int) bool {
+		return modTimes[matches[i].ID].After(modTimes[matches[j].ID])
+	})
+}
 
-	slog.Debug("Selected newest workspace", "workspaceID", newest.ID, "modTime", newestTime)
-	return newest, nil
+// The exported wrappers below expose this package's workspace-mapping helpers
+// for the source-tree monitor's Copilot-IDE supervisor
+// (specstoryai/getspecstory#257), which enumerates workspaceStorage itself to
+// map workspaces to repos. They have no caller within this branch yet — they go
+// live once that monitor reaches dev and its `copilotide_monitor` build tag is
+// dropped. Kept as thin wrappers so the internal helpers stay unexported.
+
+// ReadWorkspaceJSON reads and parses a workspace.json file. See the note above.
+func ReadWorkspaceJSON(path string) (*WorkspaceJSON, error) {
+	return readWorkspaceJSON(path)
+}
+
+// URIToPath converts a file:// URI to a local filesystem path. See the note above.
+func URIToPath(uri string) (string, error) {
+	return uriToPath(uri)
+}
+
+// CollectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
+// canonical paths of all listed folders. See the note above.
+func CollectCodeWorkspaceFolders(workspaceFilePath string) []string {
+	return collectCodeWorkspaceFolders(workspaceFilePath)
 }
 
 // collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
