@@ -254,3 +254,90 @@ func TestUniversalAgentDetection(t *testing.T) {
 		t.Error("claude-code should not be universal (.claude/skills)")
 	}
 }
+
+// TestAntigravityDetection guards the one subtle part of the Antigravity row: it shares the
+// ~/.gemini root with the separately-registered Gemini CLI, so detection must key off the
+// antigravity-cli subtree and the two agents must never detect each other.
+func TestAntigravityDetection(t *testing.T) {
+	tests := []struct {
+		name            string
+		mkdir           string // dir to create under HOME, "" for none
+		wantAntigravity bool
+		wantGemini      bool
+	}{
+		{"neither installed", "", false, false},
+		{"gemini only", filepath.Join(".gemini"), false, true},
+		{"antigravity installed", filepath.Join(".gemini", "antigravity-cli"), true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			home := t.TempDir()
+			t.Setenv("HOME", home)
+			if tt.mkdir != "" {
+				if err := os.MkdirAll(filepath.Join(home, tt.mkdir), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			antigravity, ok := FindAgent("antigravity")
+			if !ok {
+				t.Fatal("antigravity missing from the registry")
+			}
+			gemini, _ := FindAgent("gemini")
+			if got := antigravity.Detected(); got != tt.wantAntigravity {
+				t.Errorf("antigravity Detected() = %v, want %v", got, tt.wantAntigravity)
+			}
+			if got := gemini.Detected(); got != tt.wantGemini {
+				t.Errorf("gemini Detected() = %v, want %v", got, tt.wantGemini)
+			}
+		})
+	}
+}
+
+// TestInstallAndRemove_GlobalScopeUniversalAgents covers the global-install rule for universal
+// agents: one whose global store differs from the canonical ~/.agents/skills (Antigravity) gets
+// a real link there, while one whose global store IS the canonical dir (Cline) must not be
+// linked into itself.
+func TestInstallAndRemove_GlobalScopeUniversalAgents(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	antigravity, _ := FindAgent("antigravity")
+	cline, _ := FindAgent("cline")
+	res, err := installSkillToDisk("skill", "# body", true, "", []Agent{antigravity, cline})
+	if err != nil {
+		t.Fatalf("install: %v", err)
+	}
+	if len(res.skipped) != 0 {
+		t.Errorf("skipped = %v, want none", res.skipped)
+	}
+	if len(res.agents) != 2 {
+		t.Errorf("agents = %v, want both", res.agents)
+	}
+
+	// Antigravity reads ~/.gemini/config/skills globally, so the skill must be readable there.
+	linked := filepath.Join(home, ".gemini", "config", "skills", "skill", "SKILL.md")
+	body, err := os.ReadFile(linked)
+	if err != nil {
+		t.Fatalf("antigravity global link not readable: %v", err)
+	}
+	if string(body) != "# body" {
+		t.Errorf("linked SKILL.md = %q, want %q", body, "# body")
+	}
+
+	// Cline's global store is the canonical dir itself; it must survive untouched.
+	canonical := filepath.Join(home, ".agents", "skills", "skill")
+	if _, err := os.Stat(filepath.Join(canonical, "SKILL.md")); err != nil {
+		t.Errorf("canonical dir damaged by self-link: %v", err)
+	}
+
+	entry := LockEntry{Scope: "global", Agents: []string{"antigravity", "cline"}, CanonicalPath: canonical}
+	if err := removeSkillFromDisk("skill", entry); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(home, ".gemini", "config", "skills", "skill")); !os.IsNotExist(err) {
+		t.Errorf("antigravity global link not removed: %v", err)
+	}
+	if _, err := os.Stat(canonical); !os.IsNotExist(err) {
+		t.Errorf("canonical dir not removed: %v", err)
+	}
+}

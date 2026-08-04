@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI) as well as the Cursor IDE.
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE.
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -24,15 +24,16 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 The following coding agents are supported in the SpecStory CLI:
 
-| Agent                                                     | Provider                                  | Data Format | Source Location              |
-|-----------------------------------------------------------|-------------------------------------------|-------------|------------------------------|
-| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)   | JSONL       | `~/.claude/projects/`        |
-| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)       | JSONL       | `~/.codex/sessions/`         |
-| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)     | SQLite      | `~/.cursor/chats/`           |
-| [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)     | SQLite      | `Cursor/User/globalStorage/` |
-| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)       | JSONL       | `~/.factory/sessions/`       |
-| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)     | JSON        | `~/.gemini/tmp/`             |
-| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/) | JSON        | `~/.deepseek/sessions/`      |
+|                           Agent                           |                    Provider                     | Data Format |       Source Location        |
+| --------------------------------------------------------- | ----------------------------------------------- | ----------- | ---------------------------- |
+| [Claude Code](https://www.claude.com/product/claude-code) | [claudecode](pkg/providers/claudecode/)         | JSONL       | `~/.claude/projects/`        |
+| [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`         |
+| [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`           |
+| [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/` |
+| [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`       |
+| [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
+| [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
+| [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
@@ -150,8 +151,11 @@ specstory skills
 
 Skills install using the same layout as the public `npx skills` CLI: a canonical
 `~/.agents/skills/<name>` store, symlinked into each detected agent's skills directory
-(Claude Code, Codex, Cursor, and more), tracked in the shared `~/.agents/.skill-lock.json`.
-Installs default to global; pass `--project` to install into the current repo instead.
+(Claude Code, Codex, Cursor, Antigravity, and more), tracked in the shared
+`~/.agents/.skill-lock.json`. Installs default to global; pass `--project` to install into
+the current repo instead. Agents that read `.agents/skills` directly need no symlink for a
+project install, but a global install is still linked into the directory they scan outside a
+project (e.g. `~/.gemini/config/skills` for Antigravity, `~/.codex/skills` for Codex).
 
 Every action is also a non-interactive subcommand with `--json`, so a front end (e.g. the
 VS Code extension) can drive the same engine:
@@ -290,6 +294,9 @@ The configuration is determined with the following priority (highest priority to
 
 # Gemini CLI command
 # gemini_cmd = "gemini"
+
+# Antigravity CLI command
+# antigravity_cmd = "agy"
 ```
 
 ### Configuration Options
@@ -317,6 +324,7 @@ The configuration is determined with the following priority (highest priority to
 | `[providers]`     | `deepseek_cmd`    | `"deepseek"`         | DeepSeek TUI command                       |
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
+| `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 

@@ -1,5 +1,20 @@
 # Specstory CLI Changelog
 
+## v2.6.0 2026-08-03
+
+### 🐛 Bug Fixes
+
+- The Codex CLI provider no longer holds an open file descriptor for every historical Codex session file during `specstory run` and `specstory watch` on macOS. File watches are now limited to a trailing 7-day window of session directories (plus the directory of a resumed session), and watches that age out of the window are released at day rollover, so file descriptor usage stays flat no matter how long a watch runs. Previously, installs with a large Codex session history could pin tens of thousands of descriptors per process and exhaust the system-wide file table, [issue 266](https://github.com/specstoryai/getspecstory/issues/266). All historical sessions are still scanned and synced at startup and during `specstory sync`, as before.
+- The Claude Code provider no longer holds an open file descriptor for every historical Claude Code session file during `specstory run` and `specstory watch` on macOS. Session files modified within the trailing 7-day window are watched individually, and a periodic self-healing pass picks up new session files and re-watches dormant sessions the moment they become active again. Even a session idle for longer than the window resumes live markdown updates within seconds. Sessions are still fully covered at startup and during `specstory sync`, as before.
+
+## v2.5.0 2026-07-24
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports the [Antigravity CLI](https://antigravity.google/) (i.e. `antigravity-cli`, the `agy` binary) for sessions created from Antigravity CLI version `1.1.5` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- The [Antigravity CLI](https://antigravity.google/) provider does _not_ support using `specstory resume` to resume other agent's sessions in Antigravity. Resuming Antigravity CLI sessions in other agents is fully supported. This is due to issues with creating the protocol buffer data structures Antigravity uses for session storage.
+- The [Gemini CLI](https://github.com/google-gemini/gemini-cli) provider is now deprecated and will eventually be completely replaced by the [Antigravity CLI](https://antigravity.google/) provider. The Gemini CLI provider remains in place today to help with synchronizing legacy Gemini CLI sessions, and to allow those sessions to be resumed in other agents.
+
 ## v2.4.0 2026-07-20
 
 ### ⚙️ Improvements

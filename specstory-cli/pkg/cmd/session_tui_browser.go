@@ -251,17 +251,21 @@ func resumeSourceForSession(store *sessionindex.Store, s *sessionindex.Session) 
 func colorForAgent(id string) color.Color {
 	switch id {
 	case "claude":
-		return lipgloss.Color("170") // purple
+		return lipgloss.Color("#c15f3c") // terracotta
 	case "codex":
-		return lipgloss.Color("42") // green
-	case "cursor":
-		return lipgloss.Color("39") // blue
+		return lipgloss.Color("#219B75") // green
+	case "cursor", "cursoride":
+		// Mid grey (~4.5:1 contrast on both white and black backgrounds) —
+		// Cursor's off-white brand color is invisible on light terminal themes.
+		return lipgloss.Color("#767676")
 	case "gemini":
-		return lipgloss.Color("45") // cyan
+		return lipgloss.Color("#3781DE") // blue (matches antigravity)
 	case "droid":
-		return lipgloss.Color("214") // orange
+		return lipgloss.Color("#E75527") // orange-red
 	case "deepseek":
-		return lipgloss.Color("203") // red
+		return lipgloss.Color("#4C59FA") // blue-violet
+	case "antigravity":
+		return lipgloss.Color("#3781DE") // blue
 	default:
 		return lipgloss.Color("250")
 	}
@@ -912,15 +916,17 @@ func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet str
 	agent := m.agentTag(s.Agent)
 	proj := fmt.Sprintf("%-18s", truncate(sessionProject(s), 18))
 
+	pad := m.agentColW - agentColMinWidth // widen with a long agent id so columns stay aligned
+
 	if m.viewMode == "sparse" {
-		label := rowLabel(s, selected, snippet, m.lineWidth()-33, m.lineWidth()-35)
+		label := rowLabel(s, selected, snippet, m.lineWidth()-33-pad, m.lineWidth()-35-pad)
 		head := cursor + mark + " " + agent + "  " + styFaint.Render(proj) + "  " + label
 		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
 		return head + "\n" + sub
 	}
 
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
-	label := rowLabel(s, selected, snippet, m.lineWidth()-49, m.lineWidth()-51)
+	label := rowLabel(s, selected, snippet, m.lineWidth()-49-pad, m.lineWidth()-51-pad)
 	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
 }
 

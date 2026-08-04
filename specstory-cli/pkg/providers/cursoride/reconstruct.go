@@ -250,3 +250,9 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 func (p *Provider) NativeSessionPath(_ string, filename string) (string, error) {
 	return filepath.Join(os.TempDir(), "specstory-cursor-"+filename), nil
 }
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
+}

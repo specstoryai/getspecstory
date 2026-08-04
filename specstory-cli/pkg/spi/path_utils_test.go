@@ -367,3 +367,39 @@ func TestGenerateReadableName(t *testing.T) {
 		})
 	}
 }
+
+// TestFileURIToPath covers the shared file-URI converter on the POSIX forms
+// (the Windows drive-letter/UNC branches are separator-gated and can only run
+// on a Windows build; cursoride's TestUriToPath_WindowsPaths documents them).
+func TestFileURIToPath(t *testing.T) {
+	tests := []struct {
+		name    string
+		uri     string
+		want    string
+		wantErr bool
+	}{
+		{name: "plain posix path", uri: "file:///tmp/project/main.go", want: "/tmp/project/main.go"},
+		{name: "percent escapes decoded", uri: "file:///tmp/my%20file.go", want: "/tmp/my file.go"},
+		{name: "wsl.localhost strips host and distro", uri: "file://wsl.localhost/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl host without in-distro path is malformed", uri: "file://wsl.localhost/Ubuntu", wantErr: true},
+		{name: "non-wsl host dropped on posix", uri: "file://server/share/dir", want: "/share/dir"},
+		{name: "non-file scheme rejected", uri: "https://example.com/x", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := FileURIToPath(tt.uri)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("FileURIToPath(%q) = %q, want error", tt.uri, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("FileURIToPath(%q) unexpected error: %v", tt.uri, err)
+			}
+			if got != tt.want {
+				t.Errorf("FileURIToPath(%q) = %q, want %q", tt.uri, got, tt.want)
+			}
+		})
+	}
+}

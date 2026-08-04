@@ -137,12 +137,18 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			}
 			defer provenanceCleanup()
 
-			providerIDs := registry.ListIDs()
-			if len(providerIDs) == 0 {
+			if len(registry.ListIDs()) == 0 {
 				return fmt.Errorf("no providers registered")
 			}
-			if len(args) > 0 {
-				providerIDs = []string{args[0]}
+
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+			providerIDs := registry.ListIDs()
+			if len(resolvedIDs) > 0 {
+				providerIDs = resolvedIDs
 			}
 
 			// Collect provider names for analytics
@@ -301,9 +307,13 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		},
 	}
 
-	// Shared session-processing flags plus watch's own json output flag
+	// Shared session-processing flags plus watch's own json output and provider
+	// filter. The provider filter stays here rather than in the shared helper
+	// because resume and search act on one already-identified session, where
+	// filtering by provider has no meaning.
 	registerSessionProcessingFlags(watchCmd, cloudURL, defaults)
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
+	AddProvidersFlag(watchCmd)
 
 	return watchCmd
 }
