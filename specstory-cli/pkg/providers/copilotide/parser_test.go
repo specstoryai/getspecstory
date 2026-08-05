@@ -63,6 +63,47 @@ func TestExtractTextFromResponseArray(t *testing.T) {
 			want: "Before after",
 		},
 		{
+			// Separate progress notes streamed between tool batches must not
+			// butt together mid-sentence ("...report.I'll create...").
+			name: "adjacent plain fragments get a paragraph break",
+			responses: rawMessages(
+				`{"value": "First progress note."}`,
+				`{"value": "Second progress note."}`,
+			),
+			want: "First progress note.\n\nSecond progress note.",
+		},
+		{
+			// A fragment carrying its own boundary newlines keeps them as-is.
+			name: "fragment with leading newlines is not double-separated",
+			responses: rawMessages(
+				`{"value": "First."}`,
+				`{"value": "\n\nSecond."}`,
+			),
+			want: "First.\n\nSecond.",
+		},
+		{
+			// VS Code brackets structured code-block items with bare-fence
+			// fragments; with the items unrendered they'd leave empty fences.
+			name: "bare fence delimiter fragments dropped",
+			responses: rawMessages(
+				`{"value": "Before the block."}`,
+				`{"value": "\n`+"```"+`\n"}`,
+				`{"kind": "codeblockUri", "uri": {"path": "/proj/x.go"}}`,
+				`{"value": "\n`+"```"+`\n"}`,
+				`{"value": "After the block."}`,
+			),
+			want: "Before the block.\n\nAfter the block.",
+		},
+		{
+			// A real fenced code example is one fragment spanning several lines
+			// and must survive intact.
+			name: "complete fenced block within one fragment kept",
+			responses: rawMessages(
+				`{"value": "` + "```go\\nfmt.Println(1)\\n```" + `"}`,
+			),
+			want: "```go\nfmt.Println(1)\n```",
+		},
+		{
 			name:      "no markdown items",
 			responses: rawMessages(`{"kind": "mcpServersStarting"}`),
 			want:      "",
@@ -85,6 +126,49 @@ func TestExtractTextFromResponseArray(t *testing.T) {
 
 // TestFormatToolMarkdown covers the pre-rendered tool body: input key-value pairs
 // (multiline values fenced, internal keys skipped) and the fenced result.
+func TestSanitizeInvocationMessage(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			// The label is empty on disk — VS Code's own renderer fills it in,
+			// plain markdown shows the raw "[](file://...)".
+			name: "empty-label file link gets the file name",
+			in:   "Viewed image [](file:///Users/me/tool_demos/tiny.png)",
+			want: "Viewed image `tiny.png`",
+		},
+		{
+			name: "notebook cell link drops the fragment",
+			in:   "Ran [](vscode-notebook-cell:/Users/me/demo.ipynb#W2sZmlsZQ%3D%3D)",
+			want: "Ran `demo.ipynb`",
+		},
+		{
+			name: "labeled IDE-scheme link keeps its label, drops the dead URL",
+			in:   "Opened [Browser](vscode-browser:/591ef302?vscodeLinkType=browser)",
+			want: "Opened `Browser`",
+		},
+		{
+			name: "message without links passes through",
+			in:   "Updated todo list",
+			want: "Updated todo list",
+		},
+		{
+			name: "empty message stays empty",
+			in:   "",
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sanitizeInvocationMessage(tt.in); got != tt.want {
+				t.Errorf("sanitizeInvocationMessage(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatToolMarkdown(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -373,11 +457,12 @@ func TestGenerateSlug(t *testing.T) {
 	}
 }
 
-// TestParseResponsesForTools_HiddenToolsKeepSequenceAligned guards the sequence-based
-// matching: metadata's toolCallRounds include hidden tools, so a hidden invocation must
-// consume its sequence slot (without emitting a message) or every later visible tool
-// gets the wrong name/args/results.
-func TestParseResponsesForTools_HiddenToolsKeepSequenceAligned(t *testing.T) {
+// TestConvertResponsesToMessages_HiddenToolsKeepSequenceAligned guards the
+// order-based fallback matching (UUID-style invocation IDs that can't ID-match):
+// metadata's toolCallRounds include hidden tools, so a hidden invocation must
+// claim its metadata call (without emitting a message) or every later visible
+// tool gets the wrong name/args/results.
+func TestConvertResponsesToMessages_HiddenToolsKeepSequenceAligned(t *testing.T) {
 	metadata := VSCodeResultMetadata{
 		ToolCallRounds: []VSCodeToolCallRound{
 			{ToolCalls: []VSCodeToolCallInfo{
@@ -393,7 +478,7 @@ func TestParseResponsesForTools_HiddenToolsKeepSequenceAligned(t *testing.T) {
 		`{"kind": "toolInvocationSerialized", "toolCallId": "vs-3"}`,
 	)
 
-	messages := ParseResponsesForTools(responses, metadata, "model-x")
+	messages, _ := ConvertResponsesToMessages(responses, metadata, "model-x")
 
 	if len(messages) != 2 {
 		t.Fatalf("expected 2 visible tool messages, got %d", len(messages))
@@ -401,9 +486,92 @@ func TestParseResponsesForTools_HiddenToolsKeepSequenceAligned(t *testing.T) {
 	if got := messages[0].Tool.Name; got != "read_file" {
 		t.Errorf("first visible tool = %q, want %q", got, "read_file")
 	}
-	// Without slot consumption for the hidden call-2, this would misalign to get_errors.
+	// Without the hidden call-2 claiming its metadata call, this would misalign to get_errors.
 	if got := messages[1].Tool.Name; got != "create_file" {
 		t.Errorf("second visible tool = %q, want %q", got, "create_file")
+	}
+}
+
+// TestConvertResponsesToMessages_UUIDInvocationCannotStealIDMatchedCall guards
+// the two-pass resolution with real-session shape: a hidden UUID-style
+// invocation with no metadata call at all (VS Code-internal todo updates)
+// precedes ID-matched invocations. In a single in-order pass it would claim the
+// first metadata call, mislabeling every tool after it.
+func TestConvertResponsesToMessages_UUIDInvocationCannotStealIDMatchedCall(t *testing.T) {
+	metadata := VSCodeResultMetadata{
+		ToolCallRounds: []VSCodeToolCallRound{
+			{ToolCalls: []VSCodeToolCallInfo{
+				{ID: "call_LIST__vscode-1", Name: "list_dir", Arguments: `{"path": "/proj"}`},
+				{ID: "call_CREATE__vscode-2", Name: "create_file", Arguments: `{"filePath": "/proj/a.txt"}`},
+			}},
+		},
+	}
+	responses := rawMessages(
+		`{"kind": "toolInvocationSerialized", "toolCallId": "314b5962-uuid", "toolId": "manage_todo_list", "presentation": "hidden"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "call_LIST", "toolId": "copilot_listDirectory"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "call_CREATE", "toolId": "copilot_createFile"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "a5e98c22-uuid", "toolId": "manage_todo_list", "pastTenseMessage": "Created 2 todos"}`,
+	)
+
+	messages, _ := ConvertResponsesToMessages(responses, metadata, "model-x")
+
+	if len(messages) != 3 {
+		t.Fatalf("expected 3 visible tool messages, got %d", len(messages))
+	}
+	if got := messages[0].Tool.Name; got != "list_dir" {
+		t.Errorf("first tool = %q, want list_dir (exact ID match must win)", got)
+	}
+	if got := messages[1].Tool.Name; got != "create_file" {
+		t.Errorf("second tool = %q, want create_file", got)
+	}
+	// The metadata-less todo update renders from its own invocation data.
+	if got := messages[2].Tool.Name; got != "manage_todo_list" {
+		t.Errorf("third tool = %q, want manage_todo_list (invocation-only fallback)", got)
+	}
+	if md := messages[2].Tool.FormattedMarkdown; md == nil || !strings.Contains(*md, "Created 2 todos") {
+		t.Errorf("fallback tool should carry its invocation message, got %v", md)
+	}
+}
+
+// TestConvertResponsesToMessages_IDMatchAndDedup guards the two behaviors the
+// real session data demanded: a metadata ID is the invocation's toolCallId plus
+// a "__vscode-<n>" suffix (exact pairing beats position), and VS Code appends a
+// fresh serialization of the same invocation per state update (one rendered
+// block per call, last serialization's data, first occurrence's position).
+func TestConvertResponsesToMessages_IDMatchAndDedup(t *testing.T) {
+	metadata := VSCodeResultMetadata{
+		ToolCallRounds: []VSCodeToolCallRound{
+			{ToolCalls: []VSCodeToolCallInfo{
+				{ID: "call_AAA__vscode-100", Name: "read_file", Arguments: `{"filePath": "/proj/a.go"}`},
+				{ID: "call_BBB__vscode-101", Name: "create_file", Arguments: `{"filePath": "/proj/b.go"}`},
+			}},
+		},
+	}
+	responses := rawMessages(
+		// Out of metadata order on purpose: ID matching must pair correctly anyway.
+		`{"kind": "toolInvocationSerialized", "toolCallId": "call_BBB"}`,
+		`{"value": "Narration between the tools."}`,
+		// Same call serialized twice (running, then completed with resultDetails).
+		`{"kind": "toolInvocationSerialized", "toolCallId": "call_AAA"}`,
+		`{"kind": "toolInvocationSerialized", "toolCallId": "call_AAA", "resultDetails": {"output": [{"type": "embed", "isText": true, "value": "file contents"}]}}`,
+	)
+
+	messages, fullText := ConvertResponsesToMessages(responses, metadata, "model-x")
+
+	if len(messages) != 3 {
+		t.Fatalf("expected tool + text + tool, got %d messages", len(messages))
+	}
+	if got := messages[0].Tool.Name; got != "create_file" {
+		t.Errorf("first tool = %q, want create_file (ID match, not position)", got)
+	}
+	if messages[1].Tool != nil || messages[1].Content[0].Text != "Narration between the tools." {
+		t.Errorf("middle message should be the narration, got %+v", messages[1])
+	}
+	if got := messages[2].Tool.Name; got != "read_file" {
+		t.Errorf("second tool = %q, want read_file", got)
+	}
+	if fullText != "Narration between the tools." {
+		t.Errorf("fullText = %q", fullText)
 	}
 }
 

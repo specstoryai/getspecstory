@@ -80,7 +80,8 @@ func ConvertRequestsToExchanges(requests []VSCodeRequestBlock) []schema.Exchange
 }
 
 // ConvertRequestToMessages converts one request block to message array
-// Returns: [user message, thinking message (if present), tool message(s), agent message]
+// Returns: [user message, thinking message (if unique), then agent text and
+// tool messages interleaved in the order the response array records them]
 func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 	var messages []schema.Message
 
@@ -97,9 +98,32 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 	// Check if there are tool calls
 	hasToolCalls := HasToolCalls(req.Result.Metadata)
 
-	// 2. Extract thinking from tool call rounds (only if there are actual tool calls)
+	// 2. The turn's body: agent text and tool calls in recorded order.
+	body, bodyText := ConvertResponsesToMessages(req.Response, req.Result.Metadata, req.ModelID)
+
+	// When the response array yielded no text at all, fall back to the metadata
+	// sources (final assistant message, then round responses on tool-less turns).
+	if strings.TrimSpace(bodyText) == "" {
+		fallback := ExtractFinalAgentMessage(req.Result.Metadata)
+		if fallback == "" && !hasToolCalls {
+			fallback = ExtractResponseFromToolCallRounds(req.Result.Metadata)
+		}
+		if fallback != "" {
+			body = append(body, schema.Message{
+				Role:  schema.RoleAgent,
+				Model: req.ModelID,
+				Content: []schema.ContentPart{
+					{Type: schema.ContentTypeText, Text: fallback},
+				},
+			})
+			bodyText = fallback
+		}
+	}
+
+	// 3. Extract thinking from tool call rounds (only if there are actual tool
+	// calls), skipping rounds whose text already appears in the body.
 	if hasToolCalls {
-		thinking := ExtractThinkingFromMetadata(req.Result.Metadata)
+		thinking := ExtractThinkingFromMetadata(req.Result.Metadata, bodyText)
 		if thinking != "" {
 			thinkingMsg := schema.Message{
 				Role:  schema.RoleAgent,
@@ -112,123 +136,137 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 		}
 	}
 
-	// 3. Parse responses and extract tool calls
-	toolMessages := ParseResponsesForTools(req.Response, req.Result.Metadata, req.ModelID)
-	messages = append(messages, toolMessages...)
-
-	// 4. Final agent text message
-	// Try multiple sources in order of preference
-	var finalText string
-
-	// First try: metadata.messages (if present)
-	finalText = ExtractFinalAgentMessage(req.Result.Metadata)
-
-	// Second try: toolCallRounds response when no tool calls (this is the actual response)
-	if finalText == "" && !hasToolCalls {
-		finalText = ExtractResponseFromToolCallRounds(req.Result.Metadata)
-	}
-
-	// Third try: response array value field
-	if finalText == "" {
-		finalText = ExtractTextFromResponseArray(req.Response)
-	}
-
-	if finalText != "" {
-		agentMsg := schema.Message{
-			Role: schema.RoleAgent,
-			Content: []schema.ContentPart{
-				{Type: schema.ContentTypeText, Text: finalText},
-			},
-			Model: req.ModelID,
-		}
-		messages = append(messages, agentMsg)
-	}
+	// 4. Body after the thinking block, mirroring how the turn played out.
+	messages = append(messages, body...)
 
 	return messages
 }
 
-// ParseResponsesForTools extracts tool invocations from response array
-func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMetadata, modelID string) []schema.Message {
-	var toolMessages []schema.Message
+// ConvertResponsesToMessages renders a turn's body — agent text and tool calls
+// interleaved in the order the response array records them, which is the order
+// the user actually saw. It also returns the turn's full rendered text (all
+// text messages joined), which callers use for thinking deduplication and
+// fallback decisions.
+//
+// Each tool invocation is resolved against metadata by ID first: a metadata
+// tool call's ID is the invocation's toolCallId plus a "__vscode-<n>" suffix,
+// so stripping the suffix pairs them exactly. Invocations without an ID match
+// (older sessions serialize a VS Code UUID instead) claim the next unclaimed
+// metadata call in order — the previous sequence behavior. Invocations with no
+// metadata at all (canceled turns store an empty metadata object) render from
+// their own resultDetails.
+func ConvertResponsesToMessages(responses []json.RawMessage, metadata VSCodeResultMetadata, modelID string) ([]schema.Message, string) {
+	items := collectResponseBodyItems(responses)
 
-	// Build ordered sequence of tool calls from metadata
-	toolCallSequence := BuildToolCallSequence(metadata)
-
-	// Track sequence index for matching
-	sequenceIndex := 0
-
-	// Process each response
-	for _, rawResp := range responses {
-		// Parse "kind" field first
-		kind, err := ParseResponseKind(rawResp)
-		if err != nil {
-			slog.Debug("Failed to parse response kind", "error", err)
-			continue
-		}
-
-		switch kind {
-		case "toolInvocationSerialized":
-			var invocation VSCodeToolInvocationResponse
-			if err := json.Unmarshal(rawResp, &invocation); err != nil {
-				slog.Debug("Failed to parse tool invocation", "error", err)
-				continue
-			}
-
-			// Match by sequence: get the next tool call from the ordered list
-			if sequenceIndex >= len(toolCallSequence) {
-				slog.Debug("Tool invocation has no matching tool call in sequence",
-					"sequenceIndex", sequenceIndex,
-					"totalToolCalls", len(toolCallSequence),
-					"toolCallId", invocation.ToolCallID)
-				continue
-			}
-
-			toolCall := toolCallSequence[sequenceIndex]
-			sequenceIndex++
-
-			// Hidden tools still occupy a slot in metadata's tool call sequence,
-			// so consume the slot above but don't emit a message for them.
-			if invocation.Presentation == "hidden" {
-				continue
-			}
-
-			slog.Debug("Matched tool by sequence",
-				"sequenceIndex", sequenceIndex-1,
-				"toolName", toolCall.Name,
-				"invocationId", invocation.ToolCallID,
-				"metadataId", toolCall.ID)
-
-			// Build tool info using the matched tool call
-			toolInfo := BuildToolInfoFromInvocation(invocation, toolCall, metadata.ToolCallResults)
-			if toolInfo != nil {
-				toolMsg := schema.Message{
-					Role:  schema.RoleAgent,
-					Model: modelID,
-					Tool:  toolInfo,
-				}
-				toolMessages = append(toolMessages, toolMsg)
-			}
-
-		// Handle other response types (textEditGroup, codeblockUri, etc.)
-		// Can defer detailed handling to phase 2
-		case "textEditGroup":
-			slog.Debug("Skipping textEditGroup response (phase 2)", "kind", kind)
-		case "codeblockUri":
-			slog.Debug("Skipping codeblockUri response (phase 2)", "kind", kind)
-		case "confirmation":
-			slog.Debug("Skipping confirmation response (phase 2)", "kind", kind)
-		case "inlineReference":
-			slog.Debug("Skipping inlineReference response (phase 2)", "kind", kind)
-		case "":
-			// Plain markdown fragments carry no kind at all — they are the normal
-			// body of every response, not an anomaly, so logging them would just
-			// flood the debug log during routine parsing.
-		default:
-			slog.Debug("Unknown response kind", "kind", kind)
+	// Ordered metadata calls with claim tracking. byInvocationID maps the
+	// suffix-stripped metadata ID back to its position for exact pairing.
+	calls := BuildToolCallSequence(metadata)
+	claimed := make([]bool, len(calls))
+	byInvocationID := make(map[string]int, len(calls))
+	for i, call := range calls {
+		prefix, _, _ := strings.Cut(call.ID, "__vscode-")
+		if _, dup := byInvocationID[prefix]; !dup {
+			byInvocationID[prefix] = i
 		}
 	}
 
-	return toolMessages
+	// Metadata resolution runs in two passes over the whole turn. Pass 1: exact
+	// ID matches claim their calls. Pass 2: invocations without an exact match
+	// (older sessions serialize a VS Code UUID instead) claim the remaining
+	// calls in order — the old sequence behavior, now restricted to leftovers.
+	// The pass split matters: a single in-order pass would let an early
+	// UUID-style invocation with no metadata at all (e.g. a hidden todo-list
+	// update) steal a call that a later invocation ID-matches exactly,
+	// mislabeling every tool after it.
+	assignments := make(map[int]*VSCodeToolCallInfo)
+	for idx := range items {
+		inv := items[idx].inv
+		if inv == nil {
+			continue
+		}
+		if i, ok := byInvocationID[inv.ToolCallID]; ok && !claimed[i] {
+			claimed[i] = true
+			assignments[idx] = &calls[i]
+		}
+	}
+	nextUnclaimed := 0
+	for idx := range items {
+		if items[idx].inv == nil {
+			continue
+		}
+		if _, ok := assignments[idx]; ok {
+			continue
+		}
+		for nextUnclaimed < len(calls) && claimed[nextUnclaimed] {
+			nextUnclaimed++
+		}
+		if nextUnclaimed < len(calls) {
+			claimed[nextUnclaimed] = true
+			assignments[idx] = &calls[nextUnclaimed]
+		}
+	}
+
+	var messages []schema.Message
+	var fullText strings.Builder
+	var textRun []responseBodyItem
+
+	flushTextRun := func() {
+		if len(textRun) == 0 {
+			return
+		}
+		text := joinTextItems(textRun)
+		textRun = nil
+		if strings.TrimSpace(text) == "" {
+			return
+		}
+		if fullText.Len() > 0 {
+			fullText.WriteString("\n\n")
+		}
+		fullText.WriteString(text)
+		messages = append(messages, schema.Message{
+			Role:  schema.RoleAgent,
+			Model: modelID,
+			Content: []schema.ContentPart{
+				{Type: schema.ContentTypeText, Text: text},
+			},
+		})
+	}
+
+	for idx, item := range items {
+		if item.inv == nil {
+			textRun = append(textRun, item)
+			continue
+		}
+
+		// Assignment happened above the emit loop (hidden tools included, so
+		// they can't leave a call to mispair with a later invocation). Hidden
+		// tools emit no message and don't split the surrounding text run.
+		call := assignments[idx]
+		if item.inv.Presentation == "hidden" {
+			continue
+		}
+		flushTextRun()
+
+		var toolInfo *schema.ToolInfo
+		if call != nil {
+			toolInfo = BuildToolInfoFromInvocation(*item.inv, *call, metadata.ToolCallResults)
+		} else {
+			slog.Debug("Tool invocation has no metadata match; using invocation resultDetails",
+				"toolId", item.inv.ToolID,
+				"toolCallId", item.inv.ToolCallID)
+			toolInfo = BuildToolInfoFromInvocationOnly(*item.inv)
+		}
+		if toolInfo != nil {
+			messages = append(messages, schema.Message{
+				Role:  schema.RoleAgent,
+				Model: modelID,
+				Tool:  toolInfo,
+			})
+		}
+	}
+	flushTextRun()
+
+	return messages, fullText.String()
 }
 
 // BuildToolInfoFromInvocation creates ToolInfo from VS Code invocation + tool call
@@ -290,7 +328,103 @@ func BuildToolInfoFromInvocation(
 	return toolInfo
 }
 
-// valueToString converts a tool result value (which can be string or object) to string
+// BuildToolInfoFromInvocationOnly creates ToolInfo from an invocation that has no
+// matching metadata tool call — the whole turn when it was canceled (VS Code then
+// stores empty metadata), or the tail of a turn with more invocations than recorded
+// calls. The invocation's resultDetails still carries the tool's input (a JSON
+// string) and output (a list of embeds), so those render instead of dropping the
+// tool from the markdown entirely.
+func BuildToolInfoFromInvocationOnly(invocation VSCodeToolInvocationResponse) *schema.ToolInfo {
+	name := invocation.ToolID
+	if name == "" {
+		name = "unknown"
+	}
+	toolInfo := &schema.ToolInfo{
+		Name:  name,
+		Type:  MapToolType(name),
+		UseID: invocation.ToolCallID,
+	}
+
+	details, _ := invocation.ResultDetails.(map[string]any)
+
+	// Input: resultDetails.input is the arguments JSON as a string.
+	if inputJSON, ok := details["input"].(string); ok && inputJSON != "" {
+		var args map[string]any
+		if err := json.Unmarshal([]byte(inputJSON), &args); err == nil {
+			toolInfo.Input = args
+		}
+	}
+
+	// Result: the readable text of resultDetails (embeds or URI lists).
+	if result := resultDetailsText(invocation.ResultDetails); result != "" {
+		toolInfo.Output = map[string]any{"result": result}
+	}
+
+	// Same pre-rendering rationale as BuildToolInfoFromInvocation: cross-agent
+	// resume flattens tool calls from Summary/FormattedMarkdown only. The
+	// invocation's own message (e.g. "Updated todo list") leads the markdown —
+	// it is the only human description these tools have.
+	summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
+	toolInfo.Summary = &summary
+	formatted := FormatToolMarkdown(toolInfo)
+	message := markdownStringText(invocation.PastTenseMessage)
+	if message == "" {
+		message = markdownStringText(invocation.InvocationMessage)
+	}
+	if message = sanitizeInvocationMessage(message); message != "" {
+		formatted = "\n" + message + "\n" + formatted
+	}
+	if formatted != "" {
+		toolInfo.FormattedMarkdown = &formatted
+	}
+
+	return toolInfo
+}
+
+// resultDetailsText extracts readable text from an invocation's resultDetails.
+// Two shapes exist: an object whose "output" is a list of embeds (text embeds
+// carry the content; binary embeds like screenshots are elided to a mime-type
+// placeholder), and a bare list of URI objects (file-result tools), rendered as
+// their paths.
+func resultDetailsText(details any) string {
+	var parts []string
+	switch d := details.(type) {
+	case map[string]any:
+		outputs, _ := d["output"].([]any)
+		for _, out := range outputs {
+			embed, ok := out.(map[string]any)
+			if !ok {
+				continue
+			}
+			if mime, ok := embed["mimeType"].(string); ok && mime != "" {
+				parts = append(parts, fmt.Sprintf("[%s embed]", mime))
+				continue
+			}
+			if value, ok := embed["value"].(string); ok && value != "" {
+				parts = append(parts, value)
+			}
+		}
+	case []any:
+		for _, item := range d {
+			uri, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if path, ok := uri["fsPath"].(string); ok && path != "" {
+				parts = append(parts, path)
+			} else if path, ok := uri["path"].(string); ok && path != "" {
+				parts = append(parts, path)
+			}
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+// valueToString converts a tool result value (which can be string or object) to
+// a human-readable string. VS Code frequently stores results as a serialized
+// renderer tree ({"node":{"children":[...],"text":...}}) whose readable content
+// lives in the "text" leaves — extracting those turns an opaque JSON blob into
+// the text the user actually saw. Other objects marshal to JSON as before.
 func valueToString(value any) string {
 	if value == nil {
 		return ""
@@ -301,6 +435,14 @@ func valueToString(value any) string {
 		return str
 	}
 
+	if m, ok := value.(map[string]any); ok {
+		if node, ok := m["node"]; ok {
+			if text := renderNodeTreeText(node); strings.TrimSpace(text) != "" {
+				return text
+			}
+		}
+	}
+
 	// If it's an object, marshal to JSON
 	jsonBytes, err := json.Marshal(value)
 	if err != nil {
@@ -308,6 +450,33 @@ func valueToString(value any) string {
 		return ""
 	}
 	return string(jsonBytes)
+}
+
+// renderNodeTreeText walks a serialized VS Code renderer node, concatenating its
+// "text" leaves in document order and inserting the line break the renderer
+// would when a node asks for one.
+func renderNodeTreeText(node any) string {
+	var b strings.Builder
+	var walk func(n any)
+	walk = func(n any) {
+		m, ok := n.(map[string]any)
+		if !ok {
+			return
+		}
+		if text, ok := m["text"].(string); ok && text != "" {
+			if lb, _ := m["lineBreakBefore"].(bool); lb && b.Len() > 0 && !strings.HasSuffix(b.String(), "\n") {
+				b.WriteString("\n")
+			}
+			b.WriteString(text)
+		}
+		if children, ok := m["children"].([]any); ok {
+			for _, child := range children {
+				walk(child)
+			}
+		}
+	}
+	walk(node)
+	return b.String()
 }
 
 // MapToolType maps VS Code Copilot tool names to schema.ToolType constants

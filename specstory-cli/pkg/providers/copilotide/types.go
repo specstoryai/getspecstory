@@ -50,7 +50,18 @@ type VSCodeToolInvocationResponse struct {
 	ToolID       string `json:"toolId,omitempty"`
 	ToolCallID   string `json:"toolCallId,omitempty"`
 	Presentation string `json:"presentation,omitempty"` // "hidden" or empty
-	// Add invocationMessage, pastTenseMessage if needed for tool parameters
+
+	// InvocationMessage/PastTenseMessage are VS Code "markdown string"s (either a
+	// bare string or an object with a value field — read via markdownStringText).
+	InvocationMessage any `json:"invocationMessage,omitempty"`
+	PastTenseMessage  any `json:"pastTenseMessage,omitempty"`
+
+	// ResultDetails carries the tool's input/output directly on the invocation.
+	// It is the only input/output source for invocations whose turn never
+	// recorded toolCallRounds metadata (canceled or still-running turns store
+	// an empty metadata object). Shapes observed: an object with "input" (a JSON
+	// string) and "output" (a list of embeds), or a bare list of URI objects.
+	ResultDetails any `json:"resultDetails,omitempty"`
 }
 
 // VSCodeTextEditGroupResponse represents file edits
@@ -78,23 +89,7 @@ type VSCodeConfirmationResponse struct {
 
 // GetMessageText extracts the text from the message field (handles both string and object formats)
 func (c *VSCodeConfirmationResponse) GetMessageText() string {
-	if c.Message == nil {
-		return ""
-	}
-
-	// Try string first
-	if str, ok := c.Message.(string); ok {
-		return str
-	}
-
-	// If it's an object, try to get the "value" field
-	if msgMap, ok := c.Message.(map[string]any); ok {
-		if value, ok := msgMap["value"].(string); ok {
-			return value
-		}
-	}
-
-	return ""
+	return markdownStringText(c.Message)
 }
 
 // VSCodeInlineReferenceResponse represents a reference to code/files
