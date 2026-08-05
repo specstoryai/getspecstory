@@ -160,18 +160,26 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return true
 }
 
-// GetAgentChatSession retrieves a single chat session by ID
+// GetAgentChatSession retrieves a single chat session by ID.
+// Returns (nil, nil) when the session is not found — the SPI not-found
+// contract — reserving errors for real failures (e.g. an unparseable file).
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	slog.Debug("GetAgentChatSession", "projectPath", projectPath, "sessionID", sessionID, "debugRaw", debugRaw)
 
-	// Find workspace for project
+	// No matching workspace means this provider simply doesn't have the
+	// session — a normal outcome when callers probe every provider for an ID.
 	workspace, err := p.FindWorkspaceForProject(projectPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find workspace: %w", err)
+		slog.Debug("No workspace found for project", "projectPath", projectPath, "error", err)
+		return nil, nil
 	}
 
 	// Load specific session
 	session, err := LoadSessionByID(workspace.Dir, sessionID)
+	if errors.Is(err, errSessionNotFound) {
+		slog.Debug("Session not found in workspace", "sessionID", sessionID, "workspace", workspace.Dir)
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to load session: %w", err)
 	}

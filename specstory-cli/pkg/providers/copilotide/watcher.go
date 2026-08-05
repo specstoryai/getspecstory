@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -290,14 +289,4 @@ func deliverSession(session *spi.AgentChatSession, sessionCallback func(*spi.Age
 		}
 	}()
 	sessionCallback(session)
-}
-
-// GetSessionIDFromPath extracts session ID from a file path
-func GetSessionIDFromPath(path string) string {
-	filename := filepath.Base(path)
-	// Remove .json or .jsonl extension
-	if strings.HasSuffix(filename, ".jsonl") {
-		return strings.TrimSuffix(filename, ".jsonl")
-	}
-	return strings.TrimSuffix(filename, ".json")
 }

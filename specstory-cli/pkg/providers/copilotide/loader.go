@@ -2,6 +2,7 @@ package copilotide
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -75,7 +76,13 @@ func LoadSessionFile(sessionPath string) (*VSCodeComposer, error) {
 	return &composer, nil
 }
 
-// LoadSessionByID loads a specific session by ID from the workspace
+// errSessionNotFound reports that no session file exists for a requested ID.
+// Callers use it to distinguish "this session isn't here" (a normal outcome —
+// the SPI not-found contract is (nil, nil)) from a real load failure.
+var errSessionNotFound = errors.New("session not found")
+
+// LoadSessionByID loads a specific session by ID from the workspace.
+// Returns an error wrapping errSessionNotFound when no session file exists.
 func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
 
@@ -89,7 +96,7 @@ func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
 	} else if _, err := os.Stat(jsonPath); err == nil {
 		sessionPath = jsonPath
 	} else {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+		return nil, fmt.Errorf("%w: %s", errSessionNotFound, sessionID)
 	}
 
 	return LoadSessionFile(sessionPath)
