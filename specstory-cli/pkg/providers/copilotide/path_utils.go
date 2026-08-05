@@ -42,6 +42,31 @@ func (p *Provider) workspaceStoragePath() string {
 	return GetWorkspaceStoragePath(p.variant.DataDirName)
 }
 
+// HasAnyChatSessions reports whether any workspace in the given distribution's
+// storage has ever had a Copilot chat session. The registry uses this to decide
+// whether an alternative VS Code distribution (Insiders, VSCodium, ...) is worth
+// registering: merely having opened the app creates workspace storage, but only
+// an actual Copilot chat creates a chatSessions directory.
+func HasAnyChatSessions(dataDirName string) bool {
+	storagePath := GetWorkspaceStoragePath(dataDirName)
+	if storagePath == "" {
+		return false
+	}
+	entries, err := os.ReadDir(storagePath)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(GetChatSessionsPath(filepath.Join(storagePath, entry.Name()))); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // GetChatSessionsPath returns the chatSessions directory for a workspace
 func GetChatSessionsPath(workspaceDir string) string {
 	return filepath.Join(workspaceDir, "chatSessions")
