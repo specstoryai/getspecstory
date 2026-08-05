@@ -91,6 +91,24 @@ func (p *Provider) WatchChatSessions(
 	lastProcessed := make(map[string]time.Time)
 	debounceWindow := 500 * time.Millisecond
 
+	// The debounce is leading-edge: the first event in a burst processes
+	// immediately, later ones inside the window are suppressed. A suppressed
+	// event must never be simply dropped — the burst's final write is often the
+	// completed response, and no further event may ever arrive for it — so it
+	// marks the file dirty here and the debounce ticker below re-processes it
+	// once its window has passed.
+	dirty := make(map[string]bool)
+	debounceTicker := time.NewTicker(debounceWindow)
+	defer debounceTicker.Stop()
+
+	// Backstop for fsnotify events that are lost or never delivered (kqueue
+	// overflow, changes the kernel coalesced away): periodically re-scan every
+	// session file, mirroring the Cursor IDE watcher's safety-net poll. The
+	// lastMessageDate gate in processSessionFile keeps unchanged sessions from
+	// re-emitting, so a quiet scan costs only the parses.
+	safetyNetTicker := time.NewTicker(2 * time.Minute)
+	defer safetyNetTicker.Stop()
+
 	// processSessionFile loads one session file and, when it is new or has
 	// advanced past its last known lastMessageDate, queues it for delivery.
 	// Shared by the event loop and the fresh-directory catch-up scan below.
@@ -213,10 +231,13 @@ func (p *Provider) WatchChatSessions(
 				continue
 			}
 
-			// Debounce rapid events for the same file
+			// Debounce rapid events for the same file: suppress the immediate
+			// re-read but mark the file dirty so the debounce ticker picks it
+			// up once the window has passed — the update itself is never lost.
 			now := time.Now()
 			if lastTime, ok := lastProcessed[event.Name]; ok && now.Sub(lastTime) < debounceWindow {
-				slog.Debug("Debouncing rapid event", "path", event.Name)
+				dirty[event.Name] = true
+				slog.Debug("Debouncing rapid event, scheduled trailing re-read", "path", event.Name)
 				continue
 			}
 
@@ -227,6 +248,42 @@ func (p *Provider) WatchChatSessions(
 			// not be swallowed by the debounce window or the update is lost.
 			if processSessionFile(event.Name) {
 				lastProcessed[event.Name] = now
+			}
+
+		case <-debounceTicker.C:
+			// Trailing edge of the debounce: re-process files whose last event
+			// was suppressed, now that their window has passed. A file still
+			// inside its window stays dirty for the next tick. On a load
+			// failure the dirty mark is dropped: lastProcessed was not
+			// advanced, so the write event that follows the in-flight write
+			// processes immediately.
+			for path := range dirty {
+				if time.Since(lastProcessed[path]) < debounceWindow {
+					continue
+				}
+				delete(dirty, path)
+				slog.Debug("Trailing re-read of debounced file", "path", path)
+				if processSessionFile(path) {
+					lastProcessed[path] = time.Now()
+				}
+			}
+
+		case <-safetyNetTicker.C:
+			// Safety-net poll: catch anything fsnotify never told us about.
+			files, err := LoadAllSessionFiles(workspaceDir)
+			if err != nil {
+				slog.Warn("Safety-net scan failed", "error", err)
+				continue
+			}
+			slog.Debug("Safety-net scan", "files", len(files))
+			for _, path := range files {
+				if time.Since(lastProcessed[path]) < debounceWindow {
+					continue
+				}
+				delete(dirty, path)
+				if processSessionFile(path) {
+					lastProcessed[path] = time.Now()
+				}
 			}
 
 		case err, ok := <-watcher.Errors:
