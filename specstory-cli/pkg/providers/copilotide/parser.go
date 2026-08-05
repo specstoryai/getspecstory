@@ -27,20 +27,6 @@ func ParseResponseKind(rawResponse json.RawMessage) (string, error) {
 	return kindOnly.Kind, nil
 }
 
-// BuildToolCallMap creates a lookup map from toolCallId to tool call info
-// NOTE: This is kept for backward compatibility but sequence-based matching is preferred
-func BuildToolCallMap(metadata VSCodeResultMetadata) map[string]VSCodeToolCallInfo {
-	toolCalls := make(map[string]VSCodeToolCallInfo)
-
-	for _, round := range metadata.ToolCallRounds {
-		for _, call := range round.ToolCalls {
-			toolCalls[call.ID] = call
-		}
-	}
-
-	return toolCalls
-}
-
 // BuildToolCallSequence creates an ordered list of tool calls from metadata
 // This is used for sequence-based matching since VS Code IDs don't match OpenAI IDs
 func BuildToolCallSequence(metadata VSCodeResultMetadata) []VSCodeToolCallInfo {
@@ -115,13 +101,16 @@ func ExtractResponseFromToolCallRounds(metadata VSCodeResultMetadata) string {
 	return ""
 }
 
-// responseBodyItem is one ordered element of a turn's rendered body: either a
-// text fragment (plain markdown or an inline reference chip, text set) or a
-// tool invocation (inv set).
+// responseBodyItem is one ordered element of a turn's rendered body: a text
+// fragment (plain markdown or an inline reference chip, text set), a tool
+// invocation (inv set), or a pre-built synthetic tool block (synthTool set —
+// used for edit groups, which are not tool invocations but render best as
+// collapsible blocks).
 type responseBodyItem struct {
-	text  string
-	isRef bool
-	inv   *VSCodeToolInvocationResponse
+	text      string
+	isRef     bool
+	inv       *VSCodeToolInvocationResponse
+	synthTool *schema.ToolInfo
 }
 
 // collectResponseBodyItems parses the response array into ordered body items —
@@ -191,22 +180,156 @@ func collectResponseBodyItems(responses []json.RawMessage) []responseBodyItem {
 			// they would get a spurious paragraph break between them.
 			items = append(items, responseBodyItem{text: inlineReferenceText(ref.Name, ref.InlineReference), isRef: true})
 
-		// Structured kinds with nothing to render as text yet (phase 2).
-		case "textEditGroup":
-			slog.Debug("Skipping textEditGroup response (phase 2)", "kind", kind)
-		case "codeblockUri":
-			slog.Debug("Skipping codeblockUri response (phase 2)", "kind", kind)
+		case "textEditGroup", "notebookEditGroup":
+			// The actual edits Copilot applied: replacement text plus target
+			// ranges. Rendered as a collapsible edit block — without it, inline
+			// edits are invisible in turns whose edit tool went unrecorded.
+			var group VSCodeTextEditGroupResponse
+			if err := json.Unmarshal(rawResp, &group); err != nil {
+				slog.Debug("Failed to parse edit group", "kind", kind, "error", err)
+				continue
+			}
+			if tool := editGroupToolInfo(kind, group); tool != nil {
+				items = append(items, responseBodyItem{synthTool: tool})
+			}
+
 		case "confirmation":
-			slog.Debug("Skipping confirmation response (phase 2)", "kind", kind)
-		case "thinking", "undoStop", "mcpServersStarting", "notebookEditGroup":
+			// A confirmation prompt the user saw; render it as a quoted line so
+			// the turn records that the flow paused for an answer.
+			var confirmation VSCodeConfirmationResponse
+			if err := json.Unmarshal(rawResp, &confirmation); err != nil {
+				continue
+			}
+			line := confirmation.Title
+			if msg := confirmation.GetMessageText(); msg != "" {
+				if line != "" {
+					line += " — "
+				}
+				line += msg
+			}
+			if line != "" {
+				items = append(items, responseBodyItem{text: "> ❓ " + sanitizeInvocationMessage(line)})
+			}
+
+		case "warning":
+			// User-visible warnings explain otherwise-dead turns (e.g. "Chat
+			// took too long to get ready...") — keep them in the record.
+			var warning struct {
+				Content any `json:"content"`
+			}
+			if err := json.Unmarshal(rawResp, &warning); err != nil {
+				continue
+			}
+			if msg := sanitizeInvocationMessage(markdownStringText(warning.Content)); msg != "" {
+				items = append(items, responseBodyItem{text: "> ⚠️ " + msg})
+			}
+
+		case "codeblockUri":
+			// Labels the file a following code block belongs to; the content
+			// itself arrives as the adjacent textEditGroup, which is rendered.
+		case "thinking", "undoStop", "mcpServersStarting", "autoModeResolution", "progressMessage", "command":
 			// Known kinds with nothing to render: opaque thinking blobs, undo
-			// markers, MCP startup notices, and notebook edit groups (phase 2).
+			// markers, MCP startup notices, auto-model-selection metadata (read
+			// separately for the turn's model), transient progress spinner text,
+			// and UI command buttons.
 		default:
 			slog.Debug("Unknown response kind", "kind", kind)
 		}
 	}
 
 	return items
+}
+
+// editGroupToolInfo builds a synthetic collapsible block for a text or notebook
+// edit group: "Edit: **file**" with each edit chunk fenced under an @@ line
+// header. There is no before-text in the data, so this is the applied content,
+// not a true diff — but it is the only record of inline edits, and the full
+// content is what the agent chose to write, so chunks are not capped. Returns
+// nil when the group carries neither a target file nor any chunks.
+func editGroupToolInfo(kind string, group VSCodeTextEditGroupResponse) *schema.ToolInfo {
+	filePath := group.Uri.FSPath
+	if filePath == "" {
+		filePath = group.Uri.Path
+	}
+	fileName := ""
+	if filePath != "" {
+		fileName = filepath.Base(filePath)
+	}
+
+	var b strings.Builder
+	chunks := 0
+	for _, editSet := range group.Edits {
+		for _, edit := range editSet {
+			if edit.Text == "" && edit.Range == (VSCodeRange{}) {
+				continue
+			}
+			chunks++
+			if edit.Text == "" {
+				fmt.Fprintf(&b, "\n@@ lines %d-%d @@ (deleted)\n", edit.Range.StartLineNumber, edit.Range.EndLineNumber)
+				continue
+			}
+			fence := codeFence(edit.Text)
+			fmt.Fprintf(&b, "\n@@ lines %d-%d @@\n\n%s\n%s\n%s\n",
+				edit.Range.StartLineNumber, edit.Range.EndLineNumber, fence, edit.Text, fence)
+		}
+	}
+
+	if fileName == "" && chunks == 0 {
+		return nil
+	}
+
+	label := "Edit"
+	if kind == "notebookEditGroup" {
+		label = "Notebook edit"
+	}
+	summary := fmt.Sprintf("%s: **%s**", label, fileName)
+	toolInfo := &schema.ToolInfo{
+		Name:    kind,
+		Type:    schema.ToolTypeWrite,
+		Summary: &summary,
+	}
+	if filePath != "" {
+		toolInfo.Input = map[string]any{"filePath": filePath}
+	}
+	if formatted := b.String(); strings.TrimSpace(formatted) != "" {
+		toolInfo.FormattedMarkdown = &formatted
+	}
+	return toolInfo
+}
+
+// ExtractResolvedModel returns the model that Copilot's automatic model
+// selection resolved to for this turn — recorded in autoModeResolution response
+// items — or "" when the turn carries none. The last resolution wins: a turn
+// can re-resolve across rounds and the final one is what produced the visible
+// response. Callers prefer this over the request's modelId, which for auto mode
+// is the uninformative "copilot/auto".
+func ExtractResolvedModel(responses []json.RawMessage) string {
+	resolved := ""
+	for _, rawResp := range responses {
+		var item struct {
+			Kind          string `json:"kind"`
+			ResolvedModel string `json:"resolvedModel"`
+		}
+		if err := json.Unmarshal(rawResp, &item); err != nil {
+			continue
+		}
+		if item.Kind == "autoModeResolution" && item.ResolvedModel != "" {
+			resolved = item.ResolvedModel
+		}
+	}
+	return resolved
+}
+
+// invocationMessageLine returns the invocation's human description (past tense
+// preferred), sanitized for plain markdown. VS Code writes one for nearly every
+// tool ("Searched for files matching `**/*.txt`, 3 matches") — it is the best
+// one-line account of what the call did.
+func invocationMessageLine(invocation VSCodeToolInvocationResponse) string {
+	message := markdownStringText(invocation.PastTenseMessage)
+	if message == "" {
+		message = markdownStringText(invocation.InvocationMessage)
+	}
+	return sanitizeInvocationMessage(message)
 }
 
 // joinTextItems joins consecutive text items into rendered markdown. Fragments
@@ -238,7 +361,7 @@ func joinTextItems(items []responseBodyItem) string {
 func ExtractTextFromResponseArray(responses []json.RawMessage) string {
 	var textOnly []responseBodyItem
 	for _, item := range collectResponseBodyItems(responses) {
-		if item.inv == nil {
+		if item.inv == nil && item.synthTool == nil {
 			textOnly = append(textOnly, item)
 		}
 	}
@@ -358,7 +481,14 @@ const toolResultCap = 2000
 // (spi.FlattenSessionData) carries only Summary/FormattedMarkdown, so without this the
 // tool's payload (e.g. a written file's content) would collapse to a bare tool name in
 // the resumed session. Returns empty when the tool has nothing to render.
+//
+// Tools with a dedicated formatter render through it; everything else gets the
+// generic key/value Input plus fenced Result.
 func FormatToolMarkdown(tool *schema.ToolInfo) string {
+	if custom := formatCustomToolMarkdown(tool); custom != "" {
+		return custom
+	}
+
 	var b strings.Builder
 
 	// Input as key-value pairs, multiline values fenced (mirrors the generic renderer).
@@ -383,15 +513,93 @@ func FormatToolMarkdown(tool *schema.ToolInfo) string {
 		}
 	}
 
-	// Result from the output map (BuildToolInfoFromInvocation stores it under
-	// "result"). Trailing blank lines are trimmed — terminal-style results carry
-	// dozens of them and they only pad out the fenced block.
-	if result, ok := tool.Output["result"].(string); ok && strings.TrimSpace(result) != "" {
-		capped := capRunes(strings.TrimRight(result, " \t\n"), toolResultCap)
-		fence := codeFence(capped)
-		fmt.Fprintf(&b, "\n**Result:**\n\n%s\n%s\n%s\n", fence, capped, fence)
-	}
+	b.WriteString(resultSection(tool))
 
+	return b.String()
+}
+
+// resultSection renders the fenced **Result:** block from the output map
+// (BuildToolInfoFromInvocation stores it under "result"); "" when there is
+// none. Trailing blank lines are trimmed — terminal-style results carry dozens
+// of them and they only pad out the fenced block — and the result is capped.
+func resultSection(tool *schema.ToolInfo) string {
+	result, ok := tool.Output["result"].(string)
+	if !ok || strings.TrimSpace(result) == "" {
+		return ""
+	}
+	capped := capRunes(strings.TrimRight(result, " \t\n"), toolResultCap)
+	fence := codeFence(capped)
+	return fmt.Sprintf("\n**Result:**\n\n%s\n%s\n%s\n", fence, capped, fence)
+}
+
+// formatCustomToolMarkdown returns tool-specific markdown for tools whose
+// generic key/value rendering obscures their meaning. Returns "" to use the
+// generic rendering — including when the tool's input lacks the expected
+// shape, so a format drift degrades gracefully instead of hiding data.
+func formatCustomToolMarkdown(tool *schema.ToolInfo) string {
+	switch tool.Name {
+	case "manage_todo_list":
+		return formatTodoListMarkdown(tool)
+	case "run_in_terminal":
+		return formatTerminalMarkdown(tool)
+	}
+	return ""
+}
+
+// formatTerminalMarkdown renders a terminal command the way it reads in a
+// shell session: the explanation as prose, the command in a bash fence
+// (uncapped — it is what the agent chose to run), then the fenced result.
+func formatTerminalMarkdown(tool *schema.ToolInfo) string {
+	command, _ := tool.Input["command"].(string)
+	if command == "" {
+		return ""
+	}
+	var b strings.Builder
+	if explanation, _ := tool.Input["explanation"].(string); explanation != "" {
+		fmt.Fprintf(&b, "\n%s\n", explanation)
+	}
+	fence := codeFence(command)
+	fmt.Fprintf(&b, "\n%sbash\n%s\n%s\n", fence, command, fence)
+	b.WriteString(resultSection(tool))
+	return b.String()
+}
+
+// formatTodoListMarkdown renders a todo-list write as a markdown checklist.
+// The input follows VS Code's manage_todo_list schema: a todoList of entries
+// with title and status (not-started / in-progress / completed). Read
+// operations carry no todoList and fall back to the generic rendering.
+func formatTodoListMarkdown(tool *schema.ToolInfo) string {
+	list, _ := tool.Input["todoList"].([]any)
+	if len(list) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\n")
+	rendered := 0
+	for _, entry := range list {
+		item, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		title, _ := item["title"].(string)
+		if title == "" {
+			continue
+		}
+		rendered++
+		status, _ := item["status"].(string)
+		switch status {
+		case "completed":
+			fmt.Fprintf(&b, "- [x] %s\n", title)
+		case "in-progress":
+			fmt.Fprintf(&b, "- [ ] %s _(in progress)_\n", title)
+		default:
+			fmt.Fprintf(&b, "- [ ] %s\n", title)
+		}
+	}
+	if rendered == 0 {
+		return ""
+	}
+	b.WriteString(resultSection(tool))
 	return b.String()
 }
 

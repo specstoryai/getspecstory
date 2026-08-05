@@ -196,13 +196,14 @@ func TestFormatToolMarkdown(t *testing.T) {
 			absent: []string{"_cwd", "**Result:**"},
 		},
 		{
+			// A tool without a dedicated formatter renders the generic result fence.
 			name: "result rendered fenced",
 			tool: &schema.ToolInfo{
-				Name:   "run_in_terminal",
-				Input:  map[string]interface{}{"command": "ls"},
+				Name:   "get_terminal_output",
+				Input:  map[string]interface{}{"id": "term-1"},
 				Output: map[string]interface{}{"result": "file-a\nfile-b"},
 			},
-			contains: []string{"- command: `ls`", "**Result:**\n\n```\nfile-a\nfile-b\n```"},
+			contains: []string{"- id: `term-1`", "**Result:**\n\n```\nfile-a\nfile-b\n```"},
 		},
 		{
 			// Values containing backtick fences must be wrapped in a longer fence
@@ -239,6 +240,68 @@ func TestFormatToolMarkdown(t *testing.T) {
 
 // TestFormatToolMarkdown_Empty verifies a tool with no structured data pre-renders
 // nothing, so ToolInfo.FormattedMarkdown stays nil and downstream fallbacks apply.
+func TestFormatToolMarkdown_TerminalHandler(t *testing.T) {
+	tool := &schema.ToolInfo{
+		Name: "run_in_terminal",
+		Input: map[string]any{
+			"command":     "pwd && ls -la",
+			"explanation": "Show current directory and list files",
+			"mode":        "sync",
+		},
+		Output: map[string]any{"result": "/Users/me/proj\ntotal 16\n\n\n"},
+	}
+	got := FormatToolMarkdown(tool)
+	for _, want := range []string{
+		"Show current directory and list files",
+		"```bash\npwd && ls -la\n```",
+		"**Result:**",
+		"/Users/me/proj",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "**Input:**") || strings.Contains(got, "mode") {
+		t.Errorf("terminal handler should replace the generic key/value input, got:\n%s", got)
+	}
+
+	// Without a command, the handler must defer to the generic rendering.
+	noCmd := &schema.ToolInfo{Name: "run_in_terminal", Input: map[string]any{"mode": "sync"}}
+	if got := FormatToolMarkdown(noCmd); !strings.Contains(got, "**Input:**") {
+		t.Errorf("expected generic fallback without a command, got:\n%s", got)
+	}
+}
+
+func TestFormatToolMarkdown_TodoHandler(t *testing.T) {
+	tool := &schema.ToolInfo{
+		Name: "manage_todo_list",
+		Input: map[string]any{
+			"operation": "write",
+			"todoList": []any{
+				map[string]any{"title": "Set up sandbox", "status": "completed"},
+				map[string]any{"title": "Run browser tools", "status": "in-progress"},
+				map[string]any{"title": "Write report", "status": "not-started"},
+			},
+		},
+	}
+	got := FormatToolMarkdown(tool)
+	for _, want := range []string{
+		"- [x] Set up sandbox",
+		"- [ ] Run browser tools _(in progress)_",
+		"- [ ] Write report",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in:\n%s", want, got)
+		}
+	}
+
+	// A read operation (no todoList) falls back to the generic rendering.
+	read := &schema.ToolInfo{Name: "manage_todo_list", Input: map[string]any{"operation": "read"}}
+	if got := FormatToolMarkdown(read); !strings.Contains(got, "**Input:**") {
+		t.Errorf("expected generic fallback for read operation, got:\n%s", got)
+	}
+}
+
 func TestFormatToolMarkdown_Empty(t *testing.T) {
 	if got := FormatToolMarkdown(&schema.ToolInfo{Name: "MysteryTool"}); got != "" {
 		t.Errorf("expected empty markdown for tool without data, got:\n%s", got)

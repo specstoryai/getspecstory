@@ -98,8 +98,15 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 	// Check if there are tool calls
 	hasToolCalls := HasToolCalls(req.Result.Metadata)
 
+	// The request's modelId for auto mode is the uninformative "copilot/auto";
+	// the autoModeResolution response items record the model that actually ran.
+	modelID := req.ModelID
+	if resolved := ExtractResolvedModel(req.Response); resolved != "" {
+		modelID = resolved
+	}
+
 	// 2. The turn's body: agent text and tool calls in recorded order.
-	body, bodyText := ConvertResponsesToMessages(req.Response, req.Result.Metadata, req.ModelID)
+	body, bodyText := ConvertResponsesToMessages(req.Response, req.Result.Metadata, modelID)
 
 	// When the response array yielded no text at all, fall back to the metadata
 	// sources (final assistant message, then round responses on tool-less turns).
@@ -111,7 +118,7 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 		if fallback != "" {
 			body = append(body, schema.Message{
 				Role:  schema.RoleAgent,
-				Model: req.ModelID,
+				Model: modelID,
 				Content: []schema.ContentPart{
 					{Type: schema.ContentTypeText, Text: fallback},
 				},
@@ -127,7 +134,7 @@ func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
 		if thinking != "" {
 			thinkingMsg := schema.Message{
 				Role:  schema.RoleAgent,
-				Model: req.ModelID,
+				Model: modelID,
 				Content: []schema.ContentPart{
 					{Type: schema.ContentTypeThinking, Text: thinking},
 				},
@@ -233,6 +240,16 @@ func ConvertResponsesToMessages(responses []json.RawMessage, metadata VSCodeResu
 	}
 
 	for idx, item := range items {
+		// Pre-built synthetic blocks (edit groups) emit directly.
+		if item.synthTool != nil {
+			flushTextRun()
+			messages = append(messages, schema.Message{
+				Role:  schema.RoleAgent,
+				Model: modelID,
+				Tool:  item.synthTool,
+			})
+			continue
+		}
 		if item.inv == nil {
 			textRun = append(textRun, item)
 			continue
@@ -318,10 +335,17 @@ func BuildToolInfoFromInvocation(
 	// from these fields only, so without them the tool's payload (e.g. a written
 	// file's content) would collapse to a bare tool name in the resumed session.
 	// The summary matches the markdown generator's default, so archival markdown
-	// keeps its familiar <summary> line.
+	// keeps its familiar <summary> line. VS Code's own description of the call
+	// ("Searched for files matching `**/*.txt`, 3 matches") leads the body — it
+	// is the best one-line account of what happened and exists for nearly every
+	// tool.
 	summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
 	toolInfo.Summary = &summary
-	if formatted := FormatToolMarkdown(toolInfo); formatted != "" {
+	formatted := FormatToolMarkdown(toolInfo)
+	if message := invocationMessageLine(invocation); message != "" {
+		formatted = "\n" + message + "\n" + formatted
+	}
+	if formatted != "" {
 		toolInfo.FormattedMarkdown = &formatted
 	}
 
@@ -367,11 +391,7 @@ func BuildToolInfoFromInvocationOnly(invocation VSCodeToolInvocationResponse) *s
 	summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
 	toolInfo.Summary = &summary
 	formatted := FormatToolMarkdown(toolInfo)
-	message := markdownStringText(invocation.PastTenseMessage)
-	if message == "" {
-		message = markdownStringText(invocation.InvocationMessage)
-	}
-	if message = sanitizeInvocationMessage(message); message != "" {
+	if message := invocationMessageLine(invocation); message != "" {
 		formatted = "\n" + message + "\n" + formatted
 	}
 	if formatted != "" {

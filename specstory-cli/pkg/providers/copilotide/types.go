@@ -72,13 +72,6 @@ type VSCodeTextEditGroupResponse struct {
 	Done  bool           `json:"done,omitempty"`
 }
 
-// VSCodeCodeblockUriResponse represents a code block
-type VSCodeCodeblockUriResponse struct {
-	Kind   string    `json:"kind"` // "codeblockUri"
-	Uri    VSCodeUri `json:"uri"`
-	IsEdit bool      `json:"isEdit,omitempty"`
-}
-
 // VSCodeConfirmationResponse represents a user confirmation request
 type VSCodeConfirmationResponse struct {
 	Kind    string `json:"kind"` // "confirmation"
@@ -90,12 +83,6 @@ type VSCodeConfirmationResponse struct {
 // GetMessageText extracts the text from the message field (handles both string and object formats)
 func (c *VSCodeConfirmationResponse) GetMessageText() string {
 	return markdownStringText(c.Message)
-}
-
-// VSCodeInlineReferenceResponse represents a reference to code/files
-type VSCodeInlineReferenceResponse struct {
-	Kind            string    `json:"kind"` // "inlineReference"
-	InlineReference VSCodeUri `json:"inlineReference"`
 }
 
 // Result metadata - contains tool call rounds and results
