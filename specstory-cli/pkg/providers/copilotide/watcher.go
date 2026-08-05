@@ -84,8 +84,12 @@ func (p *Provider) WatchChatSessions(
 
 	slog.Info("Watching chatSessions directory", "path", chatSessionsPath)
 
-	// Track known sessions and their modification times
-	knownSessions := make(map[string]int64)
+	// Last emitted on-disk state per session file. A session re-emits whenever
+	// its file's signature changes — any real write moves size and/or mtime —
+	// rather than only when a parsed field like lastMessageDate advances, which
+	// would silently drop writes that don't touch that field (e.g. a
+	// customTitle-only rename, which must refresh the markdown's title).
+	knownFiles := make(map[string]fileSignature)
 
 	// Debouncing map - track last processed time for each file
 	lastProcessed := make(map[string]time.Time)
@@ -104,18 +108,32 @@ func (p *Provider) WatchChatSessions(
 	// Backstop for fsnotify events that are lost or never delivered (kqueue
 	// overflow, changes the kernel coalesced away): periodically re-scan every
 	// session file, mirroring the Cursor IDE watcher's safety-net poll. The
-	// lastMessageDate gate in processSessionFile keeps unchanged sessions from
-	// re-emitting, so a quiet scan costs only the parses.
+	// file-signature gate in processSessionFile skips unchanged files before
+	// parsing, so a quiet scan costs only the stats.
 	safetyNetTicker := time.NewTicker(2 * time.Minute)
 	defer safetyNetTicker.Stop()
 
-	// processSessionFile loads one session file and, when it is new or has
-	// advanced past its last known lastMessageDate, queues it for delivery.
-	// Shared by the event loop and the fresh-directory catch-up scan below.
-	// Returns false when the file could not be loaded (likely caught mid-write)
-	// so the event loop leaves its debounce window open and the follow-up write
-	// is not swallowed.
+	// processSessionFile checks one session file's on-disk signature and, when
+	// it changed since the last emit, parses and queues it for delivery.
+	// Shared by the event loop, both tickers, and the fresh-directory catch-up
+	// scan below. Returns false when the file could not be read or parsed
+	// (likely caught mid-write) so the event loop leaves its debounce window
+	// open and the follow-up write is not swallowed.
 	processSessionFile := func(path string) bool {
+		info, err := os.Stat(path)
+		if err != nil {
+			// File gone (session deleted, or json superseded by jsonl); forget
+			// it so a later recreation is treated as new.
+			delete(knownFiles, path)
+			slog.Debug("Session file not statable", "path", path, "error", err)
+			return false
+		}
+		sig := fileSignature{size: info.Size(), modNs: info.ModTime().UnixNano()}
+		known, seen := knownFiles[path]
+		if seen && known == sig {
+			return true // unchanged since last emit — skip the parse entirely
+		}
+
 		composer, err := LoadSessionFile(path)
 		if err != nil {
 			slog.Warn("Failed to load session file", "path", path, "error", err)
@@ -123,20 +141,10 @@ func (p *Provider) WatchChatSessions(
 		}
 
 		sessionID := composer.SessionID
-		lastKnownTime, exists := knownSessions[sessionID]
-		isNew := !exists
-		isUpdated := exists && composer.LastMessageDate > lastKnownTime
-		if !isNew && !isUpdated {
-			return true
-		}
-
-		// Update known sessions
-		knownSessions[sessionID] = composer.LastMessageDate
-
-		if isNew {
-			slog.Info("New session detected", "sessionId", sessionID, "name", composer.Name)
-		} else {
+		if seen {
 			slog.Info("Session updated", "sessionId", sessionID, "name", composer.Name)
+		} else {
+			slog.Info("New session detected", "sessionId", sessionID, "name", composer.Name)
 		}
 
 		// Load state file (optional)
@@ -148,9 +156,10 @@ func (p *Provider) WatchChatSessions(
 		// Same emptiness rule as the read paths (GetAgentChatSessions et al):
 		// a just-opened chat writes its session file before any content
 		// exists, and emitting it would create an empty markdown file. The
-		// session stays tracked in knownSessions, so the first real message
-		// still arrives as an update once lastMessageDate advances.
+		// signature is still recorded, so the write that adds real content
+		// changes it and re-arrives here.
 		if len(composer.Requests) == 0 && !hasEditingActivity(state) {
+			knownFiles[path] = sig
 			slog.Debug("Skipping empty session (no chat or editing activity)", "sessionId", sessionID)
 			return true
 		}
@@ -167,34 +176,38 @@ func (p *Provider) WatchChatSessions(
 
 		// Hand off to the delivery worker; give up if the user interrupts while
 		// the queue is full so shutdown can't hang on a stuck callback (the
-		// event loop exits on its own context check).
+		// event loop exits on its own context check). The signature is recorded
+		// only after a successful hand-off so a failure earlier in this
+		// function retries on the next event or tick instead of being treated
+		// as already-emitted. The signature was taken before the parse, so a
+		// write landing between stat and read re-emits (a harmless duplicate)
+		// rather than being missed.
 		slog.Info("Queueing callback for session", "sessionId", sessionID, "slug", session.Slug)
 		select {
 		case sessionQueue <- &session:
+			knownFiles[path] = sig
 		case <-ctx.Done():
 		}
 		return true
 	}
 
 	if dirExisted {
-		// Track existing sessions as known without emitting them: historical
-		// sessions were already synced, and re-emitting on every watch start
-		// would rewrite their markdown needlessly.
+		// Record existing sessions' signatures without emitting them:
+		// historical sessions were already synced, and re-emitting on every
+		// watch start would rewrite their markdown needlessly. A stat per file
+		// suffices — no session needs parsing until it actually changes.
 		existingSessions, err := LoadAllSessionFiles(workspaceDir)
 		if err != nil {
 			slog.Warn("Failed to load existing sessions", "error", err)
 		} else {
 			for _, sessionPath := range existingSessions {
-				composer, err := LoadSessionFile(sessionPath)
+				info, err := os.Stat(sessionPath)
 				if err != nil {
-					slog.Warn("Failed to load session", "path", sessionPath, "error", err)
+					slog.Warn("Failed to stat session file", "path", sessionPath, "error", err)
 					continue
 				}
-
-				// Track as known
-				knownSessions[composer.SessionID] = composer.LastMessageDate
-
-				slog.Debug("Tracked existing session", "sessionId", composer.SessionID)
+				knownFiles[sessionPath] = fileSignature{size: info.Size(), modNs: info.ModTime().UnixNano()}
+				slog.Debug("Tracked existing session file", "path", sessionPath)
 			}
 		}
 	} else {
@@ -293,6 +306,15 @@ func (p *Provider) WatchChatSessions(
 			slog.Warn("Watcher error", "error", err)
 		}
 	}
+}
+
+// fileSignature identifies a session file's on-disk state for change
+// detection: any real write moves the size and/or the modification time.
+// The mtime is held as UnixNano rather than time.Time so struct equality
+// is a plain value comparison.
+type fileSignature struct {
+	size  int64
+	modNs int64
 }
 
 // waitForChatSessionsDir blocks until the workspace's chatSessions directory
