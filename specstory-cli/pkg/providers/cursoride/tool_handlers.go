@@ -190,14 +190,16 @@ func escapeSummaryText(s string) string {
 // formatToolError formats a tool error message
 func formatToolError(bubble *BubbleConversation) string {
 	if bubble.Error != "" {
-		// Parse the error JSON
+		// Prefer the user-facing message from the error JSON, but only when it is
+		// actually present — valid error JSON can carry an empty
+		// clientVisibleErrorMessage, and returning that would hide the real error.
 		var errorData struct {
 			ClientVisibleErrorMessage string `json:"clientVisibleErrorMessage"`
 		}
-		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil {
+		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil && errorData.ClientVisibleErrorMessage != "" {
 			return errorData.ClientVisibleErrorMessage
 		}
-		// If parsing fails, return the raw error
+		// Unparseable or message-less error JSON: return the raw error
 		return bubble.Error
 	}
 	return "An unknown error occurred"

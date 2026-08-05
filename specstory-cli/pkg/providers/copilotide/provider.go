@@ -1,6 +1,7 @@
 package copilotide
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -417,9 +418,25 @@ func (p *Provider) openApp(projectPath, customCommand string) error {
 	}
 
 	args = append(args, projectPath)
-	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("%s launcher %q failed: %w: %s", p.variant.AppName, launcher, err, string(out))
+	// Start without waiting for the launcher to exit: the stock CLI forks and
+	// returns immediately, but a custom command can keep running for the whole
+	// IDE session (e.g. `code --wait`), and blocking here would stall the
+	// watcher before it ever starts. Post-spawn failures are logged from the
+	// reaper goroutine instead of returned.
+	cmd := exec.Command(launcher, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("%s launcher %q failed to start: %w", p.variant.AppName, launcher, err)
 	}
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			slog.Warn("IDE launcher exited with error",
+				"app", p.variant.AppName, "launcher", launcher,
+				"error", err, "output", strings.TrimSpace(out.String()))
+		}
+	}()
 	return nil
 }
 

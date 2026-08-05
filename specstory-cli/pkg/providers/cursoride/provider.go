@@ -1,6 +1,7 @@
 package cursoride
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -538,9 +540,24 @@ func openCursorIDE(projectPath, customCommand string) error {
 	}
 
 	args = append(args, projectPath)
-	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("cursor IDE launcher %q failed: %w: %s", launcher, err, string(out))
+	// Start without waiting for the launcher to exit: the stock CLI forks and
+	// returns immediately, but a custom command can keep running for the whole
+	// IDE session (e.g. `cursor --wait`), and blocking here would stall the
+	// watcher before it ever starts. Post-spawn failures are logged from the
+	// reaper goroutine instead of returned.
+	cmd := exec.Command(launcher, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("cursor IDE launcher %q failed to start: %w", launcher, err)
 	}
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			slog.Warn("IDE launcher exited with error",
+				"launcher", launcher, "error", err, "output", strings.TrimSpace(out.String()))
+		}
+	}()
 	return nil
 }
 

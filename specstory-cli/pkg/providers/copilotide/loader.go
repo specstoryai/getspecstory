@@ -10,13 +10,16 @@ import (
 	"strings"
 )
 
-// LoadAllSessionFiles returns paths to all session JSON files in the workspace
+// LoadAllSessionFiles returns paths to all session JSON files in the workspace.
+// A missing chatSessions directory is a normal state — the workspace has never
+// had a Copilot chat — so it reports zero sessions rather than an error,
+// keeping callers free of not-found branching; only real read failures error.
 func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
 
-	// Check if directory exists
 	if _, err := os.Stat(chatSessionsPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("chatSessions directory not found: %s", chatSessionsPath)
+		slog.Debug("No chatSessions directory (no chats yet)", "path", chatSessionsPath)
+		return nil, nil
 	}
 
 	files, err := os.ReadDir(chatSessionsPath)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -218,6 +219,10 @@ func ParseResponsesForTools(responses []json.RawMessage, metadata VSCodeResultMe
 			slog.Debug("Skipping confirmation response (phase 2)", "kind", kind)
 		case "inlineReference":
 			slog.Debug("Skipping inlineReference response (phase 2)", "kind", kind)
+		case "":
+			// Plain markdown fragments carry no kind at all — they are the normal
+			// body of every response, not an anomaly, so logging them would just
+			// flood the debug log during routine parsing.
 		default:
 			slog.Debug("Unknown response kind", "kind", kind)
 		}
@@ -406,7 +411,10 @@ func createSyntheticRequestsFromEditingState(composer VSCodeComposer, state *VSC
 		assistantText = "Performed file editing operations"
 	}
 
-	// Create synthetic request block
+	// Create synthetic request block. ModelID is deliberately left empty: an
+	// editing-only session records no model, and the responder username
+	// ("GitHub Copilot") is not a model identifier — stamping it would mislabel
+	// the model on every exported message.
 	syntheticRequest := VSCodeRequestBlock{
 		RequestID: composer.SessionID + "-synthetic",
 		Timestamp: composer.CreationDate,
@@ -424,7 +432,6 @@ func createSyntheticRequestsFromEditingState(composer VSCodeComposer, state *VSC
 				},
 			},
 		},
-		ModelID: composer.ResponderUsername,
 	}
 
 	return []VSCodeRequestBlock{syntheticRequest}
@@ -502,11 +509,13 @@ func extractOperationsFromV1State(state *VSCodeStateFile) []string {
 		}
 	}
 
-	// Convert map to slice
-	var summaries []string
+	// Convert map to slice, sorted: map iteration order is randomized, and an
+	// unsorted list would reorder the exported assistant text between runs.
+	summaries := make([]string, 0, len(filesSummary))
 	for summary := range filesSummary {
 		summaries = append(summaries, summary)
 	}
+	sort.Strings(summaries)
 
 	return summaries
 }

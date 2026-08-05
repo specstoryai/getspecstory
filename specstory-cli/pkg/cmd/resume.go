@@ -21,7 +21,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/provenance"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -430,12 +429,18 @@ func printIDERestartNote(plan *resumePlan, out io.Writer) {
 	if plan.toID == "cursoride" {
 		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
 	}
-	// A type check (not an ID comparison) so every Copilot IDE variant — stock
-	// VS Code, Insiders, and any added later — gets the restart note.
-	if _, ok := plan.to.(*copilotide.Provider); ok {
+	// An ID-prefix check so every Copilot IDE variant — stock VS Code, Insiders,
+	// VSCodium, and any added later — gets the restart note without this layer
+	// importing a concrete provider package.
+	if strings.HasPrefix(plan.toID, "copilotide") {
+		// The provider name is "<app> Copilot IDE"; trimming the suffix names the
+		// actual app (VS Code, VSCodium, ...) so Insiders/VSCodium users aren't
+		// told to restart the wrong application. If the naming convention ever
+		// changes, the full provider name prints — awkward but still correct.
+		app := strings.TrimSuffix(plan.to.Name(), " Copilot IDE")
 		// "Developer: Reload Window" is NOT enough — it keeps the main process (and
 		// the in-memory index) alive; verified empirically.
-		fprintf(out, "\nNote: quit and restart VS Code to see the imported session in the Chat panel.\n")
+		fprintf(out, "\nNote: quit and restart %s to see the imported session in the Chat panel.\n", app)
 	}
 }
 
