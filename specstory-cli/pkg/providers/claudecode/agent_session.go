@@ -1,8 +1,11 @@
 package claudecode
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
@@ -69,11 +72,57 @@ func GenerateAgentSession(session Session, workspaceRoot string) (*SessionData, 
 		},
 		SessionID:     session.SessionUuid,
 		CreatedAt:     createdAt,
+		Title:         latestAiTitle(session.Records),
 		WorkspaceRoot: workspaceRoot,
 		Exchanges:     exchanges,
 	}
 
 	return sessionData, nil
+}
+
+// latestAiTitle returns the most recent Claude Code `ai-title` value for the
+// session, or "" if none. Claude re-emits the title (unchanged) once per turn and
+// it has no uuid, so it's dropped from the parsed records — we read it straight
+// from the source .jsonl. Cheap: the title line is tiny; we scan and keep the last.
+func latestAiTitle(records []JSONLRecord) string {
+	seen := make(map[string]bool)
+	title := ""
+	for _, record := range records {
+		if record.File == "" || seen[record.File] {
+			continue
+		}
+		seen[record.File] = true
+		if t := aiTitleFromFile(record.File); t != "" {
+			title = t // later files win (chronological); keeps the latest
+		}
+	}
+	return title
+}
+
+func aiTitleFromFile(path string) string {
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+
+	title := ""
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*KB), maxReasonableLineSize)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if !strings.Contains(string(line), `"ai-title"`) {
+			continue
+		}
+		var rec struct {
+			Type    string `json:"type"`
+			AiTitle string `json:"aiTitle"`
+		}
+		if err := json.Unmarshal(line, &rec); err == nil && rec.Type == "ai-title" && rec.AiTitle != "" {
+			title = rec.AiTitle // keep scanning; last one wins
+		}
+	}
+	return title
 }
 
 // extractCreatedAtFromRecords extracts the earliest timestamp from JSONL records
@@ -177,6 +226,22 @@ func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]E
 
 			msg := buildAgentMessage(record, workspaceRoot, isSidechain)
 			currentExchange.Messages = append(currentExchange.Messages, msg)
+			currentExchange.EndTime = timestamp
+
+		case "system":
+			// Render the idle "/recap" (away_summary) the user actually saw on
+			// screen. Other system records (e.g. compact_boundary) aren't shown.
+			if subtype, _ := record.Data["subtype"].(string); subtype != "away_summary" {
+				continue
+			}
+			content, _ := record.Data["content"].(string)
+			if strings.TrimSpace(content) == "" {
+				continue
+			}
+			if currentExchange == nil {
+				currentExchange = &Exchange{StartTime: timestamp, Messages: []Message{}}
+			}
+			currentExchange.Messages = append(currentExchange.Messages, buildRecapMessage(record))
 			currentExchange.EndTime = timestamp
 		}
 	}
@@ -302,6 +367,22 @@ func buildUserMessage(record JSONLRecord, isSidechain bool) Message {
 	}
 
 	return msg
+}
+
+// buildRecapMessage builds a Message for an idle "/recap" (away_summary). Tagged
+// via Metadata so the renderer marks it distinctly; role is agent (Claude-authored).
+func buildRecapMessage(record JSONLRecord) Message {
+	uuid, _ := record.Data["uuid"].(string)
+	timestamp, _ := record.Data["timestamp"].(string)
+	content, _ := record.Data["content"].(string)
+
+	return Message{
+		ID:        uuid,
+		Timestamp: timestamp,
+		Role:      "agent",
+		Content:   []ContentPart{{Type: "text", Text: content}},
+		Metadata:  map[string]interface{}{"recap": true},
+	}
 }
 
 // buildAgentMessage creates a Message from an assistant JSONL record
