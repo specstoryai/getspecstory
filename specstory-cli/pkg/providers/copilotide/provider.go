@@ -359,21 +359,38 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	// The watcher needs the project's workspace entry, which won't exist yet if this
-	// project has never been opened in this VS Code variant — the open above creates
-	// it a moment later, once the IDE actually opens the folder. Retry until the
-	// watcher can start or the user interrupts.
-	printedWaiting := false
+	// The project's workspace entry won't exist yet if this project has never
+	// been opened in this VS Code variant — the open above creates it a moment
+	// later, once the IDE actually opens the folder. WatchAgent below waits for
+	// it silently; this loop exists purely for terminal feedback, so the user
+	// knows why nothing is happening yet and when the connection was made.
+	waited := false
+	for {
+		if _, err := p.findWorkspaceForProject(projectPath, false); err == nil {
+			break
+		}
+		if !waited {
+			fmt.Fprintf(os.Stderr, "Waiting for %s to open this project...\n", p.variant.AppName)
+			waited = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
+	}
+	if waited {
+		fmt.Fprintf(os.Stderr, "%s opened the project — auto-saving Copilot chats.\n", p.variant.AppName)
+	}
+
+	// Retry loop for transient watcher failures (e.g. fsnotify setup errors);
+	// the workspace is known to exist by now.
 	for {
 		err := p.WatchAgent(ctx, projectPath, debugRaw, sessionCallback)
 		if ctx.Err() != nil || err == nil {
 			return nil
 		}
-		if !printedWaiting {
-			fmt.Fprintf(os.Stderr, "Waiting for %s to open this project...\n", p.variant.AppName)
-			printedWaiting = true
-		}
-		slog.Debug("Copilot watcher not ready, retrying", "app", p.variant.AppName, "error", err)
+		slog.Debug("Copilot watcher failed, retrying", "app", p.variant.AppName, "error", err)
 		select {
 		case <-ctx.Done():
 			return nil
@@ -559,9 +576,32 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	// directory only appears with the workspace's first Copilot chat, and the
 	// watcher waits for its creation. Requiring it here would keep a watch
 	// started before the first chat from ever seeing it.
-	workspace, err := p.findWorkspaceForProject(projectPath, false)
-	if err != nil {
-		return fmt.Errorf("failed to find workspace: %w", err)
+	//
+	// The workspace entry itself may also not exist yet — a watch can start
+	// before the project is ever opened in this VS Code variant. Erroring here
+	// would permanently disable this provider for the multi-provider watch, so
+	// wait for the entry instead. Polled rather than fsnotify-watched: a new
+	// entry is a fresh hash directory under workspaceStorage whose match is
+	// only knowable by re-running the lookup, so an event would trigger the
+	// same scan the poll does.
+	var workspace *WorkspaceMatch
+	loggedWaiting := false
+	for {
+		ws, err := p.findWorkspaceForProject(projectPath, false)
+		if err == nil {
+			workspace = ws
+			break
+		}
+		if !loggedWaiting {
+			slog.Info("No workspace for project yet; waiting for it to be opened",
+				"app", p.variant.AppName, "projectPath", projectPath)
+			loggedWaiting = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
 	}
 
 	// Start watching the chatSessions directory

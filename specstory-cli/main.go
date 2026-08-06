@@ -446,12 +446,31 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// allowing immediate markdown generation and cloud sync. Errors are logged but
 			// don't stop execution because transient failures (e.g., network issues) shouldn't
 			// interrupt the user's coding session.
+			// IDE-backed providers leave this terminal idle while the user works in
+			// the IDE, so per-save feedback belongs here. CLI agents own the
+			// terminal with their own TUI and must not have output interleaved.
+			var onSaved func(providerID string, sess *spi.AgentChatSession, fileExisted bool, markdownSize int)
+			if providerID == "cursoride" || strings.HasPrefix(providerID, "copilotide") {
+				onSaved = func(_ string, sess *spi.AgentChatSession, fileExisted bool, _ int) {
+					if log.IsSilent() {
+						return
+					}
+					// Same shape as the watch command's per-update line.
+					emoji := "♻️"
+					if !fileExisted {
+						emoji = "✨"
+					}
+					fmt.Printf("  %s  %s  %s\n", time.Now().Format("15:04:05"), emoji, sess.Slug)
+				}
+			}
+
 			autosave := cmdpkg.NewAutosaveCallback(cmdpkg.AutosaveDeps{
 				Ctx:        ctx,
 				Config:     config,
 				Processing: cmdpkg.ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */),
 				LiveIndex:  liveIndex,
 				Provenance: provenanceEngine,
+				OnSaved:    onSaved,
 			})
 			sessionCallback := func(session *spi.AgentChatSession) {
 				if session == nil {

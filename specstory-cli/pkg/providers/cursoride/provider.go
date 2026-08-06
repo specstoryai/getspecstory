@@ -567,6 +567,26 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
+	// The workspace entry may not exist yet — a watch can start before the
+	// project is ever opened in Cursor. Erroring would permanently disable this
+	// provider for the multi-provider watch, so wait for the entry instead.
+	loggedWaiting := false
+	for {
+		if _, err := FindWorkspaceForProject(projectPath); err == nil {
+			break
+		}
+		if !loggedWaiting {
+			slog.Info("No Cursor workspace for project yet; waiting for it to be opened",
+				"projectPath", projectPath)
+			loggedWaiting = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
+	}
+
 	// Create and start watcher
 	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, defaultCheckInterval)
 	if err != nil {
