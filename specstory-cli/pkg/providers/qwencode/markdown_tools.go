@@ -46,6 +46,10 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 		if skill := inputAsString(tool.Input, "skill"); skill != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, skill)
 		}
+	case "tool_search", "web_search", "google_web_search":
+		if query := inputAsString(tool.Input, "query"); query != "" {
+			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, query)
+		}
 	case "agent", "task":
 		if desc := inputAsString(tool.Input, "description"); desc != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** — %s", tool.Name, desc)
@@ -80,7 +84,9 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 // formatToolBodyFromInput formats the tool input/body section
 func formatToolBodyFromInput(tool *ToolInfo) string {
 	switch tool.Name {
-	case "run_shell_command":
+	case "run_shell_command", "monitor":
+		// monitor streams a long-running command; its input is shaped like a
+		// shell command (command + description), so it renders the same way.
 		return formatShellBodyFromInput(tool.Input)
 	case "write_file":
 		return formatWriteFileBodyFromInput(tool.Input)
@@ -92,7 +98,13 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		return formatAgentBodyFromInput(tool.Input)
 	case "todo_write", "write_todos":
 		return formatTodoBodyFromInput(tool.Input)
-	case "read_file", "grep_search", "glob", "list_directory", "skill":
+	case "skill":
+		// The skill name is in the summary; show the arguments it was invoked with.
+		if args := inputAsString(tool.Input, "args"); args != "" {
+			return fmt.Sprintf("Args: %s", args)
+		}
+		return ""
+	case "read_file", "grep_search", "glob", "list_directory", "tool_search", "web_search", "google_web_search":
 		// Don't show input args - parameters are in the summary
 		return ""
 	default:
@@ -113,7 +125,7 @@ func formatToolResultFromOutput(tool *ToolInfo) string {
 		return ""
 	case "read_file":
 		return formatReadFileResultFromOutput(tool)
-	case "run_shell_command":
+	case "run_shell_command", "monitor":
 		return formatShellResultFromOutput(tool.Output)
 	case "edit", "replace", "smart_edit", "write_file":
 		// The body already shows the diff/content

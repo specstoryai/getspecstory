@@ -238,6 +238,69 @@ func TestFormatToolAsMarkdown_AgentDelegation(t *testing.T) {
 	}
 }
 
+func TestFormatToolAsMarkdown_MonitorRendersLikeShell(t *testing.T) {
+	tool := &ToolInfo{
+		Name: "monitor",
+		Type: "shell",
+		Input: map[string]any{
+			"command":     "tail -f build.log",
+			"description": "Watch the build",
+		},
+		Output: map[string]any{"output": "line one\nline two", "status": "success"},
+	}
+
+	md := formatToolAsMarkdown(tool)
+
+	if !strings.Contains(md, "```bash\ntail -f build.log\n```") {
+		t.Errorf("monitor command not fenced like shell:\n%s", md)
+	}
+	if !strings.Contains(md, "Watch the build") {
+		t.Errorf("monitor description missing:\n%s", md)
+	}
+	if strings.Contains(md, "```json") {
+		t.Errorf("monitor should not fall back to JSON dump:\n%s", md)
+	}
+}
+
+func TestFormatToolAsMarkdown_SkillShowsArgs(t *testing.T) {
+	tool := &ToolInfo{
+		Name:   "skill",
+		Type:   "generic",
+		Input:  map[string]any{"skill": "review", "args": "check the auth flow"},
+		Output: map[string]any{"output": "Skill loaded.", "status": "success"},
+	}
+
+	md := formatToolAsMarkdown(tool)
+
+	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`review`") {
+		t.Errorf("skill summary = %v", tool.Summary)
+	}
+	if !strings.Contains(md, "Args: check the auth flow") {
+		t.Errorf("skill args missing from body:\n%s", md)
+	}
+}
+
+func TestFormatToolAsMarkdown_ToolSearchSummary(t *testing.T) {
+	tool := &ToolInfo{
+		Name:   "tool_search",
+		Type:   "search",
+		Input:  map[string]any{"query": "deferred tools", "max_results": 3},
+		Output: map[string]any{"output": "Found 2 tools.", "status": "success"},
+	}
+
+	md := formatToolAsMarkdown(tool)
+
+	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`deferred tools`") {
+		t.Errorf("tool_search summary = %v", tool.Summary)
+	}
+	if strings.Contains(md, "```json") {
+		t.Errorf("tool_search should not dump JSON input:\n%s", md)
+	}
+	if !strings.Contains(md, "Result: Found 2 tools.") {
+		t.Errorf("tool_search result missing:\n%s", md)
+	}
+}
+
 func TestFormatToolAsMarkdown_NilAndEmpty(t *testing.T) {
 	if got := formatToolAsMarkdown(nil); got != "" {
 		t.Errorf("nil tool should render empty, got %q", got)
