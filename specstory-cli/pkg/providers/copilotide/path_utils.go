@@ -7,24 +7,35 @@ import (
 	"runtime"
 )
 
-// GetWorkspaceStoragePath returns the workspace storage directory path for the given
-// application data directory name ("Code" for VS Code, "Code - Insiders" for Insiders).
-// Returns empty string if the directory doesn't exist
-func GetWorkspaceStoragePath(dataDirName string) string {
+// workspaceStorageRoot returns where the given application data directory's
+// workspace storage lives ("Code" for VS Code, "Code - Insiders" for
+// Insiders), without requiring it to exist — workspace minting targets it
+// before the app has ever created it. Empty only when the platform is
+// unsupported or the home directory is unknown.
+func workspaceStorageRoot(dataDirName string) string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return ""
 	}
 
-	var storagePath string
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS: ~/Library/Application Support/<dataDirName>/User/workspaceStorage/
-		storagePath = filepath.Join(homeDir, "Library", "Application Support", dataDirName, "User", "workspaceStorage")
+		return filepath.Join(homeDir, "Library", "Application Support", dataDirName, "User", "workspaceStorage")
 	case "linux":
 		// Linux: ~/.config/<dataDirName>/User/workspaceStorage/
-		storagePath = filepath.Join(homeDir, ".config", dataDirName, "User", "workspaceStorage")
+		return filepath.Join(homeDir, ".config", dataDirName, "User", "workspaceStorage")
 	default:
+		return ""
+	}
+}
+
+// GetWorkspaceStoragePath returns the workspace storage directory path for the given
+// application data directory name ("Code" for VS Code, "Code - Insiders" for Insiders).
+// Returns empty string if the directory doesn't exist
+func GetWorkspaceStoragePath(dataDirName string) string {
+	storagePath := workspaceStorageRoot(dataDirName)
+	if storagePath == "" {
 		return ""
 	}
 

@@ -1,9 +1,13 @@
 package copilotide
 
 import (
+	"crypto/md5" // #nosec G501 -- not used for security; mirrors VS Code's own workspace-ID scheme
+	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -207,7 +211,30 @@ func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessio
 		return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, workspaceStoragePath)
 	}
 
-	// If multiple matches, return the newest one (based on state.vscdb modification time)
+	// Prefer entries whose stored path equals the canonical path byte-for-byte.
+	// macOS's case-insensitive filesystem lets the same folder be opened under
+	// several case spellings (~/source vs ~/Source), each getting its own
+	// workspace entry — but when VS Code resolves the folder itself it uses the
+	// on-disk case, i.e. the canonical spelling. Reading or (worse) writing a
+	// differently-cased entry targets a workspace the user's VS Code window
+	// will never show.
+	if len(matches) > 1 {
+		var exact []WorkspaceMatch
+		for _, match := range matches {
+			if match.Path == canonicalProjectPath {
+				exact = append(exact, match)
+			}
+		}
+		if len(exact) > 0 && len(exact) < len(matches) {
+			slog.Debug("Preferring case-exact workspace entries",
+				"projectPath", canonicalProjectPath,
+				"exactCount", len(exact),
+				"totalCount", len(matches))
+			matches = exact
+		}
+	}
+
+	// If multiple matches remain, return the newest one (based on state.vscdb modification time)
 	if len(matches) > 1 {
 		slog.Warn("Multiple workspaces match project path, selecting newest",
 			"projectPath", projectPath,
@@ -304,6 +331,110 @@ func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool
 		}
 	}
 	return false
+}
+
+// ensureWorkspaceForReconstruction returns the workspace entry for the project,
+// minting one when the folder has never been opened in this VS Code variant —
+// the case where a resume targets a brand-new project, which would otherwise
+// fail with "open the folder in VS Code once first". Minting reproduces VS
+// Code's own single-folder workspace ID — md5(folder path + a platform stat
+// salt; see workspaceIDStatSalt) — verified byte-for-byte against entries
+// current VS Code created, so when the user opens the folder VS Code computes
+// the same ID and adopts the minted entry instead of creating a duplicate.
+//
+// The path is canonicalized before hashing (unlike Cursor, which mints per
+// literal spelling): VS Code's own launcher resolves the on-disk case when
+// opening a folder, so the canonical spelling is the ID it will compute.
+func (p *Provider) ensureWorkspaceForReconstruction(projectPath string) (*WorkspaceMatch, error) {
+	if ws, err := p.findWorkspaceForProject(projectPath, false); err == nil {
+		return ws, nil
+	}
+
+	absPath, err := filepath.Abs(projectPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+	}
+	canonical, err := spi.GetCanonicalPath(absPath)
+	if err != nil {
+		canonical = absPath
+	}
+
+	id, err := vscodeWorkspaceID(canonical)
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine %s workspace ID for %q: %w", p.variant.AppName, canonical, err)
+	}
+	storageRoot := workspaceStorageRoot(p.variant.DataDirName)
+	if storageRoot == "" {
+		return nil, fmt.Errorf("cannot locate %s workspace storage on this machine", p.variant.AppName)
+	}
+	if _, err := os.Stat(storageRoot); err != nil {
+		// No storage root at all means the app has never run here — a minted
+		// entry would be orphaned rather than adopted.
+		return nil, fmt.Errorf("%s does not appear to have been used on this machine (no workspace storage at %s)", p.variant.AppName, storageRoot)
+	}
+
+	wsPath := filepath.Join(storageRoot, id)
+	folderURI := pathToFileURI(canonical)
+
+	if err := os.MkdirAll(wsPath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create workspace storage directory: %w", err)
+	}
+	// workspace.json mirrors the format VS Code writes (2-space indented single field).
+	workspaceJSON, err := json.MarshalIndent(WorkspaceJSON{Folder: folderURI}, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal workspace.json: %w", err)
+	}
+	if err := os.WriteFile(GetWorkspaceMetadataPath(wsPath), workspaceJSON, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write workspace.json: %w", err)
+	}
+	if err := createEmptyWorkspaceDB(GetWorkspaceStateDBPath(wsPath)); err != nil {
+		return nil, err
+	}
+
+	slog.Info("Minted VS Code workspace entry for project",
+		"app", p.variant.AppName, "workspaceID", id, "projectPath", canonical)
+
+	return &WorkspaceMatch{ID: id, Dir: wsPath, URI: folderURI, Path: canonical}, nil
+}
+
+// vscodeWorkspaceID computes the workspace storage directory name VS Code
+// derives for a local single-folder workspace: md5(folder path + platform stat
+// salt). Mirrors getSingleFolderWorkspaceIdentifier in VS Code's main.js.
+func vscodeWorkspaceID(projectPath string) (string, error) {
+	info, err := os.Stat(projectPath)
+	if err != nil {
+		return "", err
+	}
+	sum := md5.Sum([]byte(projectPath + workspaceIDStatSalt(info))) // #nosec G401 -- not used for security; mirrors VS Code's own workspace-ID scheme
+	return hex.EncodeToString(sum[:]), nil
+}
+
+// pathToFileURI builds the file:// URI VS Code stores in workspace.json, with
+// url.URL handling percent-encoding (e.g. spaces) the way VS Code writes it.
+func pathToFileURI(path string) string {
+	u := url.URL{Scheme: "file", Path: path}
+	return u.String()
+}
+
+// createEmptyWorkspaceDB creates a state.vscdb containing VS Code's exact
+// ItemTable schema (key UNIQUE ON CONFLICT REPLACE, BLOB value), so VS Code
+// adopts a minted workspace entry as its own on first open instead of treating
+// it as corrupt — and so the session-index write during reconstruction has a
+// table to land in.
+func createEmptyWorkspaceDB(dbPath string) error {
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		return fmt.Errorf("failed to create workspace database: %w", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			slog.Warn("Failed to close new workspace database", "error", closeErr)
+		}
+	}()
+	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)"); err != nil {
+		return fmt.Errorf("failed to create ItemTable: %w", err)
+	}
+	return nil
 }
 
 // readWorkspaceJSON reads and parses a workspace.json file

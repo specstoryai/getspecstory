@@ -539,6 +539,14 @@ func openCursorIDE(projectPath, customCommand string) error {
 		return fmt.Errorf("configured Cursor IDE launcher %q not found on PATH: %w", launcher, err)
 	}
 
+	// Canonicalize before handing the path to the IDE: Cursor derives the
+	// workspace identity from the path string it is given, so launching with
+	// the user's typed spelling (~/source vs ~/Source on a case-insensitive
+	// filesystem) mints a second workspace entry for the same folder, splitting
+	// its sessions across entries.
+	if canonical, err := spi.GetCanonicalPath(projectPath); err == nil {
+		projectPath = canonical
+	}
 	args = append(args, projectPath)
 	// Start without waiting for the launcher to exit: the stock CLI forks and
 	// returns immediately, but a custom command can keep running for the whole

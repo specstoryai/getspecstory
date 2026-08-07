@@ -27,6 +27,7 @@ type Variant struct {
 	AppName     string // user-facing application label (e.g. "VS Code Insiders")
 	DataDirName string // application data directory name under the OS config root (e.g. "Code - Insiders")
 	Command     string // CLI launcher expected on PATH (e.g. "code-insiders")
+	BundleName  string // macOS app bundle name, for running-process detection (e.g. "Visual Studio Code - Insiders")
 }
 
 // VSCode and VSCodeInsiders are the two distributions this provider supports.
@@ -36,6 +37,7 @@ var (
 		AppName:     "VS Code",
 		DataDirName: "Code",
 		Command:     "code",
+		BundleName:  "Visual Studio Code",
 	}
 
 	VSCodeInsiders = Variant{
@@ -43,6 +45,7 @@ var (
 		AppName:     "VS Code Insiders",
 		DataDirName: "Code - Insiders",
 		Command:     "code-insiders",
+		BundleName:  "Visual Studio Code - Insiders",
 	}
 
 	// VSCodium runs Copilot via a sideloaded VSIX (the extension is not on Open
@@ -53,6 +56,7 @@ var (
 		AppName:     "VSCodium",
 		DataDirName: "VSCodium",
 		Command:     "codium",
+		BundleName:  "VSCodium",
 	}
 
 	VSCodiumInsiders = Variant{
@@ -60,6 +64,7 @@ var (
 		AppName:     "VSCodium Insiders",
 		DataDirName: "VSCodium - Insiders",
 		Command:     "codium-insiders",
+		BundleName:  "VSCodium - Insiders",
 	}
 )
 
@@ -77,9 +82,9 @@ type Provider struct {
 // NewProvider creates a Copilot IDE provider for the given VS Code variant.
 func NewProvider(variant Variant) *Provider {
 	p := &Provider{variant: variant}
-	p.findWorkspaceForReconstruction = func(projectPath string) (*WorkspaceMatch, error) {
-		return p.findWorkspaceForProject(projectPath, false)
-	}
+	// Reconstruction targets mint a workspace entry when the project was never
+	// opened in this variant, so a resume into a brand-new folder just works.
+	p.findWorkspaceForReconstruction = p.ensureWorkspaceForReconstruction
 	return p
 }
 
@@ -342,7 +347,9 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 // (Mirrors the Cursor IDE provider's behavior.)
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if resumeSessionID != "" {
-		fmt.Fprintf(os.Stderr, "\nSession is ready in %s. Open the Chat panel to find it.\n", p.variant.AppName)
+		// Reconstruction held the write until the app was quit, and the open
+		// below starts it fresh — which is when the Chat panel reads the index.
+		fmt.Fprintf(os.Stderr, "\nSession is ready — it will appear in %s's Chat panel.\n", p.variant.AppName)
 	}
 	if err := p.openApp(projectPath, customCommand); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error
@@ -434,6 +441,14 @@ func (p *Provider) openApp(projectPath, customCommand string) error {
 		return fmt.Errorf("configured %s launcher %q not found on PATH: %w", p.variant.AppName, launcher, err)
 	}
 
+	// Canonicalize before handing the path to the IDE: VS Code derives the
+	// workspace identity from the path string it is given, so launching with
+	// the user's typed spelling (~/source vs ~/Source on a case-insensitive
+	// filesystem) mints a second workspace entry for the same folder, splitting
+	// its chat sessions across entries.
+	if canonical, err := spi.GetCanonicalPath(projectPath); err == nil {
+		projectPath = canonical
+	}
 	args = append(args, projectPath)
 	// Start without waiting for the launcher to exit: the stock CLI forks and
 	// returns immediately, but a custom command can keep running for the whole
