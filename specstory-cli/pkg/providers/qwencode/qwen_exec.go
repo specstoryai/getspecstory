@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -35,8 +36,11 @@ func parseQwenCommand(customCommand string) (string, []string) {
 	return getDefaultQwenCommand(), nil
 }
 
-// ensureResumeArgs appends `--resume <id>` unless the custom command already
-// carries a resume flag (`-r`/`--resume` with a value, or `--resume=<id>`).
+// ensureResumeArgs makes sure the command carries `--resume <id>`. A resume
+// flag already present with a value is respected; a bare `--resume`/`-r`
+// (no value, or another flag where the value belongs) gets the session ID
+// inserted after it rather than a duplicate flag appended; an empty
+// `--resume=` is repaired in place.
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
 	if resumeSessionID == "" {
 		return args
@@ -44,12 +48,20 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 
 	for i, arg := range args {
 		if arg == "--resume" || arg == "-r" {
-			if i+1 < len(args) {
+			if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
 				return args
 			}
+			// slices.Concat always allocates a new backing array, so the caller's
+			// slice is never mutated.
+			return slices.Concat(args[:i+1], []string{resumeSessionID}, args[i+1:])
 		}
 		if strings.HasPrefix(arg, "--resume=") {
-			return args
+			if strings.TrimSpace(strings.TrimPrefix(arg, "--resume=")) != "" {
+				return args
+			}
+			repaired := slices.Clone(args)
+			repaired[i] = "--resume=" + resumeSessionID
+			return repaired
 		}
 	}
 

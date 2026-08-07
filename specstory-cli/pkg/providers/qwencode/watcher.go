@@ -67,16 +67,15 @@ func StopWatcher() {
 // session in a project) are awaited via fsnotify on their parent, stepping
 // down the chain: ~/.qwen → projects → <sanitized-cwd> → chats.
 func WatchQwenProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+	// Default the path before recording it as the workspace root, so sessions
+	// converted by the watcher never carry an empty root.
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		return err
+	}
+
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
-
-	if projectPath == "" {
-		var err error
-		projectPath, err = osGetwd()
-		if err != nil {
-			return fmt.Errorf("failed to get current working directory: %w", err)
-		}
-	}
 
 	projectsDir, err := GetQwenProjectsDir()
 	if err != nil {

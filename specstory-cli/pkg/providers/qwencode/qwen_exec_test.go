@@ -42,6 +42,24 @@ func TestEnsureResumeArgs(t *testing.T) {
 			resumeSessionID: "abc-123",
 			want:            []string{"--resume=other-id"},
 		},
+		{
+			name:            "bare --resume at end gets the id inserted, not a duplicate flag",
+			args:            []string{"--safe-mode", "--resume"},
+			resumeSessionID: "abc-123",
+			want:            []string{"--safe-mode", "--resume", "abc-123"},
+		},
+		{
+			name:            "bare -r followed by another flag gets the id inserted",
+			args:            []string{"-r", "--safe-mode"},
+			resumeSessionID: "abc-123",
+			want:            []string{"-r", "abc-123", "--safe-mode"},
+		},
+		{
+			name:            "empty --resume= is repaired in place",
+			args:            []string{"--resume="},
+			resumeSessionID: "abc-123",
+			want:            []string{"--resume=abc-123"},
+		},
 	}
 
 	for _, tt := range tests {

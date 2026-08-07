@@ -93,6 +93,30 @@ func TestGetAgentChatSessions(t *testing.T) {
 	}
 }
 
+func TestGetAgentChatSessions_EmptyProjectPathUsesCwd(t *testing.T) {
+	home := withFakeHome(t)
+	projectPath := t.TempDir()
+	seedFakeSession(t, home, projectPath, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
+
+	// Point the package's cwd lookup at the project so an empty projectPath
+	// resolves there.
+	origGetwd := osGetwd
+	osGetwd = func() (string, error) { return projectPath, nil }
+	t.Cleanup(func() { osGetwd = origGetwd })
+
+	p := NewProvider()
+	sessions, err := p.GetAgentChatSessions("", false, nil)
+	if err != nil {
+		t.Fatalf("GetAgentChatSessions failed: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("session count = %d, want 1", len(sessions))
+	}
+	if got := sessions[0].SessionData.WorkspaceRoot; got != projectPath {
+		t.Errorf("WorkspaceRoot = %q, want the defaulted cwd %q (never empty)", got, projectPath)
+	}
+}
+
 func TestGetAgentChatSession_ByID(t *testing.T) {
 	home := withFakeHome(t)
 	projectPath := t.TempDir()

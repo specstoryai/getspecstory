@@ -117,6 +117,11 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 }
 
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
 	projectDir, err := ResolveQwenProjectDir(projectPath)
 	if err != nil {
 		return nil, err
@@ -144,6 +149,11 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 }
 
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
+
 	projectDir, err := ResolveQwenProjectDir(projectPath)
 	if err != nil {
 		return nil, err

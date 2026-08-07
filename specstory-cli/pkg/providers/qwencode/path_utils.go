@@ -35,6 +35,22 @@ func (e *QwenPathError) Error() string {
 	return e.Message
 }
 
+// defaultProjectPath fills in an empty project path with the current working
+// directory. Provider entry points call this once so the same resolved path
+// is used both for locating the Qwen store and as the workspace root stamped
+// into generated session data (stamping the raw empty string would fail
+// schema validation and break path hint normalization).
+func defaultProjectPath(projectPath string) (string, error) {
+	if projectPath != "" {
+		return projectPath, nil
+	}
+	cwd, err := osGetwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current working directory: %v", err)
+	}
+	return cwd, nil
+}
+
 // SanitizeQwenCwd converts a working directory path into Qwen Code's project
 // directory name: every character outside [a-zA-Z0-9] becomes '-'.
 // Example: /Users/alice/my app -> -Users-alice-my-app
@@ -87,12 +103,9 @@ func candidateProjectDirNames(projectPath string) []string {
 // ResolveQwenProjectDir locates the Qwen Code project directory
 // (~/.qwen/projects/<sanitized-cwd>) for the given project path.
 func ResolveQwenProjectDir(projectPath string) (string, error) {
-	if projectPath == "" {
-		var err error
-		projectPath, err = osGetwd()
-		if err != nil {
-			return "", fmt.Errorf("failed to get current working directory: %v", err)
-		}
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		return "", err
 	}
 
 	projectsDir, err := GetQwenProjectsDir()
