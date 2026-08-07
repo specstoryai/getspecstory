@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE.
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -30,12 +30,15 @@ The following coding agents are supported in the SpecStory CLI:
 | [Codex CLI](https://www.openai.com/codex/cli/)            | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`         |
 | [Cursor CLI](https://cursor.com/cli)                      | [cursorcli](pkg/providers/cursorcli/)           | SQLite      | `~/.cursor/chats/`           |
 | [Cursor IDE](https://cursor.com/)                         | [cursoride](pkg/providers/cursoride/)           | SQLite      | `Cursor/User/globalStorage/` |
+| [VS Code Copilot](https://code.visualstudio.com/)         | [copilotide](pkg/providers/copilotide/)         | JSON/JSONL  | `Code/User/workspaceStorage/` |
 | [Droid CLI](https://factory.ai/product/cli)               | [droidcli](pkg/providers/droidcli/)             | JSONL       | `~/.factory/sessions/`       |
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
 | [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
+
+VS Code Copilot stores its chats per workspace as JSON/JSONL session files under `Code/User/workspaceStorage/<workspace-id>/chatSessions/`, located under `~/Library/Application Support/` on macOS and `~/.config/` on Linux. The `copilotide` provider matches the current project to its workspace storage entry — including projects opened via SSH remotes, tunnels, and dev containers — and reads the session files directly. Each VS Code distribution is registered as its own provider: `copilotide` (stock VS Code), `copilotide-insiders`, `copilotide-vscodium`, and `copilotide-vscodium-insiders`. As with Cursor IDE, `specstory run copilotide` opens the project in VS Code and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
 ### Agent Provider SPI (Service Provider Interface)
 
@@ -283,8 +286,17 @@ The configuration is determined with the following priority (highest priority to
 # Codex CLI command
 # codex_cmd = "codex"
 
+# Copilot IDE commands (used by specstory run copilotide[-variant] to open the IDE)
+# copilotide_cmd = "code"
+# copilotide_insiders_cmd = "code-insiders"
+# copilotide_vscodium_cmd = "codium"
+# copilotide_vscodium_insiders_cmd = "codium-insiders"
+
 # Cursor CLI command
 # cursor_cmd = "cursor-agent"
+
+# Cursor IDE command (used by specstory run cursoride to open the IDE)
+# cursoride_cmd = "cursor"
 
 # DeepSeek TUI command
 # deepseek_cmd = "deepseek"
@@ -320,7 +332,12 @@ The configuration is determined with the following priority (highest priority to
 | `[redaction]`     | `enabled`         | `true`               | Redact secrets from markdown and cloud data |
 | `[providers]`     | `claude_cmd`      | `"claude"`           | Claude Code command                        |
 | `[providers]`     | `codex_cmd`       | `"codex"`            | Codex CLI command                          |
+| `[providers]`     | `copilotide_cmd`  | `"code"`             | VS Code launcher command                   |
+| `[providers]`     | `copilotide_insiders_cmd` | `"code-insiders"` | VS Code Insiders launcher command     |
+| `[providers]`     | `copilotide_vscodium_cmd` | `"codium"`   | VSCodium launcher command                  |
+| `[providers]`     | `copilotide_vscodium_insiders_cmd` | `"codium-insiders"` | VSCodium Insiders launcher command |
 | `[providers]`     | `cursor_cmd`      | `"cursor-agent"`     | Cursor CLI command                         |
+| `[providers]`     | `cursoride_cmd`   | `"cursor"`           | Cursor IDE launcher command                |
 | `[providers]`     | `deepseek_cmd`    | `"deepseek"`         | DeepSeek TUI command                       |
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
@@ -535,7 +552,7 @@ go list -m -u all
 
 ### Debug Raw Mode
 
-The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Cursor IDE, Codex CLI, Gemini CLI, Droid CLI).
+The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Cursor IDE, VS Code Copilot, Codex CLI, Gemini CLI, Droid CLI).
 
 When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
 
@@ -573,10 +590,11 @@ Sync specific session with debug output:
     ├── 3.json
     ├── ...
     ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
+    ├── raw-session.json  # VS Code Copilot: the full raw session record
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE, a single `raw-composer.json` file holds the complete composer record instead of numbered per-record files.
+Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE and VS Code Copilot, a single file (`raw-composer.json` / `raw-session.json`) holds the complete session record instead of numbered per-record files.
 
 **Example:**
 

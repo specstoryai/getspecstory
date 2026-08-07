@@ -1,10 +1,15 @@
 # Specstory CLI Changelog
 
+## v2.7.0 2026-08-07
+
+- The SpecStory CLI now supports [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot) for Copilot agent sessions created from  Visual Studio Code `1.132.0` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+
 ## v2.6.0 2026-08-03
 
 ### 🐛 Bug Fixes
 
 - The Codex CLI provider no longer holds an open file descriptor for every historical Codex session file during `specstory run` and `specstory watch` on macOS. File watches are now limited to a trailing 7-day window of session directories (plus the directory of a resumed session), and watches that age out of the window are released at day rollover, so file descriptor usage stays flat no matter how long a watch runs. Previously, installs with a large Codex session history could pin tens of thousands of descriptors per process and exhaust the system-wide file table, [issue 266](https://github.com/specstoryai/getspecstory/issues/266). All historical sessions are still scanned and synced at startup and during `specstory sync`, as before.
+- The Claude Code provider no longer holds an open file descriptor for every historical Claude Code session file during `specstory run` and `specstory watch` on macOS. Session files modified within the trailing 7-day window are watched individually, and a periodic self-healing pass picks up new session files and re-watches dormant sessions the moment they become active again. Even a session idle for longer than the window resumes live markdown updates within seconds. Sessions are still fully covered at startup and during `specstory sync`, as before.
 
 ## v2.5.0 2026-07-24
 

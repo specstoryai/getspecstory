@@ -365,7 +365,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 	track("success")
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	printCursorIDERestartNote(plan, out)
+	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
 }
 
@@ -417,16 +417,30 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 	}
 	track("success")
 	fprintf(out, "Reconstructed cloud %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	printCursorIDERestartNote(plan, out)
+	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
 }
 
-// printCursorIDERestartNote tells the user how to surface a session reconstructed into Cursor
-// IDE's store: Cursor only picks up imported sessions from its SQLite database on startup, so
-// unlike CLI targets the result is not visible until the app is restarted.
-func printCursorIDERestartNote(plan *resumePlan, out io.Writer) {
+// printIDERestartNote tells the user how to surface a session reconstructed into an
+// IDE-backed store. Unlike CLI targets, these are not visible until the app restarts:
+// Cursor only picks up imported sessions from its SQLite database on startup, and VS
+// Code holds its chat session index in memory and flushes it over ours on shutdown.
+func printIDERestartNote(plan *resumePlan, out io.Writer) {
 	if plan.toID == "cursoride" {
 		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
+	}
+	// An ID-prefix check so every Copilot IDE variant — stock VS Code, Insiders,
+	// VSCodium, and any added later — gets the note without this layer importing
+	// a concrete provider package. Reconstruction normally holds its write until
+	// the app is quit, so this only matters for the scripted path that warned
+	// and proceeded with the app still running.
+	if strings.HasPrefix(plan.toID, "copilotide") {
+		// The provider name is "<app> Copilot IDE"; trimming the suffix names the
+		// actual app (VS Code, VSCodium, ...) so Insiders/VSCodium users aren't
+		// told about the wrong application. If the naming convention ever
+		// changes, the full provider name prints — awkward but still correct.
+		app := strings.TrimSuffix(plan.to.Name(), " Copilot IDE")
+		fprintf(out, "\nNote: if %s was running during the import, fully quit and reopen it to see the session.\n", app)
 	}
 }
 

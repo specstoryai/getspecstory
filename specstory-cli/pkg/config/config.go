@@ -119,6 +119,12 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Codex CLI command
 # codex_cmd = "codex"
 
+# Copilot IDE commands (used by specstory run copilotide[-variant] to open the IDE)
+# copilotide_cmd = "code"
+# copilotide_insiders_cmd = "code-insiders"
+# copilotide_vscodium_cmd = "codium"
+# copilotide_vscodium_insiders_cmd = "codium-insiders"
+
 # Cursor CLI command
 # cursor_cmd = "cursor-agent"
 
@@ -243,14 +249,18 @@ type TelemetryConfig struct {
 // These are used by `specstory run` as the equivalent of the -c flag,
 // scoped to a specific provider.
 type ProvidersConfig struct {
-	ClaudeCmd      string `toml:"claude_cmd"`
-	CodexCmd       string `toml:"codex_cmd"`
-	CursorCmd      string `toml:"cursor_cmd"`
-	CursorIDECmd   string `toml:"cursoride_cmd"`
-	DeepSeekCmd    string `toml:"deepseek_cmd"`
-	DroidCmd       string `toml:"droid_cmd"`
-	GeminiCmd      string `toml:"gemini_cmd"`
-	AntigravityCmd string `toml:"antigravity_cmd"`
+	AntigravityCmd                string `toml:"antigravity_cmd"`
+	ClaudeCmd                     string `toml:"claude_cmd"`
+	CodexCmd                      string `toml:"codex_cmd"`
+	CopilotIDECmd                 string `toml:"copilotide_cmd"`
+	CopilotIDEInsidersCmd         string `toml:"copilotide_insiders_cmd"`
+	CopilotIDEVSCodiumCmd         string `toml:"copilotide_vscodium_cmd"`
+	CopilotIDEVSCodiumInsidersCmd string `toml:"copilotide_vscodium_insiders_cmd"`
+	CursorCmd                     string `toml:"cursor_cmd"`
+	CursorIDECmd                  string `toml:"cursoride_cmd"`
+	DeepSeekCmd                   string `toml:"deepseek_cmd"`
+	DroidCmd                      string `toml:"droid_cmd"`
+	GeminiCmd                     string `toml:"gemini_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -958,6 +968,14 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.ClaudeCmd
 	case "codex":
 		return c.Providers.CodexCmd
+	case "copilotide":
+		return c.Providers.CopilotIDECmd
+	case "copilotide-insiders":
+		return c.Providers.CopilotIDEInsidersCmd
+	case "copilotide-vscodium":
+		return c.Providers.CopilotIDEVSCodiumCmd
+	case "copilotide-vscodium-insiders":
+		return c.Providers.CopilotIDEVSCodiumInsidersCmd
 	case "cursor":
 		return c.Providers.CursorCmd
 	case "cursoride":

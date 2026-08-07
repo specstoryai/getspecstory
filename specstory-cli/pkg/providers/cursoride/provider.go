@@ -1,6 +1,7 @@
 package cursoride
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -537,10 +539,33 @@ func openCursorIDE(projectPath, customCommand string) error {
 		return fmt.Errorf("configured Cursor IDE launcher %q not found on PATH: %w", launcher, err)
 	}
 
-	args = append(args, projectPath)
-	if out, err := exec.Command(launcher, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("cursor IDE launcher %q failed: %w: %s", launcher, err, string(out))
+	// Canonicalize before handing the path to the IDE: Cursor derives the
+	// workspace identity from the path string it is given, so launching with
+	// the user's typed spelling (~/source vs ~/Source on a case-insensitive
+	// filesystem) mints a second workspace entry for the same folder, splitting
+	// its sessions across entries.
+	if canonical, err := spi.GetCanonicalPath(projectPath); err == nil {
+		projectPath = canonical
 	}
+	args = append(args, projectPath)
+	// Start without waiting for the launcher to exit: the stock CLI forks and
+	// returns immediately, but a custom command can keep running for the whole
+	// IDE session (e.g. `cursor --wait`), and blocking here would stall the
+	// watcher before it ever starts. Post-spawn failures are logged from the
+	// reaper goroutine instead of returned.
+	cmd := exec.Command(launcher, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("cursor IDE launcher %q failed to start: %w", launcher, err)
+	}
+	go func() {
+		if err := cmd.Wait(); err != nil {
+			slog.Warn("IDE launcher exited with error",
+				"launcher", launcher, "error", err, "output", strings.TrimSpace(out.String()))
+		}
+	}()
 	return nil
 }
 
@@ -549,6 +574,26 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	slog.Info("WatchAgent: Starting Cursor IDE activity monitoring",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
+
+	// The workspace entry may not exist yet — a watch can start before the
+	// project is ever opened in Cursor. Erroring would permanently disable this
+	// provider for the multi-provider watch, so wait for the entry instead.
+	loggedWaiting := false
+	for {
+		if _, err := FindWorkspaceForProject(projectPath); err == nil {
+			break
+		}
+		if !loggedWaiting {
+			slog.Info("No Cursor workspace for project yet; waiting for it to be opened",
+				"projectPath", projectPath)
+			loggedWaiting = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
+	}
 
 	// Create and start watcher
 	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, defaultCheckInterval)

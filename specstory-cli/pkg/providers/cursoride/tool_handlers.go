@@ -190,14 +190,16 @@ func escapeSummaryText(s string) string {
 // formatToolError formats a tool error message
 func formatToolError(bubble *BubbleConversation) string {
 	if bubble.Error != "" {
-		// Parse the error JSON
+		// Prefer the user-facing message from the error JSON, but only when it is
+		// actually present — valid error JSON can carry an empty
+		// clientVisibleErrorMessage, and returning that would hide the real error.
 		var errorData struct {
 			ClientVisibleErrorMessage string `json:"clientVisibleErrorMessage"`
 		}
-		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil {
+		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil && errorData.ClientVisibleErrorMessage != "" {
 			return errorData.ClientVisibleErrorMessage
 		}
-		// If parsing fails, return the raw error
+		// Unparseable or message-less error JSON: return the raw error
 		return bubble.Error
 	}
 	return "An unknown error occurred"
@@ -323,14 +325,19 @@ func codeFence(s string) string {
 }
 
 // capRunes truncates s to at most max runes, marking the cut. Rune-based so a cap
-// never splits a multi-byte character.
+// never splits a multi-byte character. Scans rune boundaries instead of converting
+// to []rune, which would allocate O(len(s)) for exactly the oversized tool results
+// this cap protects against.
 func capRunes(s string, max int) string {
 	if len(s) <= max {
 		return s // fast path: byte length bounds rune length
 	}
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
+	count := 0
+	for i := range s {
+		if count == max {
+			return s[:i] + "\n… (output truncated)"
+		}
+		count++
 	}
-	return string(runes[:max]) + "\n… (output truncated)"
+	return s // more bytes than max but fewer runes (multi-byte characters)
 }

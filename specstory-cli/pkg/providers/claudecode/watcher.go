@@ -29,6 +29,45 @@ func init() {
 	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 }
 
+// watchWindowDays is how many days of file-modification lookback keep a session
+// file under an active fsnotify watch. Claude Code stores every session ever run
+// in a project as a flat directory of JSONL files, and fsnotify's kqueue backend
+// on macOS holds an open file descriptor for every file in a watched directory —
+// so watching the project directory itself pins one fd per historical session
+// file, growing without bound as sessions accumulate. Instead, only session
+// files modified within this window are watched individually (one fd each);
+// everything else is covered by the periodic reconcile pass, which re-watches
+// any dormant file the moment its modification time moves again.
+const watchWindowDays = 7
+
+// watchReconcileInterval is how often the project directory is re-listed to
+// detect newly created session files, re-watch dormant sessions that have woken
+// (a write to an unwatched file produces no fsnotify event, so polling is the
+// only way to notice it), and drop watches on files idle beyond the window.
+const watchReconcileInterval = 2 * time.Second
+
+// reconcileFileWatches computes which session files should gain or lose an
+// fsnotify watch. files maps each JSONL path currently on disk to its
+// modification time; watched is the set of paths currently watched. A file
+// deserves a watch iff it was modified on or after cutoff, so add contains
+// unwatched files inside the window (new sessions and dormant sessions that
+// have woken), and remove contains watched files that aged out of the window
+// or no longer exist.
+func reconcileFileWatches(files map[string]time.Time, watched map[string]bool, cutoff time.Time) (add []string, remove []string) {
+	for path, mtime := range files {
+		if !watched[path] && !mtime.Before(cutoff) {
+			add = append(add, path)
+		}
+	}
+	for path := range watched {
+		mtime, exists := files[path]
+		if !exists || mtime.Before(cutoff) {
+			remove = append(remove, path)
+		}
+	}
+	return add, remove
+}
+
 // SetWatcherCallback sets the callback function for session updates
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
@@ -200,12 +239,79 @@ func startProjectWatcher(claudeProjectDir string) error {
 		}
 		slog.Info("startProjectWatcher: Now monitoring project directory for changes",
 			"directory", actualProjectDir)
-		if err := watcher.Add(actualProjectDir); err != nil {
-			log.UserWarn("Error watching project directory: %v", err)
-			slog.Error("startProjectWatcher: Failed to monitor directory", "error", err)
-			return
+
+		// Session files watched individually, one fd each. The project directory
+		// itself is never added to the watcher — see watchWindowDays for why.
+		watchedFiles := make(map[string]bool)
+
+		// reconcile lists the project directory and converges the watched set on
+		// the files modified within the window. Files gaining a watch are scanned
+		// when scanAdds is set, because a watch appearing outside startup means
+		// activity happened while the file was unwatched (a brand-new session
+		// file, or a dormant session waking) and that activity produced no event.
+		reconcile := func(scanAdds bool) {
+			entries, err := os.ReadDir(actualProjectDir)
+			if err != nil {
+				slog.Debug("startProjectWatcher: Cannot read project directory",
+					"directory", actualProjectDir,
+					"error", err)
+				return
+			}
+
+			files := make(map[string]time.Time)
+			for _, entry := range entries {
+				if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+					continue
+				}
+				info, err := entry.Info()
+				if err != nil {
+					// File vanished between the listing and the stat; the next
+					// reconcile pass will see the directory's true state
+					continue
+				}
+				files[filepath.Join(actualProjectDir, entry.Name())] = info.ModTime()
+			}
+
+			cutoff := time.Now().AddDate(0, 0, -watchWindowDays)
+			add, remove := reconcileFileWatches(files, watchedFiles, cutoff)
+
+			for _, file := range remove {
+				// Removal can fail if the file was deleted; the kernel already
+				// released its fd in that case, so just drop our bookkeeping
+				if err := watcher.Remove(file); err != nil {
+					slog.Debug("startProjectWatcher: Failed to remove file watch",
+						"file", file,
+						"error", err)
+				}
+				delete(watchedFiles, file)
+				slog.Info("startProjectWatcher: Removed file watch", "file", file)
+			}
+
+			for _, file := range add {
+				if err := watcher.Add(file); err != nil {
+					slog.Debug("startProjectWatcher: Failed to watch file",
+						"file", file,
+						"error", err)
+					continue
+				}
+				watchedFiles[file] = true
+				slog.Info("startProjectWatcher: Added file watch", "file", file)
+				// Scan after adding the watch so writes landing in between are
+				// covered by either the scan or a subsequent event
+				if scanAdds {
+					scanJSONLFiles(claudeProjectDir, file)
+				}
+			}
 		}
+
+		// Initial pass watches recent files without scanning them: startup sync
+		// is the command layer's job, and the prior directory-watch behavior
+		// likewise generated no scans until the first file event
+		reconcile(false)
 		slog.Info("startProjectWatcher: Successfully monitoring project directory for future changes")
+
+		ticker := time.NewTicker(watchReconcileInterval)
+		defer ticker.Stop()
 
 		// Watch for file events
 		for {
@@ -223,20 +329,23 @@ func startProjectWatcher(claudeProjectDir string) error {
 					continue
 				}
 
+				// A watched file that is deleted or renamed away no longer has a
+				// live watch; drop it from the set so a same-named successor
+				// would be re-added by reconcile
+				if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+					delete(watchedFiles, event.Name)
+					continue
+				}
+
 				if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
 					continue
 				}
 
-				// Handle different event types
-				switch {
-				case event.Has(fsnotify.Create):
-					slog.Info("New JSONL file created", "file", event.Name)
-					scanJSONLFiles(claudeProjectDir, event.Name)
-				case event.Has(fsnotify.Write):
-					slog.Info("JSONL file modified", "file", event.Name)
-					slog.Info("Triggering scan due to file modification")
-					scanJSONLFiles(claudeProjectDir, event.Name)
-				}
+				slog.Info("JSONL file modified", "file", event.Name, "operation", event.Op.String())
+				scanJSONLFiles(claudeProjectDir, event.Name)
+
+			case <-ticker.C:
+				reconcile(true)
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
