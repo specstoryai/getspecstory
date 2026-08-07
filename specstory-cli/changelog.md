@@ -2,6 +2,10 @@
 
 ## v2.8.0 2026-08-07
 
+### 📢 Announcements
+
+- The SpecStory CLI now supports Meta's [Muse Code](https://github.com/facebook/muse-code) (i.e. `muse`) for sessions created from Muse Code version `0.1.0` or higher. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for the other supported coding agents, including resuming Muse Code sessions in other agents and other agents' sessions in Muse Code with `specstory resume`. See [MUSE-FORMAT.md](docs/MUSE-FORMAT.md) for the session format details.
+
 ### 🐛 Bug Fixes
 
 - Fenced code blocks in the rendered markdown (those triple backticks) are now sized correctly across all providers. When a session included tool output that itself contained embedded code fences — a cat of a README, a diff of a markdown file — the resulting markdown could become unbalanced and wreck how rendering engines display everything after it. Fences are now sized past any backtick runs in the content, and the old backslash-escape workaround (which left visible \ artifacts) is gone. Thanks to [huangruizhe](https://github.com/huangruizhe) for diagnosing the problem and proposing the fix in [PR 241](https://github.com/specstoryai/getspecstory/pull/241), which was the inspiration for this change. Note: your existing markdown files may update once on your next sync as fences are resized and escape artifacts removed.
