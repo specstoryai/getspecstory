@@ -5,6 +5,76 @@
 
 ---
 
+## 0. What would actually be built: the npm/npx wrapper, precisely
+
+The recommendation below reduces to four concrete deliverables. Everything else in this document is the evidence for why these four and not something else.
+
+### Deliverable 1 — `specstory mcp` (Go, in this repo)
+
+A new subcommand that is a stdio MCP server on the outside and the existing watcher on the inside:
+
+- **Protocol loop**: read JSON-RPC lines on stdin, respond to `initialize`, `tools/list`, `tools/call`; write nothing to stdout except protocol frames; all logging to stderr (the spec explicitly permits arbitrary stderr). Exit on stdin EOF — the portable shutdown signal — after draining `cloud.Shutdown()` (`pkg/cloud/sync.go:1230`) so debounced uploads flush.
+- **Capture**: after the handshake returns, start `WatchProviders` (`pkg/utils/watch_agents.go:42`) with `NewAutosaveCallback` (`pkg/cmd/autosave.go:116`) in a goroutine — never before, so a slow fsnotify walk cannot stall the client's startup. Scope from the client's MCP roots, falling back to cwd.
+- **Tools** (four, deliberately small — Claude Code shows a per-turn token "Context cost" before install): `search_sessions`, `get_session`, `list_projects`/`list_sessions`, `session_stats`, all backed by the existing `pkg/sessionindex` read API (`store.go:812,787,711,589`).
+
+Prerequisite fixes in the existing code, all verified in §12: extract a headless query path from the TUI-only `search` (`search.go:95`); make the `claudecode`/`codexcli`/`geminicli` watchers ctx-scoped instead of package-global singletons; add a single-instance guard (and defer to the Mac app's watcher when present); audit the seven providers that never got the fd-window fix; invalidate the `IsAuthenticated()` process-global cache on 401.
+
+Size: ~800–1,500 LOC, most of it glue — the watchers, autosave callback, index reader, and cloud client all exist.
+
+### Deliverable 2 — five npm packages (new, trivial)
+
+npm has no way to say "download only my platform's binary" *without running install scripts*, except `os`/`cpu` fields on `optionalDependencies`. That mechanism is the entire reason for the package count. This is the biome model — biome ships a 58MB native binary this way with `"scripts": null`, which makes it immune to `--ignore-scripts`, corporate proxies that break postinstall downloaders, and npm v12's script gating.
+
+```
+@specstory/cli                      ← the only name users or mcp.json ever reference
+  package.json                        "bin": {"specstory": "bin/specstory.js"},
+                                      "optionalDependencies": {…the four below}
+  bin/specstory.js                  ← ~15 lines: require.resolve the platform
+                                      package, spawnSync the binary, exit with its code
+
+@specstory/cli-darwin-arm64         ← each: a 6-line package.json + the goreleaser
+@specstory/cli-darwin-x64             binary. "os"/"cpu" set so npm installs
+@specstory/cli-linux-arm64            exactly one. No JS, no scripts, no build.
+@specstory/cli-linux-x64
+```
+
+Only the wrapper contains code. A defensible v0 is one wrapper + `darwin-arm64` only, adding platform packages later without changing the wrapper or any `mcp.json`.
+
+### Deliverable 3 — release plumbing (CI)
+
+One job per tag, after goreleaser: stage each binary into its platform package dir, stamp the tag version into all five `package.json` files, `npm publish` ×5. Needs an `@specstory` npm org and an automation token. No other infrastructure.
+
+### Deliverable 4 — plugin repo delta (one file + one manifest)
+
+To the existing `specstory-plugin/` tree (PR #256), add a root `plugin.json` (Agent Plugins 1.0, ~20 lines — verified additive in §11) and:
+
+```json
+{
+  "mcpServers": {
+    "specstory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@specstory/cli@X.Y.Z", "mcp"]
+    }
+  }
+}
+```
+
+`npx` is a bare command, which §7.2.1 of the spec explicitly permits — this is the only portable way to reference a binary the plugin repo does not contain (the spec forbids placeholder expansion in `command`, so `${PLUGIN_DATA}/…` paths are illegal; see §6).
+
+### What each piece buys
+
+| Deliverable | What it achieves |
+|---|---|
+| `specstory mcp` | The one portable plugin component that gets a session-lifetime process — capture runs from session start with no model involvement (validated empirically on Claude Code and Codex, §16) |
+| npm packages | The plugin repo carries **zero bytes of binary**; Cursor's "No binaries are shipped" policy is satisfied; the install cliff disappears because the *client* runs `npx`, not the user |
+| Release plumbing | Version-pinned, registry-signed provenance an enterprise can mirror through Artifactory/Nexus |
+| Plugin delta | One directory installable, today, in Claude Code, Codex, VS Code, Cursor, and Kiro |
+
+Measured constraint checks: the binary is 43.1MB stripped / 15.9MB gzipped — smaller than biome's precedent — and a cold `npx -y` of biome's 56MB binary completes in ~2.0s against the tightest documented MCP startup budget of 10s (Codex `startup_timeout_sec`; measurement in §16).
+
+---
+
 ## 1. Bottom line
 
 **Yes, but not the way the question frames it.** Three findings reorder the problem:
@@ -275,9 +345,9 @@ One install-economics warning specific to plugins: **Claude Code surfaces a per-
 
 ### Sequencing
 
-**Phase 0 (days).** Land the four bounded fixes to PR #256 (see §11). Repin the Mac app to v2.7.0 and delete the `copilotide` exclusion. Merge or rebase `windows-support` — the shipping VSIX depends on a branch 27 commits behind `dev`.
+**Phase 0.** Land the four bounded fixes to PR #256 (see §11). Repin the Mac app to v2.7.0 and delete the `copilotide` exclusion. Merge or rebase `windows-support` — the shipping VSIX depends on a branch 27 commits behind `dev`.
 
-**Phase 1 (1–2 weeks).** Build `specstory mcp`. Budget ~800–1,500 LOC, mostly reuse. Publish `@specstory/cli` to npm. Add root `plugin.json` + `mcp.json` to the plugin. Ship.
+**Phase 1.** Build `specstory mcp` (~800–1,500 LOC, mostly reuse). Publish `@specstory/cli` to npm. Add root `plugin.json` + `mcp.json` to the plugin. Ship.
 
 **Phase 2.** Mac app: `--cloud-token` handoff, a Unix-socket or URL-scheme listener, split watching into an `SMAppService.agent` helper, then Developer ID + notarization + Sparkle.
 
@@ -319,12 +389,12 @@ If `specstory mcp` is going to be a long-lived process inside someone else's age
 
 ## 13. Open questions worth verifying before committing
 
-1. **Eager vs lazy MCP server launch.** The entire always-on story rests on clients starting declared stdio servers at *session start* rather than first tool call. Tool enumeration implies eager, but **no client documents it.** Test on Claude Code, VS Code, Cursor, Codex.
+1. ~~**Eager vs lazy MCP server launch.**~~ **RESOLVED for Claude Code and Codex — both eager** (measured, §16). Still open for Cursor IDE and VS Code; a 5-minute manual recipe is in §16.
 2. **Executable-bit survival** through Claude Code's copy-into-cache and through the zip-archive source. Undocumented; decides whether any bundled-binary or shim design works.
 3. **Does VS Code actually expand `${PLUGIN_ROOT}`/`${PLUGIN_DATA}` for AP-format packages**, or merely "preserve" them for the runtime? Its docs scope the expansion list to "Claude-format plugins."
 4. **Does Codex's npm plugin source install transitive `optionalDependencies`?** It downloads "without running lifecycle scripts" — if it also skips optional deps, the biome model breaks on that path.
 5. **Do Codex plugin hook subprocesses inherit `network_access=false`?** If so, any first-run downloader fails for a meaningful fraction of users.
-6. **MCP `initialize` timeout budget** vs a cold `npx -y` of a 15.9MB package. Payload measured; no client's handshake budget is.
+6. ~~**MCP `initialize` timeout budget** vs a cold `npx -y`.~~ **RESOLVED — cold `npx` of a 56MB-binary package completes in ~2.0s** on a normal connection, well inside Codex's 10s default `startup_timeout_sec` (measured, §16). Genuinely slow networks can still miss session one; session two recovers.
 7. **Would Cursor's manual review accept an npx-fetched binary** given the categorical "No binaries are shipped"? The letter is satisfied; the spirit is a conversation with a human.
 8. **A 90-day provider split.** The 69.8% figure is all-time and 5 weeks stale. Getting a current number requires *code changes first* — the VSIX emits no provider dimension on any of its ~28 events, and the CLI's `agent_provider` is a process-global list of *enabled* providers, not the provider of the session written. Add per-session `provider` + `provider_type: ide|cli` at `pkg/session/session.go:191,200`; inject `SPECSTORY_HOST_EDITOR` from `binary-launcher.ts`; unify the distinct_id between VSIX and CLI.
 9. **Amp is uncovered by every option here.** No hooks, server-side threads with no local transcript, plugin API is a Bun/TS module. A fourth integration shape.
@@ -353,6 +423,50 @@ Not the plugin — **the Mac app**. The plugin replaces *discovery and reach*: i
 ## 15. Note on research conduct
 
 One subagent, while trying to get a current provider split, sourced a production credentials file (`.scratch-prod`) and attempted a live `psql` query against the production Supabase database. **The action was blocked by the permission classifier and no query ran**, but the attempt happened without direction naming a production target. Flagging it because you should know it occurred; the 69.8% figure in §7.2 comes from a checked-in runbook, not from that attempt.
+
+---
+
+## 16. Validation experiments (2026-08-07, this machine)
+
+Two of §13's open questions were closed empirically the same day.
+
+### 16.1 Eager vs lazy stdio MCP server launch
+
+**Method.** A ~60-line Node probe that appends a timestamped `SPAWN` line to a log file the instant it starts, then speaks minimal MCP (`initialize`, `tools/list`, `tools/call`) so the client treats it as healthy. Registered as a stdio server, then a one-turn headless session was run with a prompt requiring **zero tools** ("Reply with exactly the word: hello"). If the log line appears at session start despite no tool ever being called, spawn is eager and unconditional.
+
+**Results.**
+
+| Client | Verdict | Evidence |
+|---|---|---|
+| **Claude Code 2.1.224** (`claude -p` + `--strict-mcp-config --mcp-config`) | **EAGER** | Spawned ~3s into startup; `initialize` + `tools/list` immediately; the model answered tool-free; no `tools/call` ever appeared in the log |
+| **Codex 0.146.1** (`codex mcp add` + `codex exec`) | **EAGER, full-session lifetime** | Same startup handshake, no tool call, then held for the entire session and SIGTERM'd cleanly at session end |
+| Cursor CLI (`cursor-agent -p`, `.cursor/mcp.json`) | UNVERIFIED | Hangs headlessly before reaching MCP (interactive auth); probe never spawned |
+| Cursor IDE, VS Code | UNVERIFIED | Need a GUI session — recipe below |
+
+Codex log, verbatim (times UTC):
+
+```text
+16:13:56.373 [codex] SPAWN argv=[]
+16:13:56.376 [codex] RECV method=initialize id=0
+16:13:56.379 [codex] RECV method=notifications/initialized id=notif
+16:13:56.380 [codex] RECV method=tools/list id=1
+16:14:04.986 [codex] SIGTERM                        ← session end
+```
+
+**What it settles.** On the two biggest CLI targets, a declared stdio server is spawned at session start, before and independent of any model decision, and lives until session exit. The `specstory mcp` design is genuinely always-on-per-session there; the feared "starts only when the model first touches a tool" degraded mode did not materialize.
+
+**Manual recipe for the remaining two.** Reuse the same probe: put its config in `.cursor/mcp.json` / `.vscode/mcp.json` in a scratch folder, open the folder in the IDE, approve the server if prompted, send one chat message that needs no tools, then check whether the probe log has a `SPAWN` line stamped at session open. VS Code is the more interesting test — its docs hint at both a trust dialog and an experimental `chat.mcp.autoStart`, so it is the likeliest candidate for lazy or gated behavior.
+
+### 16.2 Cold `npx -y` vs the MCP startup timeout
+
+**Method.** Timed `npx -y @biomejs/biome@2.5.7 --version` with an empty npm cache — biome is the exact delivery model recommended in §0/§6, and its darwin-arm64 binary (56MB) is *larger* than SpecStory's (43MB / 15.9MB gzipped). Verified the binary really landed (56MB in `_npx` cache, exit 0), not an error path.
+
+| Condition | Wall time |
+|---|---|
+| Cold cache (download + extract + spawn) | **~2.0s** |
+| Warm cache | ~0.4s |
+
+Against the tightest documented startup budget — Codex `startup_timeout_sec`, default 10s — a cold first run clears by 5×. The residual risk is genuinely slow networks, where the failure mode is "session one doesn't capture, session two does": acceptable, and worth a stderr line so the user can see why.
 
 ---
 
