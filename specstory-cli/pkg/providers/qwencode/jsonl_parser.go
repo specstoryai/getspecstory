@@ -28,7 +28,20 @@ const (
 //   - "assistant":   a model turn (parts: thought text, plain text, functionCall)
 //   - "tool_result": the outcome of one functionCall (functionResponse part
 //     plus a toolCallResult envelope field)
-//   - "system":      telemetry/attribution records (skipped)
+//   - "system":      non-conversational records (skipped): telemetry and
+//     attribution snapshots, plus subtype "slash_command" (slash commands are
+//     never recorded as user turns, verified empirically) and subtype
+//     "chat_compression" (context compaction appends this record with the
+//     summary in systemPayload; the transcript is never rewritten, so the
+//     append-only assumption holds through compaction)
+//
+// Subagent delegations (the "agent"/"task" tools) do not create separate
+// transcript files: the delegation and its result are an ordinary
+// functionCall/tool_result pair inline in the parent session.
+//
+// The "provenance" field is absent in Qwen Code versions before ~0.21.x
+// (verified against 0.20.1 and 0.21.0, which write the same envelope format
+// otherwise); parsing treats a missing provenance as a real record.
 type QwenRecord struct {
 	UUID           string              `json:"uuid"`
 	ParentUUID     string              `json:"parentUuid"`

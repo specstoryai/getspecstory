@@ -46,6 +46,10 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 		if skill := inputAsString(tool.Input, "skill"); skill != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, skill)
 		}
+	case "agent", "task":
+		if desc := inputAsString(tool.Input, "description"); desc != "" {
+			customSummary = fmt.Sprintf("Tool use: **%s** — %s", tool.Name, desc)
+		}
 	}
 
 	// Set custom summary on tool if we built one
@@ -84,6 +88,8 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		return formatEditBodyFromInput(tool)
 	case "web_fetch":
 		return formatWebFetchBodyFromInput(tool.Input)
+	case "agent", "task":
+		return formatAgentBodyFromInput(tool.Input)
 	case "todo_write", "write_todos":
 		return formatTodoBodyFromInput(tool.Input)
 	case "read_file", "grep_search", "glob", "list_directory", "skill":
@@ -270,6 +276,24 @@ func formatWebFetchBodyFromInput(input map[string]interface{}) string {
 		if builder.Len() > 0 {
 			builder.WriteString("\n\n")
 		}
+		builder.WriteString(prompt)
+	}
+	return builder.String()
+}
+
+// formatAgentBodyFromInput shows a subagent delegation as its prompt. Subagent
+// transcripts are inline in the parent session (the delegation is an ordinary
+// functionCall/tool_result pair), so the prompt plus the folded-in result is
+// the complete record of the sub-task.
+func formatAgentBodyFromInput(input map[string]interface{}) string {
+	prompt := inputAsString(input, "prompt")
+	subagent := inputAsString(input, "subagent_type")
+
+	var builder strings.Builder
+	if subagent != "" {
+		fmt.Fprintf(&builder, "Subagent: `%s`\n\n", subagent)
+	}
+	if prompt != "" {
 		builder.WriteString(prompt)
 	}
 	return builder.String()

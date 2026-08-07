@@ -210,6 +210,34 @@ func TestFormatToolAsMarkdown_GrepSummary(t *testing.T) {
 	}
 }
 
+func TestFormatToolAsMarkdown_AgentDelegation(t *testing.T) {
+	tool := &ToolInfo{
+		Name: "agent",
+		Type: "task",
+		Input: map[string]any{
+			"description":   "Count files in directory",
+			"prompt":        "Count the files in /tmp/project and report the total.",
+			"subagent_type": "general-purpose",
+		},
+		Output: map[string]any{"output": "Total count: 3 files.", "status": "success"},
+	}
+
+	md := formatToolAsMarkdown(tool)
+
+	if tool.Summary == nil || !strings.Contains(*tool.Summary, "Count files in directory") {
+		t.Errorf("agent summary should carry the description: %v", tool.Summary)
+	}
+	if !strings.Contains(md, "Subagent: `general-purpose`") {
+		t.Errorf("agent body missing subagent type:\n%s", md)
+	}
+	if !strings.Contains(md, "Count the files in /tmp/project") {
+		t.Errorf("agent body missing prompt:\n%s", md)
+	}
+	if !strings.Contains(md, "Result: Total count: 3 files.") {
+		t.Errorf("agent result missing:\n%s", md)
+	}
+}
+
 func TestFormatToolAsMarkdown_NilAndEmpty(t *testing.T) {
 	if got := formatToolAsMarkdown(nil); got != "" {
 		t.Errorf("nil tool should render empty, got %q", got)

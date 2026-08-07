@@ -172,6 +172,36 @@ func TestGenerateAgentSession_ToolFoldingAndErrors(t *testing.T) {
 	}
 }
 
+func TestGenerateAgentSession_CompressionAndSlashCommandsSkipped(t *testing.T) {
+	session := loadSession(t, "session-compression.jsonl")
+
+	data, err := GenerateAgentSession(session, "/Users/dev/project")
+	if err != nil {
+		t.Fatalf("GenerateAgentSession failed: %v", err)
+	}
+	if !data.Validate() {
+		t.Error("SessionData failed validation")
+	}
+
+	// Two real user turns → two exchanges; the chat_compression and
+	// slash_command system records must not create exchanges or messages.
+	if len(data.Exchanges) != 2 {
+		t.Fatalf("exchange count = %d, want 2", len(data.Exchanges))
+	}
+	for _, ex := range data.Exchanges {
+		for _, msg := range ex.Messages {
+			for _, part := range msg.Content {
+				if strings.Contains(part.Text, "state_snapshot") {
+					t.Errorf("compression summary leaked into message content: %q", part.Text)
+				}
+				if strings.Contains(part.Text, "/compress") {
+					t.Errorf("slash command leaked into message content: %q", part.Text)
+				}
+			}
+		}
+	}
+}
+
 func TestGenerateAgentSession_EmptySession(t *testing.T) {
 	if _, err := GenerateAgentSession(&QwenSession{ID: "x"}, "/tmp"); err == nil {
 		t.Error("expected error for session with no records")
