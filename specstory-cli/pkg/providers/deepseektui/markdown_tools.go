@@ -271,7 +271,7 @@ func renderApplyPatch(args map[string]any) string {
 	if patch == "" {
 		return renderGenericJSON(args)
 	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+	return spi.CodeFence("diff", strings.TrimSpace(patch))
 }
 
 func renderTodoWrite(args map[string]any) string {
@@ -325,7 +325,6 @@ func formatExecuteInput(args map[string]any) string {
 
 func formatDiffBlock(oldText, newText string) string {
 	var b strings.Builder
-	b.WriteString("```diff\n")
 	for _, line := range strings.Split(oldText, "\n") {
 		if oldText == "" {
 			break
@@ -342,17 +341,11 @@ func formatDiffBlock(oldText, newText string) string {
 		b.WriteString(line)
 		b.WriteString("\n")
 	}
-	b.WriteString("```")
-	return b.String()
+	return spi.CodeFence("diff", strings.TrimRight(b.String(), "\n"))
 }
 
 func formatContentBlock(content, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
-	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+	return spi.CodeFence(languageFromPath(path), content)
 }
 
 func languageFromPath(path string) string {
@@ -385,7 +378,7 @@ func renderGenericJSON(args map[string]any) string {
 	}
 	sort.Strings(keys)
 	var b strings.Builder
-	b.WriteString("```json\n{")
+	b.WriteString("{")
 	for i, k := range keys {
 		if i > 0 {
 			b.WriteString(",")
@@ -395,8 +388,8 @@ func renderGenericJSON(args map[string]any) string {
 		b.WriteString("\": ")
 		b.WriteString(renderJSONValue(args[k]))
 	}
-	b.WriteString("\n}\n```")
-	return b.String()
+	b.WriteString("\n}")
+	return spi.CodeFence("json", b.String())
 }
 
 func renderJSONValue(v any) string {

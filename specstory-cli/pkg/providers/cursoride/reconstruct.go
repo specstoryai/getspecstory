@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -120,7 +121,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 			"uri": map[string]interface{}{
 				"$mid":     1,
 				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
+				"external": vscode.PathToFileURI(workspaceRoot),
 				"path":     workspaceRoot,
 				"scheme":   "file",
 			},
@@ -227,7 +228,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 	// Append to selectedComposerIds so Cursor opens the resumed session as an active tab.
 	// This is a UX convenience only — sidebar visibility comes from composer.composerHeaders above.
-	if selErr := AppendToSelectedComposerIDs(workspace.DBPath, newID); selErr != nil {
+	if selErr := AppendToSelectedComposerIDs(workspace.StateDBPath(), newID); selErr != nil {
 		slog.Warn("Failed to register session as active tab in workspace", "composerID", newID, "error", selErr)
 	}
 	slog.Info("Reconstructed session registered in Cursor IDE",

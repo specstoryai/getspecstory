@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Type aliases for convenience - use the shared schema types
@@ -310,9 +312,8 @@ func renderGenericTool(tool *ToolInfo) string {
 		}
 
 		if content, ok := tool.Output["content"].(string); ok {
-			markdown.WriteString("```\n")
-			markdown.WriteString(content)
-			markdown.WriteString("\n```\n")
+			markdown.WriteString(spi.CodeFence("", content))
+			markdown.WriteString("\n")
 		}
 	}
 

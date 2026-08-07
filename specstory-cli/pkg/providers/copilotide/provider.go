@@ -1,13 +1,11 @@
 package copilotide
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
@@ -15,6 +13,7 @@ import (
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -76,7 +75,7 @@ type Provider struct {
 	// findWorkspaceForReconstruction is the workspace lookup used by the resume
 	// flow. Held as an instance field (not a package var) so each variant
 	// resolves against its own storage and tests can patch it per instance.
-	findWorkspaceForReconstruction func(projectPath string) (*WorkspaceMatch, error)
+	findWorkspaceForReconstruction func(projectPath string) (*vscode.WorkspaceEntry, error)
 }
 
 // NewProvider creates a Copilot IDE provider for the given VS Code variant.
@@ -356,7 +355,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		// since the user can open the IDE manually and watching still works.
 		slog.Debug("Could not open the IDE automatically", "app", p.variant.AppName, "error", err)
 		fmt.Fprintf(os.Stderr, "Open %s manually in: %s\n", p.variant.AppName, projectPath)
-		if errors.Is(err, errAppCLIMissing) {
+		if errors.Is(err, vscode.ErrCLIMissing) {
 			fmt.Fprintf(os.Stderr, "To let SpecStory open the project for you, install the `%s` shell command:\n", p.variant.Command)
 			fmt.Fprintf(os.Stderr, "open the command palette in %s (Cmd/Ctrl+Shift+P) and run \"Shell Command: Install '%s' command in PATH\".\n", p.variant.AppName, p.variant.Command)
 		}
@@ -406,70 +405,14 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	}
 }
 
-// errAppCLIMissing signals that the variant's CLI launcher is not on PATH. On macOS the
-// command is opt-in (installed from the app's command palette), so its absence is an
-// expected condition, not a failure — callers use this to print installation guidance
-// instead of a generic error.
-var errAppCLIMissing = errors.New("the app's shell command is not installed")
-
-// openApp launches the VS Code variant at the given project path. By default it uses
-// the variant's own CLI launcher (`code`, `code-insiders`, …) — the only launcher that
-// reliably opens the directory as a workspace window (`open -a` on macOS mostly just
-// activates an already-running instance on its home screen, so it is deliberately not
-// used as a fallback). A custom command (from --command or the matching *_cmd config
-// entry) overrides the launcher binary and prepends any extra arguments before the
-// project path.
-//
-// When the default CLI isn't on PATH, errAppCLIMissing is returned so the caller can
-// tell the user how to install it; a missing custom launcher returns a plain error,
-// since the install guidance only applies to the variant's own command. On Windows the
-// launcher is a .cmd shim, which exec.LookPath resolves via PATHEXT.
+// openApp launches the VS Code variant at the given project path via the shared
+// lineage launcher, using the variant's own CLI (`code`, `code-insiders`, …). A
+// custom command (from --command or the matching *_cmd config entry) overrides
+// the launcher binary and prepends extra arguments before the project path.
+// vscode.ErrCLIMissing surfaces when the variant's own CLI is not installed so
+// the caller can print installation guidance.
 func (p *Provider) openApp(projectPath, customCommand string) error {
-	launcher := p.variant.Command
-	var args []string
-	if customCommand != "" {
-		if parts := spi.SplitCommandLine(customCommand); len(parts) > 0 {
-			launcher = parts[0]
-			args = parts[1:]
-		}
-	}
-
-	if _, err := exec.LookPath(launcher); err != nil {
-		if customCommand == "" {
-			return errAppCLIMissing
-		}
-		return fmt.Errorf("configured %s launcher %q not found on PATH: %w", p.variant.AppName, launcher, err)
-	}
-
-	// Canonicalize before handing the path to the IDE: VS Code derives the
-	// workspace identity from the path string it is given, so launching with
-	// the user's typed spelling (~/source vs ~/Source on a case-insensitive
-	// filesystem) mints a second workspace entry for the same folder, splitting
-	// its chat sessions across entries.
-	if canonical, err := spi.GetCanonicalPath(projectPath); err == nil {
-		projectPath = canonical
-	}
-	args = append(args, projectPath)
-	// Start without waiting for the launcher to exit: the stock CLI forks and
-	// returns immediately, but a custom command can keep running for the whole
-	// IDE session (e.g. `code --wait`), and blocking here would stall the
-	// watcher before it ever starts. Post-spawn failures are logged from the
-	// reaper goroutine instead of returned.
-	cmd := exec.Command(launcher, args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("%s launcher %q failed to start: %w", p.variant.AppName, launcher, err)
-	}
-	go func() {
-		if err := cmd.Wait(); err != nil {
-			slog.Warn("IDE launcher exited with error",
-				"app", p.variant.AppName, "launcher", launcher,
-				"error", err, "output", strings.TrimSpace(out.String()))
-		}
-	}()
-	return nil
+	return vscode.OpenApp(p.variant.AppName, p.variant.Command, customCommand, projectPath)
 }
 
 // ListAllAgentChatSessions enumerates every VS Code Copilot session across all
@@ -516,7 +459,7 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 // workspace.json or without chat sessions are skipped silently — both are normal
 // (settings-only workspaces, projects where Copilot chat was never used).
 func collectWorkspaceSessionRefs(workspaceDir string, refByID map[string]spi.GlobalSessionRef) {
-	workspaceJSON, err := readWorkspaceJSON(GetWorkspaceMetadataPath(workspaceDir))
+	workspaceJSON, err := vscode.ReadWorkspaceJSON(GetWorkspaceMetadataPath(workspaceDir))
 	if err != nil {
 		slog.Debug("Skipping workspace directory (no valid workspace.json)",
 			"workspaceDir", workspaceDir, "error", err)
@@ -525,14 +468,11 @@ func collectWorkspaceSessionRefs(workspaceDir string, refByID map[string]spi.Glo
 
 	// Prefer the multi-root workspace URI over the single folder URI, matching
 	// FindWorkspaceForProject, so OriginCwd round-trips through the same matcher.
-	workspaceURI := workspaceJSON.Workspace
-	if workspaceURI == "" {
-		workspaceURI = workspaceJSON.Folder
-	}
+	workspaceURI := workspaceJSON.PrimaryURI()
 	if workspaceURI == "" {
 		return
 	}
-	originCwd, err := uriToPath(workspaceURI)
+	originCwd, err := vscode.URIToPath(workspaceURI)
 	if err != nil {
 		slog.Debug("Skipping workspace directory (invalid URI)",
 			"workspaceDir", workspaceDir, "uri", workspaceURI, "error", err)
@@ -599,7 +539,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	// entry is a fresh hash directory under workspaceStorage whose match is
 	// only knowable by re-running the lookup, so an event would trigger the
 	// same scan the poll does.
-	var workspace *WorkspaceMatch
+	var workspace *vscode.WorkspaceEntry
 	loggedWaiting := false
 	for {
 		ws, err := p.findWorkspaceForProject(projectPath, false)

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -21,7 +22,7 @@ const defaultCheckInterval = 2 * time.Minute
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath     string
-	workspaces      []WorkspaceMatch // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
+	workspaces      []vscode.WorkspaceEntry // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
 	globalDbPath    string
 	debugRaw        bool
 	sessionCallback func(*spi.AgentChatSession)
@@ -139,7 +140,7 @@ func (w *CursorIDEWatcher) Start() error {
 	// WAL mode is required so that the -wal file exists for fsnotify to detect changes.
 	// This is a one-time read-write operation at startup; all subsequent reads are read-only.
 	for _, ws := range w.workspaces {
-		if err := spi.EnsureWALMode(ws.DBPath); err != nil {
+		if err := spi.EnsureWALMode(ws.StateDBPath()); err != nil {
 			slog.Warn("Failed to ensure WAL mode on workspace database",
 				"workspaceID", ws.ID,
 				"error", err)
@@ -157,7 +158,7 @@ func (w *CursorIDEWatcher) Start() error {
 
 	// Set up file watching on all matching workspace databases
 	for _, ws := range w.workspaces {
-		if err := w.watchDatabaseFiles(ws.DBPath); err != nil {
+		if err := w.watchDatabaseFiles(ws.StateDBPath()); err != nil {
 			slog.Warn("Failed to watch workspace database files",
 				"workspaceID", ws.ID,
 				"error", err)

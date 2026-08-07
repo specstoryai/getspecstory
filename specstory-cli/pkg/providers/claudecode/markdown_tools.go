@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Todo status constants
@@ -143,8 +145,7 @@ func formatBashTool(toolName string, input map[string]interface{}, description s
 		if command, ok := input["command"].(string); ok && command != "" {
 			// If command includes \n we wrap it in a code block
 			if strings.Contains(command, "\n") {
-				escapedCommand := strings.ReplaceAll(command, "```", "\\```")
-				fmt.Fprintf(&result, "\n```bash\n%s\n```", escapedCommand)
+				fmt.Fprintf(&result, "\n%s", spi.CodeFence("bash", command))
 			} else {
 				fmt.Fprintf(&result, "\n`%s`", command)
 			}
@@ -172,10 +173,7 @@ func formatWriteTool(toolName string, input map[string]interface{}, description 
 			// Get language for syntax highlighting
 			lang := getLanguageFromExtension(filePath)
 
-			// Escape triple backticks in content
-			escapedContent := strings.ReplaceAll(content, "```", "\\```")
-
-			fmt.Fprintf(&result, "\n```%s\n%s\n```", lang, escapedContent)
+			fmt.Fprintf(&result, "\n%s", spi.CodeFence(lang, content))
 		}
 	}
 

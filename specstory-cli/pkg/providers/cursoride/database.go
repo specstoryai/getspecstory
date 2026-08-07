@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
@@ -38,25 +39,6 @@ func OpenDatabase(dbPath string) (*sql.DB, error) {
 	slog.Debug("Successfully opened database", "path", dbPath)
 
 	return db, nil
-}
-
-// createEmptyWorkspaceDB creates a state.vscdb containing VS Code's exact ItemTable
-// schema (key UNIQUE ON CONFLICT REPLACE, BLOB value), so Cursor adopts a minted
-// workspace entry as its own on first open instead of treating it as corrupt.
-func createEmptyWorkspaceDB(dbPath string) error {
-	db, err := sql.Open("sqlite", dbPath+"?"+spi.BusyTimeoutPragma)
-	if err != nil {
-		return fmt.Errorf("failed to create workspace database: %w", err)
-	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			slog.Warn("Failed to close new workspace database", "error", closeErr)
-		}
-	}()
-	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)"); err != nil {
-		return fmt.Errorf("failed to create ItemTable: %w", err)
-	}
-	return nil
 }
 
 // LoadWorkspaceComposerIDs loads the composer IDs from a workspace database.
@@ -529,7 +511,7 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 			"uri": map[string]interface{}{
 				"$mid":     1,
 				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
+				"external": vscode.PathToFileURI(workspaceRoot),
 				"path":     workspaceRoot,
 				"scheme":   "file",
 			},
@@ -668,7 +650,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 		}
 	}
 
-	canonicalRoot, cErr := normalizePathForComparison(workspaceRoot)
+	canonicalRoot, cErr := vscode.NormalizePathForComparison(workspaceRoot)
 	if cErr != nil {
 		canonicalRoot = workspaceRoot
 	}
@@ -683,7 +665,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 			break
 		}
 		if project.Workspace.URI.FsPath != "" {
-			if canonical, pErr := normalizePathForComparison(project.Workspace.URI.FsPath); pErr == nil && canonical == canonicalRoot {
+			if canonical, pErr := vscode.NormalizePathForComparison(project.Workspace.URI.FsPath); pErr == nil && canonical == canonicalRoot {
 				projectID = project.ID
 				break
 			}
@@ -703,7 +685,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 				"uri": map[string]interface{}{
 					"$mid":     1,
 					"fsPath":   workspaceRoot,
-					"external": pathToFileURI(workspaceRoot),
+					"external": vscode.PathToFileURI(workspaceRoot),
 					"path":     workspaceRoot,
 					"scheme":   "file",
 				},

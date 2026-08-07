@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // CodeEditHandler is a handler for code editing tools
@@ -78,7 +80,7 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (summary stri
 			fmt.Fprintf(&message, "**Chunk %d**\n", i+1)
 			fmt.Fprintf(&message, "Lines added: %d, lines removed: %d\n\n", chunk.LinesAdded, chunk.LinesRemoved)
 			header := fmt.Sprintf("@@ -%d,%d +%d,%d @@", chunk.OldStart, chunk.OldLines, chunk.NewStart, chunk.NewLines)
-			message.WriteString(fencedBlock("diff", header+"\n"+chunk.DiffString))
+			message.WriteString(spi.CodeFence("diff", header+"\n"+chunk.DiffString))
 			message.WriteString("\n\n")
 		}
 	} else if len(bubble.AdditionalData) > 0 {
@@ -89,7 +91,7 @@ func (h *CodeEditHandler) AdaptMessage(bubble *BubbleConversation) (summary stri
 				if languageId, hasLang := codeblockData["languageId"].(string); hasLang {
 					lang = languageId
 				}
-				message.WriteString(fencedBlock(lang, content))
+				message.WriteString(spi.CodeFence(lang, content))
 				message.WriteString("\n\n")
 			}
 		}
@@ -157,7 +159,7 @@ func (h *ApplyPatchHandler) AdaptMessage(bubble *BubbleConversation) (summary st
 
 	var message strings.Builder
 	if rawArgs.Patch != "" {
-		message.WriteString(fencedBlock("diff", rawArgs.Patch))
+		message.WriteString(spi.CodeFence("diff", rawArgs.Patch))
 		message.WriteString("\n")
 	}
 

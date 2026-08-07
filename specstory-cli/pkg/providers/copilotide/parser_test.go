@@ -329,58 +329,6 @@ func TestFormatToolMarkdown_ResultCap(t *testing.T) {
 	}
 }
 
-// TestCapRunes verifies rune-safe truncation without materializing []rune:
-// multi-byte characters are never split, and strings whose byte length exceeds
-// the cap but whose rune count doesn't are returned unchanged.
-func TestCapRunes(t *testing.T) {
-	const marker = "\n… (output truncated)"
-	tests := []struct {
-		name string
-		s    string
-		max  int
-		want string
-	}{
-		{"short ascii unchanged", "hello", 10, "hello"},
-		{"ascii truncated", "hello world", 5, "hello" + marker},
-		{"multibyte truncated on rune boundary", strings.Repeat("é", 10), 5, strings.Repeat("é", 5) + marker},
-		{"more bytes than max but fewer runes", "ééé", 4, "ééé"},
-		{"exact rune count unchanged", "héllo", 5, "héllo"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := capRunes(tt.s, tt.max); got != tt.want {
-				t.Errorf("capRunes(%q, %d) = %q, want %q", tt.s, tt.max, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCodeFence(t *testing.T) {
-	tests := []struct {
-		name  string
-		value string
-		want  string
-	}{
-		{"no backticks", "plain text", "```"},
-		{"inline code only", "uses `go build` here", "```"},
-		{"double backticks", "``x``", "```"},
-		{"triple backtick fence", "```sh\nls\n```", "````"},
-		{"four backticks", "````\nnested\n````", "`````"},
-		{"empty", "", "```"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := codeFence(tt.value); got != tt.want {
-				t.Errorf("codeFence(%q) = %q, want %q", tt.value, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestParseJSONL verifies the incremental update semantics: kind:1 replaces at a key
-// path (creating intermediate maps), kind:2 appends array deltas (or replaces when the
-// value isn't an array), unknown kinds and malformed lines are skipped, and the final
-// typed composer reflects all accumulated updates.
 func TestParseJSONL(t *testing.T) {
 	lines := []string{
 		`{"kind":0,"v":{"version":3,"sessionId":"s-1","requesterUsername":"user","requests":[{"requestId":"r-1","message":{"text":"first"}}]}}`,
@@ -635,38 +583,6 @@ func TestConvertResponsesToMessages_IDMatchAndDedup(t *testing.T) {
 	}
 	if fullText != "Narration between the tools." {
 		t.Errorf("fullText = %q", fullText)
-	}
-}
-
-// TestUriToPath verifies file URI conversion, in particular that percent-encoded
-// characters come back decoded exactly once (url.Parse decodes; adding PathUnescape
-// on top would corrupt paths with literal % sequences).
-func TestUriToPath(t *testing.T) {
-	tests := []struct {
-		name    string
-		uri     string
-		want    string
-		wantErr bool
-	}{
-		{"plain path", "file:///Users/me/proj", "/Users/me/proj", false},
-		{"space decoded", "file:///Users/me/My%20Project", "/Users/me/My Project", false},
-		{"unicode decoded", "file:///Users/me/caf%C3%A9", "/Users/me/café", false},
-		{"literal percent preserved", "file:///Users/me/literal%2520pct", "/Users/me/literal%20pct", false},
-		{"remote SSH URI yields remote path", "vscode-remote://ssh-remote%2Bmyhost/home/me/proj", "/home/me/proj", false},
-		{"remote WSL URI yields in-distro path", "vscode-remote://wsl%2Bubuntu/home/me/proj", "/home/me/proj", false},
-		{"dev container URI yields container path", "vscode-remote://dev-container%2Babc123/workspaces/proj", "/workspaces/proj", false},
-		{"unsupported scheme rejected", "https://example.com/proj", "", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := uriToPath(tt.uri)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("uriToPath(%q) error = %v, wantErr %v", tt.uri, err, tt.wantErr)
-			}
-			if got != tt.want {
-				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.want)
-			}
-		})
 	}
 }
 
