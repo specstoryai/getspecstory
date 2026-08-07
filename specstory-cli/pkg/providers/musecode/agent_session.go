@@ -239,9 +239,17 @@ func messageID(event *MuseConversationEvent) string {
 func buildToolMessage(event *MuseConversationEvent, call *MuseToolCall, outcomes map[string]string, model, workspaceRoot string) Message {
 	input := decodeToolArgs(call.Args)
 
+	// A malformed record can carry an empty tool name; fall back to a
+	// placeholder so the markdown never renders "Tool use: ****" with an
+	// empty data-tool-name (matches the sibling providers' behavior).
+	name := call.Name
+	if name == "" {
+		name = "unknown"
+	}
+
 	toolInfo := &ToolInfo{
-		Name:   call.Name,
-		Type:   classifyMuseToolType(call.Name),
+		Name:   name,
+		Type:   classifyMuseToolType(name),
 		UseID:  call.CallID,
 		Input:  input,
 		Output: buildToolOutput(outcomes[call.CallID]),

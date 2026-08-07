@@ -54,7 +54,13 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 		builder.WriteString(body)
 	}
 	if result != "" {
-		builder.WriteString("\n\n")
+		// A single leading newline when there is no body: the wrapper already
+		// ends the <summary> line, so doubling here would stack blank lines.
+		if body != "" {
+			builder.WriteString("\n\n")
+		} else {
+			builder.WriteString("\n")
+		}
 		builder.WriteString(result)
 	}
 	if builder.Len() > 0 {

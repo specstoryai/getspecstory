@@ -384,3 +384,15 @@ func TestDecodeToolArgs(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildToolMessage_EmptyNameFallsBackToUnknown(t *testing.T) {
+	event := &MuseConversationEvent{}
+	call := &MuseToolCall{CallID: "call_x", Args: `{"a":1}`}
+	msg := buildToolMessage(event, call, map[string]string{}, "m", "/tmp")
+	if msg.Tool.Name != "unknown" {
+		t.Errorf("empty tool name should fall back to unknown, got %q", msg.Tool.Name)
+	}
+	if msg.Tool.Type != "unknown" {
+		t.Errorf("tool type = %q, want unknown", msg.Tool.Type)
+	}
+}
