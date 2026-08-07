@@ -19,6 +19,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -115,6 +116,10 @@ func (r *Registry) registerAll() {
 	antigravityProvider := antigravitycli.NewProvider()
 	r.providers["antigravity"] = antigravityProvider
 	slog.Debug("Registered provider", "id", "antigravity", "name", antigravityProvider.Name())
+
+	qwenProvider := qwencode.NewProvider()
+	r.providers["qwen"] = qwenProvider
+	slog.Debug("Registered provider", "id", "qwen", "name", qwenProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())
