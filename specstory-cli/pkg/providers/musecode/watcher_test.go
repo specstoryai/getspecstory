@@ -1,0 +1,206 @@
+package musecode
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+func TestWatchWindowCutoff(t *testing.T) {
+	now := time.Date(2026, 8, 7, 15, 30, 0, 0, time.Local)
+
+	cutoff := watchWindowCutoff(now)
+
+	want := time.Date(2026, 7, 31, 0, 0, 0, 0, time.Local)
+	if !cutoff.Equal(want) {
+		t.Errorf("watchWindowCutoff(%v) = %v, want %v", now, cutoff, want)
+	}
+}
+
+func TestMuseDirDepth(t *testing.T) {
+	root := filepath.Join("/store", "sessions")
+
+	tests := []struct {
+		name     string
+		path     string
+		expected int
+	}{
+		{name: "the root itself", path: root, expected: 0},
+		{name: "year", path: filepath.Join(root, "2026"), expected: 1},
+		{name: "month", path: filepath.Join(root, "2026", "08"), expected: 2},
+		{name: "day", path: filepath.Join(root, "2026", "08", "07"), expected: 3},
+		{name: "session directory", path: filepath.Join(root, "2026", "08", "07", "sid"), expected: 4},
+		// Anything inside a session (subagent transcripts, tool-outputs spill)
+		// is out of the layout and never watched.
+		{name: "subagent directory", path: filepath.Join(root, "2026", "08", "07", "sid", "subagent"), expected: 0},
+		{name: "outside the root", path: "/elsewhere/2026", expected: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := museDirDepth(tt.path, root); got != tt.expected {
+				t.Errorf("museDirDepth(%q) = %d, want %d", tt.path, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDirWithinWatchWindow(t *testing.T) {
+	root := filepath.Join("/store", "sessions")
+	now := time.Date(2026, 8, 7, 12, 0, 0, 0, time.Local)
+	cutoff := watchWindowCutoff(now) // 2026-07-31
+
+	tests := []struct {
+		name     string
+		path     string
+		expected bool
+	}{
+		{name: "today", path: filepath.Join(root, "2026", "08", "07"), expected: true},
+		{name: "session dir inside today", path: filepath.Join(root, "2026", "08", "07", "sid"), expected: true},
+		{name: "cutoff day itself", path: filepath.Join(root, "2026", "07", "31"), expected: true},
+		{name: "day before the cutoff", path: filepath.Join(root, "2026", "07", "30"), expected: false},
+		{name: "current month", path: filepath.Join(root, "2026", "08"), expected: true},
+		{name: "cutoff month", path: filepath.Join(root, "2026", "07"), expected: true},
+		{name: "month before the cutoff", path: filepath.Join(root, "2026", "06"), expected: false},
+		{name: "current year", path: filepath.Join(root, "2026"), expected: true},
+		{name: "previous year", path: filepath.Join(root, "2025"), expected: false},
+		{name: "non-numeric component", path: filepath.Join(root, "junk"), expected: false},
+		{name: "impossible date", path: filepath.Join(root, "2026", "02", "30"), expected: false},
+		{name: "month out of range", path: filepath.Join(root, "2026", "13"), expected: false},
+		{name: "outside the store", path: "/elsewhere", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dirWithinWatchWindow(tt.path, root, cutoff); got != tt.expected {
+				t.Errorf("dirWithinWatchWindow(%q) = %v, want %v", tt.path, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDesiredWatchDirs(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+	now := time.Now()
+
+	today := now.Format("2006/01/02")
+	stale := now.AddDate(0, 0, -30).Format("2006/01/02")
+
+	todayPath := writeSession(t, sessionsRoot, today, basicSessionID, "session-basic.jsonl", project)
+	stalePath := writeSession(t, sessionsRoot, stale, toolsSessionID, "session-tools.jsonl", project)
+
+	// A subagent transcript nested under today's session.
+	subagentDir := filepath.Join(filepath.Dir(todayPath), subagentDirName, "child-id")
+	writeFileFrom(t, todayPath, filepath.Join(subagentDir, sessionFileName))
+
+	desired := desiredWatchDirs(sessionsRoot, now)
+
+	mustWatch := []string{
+		sessionsRoot,
+		filepath.Join(sessionsRoot, fmt.Sprintf("%04d", now.Year())),
+		filepath.Join(sessionsRoot, filepath.FromSlash(today)),
+		filepath.Dir(todayPath),
+	}
+	for _, dir := range mustWatch {
+		if !desired[dir] {
+			t.Errorf("directory not watched: %s", dir)
+		}
+	}
+
+	// The fd-exhaustion lesson: history outside the trailing window is scanned
+	// on demand but never watched.
+	if desired[filepath.Dir(stalePath)] {
+		t.Errorf("stale session directory is watched: %s", filepath.Dir(stalePath))
+	}
+	if desired[filepath.Join(sessionsRoot, filepath.FromSlash(stale))] {
+		t.Errorf("stale day directory is watched: %s", stale)
+	}
+	if desired[filepath.Join(filepath.Dir(todayPath), subagentDirName)] {
+		t.Error("subagent directory is watched")
+	}
+}
+
+func TestDesiredWatchDirs_EmptyStore(t *testing.T) {
+	sessionsRoot := seedStore(t)
+
+	desired := desiredWatchDirs(sessionsRoot, time.Now())
+
+	// Nothing exists yet, so only the root is asked for; the caller skips even
+	// that until the root itself appears.
+	if len(desired) != 1 || !desired[sessionsRoot] {
+		t.Errorf("desired = %v, want just the sessions root", desired)
+	}
+}
+
+func TestProcessSessionChange_OnlyPublishesThisProject(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+	other := t.TempDir()
+
+	minePath := writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", project)
+	theirsPath := writeSession(t, sessionsRoot, "2026/08/07", toolsSessionID, "session-tools.jsonl", other)
+
+	var published []*spi.AgentChatSession
+	SetWatcherCallback(func(session *spi.AgentChatSession) {
+		published = append(published, session)
+	})
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	// The store is global, so a transcript for another project can land in the
+	// same day directory the watcher is holding.
+	processSessionChange(theirsPath)
+	if len(published) != 0 {
+		t.Fatalf("published %d sessions for another project, want 0", len(published))
+	}
+
+	processSessionChange(minePath)
+	if len(published) != 1 {
+		t.Fatalf("published %d sessions, want 1", len(published))
+	}
+	if published[0].SessionID != basicSessionID {
+		t.Errorf("published session = %q, want %q", published[0].SessionID, basicSessionID)
+	}
+	if published[0].SessionData.WorkspaceRoot != project {
+		t.Errorf("workspace root = %q, want %q", published[0].SessionData.WorkspaceRoot, project)
+	}
+}
+
+func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+
+	// Metadata only: the session exists but has no conversation yet.
+	path := writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", project)
+	full, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadataLine := strings.SplitN(string(full), "\n", 2)[0] + "\n"
+	if err := os.WriteFile(path, []byte(metadataLine), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var published int
+	SetWatcherCallback(func(*spi.AgentChatSession) { published++ })
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	processSessionChange(path)
+
+	if published != 0 {
+		t.Errorf("published %d sessions for a conversation-less transcript, want 0", published)
+	}
+}

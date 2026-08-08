@@ -14,6 +14,7 @@ The SPI defines a standard interface that all agent providers must implement. Th
 | `cursor` | Cursor CLI | `~/.cursor/chats/<project-hash>/<session-id>/store.db` |
 | `codex` | Codex CLI | `~/.codex/sessions/YYYY/MM/DD/<session-id>.jsonl` |
 | `gemini` | Gemini CLI | `~/.gemini/tmp/<hash>/chats/<session-id>.json` |
+| `muse` | Muse Code | `~/.local/share/muse/sessions/YYYY/MM/DD/<session-id>/session.jsonl` |
 
 ## Quick Start: Implementing a New Provider
 

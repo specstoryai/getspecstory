@@ -142,6 +142,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 
 # Antigravity CLI command
 # antigravity_cmd = "agy"
+
+# Muse Code command
+# muse_cmd = "muse"
 `
 
 // Config represents the complete CLI configuration
@@ -261,6 +264,7 @@ type ProvidersConfig struct {
 	DeepSeekCmd                   string `toml:"deepseek_cmd"`
 	DroidCmd                      string `toml:"droid_cmd"`
 	GeminiCmd                     string `toml:"gemini_cmd"`
+	MuseCmd                       string `toml:"muse_cmd"`
 }
 
 // CLIOverrides holds CLI flag values that override config file settings.
@@ -988,6 +992,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.GeminiCmd
 	case "antigravity":
 		return c.Providers.AntigravityCmd
+	case "muse":
+		return c.Providers.MuseCmd
 	default:
 		return ""
 	}
