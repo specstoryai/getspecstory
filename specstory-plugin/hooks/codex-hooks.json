@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/scripts/check-binary.sh",
+            "statusMessage": "SpecStory: checking install"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${PLUGIN_ROOT}/scripts/specstory-sync.sh codex",
+            "statusMessage": "SpecStory: saving session to .specstory/history",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
