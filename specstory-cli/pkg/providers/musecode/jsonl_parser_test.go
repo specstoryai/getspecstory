@@ -197,3 +197,93 @@ func TestFirstUserPrompt(t *testing.T) {
 		})
 	}
 }
+
+// A transcript truncated mid-subagent begins with task-stream records. The
+// parser must still identify the real session stream from the metadata record
+// rather than adopting the first task stream it sees, which would filter out
+// the entire real conversation.
+func TestParseSessionFile_TruncatedTaskStreamFirst(t *testing.T) {
+	session, err := ParseSessionFile(filepath.Join("testdata", "session-truncated-task-first.jsonl"))
+	if err != nil {
+		t.Fatalf("ParseSessionFile failed: %v", err)
+	}
+
+	if session.ID != "99999999-aaaa-bbbb-cccc-dddddddddddd" {
+		t.Errorf("session ID = %q, want the session stream id from the metadata record", session.ID)
+	}
+	if session.WorkspaceRoot != "/Users/dev/project" {
+		t.Errorf("WorkspaceRoot = %q, want the metadata workspace root", session.WorkspaceRoot)
+	}
+
+	data, err := GenerateAgentSession(session, session.WorkspaceRoot)
+	if err != nil {
+		t.Fatalf("GenerateAgentSession failed: %v", err)
+	}
+	if len(data.Exchanges) != 1 {
+		t.Fatalf("exchange count = %d, want 1 (the real turn survives)", len(data.Exchanges))
+	}
+	for _, msg := range data.Exchanges[0].Messages {
+		for _, part := range msg.Content {
+			if strings.Contains(part.Text, "Subagent prose") || strings.Contains(part.Text, "demo-worker") {
+				t.Errorf("subagent task-stream content leaked into the conversation: %q", part.Text)
+			}
+		}
+	}
+	if got := session.FirstUserPrompt(); got != "the real user turn" {
+		t.Errorf("FirstUserPrompt = %q, want the real user turn", got)
+	}
+}
+
+// A transcript inside the store layout takes its id from the directory name,
+// so record order cannot change it.
+func TestParseSessionFile_StorePathSettlesSessionID(t *testing.T) {
+	dir := t.TempDir()
+	sessionDir := filepath.Join(dir, "12345678-1234-1234-1234-123456789abc")
+	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	source, err := os.ReadFile(filepath.Join("testdata", "session-truncated-task-first.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(sessionDir, "session.jsonl")
+	if err := os.WriteFile(path, source, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatalf("ParseSessionFile failed: %v", err)
+	}
+	if session.ID != "12345678-1234-1234-1234-123456789abc" {
+		t.Errorf("session ID = %q, want the directory name", session.ID)
+	}
+	// Records for a different stream are foreign under this id, so no
+	// conversation survives; the point is that the directory name wins.
+	if len(session.Events) != 0 {
+		t.Errorf("event count = %d, want 0 (all records belong to other streams)", len(session.Events))
+	}
+}
+
+func TestIsSessionID(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  bool
+	}{
+		{name: "canonical id", input: "a6eea682-47ef-400a-914e-b310b0136c52", want: true},
+		{name: "uppercase hex", input: "A6EEA682-47EF-400A-914E-B310B0136C52", want: true},
+		{name: "testdata dir", input: "testdata", want: false},
+		{name: "too short", input: "a6eea682", want: false},
+		{name: "wrong separators", input: "a6eea68247ef400a914eb310b0136c52aaaa", want: false},
+		{name: "non-hex", input: "z6eea682-47ef-400a-914e-b310b0136c52", want: false},
+		{name: "empty", input: "", want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isSessionID(tt.input); got != tt.want {
+				t.Errorf("isSessionID(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}

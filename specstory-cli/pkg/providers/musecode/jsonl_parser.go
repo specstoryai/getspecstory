@@ -139,9 +139,9 @@ type museEvent struct {
 	Model        string    `json:"model"`
 
 	// terminal
-	Terminal        string `json:"terminal"`
-	TurnDurationMs  int64  `json:"turn_duration_ms"`
-	TimeToFirstToke int64  `json:"time_to_first_token_ms"`
+	Terminal           string `json:"terminal"`
+	TurnDurationMs     int64  `json:"turn_duration_ms"`
+	TimeToFirstTokenMs int64  `json:"time_to_first_token_ms"`
 }
 
 // MuseConversationEvent is one conversation-relevant run event in file order,
@@ -209,9 +209,16 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
 	reader := bufio.NewReader(file)
 
-	session := &MuseSession{FilePath: filePath}
+	// The store lays sessions out as <session-id>/session.jsonl, so the
+	// directory name is the authoritative session id when it is present.
+	// Settling the id up front makes parsing immune to record order, which
+	// matters for a transcript truncated mid-subagent.
+	session := &MuseSession{FilePath: filePath, ID: storeSessionIDFromPath(filePath)}
 	lineNumber := 0
 	foreignStreamRecords := 0
+	// Records read before the session's own stream is known (only reachable
+	// when the path did not settle the id).
+	var pending []MuseRecord
 
 	for {
 		line, err := reader.ReadString('\n')
@@ -254,10 +261,30 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 			continue
 		}
 
-		if session.ID == "" && record.Stream.ID != "" {
-			session.ID = record.Stream.ID
+		// The session's own stream is identified from the metadata record when
+		// the path did not already settle it. Records that arrive before the
+		// stream is known are held back rather than used to guess it: a
+		// transcript truncated mid-subagent starts with task-stream records,
+		// and adopting the first one would filter out the whole real
+		// conversation that follows.
+		if session.ID == "" {
+			if record.PayloadType == payloadTypeMetadata && record.Stream.ID != "" {
+				session.ID = record.Stream.ID
+				foreignStreamRecords += len(flushPending(session, pending))
+				pending = nil
+			} else {
+				pending = append(pending, record)
+				if atEOF {
+					break
+				}
+				continue
+			}
 		}
-		if record.Stream.ID != session.ID {
+
+		// Only a record that positively names a different stream is foreign. A
+		// record with no stream envelope cannot be attributed elsewhere, so it
+		// stays with the session.
+		if record.Stream.ID != "" && record.Stream.ID != session.ID {
 			foreignStreamRecords++
 			if atEOF {
 				break
@@ -272,8 +299,22 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 		}
 	}
 
+	// Nothing settled the stream: fall back to the first record's stream id
+	// (transcripts kept outside the store layout, e.g. test fixtures), then to
+	// the filename stem. Held-back records are replayed against that choice.
 	if session.ID == "" {
-		session.ID = sessionIDFromPath(filePath)
+		for _, held := range pending {
+			if held.Stream.ID != "" {
+				session.ID = held.Stream.ID
+				break
+			}
+		}
+		if session.ID == "" {
+			session.ID = sessionIDFromPath(filePath)
+		}
+	}
+	if len(pending) > 0 {
+		foreignStreamRecords += len(flushPending(session, pending))
 	}
 
 	slog.Debug("ParseSessionFile: Parsed Muse session",
@@ -283,6 +324,55 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 		"foreignStreamRecords", foreignStreamRecords)
 
 	return session, nil
+}
+
+// storeSessionIDFromPath returns the session id from the store layout
+// (<session-id>/session.jsonl) when the containing directory is named like a
+// session id. It returns empty for transcripts kept elsewhere (e.g. test
+// fixtures in a testdata directory), leaving the id to be settled from the
+// records themselves.
+func storeSessionIDFromPath(filePath string) string {
+	dir := filepath.Base(filepath.Dir(filePath))
+	if isSessionID(dir) {
+		return dir
+	}
+	return ""
+}
+
+// isSessionID reports whether s has the canonical 8-4-4-4-12 hex session id
+// shape Muse uses for its session directories.
+func isSessionID(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	for i, r := range s {
+		switch i {
+		case 8, 13, 18, 23:
+			if r != '-' {
+				return false
+			}
+		default:
+			isHex := (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+			if !isHex {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// flushPending folds the held-back records that belong to the now-known
+// session stream, returning the records it dropped as foreign.
+func flushPending(session *MuseSession, pending []MuseRecord) []MuseRecord {
+	var foreign []MuseRecord
+	for i := range pending {
+		if pending[i].Stream.ID != "" && pending[i].Stream.ID != session.ID {
+			foreign = append(foreign, pending[i])
+			continue
+		}
+		accumulateRecord(session, &pending[i])
+	}
+	return foreign
 }
 
 // sessionIDFromPath derives the session id from the store layout
