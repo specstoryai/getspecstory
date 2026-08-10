@@ -137,7 +137,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		LastResponseState: indexResponseStateComplete,
 		PermissionLevel:   "default",
 	}
-	if err := writeSessionIndexEntry(GetWorkspaceStateDBPath(workspace.Dir), entry); err != nil {
+	if err := writeSessionIndexEntry(workspace.StateDBPath(), entry); err != nil {
 		return nil, fmt.Errorf("failed to register session in VS Code workspace index: %w", err)
 	}
 

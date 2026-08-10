@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // formatToolAsMarkdown generates formatted markdown for a ToolInfo (input + output)
@@ -123,7 +125,7 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
 
 	filePath := inputAsString(tool.Input, "file_path")
 	lang := languageFromPath(filePath)
-	return fmt.Sprintf("```%s\n%s\n```", lang, output)
+	return spi.CodeFence(lang, output)
 }
 
 // formatSearchListResultFromOutput shows raw output without code fence

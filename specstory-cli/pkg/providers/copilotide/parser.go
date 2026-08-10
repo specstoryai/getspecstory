@@ -268,9 +268,8 @@ func editGroupToolInfo(kind string, group VSCodeTextEditGroupResponse) *schema.T
 				fmt.Fprintf(&b, "\n@@ lines %d-%d @@ (deleted)\n", edit.Range.StartLineNumber, edit.Range.EndLineNumber)
 				continue
 			}
-			fence := codeFence(edit.Text)
-			fmt.Fprintf(&b, "\n@@ lines %d-%d @@\n\n%s\n%s\n%s\n",
-				edit.Range.StartLineNumber, edit.Range.EndLineNumber, fence, edit.Text, fence)
+			fmt.Fprintf(&b, "\n@@ lines %d-%d @@\n\n%s\n",
+				edit.Range.StartLineNumber, edit.Range.EndLineNumber, spi.CodeFence("", edit.Text))
 		}
 	}
 
@@ -505,8 +504,7 @@ func FormatToolMarkdown(tool *schema.ToolInfo) string {
 		for _, key := range keys {
 			valueStr := inputValueString(tool.Input[key])
 			if strings.Contains(valueStr, "\n") {
-				fence := codeFence(valueStr)
-				fmt.Fprintf(&b, "- %s:\n\n%s\n%s\n%s\n\n", key, fence, valueStr, fence)
+				fmt.Fprintf(&b, "- %s:\n\n%s\n\n", key, spi.CodeFence("", valueStr))
 			} else {
 				fmt.Fprintf(&b, "- %s: `%s`\n", key, valueStr)
 			}
@@ -527,9 +525,8 @@ func resultSection(tool *schema.ToolInfo) string {
 	if !ok || strings.TrimSpace(result) == "" {
 		return ""
 	}
-	capped := capRunes(strings.TrimRight(result, " \t\n"), toolResultCap)
-	fence := codeFence(capped)
-	return fmt.Sprintf("\n**Result:**\n\n%s\n%s\n%s\n", fence, capped, fence)
+	capped := spi.CapRunes(strings.TrimRight(result, " \t\n"), toolResultCap)
+	return fmt.Sprintf("\n**Result:**\n\n%s\n", spi.CodeFence("", capped))
 }
 
 // formatCustomToolMarkdown returns tool-specific markdown for tools whose
@@ -558,8 +555,7 @@ func formatTerminalMarkdown(tool *schema.ToolInfo) string {
 	if explanation, _ := tool.Input["explanation"].(string); explanation != "" {
 		fmt.Fprintf(&b, "\n%s\n", explanation)
 	}
-	fence := codeFence(command)
-	fmt.Fprintf(&b, "\n%sbash\n%s\n%s\n", fence, command, fence)
+	fmt.Fprintf(&b, "\n%s\n", spi.CodeFence("bash", command))
 	b.WriteString(resultSection(tool))
 	return b.String()
 }
@@ -623,46 +619,6 @@ func inputValueString(v any) string {
 		return string(pretty)
 	}
 	return string(compact)
-}
-
-// codeFence returns a backtick fence long enough to safely wrap s: one backtick more
-// than the longest backtick run inside it (a value containing ``` would otherwise
-// terminate a plain three-backtick fence early), never shorter than the standard three.
-func codeFence(s string) string {
-	longest, run := 0, 0
-	for _, r := range s {
-		if r == '`' {
-			run++
-			if run > longest {
-				longest = run
-			}
-		} else {
-			run = 0
-		}
-	}
-	size := longest + 1
-	if size < 3 {
-		size = 3
-	}
-	return strings.Repeat("`", size)
-}
-
-// capRunes truncates s to at most max runes, marking the cut. Rune-based so a cap
-// never splits a multi-byte character. Scans rune boundaries instead of converting
-// to []rune, which would allocate O(len(s)) for exactly the oversized tool results
-// this cap protects against.
-func capRunes(s string, max int) string {
-	if len(s) <= max {
-		return s // fast path: byte length bounds rune length
-	}
-	count := 0
-	for i := range s {
-		if count == max {
-			return s[:i] + "\n… (output truncated)"
-		}
-		count++
-	}
-	return s // more bytes than max but fewer runes (multi-byte characters)
 }
 
 // GenerateSlug creates a filesystem-safe slug from the composer title, name, or

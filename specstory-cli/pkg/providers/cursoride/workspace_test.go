@@ -5,247 +5,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 )
 
-func TestUriToPath(t *testing.T) {
-	tests := []struct {
-		name      string
-		uri       string
-		wantPath  string
-		wantError string
-	}{
-		// Standard file:// URIs (Linux/macOS)
-		{
-			name:     "standard Linux file URI",
-			uri:      "file:///home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "standard Linux file URI with spaces",
-			uri:      "file:///home/user/my%20project",
-			wantPath: "/home/user/my project",
-		},
-
-		// WSL file://wsl.localhost URIs
-		{
-			name:     "WSL wsl.localhost URI with Ubuntu",
-			uri:      "file://wsl.localhost/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl.localhost URI with different distro",
-			uri:      "file://wsl.localhost/Debian/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl.localhost URI case insensitive host",
-			uri:      "file://WSL.LOCALHOST/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl.localhost URI with deep path",
-			uri:      "file://wsl.localhost/Ubuntu/home/user/code/specstory-monorepo",
-			wantPath: "/home/user/code/specstory-monorepo",
-		},
-		{
-			name:      "WSL wsl.localhost URI with only distro (no path)",
-			uri:       "file://wsl.localhost/Ubuntu",
-			wantError: "malformed WSL URI path",
-		},
-
-		// WSL wsl$ URIs
-		{
-			name:     "WSL wsl$ URI",
-			uri:      "file://wsl$/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl$ URI case insensitive",
-			uri:      "file://WSL$/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-
-		// vscode-remote:// URIs (delegated to parseVSCodeRemoteURI)
-		{
-			name:     "vscode-remote URI with percent-encoded host",
-			uri:      "vscode-remote://wsl%2Bubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "vscode-remote URI with plus in host",
-			uri:      "vscode-remote://wsl+ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "vscode-remote SSH URI with hex-encoded config",
-			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
-			wantPath: "/Users/bago/code/getspecstory",
-		},
-		{
-			name:     "vscode-remote tunnel URI with percent-encoded host",
-			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
-			wantPath: "/work/group/user/myproject",
-		},
-
-		// Unsupported schemes
-		{
-			name:      "unsupported http scheme",
-			uri:       "http://example.com/path",
-			wantError: "unsupported URI scheme",
-		},
-		{
-			name:      "unsupported https scheme",
-			uri:       "https://example.com/path",
-			wantError: "unsupported URI scheme",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := uriToPath(tt.uri)
-
-			if tt.wantError != "" {
-				if err == nil {
-					t.Errorf("uriToPath(%q) expected error containing %q, got nil", tt.uri, tt.wantError)
-					return
-				}
-				if got := err.Error(); !strings.Contains(got, tt.wantError) {
-					t.Errorf("uriToPath(%q) error = %q, want error containing %q", tt.uri, got, tt.wantError)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("uriToPath(%q) unexpected error: %v", tt.uri, err)
-				return
-			}
-
-			if got != tt.wantPath {
-				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.wantPath)
-			}
-		})
-	}
-}
-
-func TestUriToPath_WindowsPaths(t *testing.T) {
-	// Windows-specific path handling only runs on Windows
-	if runtime.GOOS != "windows" {
-		t.Skip("Windows path tests only run on Windows")
-	}
-
-	tests := []struct {
-		name     string
-		uri      string
-		wantPath string
-	}{
-		{
-			name:     "Windows file URI",
-			uri:      "file:///c%3A/Users/Admin/project",
-			wantPath: "c:\\Users\\Admin\\project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := uriToPath(tt.uri)
-			if err != nil {
-				t.Errorf("uriToPath(%q) unexpected error: %v", tt.uri, err)
-				return
-			}
-			if got != tt.wantPath {
-				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.wantPath)
-			}
-		})
-	}
-}
-
-func TestCodeWorkspaceContainsFolder(t *testing.T) {
-	// Create a temporary directory structure.
-	tmpDir, err := os.MkdirTemp("", "workspace-contains-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	// Create the target project folder.
-	projectDir := filepath.Join(tmpDir, "my-project")
-	if err := os.Mkdir(projectDir, 0755); err != nil {
-		t.Fatalf("Failed to create project dir: %v", err)
-	}
-	// Resolve symlinks so the canonical path matches what normalizePathForComparison returns
-	// (e.g. /var → /private/var on macOS).
-	canonicalProjectDir, err := filepath.EvalSymlinks(projectDir)
-	if err != nil {
-		canonicalProjectDir = projectDir
-	}
-
-	// Create a workspace file in a sibling directory (common real-world pattern).
-	workspacesDir := filepath.Join(tmpDir, "workspaces")
-	if err := os.Mkdir(workspacesDir, 0755); err != nil {
-		t.Fatalf("Failed to create workspaces dir: %v", err)
-	}
-	workspaceFile := filepath.Join(workspacesDir, "my-project.code-workspace")
-
-	writeWorkspaceFile := func(content string) {
-		if err := os.WriteFile(workspaceFile, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to write workspace file: %v", err)
-		}
-	}
-
-	tests := []struct {
-		name             string
-		workspaceContent string
-		targetFolder     string
-		expected         bool
-	}{
-		{
-			name:             "relative path that resolves to target folder",
-			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         true,
-		},
-		{
-			name:             "absolute path matching target folder",
-			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         true,
-		},
-		{
-			name:             "no folders entry matching target",
-			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         false,
-		},
-		{
-			name:             "empty folders array",
-			workspaceContent: `{"folders": []}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         false,
-		},
-		{
-			name:             "malformed JSON",
-			workspaceContent: `not json`,
-			targetFolder:     canonicalProjectDir,
-			expected:         false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			writeWorkspaceFile(tt.workspaceContent)
-			result := codeWorkspaceContainsFolder(workspaceFile, tt.targetFolder)
-			if result != tt.expected {
-				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
-
-// createWorkspaceDB builds a minimal workspace state.vscdb with the given composer IDs
-// stored in the allComposers list under the composer.composerData key.
 func createWorkspaceDB(t *testing.T, path string, composerIDs []string) {
 	t.Helper()
 	db, err := sql.Open("sqlite", path)
@@ -392,7 +156,7 @@ func TestFindProjectComposerIDs(t *testing.T) {
 	// (with no workspaceIdentifier) to prove IDs are deduplicated across sources.
 	wsDBPath := filepath.Join(tmp, "state.vscdb")
 	createWorkspaceDB(t, wsDBPath, []string{"ws-composer"})
-	workspaces := []WorkspaceMatch{{ID: "ws-hash-1", DBPath: wsDBPath}}
+	workspaces := []vscode.WorkspaceEntry{{ID: "ws-hash-1", Dir: tmp}}
 
 	marshal := func(c ComposerData) string {
 		t.Helper()
@@ -469,7 +233,7 @@ func TestEnsureWorkspaceForProject_MintsEntry(t *testing.T) {
 	}
 
 	// The ID must be Cursor's scheme: md5(path + platform stat salt).
-	wantID, err := cursorWorkspaceID(projectDir)
+	wantID, err := vscode.WorkspaceID(projectDir)
 	if err != nil {
 		t.Fatalf("cursorWorkspaceID: %v", err)
 	}
@@ -478,16 +242,16 @@ func TestEnsureWorkspaceForProject_MintsEntry(t *testing.T) {
 	}
 
 	// workspace.json must parse and carry the folder URI.
-	wj, err := readWorkspaceJSON(filepath.Join(ws.Path, "workspace.json"))
+	wj, err := vscode.ReadWorkspaceJSON(filepath.Join(ws.Dir, "workspace.json"))
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if wj.Folder != pathToFileURI(projectDir) {
-		t.Errorf("workspace.json folder = %q, want %q", wj.Folder, pathToFileURI(projectDir))
+	if wj.Folder != vscode.PathToFileURI(projectDir) {
+		t.Errorf("workspace.json folder = %q, want %q", wj.Folder, vscode.PathToFileURI(projectDir))
 	}
 
 	// The state.vscdb must exist with a usable ItemTable (our own readers query it).
-	if _, err := LoadWorkspaceComposerIDs(ws.DBPath); err != nil {
+	if _, err := LoadWorkspaceComposerIDs(ws.StateDBPath()); err != nil {
 		t.Errorf("minted state.vscdb not readable: %v", err)
 	}
 

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Todo status constants (used by formatUpdatePlan)
@@ -85,7 +87,7 @@ func formatShellWithSummary(argumentsJSON string) (string, string) {
 	// Multi-line commands go in body with bash code fence
 	// Single-line commands go in summary with inline backticks
 	if strings.Contains(command, "\n") {
-		return "", fmt.Sprintf("```bash\n%s\n```", command)
+		return "", spi.CodeFence("bash", command)
 	}
 	return fmt.Sprintf("`%s`", command), ""
 }
@@ -124,9 +126,8 @@ func capitalizeFirst(s string) string {
 func writePatchSection(result *strings.Builder, operation, filename string, patchContent *strings.Builder) {
 	if patchContent.Len() > 0 {
 		fmt.Fprintf(result, "**%s: `%s`**\n\n", capitalizeFirst(operation), filename)
-		result.WriteString("```diff\n")
-		result.WriteString(patchContent.String())
-		result.WriteString("```\n\n")
+		result.WriteString(spi.CodeFence("diff", strings.TrimRight(patchContent.String(), "\n")))
+		result.WriteString("\n\n")
 	}
 }
 

@@ -10,13 +10,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // createTestWorkspace creates a temp workspace storage directory with a state.vscdb
 // containing an empty ItemTable, and returns a WorkspaceMatch pointing at it.
-func createTestWorkspace(t *testing.T) *WorkspaceMatch {
+func createTestWorkspace(t *testing.T) *vscode.WorkspaceEntry {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := sql.Open("sqlite", GetWorkspaceStateDBPath(dir))
@@ -28,14 +29,14 @@ func createTestWorkspace(t *testing.T) *WorkspaceMatch {
 		t.Fatalf("createTestWorkspace: create ItemTable: %v", err)
 	}
 	_ = db.Close()
-	return &WorkspaceMatch{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj", Path: "/tmp/proj"}
+	return &vscode.WorkspaceEntry{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj", ResolvedPath: "/tmp/proj"}
 }
 
 // newTestProvider returns a VS Code provider whose reconstruction workspace lookup
 // always resolves to the provided workspace, regardless of the project path argument.
-func newTestProvider(ws *WorkspaceMatch) *Provider {
+func newTestProvider(ws *vscode.WorkspaceEntry) *Provider {
 	p := NewProvider(VSCode)
-	p.findWorkspaceForReconstruction = func(_ string) (*WorkspaceMatch, error) { return ws, nil }
+	p.findWorkspaceForReconstruction = func(_ string) (*vscode.WorkspaceEntry, error) { return ws, nil }
 	return p
 }
 
@@ -315,7 +316,7 @@ func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 	if err != nil {
 		canonical = projectDir
 	}
-	wantID, err := vscodeWorkspaceID(canonical)
+	wantID, err := vscode.WorkspaceID(canonical)
 	if err != nil {
 		t.Fatalf("vscodeWorkspaceID: %v", err)
 	}
@@ -323,11 +324,11 @@ func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 		t.Errorf("minted ID = %q, want VS Code's own %q", ws.ID, wantID)
 	}
 
-	wsJSON, err := readWorkspaceJSON(GetWorkspaceMetadataPath(ws.Dir))
+	wsJSON, err := vscode.ReadWorkspaceJSON(GetWorkspaceMetadataPath(ws.Dir))
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if got, err := uriToPath(wsJSON.Folder); err != nil || got != canonical {
+	if got, err := vscode.URIToPath(wsJSON.Folder); err != nil || got != canonical {
 		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, canonical)
 	}
 
