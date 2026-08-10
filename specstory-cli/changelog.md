@@ -1,6 +1,6 @@
 # Specstory CLI Changelog
 
-## v2.8.0 2026-08-07
+## v2.8.0 2026-08-10
 
 ### 🐛 Bug Fixes
 
