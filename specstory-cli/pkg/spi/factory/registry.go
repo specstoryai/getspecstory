@@ -82,8 +82,8 @@ func (r *Registry) registerAll() {
 	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
 
 	cursorideProvider := cursoride.NewProvider()
-	r.providers["cursoride"] = cursorideProvider
-	slog.Debug("Registered provider", "id", "cursoride", "name", cursorideProvider.Name())
+	r.providers[cursoride.ProviderID] = cursorideProvider
+	slog.Debug("Registered provider", "id", cursoride.ProviderID, "name", cursorideProvider.Name())
 
 	// The Copilot IDE provider is variant-driven: one instance per VS Code
 	// distribution, keyed by the variant's own ID so the registry key always

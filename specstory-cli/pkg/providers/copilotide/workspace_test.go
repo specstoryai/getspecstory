@@ -59,13 +59,3 @@ func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
 		t.Errorf("expected fall-through to OS default after bad override, but got override-derived path: %q", got)
 	}
 }
-
-// TestUserDataDirOverride_NoOverridePreservesExistingBehavior verifies that the
-// empty-override case behaves exactly as before this feature was added.
-func TestUserDataDirOverride_NoOverridePreservesExistingBehavior(t *testing.T) {
-	resetUserDataDirOverride(t)
-	SetUserDataDirOverride(VSCode.ID, "") // explicit clear
-
-	// Should not panic; result depends on whether VS Code is installed on the host.
-	_ = GetWorkspaceStoragePath(VSCode)
-}

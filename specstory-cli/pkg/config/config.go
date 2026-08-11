@@ -267,7 +267,11 @@ type ProvidersConfig struct {
 // These are applied after config files are loaded.
 type CLIOverrides struct {
 	// General
-	OutputDir     string
+	OutputDir string
+	// ConfigDir relocates the project-level config directory (--config-dir).
+	// Unlike the other fields it doesn't override a config value — it changes
+	// where the project-level config.toml is looked up during Load.
+	ConfigDir     string
 	LocalTimeZone bool
 
 	// Version check
@@ -321,6 +325,11 @@ func Load(cliOverrides *CLIOverrides) (*Config, error) {
 
 	// Load local project config (overwrites user-level)
 	localConfigPath := getLocalConfigPath()
+	// --config-dir relocates the project-level config; without this, a config
+	// created there via EnsureDefaultProjectConfig would never be read back.
+	if cliOverrides != nil && cliOverrides.ConfigDir != "" {
+		localConfigPath = filepath.Join(cliOverrides.ConfigDir, ConfigFileName)
+	}
 	if localConfigPath != "" {
 		if err := loadTOMLFile(localConfigPath, cfg); err != nil {
 			if os.IsNotExist(err) {

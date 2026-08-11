@@ -1,4 +1,5 @@
-# Build specstory-cli for linux, darwin (amd64 and arm64), and windows (amd64). Output to specstory-monorepo/bin.
+# Build specstory-cli for linux, darwin, and windows (amd64 and arm64 each).
+# Output goes to -OutputRelativePath, relative to the current directory (default: dist).
 # Run from anywhere.
 
 param(
@@ -47,7 +48,7 @@ foreach ($t in $targets) {
     $env:CGO_ENABLED = "0"
     $env:GOOS        = $t.Os
     $env:GOARCH      = $t.Arch
-    go build "-ldflags=$ldflags" -o $out ./main.go
+    go build "-ldflags=$ldflags" -o $out .
 }
 
 # Restore env vars so they don't leak into the caller's session

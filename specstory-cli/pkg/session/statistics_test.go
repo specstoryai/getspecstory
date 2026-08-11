@@ -2,12 +2,57 @@ package session
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
+
+// TestCollectSessionStatistics_ConcurrentSaves guards the shared-collector design:
+// concurrent CollectSessionStatistics calls (as watch-mode callbacks produce) must
+// all land in statistics.json. Per-call collector instances would race in Flush's
+// read-modify-write cycle and silently drop sessions.
+func TestCollectSessionStatistics_ConcurrentSaves(t *testing.T) {
+	config := &utils.OutputPathConfig{BaseDir: t.TempDir()}
+
+	const sessionCount = 25
+	var wg sync.WaitGroup
+	for i := 0; i < sessionCount; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sess := &spi.AgentChatSession{
+				SessionID: fmt.Sprintf("session-%02d", i),
+				SessionData: &schema.SessionData{
+					Provider:  schema.ProviderInfo{ID: "claude", Name: "Claude"},
+					CreatedAt: "2026-02-09T10:00:00Z",
+				},
+			}
+			if err := CollectSessionStatistics(sess, "# markdown", config); err != nil {
+				t.Errorf("CollectSessionStatistics(%s): %v", sess.SessionID, err)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	data, err := os.ReadFile(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
+	if err != nil {
+		t.Fatalf("Failed to read statistics.json: %v", err)
+	}
+	var statsFile StatisticsFile
+	if err := json.Unmarshal(data, &statsFile); err != nil {
+		t.Fatalf("Failed to parse statistics.json: %v", err)
+	}
+	if len(statsFile.Sessions) != sessionCount {
+		t.Errorf("statistics.json has %d sessions, want %d — concurrent saves dropped sessions",
+			len(statsFile.Sessions), sessionCount)
+	}
+}
 
 func TestComputeSessionStatistics(t *testing.T) {
 	tests := []struct {

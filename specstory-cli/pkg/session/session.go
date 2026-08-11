@@ -76,6 +76,7 @@ type ProcessingOptions struct {
 	UseUTC             bool // Timestamp format: true=UTC, false=local
 	NoTelemetryPrompts bool // Exclude user prompt text from telemetry spans for privacy
 	RedactSecrets      bool // Redact API keys and tokens from markdown output
+	NoStats            bool // Skip statistics collection entirely (--no-stats)
 }
 
 // markdownWriteEvent selects the analytics event for a successful markdown
@@ -151,11 +152,12 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		markdownContent, redactedCount = redact.RedactContent(markdownContent)
 	}
 
-	// Collect statistics (always enabled) on the redacted content, so stats
-	// reflect what's actually written to disk.
-	if err := CollectSessionStatistics(session, markdownContent, config); err != nil {
-		slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
-		// Don't fail the operation, just log warning
+	// Collect statistics on the redacted content, so stats reflect what's
+	// actually written to disk. Failures warn but never fail the save.
+	if !opts.NoStats {
+		if err := CollectSessionStatistics(session, markdownContent, config); err != nil {
+			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+		}
 	}
 
 	// Calculate markdown size in bytes
@@ -252,11 +254,13 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	return markdownSize, nil
 }
 
-// collectSessionStatistics computes and saves session statistics
+// CollectSessionStatistics computes one session's statistics and persists them
+// immediately through the process-wide shared collector. The immediate flush
+// keeps statistics.json current during long-running run/watch sessions; the
+// shared collector makes concurrent callbacks serialize instead of losing
+// sessions in racing read-modify-write cycles.
 func CollectSessionStatistics(session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
-	stats := ComputeSessionStatistics(session.SessionData, markdownContent)
-
-	collector := NewStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
-	collector.AddSessionStats(session.SessionID, stats)
+	collector := SharedStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
+	collector.AddSessionStats(session.SessionID, ComputeSessionStatistics(session.SessionData, markdownContent))
 	return collector.Flush()
 }

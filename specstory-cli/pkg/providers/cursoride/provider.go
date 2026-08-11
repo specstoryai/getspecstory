@@ -16,6 +16,10 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
+// ProviderID is the registry/CLI identifier for this provider (the key used in
+// the provider registry and in flags like `--user-data-dir cursoride:<path>`).
+const ProviderID = "cursoride"
+
 // Provider implements the SPI Provider interface for Cursor IDE
 type Provider struct{}
 

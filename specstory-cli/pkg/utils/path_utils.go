@@ -161,15 +161,9 @@ func (c *OutputPathConfig) GetLogPath() string {
 	return filepath.Join(c.GetDebugDir(), DEBUG_LOG_FILE)
 }
 
-// GetSpecStoryDir returns the .specstory directory path.
-// With a custom output dir this is the output dir itself; otherwise cwd/.specstory.
-func (c *OutputPathConfig) GetSpecStoryDir() string {
-	return c.getBasePath()
-}
-
 // GetStatisticsPath returns the full path to the statistics.json file
 func (c *OutputPathConfig) GetStatisticsPath() string {
-	return filepath.Join(c.GetSpecStoryDir(), STATISTICS_FILE)
+	return filepath.Join(c.GetSpecstoryDir(), STATISTICS_FILE)
 }
 
 // ValidationError represents errors from flag validation that should not display usage

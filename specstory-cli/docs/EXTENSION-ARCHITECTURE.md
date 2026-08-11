@@ -188,7 +188,7 @@ When the VS Code extension runs the CLI, it operates in one of two modes dependi
 
 ### Mode A: Local Workspace — Direct Write
 
-For local workspaces (including WSL with bidirectional filesystem access), the CLI can write directly to the workspace. The extension passes the workspace's own `.specstory/` directory as `--specstory-dir`. No copying is needed.
+For local workspaces (including WSL with bidirectional filesystem access), the CLI can write directly to the workspace. The extension spawns the CLI with the workspace as its working directory and the default `.specstory/` layout applies — no directory flag and no copying is needed.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -202,8 +202,7 @@ For local workspaces (including WSL with bidirectional filesystem access), the C
 │           ▼                                     │
 │  ┌─────────────────────────────────┐           │
 │  │ SpecStory CLI                   │           │
-│  │ --specstory-dir {workspace}/    │           │
-│  │                 .specstory/     │           │
+│  │ (cwd = {workspace}, defaults)   │           │
 │  └────────┬────────────────────────┘           │
 │           │ 2. Write directly                  │
 │           ▼                                     │
@@ -225,15 +224,11 @@ For local workspaces (including WSL with bidirectional filesystem access), the C
    ```typescript
    const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
    // e.g., "C:\Users\Admin\code\myproject"
-   const specstoryDir = path.join(workspacePath, '.specstory');
    ```
 
-2. **Extension spawns CLI:**
+2. **Extension spawns CLI** (cwd is enough — the default `.specstory/` layout is what we want):
    ```typescript
-   spawn('./specstory.exe', [
-       'sync',
-       '--specstory-dir', specstoryDir
-   ], { cwd: workspacePath });
+   spawn('./specstory.exe', ['sync'], { cwd: workspacePath });
    ```
 
 3. **CLI writes directly to workspace** — no further action needed from the extension.
@@ -254,7 +249,7 @@ For SSH remote workspaces, the local filesystem and the remote are separated by 
 │           ▼                                     │
 │  ┌─────────────────────────────────┐           │
 │  │ SpecStory CLI                   │           │
-│  │ --specstory-dir {tempDir}       │           │
+│  │ --output-dir {tempDir}          │           │
 │  └────────┬────────────────────────┘           │
 │           │ 2. Write to temp                   │
 │           ▼                                     │
@@ -262,9 +257,8 @@ For SSH remote workspaces, the local filesystem and the remote are separated by 
 │  │ C:\Temp\            │                       │
 │  │ specstory-{hash}\   │  ← persistent         │
 │  │ ├─ .project.json    │                       │
-│  │ └─ history\         │                       │
-│  │    ├─ conv1.md      │                       │
-│  │    └─ conv2.md      │                       │
+│  │ ├─ conv1.md         │                       │
+│  │ └─ conv2.md         │                       │
 │  └────────┬────────────┘                       │
 │           │ 3. Extension copies via FS API     │
 │           ▼                                     │
@@ -325,15 +319,15 @@ For SSH remote workspaces, the local filesystem and the remote are separated by 
    ```typescript
    spawn('./specstory.exe', [
        'sync',
-       '--specstory-dir', tempDir
+       '--output-dir', tempDir
    ], { cwd: workspacePath });
    ```
 
-5. **CLI exports to temp:**
+5. **CLI exports to temp** (with `--output-dir`, markdown lands directly in the directory — no `history/` subfolder):
    - Reads Cursor IDE / Copilot IDE conversations from Windows workspace storage
    - Reads `{tempDir}/.project.json` to reuse existing identity (or creates one)
-   - Reads `{tempDir}/history/*.md` to skip unchanged files
-   - Writes `{tempDir}/.project.json` and `{tempDir}/history/*.md`
+   - Reads `{tempDir}/*.md` to skip unchanged files
+   - Writes `{tempDir}/.project.json` and `{tempDir}/*.md`
 
 6. **Extension copies to remote workspace:**
    ```typescript
@@ -346,7 +340,7 @@ For SSH remote workspaces, the local filesystem and the remote are separated by 
 
    // Copy each new or changed markdown file
    for (const file of markdownFiles) {
-       const content = await fs.readFile(path.join(tempDir, 'history', file));
+       const content = await fs.readFile(path.join(tempDir, file));
        await vscode.workspace.fs.writeFile(
            vscode.Uri.joinPath(workspaceUri, '.specstory', 'history', file),
            content
@@ -459,32 +453,26 @@ function scheduleSync() {
 
 ## CLI Flags for Extension Integration
 
-### `--output-dir <path>` (existing)
+### `--output-dir <path>`
 
-**Purpose:** Export markdown history files to a specific directory instead of `.specstory/history/`.
-
-**Limitation:** Only controls where `history/*.md` files are written. `.project.json` is still written relative to the working directory at `{cwd}/.specstory/.project.json`. This makes `--output-dir` alone insufficient for the remote workspace use case, where the extension needs to intercept **all** CLI output files via a temp directory.
-
-### `--specstory-dir <path>` (planned)
-
-**Purpose:** Redirect all `.specstory/` output — both `.project.json` and `history/*.md` — to a specific directory. This is the flag the extension will use for remote workspaces.
+**Purpose:** Redirect all CLI output files to a specific directory. This is the flag the extension uses for remote workspaces.
 
 **Use case:** Extension wants to capture all CLI output in a temp directory, then copy everything to the final remote destination via the VS Code FS API.
 
 **Behaviour when set:**
-- `.project.json` → `{specstory-dir}/.project.json`
-- `history/*.md` → `{specstory-dir}/history/*.md`
-- `--output-dir` can still override the history path further if needed (takes precedence)
+
+- markdown files → `{output-dir}/*.md` (directly in the directory — no `history/` subfolder)
+- `.project.json` → `{output-dir}/.project.json`
+- `statistics.json` → `{output-dir}/statistics.json`
+- debug output → `{output-dir}/debug/`
 
 **Example:**
+
 ```zsh
-specstory sync --specstory-dir C:\Temp\specstory-{workspace-hash}
+specstory sync --output-dir C:\Temp\specstory-{workspace-hash}
 ```
 
-**Implementation plan:**
-1. Add `specstoryDir` global variable and register `--specstory-dir` flag on `sync`, `run`, `watch`
-2. Thread through `SetupOutputConfig()` in `pkg/utils/path_utils.go`
-3. In `pkg/utils/project_identity.go`, accept an override base directory so `.project.json` resolves to `{specstory-dir}/.project.json` instead of `{cwd}/.specstory/.project.json`
+A separate `--specstory-dir` flag was once planned for this; it became unnecessary when `--output-dir` was extended to also redirect `.project.json` and `statistics.json` alongside the markdown output (implemented via `OutputPathConfig.GetSpecstoryDir` and `cloud.SetSpecstoryDir`).
 
 ## Future Enhancements
 
@@ -533,8 +521,8 @@ specstory list \
 
 1. **Run CLI on Windows client** - Direct access to IDE data (primary use case)
 2. **Two write modes based on workspace type:**
-   - **Local**: pass `--specstory-dir {workspace}/.specstory` — CLI writes directly, no copying
-   - **Remote (SSH)**: pass `--specstory-dir {tempDir}` — CLI writes to persistent temp, extension copies via VS Code FS API
+   - **Local**: spawn with `cwd` set to the workspace — CLI writes the default `.specstory/` layout directly, no copying
+   - **Remote (SSH)**: pass `--output-dir {tempDir}` — CLI writes to persistent temp, extension copies via VS Code FS API
 3. **Persistent temp dir for remote only** - Must persist across runs so CLI can read back `.project.json` and skip unchanged `.md` files
 4. **Extension bootstraps identity for remote** - Copies remote `.project.json` into temp dir on first use so CLI maintains a consistent project identity
 5. **Extension watches files** - VS Code FS API handles cross-platform/remote writes

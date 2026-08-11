@@ -44,6 +44,32 @@ func NewStatisticsCollector(statsPath string) *StatisticsCollector {
 	}
 }
 
+// sharedCollectors hands out one collector per statistics file so every writer
+// in the process serializes on the same mutex. The collector's locking only
+// protects its own instance: separate instances racing through Flush's
+// read-modify-write would silently drop sessions when concurrent watch-mode
+// callbacks save at the same time.
+var (
+	sharedCollectorsMu sync.Mutex
+	sharedCollectors   = map[string]*StatisticsCollector{}
+)
+
+// SharedStatisticsCollector returns the process-wide collector for statsPath,
+// creating it on first use. All statistics writers — bulk sync batching,
+// per-session saves from run/watch callbacks, `sync -s` — should go through
+// this rather than NewStatisticsCollector so their writes serialize.
+func SharedStatisticsCollector(statsPath string) *StatisticsCollector {
+	sharedCollectorsMu.Lock()
+	defer sharedCollectorsMu.Unlock()
+
+	collector, ok := sharedCollectors[statsPath]
+	if !ok {
+		collector = NewStatisticsCollector(statsPath)
+		sharedCollectors[statsPath] = collector
+	}
+	return collector
+}
+
 // ComputeSessionStatistics extracts statistics from SessionData and markdown content
 func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string) SessionStatistics {
 	stats := SessionStatistics{

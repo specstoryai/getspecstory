@@ -9,6 +9,8 @@
 ### 🔧 CLI Configuration & Commands
 
 - New `--user-data-dir` flag on `sync`, `check`, `list` and `watch` points an IDE provider at a non-default install location, for portable installs and for reading a Windows-side install from WSL. It takes a `provider_id:path` pair and is repeatable, e.g. `--user-data-dir cursoride:D:\apps\cursor\current\data\user-data --user-data-dir copilotide:/opt/vscode/data`. The path is the user-data-dir itself (the parent of the `User` directory), the same value the IDE's own `--user-data-dir` argument takes. Supported provider IDs are `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS rather than leaving the provider idle.
+- New `--config-dir` flag on `run`, `sync` and `watch` relocates the project-level config directory — both where the default `config.toml` is created and where it is read from — for cases where the project directory itself shouldn't be written to, e.g. `specstory sync --config-dir ~/specstory-configs/myproject`. Without the flag the project-level config stays at `./.specstory/cli/config.toml`.
+- New `--no-stats` flag on `run`, `sync`, `watch`, `resume` and `search` skips session statistics entirely, so `./.specstory/statistics.json` is neither read nor written. Statistics stay on by default; `--no-stats` cannot be combined with `--only-stats`.
 
 ## v2.8.0 2026-08-10
 

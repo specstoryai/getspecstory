@@ -101,7 +101,7 @@ func ApplyUserDataDirOverrides(entries []string) {
 			continue
 		}
 		switch id {
-		case "cursoride":
+		case cursoride.ProviderID:
 			cursoride.SetUserDataDirOverride(path)
 			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
 		case copilotide.VSCode.ID, copilotide.VSCodeInsiders.ID, copilotide.VSCodium.ID, copilotide.VSCodiumInsiders.ID:

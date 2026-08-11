@@ -30,8 +30,8 @@ type ProjectIdentity struct {
 // ProjectIdentityManager handles project identity operations
 type ProjectIdentityManager struct {
 	projectRoot         string
-	specstoryDir        string // optional override for the .specstory directory location (from --specstory-dir)
-	overrideProjectName string // when non-empty, use instead of auto-detecting project name (from --project-name)
+	specstoryDir        string // optional override for the .specstory directory location (from --output-dir, when set)
+	overrideProjectName string // when non-empty, use instead of auto-detecting project name (the basename of --project-path)
 	overrideGitOrigin   string // when non-empty, use instead of reading from .git/config (from --git-origin)
 }
 
@@ -158,7 +158,7 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 		if identity.ProjectName != m.overrideProjectName {
 			identity.ProjectName = m.overrideProjectName
 			isModified = true
-			slog.Debug("Set project_name from --project-name override", "project_name", m.overrideProjectName)
+			slog.Debug("Set project_name from --project-path override", "project_name", m.overrideProjectName)
 		}
 	} else if identity.ProjectName == "" {
 		identity.ProjectName = resolvedName
@@ -418,18 +418,6 @@ func (m *ProjectIdentityManager) parseGitRemoteURL(remoteURL string) string {
 	}
 
 	return repoName
-}
-
-// GetProjectNameForPath reads the project name from .project.json in the given project directory.
-// Uses the default .specstory location ({projectPath}/.specstory/.project.json).
-// Returns empty string if .project.json does not exist or has no project name set.
-// This is used by providers to get the project name override for workspace matching.
-func GetProjectNameForPath(projectPath string) string {
-	identity, err := NewProjectIdentityManager(projectPath, "").ReadProjectIdentity()
-	if err != nil || identity == nil {
-		return ""
-	}
-	return identity.ProjectName
 }
 
 // GetProjectName returns the project name from the project identity

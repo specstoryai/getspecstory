@@ -88,6 +88,16 @@ With a specific session UUID:
 specstory sync -s <session-uuid>
 ```
 
+### Non-default IDE install locations (`--user-data-dir`)
+
+The `sync`, `check`, `list` and `watch` commands accept a repeatable `--user-data-dir` flag that points an IDE provider at a non-default install location — useful for portable installs and for reading a Windows-side install from WSL. It takes a `provider_id:path` pair where the path is the IDE's user-data-dir itself (the parent of the `User` directory), the same value the IDE's own `--user-data-dir` argument takes:
+
+```zsh
+specstory sync --user-data-dir cursoride:/opt/cursor/data --user-data-dir copilotide:/opt/vscode/data
+```
+
+Supported provider IDs are `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS.
+
 ### Resume & Search
 
 SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
@@ -207,6 +217,12 @@ The configuration is determined with the following priority (highest priority to
 1. CLI flags
 2. Project-level config (`.specstory/cli/config.toml`)
 3. User-level config (`~/.specstory/cli/config.toml`)
+
+The `run`, `sync` and `watch` commands accept a `--config-dir` flag to relocate the project-level config directory (both where the default `config.toml` is created and where it is read from), for example when the project directory itself shouldn't be written to:
+
+```zsh
+specstory sync --config-dir ~/specstory-configs/myproject
+```
 
 ### Example Configuration
 

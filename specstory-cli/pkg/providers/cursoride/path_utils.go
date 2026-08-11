@@ -33,7 +33,7 @@ func getGlobalDatabasePath() (string, error) {
 	// An explicit --user-data-dir cursoride:<path> override takes precedence
 	// over OS-default discovery; a missing override warns and falls through so
 	// the OS-default lookup below still gets a chance to find Cursor.
-	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverride, "cursoride", "User", "globalStorage", "state.vscdb"); ok {
+	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverride, ProviderID, "User", "globalStorage", "state.vscdb"); ok {
 		return path, nil
 	}
 
@@ -137,7 +137,7 @@ func getWorkspaceStoragePath() (string, error) {
 	// An explicit --user-data-dir cursoride:<path> override takes precedence
 	// over OS-default discovery. Same warn-and-fall-back semantics as
 	// GetGlobalDatabasePath: a stale override should not silently disable the provider.
-	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverride, "cursoride", "User", "workspaceStorage"); ok {
+	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverride, ProviderID, "User", "workspaceStorage"); ok {
 		return path, nil
 	}
 

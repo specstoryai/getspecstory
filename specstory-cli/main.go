@@ -1195,7 +1195,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs 
 
 	// Create a single statistics collector shared across all providers so the
 	// statistics.json file is written only once after all providers are processed.
-	statsCollector := sessionpkg.NewStatisticsCollector(config.GetStatisticsPath())
+	statsCollector := sessionpkg.SharedStatisticsCollector(config.GetStatisticsPath())
 
 	// Sync each provider with activity
 	totalSessionCount := 0
@@ -1333,7 +1333,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	preloadBulkSessionSizesIfNeeded(identityManager)
 
 	// Create statistics collector for this provider
-	statsCollector := sessionpkg.NewStatisticsCollector(config.GetStatisticsPath())
+	statsCollector := sessionpkg.SharedStatisticsCollector(config.GetStatisticsPath())
 
 	if !silent {
 		fmt.Printf("\nParsing %s sessions", provider.Name())
@@ -1435,6 +1435,13 @@ func main() {
 				debugDir = utils.ExpandTilde(args[i+1])
 				i++ // Skip the value in next iteration
 			}
+		case "--config-dir":
+			// Handle --config-dir <value> format (space-separated). Pre-parsed so
+			// config.Load below can read the project config from the custom location.
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				configDir = utils.ExpandTilde(args[i+1])
+				i++ // Skip the value in next iteration
+			}
 		case "--user-data-dir":
 			// Handle --user-data-dir <value> format (space-separated, repeatable)
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
@@ -1451,6 +1458,10 @@ func main() {
 		// Handle --debug-dir=value format
 		if strings.HasPrefix(arg, "--debug-dir=") {
 			debugDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--debug-dir="))
+		}
+		// Handle --config-dir=value format
+		if strings.HasPrefix(arg, "--config-dir=") {
+			configDir = utils.ExpandTilde(strings.TrimPrefix(arg, "--config-dir="))
 		}
 		// Handle --telemetry-endpoint=value format
 		if strings.HasPrefix(arg, "--telemetry-endpoint=") {
@@ -1471,6 +1482,7 @@ func main() {
 	// Note: OTEL_* env vars take highest priority for telemetry
 	cfg, cfgErr := config.Load(&config.CLIOverrides{
 		OutputDir:            outputDir,
+		ConfigDir:            configDir,
 		LocalTimeZone:        localTimeZone,
 		NoVersionCheck:       noVersionCheck,
 		NoCloudSync:          noCloudSync,
@@ -1630,6 +1642,7 @@ func main() {
 	runCmd.Flags().StringVar(&configDir, "config-dir", configDir, "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	runCmd.Flags().BoolVar(&noCloudSync, "no-cloud-sync", noCloudSync, "disable cloud sync functionality")
 	runCmd.Flags().BoolVar(&onlyCloudSync, "only-cloud-sync", onlyCloudSync, "skip local markdown file saves, only upload to cloud (requires authentication)")
+	runCmd.Flags().BoolVar(&noStats, "no-stats", noStats, "skip statistics entirely, do not read or write statistics.json")
 	runCmd.Flags().StringVar(&cloudURL, "cloud-url", "", "override the default cloud API base URL")
 	_ = runCmd.Flags().MarkHidden("cloud-url") // Hidden flag
 	runCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")

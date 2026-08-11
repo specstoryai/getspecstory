@@ -91,8 +91,9 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 		Long:  longDesc,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configDir, _ := cmd.Flags().GetString("config-dir")
-			config.EnsureDefaultProjectConfig(configDir)
+			// resume doesn't register --config-dir (only run/sync/watch do), so the
+			// default project config always lands at the standard location here.
+			config.EnsureDefaultProjectConfig("")
 			slog.Info("Running in resume mode")
 
 			registry := factory.GetRegistry()
