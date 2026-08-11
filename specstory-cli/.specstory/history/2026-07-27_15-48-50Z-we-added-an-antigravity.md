@@ -1023,9 +1023,13 @@ _**User (2026-07-27 16:12:38Z)**_
             <command-message>login</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-07-27 16:12:38Z)**_
 
 <local-command-stdout>Login interrupted</local-command-stdout>
+
+---
 
 _**User (2026-07-27 16:12:38Z)**_
 
