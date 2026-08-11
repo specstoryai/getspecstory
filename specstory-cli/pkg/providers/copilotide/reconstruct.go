@@ -186,8 +186,19 @@ func (p *Provider) waitUntilAppQuit() {
 // appRunning reports whether any process of this variant's application is
 // alive. On macOS the app bundle path is the reliable discriminator; on Linux
 // the launcher binary name is matched as a path segment, with a trailing
-// boundary so e.g. "code" cannot match "codex".
+// boundary so e.g. "code" cannot match "codex". Windows has no pgrep, so
+// tasklist filters by the executable image name (DataDirName + ".exe", e.g.
+// "Code.exe" or "Code - Insiders.exe", matching how each variant installs);
+// the hit test is the name echoing back in the output — tasklist exits 0 and
+// prints a localized "no tasks" message even when nothing matched, so neither
+// the exit code nor message text can be trusted.
 func (p *Provider) appRunning() bool {
+	if runtime.GOOS == "windows" {
+		exe := p.variant.DataDirName + ".exe"
+		out, err := exec.Command("tasklist", "/FI", "IMAGENAME eq "+exe, "/NH").Output()
+		return err == nil && strings.Contains(strings.ToLower(string(out)), strings.ToLower(exe))
+	}
+
 	var pattern string
 	if runtime.GOOS == "darwin" {
 		pattern = p.variant.BundleName + ".app/Contents/MacOS"
