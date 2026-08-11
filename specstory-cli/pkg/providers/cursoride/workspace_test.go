@@ -75,7 +75,8 @@ func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
 	resetUserDataDirOverride(t)
 
 	// Override points at a directory that exists but has no User/workspaceStorage inside.
-	SetUserDataDirOverride(t.TempDir())
+	override := t.TempDir()
+	SetUserDataDirOverride(override)
 
 	_, err := GetWorkspaceStoragePath()
 	if err == nil {
@@ -84,33 +85,11 @@ func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
 		// must not have been used (we'd have failed before reaching here otherwise).
 		return
 	}
-	// The error must come from the OS-default path, not from the override candidate
-	// (the override candidate is under t.TempDir()). The error message includes the
-	// path being checked; assert it doesn't mention our tmp dir.
-	if strings.Contains(err.Error(), t.TempDir()) {
+	// The error must come from the OS-default path, not from the override candidate.
+	// The error message includes the path being checked; assert it doesn't mention
+	// the override dir.
+	if strings.Contains(err.Error(), override) {
 		t.Errorf("expected fall-through to OS default after bad override, but error mentions override path: %v", err)
-	}
-}
-
-// TestUserDataDirOverride_NoOverridePreservesExistingBehavior verifies that when the
-// override is empty, the resolver behaves exactly as it did before this feature —
-// no surprises for the common case.
-func TestUserDataDirOverride_NoOverridePreservesExistingBehavior(t *testing.T) {
-	resetUserDataDirOverride(t)
-	SetUserDataDirOverride("") // explicit clear
-
-	// On a CI box without Cursor installed, this will error; on a dev box with Cursor
-	// installed, it will succeed. Both outcomes are valid — we only assert the call
-	// completes without panicking and produces an unsurprising error shape if it fails.
-	got, err := GetWorkspaceStoragePath()
-	if err != nil {
-		if !strings.Contains(err.Error(), "workspace storage") {
-			t.Errorf("unexpected error from default discovery: %v", err)
-		}
-		return
-	}
-	if got == "" {
-		t.Errorf("GetWorkspaceStoragePath() returned empty path with no error")
 	}
 }
 

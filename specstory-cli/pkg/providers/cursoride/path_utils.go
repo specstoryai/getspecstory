@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -42,17 +41,11 @@ func getGlobalDatabasePath() (string, error) {
 		return "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
-	// Try multiple possible locations for the global database
-	var possiblePaths []string
-
+	var dbPath string
 	switch runtime.GOOS {
 	case "darwin":
-		// macOS: ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb (primary location)
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb"))
-		// Also try extension location (legacy/fallback)
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, ".cursor", "extensions", "cursor-context-manager-*", "globalStorage", "cursor-context-manager", "state.vscdb"))
+		// macOS: ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb
+		dbPath = filepath.Join(homeDir, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb")
 	case "linux":
 		// When running in WSL, Cursor stores data on the Windows side
 		// Check Windows filesystem first via /mnt/c/
@@ -62,69 +55,34 @@ func getGlobalDatabasePath() (string, error) {
 			if windowsPath != "" {
 				return windowsPath, nil
 			}
-			slog.Debug("No global database found on Windows side, trying native Linux paths")
+			slog.Debug("No global database found on Windows side, trying native Linux path")
 		}
 
-		// Native Linux or WSL fallback: ~/.config/Cursor/User/globalStorage/state.vscdb (primary location)
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, ".config", "Cursor", "User", "globalStorage", "state.vscdb"))
-		// Also try extension location (legacy/fallback)
-		possiblePaths = append(possiblePaths,
-			filepath.Join(homeDir, ".cursor", "extensions", "cursor-context-manager-*", "globalStorage", "cursor-context-manager", "state.vscdb"))
+		// Native Linux or WSL fallback: ~/.config/Cursor/User/globalStorage/state.vscdb
+		dbPath = filepath.Join(homeDir, ".config", "Cursor", "User", "globalStorage", "state.vscdb")
 	case "windows":
 		// Windows: %APPDATA%\Cursor\User\globalStorage\state.vscdb
-		// Get AppData\Roaming directory
 		appData := os.Getenv("APPDATA")
-		slog.Debug("Windows APPDATA environment variable", "appData", appData)
 		if appData == "" {
 			return "", fmt.Errorf("APPDATA environment variable not set")
 		}
-		primaryPath := filepath.Join(appData, "Cursor", "User", "globalStorage", "state.vscdb")
-		slog.Debug("Checking Windows primary path", "path", primaryPath)
-		possiblePaths = append(possiblePaths, primaryPath)
-		// Also try extension location (legacy/fallback)
-		fallbackPath := filepath.Join(homeDir, ".cursor", "extensions", "cursor-context-manager-*", "globalStorage", "cursor-context-manager", "state.vscdb")
-		slog.Debug("Checking Windows fallback path", "path", fallbackPath)
-		possiblePaths = append(possiblePaths, fallbackPath)
+		dbPath = filepath.Join(appData, "Cursor", "User", "globalStorage", "state.vscdb")
 	default:
 		return "", fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 
-	// Try each possible path
-	for _, path := range possiblePaths {
-		// If path contains glob pattern, expand it
-		if strings.Contains(path, "*") {
-			matches, err := filepath.Glob(path)
-			if err == nil && len(matches) > 0 {
-				slog.Debug("Glob pattern matched", "pattern", path, "matches", len(matches))
-				// Use first match
-				if _, err := os.Stat(matches[0]); err == nil {
-					slog.Debug("Found Cursor IDE global database", "path", matches[0])
-					return matches[0], nil
-				} else {
-					slog.Debug("Matched path does not exist", "path", matches[0], "error", err)
-				}
-			} else {
-				slog.Debug("Glob pattern did not match", "pattern", path, "error", err)
-			}
-		} else {
-			// Direct path, check if it exists
-			if _, err := os.Stat(path); err == nil {
-				slog.Debug("Found Cursor IDE global database", "path", path)
-				return path, nil
-			} else {
-				slog.Debug("Path does not exist", "path", path, "error", err)
-			}
+	if _, err := os.Stat(dbPath); err != nil {
+		// Escalate to a warning only when the user supplied an override that also missed —
+		// otherwise this is just "Cursor isn't installed" and should stay quiet.
+		if userDataDirOverride != "" {
+			slog.Warn("Cursor global database missing at both override and OS-default paths; provider will be idle until restart",
+				"override", userDataDirOverride, "osDefault", dbPath)
 		}
+		return "", fmt.Errorf("global database not found at %s (has Cursor IDE been used? if it uses a custom user-data-dir, pass --user-data-dir cursoride:<path>)", dbPath)
 	}
 
-	// Escalate to a warning only when the user supplied an override that also missed —
-	// otherwise this is just "Cursor isn't installed" and should stay quiet.
-	if userDataDirOverride != "" {
-		slog.Warn("Cursor global database missing at both override and OS-default paths; provider will be idle until restart",
-			"override", userDataDirOverride)
-	}
-	return "", fmt.Errorf("global database not found in any of the expected locations")
+	slog.Debug("Found Cursor IDE global database", "path", dbPath)
+	return dbPath, nil
 }
 
 // GetWorkspaceStoragePath returns the OS-specific workspace storage directory.

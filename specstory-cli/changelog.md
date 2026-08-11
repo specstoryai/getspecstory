@@ -12,6 +12,10 @@
 - New `--config-dir` flag on `run`, `sync` and `watch` relocates the project-level config directory — both where the default `config.toml` is created and where it is read from — for cases where the project directory itself shouldn't be written to, e.g. `specstory sync --config-dir ~/specstory-configs/myproject`. Without the flag the project-level config stays at `./.specstory/cli/config.toml`.
 - New `--no-stats` flag on `run`, `sync`, `watch`, `resume` and `search` skips session statistics entirely, so `./.specstory/statistics.json` is neither read nor written. Statistics stay on by default; `--no-stats` cannot be combined with `--only-stats`.
 
+### ⚙️ Improvements
+
+- When `--output-dir` is set, the project identity file `.project.json` now lives in that directory alongside the markdown, statistics and debug output, instead of staying at `./.specstory/.project.json` — so you still capture every SpecStory output file under one directory, and SpecStory Cloud sync reads the identity from there too. If you already use `--output-dir` with SpecStory Cloud, copy your existing `./.specstory/.project.json` into the output directory once to keep the same project identity.
+
 ## v2.8.0 2026-08-10
 
 ### 🐛 Bug Fixes

@@ -361,11 +361,7 @@ func TestWorkspaceURIMap_SepMarker(t *testing.T) {
 
 func TestCodeWorkspaceContainsFolder(t *testing.T) {
 	// Create a temporary directory structure.
-	tmpDir, err := os.MkdirTemp("", "workspace-contains-test")
-	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
-	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	tmpDir := t.TempDir()
 
 	// Create the target project folder.
 	projectDir := filepath.Join(tmpDir, "my-project")

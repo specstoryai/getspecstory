@@ -32,40 +32,6 @@ type OutputPathConfig struct {
 // Ensure OutputPathConfig implements OutputConfig interface
 var _ OutputConfig = (*OutputPathConfig)(nil)
 
-// resolveDir converts dir to an absolute path, creates it if needed, and verifies it is writable.
-// Returns the resolved absolute path or an error.
-func resolveDir(dir string) (string, error) {
-	absPath, err := filepath.Abs(dir)
-	if err != nil {
-		return "", ValidationError{Message: fmt.Sprintf("invalid directory path: %v", err)}
-	}
-
-	info, err := os.Stat(absPath)
-	if err == nil {
-		if !info.IsDir() {
-			return "", ValidationError{Message: fmt.Sprintf("path exists but is not a directory: %s", absPath)}
-		}
-		// Verify write permission
-		if file, err := os.CreateTemp(absPath, ".specstory_write_test_*"); err != nil {
-			return "", ValidationError{Message: fmt.Sprintf("directory is not writable: %s", absPath)}
-		} else {
-			_ = file.Close()
-			_ = os.Remove(file.Name())
-		}
-		slog.Debug("Using existing directory", "path", absPath)
-	} else if os.IsNotExist(err) {
-		slog.Info("Creating directory", "path", absPath)
-		if err := os.MkdirAll(absPath, 0755); err != nil {
-			return "", ValidationError{Message: fmt.Sprintf("failed to create directory: %v", err)}
-		}
-		slog.Info("Created directory", "path", absPath)
-	} else {
-		return "", ValidationError{Message: fmt.Sprintf("error checking directory: %v", err)}
-	}
-
-	return absPath, nil
-}
-
 // ExpandTilde expands a leading ~ to the user's home directory.
 // Go's filepath.Abs does not handle ~ — it treats it as a literal directory name.
 func ExpandTilde(path string) string {
@@ -81,13 +47,44 @@ func ExpandTilde(path string) string {
 
 // validateDirectory validates a directory path: expands ~, converts to absolute,
 // checks existence and write permissions, or creates it if missing.
-// Returns the validated absolute path.
+// Returns the validated absolute path. label names the directory's role (e.g.
+// "output directory") so errors and logs identify which flag was at fault.
 func validateDirectory(dir, label string) (string, error) {
 	// Expand ~ to home directory before converting to absolute
 	dir = ExpandTilde(dir)
-	absPath, err := resolveDir(dir)
+
+	// Convert to absolute path if relative
+	absPath, err := filepath.Abs(dir)
 	if err != nil {
-		return "", fmt.Errorf("invalid %s: %w", label, err)
+		return "", ValidationError{Message: fmt.Sprintf("invalid %s path: %v", label, err)}
+	}
+
+	// Check if path exists
+	info, err := os.Stat(absPath)
+	if err == nil {
+		// Path exists, check if it's a directory
+		if !info.IsDir() {
+			return "", ValidationError{Message: fmt.Sprintf("%s exists but is not a directory: %s", label, absPath)}
+		}
+		// Check write permissions by attempting to create a temp file
+		if file, err := os.CreateTemp(absPath, ".specstory_write_test_*"); err != nil {
+			return "", ValidationError{Message: fmt.Sprintf("%s is not writable: %s", label, absPath)}
+		} else {
+			// Clean up test file
+			_ = file.Close()
+			_ = os.Remove(file.Name())
+		}
+		slog.Debug("Using existing directory", "label", label, "path", absPath)
+	} else if os.IsNotExist(err) {
+		// Path doesn't exist, try to create it
+		slog.Debug("Creating directory", "label", label, "path", absPath)
+		if err := os.MkdirAll(absPath, 0755); err != nil {
+			return "", ValidationError{Message: fmt.Sprintf("failed to create %s: %v", label, err)}
+		}
+		slog.Debug("Created directory", "label", label, "path", absPath)
+	} else {
+		// Some other error occurred
+		return "", ValidationError{Message: fmt.Sprintf("error checking %s: %v", label, err)}
 	}
 
 	return absPath, nil

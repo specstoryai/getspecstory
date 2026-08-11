@@ -1128,12 +1128,11 @@ Both providers read from IDE-based editors but use different storage mechanisms:
 
 **cursoride (SQLite):**
 ```
-~/.cursor/extensions/cursor-context-manager-*/
-  └── globalStorage/cursor-context-manager/
-      └── state.vscdb (ALL composer data in SQLite)
-        - cursorDiskKV table:
-          - composerData:uuid → JSON
-          - bubbleId:uuid:bubbleId → JSON
+~/Library/Application Support/Cursor/User/globalStorage/
+  └── state.vscdb (ALL composer data in SQLite)
+      - cursorDiskKV table:
+        - composerData:uuid → JSON
+        - bubbleId:uuid:bubbleId → JSON
 ```
 - **Complex:** Global database + workspace filtering with SQL queries
 - **WAL Mode:** Required for non-blocking reads
