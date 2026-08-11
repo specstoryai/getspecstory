@@ -1,8 +1,8 @@
 {
-  "cliVersion": "specstory-cli/v2.5.0-10-gc3e0a17",
-  "gitCommit": "c3e0a173512c597dd6cf861fbccb5ee000a39f92",
+  "cliVersion": "specstory-cli/v2.8.0-52-g2a9f881",
+  "gitCommit": "2a9f88184fa6776b9db809a5f0655fe7955e2113",
   "sha256": {
-    "arm64": "fab18b4411ca3ed6041f832909ec643cc5e6cfc61152afe6e480abc45980f354",
-    "x86_64": "9fc8a8d8cb5cbfc4c4eb83f96f262ec963085c1eb6e581d3e21de3b8682eafba"
+    "arm64": "4774635d9fbcb01d950c3286374c95366cded8c3280b3b3ced5ff35cc952dcac",
+    "x86_64": "ad48eddd47fcc6ecc9299fa1d8e5d068c1c501cec047fae67ea7df3299aba6df"
   }
 }
