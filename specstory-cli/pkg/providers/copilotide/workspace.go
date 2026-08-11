@@ -10,12 +10,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// FindWorkspaceForProject finds the workspace directory that matches the given project path
-// Returns the workspace match or an error if not found
-func (p *Provider) FindWorkspaceForProject(projectPath string) (*vscode.WorkspaceEntry, error) {
-	return p.findWorkspaceForProject(projectPath, true)
-}
-
 // FindAllWorkspacesForProject finds every workspace entry matching the project.
 // A single project can match more than one entry — under WSL the same project is
 // recorded under several URI forms — so readers that aggregate sessions use this

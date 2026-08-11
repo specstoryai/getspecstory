@@ -31,6 +31,7 @@ type ProjectIdentity struct {
 type ProjectIdentityManager struct {
 	projectRoot         string
 	specstoryDir        string // optional override for the .specstory directory location (from --output-dir, when set)
+	detectionRoot       string // when non-empty, identity auto-detection walks up from here instead of projectRoot (a locally readable --project-path)
 	overrideProjectName string // when non-empty, use instead of auto-detecting project name (the basename of --project-path)
 	overrideGitOrigin   string // when non-empty, use instead of reading from .git/config (from --git-origin)
 }
@@ -54,7 +55,16 @@ func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentit
 func NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, projectPathOverride, gitOriginOverride string) *ProjectIdentityManager {
 	manager := NewProjectIdentityManager(cwd, specstoryDir).WithGitOrigin(gitOriginOverride)
 	if projectPathOverride != "" {
-		manager = manager.WithProjectName(filepath.Base(ResolveProjectPath(projectPathOverride, cwd)))
+		effectivePath := ResolveProjectPath(projectPathOverride, cwd)
+		manager = manager.WithProjectName(filepath.Base(effectivePath))
+		// A locally readable target should also drive identity auto-detection
+		// (workspace_id, git_id walk-up): the identity describes the project being
+		// targeted, not the directory the CLI was launched from. Remote-workspace
+		// paths (SSH) don't exist locally, so detection stays anchored to cwd for
+		// them and those callers supply --git-origin instead.
+		if info, err := os.Stat(effectivePath); err == nil && info.IsDir() {
+			manager = manager.WithDetectionRoot(effectivePath)
+		}
 	}
 	return manager
 }
@@ -71,6 +81,23 @@ func (m *ProjectIdentityManager) WithProjectName(name string) *ProjectIdentityMa
 func (m *ProjectIdentityManager) WithGitOrigin(origin string) *ProjectIdentityManager {
 	m.overrideGitOrigin = origin
 	return m
+}
+
+// WithDetectionRoot points identity auto-detection (the workspace_id/git_id/name
+// walk-up) at dir instead of projectRoot, while the .specstory location stays
+// anchored to projectRoot. Callers pass a locally readable --project-path here so
+// the detected identity describes that project rather than the launch directory.
+func (m *ProjectIdentityManager) WithDetectionRoot(dir string) *ProjectIdentityManager {
+	m.detectionRoot = dir
+	return m
+}
+
+// getDetectionRoot returns the directory identity auto-detection starts from.
+func (m *ProjectIdentityManager) getDetectionRoot() string {
+	if m.detectionRoot != "" {
+		return m.detectionRoot
+	}
+	return m.projectRoot
 }
 
 // getSpecstoryDir returns the .specstory directory to use for this project.
@@ -106,7 +133,9 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	// Resolve identity by walking up to the git root (NOT the launch directory), so a
 	// session run from a monorepo subdirectory attributes to the repo, not a fragment.
 	// resolvedName always falls back to the root's base name, so it is never empty.
-	resolvedGitID, resolvedWorkspaceID, resolvedName, _ := resolveIdentity(m.projectRoot)
+	// The walk starts from the detection root, which a --project-path override may
+	// have pointed at the targeted project instead of the launch directory.
+	resolvedGitID, resolvedWorkspaceID, resolvedName, _ := resolveIdentity(m.getDetectionRoot())
 
 	// Determine what needs to be done
 	var identity ProjectIdentity

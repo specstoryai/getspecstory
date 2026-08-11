@@ -320,3 +320,53 @@ func TestOutputPathConfigMethods(t *testing.T) {
 		}
 	})
 }
+
+// TestResolveProjectPath covers the platform-independent behavior: empty-override
+// fallback, cleaning of absolute overrides, and absolutization of relative
+// overrides. The Windows-only branch that preserves rootless remote-workspace
+// paths (VS Code fsPaths like /home/u/proj on a Windows host) is gated on
+// runtime.GOOS and exercised only on Windows builds, and the fallback-to-cwd
+// error path requires os.Getwd to fail, which is not portably testable.
+func TestResolveProjectPath(t *testing.T) {
+	fallbackCwd := filepath.Join("some", "fallback", "cwd")
+	processCwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	absDir := t.TempDir()
+
+	tests := []struct {
+		name     string
+		override string
+		want     string
+	}{
+		{
+			name:     "empty override falls back to cwd",
+			override: "",
+			want:     fallbackCwd,
+		},
+		{
+			name:     "absolute override returned as-is",
+			override: absDir,
+			want:     absDir,
+		},
+		{
+			name:     "absolute override is cleaned",
+			override: filepath.Join(absDir, "sub") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "proj",
+			want:     filepath.Join(absDir, "proj"),
+		},
+		{
+			name:     "relative override resolved against the process working directory",
+			override: filepath.Join("some", "relative", "dir"),
+			want:     filepath.Join(processCwd, "some", "relative", "dir"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ResolveProjectPath(tt.override, fallbackCwd); got != tt.want {
+				t.Errorf("ResolveProjectPath(%q) = %q, want %q", tt.override, got, tt.want)
+			}
+		})
+	}
+}

@@ -449,8 +449,10 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
 
 			// Keep sessions.db current in real time alongside the markdown writes (nil/no-op
-			// if the index can't be opened — never block the running agent on it).
-			liveIndex := cmdpkg.NewLiveIndexer(cwd)
+			// if the index can't be opened — never block the running agent on it). Keyed to
+			// the effective project path so --project-path sessions index under the project
+			// they belong to, not the launch directory.
+			liveIndex := cmdpkg.NewLiveIndexer(effectiveProjectPath)
 			defer liveIndex.Close()
 
 			// This callback pattern enables real-time processing of agent sessions
@@ -657,7 +659,9 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			return err
 		}
 
-		liveIndex = cmdpkg.NewLiveIndexer(cwd)
+		// Keyed to the effective project path so --project-path sessions index
+		// under the project they belong to, not the launch directory.
+		liveIndex = cmdpkg.NewLiveIndexer(effectiveProjectPath)
 		defer liveIndex.Close()
 	}
 
@@ -874,8 +878,10 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 	// Keep sessions.db current for this project as we sync. We already hold each session's
 	// SessionData below, so indexing it is essentially free. Best-effort: a nil indexer (open
-	// failure) is a safe no-op and never affects the sync. Scoped to the synced project (cwd).
-	liveIndex := cmdpkg.NewLiveIndexer(cwd)
+	// failure) is a safe no-op and never affects the sync. Scoped to the synced project —
+	// the effective project path, so --project-path sessions index under the project they
+	// belong to, not the launch directory.
+	liveIndex := cmdpkg.NewLiveIndexer(projectPath)
 	defer liveIndex.Close()
 
 	// Create progress callback for parsing phase

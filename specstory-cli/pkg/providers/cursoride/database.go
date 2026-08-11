@@ -455,10 +455,22 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		}
 	}()
 
+	// The two indexes must move together — a failure after the first write would
+	// leave them diverged (a session listed in one index but not the other), so the
+	// JSON read-modify-write and the table upsert run in one transaction and commit
+	// only after both succeed.
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for composer header: %w", err)
+	}
+	// Rollback after Commit is a no-op; deferring it releases the transaction on
+	// every early error return below.
+	defer func() { _ = tx.Rollback() }()
+
 	// Read the existing blob; handle missing key gracefully.
 	var raw string
 	blob := make(map[string]json.RawMessage)
-	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'").Scan(&raw)
+	err = tx.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'").Scan(&raw)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("failed to read composer.composerHeaders: %w", err)
 	}
@@ -538,7 +550,7 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		if mErr != nil {
 			return fmt.Errorf("failed to marshal composer.composerHeaders: %w", mErr)
 		}
-		if _, execErr := db.Exec(
+		if _, execErr := tx.Exec(
 			"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
 			string(dataJSON),
 		); execErr != nil {
@@ -551,8 +563,12 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	// that table against the glass membership map, so the session is invisible in newer
 	// Cursors without this row. The table is created by Cursor itself; when absent
 	// (older versions) the JSON key is the only source and the insert is skipped.
-	if err := insertComposerHeaderRow(db, meta, entryJSON); err != nil {
+	if err := insertComposerHeaderRow(tx, meta, entryJSON); err != nil {
 		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit composer header writes: %w", err)
 	}
 
 	// Checkpoint the WAL so our write lands in the main DB file before Cursor opens it.
@@ -568,9 +584,9 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 // it exists (see the call site in WriteGlobalComposerHeader for why). Column values
 // mirror what Cursor writes for its own sessions: recency and checkpointAt track
 // lastUpdatedAt, and isSubagent/isArchived are 0 for a normal visible session.
-func insertComposerHeaderRow(db *sql.DB, meta ComposerHeadMeta, headJSON []byte) error {
+func insertComposerHeaderRow(tx *sql.Tx, meta ComposerHeadMeta, headJSON []byte) error {
 	var tableName string
-	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='composerHeaders'").Scan(&tableName)
+	err := tx.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='composerHeaders'").Scan(&tableName)
 	if err == sql.ErrNoRows {
 		slog.Debug("composerHeaders table not present, skipping table registration (pre-3.12 Cursor)")
 		return nil
@@ -579,7 +595,7 @@ func insertComposerHeaderRow(db *sql.DB, meta ComposerHeadMeta, headJSON []byte)
 		return fmt.Errorf("failed to check for composerHeaders table: %w", err)
 	}
 
-	if _, err := db.Exec(
+	if _, err := tx.Exec(
 		`INSERT OR REPLACE INTO composerHeaders
 			(composerId, workspaceId, createdAt, lastUpdatedAt, isArchived, isSubagent, recency, checkpointAt, value)
 			VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)`,

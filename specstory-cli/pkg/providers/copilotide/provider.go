@@ -289,8 +289,9 @@ func collectSessionSources(workspaces []vscode.WorkspaceEntry) []sessionSource {
 // handle together with their optional editing state. Skipped along the way:
 // files that fail to parse, duplicate session IDs (under WSL the same project
 // is recorded under multiple workspace entries, and the same session can
-// appear in more than one — the copies are the same file, so first wins), and
-// sessions with neither chat messages nor editing activity.
+// appear in more than one), and sessions with neither chat messages nor
+// editing activity. Among content-bearing copies of the same session, first
+// wins.
 func forEachUniqueSession(sources []sessionSource, handle func(composer *VSCodeComposer, state *VSCodeStateFile)) {
 	seenIDs := make(map[string]bool)
 
@@ -301,11 +302,10 @@ func forEachUniqueSession(sources []sessionSource, handle func(composer *VSCodeC
 			continue
 		}
 
-		// Deduplicate by session ID across workspaces
+		// Skip copies of a session that was already handled
 		if seenIDs[composer.SessionID] {
 			continue
 		}
-		seenIDs[composer.SessionID] = true
 
 		// Load state file (optional)
 		state, err := LoadStateFile(src.workspaceDir, composer.SessionID)
@@ -322,6 +322,10 @@ func forEachUniqueSession(sources []sessionSource, handle func(composer *VSCodeC
 			continue
 		}
 
+		// Mark seen only after the content check: workspace enumeration order is by
+		// workspace hash, not recency, so an empty copy encountered first must not
+		// claim the ID and suppress a populated copy from another workspace entry.
+		seenIDs[composer.SessionID] = true
 		handle(composer, state)
 	}
 }
@@ -446,7 +450,7 @@ func (p *Provider) openApp(projectPath, customCommand string) error {
 // ListAllAgentChatSessions enumerates every VS Code Copilot session across all
 // workspaces, regardless of project. OriginCwd is resolved from each workspace's
 // workspace.json (folder URI, or the .code-workspace file path for multi-root
-// workspaces — FindWorkspaceForProject matches both back). NativePath is the session
+// workspaces — findWorkspaceForProject matches both back). NativePath is the session
 // file itself. Lightweight: sessions are read for metadata only, no SessionData parse.
 func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 	slog.Debug("ListAllAgentChatSessions: enumerating all Copilot sessions", "app", p.variant.AppName)
@@ -495,7 +499,7 @@ func collectWorkspaceSessionRefs(workspaceDir string, refByID map[string]spi.Glo
 	}
 
 	// Prefer the multi-root workspace URI over the single folder URI, matching
-	// FindWorkspaceForProject, so OriginCwd round-trips through the same matcher.
+	// findWorkspaceForProject, so OriginCwd round-trips through the same matcher.
 	workspaceURI := workspaceJSON.PrimaryURI()
 	if workspaceURI == "" {
 		return

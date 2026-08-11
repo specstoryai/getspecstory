@@ -1150,3 +1150,59 @@ func TestWorkspaceIDCaseFolding(t *testing.T) {
 		t.Error("case-sensitive FS: differently-cased paths should yield distinct workspace ids")
 	}
 }
+
+// TestNewProjectIdentityManagerWithOverrides_DetectionRoot verifies that a locally
+// readable --project-path drives identity auto-detection: git_id must come from the
+// TARGET project's .git/config and project_name from the target's basename, while
+// .project.json itself stays anchored to the launch directory. Without the
+// detection root, git detection would walk up from the launch directory and find
+// nothing (or the wrong repo).
+func TestNewProjectIdentityManagerWithOverrides_DetectionRoot(t *testing.T) {
+	// Target project: a git repo with an origin remote.
+	targetProject := filepath.Join(t.TempDir(), "target-project")
+	gitDir := filepath.Join(targetProject, ".git")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = git@github.com:acme/target-project.git\n"
+	if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Launch directory: not a git repo.
+	cwd := t.TempDir()
+
+	manager := NewProjectIdentityManagerWithOverrides(cwd, "", targetProject, "")
+	if _, err := manager.EnsureProjectIdentity(); err != nil {
+		t.Fatalf("EnsureProjectIdentity failed: %v", err)
+	}
+
+	// .project.json is anchored to the launch directory, not the target.
+	if _, err := os.Stat(filepath.Join(cwd, ".specstory", ".project.json")); err != nil {
+		t.Fatalf(".project.json not written under launch dir: %v", err)
+	}
+	identity, err := manager.ReadProjectIdentity()
+	if err != nil {
+		t.Fatalf("ReadProjectIdentity failed: %v", err)
+	}
+	if identity.GitID == "" {
+		t.Error("git_id empty: detection did not walk the --project-path target's .git/config")
+	}
+	if identity.ProjectName != "target-project" {
+		t.Errorf("project_name = %q, want %q", identity.ProjectName, "target-project")
+	}
+
+	// Prove the git_id came from the target repo by comparing with a manager
+	// rooted there directly.
+	targetOnly := NewProjectIdentityManager(targetProject, filepath.Join(t.TempDir(), ".specstory"))
+	if _, err := targetOnly.EnsureProjectIdentity(); err != nil {
+		t.Fatalf("EnsureProjectIdentity (target-rooted) failed: %v", err)
+	}
+	targetIdentity, err := targetOnly.ReadProjectIdentity()
+	if err != nil {
+		t.Fatalf("ReadProjectIdentity (target-rooted) failed: %v", err)
+	}
+	if identity.GitID != targetIdentity.GitID {
+		t.Errorf("git_id = %q, want the target repo's %q", identity.GitID, targetIdentity.GitID)
+	}
+}
