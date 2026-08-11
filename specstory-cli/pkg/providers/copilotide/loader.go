@@ -2,6 +2,7 @@ package copilotide
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -9,13 +10,16 @@ import (
 	"strings"
 )
 
-// LoadAllSessionFiles returns paths to all session JSON files in the workspace
+// LoadAllSessionFiles returns paths to all session JSON files in the workspace.
+// A missing chatSessions directory is a normal state — the workspace has never
+// had a Copilot chat — so it reports zero sessions rather than an error,
+// keeping callers free of not-found branching; only real read failures error.
 func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
 
-	// Check if directory exists
 	if _, err := os.Stat(chatSessionsPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("chatSessions directory not found: %s", chatSessionsPath)
+		slog.Debug("No chatSessions directory (no chats yet)", "path", chatSessionsPath)
+		return nil, nil
 	}
 
 	files, err := os.ReadDir(chatSessionsPath)
@@ -75,7 +79,13 @@ func LoadSessionFile(sessionPath string) (*VSCodeComposer, error) {
 	return &composer, nil
 }
 
-// LoadSessionByID loads a specific session by ID from the workspace
+// errSessionNotFound reports that no session file exists for a requested ID.
+// Callers use it to distinguish "this session isn't here" (a normal outcome —
+// the SPI not-found contract is (nil, nil)) from a real load failure.
+var errSessionNotFound = errors.New("session not found")
+
+// LoadSessionByID loads a specific session by ID from the workspace.
+// Returns an error wrapping errSessionNotFound when no session file exists.
 func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
 	chatSessionsPath := GetChatSessionsPath(workspaceDir)
 
@@ -89,7 +99,7 @@ func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
 	} else if _, err := os.Stat(jsonPath); err == nil {
 		sessionPath = jsonPath
 	} else {
-		return nil, fmt.Errorf("session not found: %s", sessionID)
+		return nil, fmt.Errorf("%w: %s", errSessionNotFound, sessionID)
 	}
 
 	return LoadSessionFile(sessionPath)

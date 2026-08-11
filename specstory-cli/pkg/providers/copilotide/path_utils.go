@@ -78,15 +78,18 @@ func getWindowsWorkspaceStoragePathInWSL(dataDirName string) string {
 	return ""
 }
 
-// GetWorkspaceStoragePath returns the workspace storage directory path for the given
-// VS Code variant ("Code" for VS Code, "Code - Insiders" for Insiders, ...).
-// Returns empty string if the directory doesn't exist
-func GetWorkspaceStoragePath(variant Variant) string {
+// workspaceStorageRoot returns where the variant's workspace storage lives, without
+// requiring it to exist — workspace minting targets it before the app has ever
+// created it. Resolution order is the explicit --user-data-dir override, then the
+// Windows-side location when running under WSL, then the OS default. Only the first
+// two are existence-checked: they identify an install that is already there, whereas
+// the OS default is also the path a not-yet-created storage directory would take.
+// Empty only when the platform is unsupported or the home directory is unknown.
+func workspaceStorageRoot(variant Variant) string {
 	// An explicit --user-data-dir <provider-id>:<path> override takes precedence over
 	// OS-default discovery. If the derived workspaceStorage doesn't exist, warn and
 	// fall through so a stale override doesn't silently kill the provider.
-	override := userDataDirOverrides[variant.ID]
-	if override != "" {
+	if override := userDataDirOverrides[variant.ID]; override != "" {
 		candidate := filepath.Join(override, "User", "workspaceStorage")
 		if _, err := os.Stat(candidate); err == nil {
 			slog.Debug("Using --user-data-dir override for workspace storage", "provider", variant.ID, "path", candidate)
@@ -102,44 +105,50 @@ func GetWorkspaceStoragePath(variant Variant) string {
 		return ""
 	}
 
-	var storagePath string
 	switch runtime.GOOS {
 	case "darwin":
 		// macOS: ~/Library/Application Support/<dataDirName>/User/workspaceStorage/
-		storagePath = filepath.Join(homeDir, "Library", "Application Support", variant.DataDirName, "User", "workspaceStorage")
+		return filepath.Join(homeDir, "Library", "Application Support", variant.DataDirName, "User", "workspaceStorage")
 	case "linux":
-		// When running in WSL, VS Code stores workspace data on the Windows side
-		// Check Windows filesystem first via /mnt/c/, then fall back to native Linux
+		// Under WSL, a VS Code installed on the Windows side keeps its workspace data
+		// there, so check the Windows filesystem via /mnt/c/ before the native path.
 		if isWSL() {
 			slog.Debug("Detected WSL environment, checking Windows filesystem")
-			storagePath = getWindowsWorkspaceStoragePathInWSL(variant.DataDirName)
-			if storagePath != "" {
-				return storagePath
+			if windowsPath := getWindowsWorkspaceStoragePathInWSL(variant.DataDirName); windowsPath != "" {
+				return windowsPath
 			}
 			slog.Debug("No workspace storage found on Windows side, trying native Linux path")
 		}
 
 		// Native Linux or WSL fallback: ~/.config/<dataDirName>/User/workspaceStorage/
-		storagePath = filepath.Join(homeDir, ".config", variant.DataDirName, "User", "workspaceStorage")
+		return filepath.Join(homeDir, ".config", variant.DataDirName, "User", "workspaceStorage")
 	case "windows":
 		// Windows: %APPDATA%\<dataDirName>\User\workspaceStorage\
 		appData := os.Getenv("APPDATA")
-		slog.Debug("Windows APPDATA environment variable", "appData", appData)
 		if appData == "" {
 			slog.Warn("APPDATA environment variable not set")
 			return ""
 		}
-		storagePath = filepath.Join(appData, variant.DataDirName, "User", "workspaceStorage")
-		slog.Debug("Checking Windows workspace storage path", "path", storagePath)
+		return filepath.Join(appData, variant.DataDirName, "User", "workspaceStorage")
 	default:
+		return ""
+	}
+}
+
+// GetWorkspaceStoragePath returns the workspace storage directory path for the given
+// VS Code variant ("Code" for VS Code, "Code - Insiders" for Insiders, ...).
+// Returns empty string if the directory doesn't exist.
+func GetWorkspaceStoragePath(variant Variant) string {
+	storagePath := workspaceStorageRoot(variant)
+	if storagePath == "" {
 		return ""
 	}
 
 	// Check if directory exists
-	if _, err := os.Stat(storagePath); os.IsNotExist(err) {
+	if _, err := os.Stat(storagePath); err != nil {
 		// Escalate to a warning only when the user supplied an override that also missed —
 		// otherwise this is just "VS Code isn't installed" and should stay quiet.
-		if override != "" {
+		if override := userDataDirOverrides[variant.ID]; override != "" {
 			slog.Warn("Workspace storage missing at both override and OS-default paths; provider will be idle until restart",
 				"provider", variant.ID, "override", override, "osDefault", storagePath)
 		} else {
@@ -156,6 +165,31 @@ func GetWorkspaceStoragePath(variant Variant) string {
 // VS Code variant. Returns empty string if the directory doesn't exist.
 func (p *Provider) workspaceStoragePath() string {
 	return GetWorkspaceStoragePath(p.variant)
+}
+
+// HasAnyChatSessions reports whether any workspace in the given distribution's
+// storage has ever had a Copilot chat session. The registry uses this to decide
+// whether an alternative VS Code distribution (Insiders, VSCodium, ...) is worth
+// registering: merely having opened the app creates workspace storage, but only
+// an actual Copilot chat creates a chatSessions directory.
+func HasAnyChatSessions(variant Variant) bool {
+	storagePath := GetWorkspaceStoragePath(variant)
+	if storagePath == "" {
+		return false
+	}
+	entries, err := os.ReadDir(storagePath)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(GetChatSessionsPath(filepath.Join(storagePath, entry.Name()))); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // GetChatSessionsPath returns the chatSessions directory for a workspace

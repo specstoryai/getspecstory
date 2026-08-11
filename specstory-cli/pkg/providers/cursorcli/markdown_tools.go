@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
@@ -65,11 +67,8 @@ func formatWriteTool(args map[string]interface{}) string {
 	// Get language for syntax highlighting
 	lang := getLanguageFromExtension(filePath)
 
-	// Escape triple backticks in content to prevent breaking the code block
-	escapedContent := strings.ReplaceAll(contents, "```", "\\```")
-
-	// Add content in triple backticks with language hint
-	return fmt.Sprintf("```%s\n%s\n```", lang, escapedContent)
+	// Add content in a safely sized code fence with language hint
+	return spi.CodeFence(lang, contents)
 }
 
 // formatStrReplaceTool formats StrReplace tool usage with git diff style output
@@ -88,26 +87,20 @@ func formatStrReplaceTool(args map[string]interface{}) string {
 		oldLines := strings.Split(oldString, "\n")
 		newLines := strings.Split(newString, "\n")
 
-		// Format as a diff
-		result.WriteString("```diff\n")
-
-		// Add file path as a header if available
+		// Format as a diff, fenced safely so code lines containing backtick
+		// runs cannot terminate the block early.
+		var diff strings.Builder
 		if filePath != "" {
-			fmt.Fprintf(&result, "--- %s\n", filePath)
-			fmt.Fprintf(&result, "+++ %s\n", filePath)
+			fmt.Fprintf(&diff, "--- %s\n", filePath)
+			fmt.Fprintf(&diff, "+++ %s\n", filePath)
 		}
-
-		// Add old lines with - prefix
 		for _, line := range oldLines {
-			fmt.Fprintf(&result, "-%s\n", line)
+			fmt.Fprintf(&diff, "-%s\n", line)
 		}
-
-		// Add new lines with + prefix
 		for _, line := range newLines {
-			fmt.Fprintf(&result, "+%s\n", line)
+			fmt.Fprintf(&diff, "+%s\n", line)
 		}
-
-		result.WriteString("```")
+		result.WriteString(spi.CodeFence("diff", strings.TrimRight(diff.String(), "\n")))
 	} else {
 		// Fallback if arguments are missing
 		if filePath != "" {
@@ -277,14 +270,7 @@ func formatToolResult(result string) string {
 		return ""
 	}
 
-	var output strings.Builder
-
-	// Escape triple backticks in result to prevent breaking the code block
-	escapedResult := strings.ReplaceAll(result, "```", "\\```")
-
-	fmt.Fprintf(&output, "```\n%s\n```", escapedResult)
-
-	return output.String()
+	return spi.CodeFence("", result)
 }
 
 // Todo status constants

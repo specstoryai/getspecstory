@@ -122,8 +122,8 @@ Provide a specific agent ID to list sessions from only that provider.`
 	}
 
 	cmd.Flags().BoolVar(&flags.json, "json", false, "Output as JSON (default is human-readable table)")
-	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
-	cmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
+	AddProvidersFlag(cmd)
+	AddUserDataDirFlag(cmd)
 
 	return cmd
 }

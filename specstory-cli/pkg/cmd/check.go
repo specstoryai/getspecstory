@@ -106,8 +106,8 @@ Specify a specific agent ID to check only a specific coding agent.`,
 	}
 
 	cmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
-	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
-	cmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
+	AddProvidersFlag(cmd)
+	AddUserDataDirFlag(cmd)
 
 	return cmd
 }
@@ -146,7 +146,11 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 	// Display results with the nice formatting
 	if result.Success {
 		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-		fmt.Printf("  📦 Version: %s\n", result.Version)
+		// IDE-backed providers report no version (none is discoverable cheaply);
+		// omit the line rather than printing an empty value.
+		if result.Version != "" {
+			fmt.Printf("  📦 Version: %s\n", result.Version)
+		}
 		fmt.Printf("  📍 Location: %s\n", result.Location)
 		fmt.Printf("  ✅ Status: All systems go!\n\n")
 
@@ -206,7 +210,11 @@ func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 			anySuccess = true
 			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
 			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-			fmt.Printf("  📦 Version: %s\n", result.Version)
+			// IDE-backed providers report no version; omit the line rather than
+			// printing an empty value.
+			if result.Version != "" {
+				fmt.Printf("  📦 Version: %s\n", result.Version)
+			}
 			fmt.Printf("  📍 Location: %s\n", result.Location)
 			fmt.Printf("  ✅ Status: All systems go!\n")
 		} else {

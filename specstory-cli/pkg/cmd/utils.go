@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
@@ -12,6 +14,23 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
+
+// AddProvidersFlag registers the --providers filter flag on a command. Shared so
+// the flag stays identical across every command that supports provider filtering.
+// The flag is hidden because it's internal — provider filtering isn't part of the
+// public CLI surface (the positional provider-id argument is).
+func AddProvidersFlag(cmd *cobra.Command) {
+	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
+	_ = cmd.Flags().MarkHidden("providers")
+}
+
+// AddUserDataDirFlag registers the --user-data-dir override flag on a command. Shared so
+// the flag stays identical across every command that resolves IDE storage locations.
+// Unlike --providers this flag stays visible: a portable or otherwise non-standard IDE
+// install cannot be found any other way, so it has to be discoverable from --help.
+func AddUserDataDirFlag(cmd *cobra.Command) {
+	cmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
+}
 
 // ResolveProviderIDs resolves the effective list of provider IDs from a positional
 // arg and/or --providers flag. Returns nil to indicate "use all providers" when

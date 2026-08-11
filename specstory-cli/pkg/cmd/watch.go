@@ -327,12 +327,15 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		},
 	}
 
-	// Shared session-processing flags plus watch's own json output flag
+	// Shared session-processing flags plus watch's own json output and provider
+	// filter. The provider filter stays here rather than in the shared helper
+	// because resume and search act on one already-identified session, where
+	// filtering by provider has no meaning.
 	registerSessionProcessingFlags(watchCmd, cloudURL, defaults)
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
 	watchCmd.Flags().String("config-dir", "", "custom directory for the project-level config.toml (default: ./.specstory/cli)")
-	watchCmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
-	watchCmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
+	AddProvidersFlag(watchCmd)
+	AddUserDataDirFlag(watchCmd)
 
 	return watchCmd
 }

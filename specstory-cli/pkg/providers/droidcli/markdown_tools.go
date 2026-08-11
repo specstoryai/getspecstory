@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func formatToolCall(tool *fdToolCall) string {
@@ -110,7 +112,6 @@ func formatEditDiffOutput(content string) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString("```diff\n")
 	for _, line := range result.DiffLines {
 		switch line.Type {
 		case "added":
@@ -127,8 +128,7 @@ func formatEditDiffOutput(content string) string {
 			builder.WriteString("\n")
 		}
 	}
-	builder.WriteString("```")
-	return builder.String()
+	return spi.CodeFence("diff", strings.TrimRight(builder.String(), "\n"))
 }
 
 func decodeInput(raw json.RawMessage) map[string]any {
@@ -359,7 +359,6 @@ func renderSingleEdit(args map[string]any) string {
 
 func formatDiffBlock(oldText string, newText string) string {
 	var builder strings.Builder
-	builder.WriteString("```diff\n")
 	if oldText != "" {
 		for _, line := range strings.Split(oldText, "\n") {
 			builder.WriteString("-")
@@ -374,8 +373,7 @@ func formatDiffBlock(oldText string, newText string) string {
 			builder.WriteString("\n")
 		}
 	}
-	builder.WriteString("```")
-	return builder.String()
+	return spi.CodeFence("diff", strings.TrimRight(builder.String(), "\n"))
 }
 
 func renderApplyPatch(args map[string]any) string {
@@ -383,7 +381,7 @@ func renderApplyPatch(args map[string]any) string {
 	if patch == "" {
 		return renderGenericJSON(args)
 	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+	return spi.CodeFence("diff", strings.TrimSpace(patch))
 }
 
 func renderTodoWrite(args map[string]any) string {
@@ -578,7 +576,7 @@ func renderGenericJSON(args map[string]any) string {
 	}
 	sort.Strings(ordered)
 	var builder strings.Builder
-	builder.WriteString("```json\n{")
+	builder.WriteString("{")
 	for idx, key := range ordered {
 		if idx > 0 {
 			builder.WriteString(",")
@@ -588,8 +586,8 @@ func renderGenericJSON(args map[string]any) string {
 		builder.WriteString("\": ")
 		builder.WriteString(renderJSONValue(args[key]))
 	}
-	builder.WriteString("\n}\n```")
-	return builder.String()
+	builder.WriteString("\n}")
+	return spi.CodeFence("json", builder.String())
 }
 
 func renderJSONValue(v any) string {
@@ -700,12 +698,7 @@ func formatQuotedList(values []string) string {
 }
 
 func formatContentBlock(content string, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
-	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
+	return spi.CodeFence(languageFromPath(path), content)
 }
 
 func languageFromPath(path string) string {

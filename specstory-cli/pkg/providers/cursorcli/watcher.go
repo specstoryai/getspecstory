@@ -25,6 +25,7 @@ type CursorWatcher struct {
 	wg              sync.WaitGroup
 	callbackWg      sync.WaitGroup              // Track callback goroutines
 	lastCounts      map[string]int              // Track record counts per session
+	walEnabled      map[string]bool             // Sessions whose store.db is confirmed in WAL mode
 	knownSessions   map[string]bool             // Sessions that existed at startup (don't process unless resumed)
 	resumedSession  string                      // Session ID being resumed (watch for changes)
 	sessionCallback func(*spi.AgentChatSession) // Callback for session updates
@@ -50,6 +51,7 @@ func NewCursorWatcher(projectPath string, debugRaw bool, sessionCallback func(*s
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		resumedSession:  "",
 		sessionCallback: sessionCallback,
@@ -221,11 +223,25 @@ func (w *CursorWatcher) hasSessionChanged(sessionID string, dbPath string) bool 
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	// Ensure WAL mode before polling so our read-only connections and
+	// cursor-agent's writer don't block each other. Not marked done on failure,
+	// so a transient lock at first sight is retried on the next poll instead of
+	// leaving the session without WAL forever.
+	if !w.walEnabled[sessionID] {
+		if err := spi.EnsureWALMode(dbPath); err != nil {
+			slog.Warn("Failed to ensure WAL mode on session database",
+				"sessionId", sessionID, "error", err)
+		} else {
+			w.walEnabled[sessionID] = true
+		}
+	}
+
 	// Always check record count - don't rely on file modification time
 	// SQLite with WAL mode may not update file mtime when records are added
 
-	// Open database to count records (read-only with controlled pool)
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	// Open read-only with a busy timeout so a transient lock held by
+	// cursor-agent's writer doesn't fail the poll
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		slog.Error("Failed to open database", "sessionId", sessionID, "error", err)
 		return false
@@ -236,10 +252,10 @@ func (w *CursorWatcher) hasSessionChanged(sessionID string, dbPath string) bool 
 		}
 	}()
 
-	// Limit the connection pool to prevent file descriptor accumulation
+	// Limit the connection pool: SQLite serialises access anyway, so one
+	// connection is sufficient
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
-	db.SetConnMaxLifetime(30 * time.Second)
 
 	// Count total records in the blobs table
 	var count int
@@ -254,12 +270,6 @@ func (w *CursorWatcher) hasSessionChanged(sessionID string, dbPath string) bool 
 	w.lastCounts[sessionID] = count
 
 	if !countExists {
-		// First time seeing this session - ensure WAL mode before we start polling it
-		if err := EnsureWALMode(dbPath); err != nil {
-			slog.Warn("Failed to ensure WAL mode on session database",
-				"sessionId", sessionID, "error", err)
-		}
-
 		// First time seeing this session - only process if it has content
 		if count > 0 {
 			slog.Debug("First check of session with content", "sessionId", sessionID, "recordCount", count)

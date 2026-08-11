@@ -6,16 +6,18 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // createTestWorkspace creates a temp workspace storage directory with a state.vscdb
 // containing an empty ItemTable, and returns a WorkspaceMatch pointing at it.
-func createTestWorkspace(t *testing.T) *WorkspaceMatch {
+func createTestWorkspace(t *testing.T) *vscode.WorkspaceEntry {
 	t.Helper()
 	dir := t.TempDir()
 	db, err := sql.Open("sqlite", GetWorkspaceStateDBPath(dir))
@@ -27,14 +29,14 @@ func createTestWorkspace(t *testing.T) *WorkspaceMatch {
 		t.Fatalf("createTestWorkspace: create ItemTable: %v", err)
 	}
 	_ = db.Close()
-	return &WorkspaceMatch{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj", Path: "/tmp/proj"}
+	return &vscode.WorkspaceEntry{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj", ResolvedPath: "/tmp/proj"}
 }
 
 // newTestProvider returns a VS Code provider whose reconstruction workspace lookup
 // always resolves to the provided workspace, regardless of the project path argument.
-func newTestProvider(ws *WorkspaceMatch) *Provider {
+func newTestProvider(ws *vscode.WorkspaceEntry) *Provider {
 	p := NewProvider(VSCode)
-	p.findWorkspaceForReconstruction = func(_ string) (*WorkspaceMatch, error) { return ws, nil }
+	p.findWorkspaceForReconstruction = func(_ string) (*vscode.WorkspaceEntry, error) { return ws, nil }
 	return p
 }
 
@@ -95,8 +97,40 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 	if rec.SessionID == "" || rec.Filename != rec.SessionID+".jsonl" {
 		t.Errorf("unexpected identity: sessionID=%q filename=%q", rec.SessionID, rec.Filename)
 	}
-	if len(rec.Content) == 0 || strings.Count(strings.TrimSpace(string(rec.Content)), "\n") != 0 {
-		t.Fatalf("content should be a single JSONL line, got %d bytes", len(rec.Content))
+
+	// The file must mirror a session VS Code itself compacted on close: a
+	// single kind:0 snapshot with the conversation inline, and every request
+	// carrying the completed-state fields (agent identity, modeInfo,
+	// modelState, result) — VS Code's revival drops requests without them and
+	// then auto-deletes the resulting empty session.
+	contentLines := strings.Split(strings.TrimSpace(string(rec.Content)), "\n")
+	if len(contentLines) != 1 {
+		t.Fatalf("content should be a single compacted snapshot line, got %d lines", len(contentLines))
+	}
+	var first struct {
+		Kind int `json:"kind"`
+		V    struct {
+			Requests []map[string]any `json:"requests"`
+		} `json:"v"`
+	}
+	if err := json.Unmarshal([]byte(contentLines[0]), &first); err != nil {
+		t.Fatalf("parse snapshot line: %v", err)
+	}
+	if first.Kind != 0 {
+		t.Fatalf("snapshot line kind = %d, want 0", first.Kind)
+	}
+	if len(first.V.Requests) == 0 {
+		t.Fatal("snapshot must inline the requests")
+	}
+	for _, required := range []string{"agent", "modeInfo", "modelState", "result", "responseTimestamp"} {
+		if _, present := first.V.Requests[0][required]; !present {
+			t.Errorf("request must carry completed-state field %q", required)
+		}
+	}
+	if parts, ok := first.V.Requests[0]["message"].(map[string]any)["parts"].([]any); ok && len(parts) > 0 {
+		if kind, _ := parts[0].(map[string]any)["kind"].(string); kind != "text" {
+			t.Errorf("message part kind = %q, want \"text\" (current VS Code serializes the discriminator)", kind)
+		}
 	}
 
 	// Write the content where the resume flow would and parse it back with the loader.
@@ -169,19 +203,18 @@ func TestReconstructSession_MigrationNote(t *testing.T) {
 		t.Fatalf("ReconstructSession: %v", err)
 	}
 
-	var snapshot struct {
-		V VSCodeComposer `json:"v"`
+	// Parse the incremental JSONL through the provider's own loader.
+	composer, err := parseJSONL(rec.Content)
+	if err != nil {
+		t.Fatalf("parseJSONL: %v", err)
 	}
-	if err := json.Unmarshal(rec.Content, &snapshot); err != nil {
-		t.Fatalf("parse snapshot: %v", err)
+	if len(composer.Requests) != 3 {
+		t.Fatalf("requests = %d, want 3 (synthetic host + 2 real)", len(composer.Requests))
 	}
-	if len(snapshot.V.Requests) != 3 {
-		t.Fatalf("requests = %d, want 3 (synthetic host + 2 real)", len(snapshot.V.Requests))
+	if composer.Requests[0].Message.Text != importedRequestText {
+		t.Errorf("request[0] user text = %q, want synthetic host text", composer.Requests[0].Message.Text)
 	}
-	if snapshot.V.Requests[0].Message.Text != importedRequestText {
-		t.Errorf("request[0] user text = %q, want synthetic host text", snapshot.V.Requests[0].Message.Text)
-	}
-	if got := ExtractTextFromResponseArray(snapshot.V.Requests[0].Response); got != note {
+	if got := ExtractTextFromResponseArray(composer.Requests[0].Response); got != note {
 		t.Errorf("request[0] agent text = %q, want migration note", got)
 	}
 }
@@ -251,6 +284,71 @@ func TestWriteSessionIndexEntry_PreservesExisting(t *testing.T) {
 	// Unmodeled fields on the pre-existing entry must survive the merge untouched.
 	if !strings.Contains(string(index.Entries["other-id"]), `"someFutureField":42`) {
 		t.Errorf("existing entry lost unmodeled fields: %s", index.Entries["other-id"])
+	}
+}
+
+// TestEnsureWorkspaceForReconstruction_MintsEntry verifies that resuming into a
+// project never opened in VS Code mints a workspace entry VS Code will adopt:
+// the directory name is VS Code's own md5(path+salt) ID, workspace.json points
+// at the folder, and state.vscdb carries the ItemTable the index write needs.
+func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
+	fakeHome := t.TempDir()
+	t.Setenv("HOME", fakeHome)
+	storageRoot := filepath.Join(fakeHome, "Library", "Application Support", "Code", "User", "workspaceStorage")
+	if runtime.GOOS == "linux" {
+		storageRoot = filepath.Join(fakeHome, ".config", "Code", "User", "workspaceStorage")
+	}
+	if err := os.MkdirAll(storageRoot, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	projectDir := filepath.Join(fakeHome, "proj")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	p := NewProvider(VSCode)
+	ws, err := p.ensureWorkspaceForReconstruction(projectDir)
+	if err != nil {
+		t.Fatalf("ensureWorkspaceForReconstruction: %v", err)
+	}
+
+	canonical, err := spi.GetCanonicalPath(projectDir)
+	if err != nil {
+		canonical = projectDir
+	}
+	wantID, err := vscode.WorkspaceID(canonical)
+	if err != nil {
+		t.Fatalf("vscodeWorkspaceID: %v", err)
+	}
+	if ws.ID != wantID {
+		t.Errorf("minted ID = %q, want VS Code's own %q", ws.ID, wantID)
+	}
+
+	wsJSON, err := vscode.ReadWorkspaceJSON(GetWorkspaceMetadataPath(ws.Dir))
+	if err != nil {
+		t.Fatalf("minted workspace.json unreadable: %v", err)
+	}
+	if got, err := vscode.URIToPath(wsJSON.Folder); err != nil || got != canonical {
+		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, canonical)
+	}
+
+	db, err := sql.Open("sqlite", GetWorkspaceStateDBPath(ws.Dir))
+	if err != nil {
+		t.Fatalf("minted state.vscdb unopenable: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	var n int
+	if err := db.QueryRow("SELECT count(*) FROM ItemTable").Scan(&n); err != nil {
+		t.Errorf("minted state.vscdb lacks ItemTable: %v", err)
+	}
+
+	// A second call must find the minted entry, not mint a duplicate.
+	again, err := p.ensureWorkspaceForReconstruction(projectDir)
+	if err != nil {
+		t.Fatalf("second ensure: %v", err)
+	}
+	if again.ID != ws.ID {
+		t.Errorf("second ensure minted a different entry: %q vs %q", again.ID, ws.ID)
 	}
 }
 

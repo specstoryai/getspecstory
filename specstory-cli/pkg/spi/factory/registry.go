@@ -87,22 +87,26 @@ func (r *Registry) registerAll() {
 
 	// The Copilot IDE provider is variant-driven: one instance per VS Code
 	// distribution, keyed by the variant's own ID so the registry key always
-	// matches the provider ID stamped into generated session data.
+	// matches the provider ID stamped into generated session data. Stock VS Code
+	// is always registered like every other provider; the alternative
+	// distributions register only when they hold at least one Copilot chat, so
+	// merely having Insiders or VSCodium installed doesn't add provider entries
+	// to watch banners, all-provider checks, and sync sweeps. The trade-off: a
+	// variant's very first Copilot chat must happen without SpecStory (nothing
+	// to watch exists until then).
 	copilotideProvider := copilotide.NewProvider(copilotide.VSCode)
 	r.providers[copilotide.VSCode.ID] = copilotideProvider
 	slog.Debug("Registered provider", "id", copilotide.VSCode.ID, "name", copilotideProvider.Name())
 
-	copilotideInsidersProvider := copilotide.NewProvider(copilotide.VSCodeInsiders)
-	r.providers[copilotide.VSCodeInsiders.ID] = copilotideInsidersProvider
-	slog.Debug("Registered provider", "id", copilotide.VSCodeInsiders.ID, "name", copilotideInsidersProvider.Name())
-
-	copilotideVSCodiumProvider := copilotide.NewProvider(copilotide.VSCodium)
-	r.providers[copilotide.VSCodium.ID] = copilotideVSCodiumProvider
-	slog.Debug("Registered provider", "id", copilotide.VSCodium.ID, "name", copilotideVSCodiumProvider.Name())
-
-	copilotideVSCodiumInsidersProvider := copilotide.NewProvider(copilotide.VSCodiumInsiders)
-	r.providers[copilotide.VSCodiumInsiders.ID] = copilotideVSCodiumInsidersProvider
-	slog.Debug("Registered provider", "id", copilotide.VSCodiumInsiders.ID, "name", copilotideVSCodiumInsidersProvider.Name())
+	for _, variant := range []copilotide.Variant{copilotide.VSCodeInsiders, copilotide.VSCodium, copilotide.VSCodiumInsiders} {
+		if !copilotide.HasAnyChatSessions(variant) {
+			slog.Debug("Skipping Copilot IDE variant (no Copilot chats)", "id", variant.ID)
+			continue
+		}
+		variantProvider := copilotide.NewProvider(variant)
+		r.providers[variant.ID] = variantProvider
+		slog.Debug("Registered provider", "id", variant.ID, "name", variantProvider.Name())
+	}
 
 	deepseekProvider := deepseektui.NewProvider()
 	r.providers["deepseek"] = deepseekProvider

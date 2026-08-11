@@ -1,16 +1,22 @@
 package copilotide
 
 import (
+	"bufio"
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/term"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver, for the workspace state.vscdb index write
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -71,6 +77,12 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		return nil, fmt.Errorf("cannot register session in %s: no workspace found for %q (open the folder in %s once first): %w", p.variant.AppName, workspaceRoot, p.variant.AppName, wsErr)
 	}
 
+	// A running instance of this variant would erase the session: VS Code holds
+	// the chat-session index in memory and flushes it over our write when it
+	// exits. Hold the write until the app is fully quit (prompting the user),
+	// so the registration below actually survives to the next startup.
+	p.waitUntilAppQuit()
+
 	newID := uuid.NewString()
 	nowMs := time.Now().UnixMilli()
 	title := spi.ResumedSessionTitle(data.Slug)
@@ -83,15 +95,18 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		lastMs = nowMs + int64(n-1)*1000
 	}
 
-	// Top-level snapshot fields mirror what current VS Code writes (observed on a real
-	// v3 session file); customTitle is what the Chat panel displays and what our own
-	// slug/name extraction prefers. inputState (the chat input box UI state) is omitted —
-	// VS Code defaults it when absent.
+	// The file mirrors a session VS Code itself compacted on close: a single
+	// kind:0 snapshot with the conversation inline and the same top-level key
+	// set (verified against a VS Code 1.131-authored file that loads
+	// correctly). inputState is deliberately omitted even though VS Code
+	// serializes one: it embeds per-user model and auth metadata (including the
+	// GitHub account label), which must not be templated into reconstructed
+	// sessions; VS Code defaults it when absent.
 	composer := map[string]any{
 		"version":           copilotSessionVersion,
 		"sessionId":         newID,
-		"customTitle":       title,
 		"creationDate":      nowMs,
+		"customTitle":       title,
 		"lastMessageDate":   lastMs,
 		"isImported":        true,
 		"initialLocation":   "panel",
@@ -101,10 +116,13 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		"requests":          requests,
 	}
 
+	var content bytes.Buffer
 	line, err := json.Marshal(map[string]any{"kind": 0, "v": composer})
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal session snapshot: %w", err)
 	}
+	content.Write(line)
+	content.WriteByte('\n')
 
 	entry := sessionIndexEntry{
 		SessionID:       newID,
@@ -117,8 +135,9 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		},
 		InitialLocation:   "panel",
 		LastResponseState: indexResponseStateComplete,
+		PermissionLevel:   "default",
 	}
-	if err := writeSessionIndexEntry(GetWorkspaceStateDBPath(workspace.Dir), entry); err != nil {
+	if err := writeSessionIndexEntry(workspace.StateDBPath(), entry); err != nil {
 		return nil, fmt.Errorf("failed to register session in VS Code workspace index: %w", err)
 	}
 
@@ -128,8 +147,55 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	return &spi.ReconstructedSession{
 		SessionID: newID,
 		Filename:  newID + ".jsonl",
-		Content:   append(line, '\n'),
+		Content:   content.Bytes(),
 	}, nil
+}
+
+// waitUntilAppQuit blocks while this variant's app is running, prompting the
+// user to quit it: an external write to the chat-session index only survives
+// when the app's process is fully dead. Detection is per variant, so a running
+// stock VS Code doesn't hold up an Insiders-targeted reconstruction. When
+// stdin isn't a terminal (scripted resume), prompting is impossible: warn once
+// and proceed so automation isn't wedged — the session file still lands, only
+// its panel registration is at risk.
+func (p *Provider) waitUntilAppQuit() {
+	if !p.appRunning() {
+		return
+	}
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		fmt.Fprintf(os.Stderr, "\nWarning: %s is running — the imported session may not appear in its Chat panel. Quit it fully before resuming to avoid this.\n", p.variant.AppName)
+		return
+	}
+	// On macOS, closing every window still leaves the app running — only a real
+	// quit (Cmd+Q) kills the process. On Linux, closing the last window exits.
+	howToQuit := "Quit it fully"
+	if runtime.GOOS == "darwin" {
+		howToQuit = "Quit it fully (Cmd+Q — closing its windows is not enough)"
+	}
+	reader := bufio.NewReader(os.Stdin)
+	for p.appRunning() {
+		fmt.Fprintf(os.Stderr, "\n%s is running, and the imported session would be lost when it exits.\n%s, then press Enter to continue (Ctrl-C aborts): ", p.variant.AppName, howToQuit)
+		if _, err := reader.ReadString('\n'); err != nil {
+			// Stdin closed mid-prompt: proceed best-effort rather than hang.
+			return
+		}
+	}
+	fmt.Fprintln(os.Stderr)
+}
+
+// appRunning reports whether any process of this variant's application is
+// alive. On macOS the app bundle path is the reliable discriminator; on Linux
+// the launcher binary name is matched as a path segment, with a trailing
+// boundary so e.g. "code" cannot match "codex".
+func (p *Provider) appRunning() bool {
+	var pattern string
+	if runtime.GOOS == "darwin" {
+		pattern = p.variant.BundleName + ".app/Contents/MacOS"
+	} else {
+		pattern = "/" + p.variant.Command + "( |$)"
+	}
+	out, err := exec.Command("pgrep", "-f", pattern).Output()
+	return err == nil && len(strings.TrimSpace(string(out))) > 0
 }
 
 // NativeSessionPath resolves where a reconstructed session file belongs: the matched
@@ -185,10 +251,31 @@ func buildRequestBlocks(turns []spi.Turn, baseMs int64) []map[string]any {
 	return blocks
 }
 
-// buildRequestBlock serializes one user->agent exchange in the shape VS Code writes:
-// the message carries the parsed single-text-part form, and the response is a serialized
-// markdown string (an object with a `value` field and no `kind` — exactly what VS Code
-// itself stores for plain markdown responses, and what our parser reads back).
+// requestAgentTemplate and requestModeInfoTemplate are the chat-participant and
+// mode descriptors copied verbatim from a request VS Code 1.131 (Copilot Chat
+// 0.60.0) serialized itself. VS Code's session revival drops requests that lack
+// their agent identity and completed-state fields — the session then loads
+// empty and is auto-deleted — so every reconstructed request carries the stock
+// Copilot agent-mode descriptors. The extension version inside is a snapshot,
+// not a constraint: VS Code reconciles the descriptor with the live agent
+// registry at load.
+const requestAgentTemplate = `{"extensionId":{"value":"GitHub.copilot-chat","_lower":"github.copilot-chat"},"extensionVersion":"0.60.0","publisherDisplayName":"GitHub","extensionPublisherId":"GitHub","extensionDisplayName":"GitHub Copilot","id":"github.copilot.editsAgent","description":"Edit files in your workspace in agent mode","when":"config.chat.agent.enabled","metadata":{"themeIcon":{"id":"tools"},"hasFollowups":false,"supportIssueReporting":false},"name":"agent","fullName":"GitHub Copilot","isDefault":true,"locations":["panel"],"modes":["agent"],"slashCommands":[]}`
+
+const requestModeInfoTemplate = `{"kind":"agent","isBuiltin":true,"telemetryModeId":"agent","telemetryModeName":"agent","permissionLevel":"default"}`
+
+// requestModelStateComplete is the modelState value VS Code records on a
+// request whose response finished normally.
+const requestModelStateComplete = 1
+
+// buildRequestBlock serializes one user->agent exchange mirroring a completed
+// request from a VS Code-authored session file field-for-field: the message
+// part carries kind "text" plus range, editorRange, and text (verified against
+// a VS Code 1.131 file — earlier VS Code builds serialized parts without the
+// kind discriminator, so match the current shape, not old files), the response
+// is a serialized markdown string (an object with a `value` field and no
+// `kind`), and the completed-state fields — agent, modeInfo, modelState,
+// result, responseTimestamp — are present because VS Code's revival treats
+// requests without them as unloadable.
 func buildRequestBlock(userText, agentText string, tsMs int64) map[string]any {
 	lines := strings.Split(userText, "\n")
 
@@ -202,10 +289,18 @@ func buildRequestBlock(userText, agentText string, tsMs int64) map[string]any {
 	}
 
 	return map[string]any{
-		"requestId":  "request_" + uuid.NewString(),
-		"responseId": "response_" + uuid.NewString(),
-		"timestamp":  tsMs,
-		"modelId":    copilotModelID,
+		"requestId":         "request_" + uuid.NewString(),
+		"responseId":        "response_" + uuid.NewString(),
+		"timestamp":         tsMs,
+		"responseTimestamp": tsMs,
+		"timeSpentWaiting":  0,
+		"modelId":           copilotModelID,
+		"agent":             json.RawMessage(requestAgentTemplate),
+		"modeInfo":          json.RawMessage(requestModeInfoTemplate),
+		"modelState": map[string]any{
+			"value":       requestModelStateComplete,
+			"completedAt": tsMs,
+		},
 		"message": map[string]any{
 			"text": userText,
 			"parts": []any{map[string]any{
@@ -230,7 +325,6 @@ func buildRequestBlock(userText, agentText string, tsMs int64) map[string]any {
 		},
 		"variableData":      map[string]any{"variables": []any{}},
 		"followups":         []any{},
-		"isCanceled":        false,
 		"contentReferences": []any{},
 		"codeCitations":     []any{},
 	}
@@ -262,6 +356,7 @@ type sessionIndexEntry struct {
 	IsEmpty           bool               `json:"isEmpty"`
 	IsExternal        bool               `json:"isExternal"`
 	LastResponseState int                `json:"lastResponseState"`
+	PermissionLevel   string             `json:"permissionLevel"`
 }
 
 // sessionIndexTiming mirrors the timing sub-object of an index entry.

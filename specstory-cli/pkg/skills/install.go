@@ -43,16 +43,33 @@ func canonicalSkillsDir(global bool, projectDir string) string {
 	return filepath.Join(projectDir, agentsDirName, skillsSubdir)
 }
 
-// agentBaseDir is where an agent's skills live for the chosen scope. Universal agents always
-// resolve to the canonical store (their store IS .agents/skills).
+// agentBaseDir is where an agent's skills live for the chosen scope. Universal agents resolve
+// to the canonical store for a project install (their project store IS .agents/skills), but a
+// declared GlobalDir still wins for a global install — see needsGlobalLink.
 func agentBaseDir(a Agent, global bool, projectDir string) string {
-	if a.Universal() {
-		return canonicalSkillsDir(global, projectDir)
-	}
 	if global {
-		return a.GlobalDir
+		if a.GlobalDir != "" {
+			return a.GlobalDir
+		}
+		if a.Universal() {
+			return canonicalSkillsDir(true, projectDir)
+		}
+		return "" // no global store for this agent; callers treat "" as skipped
+	}
+	if a.Universal() {
+		return canonicalSkillsDir(false, projectDir)
 	}
 	return filepath.Join(projectDir, a.ProjectDir)
+}
+
+// needsGlobalLink reports whether a universal agent still needs its own symlink for a global
+// install. Reading .agents/skills makes an agent universal *within a project*, but several such
+// agents scan a different directory when running outside one — Antigravity's ~/.gemini/config,
+// Codex's ~/.codex, Cursor's ~/.cursor — so a global install must be linked there too. Agents
+// whose global store already IS the canonical ~/.agents/skills (Cline) are excluded, since
+// linking a directory into itself is both pointless and destructive.
+func needsGlobalLink(a Agent, global bool) bool {
+	return global && a.GlobalDir != "" && a.GlobalDir != canonicalSkillsDir(true, "")
 }
 
 // diskInstallResult reports what installSkillToDisk did, so the engine can record the lock
@@ -84,8 +101,9 @@ func installSkillToDisk(name, skillMd string, global bool, projectDir string, ta
 
 	res := diskInstallResult{canonicalDir: canonicalDir}
 	for _, a := range targets {
-		// Universal agents read the canonical store directly — no symlink needed.
-		if a.Universal() {
+		// Universal agents read the canonical store directly — no symlink needed, unless a
+		// global install has to reach their separate global store.
+		if a.Universal() && !needsGlobalLink(a, global) {
 			res.agents = append(res.agents, a.Name)
 			continue
 		}
@@ -131,8 +149,10 @@ func removeSkillFromDisk(name string, entry LockEntry) error {
 		if !ok {
 			continue
 		}
-		if a.Universal() {
-			continue // universal agents share the canonical dir, removed below
+		// Mirror the install guard: universal agents share the canonical dir (removed below),
+		// except where a global install created its own link in their global store.
+		if a.Universal() && !needsGlobalLink(a, global) {
+			continue
 		}
 		base := agentBaseDir(a, global, entry.ProjectPath)
 		if base == "" {

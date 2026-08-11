@@ -1,5 +1,44 @@
 # Specstory CLI Changelog
 
+## v2.9.0 2026-08-11
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL).
+
+### 🔧 CLI Configuration & Commands
+
+- New `--user-data-dir` flag on `sync`, `check`, `list` and `watch` points an IDE provider at a non-default install location, for portable installs and for reading a Windows-side install from WSL. It takes a `provider_id:path` pair and is repeatable, e.g. `--user-data-dir cursoride:D:\apps\cursor\current\data\user-data --user-data-dir copilotide:/opt/vscode/data`. The path is the user-data-dir itself (the parent of the `User` directory), the same value the IDE's own `--user-data-dir` argument takes. Supported provider IDs are `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS rather than leaving the provider idle.
+
+## v2.8.0 2026-08-10
+
+### 🐛 Bug Fixes
+
+- Fenced code blocks in the rendered markdown (those triple backticks) are now sized correctly across all providers. When a session included tool output that itself contained embedded code fences — a cat of a README, a diff of a markdown file — the resulting markdown could become unbalanced and wreck how rendering engines display everything after it. Fences are now sized past any backtick runs in the content, and the old backslash-escape workaround (which left visible \ artifacts) is gone. Thanks to [huangruizhe](https://github.com/huangruizhe) for diagnosing the problem and proposing the fix in [PR 241](https://github.com/specstoryai/getspecstory/pull/241), which was the inspiration for this change. Note: your existing markdown files may update once on your next sync as fences are resized and escape artifacts removed.
+- Consecutive user messages (e.g. from a turn the agent never answered) are now separated by a --- divider in the generated markdown for all providers. This may also cause small one-time markdown updates on your next sync.
+- `specstory watch` no longer silently disables an IDE provider when the watch starts before the project has ever been opened in that IDE. Previously, running `specstory watch` in a fresh directory and then opening it in Cursor or VS Code meant nothing was ever saved; the watcher now waits for the IDE to create the workspace and picks up the first session automatically.
+- The Cursor IDE provider now prefers the workspace entry whose path exactly matches the on-disk spelling of the project directory. On macOS's case-insensitive filesystem, opening the same folder as ~/source/... and ~/Source/... creates two separate workspace entries, splitting sessions between them; SpecStory now reads and writes the entry the IDE itself will use, and launches the IDE with the canonical path so it stops creating case-duplicate entries.
+- `specstory run` for an IDE provider no longer hangs before watching starts when a custom launcher command includes `--wait`.
+
+### ⚙️ Improvements
+
+- `specstory run` with an IDE provider (Cursor IDE, VS Code Copilot) now shows progress in the terminal: a note while waiting for the IDE to open the project, confirmation when it connects, and a line for each session save, instead of sitting silent while you work in the IDE.
+
+## v2.7.0 2026-08-07
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot) for Copilot agent sessions created from  Visual Studio Code `1.132.0` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- VS Code Insiders, VSCodium, and VSCodium Insiders are supported as their own providers (`copilotide-insiders`, `copilotide-vscodium`, `copilotide-vscodium-insiders`). They register automatically once they contain at least one Copilot chat, so machines without them see no extra providers in `check`, `watch`, or `sync`.
+- You can use `specstory resume` to resume VS Code Copilot sessions in other coding agents, and to resume any agent's session into VS Code Copilot, including into a project folder that has never been opened in VS Code (SpecStory creates the workspace entry, which VS Code adopts on first open). When resuming into Copilot, SpecStory will prompt you to fully quit VS Code first: a running VS Code discards externally imported sessions when it exits.
+
+## v2.6.0 2026-08-03
+
+### 🐛 Bug Fixes
+
+- The Codex CLI provider no longer holds an open file descriptor for every historical Codex session file during `specstory run` and `specstory watch` on macOS. File watches are now limited to a trailing 7-day window of session directories (plus the directory of a resumed session), and watches that age out of the window are released at day rollover, so file descriptor usage stays flat no matter how long a watch runs. Previously, installs with a large Codex session history could pin tens of thousands of descriptors per process and exhaust the system-wide file table, [issue 266](https://github.com/specstoryai/getspecstory/issues/266). All historical sessions are still scanned and synced at startup and during `specstory sync`, as before.
+- The Claude Code provider no longer holds an open file descriptor for every historical Claude Code session file during `specstory run` and `specstory watch` on macOS. Session files modified within the trailing 7-day window are watched individually, and a periodic self-healing pass picks up new session files and re-watches dormant sessions the moment they become active again. Even a session idle for longer than the window resumes live markdown updates within seconds. Sessions are still fully covered at startup and during `specstory sync`, as before.
+
 ## v2.5.0 2026-07-24
 
 ### 📢 Announcements

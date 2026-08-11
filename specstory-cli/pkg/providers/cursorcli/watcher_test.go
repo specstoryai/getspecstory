@@ -30,6 +30,7 @@ func TestCursorWatcherBasics(t *testing.T) {
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		sessionCallback: callback,
 	}
@@ -63,6 +64,7 @@ func TestCursorWatcherStartStop(t *testing.T) {
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		sessionCallback: nil,
 	}
@@ -129,6 +131,7 @@ func TestCursorWatcherSessionDetection(t *testing.T) {
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		sessionCallback: nil,
 	}
