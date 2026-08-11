@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -77,7 +78,7 @@ func TestBuildCheckErrorMessage(t *testing.T) {
 }
 
 func TestDetectAgent_NoSessions(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.SetHome(t, t.TempDir())
 	if NewProvider().DetectAgent("", false) {
 		t.Errorf("expected false when no sessions exist")
 	}
@@ -85,7 +86,7 @@ func TestDetectAgent_NoSessions(t *testing.T) {
 
 func TestDetectAgent_EmptyProjectMatchesAny(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	writeConversation(t, home, "conv-1", `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`)
 
 	if !NewProvider().DetectAgent("", false) {
@@ -95,7 +96,7 @@ func TestDetectAgent_EmptyProjectMatchesAny(t *testing.T) {
 
 func TestDetectAgent_ProjectMatch(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	proj := t.TempDir()
 
 	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":"`+proj+`","conversationId":"conv-1"}`)
@@ -112,7 +113,7 @@ func TestDetectAgent_ProjectMatch(t *testing.T) {
 
 func TestDetectAgent_ProjectMatchFromLogMapping(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	proj := t.TempDir()
 
 	writeProjectConfig(t, home, testProjectID, `{
@@ -140,7 +141,7 @@ func TestDetectAgent_ProjectMatchFromLogMapping(t *testing.T) {
 
 func TestGetAgentChatSession_RoundTrip(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	proj := t.TempDir()
 
 	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":"`+proj+`","conversationId":"conv-1"}`)
@@ -172,7 +173,7 @@ func TestGetAgentChatSession_RoundTrip(t *testing.T) {
 
 func TestGetAgentChatSession_UnscopedReturnedByID(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	// A text-only print-mode session: no history entry, no tool paths → unscoped.
 	writeConversation(t, home, "conv-text",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nsay hello\n</USER_REQUEST>"}`,
@@ -191,7 +192,7 @@ func TestGetAgentChatSession_UnscopedReturnedByID(t *testing.T) {
 
 func TestListAgentChatSessions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	writeConversation(t, home, "conv-1", `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nFix the bug\n</USER_REQUEST>"}`)
 
 	metas, err := NewProvider().ListAgentChatSessions("")
@@ -205,7 +206,7 @@ func TestListAgentChatSessions(t *testing.T) {
 
 func TestListAllAgentChatSessions(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	proj := t.TempDir()
 
 	// A workspace-scoped session: the workspace is recoverable from history.jsonl,
@@ -256,7 +257,7 @@ func TestListAllAgentChatSessions(t *testing.T) {
 
 func TestListAgentChatSessions_PrefersSummaryName(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	// conv-1: a generated summary title is the preferred Name.
 	writeConversation(t, home, "conv-1", `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nplease fix the flaky login test\n</USER_REQUEST>"}`)
@@ -292,7 +293,7 @@ func TestListAgentChatSessions_PrefersSummaryName(t *testing.T) {
 
 func TestGetAgentChatSession_ToolResultCorrelation(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	// Steps are written in scrambled FILE order to reproduce agy 1.1.x behavior:
 	//   - an async result line (grep, step 4) precedes its call's PLANNER_RESPONSE

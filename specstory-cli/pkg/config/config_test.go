@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 // Helper to create a temporary config file with the given content
@@ -104,10 +106,6 @@ func TestLoadPrecedence(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWd) }()
 
-	// Save and restore original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
-
 	tests := []struct {
 		name           string
 		userConfig     string
@@ -159,9 +157,7 @@ enabled = false
 			tempProject := t.TempDir()
 
 			// Set HOME to temp directory
-			if err := os.Setenv("HOME", tempHome); err != nil {
-				t.Fatalf("Failed to set HOME: %v", err)
-			}
+			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
 			if err := os.Chdir(tempProject); err != nil {
@@ -209,16 +205,11 @@ func TestConfigMerge(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWd) }()
 
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
-
 	t.Run("non-overlapping settings from both configs are preserved", func(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -267,9 +258,7 @@ enabled = false
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -307,9 +296,7 @@ output_dir = "/project/output"
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -345,10 +332,6 @@ func TestCLIOverrides(t *testing.T) {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
 	defer func() { _ = os.Chdir(origWd) }()
-
-	// Save and restore original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	tests := []struct {
 		name       string
@@ -522,9 +505,7 @@ debug_dir = "/config/debug"
 			tempProject := t.TempDir()
 
 			// Set HOME to empty temp dir (no user config)
-			if err := os.Setenv("HOME", tempHome); err != nil {
-				t.Fatalf("Failed to set HOME: %v", err)
-			}
+			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
 			if err := os.Chdir(tempProject); err != nil {
@@ -555,10 +536,6 @@ func TestParseErrorHandling(t *testing.T) {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
 	defer func() { _ = os.Chdir(origWd) }()
-
-	// Save and restore original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	tests := []struct {
 		name          string
@@ -598,9 +575,7 @@ func TestParseErrorHandling(t *testing.T) {
 			tempProject := t.TempDir()
 
 			// Set HOME to empty temp dir (no user config)
-			if err := os.Setenv("HOME", tempHome); err != nil {
-				t.Fatalf("Failed to set HOME: %v", err)
-			}
+			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
 			if err := os.Chdir(tempProject); err != nil {
@@ -636,10 +611,6 @@ func TestMissingFileHandling(t *testing.T) {
 		t.Fatalf("Failed to get working directory: %v", err)
 	}
 	defer func() { _ = os.Chdir(origWd) }()
-
-	// Save and restore original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
 
 	tests := []struct {
 		name           string
@@ -698,9 +669,7 @@ func TestMissingFileHandling(t *testing.T) {
 			tempProject := t.TempDir()
 
 			// Set HOME
-			if err := os.Setenv("HOME", tempHome); err != nil {
-				t.Fatalf("Failed to set HOME: %v", err)
-			}
+			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
 			if err := os.Chdir(tempProject); err != nil {
@@ -756,17 +725,11 @@ func TestDefaultValues(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWd) }()
 
-	// Save and restore original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
-
 	// Create temp directories with no config files
 	tempHome := t.TempDir()
 	tempProject := t.TempDir()
 
-	if err := os.Setenv("HOME", tempHome); err != nil {
-		t.Fatalf("Failed to set HOME: %v", err)
-	}
+	testutil.SetHome(t, tempHome)
 	if err := os.Chdir(tempProject); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
@@ -821,17 +784,11 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWd) }()
 
-	// Save and restore original HOME
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
-
 	t.Run("creates file when none exists", func(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -880,9 +837,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -917,9 +872,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -952,9 +905,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -1196,16 +1147,11 @@ func TestProviderCmdFromConfig(t *testing.T) {
 	}
 	defer func() { _ = os.Chdir(origWd) }()
 
-	origHome := os.Getenv("HOME")
-	defer func() { _ = os.Setenv("HOME", origHome) }()
-
 	t.Run("provider commands loaded from user config", func(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -1245,9 +1191,7 @@ copilotide_cmd = "code --wait"
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}
@@ -1283,9 +1227,7 @@ claude_cmd = "claude --project-level"
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
-		if err := os.Setenv("HOME", tempHome); err != nil {
-			t.Fatalf("Failed to set HOME: %v", err)
-		}
+		testutil.SetHome(t, tempHome)
 		if err := os.Chdir(tempProject); err != nil {
 			t.Fatalf("Failed to chdir: %v", err)
 		}

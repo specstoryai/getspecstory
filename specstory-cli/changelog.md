@@ -4,7 +4,7 @@
 
 ### 📢 Announcements
 
-- The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL).
+- The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL). Install on Windows by downloading `SpecStoryCLI_Windows_x86_64.zip` (or `_arm64`) from the [GitHub release](https://github.com/specstoryai/getspecstory/releases) and putting `specstory.exe` on your PATH — a package manager install (winget) is planned. The binaries are not yet code-signed, so Windows SmartScreen may show an "unrecognized app" warning on first run. WSL users can keep using the standard Linux install, which now reads Windows-side IDE data automatically.
 
 ### 🔧 CLI Configuration & Commands
 
@@ -14,7 +14,9 @@
 
 ### ⚙️ Improvements
 
+- Cursor IDE and VS Code Copilot conversations from WSL and SSH remote workspaces are now discovered and saved. The IDE records the same project differently depending on how it was opened (local path, WSL distro, or SSH remote); SpecStory now matches all of these forms and aggregates the sessions from every matching workspace entry, so conversations are found no matter which environment they were created in. Running from inside WSL also works: SpecStory detects WSL and reads the IDE's data from the Windows side via `/mnt/c/`.
 - When `--output-dir` is set, the project identity file `.project.json` now lives in that directory alongside the markdown, statistics and debug output, instead of staying at `./.specstory/.project.json` — so you still capture every SpecStory output file under one directory, and SpecStory Cloud sync reads the identity from there too. If you already use `--output-dir` with SpecStory Cloud, copy your existing `./.specstory/.project.json` into the output directory once to keep the same project identity.
+- Session statistics (`./.specstory/statistics.json`) now stay current during `run`, `watch`, `resume` and `sync -s` as each session saves, instead of updating only during a full `sync`. Use the new `--no-stats` flag if you don't want this.
 
 ## v2.8.0 2026-08-10
 

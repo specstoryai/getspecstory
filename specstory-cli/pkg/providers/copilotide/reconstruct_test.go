@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -293,7 +294,7 @@ func TestWriteSessionIndexEntry_PreservesExisting(t *testing.T) {
 // at the folder, and state.vscdb carries the ItemTable the index write needs.
 func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 	fakeHome := t.TempDir()
-	t.Setenv("HOME", fakeHome)
+	testutil.SetHome(t, fakeHome)
 	storageRoot := filepath.Join(fakeHome, "Library", "Application Support", "Code", "User", "workspaceStorage")
 	if runtime.GOOS == "linux" {
 		storageRoot = filepath.Join(fakeHome, ".config", "Code", "User", "workspaceStorage")

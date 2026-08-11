@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestSanitizeName(t *testing.T) {
@@ -34,7 +36,7 @@ func TestSanitizeName(t *testing.T) {
 // and removeSkillFromDisk cleans both up.
 func TestInstallAndRemove_ProjectScope(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("XDG_STATE_HOME", "") // force ~/.agents/.skill-lock.json path
 
 	project := filepath.Join(home, "proj")
@@ -91,7 +93,7 @@ func TestInstallAndRemove_ProjectScope(t *testing.T) {
 // agent's config tree when the user isn't using that agent in the project.
 func TestInstall_ProjectSkipsUndetectedAgent(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	project := filepath.Join(home, "proj")
 	if err := os.MkdirAll(project, 0o755); err != nil {
 		t.Fatal(err)
@@ -114,7 +116,7 @@ func TestInstall_ProjectSkipsUndetectedAgent(t *testing.T) {
 // keys written by the npx skills CLI when we add a SpecStory entry.
 func TestLockRoundTripPreservesForeignEntries(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("XDG_STATE_HOME", "")
 
 	// Seed a lock file as npx skills would write it: a foreign skill + a "dismissed" key.
@@ -176,7 +178,7 @@ func TestLockRoundTripPreservesForeignEntries(t *testing.T) {
 // TestLockWipesOldVersion mirrors npx skills' behavior: a pre-v3 lock is treated as empty.
 func TestLockWipesOldVersion(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("XDG_STATE_HOME", "")
 	lockDir := filepath.Join(home, ".agents")
 	_ = os.MkdirAll(lockDir, 0o755)
@@ -211,7 +213,7 @@ func TestResolveTargets(t *testing.T) {
 // TestEngineAgents verifies the agent list reflects on-disk detection.
 func TestEngineAgents(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	t.Setenv("CLAUDE_CONFIG_DIR", "")
 	t.Setenv("CODEX_HOME", "")
 	t.Setenv("XDG_CONFIG_HOME", "")
@@ -272,7 +274,7 @@ func TestAntigravityDetection(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-			t.Setenv("HOME", home)
+			testutil.SetHome(t, home)
 			if tt.mkdir != "" {
 				if err := os.MkdirAll(filepath.Join(home, tt.mkdir), 0o755); err != nil {
 					t.Fatal(err)
@@ -299,7 +301,7 @@ func TestAntigravityDetection(t *testing.T) {
 // linked into itself.
 func TestInstallAndRemove_GlobalScopeUniversalAgents(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	antigravity, _ := FindAgent("antigravity")
 	cline, _ := FindAgent("cline")

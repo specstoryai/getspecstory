@@ -48,7 +48,9 @@ func NewStatisticsCollector(statsPath string) *StatisticsCollector {
 // in the process serializes on the same mutex. The collector's locking only
 // protects its own instance: separate instances racing through Flush's
 // read-modify-write would silently drop sessions when concurrent watch-mode
-// callbacks save at the same time.
+// callbacks save at the same time. Serialization across processes (a running
+// `watch` plus a manual `sync`) is handled separately, by the file lock Flush
+// takes around the read-merge-write cycle.
 var (
 	sharedCollectorsMu sync.Mutex
 	sharedCollectors   = map[string]*StatisticsCollector{}
@@ -129,8 +131,49 @@ func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionSta
 	slog.Debug("Buffered session statistics", "sessionId", sessionID)
 }
 
+// acquireFileLock takes a cross-process lock by creating lockPath with O_EXCL,
+// which is atomic on every platform (no syscall flock needed, so no platform
+// build tags and no new dependency). The in-process mutex alone cannot stop two
+// processes — a long-running `watch` and a manual `sync` — from interleaving
+// Flush's read-merge-write and silently dropping the loser's sessions.
+//
+// Polls briefly while the lock is held: flushes are millisecond-scale, so a
+// two-second budget is generous. A lock file older than staleLockAge is
+// presumed abandoned by a crashed process and stolen; the steal itself has a
+// benign race (two stealers, one wins O_EXCL, the other retries).
+// Returns the release func on success.
+func acquireFileLock(lockPath string) (func(), error) {
+	const (
+		retryDelay   = 10 * time.Millisecond
+		retryBudget  = 2 * time.Second
+		staleLockAge = 10 * time.Second
+	)
+
+	deadline := time.Now().Add(retryBudget)
+	for {
+		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		if err == nil {
+			_ = f.Close()
+			return func() { _ = os.Remove(lockPath) }, nil
+		}
+		if !os.IsExist(err) {
+			return nil, fmt.Errorf("failed to create lock file: %w", err)
+		}
+		// Held by another process — steal it if it looks abandoned.
+		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > staleLockAge {
+			_ = os.Remove(lockPath)
+			continue
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("statistics lock still held after %s: %s", retryBudget, lockPath)
+		}
+		time.Sleep(retryDelay)
+	}
+}
+
 // Flush writes all pending session statistics to the statistics.json file in a
-// single read-modify-write cycle, then clears the pending buffer.
+// single read-modify-write cycle, then clears the pending buffer. A file lock
+// spans the whole cycle so concurrent processes can't lose each other's merges.
 func (c *StatisticsCollector) Flush() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -139,6 +182,12 @@ func (c *StatisticsCollector) Flush() error {
 	if len(c.pending) == 0 {
 		return nil
 	}
+
+	unlock, err := acquireFileLock(c.statsPath + ".lock")
+	if err != nil {
+		return fmt.Errorf("failed to lock statistics file: %w", err)
+	}
+	defer unlock()
 
 	statsPath := c.statsPath
 

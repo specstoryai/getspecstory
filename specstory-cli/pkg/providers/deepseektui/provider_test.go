@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestClassifyCheckError(t *testing.T) {
@@ -106,7 +108,7 @@ func TestDetectAgent_NoSessionsReturnsFalse(t *testing.T) {
 	// return false without panicking. This guards against regressions where
 	// listSessionFiles starts erroring on missing dirs.
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	testutil.SetHome(t, tmp)
 
 	p := NewProvider()
 	if got := p.DetectAgent("/some/project", false); got {
@@ -119,7 +121,7 @@ func TestDetectAgent_EmptyProjectMatchesAnySession(t *testing.T) {
 	// return true regardless of which workspace they're tied to. This matches
 	// the convention used by droid/gemini.
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	testutil.SetHome(t, tmp)
 	if err := os.MkdirAll(tmp+"/.deepseek/sessions", 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

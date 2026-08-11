@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestIsAuthenticated(t *testing.T) {
@@ -13,15 +15,7 @@ func TestIsAuthenticated(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Override home directory for testing
-	origHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", tempDir); err != nil {
-		t.Fatalf("Failed to set HOME env var: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", origHome); err != nil {
-			t.Errorf("Failed to restore HOME env var: %v", err)
-		}
-	}()
+	testutil.SetHome(t, tempDir)
 
 	// Create the .specstory/cli directory structure
 	authDir := filepath.Join(tempDir, ".specstory", "cli")
@@ -367,15 +361,7 @@ func TestAuthenticationCaching(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Override home directory for testing
-	origHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", tempDir); err != nil {
-		t.Fatalf("Failed to set HOME env var: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", origHome); err != nil {
-			t.Errorf("Failed to restore HOME env var: %v", err)
-		}
-	}()
+	testutil.SetHome(t, tempDir)
 
 	// Create the .specstory/cli directory structure
 	authDir := filepath.Join(tempDir, ".specstory", "cli")

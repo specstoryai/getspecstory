@@ -57,14 +57,12 @@ func NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, projectPathOverri
 	if projectPathOverride != "" {
 		effectivePath := ResolveProjectPath(projectPathOverride, cwd)
 		manager = manager.WithProjectName(filepath.Base(effectivePath))
-		// A locally readable target should also drive identity auto-detection
-		// (workspace_id, git_id walk-up): the identity describes the project being
-		// targeted, not the directory the CLI was launched from. Remote-workspace
-		// paths (SSH) don't exist locally, so detection stays anchored to cwd for
-		// them and those callers supply --git-origin instead.
-		if info, err := os.Stat(effectivePath); err == nil && info.IsDir() {
-			manager = manager.WithDetectionRoot(effectivePath)
-		}
+		// The target drives identity detection: the identity describes the project
+		// being targeted, not the directory the CLI was launched from. This holds
+		// even for remote (SSH) paths that don't exist locally — the manager hashes
+		// the path itself for workspace_id, so two different remote projects
+		// launched from the same local directory get distinct identities.
+		manager = manager.WithDetectionRoot(effectivePath)
 	}
 	return manager
 }
@@ -85,8 +83,10 @@ func (m *ProjectIdentityManager) WithGitOrigin(origin string) *ProjectIdentityMa
 
 // WithDetectionRoot points identity auto-detection (the workspace_id/git_id/name
 // walk-up) at dir instead of projectRoot, while the .specstory location stays
-// anchored to projectRoot. Callers pass a locally readable --project-path here so
-// the detected identity describes that project rather than the launch directory.
+// anchored to projectRoot. Callers pass the effective --project-path here so the
+// detected identity describes that project rather than the launch directory. The
+// path may name a remote (SSH) directory that does not exist locally — detection
+// then hashes the path for workspace_id and skips the filesystem-dependent steps.
 func (m *ProjectIdentityManager) WithDetectionRoot(dir string) *ProjectIdentityManager {
 	m.detectionRoot = dir
 	return m
@@ -135,7 +135,24 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	// resolvedName always falls back to the root's base name, so it is never empty.
 	// The walk starts from the detection root, which a --project-path override may
 	// have pointed at the targeted project instead of the launch directory.
-	resolvedGitID, resolvedWorkspaceID, resolvedName, _ := resolveIdentity(m.getDetectionRoot())
+	//
+	// A detection root that doesn't exist locally is a remote (SSH) project path.
+	// Its identity still must come from that path — hashing the launch directory
+	// instead would hand every remote project launched from the same local
+	// directory the same workspace_id. Only the filesystem-dependent steps are
+	// skipped: walking up from a non-existent path would scan the LOCAL ancestors
+	// of the remote path (e.g. /home/user on this machine) and could latch onto an
+	// unrelated local repo's .git; git identity for remote targets comes from
+	// --git-origin instead.
+	var resolvedGitID, resolvedWorkspaceID, resolvedName string
+	detectionRoot := m.getDetectionRoot()
+	if info, statErr := os.Stat(detectionRoot); statErr == nil && info.IsDir() {
+		resolvedGitID, resolvedWorkspaceID, resolvedName, _ = resolveIdentity(detectionRoot)
+	} else {
+		rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
+		resolvedWorkspaceID = rooted.generateWorkspaceID()
+		resolvedName = filepath.Base(detectionRoot)
+	}
 
 	// Determine what needs to be done
 	var identity ProjectIdentity

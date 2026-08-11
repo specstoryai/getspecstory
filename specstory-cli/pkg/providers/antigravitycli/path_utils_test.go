@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 // writeConversation creates a fake brain transcript under home and returns the
@@ -48,7 +50,7 @@ func writeHistory(t *testing.T, home string, lines ...string) {
 
 func TestResolvePaths(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	dir, err := resolveAntigravityDir()
 	if err != nil {
@@ -69,7 +71,7 @@ func TestResolvePaths(t *testing.T) {
 
 func TestListConversationFiles(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	// Missing brain dir → empty, no error.
 	files, err := listConversationFiles()
@@ -94,7 +96,7 @@ func TestListConversationFiles(t *testing.T) {
 
 func TestResolveTranscriptPathByID(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	if path, err := resolveTranscriptPath("missing"); err != nil || path != "" {
 		t.Errorf("expected ('', nil) for missing id, got (%q, %v)", path, err)

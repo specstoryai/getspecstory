@@ -1206,3 +1206,56 @@ func TestNewProjectIdentityManagerWithOverrides_DetectionRoot(t *testing.T) {
 		t.Errorf("git_id = %q, want the target repo's %q", identity.GitID, targetIdentity.GitID)
 	}
 }
+
+// TestNewProjectIdentityManagerWithOverrides_RemoteDetectionRoot verifies identity
+// derivation when --project-path names a remote (SSH) directory that doesn't exist
+// locally. workspace_id must derive from the remote path itself: hashing the launch
+// directory would hand every remote project launched from the same local directory
+// (the extension flow) the same identity. And the filesystem walk-up must be
+// skipped: walking up from a non-existent path scans its LOCAL ancestors, so a
+// .git there must not leak into the remote target's git_id.
+func TestNewProjectIdentityManagerWithOverrides_RemoteDetectionRoot(t *testing.T) {
+	// A local ancestor of the "remote" paths that is itself a git repo — the
+	// walk-up trap the skip exists to avoid.
+	ancestor := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(ancestor, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := "[remote \"origin\"]\n\turl = git@github.com:acme/local-ancestor.git\n"
+	if err := os.WriteFile(filepath.Join(ancestor, ".git", "config"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	remoteA := filepath.Join(ancestor, "no-such-dir", "remote-project-a")
+	remoteB := filepath.Join(ancestor, "no-such-dir", "remote-project-b")
+
+	// One launch directory for both projects, distinct output dirs — exactly how
+	// the extension spawns the CLI for different remote workspaces.
+	cwd := t.TempDir()
+	identityFor := func(remotePath string) *ProjectIdentity {
+		t.Helper()
+		specstoryDir := filepath.Join(t.TempDir(), ".specstory")
+		manager := NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, remotePath, "")
+		if _, err := manager.EnsureProjectIdentity(); err != nil {
+			t.Fatalf("EnsureProjectIdentity failed: %v", err)
+		}
+		identity, err := manager.ReadProjectIdentity()
+		if err != nil {
+			t.Fatalf("ReadProjectIdentity failed: %v", err)
+		}
+		return identity
+	}
+
+	a := identityFor(remoteA)
+	b := identityFor(remoteB)
+
+	if a.WorkspaceID == b.WorkspaceID {
+		t.Errorf("different remote projects got the same workspace_id %q — identity must derive from the remote path, not the launch directory", a.WorkspaceID)
+	}
+	if a.GitID != "" {
+		t.Errorf("git_id = %q — a local ancestor's .git leaked into the remote target's identity; the filesystem walk-up must be skipped", a.GitID)
+	}
+	if a.ProjectName != "remote-project-a" {
+		t.Errorf("project_name = %q, want %q", a.ProjectName, "remote-project-a")
+	}
+}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -464,4 +465,53 @@ func TestStatisticsCollector_CorruptJSON(t *testing.T) {
 	if _, exists := sf.Sessions["session-corrupt"]; !exists {
 		t.Error("Session session-corrupt not found after recovery")
 	}
+}
+
+// TestAcquireFileLock exercises the cross-process lock primitive that Flush
+// wraps around its read-merge-write cycle: a held lock blocks acquisition until
+// released, and a lock left behind by a crashed process (detected by age) is
+// stolen rather than deadlocking every future flush.
+func TestAcquireFileLock(t *testing.T) {
+	t.Run("held lock blocks until released, then acquires", func(t *testing.T) {
+		lockPath := filepath.Join(t.TempDir(), "statistics.json.lock")
+
+		unlock, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("first acquire failed: %v", err)
+		}
+
+		// A second acquirer must wait; release shortly after it starts polling.
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			unlock()
+		}()
+
+		start := time.Now()
+		unlock2, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("second acquire failed after release: %v", err)
+		}
+		defer unlock2()
+		if time.Since(start) < 40*time.Millisecond {
+			t.Error("second acquire returned before the first lock was released")
+		}
+	})
+
+	t.Run("stale lock from a crashed process is stolen", func(t *testing.T) {
+		lockPath := filepath.Join(t.TempDir(), "statistics.json.lock")
+		if err := os.WriteFile(lockPath, nil, 0644); err != nil {
+			t.Fatalf("failed to plant stale lock: %v", err)
+		}
+		// Backdate past the stale threshold to simulate a crashed owner.
+		old := time.Now().Add(-time.Minute)
+		if err := os.Chtimes(lockPath, old, old); err != nil {
+			t.Fatalf("failed to backdate lock: %v", err)
+		}
+
+		unlock, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("acquire should have stolen the stale lock: %v", err)
+		}
+		unlock()
+	})
 }

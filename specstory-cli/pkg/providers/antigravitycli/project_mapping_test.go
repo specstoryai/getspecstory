@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 const (
@@ -13,7 +15,7 @@ const (
 
 func TestLoadProjectWorkspaceIndex(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	workspace := filepath.Join(home, "repo with space")
 
 	writeProjectConfig(t, home, testProjectID, `{
@@ -35,7 +37,7 @@ func TestLoadProjectWorkspaceIndex(t *testing.T) {
 
 func TestLoadConversationWorkspaceIndex(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	workspace := filepath.Join(home, "repo")
 
 	writeProjectConfig(t, home, testProjectID, `{
