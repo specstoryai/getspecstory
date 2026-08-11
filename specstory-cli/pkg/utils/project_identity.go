@@ -45,6 +45,20 @@ func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentit
 	}
 }
 
+// NewProjectIdentityManagerWithOverrides builds the identity manager the CLI
+// commands share, wiring in the hidden override flags. gitOriginOverride always
+// feeds WithGitOrigin (empty means no override). When projectPathOverride is
+// set, the project is named after the effective path's basename: the walk-up
+// name detection would otherwise describe the directory the CLI happens to run
+// from rather than the project being targeted.
+func NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, projectPathOverride, gitOriginOverride string) *ProjectIdentityManager {
+	manager := NewProjectIdentityManager(cwd, specstoryDir).WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		manager = manager.WithProjectName(filepath.Base(ResolveProjectPath(projectPathOverride, cwd)))
+	}
+	return manager
+}
+
 // WithProjectName sets an explicit project name override, bypassing auto-detection.
 // The override is applied even if a project name already exists in .project.json.
 func (m *ProjectIdentityManager) WithProjectName(name string) *ProjectIdentityManager {

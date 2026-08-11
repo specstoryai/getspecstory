@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -408,11 +407,7 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 			// effectiveProjectPath is what providers use for session discovery.
 			// When --project-path is set, it resolves to that path; otherwise uses cwd.
 			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
-			identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
-				WithGitOrigin(gitOriginOverride)
-			if projectPathOverride != "" {
-				identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
-			}
+			identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
@@ -651,11 +646,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 		// Tell cloud sync where .project.json lives (respects --output-dir)
 		cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
-		identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
-			WithGitOrigin(gitOriginOverride)
-		if projectPathOverride != "" {
-			identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
-		}
+		identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 		if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 			slog.Error("Failed to ensure project identity", "error", err)
 		}
@@ -1186,11 +1177,7 @@ func syncAllProviders(registry *factory.Registry, cmd *cobra.Command, filterIDs 
 	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity (once for all providers)
-	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
-		WithGitOrigin(gitOriginOverride)
-	if projectPathOverride != "" {
-		identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
-	}
+	identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1329,11 +1316,7 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 	cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 	// Initialize project identity
-	identityManager := utils.NewProjectIdentityManager(cwd, config.GetSpecstoryDir()).
-		WithGitOrigin(gitOriginOverride)
-	if projectPathOverride != "" {
-		identityManager = identityManager.WithProjectName(filepath.Base(effectiveProjectPath))
-	}
+	identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
 	if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
@@ -1403,6 +1386,14 @@ var syncCmd *cobra.Command
 func main() {
 	// Parse critical flags early by manually checking os.Args
 	// This is necessary because cobra's ParseFlags doesn't work correctly before subcommands are added
+	//
+	// --user-data-dir must be pre-parsed here: provider registry initialization
+	// (triggered by command construction below) probes IDE storage locations to
+	// decide which Copilot IDE variants to register, so the overrides have to be
+	// in effect before the first factory.GetRegistry() call. Waiting for cobra's
+	// RunE would be too late — a variant whose only install lives at an override
+	// path would never be registered.
+	var earlyUserDataDirs []string
 	args := os.Args[1:]
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -1444,6 +1435,12 @@ func main() {
 				debugDir = utils.ExpandTilde(args[i+1])
 				i++ // Skip the value in next iteration
 			}
+		case "--user-data-dir":
+			// Handle --user-data-dir <value> format (space-separated, repeatable)
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				earlyUserDataDirs = append(earlyUserDataDirs, args[i+1])
+				i++ // Skip the value in next iteration
+			}
 		case "--local-time-zone":
 			localTimeZone = true
 		}
@@ -1462,6 +1459,10 @@ func main() {
 		// Handle --telemetry-service-name=value format
 		if strings.HasPrefix(arg, "--telemetry-service-name=") {
 			telemetryServiceName = strings.TrimPrefix(arg, "--telemetry-service-name=")
+		}
+		// Handle --user-data-dir=value format
+		if strings.HasPrefix(arg, "--user-data-dir=") {
+			earlyUserDataDirs = append(earlyUserDataDirs, strings.TrimPrefix(arg, "--user-data-dir="))
 		}
 	}
 
@@ -1529,6 +1530,12 @@ func main() {
 		// Set up discard logger to prevent default slog output
 		_ = log.SetupLogger(false, false, false, "")
 	}
+
+	// Apply --user-data-dir overrides before the commands are created: command
+	// construction initializes the provider registry, whose Copilot IDE variant
+	// gating probes the (possibly overridden) storage locations. The RunE-level
+	// ApplyUserDataDirOverrides calls re-apply the same values harmlessly.
+	cmdpkg.ApplyUserDataDirOverrides(earlyUserDataDirs)
 
 	// NOW create the commands - after logging is configured
 	// Config-derived flag defaults shared by every session-saving command in

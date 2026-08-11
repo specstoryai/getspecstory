@@ -104,15 +104,15 @@ Provide a specific agent ID to list sessions from only that provider.`
 				"projectPathOverride", projectPathOverride,
 				"effectiveProjectPath", effectiveProjectPath)
 
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
 			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
 			if err != nil {
 				return err
 			}
-
-			// Apply per-provider user-data-dir overrides before any provider lookup runs.
-			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
-			ApplyUserDataDirOverrides(userDataDirOverrides)
 
 			if len(resolvedIDs) == 1 {
 				return listSingleProvider(registry, resolvedIDs[0], effectiveProjectPath)

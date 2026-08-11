@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -28,56 +27,6 @@ func SetUserDataDirOverride(variantID, path string) {
 	userDataDirOverrides[variantID] = path
 }
 
-// isWSL checks if the current Linux environment is actually WSL
-func isWSL() bool {
-	// Check /proc/version for WSL indicators
-	data, err := os.ReadFile("/proc/version")
-	if err != nil {
-		return false
-	}
-	version := string(data)
-	versionLower := strings.ToLower(version)
-	return strings.Contains(versionLower, "microsoft") || strings.Contains(versionLower, "wsl")
-}
-
-// getWindowsWorkspaceStoragePathInWSL attempts to find the variant's workspace storage
-// on the Windows filesystem when running in WSL. It searches through Windows user
-// directories to find one that contains the variant's application data.
-func getWindowsWorkspaceStoragePathInWSL(dataDirName string) string {
-	// Try to find Windows users directory via /mnt/c/
-	usersDir := "/mnt/c/Users"
-	entries, err := os.ReadDir(usersDir)
-	if err != nil {
-		slog.Debug("Could not read Windows Users directory from WSL", "path", usersDir, "error", err)
-		return ""
-	}
-
-	// Try each user directory to find the variant's workspace storage
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		// Skip system directories
-		username := entry.Name()
-		if username == "Public" || username == "Default" || username == "All Users" {
-			continue
-		}
-
-		// Check for workspace storage in this user's AppData
-		storagePath := filepath.Join(usersDir, username, "AppData", "Roaming", dataDirName, "User", "workspaceStorage")
-		if _, err := os.Stat(storagePath); err == nil {
-			slog.Debug("Found workspace storage on Windows filesystem from WSL",
-				"path", storagePath,
-				"windowsUser", username)
-			return storagePath
-		}
-	}
-
-	slog.Debug("No workspace storage found on Windows filesystem from WSL", "dataDirName", dataDirName)
-	return ""
-}
-
 // workspaceStorageRoot returns where the variant's workspace storage lives, without
 // requiring it to exist — workspace minting targets it before the app has ever
 // created it. Resolution order is the explicit --user-data-dir override, then the
@@ -86,18 +35,10 @@ func getWindowsWorkspaceStoragePathInWSL(dataDirName string) string {
 // the OS default is also the path a not-yet-created storage directory would take.
 // Empty only when the platform is unsupported or the home directory is unknown.
 func workspaceStorageRoot(variant Variant) string {
-	// An explicit --user-data-dir <provider-id>:<path> override takes precedence over
-	// OS-default discovery. If the derived workspaceStorage doesn't exist, warn and
-	// fall through so a stale override doesn't silently kill the provider.
-	if override := userDataDirOverrides[variant.ID]; override != "" {
-		candidate := filepath.Join(override, "User", "workspaceStorage")
-		if _, err := os.Stat(candidate); err == nil {
-			slog.Debug("Using --user-data-dir override for workspace storage", "provider", variant.ID, "path", candidate)
-			return candidate
-		} else {
-			slog.Warn("--user-data-dir override for workspaceStorage missing; falling back to OS default",
-				"provider", variant.ID, "override", override, "candidate", candidate, "error", err)
-		}
+	// An explicit --user-data-dir <provider-id>:<path> override takes precedence
+	// over OS-default discovery; a missing override warns and falls through.
+	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverrides[variant.ID], variant.ID, "User", "workspaceStorage"); ok {
+		return path
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -112,9 +53,9 @@ func workspaceStorageRoot(variant Variant) string {
 	case "linux":
 		// Under WSL, a VS Code installed on the Windows side keeps its workspace data
 		// there, so check the Windows filesystem via /mnt/c/ before the native path.
-		if isWSL() {
+		if spi.IsWSL() {
 			slog.Debug("Detected WSL environment, checking Windows filesystem")
-			if windowsPath := getWindowsWorkspaceStoragePathInWSL(variant.DataDirName); windowsPath != "" {
+			if windowsPath := spi.FindWindowsAppDataPathFromWSL(variant.DataDirName, "User", "workspaceStorage"); windowsPath != "" {
 				return windowsPath
 			}
 			slog.Debug("No workspace storage found on Windows side, trying native Linux path")

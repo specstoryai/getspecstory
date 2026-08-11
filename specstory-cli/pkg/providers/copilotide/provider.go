@@ -231,12 +231,47 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		return nil, fmt.Errorf("failed to find workspace: %w", err)
 	}
 
-	// Collect session files from all matching workspaces
-	type sessionSource struct {
-		file         string
-		workspaceDir string
-	}
-	var allSources []sessionSource
+	allSources := collectSessionSources(workspaces)
+
+	var sessions []spi.AgentChatSession
+	processedCount := 0
+	totalCount := len(allSources)
+
+	forEachUniqueSession(allSources, func(composer *VSCodeComposer, state *VSCodeStateFile) {
+		// Convert to AgentChatSession
+		session := p.ConvertToSessionData(*composer, projectPath, state)
+		sessions = append(sessions, session)
+
+		// Write debug files if requested
+		if debugRaw {
+			if err := WriteDebugFiles(composer, composer.SessionID); err != nil {
+				slog.Warn("Failed to write debug files", "sessionId", composer.SessionID, "error", err)
+			}
+		}
+
+		// Report progress
+		processedCount++
+		if progress != nil {
+			progress(processedCount, totalCount)
+		}
+	})
+
+	slog.Debug("Loaded sessions", "count", len(sessions))
+	return sessions, nil
+}
+
+// sessionSource pairs a chat session file with the workspace directory it was
+// found in, so downstream loading can also locate the session's state file.
+type sessionSource struct {
+	file         string
+	workspaceDir string
+}
+
+// collectSessionSources gathers session files from every workspace entry
+// matching the project. A workspace whose files cannot be listed is logged and
+// skipped so one bad workspace doesn't hide the other workspaces' sessions.
+func collectSessionSources(workspaces []vscode.WorkspaceEntry) []sessionSource {
+	var sources []sessionSource
 	for _, ws := range workspaces {
 		files, err := LoadAllSessionFiles(ws.Dir)
 		if err != nil {
@@ -244,16 +279,22 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 			continue
 		}
 		for _, f := range files {
-			allSources = append(allSources, sessionSource{file: f, workspaceDir: ws.Dir})
+			sources = append(sources, sessionSource{file: f, workspaceDir: ws.Dir})
 		}
 	}
+	return sources
+}
 
-	var sessions []spi.AgentChatSession
-	processedCount := 0
-	totalCount := len(allSources)
+// forEachUniqueSession loads each source and hands the surviving sessions to
+// handle together with their optional editing state. Skipped along the way:
+// files that fail to parse, duplicate session IDs (under WSL the same project
+// is recorded under multiple workspace entries, and the same session can
+// appear in more than one — the copies are the same file, so first wins), and
+// sessions with neither chat messages nor editing activity.
+func forEachUniqueSession(sources []sessionSource, handle func(composer *VSCodeComposer, state *VSCodeStateFile)) {
 	seenIDs := make(map[string]bool)
 
-	for _, src := range allSources {
+	for _, src := range sources {
 		composer, err := LoadSessionFile(src.file)
 		if err != nil {
 			slog.Warn("Failed to load session", "file", src.file, "error", err)
@@ -281,26 +322,8 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 			continue
 		}
 
-		// Convert to AgentChatSession
-		session := p.ConvertToSessionData(*composer, projectPath, state)
-		sessions = append(sessions, session)
-
-		// Write debug files if requested
-		if debugRaw {
-			if err := WriteDebugFiles(composer, composer.SessionID); err != nil {
-				slog.Warn("Failed to write debug files", "sessionId", composer.SessionID, "error", err)
-			}
-		}
-
-		// Report progress
-		processedCount++
-		if progress != nil {
-			progress(processedCount, totalCount)
-		}
+		handle(composer, state)
 	}
-
-	slog.Debug("Loaded sessions", "count", len(sessions))
-	return sessions, nil
 }
 
 // ListAgentChatSessions retrieves lightweight metadata for all sessions
@@ -318,21 +341,7 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 	slog.Debug("Found workspaces for project", "workspaceCount", len(workspaces))
 
 	// Step 2: Collect session files from all matching workspaces
-	type sessionSource struct {
-		file         string
-		workspaceDir string
-	}
-	var allSources []sessionSource
-	for _, ws := range workspaces {
-		files, err := LoadAllSessionFiles(ws.Dir)
-		if err != nil {
-			continue
-		}
-		for _, f := range files {
-			allSources = append(allSources, sessionSource{file: f, workspaceDir: ws.Dir})
-		}
-	}
-
+	allSources := collectSessionSources(workspaces)
 	if len(allSources) == 0 {
 		slog.Debug("No session files found in any workspace")
 		return []spi.SessionMetadata{}, nil
@@ -342,39 +351,9 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 
 	// Step 3: Extract metadata for each session
 	metadataList := make([]spi.SessionMetadata, 0, len(allSources))
-	seenIDs := make(map[string]bool)
-
-	for _, src := range allSources {
-		composer, err := LoadSessionFile(src.file)
-		if err != nil {
-			slog.Warn("Failed to load session file", "file", src.file, "error", err)
-			continue
-		}
-
-		// Deduplicate by session ID across workspaces
-		if seenIDs[composer.SessionID] {
-			continue
-		}
-		seenIDs[composer.SessionID] = true
-
-		// Load state file to check for editing operations
-		state, err := LoadStateFile(src.workspaceDir, composer.SessionID)
-		if err != nil {
-			slog.Warn("Failed to load state file", "sessionId", composer.SessionID, "error", err)
-		}
-
-		// Check if session has content (either chat messages or editing operations)
-		hasConversations := len(composer.Requests) > 0
-		hasEditingOperations := hasEditingActivity(state)
-
-		if !hasConversations && !hasEditingOperations {
-			slog.Debug("Skipping empty session (no chat or editing activity)", "sessionId", composer.SessionID)
-			continue
-		}
-
-		metadata := extractCopilotIDESessionMetadata(composer)
-		metadataList = append(metadataList, metadata)
-	}
+	forEachUniqueSession(allSources, func(composer *VSCodeComposer, _ *VSCodeStateFile) {
+		metadataList = append(metadataList, extractCopilotIDESessionMetadata(composer))
+	})
 
 	slog.Info("Listed Copilot sessions",
 		"app", p.variant.AppName,

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // userDataDirOverride holds an override path supplied via `--user-data-dir cursoride:<path>`.
@@ -21,86 +23,6 @@ func SetUserDataDirOverride(p string) {
 	userDataDirOverride = p
 }
 
-// isWSL checks if the current Linux environment is actually WSL
-func isWSL() bool {
-	// Check /proc/version for WSL indicators
-	data, err := os.ReadFile("/proc/version")
-	if err != nil {
-		return false
-	}
-	version := string(data)
-	versionLower := strings.ToLower(version)
-	return strings.Contains(versionLower, "microsoft") || strings.Contains(versionLower, "wsl")
-}
-
-// getWindowsCursorGlobalStorageInWSL attempts to find Cursor's global database
-// on the Windows filesystem when running in WSL
-func getWindowsCursorGlobalStorageInWSL() string {
-	usersDir := "/mnt/c/Users"
-	entries, err := os.ReadDir(usersDir)
-	if err != nil {
-		slog.Debug("Could not read Windows Users directory from WSL", "path", usersDir, "error", err)
-		return ""
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		username := entry.Name()
-		if username == "Public" || username == "Default" || username == "All Users" {
-			continue
-		}
-
-		// Check for Cursor global database in Windows AppData
-		dbPath := filepath.Join(usersDir, username, "AppData", "Roaming", "Cursor", "User", "globalStorage", "state.vscdb")
-		if _, err := os.Stat(dbPath); err == nil {
-			slog.Debug("Found Cursor global database on Windows filesystem from WSL",
-				"path", dbPath,
-				"windowsUser", username)
-			return dbPath
-		}
-	}
-
-	slog.Debug("No Cursor global database found on Windows filesystem from WSL")
-	return ""
-}
-
-// getWindowsCursorWorkspaceStorageInWSL attempts to find Cursor's workspace storage
-// on the Windows filesystem when running in WSL
-func getWindowsCursorWorkspaceStorageInWSL() string {
-	usersDir := "/mnt/c/Users"
-	entries, err := os.ReadDir(usersDir)
-	if err != nil {
-		slog.Debug("Could not read Windows Users directory from WSL", "path", usersDir, "error", err)
-		return ""
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		username := entry.Name()
-		if username == "Public" || username == "Default" || username == "All Users" {
-			continue
-		}
-
-		// Check for Cursor workspace storage in Windows AppData
-		storagePath := filepath.Join(usersDir, username, "AppData", "Roaming", "Cursor", "User", "workspaceStorage")
-		if _, err := os.Stat(storagePath); err == nil {
-			slog.Debug("Found Cursor workspace storage on Windows filesystem from WSL",
-				"path", storagePath,
-				"windowsUser", username)
-			return storagePath
-		}
-	}
-
-	slog.Debug("No Cursor workspace storage found on Windows filesystem from WSL")
-	return ""
-}
-
 // GetGlobalDatabasePath finds the Cursor IDE global database.
 // It is a var so tests can replace it with a function that returns a temp path.
 var GetGlobalDatabasePath = getGlobalDatabasePath
@@ -108,19 +30,11 @@ var GetGlobalDatabasePath = getGlobalDatabasePath
 // getGlobalDatabasePath is the real implementation; GetGlobalDatabasePath delegates to it.
 // Returns the path to state.vscdb in Cursor's globalStorage.
 func getGlobalDatabasePath() (string, error) {
-	// An explicit --user-data-dir cursoride:<path> override takes precedence over
-	// OS-default discovery. If the override is set but the derived path does not
-	// exist, warn and fall through so a stale override doesn't silently kill the
-	// provider; the OS-default lookup below still gets a chance to find Cursor.
-	if userDataDirOverride != "" {
-		candidate := filepath.Join(userDataDirOverride, "User", "globalStorage", "state.vscdb")
-		if _, err := os.Stat(candidate); err == nil {
-			slog.Debug("Using --user-data-dir override for Cursor global database", "path", candidate)
-			return candidate, nil
-		} else {
-			slog.Warn("--user-data-dir override for Cursor global database missing; falling back to OS default",
-				"override", userDataDirOverride, "candidate", candidate, "error", err)
-		}
+	// An explicit --user-data-dir cursoride:<path> override takes precedence
+	// over OS-default discovery; a missing override warns and falls through so
+	// the OS-default lookup below still gets a chance to find Cursor.
+	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverride, "cursoride", "User", "globalStorage", "state.vscdb"); ok {
+		return path, nil
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -142,9 +56,9 @@ func getGlobalDatabasePath() (string, error) {
 	case "linux":
 		// When running in WSL, Cursor stores data on the Windows side
 		// Check Windows filesystem first via /mnt/c/
-		if isWSL() {
+		if spi.IsWSL() {
 			slog.Debug("Detected WSL environment, checking Windows filesystem for Cursor global database")
-			windowsPath := getWindowsCursorGlobalStorageInWSL()
+			windowsPath := spi.FindWindowsAppDataPathFromWSL("Cursor", "User", "globalStorage", "state.vscdb")
 			if windowsPath != "" {
 				return windowsPath, nil
 			}
@@ -220,18 +134,11 @@ var GetWorkspaceStoragePath = getWorkspaceStoragePath
 
 // getWorkspaceStoragePath is the real implementation; GetWorkspaceStoragePath delegates to it.
 func getWorkspaceStoragePath() (string, error) {
-	// An explicit --user-data-dir cursoride:<path> override takes precedence over
-	// OS-default discovery. Same warn-and-fall-back semantics as GetGlobalDatabasePath:
-	// a stale override should not silently disable the provider.
-	if userDataDirOverride != "" {
-		candidate := filepath.Join(userDataDirOverride, "User", "workspaceStorage")
-		if _, err := os.Stat(candidate); err == nil {
-			slog.Debug("Using --user-data-dir override for Cursor workspace storage", "path", candidate)
-			return candidate, nil
-		} else {
-			slog.Warn("--user-data-dir override for Cursor workspaceStorage missing; falling back to OS default",
-				"override", userDataDirOverride, "candidate", candidate, "error", err)
-		}
+	// An explicit --user-data-dir cursoride:<path> override takes precedence
+	// over OS-default discovery. Same warn-and-fall-back semantics as
+	// GetGlobalDatabasePath: a stale override should not silently disable the provider.
+	if path, ok := spi.ResolveUserDataDirOverride(userDataDirOverride, "cursoride", "User", "workspaceStorage"); ok {
+		return path, nil
 	}
 
 	homeDir, err := os.UserHomeDir()
@@ -247,11 +154,10 @@ func getWorkspaceStoragePath() (string, error) {
 	case "linux":
 		// When running in WSL, Cursor stores workspace data on the Windows side
 		// Check Windows filesystem first via /mnt/c/
-		if isWSL() {
+		if spi.IsWSL() {
 			slog.Debug("Detected WSL environment, checking Windows filesystem for Cursor workspace storage")
-			windowsPath := getWindowsCursorWorkspaceStorageInWSL()
+			windowsPath := spi.FindWindowsAppDataPathFromWSL("Cursor", "User", "workspaceStorage")
 			if windowsPath != "" {
-				slog.Debug("Found Cursor workspace storage on Windows filesystem", "path", windowsPath)
 				return windowsPath, nil
 			}
 			slog.Debug("No workspace storage found on Windows side, trying native Linux path")

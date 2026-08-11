@@ -519,3 +519,81 @@ func IsRemoteURIRequiringBasenameMatch(uri string) bool {
 		strings.HasPrefix(lower, "vscode-remote://tunnel") ||
 		strings.HasPrefix(lower, "vscode-remote://dev-container")
 }
+
+// IsWSL reports whether this process is running inside Windows Subsystem for
+// Linux. WSL matters to providers because a VS Code-lineage IDE installed on
+// the Windows side keeps all of its data (workspace storage, global database)
+// on the Windows filesystem even for WSL projects, so discovery must look at
+// /mnt/c/... before the native Linux locations.
+func IsWSL() bool {
+	// /proc/version identifies the kernel; WSL kernels carry a "microsoft"
+	// (WSL2) or "wsl" marker. On non-Linux systems the file doesn't exist.
+	data, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	versionLower := strings.ToLower(string(data))
+	return strings.Contains(versionLower, "microsoft") || strings.Contains(versionLower, "wsl")
+}
+
+// FindWindowsAppDataPathFromWSL locates a path under a Windows user's roaming
+// AppData when running inside WSL, by scanning /mnt/c/Users for a profile that
+// actually contains it. elem is the path relative to AppData/Roaming (e.g.
+// "Cursor", "User", "workspaceStorage"). Returns "" when no profile has it.
+//
+// The scan takes the first matching profile: WSL doesn't record which Windows
+// user owns it, so a real per-user mapping isn't available — on the common
+// single-user machine this is exact, and on multi-user machines it is the best
+// guess we can make. Only the default C: mount is searched; a non-standard
+// automount root is out of scope and falls back to native-Linux discovery.
+func FindWindowsAppDataPathFromWSL(elem ...string) string {
+	usersDir := "/mnt/c/Users"
+	entries, err := os.ReadDir(usersDir)
+	if err != nil {
+		slog.Debug("Could not read Windows Users directory from WSL", "path", usersDir, "error", err)
+		return ""
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		// Skip Windows system profiles — they never hold IDE data
+		username := entry.Name()
+		if username == "Public" || username == "Default" || username == "All Users" {
+			continue
+		}
+
+		candidate := filepath.Join(append([]string{usersDir, username, "AppData", "Roaming"}, elem...)...)
+		if _, err := os.Stat(candidate); err == nil {
+			slog.Debug("Found path on Windows filesystem from WSL",
+				"path", candidate,
+				"windowsUser", username)
+			return candidate
+		}
+	}
+
+	slog.Debug("Path not found in any Windows user profile from WSL", "elem", filepath.Join(elem...))
+	return ""
+}
+
+// ResolveUserDataDirOverride resolves an explicit `--user-data-dir
+// <provider-id>:<path>` override to the storage location elem beneath it (e.g.
+// "User", "workspaceStorage"). ok is false when no override is set or when the
+// derived path does not exist. The missing-path case logs a warning rather than
+// failing hard so a stale override doesn't silently kill the provider — callers
+// are expected to fall through to OS-default discovery.
+func ResolveUserDataDirOverride(override, providerID string, elem ...string) (string, bool) {
+	if override == "" {
+		return "", false
+	}
+	candidate := filepath.Join(append([]string{override}, elem...)...)
+	if _, err := os.Stat(candidate); err == nil {
+		slog.Debug("Using --user-data-dir override", "provider", providerID, "path", candidate)
+		return candidate, true
+	}
+	slog.Warn("--user-data-dir override path missing; falling back to OS default",
+		"provider", providerID, "override", override, "candidate", candidate)
+	return "", false
+}
