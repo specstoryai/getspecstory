@@ -99,12 +99,6 @@ func TestProcessTemplate(t *testing.T) {
 
 // TestLoadPrecedence tests that project config overrides user config
 func TestLoadPrecedence(t *testing.T) {
-	// Save and restore original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	tests := []struct {
 		name           string
@@ -160,9 +154,7 @@ enabled = false
 			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
-			if err := os.Chdir(tempProject); err != nil {
-				t.Fatalf("Failed to chdir: %v", err)
-			}
+			t.Chdir(tempProject)
 
 			// Create user config if provided
 			if tt.userConfig != "" {
@@ -199,20 +191,13 @@ enabled = false
 // Non-overlapping settings from both levels should coexist, with project-level
 // taking precedence where both define the same key.
 func TestConfigMerge(t *testing.T) {
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	t.Run("non-overlapping settings from both configs are preserved", func(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// User config sets output_dir and disables analytics
 		createTempConfigFile(t, tempHome, `
@@ -259,9 +244,7 @@ enabled = false
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// User sets output_dir and enables console logging
 		createTempConfigFile(t, tempHome, `
@@ -297,9 +280,7 @@ output_dir = "/project/output"
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// User sets output_dir
 		createTempConfigFile(t, tempHome, `
@@ -326,12 +307,6 @@ output_dir = "/project/output"
 
 // TestCLIOverrides tests that CLI flags override config file settings
 func TestCLIOverrides(t *testing.T) {
-	// Save and restore original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	tests := []struct {
 		name       string
@@ -508,9 +483,7 @@ debug_dir = "/config/debug"
 			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
-			if err := os.Chdir(tempProject); err != nil {
-				t.Fatalf("Failed to chdir: %v", err)
-			}
+			t.Chdir(tempProject)
 
 			// Create project config
 			if tt.configFile != "" {
@@ -530,12 +503,6 @@ debug_dir = "/config/debug"
 
 // TestParseErrorHandling tests that TOML parse errors are returned to the caller
 func TestParseErrorHandling(t *testing.T) {
-	// Save and restore original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	tests := []struct {
 		name          string
@@ -578,9 +545,7 @@ func TestParseErrorHandling(t *testing.T) {
 			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
-			if err := os.Chdir(tempProject); err != nil {
-				t.Fatalf("Failed to chdir: %v", err)
-			}
+			t.Chdir(tempProject)
 
 			// Create project config with test content
 			createTempConfigFile(t, tempProject, tt.configContent)
@@ -605,12 +570,6 @@ func TestParseErrorHandling(t *testing.T) {
 
 // TestMissingFileHandling tests that missing config files don't cause errors
 func TestMissingFileHandling(t *testing.T) {
-	// Save and restore original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	tests := []struct {
 		name           string
@@ -672,9 +631,7 @@ func TestMissingFileHandling(t *testing.T) {
 			testutil.SetHome(t, tempHome)
 
 			// Change to temp project directory
-			if err := os.Chdir(tempProject); err != nil {
-				t.Fatalf("Failed to chdir: %v", err)
-			}
+			t.Chdir(tempProject)
 
 			// Create directories if needed
 			if tt.createUserDir {
@@ -718,21 +675,13 @@ func TestMissingFileHandling(t *testing.T) {
 
 // TestDefaultValues tests that default values are returned when config is empty
 func TestDefaultValues(t *testing.T) {
-	// Save and restore original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	// Create temp directories with no config files
 	tempHome := t.TempDir()
 	tempProject := t.TempDir()
 
 	testutil.SetHome(t, tempHome)
-	if err := os.Chdir(tempProject); err != nil {
-		t.Fatalf("Failed to chdir: %v", err)
-	}
+	t.Chdir(tempProject)
 
 	cfg, err := Load(nil)
 	if err != nil {
@@ -777,21 +726,13 @@ func TestDefaultValues(t *testing.T) {
 
 // TestEnsureDefaultUserConfig tests auto-creation of the default user config file
 func TestEnsureDefaultUserConfig(t *testing.T) {
-	// Save and restore original working directory
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	t.Run("creates file when none exists", func(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// Load config — no user config exists, should auto-create
 		cfg, err := Load(nil)
@@ -838,9 +779,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// Create an existing user config with custom settings
 		existingContent := "[local_sync]\noutput_dir = \"/my/custom/path\""
@@ -873,9 +812,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// Make .specstory directory read-only so config creation fails
 		specstoryDir := filepath.Join(tempHome, SpecStoryDir)
@@ -906,9 +843,7 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// First Load — creates the default config
 		_, err := Load(nil)
@@ -1141,20 +1076,13 @@ func TestGetProviderCmd(t *testing.T) {
 
 // TestProviderCmdFromConfig tests that provider commands are loaded from TOML config files
 func TestProviderCmdFromConfig(t *testing.T) {
-	origWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
-	}
-	defer func() { _ = os.Chdir(origWd) }()
 
 	t.Run("provider commands loaded from user config", func(t *testing.T) {
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		createTempConfigFile(t, tempHome, `
 [providers]
@@ -1192,9 +1120,7 @@ copilotide_cmd = "code --wait"
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		// User config sets claude_cmd and codex_cmd
 		createTempConfigFile(t, tempHome, `
@@ -1228,9 +1154,7 @@ claude_cmd = "claude --project-level"
 		tempProject := t.TempDir()
 
 		testutil.SetHome(t, tempHome)
-		if err := os.Chdir(tempProject); err != nil {
-			t.Fatalf("Failed to chdir: %v", err)
-		}
+		t.Chdir(tempProject)
 
 		cfg, err := Load(nil)
 		if err != nil {

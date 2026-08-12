@@ -141,20 +141,34 @@ func (c *StatisticsCollector) AddSessionStats(sessionID string, stats SessionSta
 // two-second budget is generous. A lock file older than staleLockAge is
 // presumed abandoned by a crashed process and stolen; the steal itself has a
 // benign race (two stealers, one wins O_EXCL, the other retries).
+//
+// The lock file carries an owner token, and release deletes the file only when
+// the token is still ours. Without that, a steal cascades: if a live-but-slow
+// owner is stolen from, its unconditional release would delete the NEW owner's
+// lock and let a third writer into the critical section. With the token, the
+// stale original's release becomes a no-op. A small read-then-remove window
+// remains (this is a lock file, not an OS lock); the residual worst case is the
+// pre-lock behavior — one lost merge — not corruption.
 // Returns the release func on success.
 func acquireFileLock(lockPath string) (func(), error) {
 	const (
 		retryDelay   = 10 * time.Millisecond
 		retryBudget  = 2 * time.Second
-		staleLockAge = 10 * time.Second
+		staleLockAge = 30 * time.Second
 	)
 
+	token := fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
 	deadline := time.Now().Add(retryBudget)
 	for {
 		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
 		if err == nil {
+			_, _ = f.WriteString(token)
 			_ = f.Close()
-			return func() { _ = os.Remove(lockPath) }, nil
+			return func() {
+				if data, readErr := os.ReadFile(lockPath); readErr == nil && string(data) == token {
+					_ = os.Remove(lockPath)
+				}
+			}, nil
 		}
 		if !os.IsExist(err) {
 			return nil, fmt.Errorf("failed to create lock file: %w", err)

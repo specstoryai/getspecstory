@@ -3,6 +3,7 @@ package utils
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -102,6 +103,11 @@ func TestNewOutputPathConfig(t *testing.T) {
 			name: "directory without write permissions",
 			dir:  "",
 			setup: func(t *testing.T) string {
+				// Unix permission bits don't restrict directories on Windows —
+				// 0555 stays writable there, so the failure can't be provoked.
+				if runtime.GOOS == "windows" {
+					t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+				}
 				dir := t.TempDir()
 				noWriteDir := filepath.Join(dir, "no-write")
 				if err := os.Mkdir(noWriteDir, 0555); err != nil {
@@ -121,6 +127,10 @@ func TestNewOutputPathConfig(t *testing.T) {
 			name: "parent directory without write permissions",
 			dir:  "",
 			setup: func(t *testing.T) string {
+				// See the skip above — mode bits don't restrict Windows directories.
+				if runtime.GOOS == "windows" {
+					t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+				}
 				dir := t.TempDir()
 				noWriteDir := filepath.Join(dir, "no-write")
 				if err := os.Mkdir(noWriteDir, 0555); err != nil {

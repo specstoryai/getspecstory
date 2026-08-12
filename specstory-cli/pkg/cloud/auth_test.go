@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -26,6 +27,9 @@ func TestIsAuthenticated(t *testing.T) {
 		setup          func()
 		expectedResult bool
 		description    string
+		// skipOnWindows marks cases whose setup relies on Unix permission
+		// semantics (e.g. chmod 0000) that Windows mode bits cannot express.
+		skipOnWindows bool
 	}{
 		{
 			name: "auth file does not exist",
@@ -275,11 +279,15 @@ func TestIsAuthenticated(t *testing.T) {
 			},
 			expectedResult: false,
 			description:    "Should return false when auth.json cannot be read",
+			skipOnWindows:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipOnWindows && runtime.GOOS == "windows" {
+				t.Skip("relies on chmod semantics Windows mode bits cannot express")
+			}
 			tt.setup()
 			result := IsAuthenticated()
 			if result != tt.expectedResult {

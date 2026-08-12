@@ -514,4 +514,35 @@ func TestAcquireFileLock(t *testing.T) {
 		}
 		unlock()
 	})
+
+	t.Run("stolen-from owner's release cannot delete the new owner's lock", func(t *testing.T) {
+		lockPath := filepath.Join(t.TempDir(), "statistics.json.lock")
+
+		releaseOld, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("first acquire failed: %v", err)
+		}
+		// Backdate so the next acquirer treats the (still-live) owner as crashed
+		// and steals — the slow-writer scenario.
+		old := time.Now().Add(-time.Minute)
+		if err := os.Chtimes(lockPath, old, old); err != nil {
+			t.Fatalf("failed to backdate lock: %v", err)
+		}
+		releaseNew, err := acquireFileLock(lockPath)
+		if err != nil {
+			t.Fatalf("steal acquire failed: %v", err)
+		}
+
+		// The stale original releases; the new owner's lock must survive, or a
+		// third writer could enter the critical section.
+		releaseOld()
+		if _, err := os.Stat(lockPath); err != nil {
+			t.Fatalf("previous owner's release deleted the new owner's lock: %v", err)
+		}
+
+		releaseNew()
+		if _, err := os.Stat(lockPath); !os.IsNotExist(err) {
+			t.Errorf("new owner's release should remove the lock, stat err = %v", err)
+		}
+	})
 }

@@ -144,12 +144,20 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	// of the remote path (e.g. /home/user on this machine) and could latch onto an
 	// unrelated local repo's .git; git identity for remote targets comes from
 	// --git-origin instead.
+	//
+	// On Windows a driveless rooted remote path (e.g. \home\u\project) is fully
+	// opaque: os.Stat would resolve it against the current drive (possibly finding
+	// an unrelated local directory) and filepath.Abs would staple the drive letter
+	// on, making the id depend on the process's drive. Hash it exactly as given.
 	var resolvedGitID, resolvedWorkspaceID, resolvedName string
 	detectionRoot := m.getDetectionRoot()
-	if info, statErr := os.Stat(detectionRoot); statErr == nil && info.IsDir() {
+	rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
+	if IsDrivelessRootedPath(detectionRoot) {
+		resolvedWorkspaceID = rooted.createHash(canonicalizeWorkspacePath(detectionRoot))
+		resolvedName = filepath.Base(detectionRoot)
+	} else if info, statErr := os.Stat(detectionRoot); statErr == nil && info.IsDir() {
 		resolvedGitID, resolvedWorkspaceID, resolvedName, _ = resolveIdentity(detectionRoot)
 	} else {
-		rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
 		resolvedWorkspaceID = rooted.generateWorkspaceID()
 		resolvedName = filepath.Base(detectionRoot)
 	}

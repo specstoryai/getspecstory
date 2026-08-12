@@ -236,6 +236,10 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	if err := utils.EnsureHistoryDirectoryExists(outConfig); err != nil {
 		return err
 	}
+	// Tell cloud sync where .project.json lives (respects --output-dir) — without
+	// this the autosave callback's cloud sync reads ./.specstory/.project.json and
+	// fails or syncs under the wrong identity when --output-dir is set.
+	cloud.SetSpecstoryDir(outConfig.GetSpecstoryDir())
 	if _, err := utils.NewProjectIdentityManager(cwd, outConfig.GetSpecstoryDir()).EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}

@@ -54,17 +54,6 @@ func TestGetClaudeCodeProjectsDir(t *testing.T) {
 }
 
 func TestGetClaudeCodeProjectDir(t *testing.T) {
-	// Save original working directory
-	originalWd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get original working directory: %v", err)
-	}
-	defer func() {
-		if err := os.Chdir(originalWd); err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
-		}
-	}()
-
 	// Save original home directory
 	originalHome, err := os.UserHomeDir()
 	if err != nil {
@@ -112,9 +101,7 @@ func TestGetClaudeCodeProjectDir(t *testing.T) {
 
 			// Create a temporary working directory
 			tempWd := t.TempDir()
-			if err := os.Chdir(tempWd); err != nil {
-				t.Fatalf("Failed to change to temp working directory: %v", err)
-			}
+			t.Chdir(tempWd)
 
 			// Mock the working directory path for testing
 			// Since we can't actually change the path structure, we'll just verify
