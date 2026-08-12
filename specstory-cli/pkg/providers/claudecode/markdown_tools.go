@@ -72,10 +72,13 @@ var (
 
 // makeRelativePath converts an absolute path to relative if it's within the cwd
 func makeRelativePath(absolutePath, cwd string) string {
-	// Delegate the relativization to the shared shape-based engine: both paths
-	// come from the session recording, so host-dependent filepath helpers (and
-	// the case-folding this function once keyed off the RENDERING host's OS)
-	// would corrupt sessions recorded on a different platform.
+	// Delegate the relativization to the shared shape-based engine. The path
+	// comes from the session recording — possibly written on another OS — so
+	// host-dependent filepath helpers and host case-folding would corrupt it.
+	// The comparison is exact: cwd is the canonicalized effective project path
+	// (see utils.ResolveProjectPath), which matches the on-disk spelling agents
+	// record even when the specstory process was launched from a
+	// differently-cased spelling of the same directory.
 	rel := spi.NormalizePath(absolutePath, cwd)
 	if rel == absolutePath {
 		// Outside cwd (or already relative): keep the recorded form.

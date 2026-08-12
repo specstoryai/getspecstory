@@ -332,18 +332,33 @@ func TestOutputPathConfigMethods(t *testing.T) {
 }
 
 // TestResolveProjectPath covers the platform-independent behavior: empty-override
-// fallback, cleaning of absolute overrides, and absolutization of relative
-// overrides. The Windows-only branch that preserves rootless remote-workspace
-// paths (VS Code fsPaths like /home/u/proj on a Windows host) is gated on
-// runtime.GOOS and exercised only on Windows builds, and the fallback-to-cwd
-// error path requires os.Getwd to fail, which is not portably testable.
+// fallback, cleaning of absolute overrides, absolutization of relative overrides,
+// and canonicalization to the on-disk spelling. The Windows-only branch that
+// preserves rootless remote-workspace paths (VS Code fsPaths like /home/u/proj on
+// a Windows host) is gated on runtime.GOOS and exercised only on Windows builds,
+// and the fallback-to-cwd error path requires os.Getwd to fail, which is not
+// portably testable.
 func TestResolveProjectPath(t *testing.T) {
-	fallbackCwd := filepath.Join("some", "fallback", "cwd")
-	processCwd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
+	// Results are canonicalized (symlinks resolved), so expectations must start
+	// from symlink-free fixture paths — t.TempDir() is a symlink on macOS
+	// (/var -> /private/var).
+	canonicalDir := func(t *testing.T) string {
+		t.Helper()
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("Failed to resolve temp dir symlinks: %v", err)
+		}
+		return dir
 	}
-	absDir := t.TempDir()
+
+	fallbackCwd := canonicalDir(t)
+	absDir := canonicalDir(t)
+
+	// Pin the process cwd for the relative-override case so the expectation is
+	// built from a known-canonical base rather than whatever spelling the test
+	// runner was launched from.
+	processCwd := canonicalDir(t)
+	t.Chdir(processCwd)
 
 	tests := []struct {
 		name     string
@@ -379,4 +394,25 @@ func TestResolveProjectPath(t *testing.T) {
 			}
 		})
 	}
+
+	// A cwd spelled with the wrong case (possible on case-insensitive
+	// filesystems, where the shell preserves whatever the user typed) must
+	// resolve to the on-disk spelling — the exact prefix comparisons that
+	// relativize recorded paths in generated markdown depend on it. Detected at
+	// runtime rather than by GOOS: macOS volumes can be formatted either way.
+	t.Run("cwd case corrected to on-disk spelling", func(t *testing.T) {
+		base := canonicalDir(t)
+		onDisk := filepath.Join(base, "MixedCase")
+		if err := os.Mkdir(onDisk, 0755); err != nil {
+			t.Fatalf("Failed to create MixedCase dir: %v", err)
+		}
+		misspelled := filepath.Join(base, "mixedcase")
+		if _, err := os.Stat(misspelled); err != nil {
+			t.Skip("filesystem is case-sensitive; misspelled path does not resolve")
+		}
+
+		if got := ResolveProjectPath("", misspelled); got != onDisk {
+			t.Errorf("ResolveProjectPath cwd %q = %q, want on-disk spelling %q", misspelled, got, onDisk)
+		}
+	})
 }

@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Directory and file constants
@@ -205,13 +207,20 @@ func SetupOutputConfig(outputDir string, debugDir string) (*OutputPathConfig, er
 // ResolveProjectPath returns the effective project path for session discovery.
 // When overridePath is provided, it is resolved to an absolute path and returned.
 // Falls back to cwd when overridePath is empty or cannot be resolved.
+//
+// The result is canonicalized to its on-disk spelling (symlinks resolved, case
+// corrected). On case-insensitive filesystems the same directory can be spelled
+// several ways ("~/source" vs "~/Source"), while agents record the on-disk
+// spelling — a differently-spelled root would fail the exact prefix comparisons
+// used to relativize recorded paths in generated markdown.
 func ResolveProjectPath(overridePath, cwd string) string {
 	if overridePath == "" {
-		return cwd
+		return canonicalizeLocalPath(cwd)
 	}
 
-	// Rootless remote paths must not be absolutized — filepath.Abs would corrupt
-	// them by prepending the current drive letter (e.g. C:\home\user\project).
+	// Rootless remote paths must not be absolutized or canonicalized — they name
+	// directories on another machine, and filepath.Abs would corrupt them by
+	// prepending the current drive letter (e.g. C:\home\user\project).
 	if IsDrivelessRootedPath(overridePath) {
 		return filepath.Clean(overridePath)
 	}
@@ -219,9 +228,23 @@ func ResolveProjectPath(overridePath, cwd string) string {
 	abs, err := filepath.Abs(overridePath)
 	if err != nil {
 		slog.Warn("ResolveProjectPath: Failed to resolve override path, using cwd", "path", overridePath, "error", err)
-		return cwd
+		return canonicalizeLocalPath(cwd)
 	}
-	return abs
+	return canonicalizeLocalPath(abs)
+}
+
+// canonicalizeLocalPath resolves a local path to its on-disk spelling, falling
+// back to the input when resolution fails. Only ever applied to paths naming
+// directories on this machine (the process cwd or a local override) — recorded
+// paths from session data must never pass through here, since they may have
+// been written on another OS.
+func canonicalizeLocalPath(p string) string {
+	canonical, err := spi.GetCanonicalPath(p)
+	if err != nil {
+		slog.Debug("Failed to canonicalize project path, using as-is", "path", p, "error", err)
+		return p
+	}
+	return canonical
 }
 
 // IsDrivelessRootedPath reports whether p is, on Windows, a rooted path with no
