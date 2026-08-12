@@ -3,6 +3,7 @@ package antigravitycli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
@@ -13,6 +14,18 @@ const (
 	testConversationID = "22222222-2222-4222-8222-222222222222"
 )
 
+// fileURIFor builds a file:// URI fixture for an absolute path, handling the
+// Windows drive form (C:\x → file:///C:/x). Raw "file://"+path splicing would
+// put a Windows drive letter in the URI's host position, producing a URI no
+// decoder treats as a local path.
+func fileURIFor(path string) string {
+	p := filepath.ToSlash(path)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return "file://" + p
+}
+
 func TestLoadProjectWorkspaceIndex(t *testing.T) {
 	home := t.TempDir()
 	testutil.SetHome(t, home)
@@ -22,7 +35,7 @@ func TestLoadProjectWorkspaceIndex(t *testing.T) {
 		"id":"`+testProjectID+`",
 		"name":"ignored-relative-name",
 		"projectResources":{"resources":[
-			{"gitFolder":{"folderUri":"file://`+filepath.ToSlash(workspace)+`"}}
+			{"gitFolder":{"folderUri":"`+fileURIFor(workspace)+`"}}
 		]}
 	}`)
 
@@ -42,7 +55,7 @@ func TestLoadConversationWorkspaceIndex(t *testing.T) {
 
 	writeProjectConfig(t, home, testProjectID, `{
 		"id":"`+testProjectID+`",
-		"name":"`+workspace+`",
+		"name":`+testutil.JSONString(workspace)+`,
 		"projectResources":{"resources":[]}
 	}`)
 	writeAntigravityLog(t, home, "cli-test.log",

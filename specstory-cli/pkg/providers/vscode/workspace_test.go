@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -233,7 +234,16 @@ func TestMintWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if got, err := URIToPath(wsJSON.Folder); err != nil || got != projectDir {
+	// The URI round-trip lowercases the drive letter on Windows (fileURIParts
+	// matches the IDE's own serialization), so compare case-insensitively there;
+	// Unix filesystems keep exact case.
+	pathsEqual := func(a, b string) bool {
+		if runtime.GOOS == "windows" {
+			return strings.EqualFold(a, b)
+		}
+		return a == b
+	}
+	if got, err := URIToPath(wsJSON.Folder); err != nil || !pathsEqual(got, projectDir) {
 		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, projectDir)
 	}
 

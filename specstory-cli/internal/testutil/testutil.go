@@ -1,7 +1,24 @@
 // Package testutil provides helpers shared by tests across packages.
 package testutil
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
+
+// JSONString returns s as a JSON string literal, quotes included. Test fixtures
+// that splice filesystem paths into hand-written JSON must escape them: Windows
+// paths contain backslashes, which are JSON escape characters, so raw splicing
+// produces invalid JSON on Windows while passing silently on Unix.
+func JSONString(s string) string {
+	data, err := json.Marshal(s)
+	if err != nil {
+		// Marshaling a string can only fail for invalid UTF-8; fall back to a
+		// bare quote wrap so the fixture failure surfaces in the test output.
+		return `"` + s + `"`
+	}
+	return string(data)
+}
 
 // SetHome points the current test's home directory at dir on every platform,
 // restoring the originals when the test ends. Tests that fake the home

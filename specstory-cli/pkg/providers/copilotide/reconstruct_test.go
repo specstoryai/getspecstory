@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -295,13 +294,17 @@ func TestWriteSessionIndexEntry_PreservesExisting(t *testing.T) {
 func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 	fakeHome := t.TempDir()
 	testutil.SetHome(t, fakeHome)
-	storageRoot := filepath.Join(fakeHome, "Library", "Application Support", "Code", "User", "workspaceStorage")
-	if runtime.GOOS == "linux" {
-		storageRoot = filepath.Join(fakeHome, ".config", "Code", "User", "workspaceStorage")
-	}
+	// Point the provider at a fake install via the --user-data-dir override
+	// rather than per-OS home layouts (macOS/Linux/Windows all differ, and
+	// Windows resolves via APPDATA, which SetHome deliberately doesn't touch).
+	// The override is the same resolution path a portable install takes.
+	userData := t.TempDir()
+	storageRoot := filepath.Join(userData, "User", "workspaceStorage")
 	if err := os.MkdirAll(storageRoot, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	SetUserDataDirOverride(VSCode.ID, userData)
+	t.Cleanup(func() { SetUserDataDirOverride(VSCode.ID, "") })
 	projectDir := filepath.Join(fakeHome, "proj")
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)

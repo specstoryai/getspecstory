@@ -99,7 +99,7 @@ func TestDetectAgent_ProjectMatch(t *testing.T) {
 	testutil.SetHome(t, home)
 	proj := t.TempDir()
 
-	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":"`+proj+`","conversationId":"conv-1"}`)
+	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":`+testutil.JSONString(proj)+`,"conversationId":"conv-1"}`)
 	writeConversation(t, home, "conv-1", `{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`)
 
 	p := NewProvider()
@@ -118,7 +118,7 @@ func TestDetectAgent_ProjectMatchFromLogMapping(t *testing.T) {
 
 	writeProjectConfig(t, home, testProjectID, `{
 		"id":"`+testProjectID+`",
-		"name":"`+proj+`",
+		"name":`+testutil.JSONString(proj)+`,
 		"projectResources":{"resources":[]}
 	}`)
 	writeAntigravityLog(t, home, "cli-test.log",
@@ -144,7 +144,7 @@ func TestGetAgentChatSession_RoundTrip(t *testing.T) {
 	testutil.SetHome(t, home)
 	proj := t.TempDir()
 
-	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":"`+proj+`","conversationId":"conv-1"}`)
+	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":`+testutil.JSONString(proj)+`,"conversationId":"conv-1"}`)
 	writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`,
 		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"hello there"}`,
@@ -211,7 +211,7 @@ func TestListAllAgentChatSessions(t *testing.T) {
 
 	// A workspace-scoped session: the workspace is recoverable from history.jsonl,
 	// so its ref must carry that path as OriginCwd (the project reindex maps it to).
-	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":"`+proj+`","conversationId":"conv-1"}`)
+	writeHistory(t, home, `{"display":"hi","timestamp":1779831156198,"workspace":`+testutil.JSONString(proj)+`,"conversationId":"conv-1"}`)
 	writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nFix the bug\n</USER_REQUEST>"}`,
 		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"done"}`,

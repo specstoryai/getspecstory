@@ -427,13 +427,28 @@ func FileURIToPath(uri string) (string, error) {
 	if filepath.Separator == '\\' {
 		// A non-WSL host names a UNC share.
 		if parsed.Host != "" {
-			return `\\` + parsed.Host + filepath.FromSlash(path), nil
+			return `\\` + parsed.Host + strings.ReplaceAll(path, "/", `\`), nil
 		}
-		// Drive-letter URI paths arrive with a spurious leading slash (/C:/Users).
-		return filepath.FromSlash(strings.TrimPrefix(path, "/")), nil
+		return windowsFileURIPath(path), nil
 	}
 
 	return path, nil
+}
+
+// windowsFileURIPath converts a decoded hostless file-URI path to its native
+// Windows form. Only drive-letter paths convert: they carry a spurious leading
+// slash ("/C:/Users" → "C:\Users"). Anything else is a rooted Unix-shaped path
+// — a session or workspace recorded on another OS, or a remote workspace — and
+// must keep its root and forward slashes; stripping the slash would silently
+// turn an absolute path into a relative one. Written with plain string ops
+// rather than filepath's GOOS-dependent helpers so the Windows conversion is
+// unit-testable from any platform.
+func windowsFileURIPath(path string) string {
+	if len(path) >= 3 && path[0] == '/' && path[2] == ':' &&
+		('a' <= path[1]|0x20 && path[1]|0x20 <= 'z') {
+		return strings.ReplaceAll(path[1:], "/", `\`)
+	}
+	return path
 }
 
 // ParseVSCodeRemoteURI extracts the filesystem path from a vscode-remote:// URI,

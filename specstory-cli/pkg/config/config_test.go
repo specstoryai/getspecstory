@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -808,6 +809,11 @@ func TestEnsureDefaultUserConfig(t *testing.T) {
 	})
 
 	t.Run("handles unwritable directory gracefully", func(t *testing.T) {
+		// Unix mode bits can't make a directory unwritable on Windows, so the
+		// failure this test provokes cannot happen there.
+		if runtime.GOOS == "windows" {
+			t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+		}
 		tempHome := t.TempDir()
 		tempProject := t.TempDir()
 
