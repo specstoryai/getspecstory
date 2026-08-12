@@ -10,6 +10,8 @@ _**User (2026-01-29 14:35:22Z)**_
 <command-name>/pr-review</command-name>
 <command-args>150</command-args>
 
+---
+
 _**User (2026-01-29 14:35:22Z)**_
 
 ## Context
@@ -4257,6 +4259,8 @@ _**User (2026-01-29 14:36:54Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-01-29 14:37:10Z)**_
 
 Already done the test inversion testing.
@@ -4911,7 +4915,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:16:01Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```go
+````go
 package droidcli
 
 import (
@@ -4996,7 +5000,7 @@ func TestFormatToolCall(t *testing.T) {
 			},
 			expectedSubstr: []string{
 				"Path: `main.go`",
-				"\```go",
+				"```go",
 				"package main",
 			},
 		},
@@ -5020,7 +5024,7 @@ func TestFormatToolCall(t *testing.T) {
 			},
 			expectedSubstr: []string{
 				"Path: `main.go`",
-				"\```diff",
+				"```diff",
 				"-foo",
 				"+bar",
 			},
@@ -5083,7 +5087,7 @@ func TestToolTypeMappings(t *testing.T) {
 	}
 }
 
-```
+````
 
 ```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:

@@ -4562,6 +4562,8 @@ _**User (2026-02-21 01:59:09Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-21 01:59:34Z)**_
 
 We're counting everything from the agent as agent msgs. ANYTHING not said by the user is an "agent msg"
@@ -4974,6 +4976,8 @@ Now I need to add a dedup map. The callback runs in goroutines per-provider, so 
 _**User (2026-02-21 11:50:43Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-21 11:51:27Z)**_
 
@@ -5503,6 +5507,8 @@ pkg/providers/codexcli/watcher.go:532:		callback(s)
 _**User (2026-02-21 11:53:19Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-21 11:53:36Z)**_
 
@@ -6339,9 +6345,13 @@ _**User (2026-02-21 11:55:02Z)**_
 I see things like task complete token count, etc.
 those are th
 
+---
+
 _**User (2026-02-21 11:55:03Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-21 11:59:16Z)**_
 
@@ -7178,6 +7188,8 @@ docs/git-provenance/systems/intent-git-mode.md:55:1. Service manager starts mult
 _**User (2026-02-21 13:03:06Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-21 13:03:36Z)**_
 
@@ -9581,6 +9593,8 @@ _**User (2026-02-21 14:08:56Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-21 14:09:21Z)**_
 
 hmm, won't this "eat" the initial callback for a new session that starts post watch?
@@ -11064,6 +11078,8 @@ _**User (2026-02-21 14:19:03Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-21 14:19:20Z)**_
 
 The callback should move to watch.go.
@@ -11530,6 +11546,8 @@ _**User (2026-02-21 14:22:48Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-21 14:23:35Z)**_
 
 hmm so... the 2 remaining commands, run and sync are going to move out too. They're next. Does this change our plan for where these shared functions should live? Maybe not in main.go, yeah?
@@ -11612,6 +11630,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-21 14:31:10Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-21 14:33:09Z)**_
 
@@ -14435,7 +14455,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:38:36Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````md
 # Plan: Move watch command to pkg/cmd/watch.go and restructure shared code
 
 ## Context
@@ -14471,7 +14491,7 @@ Move these functions from main.go, exporting them:
 - **`WriteDebugSessionData`** (main.go:1099-1108) — writes debug JSON files
 
 `ProcessSingleSession` signature change:
-\```go
+```go
 // Before (main.go):
 func processSingleSession(session, config, showOutput, isAutosave, debugRaw, useUTC) (int, error)
 // uses package vars: onlyCloudSync, silent
@@ -14479,7 +14499,7 @@ func processSingleSession(session, config, showOutput, isAutosave, debugRaw, use
 // After (pkg/session/session.go):
 func ProcessSingleSession(session, config, onlyCloudSync, showOutput, isAutosave, debugRaw, useUTC) (int, error)
 // uses log.IsSilent() for silent check
-\```
+```
 
 Callers (3 sites in main.go) add `onlyCloudSync` argument.
 
@@ -14504,10 +14524,10 @@ Callers (5 sites): `checkAndWarnAuthentication()` → `cmd.CheckAndWarnAuthentic
 ### 5. Inline `getUseUTC` (main.go:166-169)
 
 Replace all 5 call sites with:
-\```go
+```go
 useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
 useUTC := !useLocalTimezone
-\```
+```
 
 Remove `getUseUTC` function.
 
@@ -14604,7 +14624,7 @@ Update:
 6. `./specstory sync` — confirm sync still works (uses moved session processing)
 7. `./specstory run claude-code` — confirm run still works (uses moved provenance + session processing)
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/wobbly-tickling-pretzel.md has been overwritten successfully.
@@ -14626,6 +14646,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-21 14:39:41Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-21 14:40:09Z)**_
 

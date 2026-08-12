@@ -87,6 +87,8 @@ _**User (2026-06-29 16:28:26Z)**_
 
 using ../getspecstory-pr237 work tree</command-args>
 
+---
+
 _**User (2026-06-29 16:28:26Z)**_
 
 ## Context
@@ -1443,9 +1445,13 @@ _**User (2026-06-30 13:53:56Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-06-30 13:53:56Z)**_
 
 <local-command-stdout>(no content)</local-command-stdout>
+
+---
 
 _**User (2026-06-30 13:53:56Z)**_
 

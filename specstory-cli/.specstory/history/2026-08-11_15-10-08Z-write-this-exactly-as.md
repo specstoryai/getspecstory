@@ -23499,3 +23499,4277 @@ func TestLoadStateFile(t *testing.T) {
 }
 ```
 </details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:51:34Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List copilotide files and find rawMessages helper in diff
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/copilotide && ls *.go && grep -n "func rawMessages" /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/scratchpad/pr258.diff`
+
+```text
+agent_session.go
+loader.go
+parser_test.go
+parser.go
+path_utils.go
+provider.go
+reconstruct_test.go
+reconstruct.go
+types.go
+watcher.go
+workspace_test.go
+workspace.go
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:51:36Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check exported/unexported names in current code
+
+`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/copilotide && grep -n "func \(ConvertRequestToMessages\|MapToolType\|mapToolType\|convertRequestToMessages\|ExtractTextFromResponseArray\|extractTextFromResponseArray\|GetChatSessionsPath\|GetStateFilePath\|hasEditingActivity\|LoadStateFile\|LoadSessionByID\|LoadSessionFile\|LoadAllSessionFiles\)" *.go; grep -n "errSessionNotFound\|ErrSessionNotFound" *.go | head`
+
+```text
+loader.go:17:func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
+loader.go:50:func LoadSessionFile(sessionPath string) (*VSCodeComposer, error) {
+loader.go:89:func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
+loader.go:110:func LoadStateFile(workspaceDir, sessionID string) (*VSCodeStateFile, error) {
+agent_session.go:85:func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
+agent_session.go:503:func MapToolType(toolName string) string {
+parser.go:360:func ExtractTextFromResponseArray(responses []json.RawMessage) string {
+path_utils.go:137:func GetChatSessionsPath(workspaceDir string) string {
+path_utils.go:157:func GetStateFilePath(workspaceDir, sessionID string) string {
+provider.go:669:func hasEditingActivity(state *VSCodeStateFile) bool {
+loader.go:82:// errSessionNotFound reports that no session file exists for a requested ID.
+loader.go:85:var errSessionNotFound = errors.New("session not found")
+loader.go:88:// Returns an error wrapping errSessionNotFound when no session file exists.
+loader.go:102:		return nil, fmt.Errorf("%w: %s", errSessionNotFound, sessionID)
+provider.go:201:		if errors.Is(err, errSessionNotFound) {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:51:42Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Locate rawMessages helper definition
+
+`grep -rn "rawMessages" . ; grep -n "rawMessages" /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/scratchpad/pr258.diff`
+
+```text
+parser_test.go:11:// rawMessages converts JSON literals to the raw response array shape.
+parser_test.go:12:func rawMessages(items ...string) []json.RawMessage {
+parser_test.go:30:			responses: rawMessages(
+parser_test.go:42:			responses: rawMessages(
+parser_test.go:51:			responses: rawMessages(
+parser_test.go:58:			responses: rawMessages(
+parser_test.go:69:			responses: rawMessages(
+parser_test.go:78:			responses: rawMessages(
+parser_test.go:88:			responses: rawMessages(
+parser_test.go:101:			responses: rawMessages(
+parser_test.go:108:			responses: rawMessages(`{"kind": "mcpServersStarting"}`),
+parser_test.go:486:	responses := rawMessages(
+parser_test.go:520:	responses := rawMessages(
+parser_test.go:561:	responses := rawMessages(
+239:+				Response: rawMessages(
+270:+				Response: rawMessages(
+323:+		Response: rawMessages(
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:51:42Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inventory existing parser_test.go coverage
+
+`grep -n "func Test\|func Benchmark\|func [a-z]" parser_test.go | head -40`
+
+```text
+12:func rawMessages(items ...string) []json.RawMessage {
+20:func TestExtractTextFromResponseArray(t *testing.T) {
+129:func TestSanitizeInvocationMessage(t *testing.T) {
+172:func TestFormatToolMarkdown(t *testing.T) {
+243:func TestFormatToolMarkdown_TerminalHandler(t *testing.T) {
+275:func TestFormatToolMarkdown_TodoHandler(t *testing.T) {
+305:func TestFormatToolMarkdown_Empty(t *testing.T) {
+313:func TestFormatToolMarkdown_ResultCap(t *testing.T) {
+332:func TestParseJSONL(t *testing.T) {
+376:func TestParseJSONL_ArrayIndexPaths(t *testing.T) {
+422:func TestGenerateSlug(t *testing.T) {
+476:func TestConvertResponsesToMessages_HiddenToolsKeepSequenceAligned(t *testing.T) {
+511:func TestConvertResponsesToMessages_UUIDInvocationCannotStealIDMatchedCall(t *testing.T) {
+552:func TestConvertResponsesToMessages_IDMatchAndDedup(t *testing.T) {
+591:func TestBuildToolInfoFromInvocation_PreRenders(t *testing.T) {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:51:55Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/copilotide/parser_test.go`
+
+```text
+332	func TestParseJSONL(t *testing.T) {
+333		lines := []string{
+334			`{"kind":0,"v":{"version":3,"sessionId":"s-1","requesterUsername":"user","requests":[{"requestId":"r-1","message":{"text":"first"}}]}}`,
+335			// kind:1 replace of a top-level field
+336			`{"kind":1,"k":["customTitle"],"v":"My Title"}`,
+337			// kind:1 creating an intermediate map that wasn't in the snapshot
+338			`{"kind":1,"k":["inputState","inputText"],"v":"draft"}`,
+339			// kind:2 array delta: appends to the existing requests
+340			`{"kind":2,"k":["requests"],"v":[{"requestId":"r-2","message":{"text":"second"}}]}`,
+341			// kind:2 with a non-array value degrades to replace
+342			`{"kind":2,"k":["responderUsername"],"v":"GitHub Copilot"}`,
+343			// unknown kind and malformed line must both be skipped without failing the parse
+344			`{"kind":9,"k":["requests"],"v":"bogus"}`,
+345			`not json at all`,
+346			// later kind:1 overwrites the earlier value
+347			`{"kind":1,"k":["customTitle"],"v":"Final Title"}`,
+348		}
+349	
+350		composer, err := parseJSONL([]byte(strings.Join(lines, "\n")))
+351		if err != nil {
+352			t.Fatalf("parseJSONL() error = %v", err)
+353		}
+354	
+355		if composer.SessionID != "s-1" {
+356			t.Errorf("SessionID = %q, want %q", composer.SessionID, "s-1")
+357		}
+358		if composer.CustomTitle != "Final Title" {
+359			t.Errorf("CustomTitle = %q, want %q", composer.CustomTitle, "Final Title")
+360		}
+361		if len(composer.Requests) != 2 {
+362			t.Fatalf("len(Requests) = %d, want 2", len(composer.Requests))
+363		}
+364		if got := composer.Requests[1].Message.Text; got != "second" {
+365			t.Errorf("Requests[1].Message.Text = %q, want %q", got, "second")
+366		}
+367		if composer.ResponderUsername != "GitHub Copilot" {
+368			t.Errorf("ResponderUsername = %q, want %q", composer.ResponderUsername, "GitHub Copilot")
+369		}
+370	}
+371	
+372	// TestParseJSONL_ArrayIndexPaths verifies key paths containing numeric array indices,
+373	// which VS Code uses for the vast majority of updates on real sessions (observed shape:
+374	// ["requests", <idx>, "<field>"] for kind:1 field updates and kind:2 response-part
+375	// appends). These were previously dropped because the path was decoded as []string.
+376	func TestParseJSONL_ArrayIndexPaths(t *testing.T) {
+377		lines := []string{
+378			`{"kind":0,"v":{"version":3,"sessionId":"s-2","requests":[` +
+379				`{"requestId":"r-1","message":{"text":"first"},"response":[{"value":"partial"}]},` +
+380				`{"requestId":"r-2","message":{"text":"second"}}]}}`,
+381			// kind:1 field update inside an indexed request
+382			`{"kind":1,"k":["requests",0,"modelId"],"v":"gpt-5"}`,
+383			// kind:1 full replace of an indexed element's response array
+384			`{"kind":1,"k":["requests",0,"response"],"v":[{"value":"replaced"}]}`,
+385			// kind:2 append of response parts inside an indexed request
+386			`{"kind":2,"k":["requests",1,"response"],"v":[{"value":"part one"}]}`,
+387			`{"kind":2,"k":["requests",1,"response"],"v":[{"value":"part two"}]}`,
+388			// index == length appends a new element
+389			`{"kind":1,"k":["requests",2],"v":{"requestId":"r-3","message":{"text":"third"}}}`,
+390			// index past the end is rejected and skipped without failing the parse
+391			`{"kind":1,"k":["requests",9,"modelId"],"v":"dropped"}`,
+392			// string key against an array is rejected and skipped
+393			`{"kind":1,"k":["requests","notAnIndex"],"v":"dropped"}`,
+394		}
+395	
+396		composer, err := parseJSONL([]byte(strings.Join(lines, "\n")))
+397		if err != nil {
+398			t.Fatalf("parseJSONL() error = %v", err)
+399		}
+400	
+401		if len(composer.Requests) != 3 {
+402			t.Fatalf("len(Requests) = %d, want 3", len(composer.Requests))
+403		}
+404		if got := composer.Requests[0].ModelID; got != "gpt-5" {
+405			t.Errorf("Requests[0].ModelID = %q, want %q", got, "gpt-5")
+406		}
+407		if got := len(composer.Requests[0].Response); got != 1 {
+408			t.Errorf("len(Requests[0].Response) = %d, want 1 (replaced, not appended)", got)
+409		}
+410		if got := len(composer.Requests[1].Response); got != 2 {
+411			t.Errorf("len(Requests[1].Response) = %d, want 2 (two appended parts)", got)
+412		}
+413		if got := composer.Requests[2].Message.Text; got != "third" {
+414			t.Errorf("Requests[2].Message.Text = %q, want %q", got, "third")
+415		}
+416	}
+417	
+418	// TestGenerateSlug verifies slugs follow the shared spi.GenerateFilenameFromUserMessage
+419	// convention: punctuation acts as a word separator (not silently dropped), output is
+420	// bounded regardless of title length, and empty candidates fall through to the next
+421	// source (custom title -> name -> first request -> "untitled").
+422	func TestGenerateSlug(t *testing.T) {
+423		longTitle := strings.Repeat("verylongword ", 40)
+424		tests := []struct {
+425			name     string
+426			composer VSCodeComposer
+427			want     string
+428		}{
+429			{
+430				name:     "punctuation separates words",
+431				composer: VSCodeComposer{CustomTitle: "Plan: Replace parser"},
+432				want:     "plan-replace-parser",
+433			},
+434			{
+435				name:     "long title is bounded",
+436				composer: VSCodeComposer{CustomTitle: longTitle},
+437				want:     "verylongword-verylongword-verylongword-verylongword",
+438			},
+439			{
+440				name:     "custom title preferred over name",
+441				composer: VSCodeComposer{CustomTitle: "Custom Title", Name: "Other Name"},
+442				want:     "custom-title",
+443			},
+444			{
+445				name:     "punctuation-only title falls through to name",
+446				composer: VSCodeComposer{CustomTitle: "!!!", Name: "My Session"},
+447				want:     "my-session",
+448			},
+449			{
+450				name: "falls back to first request message",
+451				composer: VSCodeComposer{Requests: []VSCodeRequestBlock{
+452					{Message: VSCodeMessage{Text: "Fix the flaky loader test please"}},
+453				}},
+454				want: "fix-the-flaky-loader",
+455			},
+456			{
+457				name:     "nothing available",
+458				composer: VSCodeComposer{},
+459				want:     "untitled",
+460			},
+461		}
+462		for _, tt := range tests {
+463			t.Run(tt.name, func(t *testing.T) {
+464				if got := GenerateSlug(tt.composer); got != tt.want {
+465					t.Errorf("GenerateSlug() = %q, want %q", got, tt.want)
+466				}
+467			})
+468		}
+469	}
+470	
+471	// TestConvertResponsesToMessages_HiddenToolsKeepSequenceAligned guards the
+472	// order-based fallback matching (UUID-style invocation IDs that can't ID-match):
+473	// metadata's toolCallRounds include hidden tools, so a hidden invocation must
+474	// claim its metadata call (without emitting a message) or every later visible
+475	// tool gets the wrong name/args/results.
+476	func TestConvertResponsesToMessages_HiddenToolsKeepSequenceAligned(t *testing.T) {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:51:56Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read their workspace_test.go diff section
+
+`S="/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/scratchpad"; sed -n '1362,1560p' "$S/pr258.diff"`
+
+```text
+diff --git a/specstory-cli/pkg/providers/copilotide/workspace_test.go b/specstory-cli/pkg/providers/copilotide/workspace_test.go
+new file mode 100644
+index 00000000..fe11542b
+--- /dev/null
++++ b/specstory-cli/pkg/providers/copilotide/workspace_test.go
+@@ -0,0 +1,610 @@
++package copilotide
++
++import (
++	"os"
++	"path/filepath"
++	"runtime"
++	"strings"
++	"testing"
++	"time"
++)
++
++// Note: uriToPath is already covered by TestUriToPath in parser_test.go, so it is
++// deliberately not re-tested here.
++
++// setupWorkspaceStorage redirects HOME to a fresh temp dir and creates the VS Code
++// ("Code" variant) workspace storage directory inside it, so findWorkspaceForProject
++// resolves against a fully test-controlled filesystem. os.UserHomeDir reads $HOME on
++// both macOS and Linux, so t.Setenv is enough to redirect GetWorkspaceStoragePath.
++func setupWorkspaceStorage(t *testing.T) string {
++	t.Helper()
++
++	home := t.TempDir()
++	t.Setenv("HOME", home)
++
++	var storage string
++	switch runtime.GOOS {
++	case "darwin":
++		storage = filepath.Join(home, "Library", "Application Support", "Code", "User", "workspaceStorage")
++	case "linux":
++		storage = filepath.Join(home, ".config", "Code", "User", "workspaceStorage")
++	default:
++		t.Skipf("workspace storage layout not defined for GOOS %s", runtime.GOOS)
++	}
++
++	if err := os.MkdirAll(storage, 0755); err != nil {
++		t.Fatalf("failed to create workspace storage dir: %v", err)
++	}
++	return storage
++}
++
++// addWorkspaceEntry creates <storage>/<id>/workspace.json with the given content and,
++// optionally, an empty chatSessions directory (the marker findWorkspaceForProject
++// requires when requireChatSessions is true).
++func addWorkspaceEntry(t *testing.T, storage, id, workspaceJSON string, withChatSessions bool) string {
++	t.Helper()
++
++	dir := filepath.Join(storage, id)
++	if err := os.MkdirAll(dir, 0755); err != nil {
++		t.Fatalf("failed to create workspace entry dir: %v", err)
++	}
++	if err := os.WriteFile(filepath.Join(dir, "workspace.json"), []byte(workspaceJSON), 0644); err != nil {
++		t.Fatalf("failed to write workspace.json: %v", err)
++	}
++	if withChatSessions {
++		if err := os.MkdirAll(filepath.Join(dir, "chatSessions"), 0755); err != nil {
++			t.Fatalf("failed to create chatSessions dir: %v", err)
++		}
++	}
++	return dir
++}
++
++// canonicalTempDir returns a fresh temp dir with symlinks resolved, so paths written
++// into fixtures compare equal to what spi.GetCanonicalPath produces (e.g. /var vs
++// /private/var on macOS).
++func canonicalTempDir(t *testing.T) string {
++	t.Helper()
++
++	dir := t.TempDir()
++	resolved, err := filepath.EvalSymlinks(dir)
++	if err != nil {
++		return dir
++	}
++	return resolved
++}
++
++// writeStateDB creates a state.vscdb file in the workspace dir and pins its mtime,
++// which selectNewestWorkspace uses to break ties between multiple matches.
++func writeStateDB(t *testing.T, workspaceDir string, mtime time.Time) {
++	t.Helper()
++
++	path := filepath.Join(workspaceDir, "state.vscdb")
++	if err := os.WriteFile(path, []byte("db"), 0644); err != nil {
++		t.Fatalf("failed to write state.vscdb: %v", err)
++	}
++	if err := os.Chtimes(path, mtime, mtime); err != nil {
++		t.Fatalf("failed to set state.vscdb mtime: %v", err)
++	}
++}
++
++func TestFindWorkspaceForProject(t *testing.T) {
++	tests := []struct {
++		name                string
++		requireChatSessions bool
++		// setup builds the HOME/workspaceStorage fixtures and returns the
++		// projectPath to search for.
++		setup           func(t *testing.T) string
++		wantID          string
++		wantErrContains string
++	}{
++		{
++			name:                "direct folder match among multiple entries",
++			requireChatSessions: true,
++			setup: func(t *testing.T) string {
++				storage := setupWorkspaceStorage(t)
++				project := canonicalTempDir(t)
++				other := canonicalTempDir(t)
++				addWorkspaceEntry(t, storage, "ws-other", `{"folder":"file://`+other+`"}`, true)
++				addWorkspaceEntry(t, storage, "ws-match", `{"folder":"file://`+project+`"}`, true)
++				return project
++			},
++			wantID: "ws-match",
++		},
++		{
++			name:                "no matching workspace",
++			requireChatSessions: true,
++			setup: func(t *testing.T) string {
++				storage := setupWorkspaceStorage(t)
++				other := canonicalTempDir(t)
++				addWorkspaceEntry(t, storage, "ws-other", `{"folder":"file://`+other+`"}`, true)
++				return canonicalTempDir(t)
++			},
++			wantErrContains: "no workspace found",
++		},
++		{
++			name:                "workspace storage directory missing",
++			requireChatSessions: true,
++			setup: func(t *testing.T) string {
++				// HOME redirected but no workspaceStorage created underneath.
++				t.Setenv("HOME", t.TempDir())
++				return canonicalTempDir(t)
++			},
++			wantErrContains: "workspace storage directory not found",
++		},
++		{
++			name:                "match without chatSessions filtered when required",
++			requireChatSessions: true,
++			setup: func(t *testing.T) string {
++				storage := setupWorkspaceStorage(t)
++				project := canonicalTempDir(t)
++				addWorkspaceEntry(t, storage, "ws-no-chat", `{"folder":"file://`+project+`"}`, false)
++				return project
++			},
++			wantErrContains: "no workspace found",
++		},
++		{
++			name:                "match without chatSessions kept for reconstruction targets",
++			requireChatSessions: false,
++			setup: func(t *testing.T) string {
++				storage := setupWorkspaceStorage(t)
++				project := canonicalTempDir(t)
++				addWorkspaceEntry(t, storage, "ws-no-chat", `{"folder":"file://`+project+`"}`, false)
++				return project
++			},
++			wantID: "ws-no-chat",
++		},
++		{
++			name:                "multiple matches select newest state.vscdb",
++			requireChatSessions: true,
++			setup: func(t *testing.T) string {
++				storage := setupWorkspaceStorage(t)
++				project := canonicalTempDir(t)
++				oldDir := addWorkspaceEntry(t, storage, "ws-old", `{"folder":"file://`+project+`"}`, true)
++				newDir := addWorkspaceEntry(t, storage, "ws-new", `{"folder":"file://`+project+`"}`, true)
++				writeStateDB(t, oldDir, time.Now().Add(-48*time.Hour))
++				writeStateDB(t, newDir, time.Now().Add(-1*time.Hour))
++				return project
++			},
++			wantID: "ws-new",
++		},
++		{
++			name:                "method 3: workspace.json points at code-workspace listing the folder",
++			requireChatSessions: true,
++			setup: func(t *testing.T) string {
++				storage := setupWorkspaceStorage(t)
++				base := canonicalTempDir(t)
++				project := filepath.Join(base, "my-project")
++				if err := os.Mkdir(project, 0755); err != nil {
++					t.Fatalf("mkdir project: %v", err)
++				}
++				// The .code-workspace file lives in a sibling dir and lists the
++				// project folder via a relative path.
++				wsFileDir := filepath.Join(base, "workspaces")
++				if err := os.Mkdir(wsFileDir, 0755); err != nil {
++					t.Fatalf("mkdir workspaces: %v", err)
++				}
++				wsFile := filepath.Join(wsFileDir, "multi.code-workspace")
++				if err := os.WriteFile(wsFile, []byte(`{"folders":[{"path":"../my-project"}]}`), 0644); err != nil {
++					t.Fatalf("write code-workspace: %v", err)
++				}
++				addWorkspaceEntry(t, storage, "ws-multiroot", `{"workspace":"file://`+wsFile+`"}`, true)
++				return project
++			},
++			wantID: "ws-multiroot",
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:02Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read remainder of their workspace_test.go
+
+`S="/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/scratchpad"; sed -n '1560,1977p' "$S/pr258.diff" | sed 's/^+//'`
+
+```text
+			wantID: "ws-multiroot",
+		},
+		{
+			name:                "method 4: project path is a code-workspace file matching a folder entry",
+			requireChatSessions: true,
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				base := canonicalTempDir(t)
+				project := filepath.Join(base, "my-project")
+				if err := os.Mkdir(project, 0755); err != nil {
+					t.Fatalf("mkdir project: %v", err)
+				}
+				wsFile := filepath.Join(base, "multi.code-workspace")
+				if err := os.WriteFile(wsFile, []byte(`{"folders":[{"path":"my-project"}]}`), 0644); err != nil {
+					t.Fatalf("write code-workspace: %v", err)
+				}
+				// The storage entry was created by opening the folder directly, but
+				// the caller queries with the .code-workspace file path.
+				addWorkspaceEntry(t, storage, "ws-from-folder", `{"folder":"file://`+project+`"}`, true)
+				return wsFile
+			},
+			wantID: "ws-from-folder",
+		},
+		{
+			name:                "malformed and non-file entries are skipped, valid match still found",
+			requireChatSessions: true,
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				project := canonicalTempDir(t)
+				addWorkspaceEntry(t, storage, "ws-bad-json", `not json`, true)
+				addWorkspaceEntry(t, storage, "ws-empty", `{}`, true)
+				addWorkspaceEntry(t, storage, "ws-remote", `{"folder":"vscode-remote://wsl/home/user/proj"}`, true)
+				addWorkspaceEntry(t, storage, "ws-good", `{"folder":"file://`+project+`"}`, true)
+				return project
+			},
+			wantID: "ws-good",
+		},
+		{
+			name:                "non-file URI alone cannot match",
+			requireChatSessions: true,
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				project := canonicalTempDir(t)
+				// URI scheme is unsupported, so even a path-identical entry is skipped.
+				addWorkspaceEntry(t, storage, "ws-remote", `{"folder":"vscode-remote://wsl`+project+`"}`, true)
+				return project
+			},
+			wantErrContains: "no workspace found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			projectPath := tt.setup(t)
+			p := NewProvider(VSCode)
+
+			// Exercise the exported wrapper for the requireChatSessions=true cases
+			// so its delegation is covered too.
+			var match *WorkspaceMatch
+			var err error
+			if tt.requireChatSessions {
+				match, err = p.FindWorkspaceForProject(projectPath)
+			} else {
+				match, err = p.findWorkspaceForProject(projectPath, false)
+			}
+
+			if tt.wantErrContains != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got match %+v", tt.wantErrContains, match)
+				}
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Errorf("error = %q, want it to contain %q", err.Error(), tt.wantErrContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if match.ID != tt.wantID {
+				t.Errorf("match.ID = %q, want %q", match.ID, tt.wantID)
+			}
+			if match.Dir == "" || match.URI == "" || match.Path == "" {
+				t.Errorf("match has empty fields: %+v", match)
+			}
+		})
+	}
+}
+
+// writeSessionFile writes a minimal non-empty chat session (one request) into the
+// workspace's chatSessions directory. The title distinguishes copies of the same
+// session ID across workspaces, so tests can verify which workspace's copy won
+// deduplication (RawData round-trips customTitle).
+func writeSessionFile(t *testing.T, workspaceDir, sessionID, title string) {
+	t.Helper()
+
+	content := `{"sessionId":"` + sessionID + `","customTitle":"` + title + `",` +
+		`"creationDate":1700000000000,"lastMessageDate":1700000001000,` +
+		`"requests":[{"requestId":"r1","timestamp":1700000000500,"message":{"text":"hello"}}]}`
+	path := filepath.Join(workspaceDir, "chatSessions", sessionID+".json")
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write session file: %v", err)
+	}
+}
+
+// setupTwoMatchingWorkspaces builds a project that matches two workspace entries —
+// the multi-workspace situation this package's read paths must aggregate across —
+// and returns the project path plus both workspace dirs. ws-newer has the newer
+// state.vscdb, so it sorts first.
+func setupTwoMatchingWorkspaces(t *testing.T) (projectPath, olderDir, newerDir string) {
+	t.Helper()
+
+	storage := setupWorkspaceStorage(t)
+	projectPath = canonicalTempDir(t)
+	olderDir = addWorkspaceEntry(t, storage, "ws-older", `{"folder":"file://`+projectPath+`"}`, true)
+	newerDir = addWorkspaceEntry(t, storage, "ws-newer", `{"folder":"file://`+projectPath+`"}`, true)
+	writeStateDB(t, olderDir, time.Now().Add(-48*time.Hour))
+	writeStateDB(t, newerDir, time.Now().Add(-1*time.Hour))
+	return projectPath, olderDir, newerDir
+}
+
+// TestFindWorkspacesForProject verifies the plural lookup returns every matching
+// workspace, sorted newest-first by state.vscdb mtime.
+func TestFindWorkspacesForProject(t *testing.T) {
+	tests := []struct {
+		name string
+		// setup builds the fixtures and returns the projectPath to search for.
+		setup           func(t *testing.T) string
+		wantIDs         []string // expected match IDs in expected order
+		wantErrContains string
+	}{
+		{
+			name: "all matches returned newest-first",
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				project := canonicalTempDir(t)
+				other := canonicalTempDir(t)
+				oldDir := addWorkspaceEntry(t, storage, "ws-old", `{"folder":"file://`+project+`"}`, true)
+				newDir := addWorkspaceEntry(t, storage, "ws-new", `{"folder":"file://`+project+`"}`, true)
+				addWorkspaceEntry(t, storage, "ws-unrelated", `{"folder":"file://`+other+`"}`, true)
+				writeStateDB(t, oldDir, time.Now().Add(-48*time.Hour))
+				writeStateDB(t, newDir, time.Now().Add(-1*time.Hour))
+				return project
+			},
+			wantIDs: []string{"ws-new", "ws-old"},
+		},
+		{
+			name: "match without state.vscdb sorts last",
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				project := canonicalTempDir(t)
+				// ReadDir returns ws-no-db before ws-with-db (alphabetical), so only
+				// the mtime sort can put ws-with-db first.
+				addWorkspaceEntry(t, storage, "ws-no-db", `{"folder":"file://`+project+`"}`, true)
+				withDB := addWorkspaceEntry(t, storage, "ws-with-db", `{"folder":"file://`+project+`"}`, true)
+				writeStateDB(t, withDB, time.Now().Add(-1*time.Hour))
+				return project
+			},
+			wantIDs: []string{"ws-with-db", "ws-no-db"},
+		},
+		{
+			name: "no matching workspace",
+			setup: func(t *testing.T) string {
+				storage := setupWorkspaceStorage(t)
+				other := canonicalTempDir(t)
+				addWorkspaceEntry(t, storage, "ws-other", `{"folder":"file://`+other+`"}`, true)
+				return canonicalTempDir(t)
+			},
+			wantErrContains: "no workspace found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			projectPath := tt.setup(t)
+			p := NewProvider(VSCode)
+
+			matches, err := p.FindWorkspacesForProject(projectPath)
+
+			if tt.wantErrContains != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got %d matches", tt.wantErrContains, len(matches))
+				}
+				if !strings.Contains(err.Error(), tt.wantErrContains) {
+					t.Errorf("error = %q, want it to contain %q", err.Error(), tt.wantErrContains)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(matches) != len(tt.wantIDs) {
+				t.Fatalf("got %d matches, want %d: %+v", len(matches), len(tt.wantIDs), matches)
+			}
+			for i, wantID := range tt.wantIDs {
+				if matches[i].ID != wantID {
+					t.Errorf("matches[%d].ID = %q, want %q", i, matches[i].ID, wantID)
+				}
+			}
+		})
+	}
+}
+
+// TestGetAgentChatSession_SessionInOlderWorkspace reproduces the multi-workspace bug:
+// a session that lives only in the OLDER of two matching workspaces must still be
+// found, instead of erroring "session not found" because the newest workspace won.
+func TestGetAgentChatSession_SessionInOlderWorkspace(t *testing.T) {
+	projectPath, olderDir, _ := setupTwoMatchingWorkspaces(t)
+
+	const sessionID = "9bf61b07-aaaa-bbbb-cccc-000000000001"
+	writeSessionFile(t, olderDir, sessionID, "only-in-older")
+
+	p := NewProvider(VSCode)
+	session, err := p.GetAgentChatSession(projectPath, sessionID, false)
+	if err != nil {
+		t.Fatalf("GetAgentChatSession: %v", err)
+	}
+	if session.SessionID != sessionID {
+		t.Errorf("SessionID = %q, want %q", session.SessionID, sessionID)
+	}
+
+	// A session in no matching workspace must still error only after all are probed.
+	if _, err := p.GetAgentChatSession(projectPath, "does-not-exist", false); err == nil {
+		t.Error("expected error for unknown session ID, got nil")
+	} else if !strings.Contains(err.Error(), "session not found") {
+		t.Errorf("error = %q, want it to contain %q", err.Error(), "session not found")
+	}
+}
+
+// TestGetAgentChatSessions_AggregatesAcrossWorkspaces verifies sessions from every
+// matching workspace are returned, and a session ID present in both workspaces is
+// deduplicated with the newest workspace's copy winning.
+func TestGetAgentChatSessions_AggregatesAcrossWorkspaces(t *testing.T) {
+	projectPath, olderDir, newerDir := setupTwoMatchingWorkspaces(t)
+
+	writeSessionFile(t, olderDir, "session-a", "only-in-older")
+	writeSessionFile(t, olderDir, "session-b", "b-older-copy")
+	writeSessionFile(t, newerDir, "session-b", "b-newer-copy")
+	writeSessionFile(t, newerDir, "session-c", "only-in-newer")
+
+	p := NewProvider(VSCode)
+	sessions, err := p.GetAgentChatSessions(projectPath, false, nil)
+	if err != nil {
+		t.Fatalf("GetAgentChatSessions: %v", err)
+	}
+
+	byID := make(map[string]string) // sessionID -> RawData
+	for _, s := range sessions {
+		if _, dup := byID[s.SessionID]; dup {
+			t.Errorf("duplicate session ID in results: %q", s.SessionID)
+		}
+		byID[s.SessionID] = s.RawData
+	}
+
+	if len(sessions) != 3 {
+		t.Fatalf("got %d sessions, want 3 (IDs: %v)", len(sessions), byID)
+	}
+	for _, id := range []string{"session-a", "session-b", "session-c"} {
+		if _, ok := byID[id]; !ok {
+			t.Errorf("missing session %q in results", id)
+		}
+	}
+
+	// The duplicated session must come from the newest workspace.
+	if raw := byID["session-b"]; !strings.Contains(raw, "b-newer-copy") {
+		t.Errorf("session-b should come from the newest workspace, RawData = %s", raw)
+	}
+}
+
+// TestListAgentChatSessions_AggregatesAcrossWorkspaces verifies the lightweight list
+// aggregates across matching workspaces with the same dedup rule as the full read.
+func TestListAgentChatSessions_AggregatesAcrossWorkspaces(t *testing.T) {
+	projectPath, olderDir, newerDir := setupTwoMatchingWorkspaces(t)
+
+	writeSessionFile(t, olderDir, "session-a", "only-in-older")
+	writeSessionFile(t, olderDir, "session-b", "b-older-copy")
+	writeSessionFile(t, newerDir, "session-b", "b-newer-copy")
+	writeSessionFile(t, newerDir, "session-c", "only-in-newer")
+
+	p := NewProvider(VSCode)
+	metadataList, err := p.ListAgentChatSessions(projectPath)
+	if err != nil {
+		t.Fatalf("ListAgentChatSessions: %v", err)
+	}
+
+	ids := make(map[string]bool)
+	for _, m := range metadataList {
+		if ids[m.SessionID] {
+			t.Errorf("duplicate session ID in list: %q", m.SessionID)
+		}
+		ids[m.SessionID] = true
+	}
+
+	if len(metadataList) != 3 {
+		t.Fatalf("got %d sessions, want 3 (IDs: %v)", len(metadataList), ids)
+	}
+	for _, id := range []string{"session-a", "session-b", "session-c"} {
+		if !ids[id] {
+			t.Errorf("missing session %q in list", id)
+		}
+	}
+}
+
+func TestCollectCodeWorkspaceFolders(t *testing.T) {
+	base := canonicalTempDir(t)
+	relProject := filepath.Join(base, "rel-project")
+	absProject := filepath.Join(base, "abs-project")
+	for _, dir := range []string{relProject, absProject} {
+		if err := os.Mkdir(dir, 0755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+
+	tests := []struct {
+		name    string
+		content string
+		want    []string
+	}{
+		{
+			name:    "relative and absolute folder paths resolved",
+			content: `{"folders":[{"path":"rel-project"},{"path":"` + absProject + `"}]}`,
+			want:    []string{relProject, absProject},
+		},
+		{
+			name:    "empty path entries skipped",
+			content: `{"folders":[{"path":""},{"path":"rel-project"}]}`,
+			want:    []string{relProject},
+		},
+		{
+			name:    "no folders key",
+			content: `{"settings":{}}`,
+			want:    nil,
+		},
+		{
+			name:    "malformed JSON returns nil",
+			content: `{"folders":[`,
+			want:    nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wsFile := filepath.Join(base, "test.code-workspace")
+			if err := os.WriteFile(wsFile, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("write code-workspace: %v", err)
+			}
+
+			got := collectCodeWorkspaceFolders(wsFile)
+			if len(got) != len(tt.want) {
+				t.Fatalf("collectCodeWorkspaceFolders() = %v, want %v", got, tt.want)
+			}
+			for i := range tt.want {
+				if got[i] != tt.want[i] {
+					t.Errorf("folder[%d] = %q, want %q", i, got[i], tt.want[i])
+				}
+			}
+		})
+	}
+
+	t.Run("missing file returns nil", func(t *testing.T) {
+		if got := collectCodeWorkspaceFolders(filepath.Join(base, "does-not-exist.code-workspace")); got != nil {
+			t.Errorf("expected nil for missing file, got %v", got)
+		}
+	})
+}
+
+func TestCodeWorkspaceContainsFolder(t *testing.T) {
+	base := canonicalTempDir(t)
+	project := filepath.Join(base, "my-project")
+	if err := os.Mkdir(project, 0755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	wsFile := filepath.Join(base, "test.code-workspace")
+
+	tests := []struct {
+		name    string
+		content string
+		folder  string
+		want    bool
+	}{
+		{
+			name:    "relative path resolves to target folder",
+			content: `{"folders":[{"path":"my-project"}]}`,
+			folder:  project,
+			want:    true,
+		},
+		{
+			name:    "absolute path matches target folder",
+			content: `{"folders":[{"path":"` + project + `"}]}`,
+			folder:  project,
+			want:    true,
+		},
+		{
+			name:    "unrelated folder does not match",
+			content: `{"folders":[{"path":"other-project"}]}`,
+			folder:  project,
+			want:    false,
+		},
+		{
+			name:    "malformed JSON never matches",
+			content: `not json`,
+			folder:  project,
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := os.WriteFile(wsFile, []byte(tt.content), 0644); err != nil {
+				t.Fatalf("write code-workspace: %v", err)
+			}
+			if got := codeWorkspaceContainsFolder(wsFile, tt.folder); got != tt.want {
+				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:02Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inventory current workspace_test.go
+
+`grep -n "func Test\|func [a-z][a-zA-Z]*(" /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/copilotide/workspace_test.go`
+
+```text
+15:func resetUserDataDirOverride(t *testing.T) {
+30:func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
+52:func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
+72:func TestForEachUniqueSession_EmptyCopyDoesNotSuppressPopulated(t *testing.T) {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:11Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List current workspace/provider/path functions
+
+`grep -n "^func " workspace.go provider.go path_utils.go | sed 's/ {$//'`
+
+```text
+path_utils.go:22:func SetUserDataDirOverride(variantID, path string)
+path_utils.go:37:func workspaceStorageRoot(variant Variant) string
+path_utils.go:82:func GetWorkspaceStoragePath(variant Variant) string
+path_utils.go:107:func (p *Provider) workspaceStoragePath() string
+path_utils.go:116:func HasAnyChatSessions(variant Variant) bool
+path_utils.go:137:func GetChatSessionsPath(workspaceDir string) string
+path_utils.go:142:func GetChatEditingSessionsPath(workspaceDir string) string
+path_utils.go:147:func GetWorkspaceStateDBPath(workspaceDir string) string
+path_utils.go:152:func GetWorkspaceMetadataPath(workspaceDir string) string
+path_utils.go:157:func GetStateFilePath(workspaceDir, sessionID string) string
+path_utils.go:163:func EnsureDebugDirectory(sessionID string) (string, error)
+workspace.go:17:func (p *Provider) FindAllWorkspacesForProject(projectPath string) ([]vscode.WorkspaceEntry, error)
+workspace.go:26:func (p *Provider) findAllWorkspacesForProject(projectPath string, requireChatSessions bool) ([]vscode.WorkspaceEntry, error)
+workspace.go:48:func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*vscode.WorkspaceEntry, error)
+workspace.go:76:func (p *Provider) ensureWorkspaceForReconstruction(projectPath string) (*vscode.WorkspaceEntry, error)
+provider.go:82:func NewProvider(variant Variant) *Provider
+provider.go:91:func (p *Provider) Name() string
+provider.go:96:func (p *Provider) Check(customCommand string) spi.CheckResult
+provider.go:134:func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool
+provider.go:179:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error)
+provider.go:247:func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error)
+provider.go:295:func collectSessionSources(workspaces []vscode.WorkspaceEntry) []sessionSource
+provider.go:317:func forEachUniqueSession(sources []sessionSource, handle func(composer *VSCodeComposer, state *VSCodeStateFile))
+provider.go:356:func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error)
+provider.go:401:func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error
+provider.go:468:func (p *Provider) openApp(projectPath, customCommand string) error
+provider.go:477:func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error)
+provider.go:515:func collectWorkspaceSessionRefs(workspaceDir string, refByID map[string]spi.GlobalSessionRef)
+provider.go:581:func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error
+provider.go:623:func extractCopilotIDESessionMetadata(composer *VSCodeComposer) spi.SessionMetadata
+provider.go:645:func generateCopilotIDESessionName(composer *VSCodeComposer) string
+provider.go:669:func hasEditingActivity(state *VSCodeStateFile) bool
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:12Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/copilotide/workspace_test.go`
+
+```text
+1	package copilotide
+2	
+3	import (
+4		"encoding/json"
+5		"os"
+6		"path/filepath"
+7		"strings"
+8		"testing"
+9	
+10		"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
+11	)
+12	
+13	// resetUserDataDirOverride restores the package-level override map after a test mutates it.
+14	// Tests must defer this — leaking state into sibling tests would silently change their behavior.
+15	func resetUserDataDirOverride(t *testing.T) {
+16		t.Helper()
+17		prev, had := userDataDirOverrides[VSCode.ID]
+18		t.Cleanup(func() {
+19			if had {
+20				userDataDirOverrides[VSCode.ID] = prev
+21			} else {
+22				delete(userDataDirOverrides, VSCode.ID)
+23			}
+24		})
+25	}
+26	
+27	// TestUserDataDirOverride_WorkspaceStorage verifies that an override pointing to a
+28	// valid directory wins over OS-default discovery, and that a missing override path
+29	// falls through to OS defaults (warn-and-fall-back, not hard failure).
+30	func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
+31		resetUserDataDirOverride(t)
+32	
+33		tmp := t.TempDir()
+34		wantPath := filepath.Join(tmp, "User", "workspaceStorage")
+35		if err := os.MkdirAll(wantPath, 0755); err != nil {
+36			t.Fatalf("Failed to create fake workspaceStorage: %v", err)
+37		}
+38	
+39		SetUserDataDirOverride(VSCode.ID, tmp)
+40		got := GetWorkspaceStoragePath(VSCode)
+41		if got != wantPath {
+42			t.Errorf("GetWorkspaceStoragePath() = %q, want %q", got, wantPath)
+43		}
+44	}
+45	
+46	// TestUserDataDirOverride_MissingPathFallsThrough verifies that a bad override falls
+47	// through to the OS-default branch instead of being treated as authoritative-and-empty.
+48	// The path we set as the override does not contain User/workspaceStorage, so the
+49	// resolver must move on and consult the OS default. If the OS default also doesn't
+50	// exist (CI without VS Code), we get "" — but critically, the returned path must
+51	// not be derived from our override dir.
+52	func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
+53		resetUserDataDirOverride(t)
+54	
+55		override := t.TempDir()
+56		SetUserDataDirOverride(VSCode.ID, override)
+57	
+58		got := GetWorkspaceStoragePath(VSCode)
+59		// Either the OS default exists (got != "" and not under override) or doesn't
+60		// (got == ""). Either way, the override-derived path must not be returned.
+61		if got != "" && strings.HasPrefix(got, override) {
+62			t.Errorf("expected fall-through to OS default after bad override, but got override-derived path: %q", got)
+63		}
+64	}
+65	
+66	// TestForEachUniqueSession_EmptyCopyDoesNotSuppressPopulated guards the dedup
+67	// ordering: under WSL the same project is recorded under multiple workspace
+68	// entries, enumerated by workspace hash rather than recency. An empty copy of a
+69	// session encountered first must not claim the session ID and suppress the
+70	// populated copy from another workspace entry — only content-bearing copies
+71	// mark the ID as seen (and among those, first wins).
+72	func TestForEachUniqueSession_EmptyCopyDoesNotSuppressPopulated(t *testing.T) {
+73		// writeSession creates {dir}/chatSessions/{name}.json with the given request count.
+74		writeSession := func(t *testing.T, dir, name, sessionID string, requestCount int) {
+75			t.Helper()
+76			chatDir := filepath.Join(dir, "chatSessions")
+77			if err := os.MkdirAll(chatDir, 0755); err != nil {
+78				t.Fatal(err)
+79			}
+80			requests := make([]map[string]any, requestCount)
+81			for i := range requests {
+82				requests[i] = map[string]any{}
+83			}
+84			content, err := json.Marshal(map[string]any{"sessionId": sessionID, "requests": requests})
+85			if err != nil {
+86				t.Fatal(err)
+87			}
+88			if err := os.WriteFile(filepath.Join(chatDir, name+".json"), content, 0644); err != nil {
+89				t.Fatal(err)
+90			}
+91		}
+92	
+93		tests := []struct {
+94			name          string
+95			firstRequests int // request count of the copy in the first-enumerated workspace
+96			wantHandled   int // sessions reaching handle
+97			wantRequests  int // request count of the handled copy
+98		}{
+99			{
+100				name:          "empty copy first, populated copy survives",
+101				firstRequests: 0,
+102				wantHandled:   1,
+103				wantRequests:  2, // the second workspace's copy
+104			},
+105			{
+106				name:          "populated copy first wins over later copy",
+107				firstRequests: 1,
+108				wantHandled:   1,
+109				wantRequests:  1, // the first workspace's copy
+110			},
+111		}
+112	
+113		for _, tt := range tests {
+114			t.Run(tt.name, func(t *testing.T) {
+115				wsA, wsB := t.TempDir(), t.TempDir()
+116				writeSession(t, wsA, "session", "dup-id", tt.firstRequests)
+117				writeSession(t, wsB, "session", "dup-id", 2)
+118	
+119				sources := collectSessionSources([]vscode.WorkspaceEntry{{Dir: wsA}, {Dir: wsB}})
+120				var handled []*VSCodeComposer
+121				forEachUniqueSession(sources, func(composer *VSCodeComposer, _ *VSCodeStateFile) {
+122					handled = append(handled, composer)
+123				})
+124	
+125				if len(handled) != tt.wantHandled {
+126					t.Fatalf("handled %d sessions, want %d", len(handled), tt.wantHandled)
+127				}
+128				if got := len(handled[0].Requests); got != tt.wantRequests {
+129					t.Errorf("handled copy has %d requests, want %d", got, tt.wantRequests)
+130				}
+131			})
+132		}
+133	}
+134
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:27Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/copilotide/agent_session.go`
+
+```text
+1	package copilotide
+2	
+3	import (
+4		"encoding/json"
+5		"fmt"
+6		"log/slog"
+7		"sort"
+8		"strings"
+9	
+10		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+11		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+12	)
+13	
+14	// ConvertToSessionData converts VS Code raw format to CLI's unified schema.
+15	// A Provider method so the generated session data carries the variant's
+16	// provider identity (VS Code vs VS Code Insiders).
+17	func (p *Provider) ConvertToSessionData(composer VSCodeComposer, projectPath string, state *VSCodeStateFile) spi.AgentChatSession {
+18		// Format timestamps
+19		createdAt := FormatTimestamp(composer.CreationDate)
+20		updatedAt := FormatTimestamp(composer.LastMessageDate)
+21	
+22		// Generate slug
+23		slug := GenerateSlug(composer)
+24	
+25		// Handle editing-only sessions (no chat requests but has file operations)
+26		requests := composer.Requests
+27		if len(requests) == 0 && state != nil {
+28			syntheticRequests := createSyntheticRequestsFromEditingState(composer, state)
+29			if len(syntheticRequests) > 0 {
+30				requests = syntheticRequests
+31			}
+32		}
+33	
+34		// Build SessionData
+35		sessionData := &schema.SessionData{
+36			SchemaVersion: "1.0",
+37			Provider: schema.ProviderInfo{
+38				ID:      p.variant.ID,
+39				Name:    p.Name(),
+40				Version: "1.0",
+41			},
+42			SessionID:     composer.SessionID,
+43			CreatedAt:     createdAt,
+44			UpdatedAt:     updatedAt,
+45			Slug:          slug,
+46			WorkspaceRoot: projectPath,
+47			Exchanges:     ConvertRequestsToExchanges(requests),
+48		}
+49	
+50		// Marshal to JSON for raw data
+51		rawDataJSON, err := json.Marshal(composer)
+52		if err != nil {
+53			slog.Warn("Failed to marshal raw data", "sessionId", composer.SessionID, "error", err)
+54			rawDataJSON = []byte("{}")
+55		}
+56	
+57		return spi.AgentChatSession{
+58			SessionID:   composer.SessionID,
+59			CreatedAt:   createdAt,
+60			Slug:        slug,
+61			SessionData: sessionData,
+62			RawData:     string(rawDataJSON),
+63		}
+64	}
+65	
+66	// ConvertRequestsToExchanges converts VS Code request blocks to exchanges
+67	func ConvertRequestsToExchanges(requests []VSCodeRequestBlock) []schema.Exchange {
+68		var exchanges []schema.Exchange
+69	
+70		for _, req := range requests {
+71			exchange := schema.Exchange{
+72				ExchangeID: req.RequestID,
+73				StartTime:  FormatTimestamp(req.Timestamp),
+74				Messages:   ConvertRequestToMessages(req),
+75			}
+76			exchanges = append(exchanges, exchange)
+77		}
+78	
+79		return exchanges
+80	}
+81	
+82	// ConvertRequestToMessages converts one request block to message array
+83	// Returns: [user message, thinking message (if unique), then agent text and
+84	// tool messages interleaved in the order the response array records them]
+85	func ConvertRequestToMessages(req VSCodeRequestBlock) []schema.Message {
+86		var messages []schema.Message
+87	
+88		// 1. User message with timestamp
+89		userMsg := schema.Message{
+90			Role:      schema.RoleUser,
+91			Timestamp: FormatTimestamp(req.Timestamp),
+92			Content: []schema.ContentPart{
+93				{Type: schema.ContentTypeText, Text: req.Message.Text},
+94			},
+95		}
+96		messages = append(messages, userMsg)
+97	
+98		// Check if there are tool calls
+99		hasToolCalls := HasToolCalls(req.Result.Metadata)
+100	
+101		// The request's modelId for auto mode is the uninformative "copilot/auto";
+102		// the autoModeResolution response items record the model that actually ran.
+103		modelID := req.ModelID
+104		if resolved := ExtractResolvedModel(req.Response); resolved != "" {
+105			modelID = resolved
+106		}
+107	
+108		// 2. The turn's body: agent text and tool calls in recorded order.
+109		body, bodyText := ConvertResponsesToMessages(req.Response, req.Result.Metadata, modelID)
+110	
+111		// When the response array yielded no text at all, fall back to the metadata
+112		// sources (final assistant message, then round responses on tool-less turns).
+113		if strings.TrimSpace(bodyText) == "" {
+114			fallback := ExtractFinalAgentMessage(req.Result.Metadata)
+115			if fallback == "" && !hasToolCalls {
+116				fallback = ExtractResponseFromToolCallRounds(req.Result.Metadata)
+117			}
+118			if fallback != "" {
+119				body = append(body, schema.Message{
+120					Role:  schema.RoleAgent,
+121					Model: modelID,
+122					Content: []schema.ContentPart{
+123						{Type: schema.ContentTypeText, Text: fallback},
+124					},
+125				})
+126				bodyText = fallback
+127			}
+128		}
+129	
+130		// 3. Extract thinking from tool call rounds (only if there are actual tool
+131		// calls), skipping rounds whose text already appears in the body.
+132		if hasToolCalls {
+133			thinking := ExtractThinkingFromMetadata(req.Result.Metadata, bodyText)
+134			if thinking != "" {
+135				thinkingMsg := schema.Message{
+136					Role:  schema.RoleAgent,
+137					Model: modelID,
+138					Content: []schema.ContentPart{
+139						{Type: schema.ContentTypeThinking, Text: thinking},
+140					},
+141				}
+142				messages = append(messages, thinkingMsg)
+143			}
+144		}
+145	
+146		// 4. Body after the thinking block, mirroring how the turn played out.
+147		messages = append(messages, body...)
+148	
+149		return messages
+150	}
+151	
+152	// ConvertResponsesToMessages renders a turn's body — agent text and tool calls
+153	// interleaved in the order the response array records them, which is the order
+154	// the user actually saw. It also returns the turn's full rendered text (all
+155	// text messages joined), which callers use for thinking deduplication and
+156	// fallback decisions.
+157	//
+158	// Each tool invocation is resolved against metadata by ID first: a metadata
+159	// tool call's ID is the invocation's toolCallId plus a "__vscode-<n>" suffix,
+160	// so stripping the suffix pairs them exactly. Invocations without an ID match
+161	// (older sessions serialize a VS Code UUID instead) claim the next unclaimed
+162	// metadata call in order — the previous sequence behavior. Invocations with no
+163	// metadata at all (canceled turns store an empty metadata object) render from
+164	// their own resultDetails.
+165	func ConvertResponsesToMessages(responses []json.RawMessage, metadata VSCodeResultMetadata, modelID string) ([]schema.Message, string) {
+166		items := collectResponseBodyItems(responses)
+167	
+168		// Ordered metadata calls with claim tracking. byInvocationID maps the
+169		// suffix-stripped metadata ID back to its position for exact pairing.
+170		calls := BuildToolCallSequence(metadata)
+171		claimed := make([]bool, len(calls))
+172		byInvocationID := make(map[string]int, len(calls))
+173		for i, call := range calls {
+174			prefix, _, _ := strings.Cut(call.ID, "__vscode-")
+175			if _, dup := byInvocationID[prefix]; !dup {
+176				byInvocationID[prefix] = i
+177			}
+178		}
+179	
+180		// Metadata resolution runs in two passes over the whole turn. Pass 1: exact
+181		// ID matches claim their calls. Pass 2: invocations without an exact match
+182		// (older sessions serialize a VS Code UUID instead) claim the remaining
+183		// calls in order — the old sequence behavior, now restricted to leftovers.
+184		// The pass split matters: a single in-order pass would let an early
+185		// UUID-style invocation with no metadata at all (e.g. a hidden todo-list
+186		// update) steal a call that a later invocation ID-matches exactly,
+187		// mislabeling every tool after it.
+188		assignments := make(map[int]*VSCodeToolCallInfo)
+189		for idx := range items {
+190			inv := items[idx].inv
+191			if inv == nil {
+192				continue
+193			}
+194			if i, ok := byInvocationID[inv.ToolCallID]; ok && !claimed[i] {
+195				claimed[i] = true
+196				assignments[idx] = &calls[i]
+197			}
+198		}
+199		nextUnclaimed := 0
+200		for idx := range items {
+201			if items[idx].inv == nil {
+202				continue
+203			}
+204			if _, ok := assignments[idx]; ok {
+205				continue
+206			}
+207			for nextUnclaimed < len(calls) && claimed[nextUnclaimed] {
+208				nextUnclaimed++
+209			}
+210			if nextUnclaimed < len(calls) {
+211				claimed[nextUnclaimed] = true
+212				assignments[idx] = &calls[nextUnclaimed]
+213			}
+214		}
+215	
+216		var messages []schema.Message
+217		var fullText strings.Builder
+218		var textRun []responseBodyItem
+219	
+220		flushTextRun := func() {
+221			if len(textRun) == 0 {
+222				return
+223			}
+224			text := joinTextItems(textRun)
+225			textRun = nil
+226			if strings.TrimSpace(text) == "" {
+227				return
+228			}
+229			if fullText.Len() > 0 {
+230				fullText.WriteString("\n\n")
+231			}
+232			fullText.WriteString(text)
+233			messages = append(messages, schema.Message{
+234				Role:  schema.RoleAgent,
+235				Model: modelID,
+236				Content: []schema.ContentPart{
+237					{Type: schema.ContentTypeText, Text: text},
+238				},
+239			})
+240		}
+241	
+242		for idx, item := range items {
+243			// Pre-built synthetic blocks (edit groups) emit directly.
+244			if item.synthTool != nil {
+245				flushTextRun()
+246				messages = append(messages, schema.Message{
+247					Role:  schema.RoleAgent,
+248					Model: modelID,
+249					Tool:  item.synthTool,
+250				})
+251				continue
+252			}
+253			if item.inv == nil {
+254				textRun = append(textRun, item)
+255				continue
+256			}
+257	
+258			// Assignment happened above the emit loop (hidden tools included, so
+259			// they can't leave a call to mispair with a later invocation). Hidden
+260			// tools emit no message and don't split the surrounding text run.
+261			call := assignments[idx]
+262			if item.inv.Presentation == "hidden" {
+263				continue
+264			}
+265			flushTextRun()
+266	
+267			var toolInfo *schema.ToolInfo
+268			if call != nil {
+269				toolInfo = BuildToolInfoFromInvocation(*item.inv, *call, metadata.ToolCallResults)
+270			} else {
+271				slog.Debug("Tool invocation has no metadata match; using invocation resultDetails",
+272					"toolId", item.inv.ToolID,
+273					"toolCallId", item.inv.ToolCallID)
+274				toolInfo = BuildToolInfoFromInvocationOnly(*item.inv)
+275			}
+276			if toolInfo != nil {
+277				messages = append(messages, schema.Message{
+278					Role:  schema.RoleAgent,
+279					Model: modelID,
+280					Tool:  toolInfo,
+281				})
+282			}
+283		}
+284		flushTextRun()
+285	
+286		return messages, fullText.String()
+287	}
+288	
+289	// BuildToolInfoFromInvocation creates ToolInfo from VS Code invocation + tool call
+290	// Uses sequence-based matching: toolCall is passed directly instead of looked up by ID
+291	func BuildToolInfoFromInvocation(
+292		invocation VSCodeToolInvocationResponse,
+293		toolCall VSCodeToolCallInfo,
+294		toolResults map[string]VSCodeToolCallResult,
+295	) *schema.ToolInfo {
+296		toolInfo := &schema.ToolInfo{
+297			Name:  toolCall.Name,
+298			Type:  MapToolType(toolCall.Name),
+299			UseID: invocation.ToolCallID,
+300		}
+301	
+302		// Parse arguments if present
+303		if toolCall.Arguments != "" {
+304			var args map[string]any
+305			if err := json.Unmarshal([]byte(toolCall.Arguments), &args); err == nil {
+306				toolInfo.Input = args
+307			}
+308		}
+309	
+310		// Add output from results map. metadata.toolCallResults is keyed by the
+311		// same OpenAI-style IDs as toolCallRounds (verified on real session files),
+312		// not by the invocation's VS Code UUID — so look up with the matched
+313		// toolCall's ID.
+314		if result, ok := toolResults[toolCall.ID]; ok {
+315			output := make(map[string]any)
+316			if len(result.Content) > 0 {
+317				var contentParts []string
+318				for _, content := range result.Content {
+319					// Value can be string or object - convert to string
+320					valueStr := valueToString(content.Value)
+321					if valueStr != "" {
+322						contentParts = append(contentParts, valueStr)
+323					}
+324				}
+325				if len(contentParts) > 0 {
+326					output["result"] = strings.Join(contentParts, "\n")
+327				}
+328			}
+329			if len(output) > 0 {
+330				toolInfo.Output = output
+331			}
+332		}
+333	
+334		// Pre-render Summary/FormattedMarkdown: cross-agent resume flattens tool calls
+335		// from these fields only, so without them the tool's payload (e.g. a written
+336		// file's content) would collapse to a bare tool name in the resumed session.
+337		// The summary matches the markdown generator's default, so archival markdown
+338		// keeps its familiar <summary> line. VS Code's own description of the call
+339		// ("Searched for files matching `**/*.txt`, 3 matches") leads the body — it
+340		// is the best one-line account of what happened and exists for nearly every
+341		// tool.
+342		summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
+343		toolInfo.Summary = &summary
+344		formatted := FormatToolMarkdown(toolInfo)
+345		if message := invocationMessageLine(invocation); message != "" {
+346			formatted = "\n" + message + "\n" + formatted
+347		}
+348		if formatted != "" {
+349			toolInfo.FormattedMarkdown = &formatted
+350		}
+351	
+352		return toolInfo
+353	}
+354	
+355	// BuildToolInfoFromInvocationOnly creates ToolInfo from an invocation that has no
+356	// matching metadata tool call — the whole turn when it was canceled (VS Code then
+357	// stores empty metadata), or the tail of a turn with more invocations than recorded
+358	// calls. The invocation's resultDetails still carries the tool's input (a JSON
+359	// string) and output (a list of embeds), so those render instead of dropping the
+360	// tool from the markdown entirely.
+361	func BuildToolInfoFromInvocationOnly(invocation VSCodeToolInvocationResponse) *schema.ToolInfo {
+362		name := invocation.ToolID
+363		if name == "" {
+364			name = "unknown"
+365		}
+366		toolInfo := &schema.ToolInfo{
+367			Name:  name,
+368			Type:  MapToolType(name),
+369			UseID: invocation.ToolCallID,
+370		}
+371	
+372		details, _ := invocation.ResultDetails.(map[string]any)
+373	
+374		// Input: resultDetails.input is the arguments JSON as a string.
+375		if inputJSON, ok := details["input"].(string); ok && inputJSON != "" {
+376			var args map[string]any
+377			if err := json.Unmarshal([]byte(inputJSON), &args); err == nil {
+378				toolInfo.Input = args
+379			}
+380		}
+381	
+382		// Result: the readable text of resultDetails (embeds or URI lists).
+383		if result := resultDetailsText(invocation.ResultDetails); result != "" {
+384			toolInfo.Output = map[string]any{"result": result}
+385		}
+386	
+387		// Same pre-rendering rationale as BuildToolInfoFromInvocation: cross-agent
+388		// resume flattens tool calls from Summary/FormattedMarkdown only. The
+389		// invocation's own message (e.g. "Updated todo list") leads the markdown —
+390		// it is the only human description these tools have.
+391		summary := fmt.Sprintf("Tool use: **%s**", toolInfo.Name)
+392		toolInfo.Summary = &summary
+393		formatted := FormatToolMarkdown(toolInfo)
+394		if message := invocationMessageLine(invocation); message != "" {
+395			formatted = "\n" + message + "\n" + formatted
+396		}
+397		if formatted != "" {
+398			toolInfo.FormattedMarkdown = &formatted
+399		}
+400	
+401		return toolInfo
+402	}
+403	
+404	// resultDetailsText extracts readable text from an invocation's resultDetails.
+405	// Two shapes exist: an object whose "output" is a list of embeds (text embeds
+406	// carry the content; binary embeds like screenshots are elided to a mime-type
+407	// placeholder), and a bare list of URI objects (file-result tools), rendered as
+408	// their paths.
+409	func resultDetailsText(details any) string {
+410		var parts []string
+411		switch d := details.(type) {
+412		case map[string]any:
+413			outputs, _ := d["output"].([]any)
+414			for _, out := range outputs {
+415				embed, ok := out.(map[string]any)
+416				if !ok {
+417					continue
+418				}
+419				if mime, ok := embed["mimeType"].(string); ok && mime != "" {
+420					parts = append(parts, fmt.Sprintf("[%s embed]", mime))
+421					continue
+422				}
+423				if value, ok := embed["value"].(string); ok && value != "" {
+424					parts = append(parts, value)
+425				}
+426			}
+427		case []any:
+428			for _, item := range d {
+429				uri, ok := item.(map[string]any)
+430				if !ok {
+431					continue
+432				}
+433				if path, ok := uri["fsPath"].(string); ok && path != "" {
+434					parts = append(parts, path)
+435				} else if path, ok := uri["path"].(string); ok && path != "" {
+436					parts = append(parts, path)
+437				}
+438			}
+439		}
+440		return strings.Join(parts, "\n")
+441	}
+442	
+443	// valueToString converts a tool result value (which can be string or object) to
+444	// a human-readable string. VS Code frequently stores results as a serialized
+445	// renderer tree ({"node":{"children":[...],"text":...}}) whose readable content
+446	// lives in the "text" leaves — extracting those turns an opaque JSON blob into
+447	// the text the user actually saw. Other objects marshal to JSON as before.
+448	func valueToString(value any) string {
+449		if value == nil {
+450			return ""
+451		}
+452	
+453		// Try string first
+454		if str, ok := value.(string); ok {
+455			return str
+456		}
+457	
+458		if m, ok := value.(map[string]any); ok {
+459			if node, ok := m["node"]; ok {
+460				if text := renderNodeTreeText(node); strings.TrimSpace(text) != "" {
+461					return text
+462				}
+463			}
+464		}
+465	
+466		// If it's an object, marshal to JSON
+467		jsonBytes, err := json.Marshal(value)
+468		if err != nil {
+469			slog.Debug("Failed to marshal tool result value", "type", fmt.Sprintf("%T", value), "error", err)
+470			return ""
+471		}
+472		return string(jsonBytes)
+473	}
+474	
+475	// renderNodeTreeText walks a serialized VS Code renderer node, concatenating its
+476	// "text" leaves in document order and inserting the line break the renderer
+477	// would when a node asks for one.
+478	func renderNodeTreeText(node any) string {
+479		var b strings.Builder
+480		var walk func(n any)
+481		walk = func(n any) {
+482			m, ok := n.(map[string]any)
+483			if !ok {
+484				return
+485			}
+486			if text, ok := m["text"].(string); ok && text != "" {
+487				if lb, _ := m["lineBreakBefore"].(bool); lb && b.Len() > 0 && !strings.HasSuffix(b.String(), "\n") {
+488					b.WriteString("\n")
+489				}
+490				b.WriteString(text)
+491			}
+492			if children, ok := m["children"].([]any); ok {
+493				for _, child := range children {
+494					walk(child)
+495				}
+496			}
+497		}
+498		walk(node)
+499		return b.String()
+500	}
+501	
+502	// MapToolType maps VS Code Copilot tool names to schema.ToolType constants
+503	func MapToolType(toolName string) string {
+504		// Handle MCP tools (any tool starting with "mcp_")
+505		// Note: MCP tools use generic type until schema.ToolTypeMCP is added
+506		if strings.HasPrefix(toolName, "mcp_") {
+507			return schema.ToolTypeGeneric
+508		}
+509	
+510		mapping := map[string]string{
+511			// VS Code Copilot tools (OpenAI API names)
+512			"grep_search":           schema.ToolTypeSearch,
+513			"apply_patch":           schema.ToolTypeWrite,
+514			"read_file":             schema.ToolTypeRead,
+515			"insert_edit_into_file": schema.ToolTypeWrite,
+516			"create_file":           schema.ToolTypeWrite,
+517			"file_search":           schema.ToolTypeSearch,
+518			"semantic_search":       schema.ToolTypeSearch,
+519			"list_dir":              schema.ToolTypeGeneric,
+520			"manage_todo_list":      schema.ToolTypeTask,
+521			"get_errors":            schema.ToolTypeGeneric,
+522	
+523			// Legacy tool names (kept for compatibility)
+524			"bash":               schema.ToolTypeShell,
+525			"search_files":       schema.ToolTypeSearch,
+526			"write_to_file":      schema.ToolTypeWrite,
+527			"str_replace_editor": schema.ToolTypeWrite,
+528			"list_files":         schema.ToolTypeSearch,
+529			"grep":               schema.ToolTypeSearch,
+530			"find":               schema.ToolTypeSearch,
+531		}
+532	
+533		if toolType, ok := mapping[toolName]; ok {
+534			return toolType
+535		}
+536	
+537		slog.Debug("Unknown tool type, mapping to generic", "toolName", toolName)
+538		return schema.ToolTypeGeneric
+539	}
+540	
+541	// createSyntheticRequestsFromEditingState creates synthetic request blocks from editing operations
+542	// when there are no chat requests but file operations exist
+543	func createSyntheticRequestsFromEditingState(composer VSCodeComposer, state *VSCodeStateFile) []VSCodeRequestBlock {
+544		if state == nil {
+545			return nil
+546		}
+547	
+548		// Detect state version
+549		version := state.Version
+550		if version == 0 {
+551			version = 1 // Default to version 1
+552		}
+553	
+554		slog.Debug("Processing editing state", "version", version, "sessionId", composer.SessionID)
+555	
+556		var fileOperationSummaries []string
+557	
+558		if version >= 2 {
+559			// Version 2: Extract from timeline.operations
+560			fileOperationSummaries = extractOperationsFromV2State(state)
+561			slog.Debug("Extracted operations from v2 state", "count", len(fileOperationSummaries))
+562		} else {
+563			// Version 1: Extract from recentSnapshot/pendingSnapshot
+564			fileOperationSummaries = extractOperationsFromV1State(state)
+565			slog.Debug("Extracted operations from v1 state", "count", len(fileOperationSummaries))
+566		}
+567	
+568		// Fallback: If we couldn't extract operations but state exists, show generic message
+569		if len(fileOperationSummaries) == 0 {
+570			// Check if there's any indication of editing activity
+571			hasRecentSnapshot := state.RecentSnapshot != nil
+572			hasPendingSnapshot := state.PendingSnapshot != nil
+573			hasTimeline := state.Timeline != nil
+574	
+575			if !hasRecentSnapshot && !hasPendingSnapshot && !hasTimeline {
+576				return nil // No editing activity detected
+577			}
+578	
+579			fileOperationSummaries = []string{"File editing session (details not available)"}
+580		}
+581	
+582		// Get user input text if available (from customTitle)
+583		userText := composer.CustomTitle
+584		if userText == "" {
+585			userText = "File editing session"
+586		}
+587	
+588		// Build synthetic text for assistant message
+589		var assistantText string
+590		if len(fileOperationSummaries) > 0 {
+591			plural := ""
+592			if len(fileOperationSummaries) > 1 {
+593				plural = "s"
+594			}
+595			assistantText = fmt.Sprintf("Performed %d file operation%s:\n\n%s",
+596				len(fileOperationSummaries),
+597				plural,
+598				strings.Join(fileOperationSummaries, "\n"))
+599		} else {
+600			assistantText = "Performed file editing operations"
+601		}
+602	
+603		// Create synthetic request block. ModelID is deliberately left empty: an
+604		// editing-only session records no model, and the responder username
+605		// ("GitHub Copilot") is not a model identifier — stamping it would mislabel
+606		// the model on every exported message.
+607		syntheticRequest := VSCodeRequestBlock{
+608			RequestID: composer.SessionID + "-synthetic",
+609			Timestamp: composer.CreationDate,
+610			Message: VSCodeMessage{
+611				Text: userText,
+612			},
+613			Response: []json.RawMessage{},
+614			Result: VSCodeResult{
+615				Metadata: VSCodeResultMetadata{
+616					Messages: []VSCodeMetadataMessage{
+617						{
+618							Role:    "assistant",
+619							Content: assistantText,
+620						},
+621					},
+622				},
+623			},
+624		}
+625	
+626		return []VSCodeRequestBlock{syntheticRequest}
+627	}
+628	
+629	// extractOperationsFromV2State extracts file operations from version 2 state format (timeline.operations)
+630	func extractOperationsFromV2State(state *VSCodeStateFile) []string {
+631		if state.Timeline == nil || len(state.Timeline.Operations) == 0 {
+632			return nil
+633		}
+634	
+635		var summaries []string
+636		for _, op := range state.Timeline.Operations {
+637			var fileName string
+638			if op.URI != nil {
+639				// Extract file name from URI
+640				path := op.URI.FSPath
+641				if path == "" {
+642					path = op.URI.Path
+643				}
+644				if path != "" {
+645					fileName = lastPathSegment(path)
+646				} else {
+647					fileName = "unknown file"
+648				}
+649			} else {
+650				fileName = "unknown file"
+651			}
+652	
+653			switch op.Type {
+654			case "create":
+655				summaries = append(summaries, fmt.Sprintf("Created file: `%s`", fileName))
+656			case "textEdit":
+657				editCount := len(op.Edits)
+658				if editCount == 0 {
+659					editCount = 1
+660				}
+661				plural := ""
+662				if editCount > 1 {
+663					plural = "s"
+664				}
+665				summaries = append(summaries, fmt.Sprintf("Edited `%s` (%d edit%s)", fileName, editCount, plural))
+666			case "delete":
+667				summaries = append(summaries, fmt.Sprintf("Deleted file: `%s`", fileName))
+668			default:
+669				summaries = append(summaries, fmt.Sprintf("%s: `%s`", op.Type, fileName))
+670			}
+671		}
+672	
+673		return summaries
+674	}
+675	
+676	// extractOperationsFromV1State extracts file operations from version 1 state format (recentSnapshot/pendingSnapshot)
+677	func extractOperationsFromV1State(state *VSCodeStateFile) []string {
+678		filesSummary := make(map[string]bool)
+679	
+680		// Try recentSnapshot (can be array or object)
+681		if state.RecentSnapshot != nil {
+682			entries := extractEntriesFromSnapshot(state.RecentSnapshot)
+683			for _, entry := range entries {
+684				if fileName := extractFileNameFromEntry(entry); fileName != "" {
+685					filesSummary[fmt.Sprintf("Modified `%s`", fileName)] = true
+686				}
+687			}
+688		}
+689	
+690		// Try pendingSnapshot
+691		if state.PendingSnapshot != nil {
+692			entries := extractEntriesFromSnapshot(state.PendingSnapshot)
+693			for _, entry := range entries {
+694				if fileName := extractFileNameFromEntry(entry); fileName != "" {
+695					filesSummary[fmt.Sprintf("Modified `%s`", fileName)] = true
+696				}
+697			}
+698		}
+699	
+700		// Convert map to slice, sorted: map iteration order is randomized, and an
+701		// unsorted list would reorder the exported assistant text between runs.
+702		summaries := make([]string, 0, len(filesSummary))
+703		for summary := range filesSummary {
+704			summaries = append(summaries, summary)
+705		}
+706		sort.Strings(summaries)
+707	
+708		return summaries
+709	}
+710	
+711	// extractEntriesFromSnapshot extracts entries from a snapshot (handles both array and object formats)
+712	func extractEntriesFromSnapshot(snapshot any) []VSCodeStopEntry {
+713		if snapshot == nil {
+714			return nil
+715		}
+716	
+717		var entries []VSCodeStopEntry
+718	
+719		// Try to unmarshal as VSCodeStop object
+720		if stopMap, ok := snapshot.(map[string]any); ok {
+721			if entriesData, ok := stopMap["entries"].([]any); ok {
+722				for _, entryData := range entriesData {
+723					if entryMap, ok := entryData.(map[string]any); ok {
+724						if resource, ok := entryMap["resource"].(string); ok {
+725							entries = append(entries, VSCodeStopEntry{Resource: resource})
+726						}
+727					}
+728				}
+729				return entries
+730			}
+731		}
+732	
+733		// Try to unmarshal as array of VSCodeStop objects
+734		if stopsArray, ok := snapshot.([]any); ok {
+735			for _, stopData := range stopsArray {
+736				if stopMap, ok := stopData.(map[string]any); ok {
+737					if entriesData, ok := stopMap["entries"].([]any); ok {
+738						for _, entryData := range entriesData {
+739							if entryMap, ok := entryData.(map[string]any); ok {
+740								if resource, ok := entryMap["resource"].(string); ok {
+741									entries = append(entries, VSCodeStopEntry{Resource: resource})
+742								}
+743							}
+744						}
+745					}
+746				}
+747			}
+748		}
+749	
+750		return entries
+751	}
+752	
+753	// extractFileNameFromEntry extracts the file name from an entry object
+754	func extractFileNameFromEntry(entry VSCodeStopEntry) string {
+755		if entry.Resource == "" {
+756			return ""
+757		}
+758	
+759		// Handle both URI strings and file paths
+760		return lastPathSegment(entry.Resource)
+761	}
+762	
+763	// lastPathSegment returns the final segment of a URI path or OS path. VS Code's
+764	// fsPath uses backslashes on Windows while URI paths always use forward slashes,
+765	// so both separators are treated as segment boundaries.
+766	func lastPathSegment(p string) string {
+767		p = strings.ReplaceAll(p, `\`, "/")
+768		parts := strings.Split(p, "/")
+769		return parts[len(parts)-1]
+770	}
+771
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:28Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inventory shared vscode package
+
+`ls ../vscode/*.go && grep -n "^func " ../vscode/*.go | grep -v _test | sed 's/ {$//'`
+
+```text
+../vscode/launcher.go
+../vscode/mint.go
+../vscode/paths.go
+../vscode/workspace_id_darwin.go
+../vscode/workspace_id_linux.go
+../vscode/workspace_id_windows.go
+../vscode/workspace_id.go
+../vscode/workspace_test.go
+../vscode/workspace.go
+../vscode/mint.go:23:func MintWorkspace(storageRoot, folderPath string) (*WorkspaceEntry, error)
+../vscode/mint.go:62:func CreateEmptyStateDB(dbPath string) error
+../vscode/launcher.go:43:func OpenApp(appName, launcher, customCommand, projectPath string) error
+../vscode/paths.go:21:func URIToPath(uri string) (string, error)
+../vscode/paths.go:35:func PathToFileURI(path string) string
+../vscode/paths.go:44:func WorkspaceURIMap(workspaceRoot string) map[string]interface{}
+../vscode/paths.go:74:func fileURIParts(osPath string) (fsPath, uriPath, external string)
+../vscode/paths.go:101:func isWindowsDrivePath(osPath string) bool
+../vscode/paths.go:115:func NormalizePathForComparison(path string) (string, error)
+../vscode/paths.go:164:func isUnixStylePathOnWindows(path string) bool
+../vscode/paths.go:181:func isWindowsWSLUNCPath(path string) bool
+../vscode/paths.go:189:func normalizeWindowsWSLPath(path string) string
+../vscode/workspace_id_darwin.go:18:func workspaceIDStatSalt(info os.FileInfo) string
+../vscode/workspace_id.go:20:func WorkspaceID(folderPath string) (string, error)
+../vscode/workspace_id_linux.go:16:func workspaceIDStatSalt(info os.FileInfo) string
+../vscode/workspace_id_windows.go:21:func workspaceIDStatSalt(info os.FileInfo) string
+../vscode/workspace.go:29:func (e *WorkspaceEntry) StateDBPath() string
+../vscode/workspace.go:34:func (e *WorkspaceEntry) MetadataPath() string
+../vscode/workspace.go:47:func (w *WorkspaceJSON) PrimaryURI() string
+../vscode/workspace.go:55:func ReadWorkspaceJSON(path string) (*WorkspaceJSON, error)
+../vscode/workspace.go:96:func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]WorkspaceEntry, error)
+../vscode/workspace.go:222:func SelectPrimary(entries []WorkspaceEntry, projectPath string) *WorkspaceEntry
+../vscode/workspace.go:264:func collectCodeWorkspaceFolders(workspaceFilePath string) []string
+../vscode/workspace.go:315:func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:32Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check existing vscode workspace test coverage
+
+`grep -n "func Test\|// Test\|t.Run(" ../vscode/workspace_test.go | head -60; echo ---; wc -l ../vscode/workspace_test.go`
+
+```text
+29:func TestURIToPath(t *testing.T) {
+46:		t.Run(tt.name, func(t *testing.T) {
+58:func TestPathToFileURI(t *testing.T) {
+64:func TestFindWorkspaces(t *testing.T) {
+121:func TestFindWorkspaces_CodeWorkspaceMethods(t *testing.T) {
+175:func TestSelectPrimary(t *testing.T) {
+217:func TestMintWorkspace(t *testing.T) {
+255:func TestOpenApp_MissingLaunchers(t *testing.T) {
+268:// TestFileURIParts verifies the VS Code-style URI serialization used for
+271:func TestFileURIParts(t *testing.T) {
+317:		t.Run(tt.name, func(t *testing.T) {
+332:// TestWorkspaceURIMap_SepMarker verifies the "_sep" marker is emitted for Windows paths and
+336:func TestWorkspaceURIMap_SepMarker(t *testing.T) {
+349:		t.Run(tt.name, func(t *testing.T) {
+366:func TestCodeWorkspaceContainsFolder(t *testing.T) {
+477:		t.Run(tt.name, func(t *testing.T) {
+---
+     487 ../vscode/workspace_test.go
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:52:36Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/vscode/workspace_test.go`
+
+```text
+60			t.Errorf("PathToFileURI = %q, want percent-encoded file URI", got)
+61		}
+62	}
+63	
+64	func TestFindWorkspaces(t *testing.T) {
+65		storageRoot := t.TempDir()
+66		projectDir := t.TempDir()
+67		canonicalProject, err := NormalizePathForComparison(projectDir)
+68		if err != nil {
+69			t.Fatal(err)
+70		}
+71	
+72		// Entry matching the project directly.
+73		direct := writeWorkspaceEntry(t, storageRoot, "direct",
+74			`{"folder": "`+PathToFileURI(canonicalProject)+`"}`)
+75		// Entry for an unrelated folder.
+76		writeWorkspaceEntry(t, storageRoot, "other",
+77			`{"folder": "file:///somewhere/else"}`)
+78		// Remote entry whose basename matches the project's.
+79		writeWorkspaceEntry(t, storageRoot, "remote",
+80			`{"folder": "vscode-remote://ssh-remote%2Bbox/home/user/`+filepath.Base(canonicalProject)+`"}`)
+81		// Local entry with the same basename must NOT basename-match.
+82		writeWorkspaceEntry(t, storageRoot, "local-samename",
+83			`{"folder": "file:///elsewhere/`+filepath.Base(canonicalProject)+`"}`)
+84		// Malformed entry is skipped, not fatal.
+85		writeWorkspaceEntry(t, storageRoot, "broken", `{not json`)
+86	
+87		entries, err := FindWorkspaces(storageRoot, projectDir, MatchOptions{})
+88		if err != nil {
+89			t.Fatalf("FindWorkspaces: %v", err)
+90		}
+91		ids := map[string]bool{}
+92		for _, e := range entries {
+93			ids[e.ID] = true
+94		}
+95		if !ids["direct"] || !ids["remote"] {
+96			t.Errorf("expected direct+remote matches, got %v", ids)
+97		}
+98		if ids["other"] || ids["local-samename"] || ids["broken"] {
+99			t.Errorf("unexpected matches present: %v", ids)
+100		}
+101	
+102		// RequireFile filters entries lacking the artifact.
+103		if err := os.WriteFile(filepath.Join(direct, "state.vscdb"), []byte("x"), 0o644); err != nil {
+104			t.Fatal(err)
+105		}
+106		filtered, err := FindWorkspaces(storageRoot, projectDir, MatchOptions{RequireFile: "state.vscdb"})
+107		if err != nil {
+108			t.Fatalf("FindWorkspaces filtered: %v", err)
+109		}
+110		if len(filtered) != 1 || filtered[0].ID != "direct" {
+111			t.Errorf("RequireFile filter kept %v, want only direct", filtered)
+112		}
+113	
+114		// No matches is an empty slice, not an error.
+115		none, err := FindWorkspaces(storageRoot, t.TempDir(), MatchOptions{})
+116		if err != nil || len(none) != 0 {
+117			t.Errorf("no-match case = (%v, %v), want empty and nil", none, err)
+118		}
+119	}
+120	
+121	func TestFindWorkspaces_CodeWorkspaceMethods(t *testing.T) {
+122		storageRoot := t.TempDir()
+123		base := t.TempDir()
+124		projectDir := filepath.Join(base, "my-project")
+125		if err := os.MkdirAll(projectDir, 0o755); err != nil {
+126			t.Fatal(err)
+127		}
+128		canonicalProject, err := NormalizePathForComparison(projectDir)
+129		if err != nil {
+130			t.Fatal(err)
+131		}
+132	
+133		// A .code-workspace file listing the project folder (relative path).
+134		wsFile := filepath.Join(base, "multi.code-workspace")
+135		if err := os.WriteFile(wsFile, []byte(`{"folders": [{"path": "my-project"}]}`), 0o644); err != nil {
+136			t.Fatal(err)
+137		}
+138		canonicalWsFile, err := NormalizePathForComparison(wsFile)
+139		if err != nil {
+140			t.Fatal(err)
+141		}
+142	
+143		// Method 3: entry stores the .code-workspace file; project is a listed folder.
+144		writeWorkspaceEntry(t, storageRoot, "via-wsfile",
+145			`{"workspace": "`+PathToFileURI(canonicalWsFile)+`"}`)
+146		// Method 4: project path IS the .code-workspace file; entry is a listed folder.
+147		writeWorkspaceEntry(t, storageRoot, "via-folder",
+148			`{"folder": "`+PathToFileURI(canonicalProject)+`"}`)
+149	
+150		byFolder, err := FindWorkspaces(storageRoot, projectDir, MatchOptions{})
+151		if err != nil {
+152			t.Fatal(err)
+153		}
+154		found := map[string]bool{}
+155		for _, e := range byFolder {
+156			found[e.ID] = true
+157		}
+158		if !found["via-wsfile"] || !found["via-folder"] {
+159			t.Errorf("folder lookup should match both methods, got %v", found)
+160		}
+161	
+162		byWsFile, err := FindWorkspaces(storageRoot, wsFile, MatchOptions{})
+163		if err != nil {
+164			t.Fatal(err)
+165		}
+166		found = map[string]bool{}
+167		for _, e := range byWsFile {
+168			found[e.ID] = true
+169		}
+170		if !found["via-wsfile"] || !found["via-folder"] {
+171			t.Errorf(".code-workspace lookup should match both methods, got %v", found)
+172		}
+173	}
+174	
+175	func TestSelectPrimary(t *testing.T) {
+176		storageRoot := t.TempDir()
+177		projectDir := t.TempDir()
+178		canonicalProject, err := NormalizePathForComparison(projectDir)
+179		if err != nil {
+180			t.Fatal(err)
+181		}
+182	
+183		// Case-variant entry (stale) vs case-exact entry: exact must win even when
+184		// the variant's state.vscdb is newer.
+185		variantDir := writeWorkspaceEntry(t, storageRoot, "variant", `{}`)
+186		exactDir := writeWorkspaceEntry(t, storageRoot, "exact", `{}`)
+187		if err := os.WriteFile(filepath.Join(exactDir, "state.vscdb"), []byte("x"), 0o644); err != nil {
+188			t.Fatal(err)
+189		}
+190		if err := os.WriteFile(filepath.Join(variantDir, "state.vscdb"), []byte("x"), 0o644); err != nil {
+191			t.Fatal(err)
+192		}
+193		future := time.Now().Add(time.Hour)
+194		if err := os.Chtimes(filepath.Join(variantDir, "state.vscdb"), future, future); err != nil {
+195			t.Fatal(err)
+196		}
+197	
+198		entries := []WorkspaceEntry{
+199			{ID: "variant", Dir: variantDir, ResolvedPath: strings.ToLower(canonicalProject) + "-x"},
+200			{ID: "exact", Dir: exactDir, ResolvedPath: canonicalProject},
+201		}
+202		if got := SelectPrimary(entries, projectDir); got == nil || got.ID != "exact" {
+203			t.Errorf("SelectPrimary = %v, want case-exact entry", got)
+204		}
+205	
+206		// With no exact entry, the newest state.vscdb wins.
+207		entries[1].ResolvedPath = canonicalProject + "-y"
+208		if got := SelectPrimary(entries, projectDir); got == nil || got.ID != "variant" {
+209			t.Errorf("SelectPrimary mtime tie-break = %v, want newest (variant)", got)
+210		}
+211	
+212		if got := SelectPrimary(nil, projectDir); got != nil {
+213			t.Errorf("SelectPrimary(nil) = %v, want nil", got)
+214		}
+215	}
+216	
+217	func TestMintWorkspace(t *testing.T) {
+218		storageRoot := t.TempDir()
+219		projectDir := t.TempDir()
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:53:31Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check VSCodeComposer fields and VSCode variant ID
+
+`grep -n "VSCodeComposer struct" -A 20 types.go; grep -n "VSCode = Variant\|VSCode  *=\|ID:" types.go provider.go variants*.go 2>/dev/null | head; grep -rn "VSCode Variant\|VSCode =" *.go | grep -v _test | head`
+
+```text
+6:type VSCodeComposer struct {
+7-	Host              string               `json:"host"` // Always "vscode"
+8-	SessionID         string               `json:"sessionId"`
+9-	Name              string               `json:"name,omitempty"`
+10-	CustomTitle       string               `json:"customTitle,omitempty"`
+11-	Version           int                  `json:"version"`
+12-	RequesterUsername string               `json:"requesterUsername"`
+13-	ResponderUsername string               `json:"responderUsername"`
+14-	CreationDate      int64                `json:"creationDate"`
+15-	LastMessageDate   int64                `json:"lastMessageDate"`
+16-	InitialLocation   string               `json:"initialLocation"`
+17-	IsImported        bool                 `json:"isImported"`
+18-	Requests          []VSCodeRequestBlock `json:"requests"`
+19-}
+20-
+21-// VSCodeRequestBlock represents one conversational turn (user message + agent responses)
+22-type VSCodeRequestBlock struct {
+23-	RequestID string            `json:"requestId"`
+24-	Timestamp int64             `json:"timestamp"`
+25-	Message   VSCodeMessage     `json:"message"`
+26-	Response  []json.RawMessage `json:"response"` // Polymorphic array - parse by "kind"
+(eval):1: no matches found: variants*.go
+provider.go:34:	VSCode = Variant{
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:53:32Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/copilotide/loader.go`
+
+```text
+1	package copilotide
+2	
+3	import (
+4		"encoding/json"
+5		"errors"
+6		"fmt"
+7		"log/slog"
+8		"os"
+9		"path/filepath"
+10		"strings"
+11	)
+12	
+13	// LoadAllSessionFiles returns paths to all session JSON files in the workspace.
+14	// A missing chatSessions directory is a normal state — the workspace has never
+15	// had a Copilot chat — so it reports zero sessions rather than an error,
+16	// keeping callers free of not-found branching; only real read failures error.
+17	func LoadAllSessionFiles(workspaceDir string) ([]string, error) {
+18		chatSessionsPath := GetChatSessionsPath(workspaceDir)
+19	
+20		if _, err := os.Stat(chatSessionsPath); os.IsNotExist(err) {
+21			slog.Debug("No chatSessions directory (no chats yet)", "path", chatSessionsPath)
+22			return nil, nil
+23		}
+24	
+25		files, err := os.ReadDir(chatSessionsPath)
+26		if err != nil {
+27			return nil, fmt.Errorf("failed to read chat sessions directory: %w", err)
+28		}
+29	
+30		var sessionFiles []string
+31		for _, file := range files {
+32			if file.IsDir() {
+33				continue
+34			}
+35	
+36			// Include both .json and .jsonl files
+37			if !strings.HasSuffix(file.Name(), ".json") && !strings.HasSuffix(file.Name(), ".jsonl") {
+38				continue
+39			}
+40	
+41			sessionPath := filepath.Join(chatSessionsPath, file.Name())
+42			sessionFiles = append(sessionFiles, sessionPath)
+43		}
+44	
+45		slog.Debug("Found session files", "count", len(sessionFiles), "workspace", workspaceDir)
+46		return sessionFiles, nil
+47	}
+48	
+49	// LoadSessionFile reads and parses a single session JSON or JSONL file
+50	func LoadSessionFile(sessionPath string) (*VSCodeComposer, error) {
+51		data, err := os.ReadFile(sessionPath)
+52		if err != nil {
+53			return nil, fmt.Errorf("failed to read session file: %w", err)
+54		}
+55	
+56		// Determine format based on file extension
+57		isJSONL := strings.HasSuffix(sessionPath, ".jsonl")
+58	
+59		var composer VSCodeComposer
+60	
+61		if isJSONL {
+62			// JSONL format: each line is a separate JSON object
+63			composer, err = parseJSONL(data)
+64			if err != nil {
+65				return nil, fmt.Errorf("failed to parse JSONL: %w", err)
+66			}
+67		} else {
+68			// JSON format: single JSON object
+69			if err := json.Unmarshal(data, &composer); err != nil {
+70				return nil, fmt.Errorf("failed to parse session JSON: %w", err)
+71			}
+72		}
+73	
+74		slog.Debug("Loaded session file",
+75			"sessionId", composer.SessionID,
+76			"requestCount", len(composer.Requests),
+77			"isJSONL", isJSONL)
+78	
+79		return &composer, nil
+80	}
+81	
+82	// errSessionNotFound reports that no session file exists for a requested ID.
+83	// Callers use it to distinguish "this session isn't here" (a normal outcome —
+84	// the SPI not-found contract is (nil, nil)) from a real load failure.
+85	var errSessionNotFound = errors.New("session not found")
+86	
+87	// LoadSessionByID loads a specific session by ID from the workspace.
+88	// Returns an error wrapping errSessionNotFound when no session file exists.
+89	func LoadSessionByID(workspaceDir, sessionID string) (*VSCodeComposer, error) {
+90		chatSessionsPath := GetChatSessionsPath(workspaceDir)
+91	
+92		// Try .jsonl first (newer format), then fall back to .json (older format)
+93		jsonlPath := filepath.Join(chatSessionsPath, sessionID+".jsonl")
+94		jsonPath := filepath.Join(chatSessionsPath, sessionID+".json")
+95	
+96		var sessionPath string
+97		if _, err := os.Stat(jsonlPath); err == nil {
+98			sessionPath = jsonlPath
+99		} else if _, err := os.Stat(jsonPath); err == nil {
+100			sessionPath = jsonPath
+101		} else {
+102			return nil, fmt.Errorf("%w: %s", errSessionNotFound, sessionID)
+103		}
+104	
+105		return LoadSessionFile(sessionPath)
+106	}
+107	
+108	// LoadStateFile loads the optional state file for a session
+109	// Returns nil if the state file doesn't exist (not an error)
+110	func LoadStateFile(workspaceDir, sessionID string) (*VSCodeStateFile, error) {
+111		statePath := GetStateFilePath(workspaceDir, sessionID)
+112	
+113		// State file is optional
+114		if _, err := os.Stat(statePath); os.IsNotExist(err) {
+115			slog.Debug("No state file found (optional)", "sessionId", sessionID, "path", statePath)
+116			return nil, nil
+117		}
+118	
+119		data, err := os.ReadFile(statePath)
+120		if err != nil {
+121			slog.Warn("Failed to read state file, continuing without state",
+122				"sessionId", sessionID,
+123				"path", statePath,
+124				"error", err)
+125			return nil, nil // Return nil instead of error, state is optional
+126		}
+127	
+128		var state VSCodeStateFile
+129		if err := json.Unmarshal(data, &state); err != nil {
+130			slog.Warn("Failed to parse state JSON, continuing without state",
+131				"sessionId", sessionID,
+132				"path", statePath,
+133				"error", err)
+134			return nil, nil // Return nil instead of error, state is optional
+135		}
+136	
+137		slog.Debug("Loaded state file", "sessionId", sessionID, "version", state.Version)
+138		return &state, nil
+139	}
+140	
+141	// WriteDebugFiles writes raw session data to debug directory
+142	func WriteDebugFiles(composer *VSCodeComposer, sessionID string) error {
+143		debugDir, err := EnsureDebugDirectory(sessionID)
+144		if err != nil {
+145			return fmt.Errorf("failed to create debug directory: %w", err)
+146		}
+147	
+148		// Write raw session JSON (pretty-printed)
+149		rawSessionPath := filepath.Join(debugDir, "raw-session.json")
+150		rawData, err := json.MarshalIndent(composer, "", "  ")
+151		if err != nil {
+152			return fmt.Errorf("failed to marshal session data: %w", err)
+153		}
+154	
+155		if err := os.WriteFile(rawSessionPath, rawData, 0644); err != nil {
+156			return fmt.Errorf("failed to write raw session file: %w", err)
+157		}
+158	
+159		slog.Debug("Wrote debug files", "sessionId", sessionID, "debugDir", debugDir)
+160		return nil
+161	}
+162	
+163	// parseJSONL parses JSONL format with incremental updates
+164	// First line (kind: 0) contains initial state in "v" field
+165	// Subsequent lines (kind: 1) contain updates with key path in "k" and value in "v"
+166	func parseJSONL(data []byte) (VSCodeComposer, error) {
+167		trimmed := strings.TrimSpace(string(data))
+168		if trimmed == "" {
+169			return VSCodeComposer{}, fmt.Errorf("empty JSONL file")
+170		}
+171		lines := strings.Split(trimmed, "\n")
+172	
+173		// Parse first line - should be kind:0 with initial state
+174		var firstLine struct {
+175			Kind int             `json:"kind"`
+176			V    json.RawMessage `json:"v"`
+177		}
+178	
+179		if err := json.Unmarshal([]byte(lines[0]), &firstLine); err != nil {
+180			return VSCodeComposer{}, fmt.Errorf("failed to parse first JSONL line: %w", err)
+181		}
+182	
+183		if firstLine.Kind != 0 {
+184			return VSCodeComposer{}, fmt.Errorf("expected kind:0 in first line, got kind:%d", firstLine.Kind)
+185		}
+186	
+187		// Keep the session in map form while applying updates so each line mutates
+188		// in place; converting the whole composer to a map and back per update line
+189		// is O(session size) per line and dominates load time on long sessions.
+190		var composerMap map[string]any
+191		if err := json.Unmarshal(firstLine.V, &composerMap); err != nil {
+192			return VSCodeComposer{}, fmt.Errorf("failed to parse initial state in first JSONL line: %w", err)
+193		}
+194	
+195		// Apply subsequent updates.
+196		// kind:1 = incremental key-path update (small field changes, e.g. customTitle)
+197		// kind:2 = bulk key-path replacement (e.g. full requests array written after initial snapshot)
+198		// VS Code Copilot introduced kind:2 to split large payloads from the initial kind:0 snapshot.
+199		for i := 1; i < len(lines); i++ {
+200			var update struct {
+201				Kind int   `json:"kind"`
+202				K    []any `json:"k"` // Key path: string map keys and/or numeric array indices, e.g. ["requests", 3, "response"]
+203				V    any   `json:"v"` // Value
+204			}
+205	
+206			if err := json.Unmarshal([]byte(lines[i]), &update); err != nil {
+207				slog.Warn("Failed to parse JSONL update line", "line", i+1, "error", err)
+208				continue
+209			}
+210	
+211			switch update.Kind {
+212			case 1:
+213				if len(update.K) > 0 {
+214					// Replace the value at the key path
+215					if err := applyUpdate(composerMap, update.K, update.V); err != nil {
+216						slog.Warn("Failed to apply JSONL update", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
+217					}
+218				}
+219			case 2:
+220				if len(update.K) > 0 {
+221					// Append items to the array at the key path.
+222					// VS Code writes one kind:2 per user turn, each containing only the new
+223					// request(s) for that turn — not the full history — so we must accumulate.
+224					if err := appendUpdate(composerMap, update.K, update.V); err != nil {
+225						slog.Warn("Failed to apply JSONL append", "line", i+1, "kind", update.Kind, "keyPath", update.K, "error", err)
+226					}
+227				}
+228			default:
+229				// Log unknown kinds so we detect future format changes early
+230				slog.Warn("Unknown JSONL kind, skipping line", "line", i+1, "kind", update.Kind)
+231			}
+232		}
+233	
+234		// Decode the fully-updated map into the typed composer once
+235		finalData, err := json.Marshal(composerMap)
+236		if err != nil {
+237			return VSCodeComposer{}, fmt.Errorf("failed to marshal updated session: %w", err)
+238		}
+239	
+240		var composer VSCodeComposer
+241		if err := json.Unmarshal(finalData, &composer); err != nil {
+242			return VSCodeComposer{}, fmt.Errorf("failed to parse updated session: %w", err)
+243		}
+244	
+245		return composer, nil
+246	}
+247	
+248	// pathIndex converts a numeric key path segment (JSON numbers decode as float64)
+249	// to an integer array index.
+250	func pathIndex(seg any) (int, bool) {
+251		f, ok := seg.(float64)
+252		if !ok || f != float64(int(f)) || f < 0 {
+253			return 0, false
+254		}
+255		return int(f), true
+256	}
+257	
+258	// setAtPath sets value at keyPath inside container, where string segments index
+259	// maps (created when missing) and numeric segments index arrays (an index equal
+260	// to the array length appends). It returns the possibly-new container because
+261	// growing a slice reallocates it, so callers must store the result back.
+262	func setAtPath(container any, keyPath []any, value any) (any, error) {
+263		if len(keyPath) == 0 {
+264			return value, nil
+265		}
+266	
+267		switch seg := keyPath[0].(type) {
+268		case string:
+269			m, ok := container.(map[string]any)
+270			if !ok {
+271				if container != nil {
+272					return nil, fmt.Errorf("cannot set key %q on non-object value of type %T", seg, container)
+273				}
+274				m = make(map[string]any)
+275			}
+276			child, err := setAtPath(m[seg], keyPath[1:], value)
+277			if err != nil {
+278				return nil, err
+279			}
+280			m[seg] = child
+281			return m, nil
+282	
+283		case float64:
+284			idx, ok := pathIndex(seg)
+285			if !ok {
+286				return nil, fmt.Errorf("invalid array index in key path: %v", seg)
+287			}
+288			s, isSlice := container.([]any)
+289			if !isSlice {
+290				if container != nil {
+291					return nil, fmt.Errorf("cannot index into non-array value of type %T", container)
+292				}
+293				s = []any{}
+294			}
+295			if idx > len(s) {
+296				return nil, fmt.Errorf("array index %d out of range (length %d)", idx, len(s))
+297			}
+298			if idx == len(s) {
+299				s = append(s, nil)
+300			}
+301			child, err := setAtPath(s[idx], keyPath[1:], value)
+302			if err != nil {
+303				return nil, err
+304			}
+305			s[idx] = child
+306			return s, nil
+307	
+308		default:
+309			return nil, fmt.Errorf("unsupported key path segment of type %T: %v", seg, seg)
+310		}
+311	}
+312	
+313	// getAtPath reads the value at keyPath inside container without modifying it.
+314	// Returns nil when any segment is missing or of the wrong shape.
+315	func getAtPath(container any, keyPath []any) any {
+316		current := container
+317		for _, seg := range keyPath {
+318			switch key := seg.(type) {
+319			case string:
+320				m, ok := current.(map[string]any)
+321				if !ok {
+322					return nil
+323				}
+324				current = m[key]
+325			case float64:
+326				idx, ok := pathIndex(key)
+327				if !ok {
+328					return nil
+329				}
+330				s, isSlice := current.([]any)
+331				if !isSlice || idx >= len(s) {
+332					return nil
+333				}
+334				current = s[idx]
+335			default:
+336				return nil
+337			}
+338		}
+339		return current
+340	}
+341	
+342	// appendUpdate appends items to the array at a specific key path in the map-form session.
+343	// Used for kind:2 lines where VS Code writes only the newly added items (e.g. a single
+344	// new request per turn, or new response parts within a request) rather than the full
+345	// array, so each write must be accumulated.
+346	// Falls back to replace semantics when the target or incoming value is not an array.
+347	func appendUpdate(composerMap map[string]any, keyPath []any, value any) error {
+348		newItems, isArray := value.([]any)
+349		if !isArray {
+350			// Not an array delta — treat as a plain replace
+351			return applyUpdate(composerMap, keyPath, value)
+352		}
+353	
+354		// Append the new items to whatever is already there; fall back to replace if needed
+355		if existing, ok := getAtPath(composerMap, keyPath).([]any); ok {
+356			newItems = append(existing, newItems...)
+357		}
+358		return applyUpdate(composerMap, keyPath, newItems)
+359	}
+360	
+361	// applyUpdate sets value at a specific key path in the map-form session.
+362	// keyPath mixes string map keys and numeric array indices
+363	// (e.g., ["requests", 3, "response"]).
+364	func applyUpdate(composerMap map[string]any, keyPath []any, value any) error {
+365		_, err := setAtPath(composerMap, keyPath, value)
+366		return err
+367	}
+368
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:53:50Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read variant definitions and GetAgentChatSession
+
+`sed -n '20,80p' provider.go; sed -n '179,250p' provider.go`
+
+```text
+// Variant identifies which VS Code distribution a Provider instance targets.
+// The Copilot chat storage layout is identical between VS Code and VS Code
+// Insiders — only the application identity differs — so a single provider
+// implementation serves both when instantiated with the right variant.
+type Variant struct {
+	ID          string // provider ID used for registration and in generated session data
+	AppName     string // user-facing application label (e.g. "VS Code Insiders")
+	DataDirName string // application data directory name under the OS config root (e.g. "Code - Insiders")
+	Command     string // CLI launcher expected on PATH (e.g. "code-insiders")
+	BundleName  string // macOS app bundle name, for running-process detection (e.g. "Visual Studio Code - Insiders")
+}
+
+// VSCode and VSCodeInsiders are the two distributions this provider supports.
+var (
+	VSCode = Variant{
+		ID:          "copilotide",
+		AppName:     "VS Code",
+		DataDirName: "Code",
+		Command:     "code",
+		BundleName:  "Visual Studio Code",
+	}
+
+	VSCodeInsiders = Variant{
+		ID:          "copilotide-insiders",
+		AppName:     "VS Code Insiders",
+		DataDirName: "Code - Insiders",
+		Command:     "code-insiders",
+		BundleName:  "Visual Studio Code - Insiders",
+	}
+
+	// VSCodium runs Copilot via a sideloaded VSIX (the extension is not on Open
+	// VSX), but the chat session store is VS Code OSS core code, so the storage
+	// layout is identical to stock VS Code.
+	VSCodium = Variant{
+		ID:          "copilotide-vscodium",
+		AppName:     "VSCodium",
+		DataDirName: "VSCodium",
+		Command:     "codium",
+		BundleName:  "VSCodium",
+	}
+
+	VSCodiumInsiders = Variant{
+		ID:          "copilotide-vscodium-insiders",
+		AppName:     "VSCodium Insiders",
+		DataDirName: "VSCodium - Insiders",
+		Command:     "codium-insiders",
+		BundleName:  "VSCodium - Insiders",
+	}
+)
+
+// Provider implements the SPI Provider interface for the Copilot chat built
+// into a VS Code distribution (stock VS Code or VS Code Insiders).
+type Provider struct {
+	variant Variant
+
+	// findWorkspaceForReconstruction is the workspace lookup used by the resume
+	// flow. Held as an instance field (not a package var) so each variant
+	// resolves against its own storage and tests can patch it per instance.
+	findWorkspaceForReconstruction func(projectPath string) (*vscode.WorkspaceEntry, error)
+}
+
+func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	slog.Debug("GetAgentChatSession", "projectPath", projectPath, "sessionID", sessionID, "debugRaw", debugRaw)
+
+	// No matching workspace means this provider simply doesn't have the
+	// session — a normal outcome when callers probe every provider for an ID.
+	// A project can match several entries (WSL records it under multiple URI
+	// forms), and the session lives in exactly one of them, so try each.
+	workspaces, err := p.FindAllWorkspacesForProject(projectPath)
+	if err != nil {
+		slog.Debug("No workspace found for project", "projectPath", projectPath, "error", err)
+		return nil, nil
+	}
+
+	// The same session can appear in more than one matching entry, enumerated
+	// in workspace-hash order — so an empty copy can precede the populated one,
+	// the same ordering trap forEachUniqueSession guards against. Prefer the
+	// first content-bearing copy; keep an empty copy only as a fallback so
+	// explicitly requesting a genuinely empty session still returns it.
+	var fallback *spi.AgentChatSession
+	var fallbackRaw *VSCodeComposer
+	for _, ws := range workspaces {
+		session, err := LoadSessionByID(ws.Dir, sessionID)
+		if errors.Is(err, errSessionNotFound) {
+			slog.Debug("Session not found in workspace", "sessionID", sessionID, "workspace", ws.Dir)
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to load session: %w", err)
+		}
+
+		// Load state file (optional)
+		state, err := LoadStateFile(ws.Dir, sessionID)
+		if err != nil {
+			slog.Warn("Failed to load state file", "sessionId", sessionID, "error", err)
+		}
+
+		// Convert to AgentChatSession
+		agentSession := p.ConvertToSessionData(*session, projectPath, state)
+
+		if len(session.Requests) == 0 && !hasEditingActivity(state) {
+			slog.Debug("Session copy has no content, checking remaining workspaces",
+				"sessionID", sessionID, "workspace", ws.Dir)
+			if fallback == nil {
+				fallback = &agentSession
+				fallbackRaw = session
+			}
+			continue
+		}
+
+		// Write debug files if requested
+		if debugRaw {
+			if err := WriteDebugFiles(session, sessionID); err != nil {
+				slog.Warn("Failed to write debug files", "error", err)
+			}
+		}
+
+		return &agentSession, nil
+	}
+
+	if fallback != nil && debugRaw {
+		if err := WriteDebugFiles(fallbackRaw, sessionID); err != nil {
+			slog.Warn("Failed to write debug files", "error", err)
+		}
+	}
+	return fallback, nil
+}
+
+// GetAgentChatSessions retrieves all chat sessions for the given project path
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	slog.Debug("GetAgentChatSessions", "projectPath", projectPath, "debugRaw", debugRaw)
+
+	// Find all workspaces for project (WSL may have multiple entries)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:53:58Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/copilotide/workspace.go`
+
+```text
+1	package copilotide
+2	
+3	import (
+4		"fmt"
+5		"log/slog"
+6		"os"
+7		"path/filepath"
+8	
+9		"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
+10		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+11	)
+12	
+13	// FindAllWorkspacesForProject finds every workspace entry matching the project.
+14	// A single project can match more than one entry — under WSL the same project is
+15	// recorded under several URI forms — so readers that aggregate sessions use this
+16	// rather than picking one entry and missing the rest.
+17	func (p *Provider) FindAllWorkspacesForProject(projectPath string) ([]vscode.WorkspaceEntry, error) {
+18		return p.findAllWorkspacesForProject(projectPath, true)
+19	}
+20	
+21	// findAllWorkspacesForProject matches projectPath against the variant's workspace
+22	// storage via the shared VS Code-lineage engine. requireChatSessions filters
+23	// out matches that have never had a chat session — wanted when reading
+24	// sessions, not when picking a write target for reconstruction (the resume
+25	// flow creates the chatSessions directory when writing).
+26	func (p *Provider) findAllWorkspacesForProject(projectPath string, requireChatSessions bool) ([]vscode.WorkspaceEntry, error) {
+27		storageRoot := p.workspaceStoragePath()
+28		if storageRoot == "" {
+29			return nil, fmt.Errorf("workspace storage directory not found")
+30		}
+31	
+32		opts := vscode.MatchOptions{}
+33		if requireChatSessions {
+34			opts.RequireFile = "chatSessions"
+35		}
+36		entries, err := vscode.FindWorkspaces(storageRoot, projectPath, opts)
+37		if err != nil {
+38			return nil, err
+39		}
+40		if len(entries) == 0 {
+41			return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, storageRoot)
+42		}
+43		return entries, nil
+44	}
+45	
+46	// findWorkspaceForProject picks the single entry the IDE itself would use, for
+47	// callers that need exactly one read/write target rather than every match.
+48	func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*vscode.WorkspaceEntry, error) {
+49		entries, err := p.findAllWorkspacesForProject(projectPath, requireChatSessions)
+50		if err != nil {
+51			return nil, err
+52		}
+53	
+54		primary := vscode.SelectPrimary(entries, projectPath)
+55		if primary == nil {
+56			return nil, fmt.Errorf("no workspace found for project path %s", projectPath)
+57		}
+58	
+59		slog.Debug("Found matching workspace",
+60			"workspaceID", primary.ID,
+61			"projectPath", projectPath,
+62			"workspaceURI", primary.URI)
+63		return primary, nil
+64	}
+65	
+66	// ensureWorkspaceForReconstruction returns the workspace entry for the project,
+67	// minting one when the folder has never been opened in this VS Code variant —
+68	// the case where a resume targets a brand-new project, which would otherwise
+69	// fail with "open the folder in VS Code once first". When the user later opens
+70	// the folder, VS Code computes the same workspace ID and adopts the minted
+71	// entry instead of creating a duplicate.
+72	//
+73	// The path is canonicalized before minting (unlike Cursor, which mints per
+74	// literal spelling): VS Code's own launcher resolves the on-disk case when
+75	// opening a folder, so the canonical spelling is the ID it will compute.
+76	func (p *Provider) ensureWorkspaceForReconstruction(projectPath string) (*vscode.WorkspaceEntry, error) {
+77		if ws, err := p.findWorkspaceForProject(projectPath, false); err == nil {
+78			return ws, nil
+79		}
+80	
+81		absPath, err := filepath.Abs(projectPath)
+82		if err != nil {
+83			return nil, fmt.Errorf("failed to get absolute path: %w", err)
+84		}
+85		canonical, err := spi.GetCanonicalPath(absPath)
+86		if err != nil {
+87			canonical = absPath
+88		}
+89	
+90		storageRoot := workspaceStorageRoot(p.variant)
+91		if storageRoot == "" {
+92			return nil, fmt.Errorf("cannot locate %s workspace storage on this machine", p.variant.AppName)
+93		}
+94		if _, err := os.Stat(storageRoot); err != nil {
+95			// No storage root at all means the app has never run here — a minted
+96			// entry would be orphaned rather than adopted.
+97			return nil, fmt.Errorf("%s does not appear to have been used on this machine (no workspace storage at %s)", p.variant.AppName, storageRoot)
+98		}
+99	
+100		return vscode.MintWorkspace(storageRoot, canonical)
+101	}
+102
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:53:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find reconstruct_test fixture helpers
+
+`grep -n "SetUserDataDirOverride\|workspace.json\|MkdirAll\|func " reconstruct_test.go | head -30`
+
+```text
+20:func createTestWorkspace(t *testing.T) *vscode.WorkspaceEntry {
+37:func newTestProvider(ws *vscode.WorkspaceEntry) *Provider {
+44:func reconstructSampleData() *schema.SessionData {
+62:func readIndexEntries(t *testing.T, workspaceDir string) map[string]sessionIndexEntry {
+90:func TestReconstructSession_RoundTrip(t *testing.T) {
+138:	if err := os.MkdirAll(sessionsDir, 0o755); err != nil {
+194:func TestReconstructSession_MigrationNote(t *testing.T) {
+223:func TestReconstructSession_Errors(t *testing.T) {
+238:func TestWriteSessionIndexEntry_PreservesExisting(t *testing.T) {
+292:// the directory name is VS Code's own md5(path+salt) ID, workspace.json points
+294:func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
+303:	if err := os.MkdirAll(storageRoot, 0o755); err != nil {
+306:	SetUserDataDirOverride(VSCode.ID, userData)
+307:	t.Cleanup(func() { SetUserDataDirOverride(VSCode.ID, "") })
+309:	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+333:		t.Fatalf("minted workspace.json unreadable: %v", err)
+337:		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, canonical)
+362:func TestNativeSessionPath(t *testing.T) {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:54:05Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/providers/copilotide/reconstruct_test.go`
+
+```text
+14		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+15		"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+16	)
+17	
+18	// createTestWorkspace creates a temp workspace storage directory with a state.vscdb
+19	// containing an empty ItemTable, and returns a WorkspaceMatch pointing at it.
+20	func createTestWorkspace(t *testing.T) *vscode.WorkspaceEntry {
+21		t.Helper()
+22		dir := t.TempDir()
+23		db, err := sql.Open("sqlite", GetWorkspaceStateDBPath(dir))
+24		if err != nil {
+25			t.Fatalf("createTestWorkspace: open: %v", err)
+26		}
+27		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS ItemTable (key TEXT PRIMARY KEY, value TEXT)`); err != nil {
+28			_ = db.Close()
+29			t.Fatalf("createTestWorkspace: create ItemTable: %v", err)
+30		}
+31		_ = db.Close()
+32		return &vscode.WorkspaceEntry{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj", ResolvedPath: "/tmp/proj"}
+33	}
+34	
+35	// newTestProvider returns a VS Code provider whose reconstruction workspace lookup
+36	// always resolves to the provided workspace, regardless of the project path argument.
+37	func newTestProvider(ws *vscode.WorkspaceEntry) *Provider {
+38		p := NewProvider(VSCode)
+39		p.findWorkspaceForReconstruction = func(_ string) (*vscode.WorkspaceEntry, error) { return ws, nil }
+40		return p
+41	}
+42	
+43	// reconstructSampleData returns a minimal multi-turn SessionData for testing.
+44	func reconstructSampleData() *schema.SessionData {
+45		return &schema.SessionData{
+46			SchemaVersion: "1.0",
+47			SessionID:     "orig-session-123",
+48			WorkspaceRoot: "/tmp/proj",
+49			Slug:          "fix the login bug",
+50			Exchanges: []schema.Exchange{
+51				{Messages: []schema.Message{
+52					{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "What's wrong with the login flow?"}}},
+53					{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "The session token is not being invalidated on logout."}}},
+54					{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "How do we fix it?"}}},
+55					{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: schema.ContentTypeText, Text: "Call `deleteSession(token)` in the logout handler."}}},
+56				}},
+57			},
+58		}
+59	}
+60	
+61	// readIndexEntries reads and parses the chat session index from a workspace's state.vscdb.
+62	func readIndexEntries(t *testing.T, workspaceDir string) map[string]sessionIndexEntry {
+63		t.Helper()
+64		db, err := sql.Open("sqlite", GetWorkspaceStateDBPath(workspaceDir))
+65		if err != nil {
+66			t.Fatalf("readIndexEntries: open: %v", err)
+67		}
+68		defer func() { _ = db.Close() }()
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:54:05Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check FindWorkspaces matching + sort and SelectPrimary
+
+`sed -n '96,160p' ../vscode/workspace.go; sed -n '222,262p' ../vscode/workspace.go`
+
+```text
+func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]WorkspaceEntry, error) {
+	canonicalProjectPath, err := NormalizePathForComparison(projectPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to normalize project path: %w", err)
+	}
+	projectBasename := filepath.Base(canonicalProjectPath)
+
+	// If the project path is itself a .code-workspace file, pre-collect its
+	// folders so entries opened directly from those folders match too (method 4).
+	var workspaceFileFolders []string
+	if strings.HasSuffix(canonicalProjectPath, ".code-workspace") {
+		workspaceFileFolders = collectCodeWorkspaceFolders(canonicalProjectPath)
+	}
+
+	dirEntries, err := os.ReadDir(storageRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read workspace storage directory: %w", err)
+	}
+
+	var matches []WorkspaceEntry
+	for _, dirEntry := range dirEntries {
+		if !dirEntry.IsDir() {
+			continue
+		}
+
+		workspaceID := dirEntry.Name()
+		workspaceDir := filepath.Join(storageRoot, workspaceID)
+
+		workspaceJSON, err := ReadWorkspaceJSON(filepath.Join(workspaceDir, "workspace.json"))
+		if err != nil {
+			slog.Debug("Skipping workspace directory (no valid workspace.json)",
+				"workspaceID", workspaceID, "error", err)
+			continue
+		}
+
+		workspaceURI := workspaceJSON.PrimaryURI()
+		if workspaceURI == "" {
+			slog.Debug("Skipping workspace directory (no workspace or folder URI)",
+				"workspaceID", workspaceID)
+			continue
+		}
+
+		workspacePath, err := URIToPath(workspaceURI)
+		if err != nil {
+			slog.Debug("Skipping workspace directory (invalid URI)",
+				"workspaceID", workspaceID, "uri", workspaceURI, "error", err)
+			continue
+		}
+
+		canonicalWorkspacePath, err := NormalizePathForComparison(workspacePath)
+		if err != nil {
+			slog.Debug("Failed to normalize workspace path",
+				"workspaceID", workspaceID, "path", workspacePath, "error", err)
+			canonicalWorkspacePath = workspacePath
+		}
+
+		// Method 1: direct path match.
+		isMatch := canonicalProjectPath == canonicalWorkspacePath
+
+		// Method 2: remote-only basename match.
+		if !isMatch && spi.IsRemoteURIRequiringBasenameMatch(workspaceURI) {
+			if projectBasename == filepath.Base(canonicalWorkspacePath) {
+				isMatch = true
+				slog.Info("Matched remote workspace by folder basename",
+					"workspaceID", workspaceID,
+func SelectPrimary(entries []WorkspaceEntry, projectPath string) *WorkspaceEntry {
+	if len(entries) == 0 {
+		return nil
+	}
+	candidates := entries
+	if canonical, err := NormalizePathForComparison(projectPath); err == nil {
+		var exact []WorkspaceEntry
+		for _, entry := range entries {
+			if entry.ResolvedPath == canonical {
+				exact = append(exact, entry)
+			}
+		}
+		if len(exact) > 0 && len(exact) < len(entries) {
+			slog.Debug("Preferring case-exact workspace entries",
+				"projectPath", canonical,
+				"exactCount", len(exact),
+				"totalCount", len(entries))
+			candidates = exact
+		}
+	}
+
+	best := candidates[0]
+	var bestMod int64
+	if info, err := os.Stat(best.StateDBPath()); err == nil {
+		bestMod = info.ModTime().UnixNano()
+	}
+	for _, entry := range candidates[1:] {
+		info, err := os.Stat(entry.StateDBPath())
+		if err != nil {
+			continue
+		}
+		if mod := info.ModTime().UnixNano(); mod > bestMod {
+			best = entry
+			bestMod = mod
+		}
+	}
+	return &best
+}
+
+// collectCodeWorkspaceFolders reads a .code-workspace JSON file and returns the
+// canonical paths of all listed folders. Relative paths are resolved against
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:54:43Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read GetAgentChatSessions and ListAgentChatSessions
+
+`sed -n '247,400p' provider.go`
+
+```text
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	slog.Debug("GetAgentChatSessions", "projectPath", projectPath, "debugRaw", debugRaw)
+
+	// Find all workspaces for project (WSL may have multiple entries)
+	workspaces, err := p.FindAllWorkspacesForProject(projectPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find workspace: %w", err)
+	}
+
+	allSources := collectSessionSources(workspaces)
+
+	var sessions []spi.AgentChatSession
+	processedCount := 0
+	totalCount := len(allSources)
+
+	forEachUniqueSession(allSources, func(composer *VSCodeComposer, state *VSCodeStateFile) {
+		// Convert to AgentChatSession
+		session := p.ConvertToSessionData(*composer, projectPath, state)
+		sessions = append(sessions, session)
+
+		// Write debug files if requested
+		if debugRaw {
+			if err := WriteDebugFiles(composer, composer.SessionID); err != nil {
+				slog.Warn("Failed to write debug files", "sessionId", composer.SessionID, "error", err)
+			}
+		}
+
+		// Report progress
+		processedCount++
+		if progress != nil {
+			progress(processedCount, totalCount)
+		}
+	})
+
+	slog.Debug("Loaded sessions", "count", len(sessions))
+	return sessions, nil
+}
+
+// sessionSource pairs a chat session file with the workspace directory it was
+// found in, so downstream loading can also locate the session's state file.
+type sessionSource struct {
+	file         string
+	workspaceDir string
+}
+
+// collectSessionSources gathers session files from every workspace entry
+// matching the project. A workspace whose files cannot be listed is logged and
+// skipped so one bad workspace doesn't hide the other workspaces' sessions.
+func collectSessionSources(workspaces []vscode.WorkspaceEntry) []sessionSource {
+	var sources []sessionSource
+	for _, ws := range workspaces {
+		files, err := LoadAllSessionFiles(ws.Dir)
+		if err != nil {
+			slog.Warn("Failed to load session files from workspace", "workspaceID", ws.ID, "error", err)
+			continue
+		}
+		for _, f := range files {
+			sources = append(sources, sessionSource{file: f, workspaceDir: ws.Dir})
+		}
+	}
+	return sources
+}
+
+// forEachUniqueSession loads each source and hands the surviving sessions to
+// handle together with their optional editing state. Skipped along the way:
+// files that fail to parse, duplicate session IDs (under WSL the same project
+// is recorded under multiple workspace entries, and the same session can
+// appear in more than one), and sessions with neither chat messages nor
+// editing activity. Among content-bearing copies of the same session, first
+// wins.
+func forEachUniqueSession(sources []sessionSource, handle func(composer *VSCodeComposer, state *VSCodeStateFile)) {
+	seenIDs := make(map[string]bool)
+
+	for _, src := range sources {
+		composer, err := LoadSessionFile(src.file)
+		if err != nil {
+			slog.Warn("Failed to load session", "file", src.file, "error", err)
+			continue
+		}
+
+		// Skip copies of a session that was already handled
+		if seenIDs[composer.SessionID] {
+			continue
+		}
+
+		// Load state file (optional)
+		state, err := LoadStateFile(src.workspaceDir, composer.SessionID)
+		if err != nil {
+			slog.Warn("Failed to load state file", "sessionId", composer.SessionID, "error", err)
+		}
+
+		// Check if session has content (either chat messages or editing operations)
+		hasConversations := len(composer.Requests) > 0
+		hasEditingOperations := hasEditingActivity(state)
+
+		if !hasConversations && !hasEditingOperations {
+			slog.Debug("Skipping empty session (no chat or editing activity)", "sessionId", composer.SessionID)
+			continue
+		}
+
+		// Mark seen only after the content check: workspace enumeration order is by
+		// workspace hash, not recency, so an empty copy encountered first must not
+		// claim the ID and suppress a populated copy from another workspace entry.
+		seenIDs[composer.SessionID] = true
+		handle(composer, state)
+	}
+}
+
+// ListAgentChatSessions retrieves lightweight metadata for all sessions
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	slog.Debug("ListAgentChatSessions: Loading Copilot session list",
+		"app", p.variant.AppName, "projectPath", projectPath)
+
+	// Step 1: Find all workspaces for project (WSL may have multiple entries)
+	workspaces, err := p.FindAllWorkspacesForProject(projectPath)
+	if err != nil {
+		slog.Debug("No workspace found for project", "error", err)
+		return []spi.SessionMetadata{}, nil // Return empty list if no workspace
+	}
+
+	slog.Debug("Found workspaces for project", "workspaceCount", len(workspaces))
+
+	// Step 2: Collect session files from all matching workspaces
+	allSources := collectSessionSources(workspaces)
+	if len(allSources) == 0 {
+		slog.Debug("No session files found in any workspace")
+		return []spi.SessionMetadata{}, nil
+	}
+
+	slog.Debug("Loaded session files from all workspaces", "count", len(allSources))
+
+	// Step 3: Extract metadata for each session
+	metadataList := make([]spi.SessionMetadata, 0, len(allSources))
+	forEachUniqueSession(allSources, func(composer *VSCodeComposer, _ *VSCodeStateFile) {
+		metadataList = append(metadataList, extractCopilotIDESessionMetadata(composer))
+	})
+
+	slog.Info("Listed Copilot sessions",
+		"app", p.variant.AppName,
+		"totalFiles", len(allSources),
+		"sessionCount", len(metadataList))
+
+	return metadataList, nil
+}
+
+// ExecAgentAndWatch opens the VS Code variant at the project path and then watches the
+// workspace's chat store, auto-saving session updates via sessionCallback. VS Code
+// Copilot is an IDE, not a CLI: there is no child process whose exit ends the session,
+// so this blocks until the user interrupts (Ctrl-C) rather than until an agent exits.
+//
+// The resume flow (resumeSessionID != "") arrives here after ReconstructSession has
+// already written the imported session into the workspace's chat store — the "session
+// is ready" note only makes sense in that case, not on a plain `specstory run`.
+// (Mirrors the Cursor IDE provider's behavior.)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:54:44Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Verify struct field names in types.go
+
+`grep -n "VSCodeStateFile struct\|VSCodeTimeline struct\|VSCodeOperation struct\|VSCodeUri struct\|VSCodeResult struct\|VSCodeResultMetadata struct\|VSCodeToolCallRound struct\|VSCodeToolCallInfo struct\|VSCodeMetadataMessage struct\|VSCodeMessage struct" -A 12 types.go | grep -v "^--$"`
+
+```text
+32:type VSCodeMessage struct {
+33-	Text  string              `json:"text"`
+34-	Parts []VSCodeMessagePart `json:"parts,omitempty"`
+35-}
+36-
+37-// VSCodeMessagePart (optional - only parse if needed for tool references)
+38-type VSCodeMessagePart struct {
+39-	Kind string `json:"kind"`
+40-	// Add other fields as needed during implementation
+41-}
+42-
+43-// Response types - each has a "kind" discriminator
+44-// Parse json.RawMessage into these based on kind field
+89:type VSCodeResult struct {
+90-	Metadata VSCodeResultMetadata `json:"metadata"`
+91-	Timings  VSCodeTimings        `json:"timings"`
+92-}
+93-
+94-// VSCodeResultMetadata contains tool call information and final messages
+95:type VSCodeResultMetadata struct {
+96-	ToolCallRounds  []VSCodeToolCallRound           `json:"toolCallRounds,omitempty"`
+97-	ToolCallResults map[string]VSCodeToolCallResult `json:"toolCallResults,omitempty"`
+98-	Messages        []VSCodeMetadataMessage         `json:"messages,omitempty"`
+99-}
+100-
+101-// VSCodeToolCallRound represents one round of tool calls from the LLM
+102:type VSCodeToolCallRound struct {
+103-	Response  string               `json:"response"` // May contain thinking
+104-	ToolCalls []VSCodeToolCallInfo `json:"toolCalls"`
+105-}
+106-
+107-// VSCodeToolCallInfo contains the tool call details
+108:type VSCodeToolCallInfo struct {
+109-	ID        string `json:"id"`
+110-	Name      string `json:"name"`
+111-	Arguments string `json:"arguments"` // JSON string - parse if needed
+112-}
+113-
+114-// VSCodeToolCallResult contains the result of a tool call
+115-type VSCodeToolCallResult struct {
+116-	Content []VSCodeToolCallContent `json:"content,omitempty"`
+117-}
+118-
+119-// VSCodeToolCallContent contains the content of a tool call result
+120-type VSCodeToolCallContent struct {
+125:type VSCodeMetadataMessage struct {
+126-	Role    string `json:"role"`
+127-	Content string `json:"content"`
+128-}
+129-
+130-// VSCodeTimings contains timing information
+131-type VSCodeTimings struct {
+132-	FirstProgress int64 `json:"firstProgress"`
+133-	TotalElapsed  int64 `json:"totalElapsed"`
+134-}
+135-
+136-// Common types
+137-
+139:type VSCodeUri struct {
+140-	Scheme string `json:"scheme,omitempty"` // "file", "vscode-chat-code-block", etc.
+141-	Path   string `json:"path,omitempty"`
+142-	FSPath string `json:"fsPath,omitempty"`
+143-}
+144-
+145-// VSCodeEdit represents a text edit
+146-type VSCodeEdit struct {
+147-	Text  string      `json:"text"`
+148-	Range VSCodeRange `json:"range"`
+149-}
+150-
+151-// VSCodeRange represents a range in a file
+163:type VSCodeStateFile struct {
+164-	Version         int                   `json:"version"`
+165-	SessionID       string                `json:"sessionId"`
+166-	LinearHistory   []VSCodeLinearHistory `json:"linearHistory,omitempty"`
+167-	RecentSnapshot  any                   `json:"recentSnapshot,omitempty"`  // Can be array or object
+168-	PendingSnapshot any                   `json:"pendingSnapshot,omitempty"` // Can be array or object
+169-	Timeline        *VSCodeTimeline       `json:"timeline,omitempty"`        // Version 2 format
+170-}
+171-
+172-// VSCodeTimeline represents the timeline in version 2 state format
+173:type VSCodeTimeline struct {
+174-	Operations []VSCodeOperation `json:"operations,omitempty"`
+175-}
+176-
+177-// VSCodeOperation represents a file operation in version 2 state format
+178:type VSCodeOperation struct {
+179-	Type  string     `json:"type"`            // "create", "textEdit", "delete"
+180-	URI   *VSCodeUri `json:"uri,omitempty"`   // File URI
+181-	Edits []any      `json:"edits,omitempty"` // Edit details
+182-}
+183-
+184-// VSCodeLinearHistory represents the linear history of edits
+185-type VSCodeLinearHistory struct {
+186-	RequestID string       `json:"requestId"`
+187-	Stops     []VSCodeStop `json:"stops,omitempty"`
+188-}
+189-
+190-// VSCodeStop represents a stop in the edit history
+```
+</details></tool-use>
+
+---
+
+_**User (2026-08-12 20:55:48Z)**_
+
+[Request interrupted by user]
+
+---
+
+_**User (2026-08-12 20:56:26Z)**_
+
+<system-reminder>
+The session's working directory has changed to /Users/sean/Source/SpecStory/getspecstory/specstory-cli (via /cd). The environment block at the start of this conversation still names the previous directory — that information is stale. All tool calls and relative paths now resolve from /Users/sean/Source/SpecStory/getspecstory/specstory-cli.
+</system-reminder>
+
+---
+
+_**User (2026-08-12 20:57:34Z)**_
+
+Let's pause that for a moment...
+
+Look at the git diff of all the ./.specstory/history files
+
+Some of that we expect... like the --- between user prompts
+
+But why did all those relative paths go to absolute?
+
+---
+
+_**Agent (claude-fable-5 2026-08-12 20:57:42Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+List modified history files
+
+`cd /Users/sean/Source/SpecStory/getspecstory && git status --short -- '*.specstory/history*' | head -20`
+
+```text
+ M specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
+ M specstory-cli/.specstory/history/2026-01-16_15-23-32Z-take-a-look-at.md
+ M specstory-cli/.specstory/history/2026-01-16_16-26-02Z-minor-when-answer-is.md
+ M specstory-cli/.specstory/history/2026-01-16_16-46-41Z.md
+ M specstory-cli/.specstory/history/2026-01-16_22-28-53Z-after-a-cloud-sync.md
+ M specstory-cli/.specstory/history/2026-01-23_14-20-54Z.md
+ M specstory-cli/.specstory/history/2026-01-25_12-30-58Z-let-s-address-these.md
+ M specstory-cli/.specstory/history/2026-01-25_14-58-39Z-01-25-26-9.md
+ M specstory-cli/.specstory/history/2026-01-28_13-10-29Z-take-a-look-at.md
+ M specstory-cli/.specstory/history/2026-01-28_13-36-04Z-read-the-file-at.md
+ M specstory-cli/.specstory/history/2026-01-28_14-55-51Z-let-s-address-1.md
+ M specstory-cli/.specstory/history/2026-01-29_14-35-22Z-already-done-the-test.md
+ M specstory-cli/.specstory/history/2026-01-29_15-58-30Z-the-droid-provider-uses.md
+ M specstory-cli/.specstory/history/2026-01-29_16-26-43Z-the-test-inversions-have.md
+ M specstory-cli/.specstory/history/2026-01-29_17-39-47Z-the-droid-factory-provider.md
+ M specstory-cli/.specstory/history/2026-01-30_18-58-14Z-proceed.md
+ M specstory-cli/.specstory/history/2026-01-31_14-47-58Z-take-a-look-at.md
+ M specstory-cli/.specstory/history/2026-01-31_15-19-39Z-let-s-consider-what.md
+ M specstory-cli/.specstory/history/2026-01-31_15-39-29Z-when-running-specstory-sync.md
+ M specstory-cli/.specstory/history/2026-02-09_20-36-38Z-i-m-confused-why.md
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:57:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Inspect a sample history diff
+
+`cd /Users/sean/Source/SpecStory/getspecstory && git diff -- specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md | head -80`
+
+```text
+diff --git a/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md b/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
+index 31c6cfb..80a00a3 100644
+--- a/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
++++ b/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
+@@ -279,7 +279,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:41Z)**_
+ 
+ <tool-use data-tool-type="search" data-tool-name="Grep"><details>
+ <summary>Tool use: **Grep**</summary>
+- path `./` pattern `providers/gemini`
++ path `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` pattern `providers/gemini`
+ 
+ ```text
+ Found 1 file
+@@ -328,7 +328,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-12 15:15:47Z)**_
+ 
+ <tool-use data-tool-type="read" data-tool-name="Read"><details>
+ <summary>Tool use: **Read**</summary>
+- `./pkg/spi/factory/registry.go`
++ `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/factory/registry.go`
+ 
+ ```text
+      1→// Package factory provides the provider registry and factory implementation.
+@@ -990,10 +990,14 @@ _**User (2026-01-17 14:55:47Z)**_
+             <command-message>exit</command-message>
+             <command-args></command-args>
+ 
++---
++
+ _**User (2026-01-17 14:55:47Z)**_
+ 
+ <local-command-stdout>Bye!</local-command-stdout>
+ 
++---
++
+ _**User (2026-01-17 14:55:47Z)**_
+ 
+ <local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:58:09Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read current makeRelativePath
+
+`grep -n "makeRelativePath" -B 8 -A 30 pkg/providers/claudecode/markdown_tools.go | head -60`
+
+```text
+65-var (
+66-	// ansiRegex matches ANSI escape sequences like [0m, [31m, [1;31m, etc.
+67-	ansiRegex = regexp.MustCompile(`\x1b\[[0-9;]*m`)
+68-
+69-	// systemReminderRegex matches  tags with content
+70-	systemReminderRegex = regexp.MustCompile(`(?s)`)
+71-)
+72-
+73:// makeRelativePath converts an absolute path to relative if it's within the cwd
+74:func makeRelativePath(absolutePath, cwd string) string {
+75-	// Delegate the relativization to the shared shape-based engine: both paths
+76-	// come from the session recording, so host-dependent filepath helpers (and
+77-	// the case-folding this function once keyed off the RENDERING host's OS)
+78-	// would corrupt sessions recorded on a different platform.
+79-	rel := spi.NormalizePath(absolutePath, cwd)
+80-	if rel == absolutePath {
+81-		// Outside cwd (or already relative): keep the recorded form.
+82-		return absolutePath
+83-	}
+84-	if rel == "." {
+85-		return "./"
+86-	}
+87-	return "./" + rel
+88-}
+89-
+90-// getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
+91-func getLanguageFromExtension(filePath string) string {
+92-	if filePath == "" {
+93-		return ""
+94-	}
+95-
+96-	ext := strings.TrimPrefix(filepath.Ext(filePath), ".")
+97-
+98-	// Map common extensions to language identifiers
+99-	switch ext {
+100-	case "js":
+101-		return "javascript"
+102-	case "ts":
+103-		return "typescript"
+104-	case "py":
+--
+167-func formatReadTool(toolName string, input map[string]interface{}, description string) string {
+168-	var content string
+169-
+170-	// Add file path in backticks
+171-	if input != nil {
+172-		if filePath, ok := input["file_path"].(string); ok && filePath != "" {
+173-			// Check if we have cwd for relative path conversion
+174-			cwd, _ := input["_cwd"].(string)
+175:			relativePath := makeRelativePath(filePath, cwd)
+176-			content += fmt.Sprintf(" `%s`", relativePath)
+177-		}
+178-	}
+179-
+180-	// Add description if provided
+181-	if description != "" {
+182-		content += fmt.Sprintf(" %s", description)
+183-	}
+184-
+185-	return content
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:58:09Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read current NormalizePath
+
+`grep -n "func NormalizePath" -B 12 -A 40 pkg/spi/shell_path_hints.go`
+
+```text
+21-// Windows drive-lettered.
+22-func recordedAbs(p string) bool {
+23-	if strings.HasPrefix(p, "/") {
+24-		return true
+25-	}
+26-	return len(p) >= 3 && p[1] == ':' && p[2] == '/' &&
+27-		('a' <= p[0]|0x20 && p[0]|0x20 <= 'z')
+28-}
+29-
+30-// NormalizePath converts absolute recorded paths to workspace-relative paths
+31-// when they fall under workspaceRoot. This consolidates the identical
+32-// normalization logic previously duplicated across all 5 providers.
+33:func NormalizePath(path, workspaceRoot string) string {
+34-	if workspaceRoot == "" {
+35-		return path
+36-	}
+37-
+38-	p := strings.ReplaceAll(path, `\`, "/")
+39-	root := strings.TrimSuffix(strings.ReplaceAll(workspaceRoot, `\`, "/"), "/")
+40-	if root == "" || !recordedAbs(p) {
+41-		return path
+42-	}
+43-	if p == root {
+44-		return "."
+45-	}
+46-	// The "/" guard keeps a sibling with a shared name prefix (/project-api
+47-	// under root /project) from being treated as inside the workspace.
+48-	if strings.HasPrefix(p, root+"/") {
+49-		return p[len(root)+1:]
+50-	}
+51-
+52-	return path
+53-}
+54-
+55-// expandTilde replaces a leading ~/ with the user's home directory.
+56-// Returns the path unchanged if it doesn't start with ~/ or if the
+57-// home directory can't be determined.
+58-func expandTilde(path string) string {
+59-	if !strings.HasPrefix(path, "~/") {
+60-		return path
+61-	}
+62-
+63-	home, err := os.UserHomeDir()
+64-	if err != nil {
+65-		return path
+66-	}
+67-
+68-	return filepath.Join(home, path[2:])
+69-}
+70-
+71-// ExtractShellPathHints parses a shell command and extracts file paths that
+72-// indicate files being created or modified. This covers redirect targets
+73-// (>, >>), file-creating commands (touch, mkdir, etc.), and build output flags (-o).
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:58:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check Claude project dir spellings for this project
+
+`ls ~/.claude/projects/ | grep -i "sean-source-SpecStory-getspecstory-specstory-cli"`
+
+```text
+-Users-sean-Source-SpecStory-getspecstory-specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:58:30Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check recorded cwd spelling in session JSONLs
+
+`for d in ~/.claude/projects/-Users-sean-*ource-SpecStory-getspecstory-specstory-cli; do f=$(ls -t "$d"/*.jsonl 2>/dev/null | head -1); [ -n "$f" ] && head -c 2000 "$f" | python3 -c "import sys,json; [print(json.loads(l).get('cwd')) for l in sys.stdin if l.strip()][:1]" 2>/dev/null | head -2; done`
+
+```text
+None
+None
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:58:37Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find where _cwd is injected
+
+`grep -rn '"_cwd"' pkg/ --include="*.go" | grep -v _test | head`
+
+```text
+pkg/providers/claudecode/markdown_tools.go:174:			cwd, _ := input["_cwd"].(string)
+pkg/providers/claudecode/markdown_tools.go:196:			cwd, _ := input["_cwd"].(string)
+pkg/providers/claudecode/markdown_tools.go:228:			cwd, _ := input["_cwd"].(string)
+pkg/providers/claudecode/agent_session.go:502:	tool.Input["_cwd"] = workspaceRoot
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:58:40Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Trace workspaceRoot source for _cwd
+
+`sed -n '480,510p' pkg/providers/claudecode/agent_session.go; grep -n "workspaceRoot" pkg/providers/claudecode/agent_session.go | head -20`
+
+```text
+	return paths
+}
+
+// contains checks if a string slice contains a value
+func contains(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+// formatToolAsMarkdown generates formatted markdown for a tool (input + output)
+// Returns the inner content only (no <tool-use> tags)
+func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
+	var markdown strings.Builder
+
+	// Add _cwd to input for path normalization in formatters
+	if tool.Input == nil {
+		tool.Input = make(map[string]interface{})
+	}
+	tool.Input["_cwd"] = workspaceRoot
+
+	// Extract description if present
+	description := ""
+	if desc, ok := tool.Input["description"].(string); ok {
+		description = desc
+	}
+
+	// Format tool use based on tool name using existing formatters
+26:func GenerateAgentSession(session Session, workspaceRoot string) (*SessionData, error) {
+35:	if workspaceRoot == "" {
+36:		workspaceRoot = extractWorkspaceRootFromRecords(session.Records)
+40:	exchanges, err := buildExchangesFromRecords(session.Records, workspaceRoot)
+57:				formattedMd := formatToolAsMarkdown(msg.Tool, workspaceRoot)
+72:		WorkspaceRoot: workspaceRoot,
+106:func buildExchangesFromRecords(records []JSONLRecord, workspaceRoot string) ([]Exchange, error) {
+178:			msg := buildAgentMessage(record, workspaceRoot, isSidechain)
+308:func buildAgentMessage(record JSONLRecord, workspaceRoot string, isSidechain bool) Message {
+362:						recordCwd = workspaceRoot
+364:					pathHints = extractPathHints(toolInput, recordCwd, workspaceRoot)
+439:func extractPathHints(input map[string]interface{}, cwd, workspaceRoot string) []string {
+449:			normalizedPath := spi.NormalizePath(value, workspaceRoot)
+461:					normalizedPath := spi.NormalizePath(path, workspaceRoot)
+472:		shellPaths := spi.ExtractShellPathHints(command, cwd, workspaceRoot)
+495:func formatToolAsMarkdown(tool *ToolInfo, workspaceRoot string) string {
+502:	tool.Input["_cwd"] = workspaceRoot
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:59:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Count case spellings in the new (+) diff lines
+
+`cd /Users/sean/Source/SpecStory/getspecstory && git diff -- 'specstory-cli/.specstory/history/' | grep '^+' | grep -o '/Users/sean/[Ss]ource' | sort | uniq -c`
+
+```text
+2978 /Users/sean/Source
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:59:00Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find what workspaceRoot callers pass
+
+`grep -rn "GenerateAgentSession(" pkg/providers/claudecode/provider.go | head -5`
+
+```text
+pkg/providers/claudecode/provider.go:82:	sessionData, err := GenerateAgentSession(filteredSession, workspaceRoot)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:59:04Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+See where workspaceRoot originates in provider
+
+`sed -n '55,85p' pkg/providers/claudecode/provider.go`
+
+```text
+		// Write debug files and get the record-to-file mapping
+		_ = writeDebugRawFiles(session) // Unused but needed for side effect
+	}
+
+	// Filter warmup messages
+	filteredRecords := filterWarmupMessages(session.Records)
+
+	// Skip if no real messages remain after filtering warmup
+	if len(filteredRecords) == 0 {
+		slog.Debug("Skipping warmup-only session", "sessionId", session.SessionUuid)
+		return nil
+	}
+
+	// Create session with filtered records
+	filteredSession := Session{
+		SessionUuid: session.SessionUuid,
+		Records:     filteredRecords,
+	}
+
+	// Get timestamp from root record
+	rootRecord := filteredSession.Records[0]
+	timestamp := rootRecord.Data["timestamp"].(string)
+
+	// Get the slug
+	slug := FileSlugFromRootRecord(filteredSession)
+
+	// Generate SessionData from filtered session
+	sessionData, err := GenerateAgentSession(filteredSession, workspaceRoot)
+	if err != nil {
+		slog.Error("Failed to generate SessionData", "sessionId", session.SessionUuid, "error", err)
+		return nil
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:59:39Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Confirm workspaceRoot = projectPath (process cwd)
+
+`grep -n "workspaceRoot" pkg/providers/claudecode/provider.go | head; grep -n "func (p \*Provider) GetAgentChatSessions\|func (p \*Provider) processSession\|projectPath" pkg/providers/claudecode/provider.go | head -20`
+
+```text
+52:func processSession(session Session, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+82:	sessionData, err := GenerateAgentSession(filteredSession, workspaceRoot)
+265:func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+267:	claudeProjectPath, err := GetClaudeCodeProjectDir(projectPath)
+298:func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+300:	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
+326:		chatSession := processSession(session, projectPath, debugRaw)
+336:func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+338:	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
+372:	return processSession(session, projectPath, debugRaw), nil
+376:func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+378:		"projectPath", projectPath,
+430:func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+432:		"projectPath", projectPath,
+455:	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
+608:func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+610:	claudeProjectDir, err := GetClaudeCodeProjectDir(projectPath)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:59:55Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show old vs new makeRelativePath
+
+`cd /Users/sean/Source/SpecStory/getspecstory && git diff HEAD -- specstory-cli/pkg/providers/claudecode/markdown_tools.go | head -60; git log --oneline -2 -- specstory-cli/pkg/providers/claudecode/markdown_tools.go`
+
+```text
+546f5a0 Fixes for tests on Windows.
+57503af Fixes to markdown code fence runs, inspired by PR #241, but applied to the new providers that didn't exist at the time of that PR. DRY up the common VS Code handling from Cursor and Copilot providers.
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 20:59:59Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Show the commit that rewrote makeRelativePath
+
+`cd /Users/sean/Source/SpecStory/getspecstory && git show 546f5a0 -- specstory-cli/pkg/providers/claudecode/markdown_tools.go | head -80`
+
+```text
+commit 546f5a0d244f9389d09dfa41cbcd4d87b53075fb
+Author: Sean Johnson <sean@specstory.com>
+Date:   Wed Aug 12 16:15:06 2026 -0400
+
+    Fixes for tests on Windows.
+
+diff --git a/specstory-cli/pkg/providers/claudecode/markdown_tools.go b/specstory-cli/pkg/providers/claudecode/markdown_tools.go
+index bb64388..3934a92 100644
+--- a/specstory-cli/pkg/providers/claudecode/markdown_tools.go
++++ b/specstory-cli/pkg/providers/claudecode/markdown_tools.go
+@@ -4,7 +4,6 @@ import (
+ 	"fmt"
+ 	"path/filepath"
+ 	"regexp"
+-	"runtime"
+ 	"strings"
+ 
+ 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+@@ -73,35 +72,19 @@ var (
+ 
+ // makeRelativePath converts an absolute path to relative if it's within the cwd
+ func makeRelativePath(absolutePath, cwd string) string {
+-	if cwd == "" {
++	// Delegate the relativization to the shared shape-based engine: both paths
++	// come from the session recording, so host-dependent filepath helpers (and
++	// the case-folding this function once keyed off the RENDERING host's OS)
++	// would corrupt sessions recorded on a different platform.
++	rel := spi.NormalizePath(absolutePath, cwd)
++	if rel == absolutePath {
++		// Outside cwd (or already relative): keep the recorded form.
+ 		return absolutePath
+ 	}
+-
+-	// Normalize paths
+-	normalizedPath := filepath.Clean(absolutePath)
+-	normalizedCwd := filepath.Clean(cwd)
+-
+-	// On macOS, filesystem is case-insensitive by default, so use case-insensitive comparison
+-	// On Linux and other OSes, use case-sensitive comparison
+-	var hasPrefix bool
+-	if runtime.GOOS == "darwin" {
+-		// Case-insensitive comparison for macOS
+-		hasPrefix = strings.HasPrefix(strings.ToLower(normalizedPath), strings.ToLower(normalizedCwd))
+-	} else {
+-		// Case-sensitive comparison for other OSes
+-		hasPrefix = strings.HasPrefix(normalizedPath, normalizedCwd)
++	if rel == "." {
++		return "./"
+ 	}
+-
+-	if hasPrefix {
+-		// Use the original normalized path lengths to trim (preserving original case)
+-		relativePath := normalizedPath[len(normalizedCwd):]
+-		if !strings.HasPrefix(relativePath, "/") {
+-			relativePath = "/" + relativePath
+-		}
+-		return "." + relativePath
+-	}
+-
+-	return absolutePath
++	return "./" + rel
+ }
+ 
+ // getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:00:45Z)**_
+
+Found it. Short version: **the tool paths didn't change — the workspace root they're compared against did, and an intentional change I made during the Windows burn-down removed the case-insensitive comparison that used to paper over the difference.**
+
+The full chain:
+
+1. In the markdown generators, `makeRelativePath(absolutePath, cwd)` turns a recorded tool path into `./pkg/...` when it sits under the workspace root. The `cwd` it compares against is **not** from the session recording — it's the specstory process's own effective project path (`processSession(session, projectPath, ...)` at `pkg/providers/claudecode/provider.go:326`, injected as `_cwd` in `agent_session.go:502`).
+
+2. The recorded tool paths in these sessions are spelled `/Users/sean/Source/...` (capital S) — all 2,978 absolute paths in the diff's `+` lines use that spelling, and it matches the on-disk `~/.claude/projects/-Users-sean-Source-...` name.
+
+3. Whatever regenerated these files was run from a shell whose cwd was spelled `/Users/sean/source/...` (lowercase s). That spelling is real in your environment — this very session lists `/Users/sean/source/SpecStory/getspecstory/specstory-cli` as an additional working directory. On case-insensitive APFS both spellings open the same directories, so session discovery worked fine; only the string comparison sees a difference.
+
+4. Old code handled that: `makeRelativePath` had a darwin-only `strings.ToLower` prefix compare. In commit `546f5a0` ("Fixes for tests on Windows" — the finding-160 addendum) I replaced it with the shared `spi.NormalizePath`, which is deliberately exact-match string algebra so foreign recorded paths (WSL/SSH sessions rendered on another OS) never get host case-folding. Exact compare, `Source` ≠ `source` → prefix never matches → paths stay absolute (and `path ./` cases become the full absolute path, since those were exact `p == cwd` matches before).
+
+So it's a real regression from my change, on a legitimate macOS scenario the old darwin fold existed for. Worth noting the comment I wrote in the new `makeRelativePath` is also wrong — it claims "both paths come from the session recording," but `_cwd` is the local process's project path.
+
+Options for fixing:
+
+1. **Canonicalize the effective project path once at the boundary (recommended).** Where `effectiveProjectPath` is resolved, resolve the local path's on-disk spelling (the `spi.GetCanonicalPath` / EvalSymlinks approach already used elsewhere), guarded so opaque remote paths (`IsDrivelessRootedPath`, nonexistent paths) pass through untouched. Lowercase `source` becomes on-disk `Source` before it ever reaches markdown generation, project identity, or cloud sync — exact compares then just work. Pros: fixes every provider uniformly, keeps `NormalizePath` pure, also makes workspace identity stable across differently-spelled launches. Cons: symlink resolution slightly changes what gets stamped as `WorkspaceRoot` (e.g. `/tmp` → `/private/tmp`), which is a visible-but-arguably-correct behavior change.
+
+2. **Restore case-insensitive matching in `makeRelativePath` only.** Smallest diff, but keying it off the rendering host's OS is exactly the unsoundness we spent this branch removing (WSL reads Windows-recorded sessions on a case-sensitive host, etc.), and it fixes only claudecode's formatter, not the four other providers using `NormalizePath`.
+
+3. **Make `NormalizePath` retry case-insensitively when exact match fails.** One-line-ish, fixes all callers, and misfires only in the rare cosmetic case of genuinely distinct `/home/User` vs `/home/user` on Linux — but it weakens the shape-based engine we just made strict, and contradicts the no-case-fold stance from the remote-workspace fixes.
+
+Also: the already-modified history files won't fix themselves — once the code is fixed they'd regenerate correctly on next sync, or you can `git restore` them.
+
+Which way do you want to go?
+
+---
+
+_**User (2026-08-12 21:01:35Z)**_
+
+1
+
+---
+
+_**Agent (claude-fable-5 2026-08-12 21:01:45Z)**_
+
+Going with option 1. First, mapping where the effective project path is resolved so the canonicalization lands at one boundary:
+
+_**Agent (claude-fable-5 2026-08-12 21:01:46Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find all effective-project-path resolution sites
+
+`grep -rn "ResolveProjectPath\|effectiveProjectPath" pkg/cmd/*.go main.go | grep -v _test | head -30`
+
+```text
+pkg/cmd/list.go:100:			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+pkg/cmd/list.go:105:				"effectiveProjectPath", effectiveProjectPath)
+pkg/cmd/list.go:118:				return listSingleProvider(registry, resolvedIDs[0], effectiveProjectPath)
+pkg/cmd/list.go:120:			return listAllProviders(registry, resolvedIDs, effectiveProjectPath)
+main.go:407:			// effectiveProjectPath is what providers use for session discovery.
+main.go:409:			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+main.go:455:			liveIndex := cmdpkg.NewLiveIndexer(effectiveProjectPath)
+main.go:501:			err = provider.ExecAgentAndWatch(effectiveProjectPath, customCmd, resumeSessionID, debugRaw, sessionCallback)
+main.go:636:	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+main.go:664:		liveIndex = cmdpkg.NewLiveIndexer(effectiveProjectPath)
+main.go:702:			session, err = specifiedProvider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
+main.go:730:				session, err = provider.GetAgentChatSession(effectiveProjectPath, sessionID, debugRaw)
+main.go:877:	projectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+main.go:1122:	// effectiveProjectPath is what providers use for session discovery.
+main.go:1124:	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+main.go:1140:		if provider.DetectAgent(effectiveProjectPath, false) {
+main.go:1151:			log.UserMessage("We checked for activity in '%s' from the following agents:\n", effectiveProjectPath)
+main.go:1306:	// effectiveProjectPath is what providers use for session discovery.
+main.go:1308:	effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+main.go:1311:	if !provider.DetectAgent(effectiveProjectPath, true) {
+pkg/cmd/watch.go:131:			// effectiveProjectPath is what providers use for session discovery.
+pkg/cmd/watch.go:133:			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+pkg/cmd/watch.go:321:			return utils.WatchProviders(ctx, effectiveProjectPath, providers, processing.DebugRaw, sessionCallback)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:01:47Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read GetCanonicalPath and check import direction
+
+`grep -rn "func GetCanonicalPath" -A 30 pkg/spi/*.go | head -45; echo ---; grep -rn "specstory-cli/pkg/utils" pkg/spi/*.go | head -3`
+
+```text
+pkg/spi/path_utils.go:227:func GetCanonicalPath(p string) (string, error) {
+pkg/spi/path_utils.go-228-	// Ensure we have an absolute, clean path
+pkg/spi/path_utils.go-229-	p = filepath.Clean(p)
+pkg/spi/path_utils.go-230-	if !filepath.IsAbs(p) {
+pkg/spi/path_utils.go-231-		var err error
+pkg/spi/path_utils.go-232-		p, err = filepath.Abs(p)
+pkg/spi/path_utils.go-233-		if err != nil {
+pkg/spi/path_utils.go-234-			return "", err
+pkg/spi/path_utils.go-235-		}
+pkg/spi/path_utils.go-236-	}
+pkg/spi/path_utils.go-237-
+pkg/spi/path_utils.go-238-	// Resolve any symlinks in the path to get the real physical path
+pkg/spi/path_utils.go-239-	// This is critical for ensuring consistent path hashing across different
+pkg/spi/path_utils.go-240-	// ways of accessing the same directory (e.g., through a symlink vs directly)
+pkg/spi/path_utils.go-241-	realPath, err := filepath.EvalSymlinks(p)
+pkg/spi/path_utils.go-242-	if err == nil && realPath != p {
+pkg/spi/path_utils.go-243-		// Successfully resolved symlinks - update p to the resolved path for case normalization
+pkg/spi/path_utils.go-244-		p = realPath
+pkg/spi/path_utils.go-245-	} else if err != nil {
+pkg/spi/path_utils.go-246-		// Symlink resolution failed (e.g., path doesn't exist yet, or Windows junction points).
+pkg/spi/path_utils.go-247-		// This is expected in normal operation — fall back to the original path and continue
+pkg/spi/path_utils.go-248-		// with case normalization below.
+pkg/spi/path_utils.go-249-		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
+pkg/spi/path_utils.go-250-			"path", p, "error", err)
+pkg/spi/path_utils.go-251-	}
+pkg/spi/path_utils.go-252-
+pkg/spi/path_utils.go-253-	// Separate the volume (drive letter "D:" or UNC share "\\server\share" on Windows,
+pkg/spi/path_utils.go-254-	// empty on Unix) from the rest of the path. Without this, splitting "D:\foo\bar" on
+pkg/spi/path_utils.go-255-	// the OS separator yields ["D:", "foo", "bar"] — and the original code skipped the
+pkg/spi/path_utils.go-256-	// first element under the assumption it was empty (true only for Unix paths like
+pkg/spi/path_utils.go-257-	// "/foo/bar"). The drive letter would be silently dropped, leaving a path that
+---
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:01:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check for import cycle between utils and spi
+
+`grep -rln "specstory-cli/pkg/spi\"" pkg/utils/*.go | head; echo "---reverse---"; grep -rln "specstory-cli/pkg/utils\"" pkg/spi/ | head`
+
+```text
+pkg/utils/watch_agents_test.go
+pkg/utils/watch_agents.go
+---reverse---
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:01:54Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Read full GetCanonicalPath incl. case normalization
+
+`sed -n '200,310p' pkg/spi/path_utils.go`
+
+```text
+// rest of the path (e.g., directory doesn't exist or can't be read).
+func appendRemainingParts(result string, parts []string, startIdx int) string {
+	for j := startIdx; j < len(parts); j++ {
+		if parts[j] != "" {
+			result = filepath.Join(result, parts[j])
+		}
+	}
+	return result
+}
+
+// GetCanonicalPath resolves a path to its canonical form by resolving symlinks
+// and correcting case. This is important on case-insensitive filesystems like macOS
+// where "/Users/Foo" and "/users/foo" refer to the same directory but would produce
+// different hash values.
+//
+// The algorithm works by walking the path component by component, starting from the root.
+// For each component, it opens the parent directory and reads its actual entries,
+// performing case-insensitive matching to find the correct casing on disk.
+// This ensures that the returned path matches the real filesystem casing, which is
+// important for consistent hashing and avoiding subtle bugs on case-insensitive filesystems.
+//
+// Note: This can be slow for long paths or directories with many entries, since it
+// requires reading each directory's contents.
+//
+// If a component doesn't exist on disk, the remaining path components are
+// appended as-is, making this function safe to use with paths that don't
+// fully exist yet.
+func GetCanonicalPath(p string) (string, error) {
+	// Ensure we have an absolute, clean path
+	p = filepath.Clean(p)
+	if !filepath.IsAbs(p) {
+		var err error
+		p, err = filepath.Abs(p)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Resolve any symlinks in the path to get the real physical path
+	// This is critical for ensuring consistent path hashing across different
+	// ways of accessing the same directory (e.g., through a symlink vs directly)
+	realPath, err := filepath.EvalSymlinks(p)
+	if err == nil && realPath != p {
+		// Successfully resolved symlinks - update p to the resolved path for case normalization
+		p = realPath
+	} else if err != nil {
+		// Symlink resolution failed (e.g., path doesn't exist yet, or Windows junction points).
+		// This is expected in normal operation — fall back to the original path and continue
+		// with case normalization below.
+		slog.Debug("GetCanonicalPath: symlink resolution failed, using original path",
+			"path", p, "error", err)
+	}
+
+	// Separate the volume (drive letter "D:" or UNC share "\\server\share" on Windows,
+	// empty on Unix) from the rest of the path. Without this, splitting "D:\foo\bar" on
+	// the OS separator yields ["D:", "foo", "bar"] — and the original code skipped the
+	// first element under the assumption it was empty (true only for Unix paths like
+	// "/foo/bar"). The drive letter would be silently dropped, leaving a path that
+	// resolved against the current drive instead of the requested one. UNC paths were
+	// even worse: "\\server\share\foo" would lose one of the leading backslashes and
+	// stop being a UNC reference at all.
+	volume := filepath.VolumeName(p)
+	remainder := p[len(volume):]
+
+	// Split the remainder. The leading separator produces an empty first element which
+	// we skip, so on every platform the loop processes only real path components.
+	parts := strings.Split(remainder, string(os.PathSeparator))
+
+	// Walk from the volume root. On Unix that's "/"; on Windows it's "D:\" or
+	// "\\server\share\".
+	result := volume + string(os.PathSeparator)
+
+	firstPartIndex := 1
+
+	// Build path component by component
+	for i := firstPartIndex; i < len(parts); i++ {
+		if parts[i] == "" {
+			continue
+		}
+
+		// Open current result directory to read its contents
+		f, err := os.Open(result)
+		if err != nil {
+			// Can't read directory - might not exist yet
+			// Append remaining path as-is
+			return appendRemainingParts(result, parts, i), nil
+		}
+
+		names, err := f.Readdirnames(-1)
+		_ = f.Close() // Best effort close, error doesn't affect result
+		if err != nil {
+			return "", err
+		}
+
+		// Find the correct case
+		found := false
+		for _, name := range names {
+			if strings.EqualFold(name, parts[i]) {
+				result = filepath.Join(result, name)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			// Component doesn't exist, append remaining as-is
+			result = appendRemainingParts(result, parts, i)
+			break
+		}
+	}
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:02:34Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Find existing tests for ResolveProjectPath and GetCanonicalPath
+
+`grep -n "ResolveProjectPath" pkg/utils/*_test.go | head; grep -rn "func TestGetCanonicalPath" pkg/spi/*_test.go`
+
+```text
+pkg/utils/path_utils_test.go:334:// TestResolveProjectPath covers the platform-independent behavior: empty-override
+pkg/utils/path_utils_test.go:340:func TestResolveProjectPath(t *testing.T) {
+pkg/utils/path_utils_test.go:377:			if got := ResolveProjectPath(tt.override, fallbackCwd); got != tt.want {
+pkg/utils/path_utils_test.go:378:				t.Errorf("ResolveProjectPath(%q) = %q, want %q", tt.override, got, tt.want)
+pkg/spi/path_utils_test.go:11:func TestGetCanonicalPath(t *testing.T) {
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:02:37Z)**_
+
+<tool-use data-tool-type="read" data-tool-name="Read"><details>
+<summary>Tool use: **Read**</summary>
+ `./pkg/utils/path_utils_test.go`
+
+```text
+330			}
+331		})
+332	}
+333	
+334	// TestResolveProjectPath covers the platform-independent behavior: empty-override
+335	// fallback, cleaning of absolute overrides, and absolutization of relative
+336	// overrides. The Windows-only branch that preserves rootless remote-workspace
+337	// paths (VS Code fsPaths like /home/u/proj on a Windows host) is gated on
+338	// runtime.GOOS and exercised only on Windows builds, and the fallback-to-cwd
+339	// error path requires os.Getwd to fail, which is not portably testable.
+340	func TestResolveProjectPath(t *testing.T) {
+341		fallbackCwd := filepath.Join("some", "fallback", "cwd")
+342		processCwd, err := os.Getwd()
+343		if err != nil {
+344			t.Fatalf("Failed to get working directory: %v", err)
+345		}
+346		absDir := t.TempDir()
+347	
+348		tests := []struct {
+349			name     string
+350			override string
+351			want     string
+352		}{
+353			{
+354				name:     "empty override falls back to cwd",
+355				override: "",
+356				want:     fallbackCwd,
+357			},
+358			{
+359				name:     "absolute override returned as-is",
+360				override: absDir,
+361				want:     absDir,
+362			},
+363			{
+364				name:     "absolute override is cleaned",
+365				override: filepath.Join(absDir, "sub") + string(os.PathSeparator) + ".." + string(os.PathSeparator) + "proj",
+366				want:     filepath.Join(absDir, "proj"),
+367			},
+368			{
+369				name:     "relative override resolved against the process working directory",
+370				override: filepath.Join("some", "relative", "dir"),
+371				want:     filepath.Join(processCwd, "some", "relative", "dir"),
+372			},
+373		}
+374	
+375		for _, tt := range tests {
+376			t.Run(tt.name, func(t *testing.T) {
+377				if got := ResolveProjectPath(tt.override, fallbackCwd); got != tt.want {
+378					t.Errorf("ResolveProjectPath(%q) = %q, want %q", tt.override, got, tt.want)
+379				}
+380			})
+381		}
+382	}
+383
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:03:17Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/path_utils.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:03:20Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/claudecode/markdown_tools.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:03:25Z)**_
+
+Adding the `spi` import, then updating the test:
+
+_**Agent (claude-fable-5 2026-08-12 21:03:27Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/path_utils.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:03:50Z)**_
+
+<tool-use data-tool-type="write" data-tool-name="Edit"><details>
+<summary>Tool use: **Edit**</summary>
+
+```text
+The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/utils/path_utils_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:03:58Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Format check and lint
+
+`gofmt -l . | grep -v '^\.specstory' ; golangci-lint run 2>&1 | tail -5`
+
+```text
+0 issues.
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:04:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Run affected package tests then full suite
+
+`go test ./pkg/utils/ ./pkg/providers/claudecode/ 2>&1 | tail -5 && go test ./... 2>&1 | grep -v "^ok\|no test files" | head -10`
+
+```text
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	0.057s
+ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode	0.560s
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:04:26Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Vet changed packages for windows and linux
+
+`GOOS=windows GOARCH=amd64 go vet ./pkg/utils/ ./pkg/providers/claudecode/ && GOOS=linux GOARCH=amd64 go vet ./pkg/utils/ && echo CROSS-OK`
+
+```text
+CROSS-OK
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5 2026-08-12 21:04:44Z)**_
+
+Done. The fix is in and verified:
+
+**What changed**
+
+- `pkg/utils/path_utils.go` — `ResolveProjectPath` now canonicalizes its result to the on-disk spelling via a new `canonicalizeLocalPath` helper wrapping `spi.GetCanonicalPath` (symlinks resolved, case corrected, safe on paths that don't fully exist). Both branches are covered: the cwd fallback (your lowercase-`source` case) and `--project-path` overrides. The Windows rootless-remote-path guard still short-circuits first, so opaque remote paths are never touched — and the helper's comment pins down that only local process paths may pass through it, never recorded ones.
+- `pkg/providers/claudecode/markdown_tools.go` — corrected the comment I'd written on `makeRelativePath`: it wrongly claimed both paths come from the recording; now it explains the real contract (recorded path vs. locally-canonicalized project root, which is what makes the exact comparison safe).
+- `pkg/utils/path_utils_test.go` — `TestResolveProjectPath` expectations updated to canonical forms (fixtures now resolve the macOS `/var → /private/var` symlink, and the relative-override case pins the process cwd with `t.Chdir` so it isn't hostage to the runner's spelling). Added a subtest for the regression itself: a misspelled-case cwd must resolve to the on-disk spelling, with a runtime stat-based skip on case-sensitive filesystems rather than a GOOS gate.
+
+**Verification**: `golangci-lint run` clean, full `go test ./...` green, `go vet` clean cross-compiled for windows/amd64 and linux/amd64. The case-correction subtest exercised the real fix on this machine's case-insensitive APFS.
+
+Because every discovery site (`run`, `sync`, `watch`, `list`) funnels through `ResolveProjectPath`, this fixes all providers at once, and as a side effect the Claude project-dir derivation and project identity now see one consistent spelling regardless of which casing your shell happens to carry.
+
+**The already-dirty history files**: two ways to heal them — `git restore` them, or just re-run `specstory sync` with the fixed binary (from either spelling of the directory); regeneration will relativize correctly again.
+
+One question: want a line in the v2.9.0 changelog for this? The absolute-path regression itself never shipped, so it doesn't need an entry — but the canonicalization is a small visible behavior change (e.g. a project opened via symlink now records the resolved path as its workspace root). I'd lean toward a short Improvements bullet like "Project paths are resolved to their on-disk spelling, so histories render consistent relative paths regardless of how the launch directory was typed" — say the word and I'll add it.

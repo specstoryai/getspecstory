@@ -5931,9 +5931,13 @@ _**User (2026-02-23 12:35:23Z)**_
 
 I ran `specstory help run` and didn't get a local config file.
 
+---
+
 _**User (2026-02-23 12:38:22Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-23 12:38:31Z)**_
 
@@ -5982,6 +5986,8 @@ _**User (2026-02-23 12:40:01Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-23 12:41:05Z)**_
 
 nm, user error
@@ -5990,9 +5996,13 @@ the replacement doesn't seem right though. Got this double `#`:
 
 ~/source/SpecStory/getspecstory/specstory-cli
 
+---
+
 _**User (2026-02-23 12:41:09Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-23 12:41:17Z)**_
 
@@ -6193,6 +6203,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-23 12:42:37Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-23 12:42:41Z)**_
 
@@ -12755,9 +12767,13 @@ _**User (2026-02-23 16:00:17Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-23 16:00:17Z)**_
 
 <local-command-stdout>See ya!</local-command-stdout>
+
+---
 
 _**User (2026-02-23 16:00:17Z)**_
 

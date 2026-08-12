@@ -11546,16 +11546,16 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:42:35Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````md
 # Plan: Add Progress Feedback During Session Parsing
 
 ## Problem
 
 When running `specstory sync` on a project with many sessions, the "Parsing {Provider} sessions" phase shows no progress feedback. The user sees:
 
-\```
+```
 Parsing Claude Code sessions
-\```
+```
 
 ...and nothing else for a long time, leading users to think it's hung. Meanwhile, the "Syncing markdown files" line shows progressive dots.
 
@@ -11587,13 +11587,13 @@ Parsing Claude Code sessions
 **Option A: Interface Change (Recommended)**
 Add a `ProgressCallback` to the provider interface:
 
-\```go
+```go
 // In pkg/spi/provider.go
 type ProgressCallback func(current, total int)
 
 // Updated signature
 GetAgentChatSessions(projectPath string, debugRaw bool, progress ProgressCallback) ([]AgentChatSession, error)
-\```
+```
 
 Changes:
 1. **pkg/spi/provider.go**: Add `ProgressCallback` type, update interface
@@ -11616,22 +11616,22 @@ With the callback approach from Option A:
 ## Display Format Options
 
 **Option 1: Dots only (simple)**
-\```
+```
 Parsing Claude Code sessions.......
 Syncing markdown files for Claude Code..........
-\```
+```
 
 **Option 2: Count with dots**
-\```
+```
 Parsing Claude Code sessions [5/36]...
 Syncing markdown files for Claude Code [5/36]...
-\```
+```
 
 **Option 3: Count only (clean)**
-\```
+```
 Parsing Claude Code sessions [5/36]
 Syncing markdown files for Claude Code [5/36]
-\```
+```
 
 ## Files to Modify
 
@@ -11651,7 +11651,7 @@ Syncing markdown files for Claude Code [5/36]
 5. Run tests: `go test -v ./...`
 6. Run linter: `golangci-lint run`
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/stateful-chasing-seahorse.md
@@ -14197,6 +14197,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-01-31 16:10:51Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-01-31 16:10:57Z)**_
 

@@ -758,9 +758,13 @@ OK, now let's talk about the normal output when that flag isn't used.
 
 That's gnarly and was meant for programattic parsing and it shows.
 
+---
+
 _**User (2026-02-20 23:51:15Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-20 23:51:51Z)**_
 
@@ -934,6 +938,8 @@ _**Agent (claude-opus-4-6 2026-02-20 23:55:18Z)**_
 _**User (2026-02-20 23:55:19Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-20 23:55:26Z)**_
 
@@ -1456,7 +1462,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:56:17Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````md
 # Plan: Improve `specstory watch` human-readable output
 
 ## Context
@@ -1464,15 +1470,15 @@ _**Agent (claude-opus-4-6 2026-02-20 23:56:17Z)**_
 The current `specstory watch` text output is dense and machine-oriented — full RFC3339 timestamps, raw byte counts, full UUIDs. It was designed for programmatic parsing, but now that `--json` covers that use case, the default human output should be pleasant to read at a glance.
 
 **Current:**
-\```
+```
 (2026-02-20T18:50:25-05:00) Session updated (019c7d4b-22b8-7b22-ad07-df6bcffdd205): start time 2026-02-20T23:03:47.053Z, end time 2026-02-20T23:03:47.053Z, provider codex, markdown size 10233, total user prompts 2
-\```
+```
 
 **Proposed:**
-\```
+```
   18:50:25  ♻️  codex · 019c7..dd205 · 10.0 KB · 2 prompts · 25 agent msgs
   18:50:27  ✨  codex · a1b2c..f9e01 · 4.2 KB · 5 prompts · 12 agent msgs
-\```
+```
 
 ## Changes
 
@@ -1489,13 +1495,13 @@ Replace the existing `fmt.Printf` with:
 7. **Agent msgs** — new counter using `schema.RoleAgent` (same loop pattern as `userPrompts`)
 
 Format string:
-\```go
+```go
 fmt.Printf("  %s  %s  %s · %s · %s · %d prompts · %d agent msgs\n", ...)
-\```
+```
 
 ### `main.go` — add agent message counter (~line 740, after user prompt counter)
 
-\```go
+```go
 agentMsgs := 0
 if session.SessionData != nil {
     for _, exchange := range session.SessionData.Exchanges {
@@ -1506,13 +1512,13 @@ if session.SessionData != nil {
         }
     }
 }
-\```
+```
 
 ### `main.go` — add `formatBytes` helper function
 
 Small utility near other helpers:
 
-\```go
+```go
 func formatBytes(bytes int) string {
     if bytes < 1024 {
         return fmt.Sprintf("%d B", bytes)
@@ -1524,18 +1530,18 @@ func formatBytes(bytes int) string {
     mb := kb / 1024
     return fmt.Sprintf("%.1f MB", mb)
 }
-\```
+```
 
 ### `main.go` — add `truncateSessionID` helper function
 
-\```go
+```go
 func truncateSessionID(id string) string {
     if len(id) <= 12 {
         return id
     }
     return id[:5] + ".." + id[len(id)-5:]
 }
-\```
+```
 
 ### JSON output — add `agent_msgs` field
 
@@ -1552,7 +1558,7 @@ Also add the `agentMsgs` count to the JSON output map as `"agent_msgs"` for pari
 3. Manual: `go build -o specstory && ./specstory watch` — confirm new human-friendly format
 4. Manual: `./specstory watch --json` — confirm JSON still works, now includes `agent_msgs`
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/wobbly-tickling-pretzel.md has been overwritten successfully.
