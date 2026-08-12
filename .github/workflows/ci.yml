@@ -69,14 +69,10 @@ jobs:
           GOOS=darwin GOARCH=arm64 go build ./...
 
   # Runs the suite natively on Windows so GOOS-gated branches and build-tagged
-  # files actually execute, not just compile. Advisory (continue-on-error) until
-  # the suite is proven green on Windows: the suite has never run there, so the
-  # first runs are expected to surface both test-portability issues and real
-  # Windows bugs. Once green, drop continue-on-error to make it required.
+  # files actually execute, not just compile.
   test-windows:
     name: Test (Windows)
     runs-on: windows-latest
-    continue-on-error: true
     defaults:
       run:
         working-directory: specstory-cli

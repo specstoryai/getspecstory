@@ -73,7 +73,7 @@ Windows ships zip-only per platform convention; the Unix tar.gz artifacts are wh
 
 - **Install channel:** direct download of the zip from the GitHub release only — there is no winget or Scoop package yet (`install.sh` covers WSL, which installs the Linux binary). The docs site's install instructions must say this.
 - **Unsigned binaries:** the Windows executables are not Authenticode-signed, so first run shows a SmartScreen "unrecognized app" warning, and Go binaries occasionally trip Defender heuristics. Code signing is planned future work.
-- **Test coverage:** CI cross-compiles the Windows (and Darwin) targets so compile breakage is caught before tag time, but the test suite has never executed on a Windows runner — Windows-only code paths (e.g. the workspace-ID salt) first run on user machines. Adding a `windows-latest` test job to CI is planned future work.
+- **Test coverage:** CI cross-compiles the Windows (and Darwin) targets and runs the full test suite natively on a `windows-latest` runner. The Windows job reports failures like any other.
 
 ## Required Secrets
 
