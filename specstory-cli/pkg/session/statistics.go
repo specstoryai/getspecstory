@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -54,6 +55,10 @@ func NewStatisticsCollector(statsPath string) *StatisticsCollector {
 var (
 	sharedCollectorsMu sync.Mutex
 	sharedCollectors   = map[string]*StatisticsCollector{}
+
+	// lockTokenCounter makes lock-file owner tokens unique within the process
+	// even when minted in the same clock tick (see acquireFileLock).
+	lockTokenCounter atomic.Uint64
 )
 
 // SharedStatisticsCollector returns the process-wide collector for statsPath,
@@ -157,7 +162,11 @@ func acquireFileLock(lockPath string) (func(), error) {
 		staleLockAge = 30 * time.Second
 	)
 
-	token := fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
+	// The counter disambiguates tokens minted within one clock tick: Windows'
+	// timer granularity is coarse enough that two acquisitions in the same
+	// process can observe the same UnixNano, and identical tokens would let a
+	// stolen-from owner's release delete the new owner's lock after all.
+	token := fmt.Sprintf("%d-%d-%d", os.Getpid(), lockTokenCounter.Add(1), time.Now().UnixNano())
 	deadline := time.Now().Add(retryBudget)
 	for {
 		f, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)

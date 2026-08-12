@@ -214,7 +214,7 @@ func waitForFileEvents(t *testing.T, ctx context.Context, engine *Engine, path s
 		}
 		var matched []unmatchedEvent
 		for _, e := range events {
-			if e.FilePath == path {
+			if e.FilePath == NormalizePath(path) {
 				matched = append(matched, e)
 			}
 		}
@@ -316,7 +316,7 @@ func TestFSWatcher_Debounce(t *testing.T) {
 	}
 	count := 0
 	for _, e := range events {
-		if e.FilePath == testFile {
+		if e.FilePath == NormalizePath(testFile) {
 			count++
 		}
 	}
