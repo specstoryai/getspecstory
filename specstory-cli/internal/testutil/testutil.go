@@ -3,8 +3,21 @@ package testutil
 
 import (
 	"encoding/json"
+	"runtime"
+	"strings"
 	"testing"
 )
+
+// EqualPaths reports whether two filesystem paths refer to the same location
+// under the platform's comparison rules: case-insensitive on Windows (NTFS
+// folds case, and file-URI round-trips lowercase the drive letter per VS
+// Code's serialization), exact match elsewhere.
+func EqualPaths(a, b string) bool {
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
 
 // JSONString returns s as a JSON string literal, quotes included. Test fixtures
 // that splice filesystem paths into hand-written JSON must escape them: Windows

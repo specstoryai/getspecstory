@@ -1252,6 +1252,15 @@ func TestNewProjectIdentityManagerWithOverrides_RemoteDetectionRoot(t *testing.T
 	if a.WorkspaceID == b.WorkspaceID {
 		t.Errorf("different remote projects got the same workspace_id %q — identity must derive from the remote path, not the launch directory", a.WorkspaceID)
 	}
+
+	// Remote filesystems are case-sensitive regardless of the host's rules, so
+	// remote paths differing only in case are distinct projects. Host-side case
+	// folding (which a case-insensitive macOS/Windows host would apply to local
+	// paths) must not be applied to a remote path's hash.
+	upper := identityFor(filepath.Join(ancestor, "no-such-dir", "Remote-Project-A"))
+	if upper.WorkspaceID == a.WorkspaceID {
+		t.Errorf("remote paths differing only in case got the same workspace_id %q — host case-folding must not apply to remote paths", a.WorkspaceID)
+	}
 	if a.GitID != "" {
 		t.Errorf("git_id = %q — a local ancestor's .git leaked into the remote target's identity; the filesystem walk-up must be skipped", a.GitID)
 	}

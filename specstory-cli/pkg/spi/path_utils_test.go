@@ -3,6 +3,7 @@ package spi
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -375,6 +376,12 @@ func TestGenerateReadableName(t *testing.T) {
 // (the Windows drive-letter/UNC branches are separator-gated and can only run
 // on a Windows build; cursoride's TestUriToPath_WindowsPaths documents them).
 func TestFileURIToPath(t *testing.T) {
+	// A non-WSL host is dropped on posix but names a UNC share on Windows.
+	nonWSLHostWant := "/share/dir"
+	if runtime.GOOS == "windows" {
+		nonWSLHostWant = `\\server\share\dir`
+	}
+
 	tests := []struct {
 		name    string
 		uri     string
@@ -389,7 +396,7 @@ func TestFileURIToPath(t *testing.T) {
 		{name: "wsl$ host strips host and distro", uri: "file://wsl$/Ubuntu/home/u/proj", want: "/home/u/proj"},
 		{name: "wsl$ host is case-insensitive", uri: "file://WSL$/Ubuntu/home/u/proj", want: "/home/u/proj"},
 		{name: "wsl host without in-distro path is malformed", uri: "file://wsl.localhost/Ubuntu", wantErr: true},
-		{name: "non-wsl host dropped on posix", uri: "file://server/share/dir", want: "/share/dir"},
+		{name: "non-wsl host", uri: "file://server/share/dir", want: nonWSLHostWant},
 		{name: "non-file scheme rejected", uri: "https://example.com/x", wantErr: true},
 	}
 	for _, tt := range tests {

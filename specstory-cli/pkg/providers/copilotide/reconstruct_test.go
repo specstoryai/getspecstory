@@ -332,7 +332,8 @@ func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if got, err := vscode.URIToPath(wsJSON.Folder); err != nil || got != canonical {
+	// EqualPaths: the URI round-trip lowercases the drive letter on Windows.
+	if got, err := vscode.URIToPath(wsJSON.Folder); err != nil || !testutil.EqualPaths(got, canonical) {
 		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, canonical)
 	}
 

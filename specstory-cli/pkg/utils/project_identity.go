@@ -136,29 +136,28 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	// The walk starts from the detection root, which a --project-path override may
 	// have pointed at the targeted project instead of the launch directory.
 	//
-	// A detection root that doesn't exist locally is a remote (SSH) project path.
-	// Its identity still must come from that path — hashing the launch directory
-	// instead would hand every remote project launched from the same local
-	// directory the same workspace_id. Only the filesystem-dependent steps are
-	// skipped: walking up from a non-existent path would scan the LOCAL ancestors
-	// of the remote path (e.g. /home/user on this machine) and could latch onto an
-	// unrelated local repo's .git; git identity for remote targets comes from
-	// --git-origin instead.
+	// A detection root that isn't a locally readable directory is a remote (SSH)
+	// project path: either it doesn't exist here, or — a driveless rooted path on
+	// Windows like \home\u\project — it cannot even be probed safely, because
+	// os.Stat resolves it against the process's current drive and could match an
+	// unrelated local directory. Its identity still must come from the path
+	// itself: hashing the launch directory instead would hand every remote
+	// project launched from the same local directory the same workspace_id.
 	//
-	// On Windows a driveless rooted remote path (e.g. \home\u\project) is fully
-	// opaque: os.Stat would resolve it against the current drive (possibly finding
-	// an unrelated local directory) and filepath.Abs would staple the drive letter
-	// on, making the id depend on the process's drive. Hash it exactly as given.
+	// The path is hashed exactly as given, skipping every host-filesystem step:
+	// no walk-up (the remote path's LOCAL ancestors could hold an unrelated
+	// repo's .git — git identity for remote targets comes from --git-origin), no
+	// filepath.Abs (it would staple the current drive letter on), and no host
+	// case-folding (the host may be case-insensitive, but remote SSH/WSL
+	// filesystems are case-sensitive — folding would collide /home/u/Repo with
+	// /home/u/repo).
 	var resolvedGitID, resolvedWorkspaceID, resolvedName string
 	detectionRoot := m.getDetectionRoot()
-	rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
-	if IsDrivelessRootedPath(detectionRoot) {
-		resolvedWorkspaceID = rooted.createHash(canonicalizeWorkspacePath(detectionRoot))
-		resolvedName = filepath.Base(detectionRoot)
-	} else if info, statErr := os.Stat(detectionRoot); statErr == nil && info.IsDir() {
+	if info, statErr := os.Stat(detectionRoot); !IsDrivelessRootedPath(detectionRoot) && statErr == nil && info.IsDir() {
 		resolvedGitID, resolvedWorkspaceID, resolvedName, _ = resolveIdentity(detectionRoot)
 	} else {
-		resolvedWorkspaceID = rooted.generateWorkspaceID()
+		rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
+		resolvedWorkspaceID = rooted.createHash(detectionRoot)
 		resolvedName = filepath.Base(detectionRoot)
 	}
 

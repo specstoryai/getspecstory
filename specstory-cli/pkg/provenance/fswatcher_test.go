@@ -188,7 +188,13 @@ func TestFSWatcher_FileEvents(t *testing.T) {
 	// runners (the first Windows runs saw zero events within 300ms).
 	matched := waitForFileEvents(t, ctx, engine, testFile, 1)
 	if len(matched) == 0 {
-		t.Errorf("expected a file event for %s to be pushed to the engine", testFile)
+		// Include everything the store DOES hold: an empty store means events
+		// never arrived (watcher/delivery problem), while entries under a
+		// different spelling of the path mean a canonicalization mismatch.
+		all, _ := engine.store.QueryUnmatchedFileEvents(ctx,
+			time.Now().Add(-30*time.Second), time.Now().Add(10*time.Second))
+		t.Errorf("expected a file event for %s to be pushed to the engine; store holds %d events: %+v",
+			testFile, len(all), all)
 	}
 }
 

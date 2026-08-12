@@ -5,10 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 // writeWorkspaceEntry creates a workspace storage entry with the given
@@ -235,15 +236,8 @@ func TestMintWorkspace(t *testing.T) {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
 	// The URI round-trip lowercases the drive letter on Windows (fileURIParts
-	// matches the IDE's own serialization), so compare case-insensitively there;
-	// Unix filesystems keep exact case.
-	pathsEqual := func(a, b string) bool {
-		if runtime.GOOS == "windows" {
-			return strings.EqualFold(a, b)
-		}
-		return a == b
-	}
-	if got, err := URIToPath(wsJSON.Folder); err != nil || !pathsEqual(got, projectDir) {
+	// matches the IDE's own serialization), so compare with the platform's rules.
+	if got, err := URIToPath(wsJSON.Folder); err != nil || !testutil.EqualPaths(got, projectDir) {
 		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, projectDir)
 	}
 
