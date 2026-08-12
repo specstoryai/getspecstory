@@ -414,8 +414,9 @@ func TestCodeWorkspaceContainsFolder(t *testing.T) {
 			expected:         true,
 		},
 		{
-			name:             "absolute path matching target folder",
-			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
+			name: "absolute path matching target folder",
+			// JSONString: a raw Windows path in a JSON literal is invalid escaping.
+			workspaceContent: `{"folders": [{"path": ` + testutil.JSONString(projectDir) + `}]}`,
 			workspaceFile:    workspaceFile,
 			targetFolder:     canonicalProjectDir,
 			isRemote:         false,

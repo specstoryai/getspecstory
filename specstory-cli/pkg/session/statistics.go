@@ -186,10 +186,15 @@ func acquireFileLock(lockPath string) (func(), error) {
 		if !os.IsExist(err) {
 			return nil, fmt.Errorf("failed to create lock file: %w", err)
 		}
-		// Held by another process — steal it if it looks abandoned.
+		// Held by another process — steal it if it looks abandoned. Fast-retry
+		// only when the removal actually succeeded: a failing removal (directory
+		// permissions, antivirus briefly holding the file on Windows) must fall
+		// through to the deadline and sleep below, or this loop would spin
+		// forever without ever honoring the retry budget.
 		if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > staleLockAge {
-			_ = os.Remove(lockPath)
-			continue
+			if removeErr := os.Remove(lockPath); removeErr == nil {
+				continue
+			}
 		}
 		if time.Now().After(deadline) {
 			return nil, fmt.Errorf("statistics lock still held after %s: %s", retryBudget, lockPath)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -513,6 +514,40 @@ func TestAcquireFileLock(t *testing.T) {
 			t.Fatalf("acquire should have stolen the stale lock: %v", err)
 		}
 		unlock()
+	})
+
+	t.Run("unremovable stale lock times out instead of spinning forever", func(t *testing.T) {
+		// Unix mode bits can't make a directory read-only on Windows, so the
+		// removal failure can't be provoked there.
+		if runtime.GOOS == "windows" {
+			t.Skip("directory write permissions cannot be revoked via mode bits on Windows")
+		}
+		dir := t.TempDir()
+		lockPath := filepath.Join(dir, "statistics.json.lock")
+		if err := os.WriteFile(lockPath, nil, 0644); err != nil {
+			t.Fatalf("failed to plant stale lock: %v", err)
+		}
+		old := time.Now().Add(-time.Minute)
+		if err := os.Chtimes(lockPath, old, old); err != nil {
+			t.Fatalf("failed to backdate lock: %v", err)
+		}
+		// Read-only dir: the steal's os.Remove fails on every iteration.
+		if err := os.Chmod(dir, 0555); err != nil {
+			t.Fatalf("failed to chmod dir: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(dir, 0755) })
+
+		start := time.Now()
+		_, err := acquireFileLock(lockPath)
+		elapsed := time.Since(start)
+		if err == nil {
+			t.Fatal("acquire should fail when the stale lock cannot be removed")
+		}
+		// The retry budget is 2s; anything wildly beyond it means the loop spun
+		// past the deadline check. Generous bound for slow CI.
+		if elapsed > 10*time.Second {
+			t.Fatalf("acquire took %s — the removal-failure path is bypassing the deadline", elapsed)
+		}
 	})
 
 	t.Run("stolen-from owner's release cannot delete the new owner's lock", func(t *testing.T) {

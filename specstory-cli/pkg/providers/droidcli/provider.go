@@ -410,10 +410,13 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 		_ = file.Close()
 	}()
 	needle := strings.TrimSpace(projectPath)
+	// Session files are JSONL, so a Windows path appears in the raw text with
+	// escaped backslashes (C:\\proj); match either encoding.
+	escapedNeedle := strings.ReplaceAll(needle, `\`, `\\`)
 	short := filepath.Base(projectPath)
 	foundLines := 0
 	err = scanLines(file, func(_ int, line string) error {
-		if needle != "" && strings.Contains(line, needle) {
+		if needle != "" && (strings.Contains(line, needle) || strings.Contains(line, escapedNeedle)) {
 			return errStopScan
 		}
 		if short != "" && strings.Contains(line, short) {

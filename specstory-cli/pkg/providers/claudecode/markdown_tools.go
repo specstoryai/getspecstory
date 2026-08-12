@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -73,35 +72,19 @@ var (
 
 // makeRelativePath converts an absolute path to relative if it's within the cwd
 func makeRelativePath(absolutePath, cwd string) string {
-	if cwd == "" {
+	// Delegate the relativization to the shared shape-based engine: both paths
+	// come from the session recording, so host-dependent filepath helpers (and
+	// the case-folding this function once keyed off the RENDERING host's OS)
+	// would corrupt sessions recorded on a different platform.
+	rel := spi.NormalizePath(absolutePath, cwd)
+	if rel == absolutePath {
+		// Outside cwd (or already relative): keep the recorded form.
 		return absolutePath
 	}
-
-	// Normalize paths
-	normalizedPath := filepath.Clean(absolutePath)
-	normalizedCwd := filepath.Clean(cwd)
-
-	// On macOS, filesystem is case-insensitive by default, so use case-insensitive comparison
-	// On Linux and other OSes, use case-sensitive comparison
-	var hasPrefix bool
-	if runtime.GOOS == "darwin" {
-		// Case-insensitive comparison for macOS
-		hasPrefix = strings.HasPrefix(strings.ToLower(normalizedPath), strings.ToLower(normalizedCwd))
-	} else {
-		// Case-sensitive comparison for other OSes
-		hasPrefix = strings.HasPrefix(normalizedPath, normalizedCwd)
+	if rel == "." {
+		return "./"
 	}
-
-	if hasPrefix {
-		// Use the original normalized path lengths to trim (preserving original case)
-		relativePath := normalizedPath[len(normalizedCwd):]
-		if !strings.HasPrefix(relativePath, "/") {
-			relativePath = "/" + relativePath
-		}
-		return "." + relativePath
-	}
-
-	return absolutePath
+	return "./" + rel
 }
 
 // getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
