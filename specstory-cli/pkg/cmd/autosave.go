@@ -130,7 +130,7 @@ func NewAutosaveCallback(d AutosaveDeps) func(providerID string, sess *spi.Agent
 			fileExisted = statErr == nil
 		}
 
-		markdownSize, err := session.ProcessSingleSession(d.Ctx, sess, d.Config, d.Processing)
+		markdownSize, err := session.ProcessSingleSession(d.Ctx, providerID, sess, d.Config, d.Processing)
 		if err != nil {
 			slog.Error("Failed to process session update",
 				"sessionId", sess.SessionID,

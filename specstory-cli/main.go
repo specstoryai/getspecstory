@@ -789,7 +789,7 @@ func syncSpecificSessions(cmd *cobra.Command, args []string, sessionIDs []string
 			})
 		} else {
 			// Normal sync: write to file and optionally cloud sync
-			if _, err := sessionpkg.ProcessSingleSession(context.Background(), session, config,
+			if _, err := sessionpkg.ProcessSingleSession(context.Background(), foundAgentID, session, config,
 				cmdpkg.ResolveProcessingOptions(cmd, false /* isAutosave */, true /* showOutput */)); err != nil {
 				errorCount++
 				lastError = err
@@ -984,7 +984,7 @@ func syncProvider(provider spi.Provider, providerID string, config utils.OutputC
 
 			// Compute and record statistics unless --no-stats was requested
 			if !noStats {
-				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent)
+				sessionStatistics := sessionpkg.ComputeSessionStatistics(session.SessionData, markdownContent, providerID)
 				statsCollector.AddSessionStats(session.SessionID, sessionStatistics)
 			}
 

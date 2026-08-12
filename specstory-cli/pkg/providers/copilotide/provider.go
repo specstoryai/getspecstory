@@ -189,6 +189,13 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		return nil, nil
 	}
 
+	// The same session can appear in more than one matching entry, enumerated
+	// in workspace-hash order — so an empty copy can precede the populated one,
+	// the same ordering trap forEachUniqueSession guards against. Prefer the
+	// first content-bearing copy; keep an empty copy only as a fallback so
+	// explicitly requesting a genuinely empty session still returns it.
+	var fallback *spi.AgentChatSession
+	var fallbackRaw *VSCodeComposer
 	for _, ws := range workspaces {
 		session, err := LoadSessionByID(ws.Dir, sessionID)
 		if errors.Is(err, errSessionNotFound) {
@@ -208,6 +215,16 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		// Convert to AgentChatSession
 		agentSession := p.ConvertToSessionData(*session, projectPath, state)
 
+		if len(session.Requests) == 0 && !hasEditingActivity(state) {
+			slog.Debug("Session copy has no content, checking remaining workspaces",
+				"sessionID", sessionID, "workspace", ws.Dir)
+			if fallback == nil {
+				fallback = &agentSession
+				fallbackRaw = session
+			}
+			continue
+		}
+
 		// Write debug files if requested
 		if debugRaw {
 			if err := WriteDebugFiles(session, sessionID); err != nil {
@@ -218,7 +235,12 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		return &agentSession, nil
 	}
 
-	return nil, nil
+	if fallback != nil && debugRaw {
+		if err := WriteDebugFiles(fallbackRaw, sessionID); err != nil {
+			slog.Warn("Failed to write debug files", "error", err)
+		}
+	}
+	return fallback, nil
 }
 
 // GetAgentChatSessions retrieves all chat sessions for the given project path

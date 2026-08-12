@@ -34,7 +34,7 @@ func TestCollectSessionStatistics_ConcurrentSaves(t *testing.T) {
 					CreatedAt: "2026-02-09T10:00:00Z",
 				},
 			}
-			if err := CollectSessionStatistics(sess, "# markdown", config); err != nil {
+			if err := CollectSessionStatistics("claude", sess, "# markdown", config); err != nil {
 				t.Errorf("CollectSessionStatistics(%s): %v", sess.SessionID, err)
 			}
 		}(i)
@@ -275,7 +275,7 @@ func TestComputeSessionStatistics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent)
+			stats := ComputeSessionStatistics(tt.sessionData, tt.markdownContent, tt.providerID)
 
 			if stats.UserMessageCount != tt.expectedUserMsgs {
 				t.Errorf("UserMessageCount = %d, want %d", stats.UserMessageCount, tt.expectedUserMsgs)

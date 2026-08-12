@@ -186,6 +186,24 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
 			isModified = true
 		}
+
+		// With --project-path in effect, a stored identity whose workspace_id
+		// doesn't match the target belongs to a DIFFERENT project — most likely
+		// this .specstory dir was previously used for another target. The
+		// fill-if-empty rules below would keep the old project's ids (only the
+		// name would update), so sessions of the new target would sync under the
+		// old project's identity. Retarget wholesale: take the new workspace_id
+		// and drop the stale git_id so the override/detection logic below fills
+		// it fresh for the new target.
+		if m.detectionRoot != "" && identity.WorkspaceID != resolvedWorkspaceID {
+			slog.Debug("Retargeting stored identity to the --project-path target",
+				"oldWorkspaceID", identity.WorkspaceID, "newWorkspaceID", resolvedWorkspaceID)
+			identity.WorkspaceID = resolvedWorkspaceID
+			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
+			identity.GitID = ""
+			identity.GitIDAt = ""
+			isModified = true
+		}
 	}
 
 	// Determine git_id: prefer explicit override, then the walk-up resolver

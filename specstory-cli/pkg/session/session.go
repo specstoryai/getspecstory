@@ -97,8 +97,10 @@ func markdownWriteEvent(isAutosave, fileExists bool) string {
 
 // ProcessSingleSession writes markdown and triggers cloud sync for a single session.
 // ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
+// providerID is the registry/CLI provider id, needed for statistics (see
+// ComputeSessionStatistics for why it can't come from the session data).
 // Returns the size of the markdown content in bytes.
-func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
+func ProcessSingleSession(ctx context.Context, providerID string, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
 	if session == nil || session.SessionData == nil {
 		return 0, fmt.Errorf("session or session data is nil")
 	}
@@ -155,7 +157,7 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	// Collect statistics on the redacted content, so stats reflect what's
 	// actually written to disk. Failures warn but never fail the save.
 	if !opts.NoStats {
-		if err := CollectSessionStatistics(session, markdownContent, config); err != nil {
+		if err := CollectSessionStatistics(providerID, session, markdownContent, config); err != nil {
 			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
 		}
 	}
@@ -258,9 +260,10 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 // immediately through the process-wide shared collector. The immediate flush
 // keeps statistics.json current during long-running run/watch sessions; the
 // shared collector makes concurrent callbacks serialize instead of losing
-// sessions in racing read-modify-write cycles.
-func CollectSessionStatistics(session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
+// sessions in racing read-modify-write cycles. providerID is the registry id
+// (see ComputeSessionStatistics for why it must not come from SessionData).
+func CollectSessionStatistics(providerID string, session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
 	collector := SharedStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
-	collector.AddSessionStats(session.SessionID, ComputeSessionStatistics(session.SessionData, markdownContent))
+	collector.AddSessionStats(session.SessionID, ComputeSessionStatistics(session.SessionData, markdownContent, providerID))
 	return collector.Flush()
 }

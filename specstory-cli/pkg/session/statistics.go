@@ -77,10 +77,14 @@ func SharedStatisticsCollector(statsPath string) *StatisticsCollector {
 	return collector
 }
 
-// ComputeSessionStatistics extracts statistics from SessionData and markdown content
-func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string) SessionStatistics {
+// ComputeSessionStatistics extracts statistics from SessionData and markdown content.
+// providerID is the registry/CLI provider id (e.g. "claude"), deliberately NOT
+// sessionData.Provider.ID (e.g. "claude-code") — statistics.json has stored
+// registry ids since the feature shipped, and external consumers group by them,
+// so switching id spaces would silently rewrite documented output.
+func ComputeSessionStatistics(sessionData *schema.SessionData, markdownContent string, providerID string) SessionStatistics {
 	stats := SessionStatistics{
-		Provider:          sessionData.Provider.ID,
+		Provider:          providerID,
 		MarkdownSizeBytes: len(markdownContent),
 		LastUpdated:       time.Now().UTC().Format(time.RFC3339),
 	}

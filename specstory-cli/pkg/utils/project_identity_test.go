@@ -1268,3 +1268,63 @@ func TestNewProjectIdentityManagerWithOverrides_RemoteDetectionRoot(t *testing.T
 		t.Errorf("project_name = %q, want %q", a.ProjectName, "remote-project-a")
 	}
 }
+
+// TestNewProjectIdentityManagerWithOverrides_RetargetsSharedSpecstoryDir verifies
+// that pointing --project-path at a different project retargets a reused
+// .project.json instead of keeping the previous target's ids. The fill-if-empty
+// rules alone would preserve project A's workspace_id/git_id when targeting B
+// (only the name updated), silently syncing B's sessions under A's identity.
+func TestNewProjectIdentityManagerWithOverrides_RetargetsSharedSpecstoryDir(t *testing.T) {
+	newRepo := func(t *testing.T, name, origin string) string {
+		t.Helper()
+		root := filepath.Join(t.TempDir(), name)
+		gitDir := filepath.Join(root, ".git")
+		if err := os.MkdirAll(gitDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		cfg := "[remote \"origin\"]\n\turl = " + origin + "\n"
+		if err := os.WriteFile(filepath.Join(gitDir, "config"), []byte(cfg), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return root
+	}
+	projectA := newRepo(t, "project-a", "git@github.com:acme/project-a.git")
+	projectB := newRepo(t, "project-b", "git@github.com:acme/project-b.git")
+
+	// One launch dir and ONE shared specstory dir across runs — the reuse
+	// scenario where stale identity previously survived.
+	cwd := t.TempDir()
+	specstoryDir := filepath.Join(t.TempDir(), ".specstory")
+
+	runFor := func(target string) *ProjectIdentity {
+		t.Helper()
+		manager := NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, target, "")
+		if _, err := manager.EnsureProjectIdentity(); err != nil {
+			t.Fatalf("EnsureProjectIdentity(%s) failed: %v", target, err)
+		}
+		identity, err := manager.ReadProjectIdentity()
+		if err != nil {
+			t.Fatalf("ReadProjectIdentity failed: %v", err)
+		}
+		return identity
+	}
+
+	a := runFor(projectA)
+	b := runFor(projectB)
+	if b.WorkspaceID == a.WorkspaceID {
+		t.Errorf("retargeting to project B kept project A's workspace_id %q", a.WorkspaceID)
+	}
+	if b.GitID == a.GitID {
+		t.Errorf("retargeting to project B kept project A's git_id %q", a.GitID)
+	}
+	if b.ProjectName != "project-b" {
+		t.Errorf("project_name = %q, want %q", b.ProjectName, "project-b")
+	}
+
+	// Retargeting back must restore A's identity exactly — per-target stability.
+	a2 := runFor(projectA)
+	if a2.WorkspaceID != a.WorkspaceID || a2.GitID != a.GitID {
+		t.Errorf("retargeting back to A gave (%q, %q), want A's original (%q, %q)",
+			a2.WorkspaceID, a2.GitID, a.WorkspaceID, a.GitID)
+	}
+}
