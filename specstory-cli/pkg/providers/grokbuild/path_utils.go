@@ -76,7 +76,7 @@ func DecodeCwdDirname(groupDir string) (string, bool) {
 
 	// url.PathUnescape, not QueryUnescape: the latter turns '+' into a space,
 	// which Grok's encoder never produces.
-	if decoded, err := url.PathUnescape(name); err == nil && strings.HasPrefix(decoded, "/") {
+	if decoded, err := url.PathUnescape(name); err == nil && looksAbsolute(decoded) {
 		return decoded, true
 	}
 
@@ -88,6 +88,20 @@ func DecodeCwdDirname(groupDir string) (string, bool) {
 	}
 
 	return "", false
+}
+
+// looksAbsolute reports whether a decoded directory name is a plausible absolute
+// path. It tests the shape rather than the running OS, because a session store
+// written on one platform can be read on another.
+func looksAbsolute(p string) bool {
+	if strings.HasPrefix(p, "/") {
+		return true
+	}
+	// Windows drive letter, e.g. C:\Users\a or C:/Users/a
+	if len(p) >= 3 && p[1] == ':' && (p[2] == '\\' || p[2] == '/') {
+		return true
+	}
+	return false
 }
 
 // ResolveGrokProjectDir locates the Grok group directory holding the sessions for

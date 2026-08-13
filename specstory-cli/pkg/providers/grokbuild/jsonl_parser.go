@@ -131,12 +131,13 @@ type GrokUsage struct {
 // tool classification, tool outcomes, and per-turn usage. chat_history.jsonl has
 // none of this.
 type sessionIndex struct {
-	toolTime  map[string]string // tool_call_id -> ISO 8601
-	toolKind  map[string]string // tool_call_id -> Grok's own tool kind
-	toolError map[string]bool   // tool_call_id -> the call failed
-	userTime  []string          // by prompt index
-	agentTime []string          // in order of appearance
-	usage     []*GrokUsage      // one per completed turn
+	toolTime    map[string]string // tool_call_id -> ISO 8601
+	toolKind    map[string]string // tool_call_id -> Grok's own tool kind
+	toolError   map[string]bool   // tool_call_id -> the call failed
+	userTime    []string          // by prompt index
+	agentTime   []string          // assistant text, in order of appearance
+	thoughtTime []string          // reasoning, in order of appearance
+	usage       []*GrokUsage      // one per completed turn
 }
 
 // GrokSession is one parsed session directory.
@@ -357,6 +358,12 @@ func buildSessionIndex(dir string) *sessionIndex {
 		case "agent_message_chunk":
 			if ts != "" {
 				idx.agentTime = append(idx.agentTime, ts)
+			}
+		case "agent_thought_chunk":
+			// Reasoning is timed separately from assistant text; sharing one
+			// counter would give every thought the time of the message after it.
+			if ts != "" {
+				idx.thoughtTime = append(idx.thoughtTime, ts)
 			}
 		case "turn_completed":
 			if usage, ok := update["usage"].(map[string]any); ok {

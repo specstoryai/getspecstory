@@ -83,6 +83,11 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 	var current *Exchange
 	userSeen := 0
 	agentSeen := 0
+	thoughtSeen := 0
+	// Reasoning records carry no model of their own, and the summary's
+	// current_model_id spells it differently from the assistant records
+	// (grok-4.6 against grok-4.6-build), so borrow the assistant spelling.
+	lastModel := assistantModel(session)
 
 	flush := func() {
 		if current != nil && len(current.Messages) > 0 {
@@ -124,11 +129,15 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 			current = ensureExchange(current, session.CreatedAt)
 			current.Messages = append(current.Messages, Message{
 				ID:        record.ID,
-				Timestamp: session.Index.agentTimeAt(agentSeen),
+				Timestamp: session.Index.thoughtTimeAt(thoughtSeen),
 				Role:      schema.RoleAgent,
-				Model:     session.Model,
-				Content:   []ContentPart{{Type: "thinking", Text: thought}},
+				// A reasoning record carries no model of its own, so use the one
+				// the surrounding assistant records report rather than the
+				// session default, which spells the model differently.
+				Model:   lastModel,
+				Content: []ContentPart{{Type: "thinking", Text: thought}},
 			})
+			thoughtSeen++
 
 		case "assistant":
 			current = ensureExchange(current, session.CreatedAt)
@@ -180,6 +189,17 @@ func ensureExchange(current *Exchange, fallbackTime string) *Exchange {
 		return current
 	}
 	return &Exchange{StartTime: fallbackTime}
+}
+
+// assistantModel returns the model label the assistant records use, falling back
+// to the session's own model when the transcript has none.
+func assistantModel(session *GrokSession) string {
+	for i := range session.Records {
+		if session.Records[i].Type == "assistant" && session.Records[i].ModelID != "" {
+			return session.Records[i].ModelID
+		}
+	}
+	return session.Model
 }
 
 // backfillTodoText records the text of each todo item and fills it back in on
@@ -470,4 +490,12 @@ func (i *sessionIndex) agentTimeAt(n int) string {
 		return ""
 	}
 	return i.agentTime[n]
+}
+
+// thoughtTimeAt returns the recorded time of the nth reasoning block.
+func (i *sessionIndex) thoughtTimeAt(n int) string {
+	if i == nil || n < 0 || n >= len(i.thoughtTime) {
+		return ""
+	}
+	return i.thoughtTime[n]
 }
