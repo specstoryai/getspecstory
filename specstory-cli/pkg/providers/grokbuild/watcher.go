@@ -193,9 +193,30 @@ func watchSessions(ctx context.Context, groupDir string) {
 	syncWatches(watcher, groupDir, watched)
 
 	pending := map[string]bool{}
-	var debounce <-chan time.Time
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
+
+	// One timer, reset per burst, rather than a fresh time.After per event.
+	// Grok appends to updates.jsonl on every streaming chunk, so a timer per
+	// event would allocate thousands of short-lived timers across a session.
+	// It starts stopped and drained: nothing is pending yet.
+	debounce := time.NewTimer(watchDebounce)
+	if !debounce.Stop() {
+		<-debounce.C
+	}
+	defer debounce.Stop()
+
+	// resetDebounce restarts the quiet period, draining a already-fired timer
+	// first so the next receive reflects this burst rather than the last one.
+	resetDebounce := func() {
+		if !debounce.Stop() {
+			select {
+			case <-debounce.C:
+			default:
+			}
+		}
+		debounce.Reset(watchDebounce)
+	}
 
 	// flush processes everything the debounce is holding. It runs on shutdown as
 	// well as on the timer, because otherwise the final turn of a session, which
@@ -227,12 +248,11 @@ func watchSessions(ctx context.Context, groupDir string) {
 				}
 				if isTranscriptChange(event) {
 					pending[dir] = true
-					debounce = time.After(watchDebounce)
+					resetDebounce()
 				}
 			}
 
-		case <-debounce:
-			debounce = nil
+		case <-debounce.C:
 			flush()
 
 		case err, ok := <-watcher.Errors:

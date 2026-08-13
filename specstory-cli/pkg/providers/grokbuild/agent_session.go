@@ -418,6 +418,11 @@ func attachUsage(exchanges []Exchange, usageByPrompt map[string]*GrokUsage, prom
 		if i >= len(promptForExchange) {
 			continue
 		}
+		// An exchange whose agent messages carry no prompt id has nothing to
+		// join on, so leave its tokens absent rather than guessing.
+		if promptForExchange[i] == "" {
+			continue
+		}
 		usage := usageByPrompt[promptForExchange[i]]
 		if usage == nil {
 			continue

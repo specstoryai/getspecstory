@@ -1,6 +1,8 @@
 package grokbuild
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -107,6 +109,52 @@ func TestSessionIndex_UsageJoinsOnPromptID(t *testing.T) {
 		if _, ok := session.Index.usage[id]; !ok {
 			t.Errorf("prompt id %q has no matching turn usage", id)
 		}
+	}
+}
+
+func TestSessionIndex_TurnsWithoutPromptIDAreDropped(t *testing.T) {
+	dir := t.TempDir()
+
+	// Two completed turns with no prompt id. Stored under an empty key, the
+	// second would overwrite the first and then match any exchange whose own
+	// prompt id is unknown, silently reporting one turn's tokens for another.
+	updates := `{"timestamp":1786564800,"method":"session/update","params":{"update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":111,"outputTokens":11}},"_meta":{"agentTimestampMs":1786564800000}}}
+{"timestamp":1786564900,"method":"session/update","params":{"update":{"sessionUpdate":"turn_completed","usage":{"inputTokens":222,"outputTokens":22}},"_meta":{"agentTimestampMs":1786564900000}}}
+{"timestamp":1786564950,"method":"session/update","params":{"update":{"sessionUpdate":"turn_completed","prompt_id":"real-1","usage":{"inputTokens":333,"outputTokens":33}},"_meta":{"agentTimestampMs":1786564950000}}}
+`
+	if err := os.WriteFile(filepath.Join(dir, updatesFile), []byte(updates), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	idx := buildSessionIndex(dir)
+
+	if _, ok := idx.usage[""]; ok {
+		t.Error("a turn without a prompt id must not be stored under an empty key")
+	}
+	if len(idx.usage) != 1 {
+		t.Errorf("usage entries = %d, want only the turn that carries an id", len(idx.usage))
+	}
+	if usage := idx.usage["real-1"]; usage == nil || usage.InputTokens != 333 {
+		t.Errorf("the identified turn's usage is wrong: %+v", usage)
+	}
+}
+
+func TestAttachUsage_SkipsExchangesWithoutAPromptID(t *testing.T) {
+	exchanges := []Exchange{
+		{Messages: []Message{{Role: "agent"}}},
+		{Messages: []Message{{Role: "agent"}}},
+	}
+	usage := map[string]*GrokUsage{"": {InputTokens: 999}, "real-1": {InputTokens: 111}}
+
+	attachUsage(exchanges, usage, []string{"", "real-1"})
+
+	// An exchange with nothing to join on should report no tokens rather than
+	// picking up whatever landed under the empty key.
+	if exchanges[0].Messages[0].Usage != nil {
+		t.Error("an exchange with no prompt id should not be given usage")
+	}
+	if got := exchanges[1].Messages[0].Usage; got == nil || got.InputTokens != 111 {
+		t.Errorf("the identified exchange should carry its own usage, got %+v", got)
 	}
 }
 

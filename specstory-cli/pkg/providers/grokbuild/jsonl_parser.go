@@ -406,7 +406,15 @@ func buildSessionIndex(dir string) *sessionIndex {
 			// Key by prompt id rather than by position: a session can complete
 			// more turns than it has user prompts, so counting would attribute
 			// one turn's tokens to another turn's conversation.
+			//
+			// Every turn_completed in the real store carries the id, but a turn
+			// without one must be dropped rather than stored under an empty key:
+			// a second such turn would overwrite the first, and any exchange
+			// whose own prompt id is unknown would then match it by accident.
 			promptID, _ := update["prompt_id"].(string)
+			if promptID == "" {
+				return
+			}
 			idx.usage[promptID] = &GrokUsage{
 				InputTokens:      intFrom(usage["inputTokens"]),
 				OutputTokens:     intFrom(usage["outputTokens"]),
