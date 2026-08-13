@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // makeSessionDir creates a session directory with a transcript whose mtime is
@@ -74,6 +75,84 @@ func TestDesiredWatchDirs_IgnoresNonSessionEntries(t *testing.T) {
 
 	if len(desired) != 1 {
 		t.Errorf("watch set = %v, want only the session directory", desired)
+	}
+}
+
+// captureWatcherPublishes points the watcher's callback at a slice and returns
+// it, restoring the previous callback when the test ends.
+func captureWatcherPublishes(t *testing.T, workspaceRoot string) *[]string {
+	t.Helper()
+
+	var published []string
+	SetWatcherCallback(func(session *spi.AgentChatSession) {
+		published = append(published, session.SessionID)
+	})
+	SetWatcherWorkspaceRoot(workspaceRoot)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+	return &published
+}
+
+func TestProcessSessionChange_PublishesARealSession(t *testing.T) {
+	dir := t.TempDir()
+	sessionDir := filepath.Join(dir, "11111111-2222-7333-8444-555555555555")
+	copyFixture(t, "session-basic", sessionDir)
+
+	published := captureWatcherPublishes(t, "/Users/dev/project")
+	processSessionChange(sessionDir)
+
+	if len(*published) != 1 {
+		t.Fatalf("published %d sessions, want 1", len(*published))
+	}
+}
+
+func TestProcessSessionChange_SkipsSubagents(t *testing.T) {
+	dir := t.TempDir()
+	sessionDir := filepath.Join(dir, "99999999-8888-7777-6666-555555555555")
+	copyFixture(t, "session-subagent", sessionDir)
+
+	published := captureWatcherPublishes(t, "/Users/dev/project")
+	processSessionChange(sessionDir)
+
+	if len(*published) != 0 {
+		t.Errorf("a spawned subagent must not be published as its own session, got %v", *published)
+	}
+}
+
+func TestProcessSessionChange_WaitsForMetadata(t *testing.T) {
+	dir := t.TempDir()
+	sessionDir := filepath.Join(dir, "11111111-2222-7333-8444-555555555555")
+	copyFixture(t, "session-basic", sessionDir)
+
+	// A session directory exists for several seconds before summary.json lands,
+	// and session_kind is the only thing marking a subagent. Publishing before
+	// the metadata arrives is how a subagent would leak out as a real session.
+	if err := os.Remove(filepath.Join(sessionDir, summaryFile)); err != nil {
+		t.Fatal(err)
+	}
+
+	published := captureWatcherPublishes(t, "/Users/dev/project")
+	processSessionChange(sessionDir)
+
+	if len(*published) != 0 {
+		t.Errorf("a session with no metadata yet must not be published, got %v", *published)
+	}
+}
+
+func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
+	dir := t.TempDir()
+	sessionDir := filepath.Join(dir, "dddddddd-eeee-7fff-8000-111111111111")
+	copyFixture(t, "session-noquery", sessionDir)
+
+	published := captureWatcherPublishes(t, "/Users/dev/project")
+	processSessionChange(sessionDir)
+
+	// The transcript holds no conversation, and an empty markdown file is worse
+	// than none.
+	if len(*published) != 0 {
+		t.Errorf("a session with no conversation must not be published, got %v", *published)
 	}
 }
 
