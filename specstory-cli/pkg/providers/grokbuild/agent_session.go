@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -113,15 +114,16 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 				continue
 			}
 			flush()
-			// Prefer the record's own prompt index. Grok can inject a synthetic
-			// prompt turn, which advances the index in updates.jsonl without
-			// producing a <user_query>, so counting real turns here would shift
-			// every later timestamp.
-			promptIndex := userSeen
+			// Join on Grok's own prompt index. Grok injects synthetic prompt
+			// turns (a finished subagent, for one), which take an index in
+			// updates.jsonl but carry no <user_query>, so counting real turns
+			// here would stamp every later prompt with the wrong time.
+			var timestamp string
 			if record.PromptIndex != nil {
-				promptIndex = *record.PromptIndex
+				timestamp = session.Index.userTimeForPrompt(*record.PromptIndex)
+			} else {
+				timestamp = session.Index.userTimeAtOrdinal(userSeen)
 			}
-			timestamp := session.Index.userTimeAt(promptIndex)
 			if timestamp == "" {
 				timestamp = session.CreatedAt
 			}
@@ -516,12 +518,26 @@ func extractPathHints(name string, args map[string]any, workspaceRoot string) []
 	return paths
 }
 
-// userTimeAt returns the recorded start time of the nth real user turn.
-func (i *sessionIndex) userTimeAt(n int) string {
+// userTimeForPrompt returns the start time Grok recorded for a prompt index.
+func (i *sessionIndex) userTimeForPrompt(promptIndex int) string {
+	if i == nil {
+		return ""
+	}
+	return i.userTime[promptIndex]
+}
+
+// userTimeAtOrdinal returns the nth recorded prompt time in prompt order. Only
+// sessions written before Grok stamped prompt_index onto its records need this.
+func (i *sessionIndex) userTimeAtOrdinal(n int) string {
 	if i == nil || n < 0 || n >= len(i.userTime) {
 		return ""
 	}
-	return i.userTime[n]
+	indices := make([]int, 0, len(i.userTime))
+	for index := range i.userTime {
+		indices = append(indices, index)
+	}
+	sort.Ints(indices)
+	return i.userTime[indices[n]]
 }
 
 // agentTimeAt returns the recorded time of the nth agent message.

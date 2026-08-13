@@ -142,7 +142,7 @@ type sessionIndex struct {
 	toolTime    map[string]string     // tool_call_id -> ISO 8601
 	toolKind    map[string]string     // tool_call_id -> Grok's own tool kind
 	toolError   map[string]bool       // tool_call_id -> the call failed
-	userTime    []string              // by prompt index
+	userTime    map[int]string        // prompt index -> ISO 8601
 	agentTime   []string              // assistant text, in order of appearance
 	agentPrompt []string              // prompt id per assistant text, same order
 	thoughtTime []string              // reasoning, in order of appearance
@@ -319,6 +319,7 @@ func newSessionIndex() *sessionIndex {
 		toolTime:  map[string]string{},
 		toolKind:  map[string]string{},
 		toolError: map[string]bool{},
+		userTime:  map[int]string{},
 		usage:     map[string]*GrokUsage{},
 	}
 }
@@ -329,8 +330,6 @@ func newSessionIndex() *sessionIndex {
 // place a failed tool call is marked as failed.
 func buildSessionIndex(dir string) *sessionIndex {
 	idx := newSessionIndex()
-
-	userTimeByPrompt := map[int]string{}
 
 	forEachJSONLine(filepath.Join(dir, updatesFile), func(raw []byte) {
 		var envelope struct {
@@ -377,8 +376,12 @@ func buildSessionIndex(dir string) *sessionIndex {
 					promptIndex = int(v)
 				}
 			}
-			if _, seen := userTimeByPrompt[promptIndex]; !seen && ts != "" {
-				userTimeByPrompt[promptIndex] = ts
+			// Keyed by Grok's own prompt index, which is the field that joins
+			// updates.jsonl to the transcript. Grok also emits a chunk for the
+			// synthetic prompts it injects, so counting turns here instead
+			// would shift every later prompt onto the wrong time.
+			if _, seen := idx.userTime[promptIndex]; !seen && ts != "" {
+				idx.userTime[promptIndex] = ts
 			}
 		case "agent_message_chunk":
 			if ts != "" {
@@ -414,18 +417,6 @@ func buildSessionIndex(dir string) *sessionIndex {
 			}
 		}
 	})
-
-	// Flatten the prompt-indexed user times into slice order.
-	if len(userTimeByPrompt) > 0 {
-		indices := make([]int, 0, len(userTimeByPrompt))
-		for i := range userTimeByPrompt {
-			indices = append(indices, i)
-		}
-		sort.Ints(indices)
-		for _, i := range indices {
-			idx.userTime = append(idx.userTime, userTimeByPrompt[i])
-		}
-	}
 
 	forEachJSONLine(filepath.Join(dir, eventsFile), func(raw []byte) {
 		var event struct {
