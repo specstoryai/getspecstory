@@ -13,7 +13,7 @@ Grok Build (`grok`, SpaceXAI's terminal coding agent) records each session as a 
         ├── chat_history.jsonl             # THE TRANSCRIPT
         ├── events.jsonl                   # timestamps, tool outcomes, turn boundaries
         ├── summary.json                   # session metadata (id, cwd, times, title, model)
-        ├── updates.jsonl                  # streaming UI deltas (redundant with chat_history)
+        ├── updates.jsonl                  # ACP event stream: timestamps, tool kinds, usage
         ├── rewind_points.jsonl            # rewind/branch markers
         ├── hunk_records.jsonl             # file edit hunks
         ├── system_prompt.txt              # the system prompt for this session
@@ -56,7 +56,7 @@ The provider filters on `session_kind` and the zero-exchange rule catches anythi
 
 ## chat_history.jsonl
 
-Each line is one record. There is **no timestamp on any record**, which is why `events.jsonl` matters (see below).
+Each line is one record. There is **no timestamp on any record**, which is why `updates.jsonl` and `events.jsonl` matter (see below).
 
 | `type` | Role |
 |---|---|
@@ -157,13 +157,32 @@ Correlating `tool_completed.tool_call_id` back to `chat_history` gives each tool
 
 | File | Verdict |
 |---|---|
-| `chat_history.jsonl` | Required. The transcript. |
-| `events.jsonl` | Required. Timestamps and tool outcomes. |
-| `summary.json` | Required. Identity, times, title. |
+| `chat_history.jsonl` | Required. The content spine. Complete and untruncated. |
+| `updates.jsonl` | Required. Per-message timestamps, grok's own tool classification, and token usage. See below. |
+| `summary.json` | Required. Identity, times, title, subagent gate. |
+| `events.jsonl` | Useful. Tool success or failure outcome, correlated by `tool_call_id`. |
 | `subagents/*/meta.json` | Useful. Enriches the `spawn_subagent` tool rendering with the description, prompt, status, and duration. |
 | `terminal/*.log` | Optional. Per-command output, named `call-<tool-call-id>-<n>.log`. |
-| `updates.jsonl` | Ignore. Streaming UI deltas, redundant with the transcript, and the largest file in the session. |
 | `rewind_points.jsonl`, `hunk_records.jsonl`, `prompt_context.json`, `resources_state.json`, `signals.json`, `announcement_state.json`, `system_prompt.txt`, `recap_requests/` | Ignore for markdown. |
+
+## updates.jsonl
+
+This is the Agent Client Protocol event stream, one JSON object per line. Every line carries `timestamp` (Unix seconds) and `_meta.agentTimestampMs` (milliseconds), which makes it the only source of per-message timing.
+
+| `params.update.sessionUpdate` | Carries |
+|---|---|
+| `user_message_chunk` | The user's prompt **without** the `<user_query>` wrapper, plus `_meta.promptIndex`. |
+| `agent_message_chunk` | Assistant text, plus `_meta.promptId`. |
+| `agent_thought_chunk` | Reasoning text. |
+| `tool_call` | `toolCallId`, `title`, `rawInput` as a **parsed object**, and `_meta["x.ai/tool"]` with grok's own `kind`, `label`, `namespace`, and `read_only`. |
+| `tool_call_update` | Progress and completion for a tool call. |
+| `turn_completed` | `stop_reason` and a `usage` object with `inputTokens`, `outputTokens`, `cachedReadTokens`, and `reasoningTokens`. |
+| `subagent_spawned` / `subagent_finished` | Subagent lifecycle, with parent and child ids. |
+| `plan`, `session_recap`, `task_backgrounded`, `task_completed`, `scheduled_task_created`, `scheduled_task_deleted` | UI state. |
+
+`_meta["x.ai/tool"].kind` is grok's own tool taxonomy, observed as `read`, `write`, `edit`, `execute`, `list`, `search`, `search_tool`, `task`, `plan`, `monitor`, `web_fetch`, `use_tool`, `image_gen`, `image_to_video`, `reference_to_video`, `workflow`, `background_task_action`, `kill_task_action`, and `other`.
+
+The provider classifies a tool by its name first, because `chat_history.jsonl` is always present and complete, and falls back to this `kind` when the name is unrecognized. That fallback is what keeps MCP and future tools from rendering as `unknown`.
 
 ## CLI surface
 
