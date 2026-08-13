@@ -337,7 +337,8 @@ func buildSessionIndex(dir string) *sessionIndex {
 			Params    struct {
 				Update map[string]any `json:"update"`
 				Meta   struct {
-					AgentTimestampMs int64 `json:"agentTimestampMs"`
+					AgentTimestampMs int64  `json:"agentTimestampMs"`
+					PromptID         string `json:"promptId"`
 				} `json:"_meta"`
 			} `json:"params"`
 		}
@@ -386,13 +387,10 @@ func buildSessionIndex(dir string) *sessionIndex {
 		case "agent_message_chunk":
 			if ts != "" {
 				idx.agentTime = append(idx.agentTime, ts)
-				// The prompt id ties this message to the turn whose token
-				// totals arrive later, in turn_completed.
-				promptID := ""
-				if meta, ok := update["_meta"].(map[string]any); ok {
-					promptID, _ = meta["promptId"].(string)
-				}
-				idx.agentPrompt = append(idx.agentPrompt, promptID)
+				// The prompt id ties this message to the turn whose token totals
+				// arrive later, in turn_completed. It sits on the envelope's own
+				// _meta, next to agentTimestampMs, not on the update's.
+				idx.agentPrompt = append(idx.agentPrompt, envelope.Params.Meta.PromptID)
 			}
 		case "agent_thought_chunk":
 			// Reasoning is timed separately from assistant text; sharing one

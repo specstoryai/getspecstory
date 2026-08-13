@@ -78,6 +78,38 @@ func TestGenerateAgentSession_Basic(t *testing.T) {
 	}
 }
 
+func TestSessionIndex_UsageJoinsOnPromptID(t *testing.T) {
+	session := loadFixture(t, "session-basic")
+
+	// The prompt id sits on the envelope's _meta, beside agentTimestampMs, not
+	// on the update's own _meta. Reading the wrong one leaves every exchange
+	// with no token totals at all.
+	if len(session.Index.agentPrompt) == 0 {
+		t.Fatal("no agent prompt ids were read from updates.jsonl")
+	}
+	var found bool
+	for _, id := range session.Index.agentPrompt {
+		if id != "" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("every agent message came back with an empty prompt id")
+	}
+
+	// Every prompt id an agent message carries should match a completed turn,
+	// otherwise the usage join silently produces nothing.
+	for _, id := range session.Index.agentPrompt {
+		if id == "" {
+			continue
+		}
+		if _, ok := session.Index.usage[id]; !ok {
+			t.Errorf("prompt id %q has no matching turn usage", id)
+		}
+	}
+}
+
 func TestGenerateAgentSession_ToolsAndErrors(t *testing.T) {
 	session := loadFixture(t, "session-tools")
 
