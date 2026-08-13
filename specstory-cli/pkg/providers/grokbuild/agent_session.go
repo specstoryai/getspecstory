@@ -81,6 +81,10 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 
 	var exchanges []Exchange
 	var current *Exchange
+	// The prompt id each exchange's agent messages carry, used to find that
+	// turn's token totals.
+	var exchangePrompts []string
+	currentPrompt := ""
 	userSeen := 0
 	agentSeen := 0
 	thoughtSeen := 0
@@ -92,8 +96,10 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 	flush := func() {
 		if current != nil && len(current.Messages) > 0 {
 			exchanges = append(exchanges, *current)
+			exchangePrompts = append(exchangePrompts, currentPrompt)
 		}
 		current = nil
+		currentPrompt = ""
 	}
 
 	for i := range session.Records {
@@ -107,7 +113,15 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 				continue
 			}
 			flush()
-			timestamp := session.Index.userTimeAt(userSeen)
+			// Prefer the record's own prompt index. Grok can inject a synthetic
+			// prompt turn, which advances the index in updates.jsonl without
+			// producing a <user_query>, so counting real turns here would shift
+			// every later timestamp.
+			promptIndex := userSeen
+			if record.PromptIndex != nil {
+				promptIndex = *record.PromptIndex
+			}
+			timestamp := session.Index.userTimeAt(promptIndex)
 			if timestamp == "" {
 				timestamp = session.CreatedAt
 			}
@@ -144,6 +158,9 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 			timestamp := session.Index.agentTimeAt(agentSeen)
 
 			if text := strings.TrimSpace(record.TextContent()); text != "" {
+				if currentPrompt == "" {
+					currentPrompt = session.Index.agentPromptAt(agentSeen)
+				}
 				agentSeen++
 				current.Messages = append(current.Messages, Message{
 					Timestamp: timestamp,
@@ -178,7 +195,7 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 	}
 
 	flush()
-	attachUsage(exchanges, session.Index.usage)
+	attachUsage(exchanges, session.Index.usage, exchangePrompts)
 	return exchanges
 }
 
@@ -309,6 +326,19 @@ func buildBackendToolMessage(session *GrokSession, record *GrokRecord) Message {
 				name = "web_search"
 				input["query"] = kind.Action.Query
 			}
+			// The pages a search returned live only here, so carry them through
+			// rather than rendering a search with no results.
+			if len(kind.Action.Sources) > 0 {
+				urls := make([]string, 0, len(kind.Action.Sources))
+				for _, source := range kind.Action.Sources {
+					if source.URL != "" {
+						urls = append(urls, source.URL)
+					}
+				}
+				if len(urls) > 0 {
+					input["sources"] = urls
+				}
+			}
 		}
 		if name == "" {
 			name = "web_search"
@@ -372,18 +402,28 @@ func (s *GrokSession) subagentFor(args map[string]any) *GrokSubagentMeta {
 	return nil
 }
 
-// attachUsage puts each turn's token totals on the last message of the matching
-// exchange, so aggregation does not double count.
-func attachUsage(exchanges []Exchange, usages []*GrokUsage) {
+// attachUsage puts a turn's token totals on the last message of the exchange
+// that turn produced, so aggregation neither double counts nor misattributes.
+//
+// The link is the prompt id, taken from the agent messages in the exchange.
+// Matching by position would break on any session that completes a turn without
+// a matching user prompt, which happens whenever Grok injects one.
+func attachUsage(exchanges []Exchange, usageByPrompt map[string]*GrokUsage, promptForExchange []string) {
+	if len(usageByPrompt) == 0 {
+		return
+	}
 	for i := range exchanges {
-		if i >= len(usages) || usages[i] == nil {
+		if i >= len(promptForExchange) {
+			continue
+		}
+		usage := usageByPrompt[promptForExchange[i]]
+		if usage == nil {
 			continue
 		}
 		messages := exchanges[i].Messages
 		if len(messages) == 0 {
 			continue
 		}
-		usage := usages[i]
 		messages[len(messages)-1].Usage = &Usage{
 			InputTokens:   usage.InputTokens,
 			OutputTokens:  usage.OutputTokens,
@@ -490,6 +530,15 @@ func (i *sessionIndex) agentTimeAt(n int) string {
 		return ""
 	}
 	return i.agentTime[n]
+}
+
+// agentPromptAt returns the prompt id of the nth agent message, which links an
+// exchange to the turn whose token totals arrive separately.
+func (i *sessionIndex) agentPromptAt(n int) string {
+	if i == nil || n < 0 || n >= len(i.agentPrompt) {
+		return ""
+	}
+	return i.agentPrompt[n]
 }
 
 // thoughtTimeAt returns the recorded time of the nth reasoning block.

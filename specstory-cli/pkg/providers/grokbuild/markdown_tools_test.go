@@ -302,8 +302,10 @@ func TestFormatToolAsMarkdown_UnknownToolShowsJSON(t *testing.T) {
 	}
 }
 
-func TestFormatToolAsMarkdown_TruncatesRunawayOutput(t *testing.T) {
-	huge := strings.Repeat("x", maxToolBodyRunes+500)
+func TestFormatToolAsMarkdown_KeepsLargeOutputWhole(t *testing.T) {
+	// Tool output is the record the user came for, so it is not truncated. Only
+	// the synthesized edit diff is capped, which the next test covers.
+	huge := strings.Repeat("x", maxDiffRunes+500)
 	tool := &ToolInfo{
 		Name:   "read_file",
 		Type:   "read",
@@ -313,11 +315,32 @@ func TestFormatToolAsMarkdown_TruncatesRunawayOutput(t *testing.T) {
 
 	md := formatToolAsMarkdown(tool)
 
-	if !strings.Contains(md, "(truncated)") {
-		t.Error("runaway output should be truncated")
+	if strings.Contains(md, "(truncated)") {
+		t.Error("file content should be kept whole")
 	}
-	if len([]rune(md)) > maxToolBodyRunes+200 {
-		t.Errorf("truncated output is still too long: %d runes", len([]rune(md)))
+	if !strings.Contains(md, huge) {
+		t.Error("the full output should appear in the markdown")
+	}
+}
+
+func TestFormatToolAsMarkdown_CapsRunawayDiff(t *testing.T) {
+	huge := strings.Repeat("y", maxDiffRunes+500)
+	tool := &ToolInfo{
+		Name: "search_replace",
+		Type: "write",
+		Input: map[string]any{
+			"file_path":  "/big.py",
+			"old_string": huge,
+			"new_string": huge,
+		},
+	}
+
+	md := formatToolAsMarkdown(tool)
+
+	// A diff is built from both halves of the replacement, so it can reach twice
+	// the size of the file.
+	if !strings.Contains(md, "(truncated)") {
+		t.Error("a runaway diff should be capped")
 	}
 }
 

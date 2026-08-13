@@ -4,14 +4,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// maxToolBodyRunes caps the inline size of very large tool bodies. Grok can hand
-// back a whole file or a directory listing of thousands of lines.
-const maxToolBodyRunes = 2000
+// maxDiffRunes caps a rendered edit diff, which is built from both halves of a
+// find and replace and can otherwise reach the size of two whole files.
+//
+// Only the diff is capped. Tool output and written file content are the record
+// the user came for, so they are kept whole, matching the sibling providers.
+const maxDiffRunes = 2000
 
 // formatToolAsMarkdown renders a tool call's body and result. It returns the
 // inner content only; pkg/session adds the surrounding <tool-use> tags.
@@ -111,9 +115,13 @@ func formatToolBody(tool *ToolInfo) string {
 		return formatUseToolBody(tool.Input)
 	case "image_gen", "image_edit", "image_to_video", "reference_to_video":
 		return formatPromptBody(tool.Input)
-	case "web_fetch", "open_page", "open_page_with_find", "web_search",
-		"read_file", "list_dir", "grep", "search_tool",
-		"x_user_search", "x_semantic_search", "x_keyword_search":
+	case "web_search":
+		return formatWebSearchBody(tool.Input)
+	case "x_user_search", "x_semantic_search", "x_keyword_search", "x_thread_fetch":
+		return formatXSearchBody(tool.Input)
+	case "open_page", "open_page_with_find":
+		return formatOpenPageBody(tool.Input)
+	case "web_fetch", "read_file", "list_dir", "grep", "search_tool":
 		// Everything identifying is already in the summary.
 		return ""
 	default:
@@ -131,7 +139,7 @@ func formatToolResult(tool *ToolInfo) string {
 			return "Error: the tool call failed"
 		}
 		if strings.Contains(text, "\n") {
-			return fmt.Sprintf("Error:\n%s", spi.CodeFence("text", truncate(text)))
+			return fmt.Sprintf("Error:\n%s", spi.CodeFence("text", text))
 		}
 		return fmt.Sprintf("Error: %s", text)
 	}
@@ -142,23 +150,90 @@ func formatToolResult(tool *ToolInfo) string {
 		return ""
 	case "read_file":
 		if text := outputText(tool.Output); text != "" {
-			return spi.CodeFence(languageFromPath(stringArg(tool.Input, "target_file")), truncate(text))
+			return spi.CodeFence(languageFromPath(stringArg(tool.Input, "target_file")), text)
 		}
 		return ""
 	case "run_terminal_command", "monitor":
 		if text := outputText(tool.Output); text != "" {
-			return fmt.Sprintf("Result:\n%s", spi.CodeFence("text", truncate(text)))
+			return fmt.Sprintf("Result:\n%s", spi.CodeFence("text", text))
 		}
 		return ""
 	case "list_dir", "grep", "search_tool":
-		// Already line oriented, so a fence would only add noise.
-		return truncate(outputText(tool.Output))
+		text := outputText(tool.Output)
+		if text == "" {
+			return ""
+		}
+		// These are usually line oriented, where a fence would only add noise.
+		// search_tool returns a JSON document though, which collapses into an
+		// unreadable run-on unless it is fenced.
+		if looksLikeJSON(text) {
+			return fmt.Sprintf("Result:\n%s", spi.CodeFence("json", text))
+		}
+		return text
 	}
 
 	if text := outputText(tool.Output); text != "" {
-		return addResultPrefix(fenceIfMultiline(truncate(text)))
+		return addResultPrefix(fenceIfMultiline(text))
 	}
 	return ""
+}
+
+// formatWebSearchBody lists the pages a search returned. Grok records them in
+// the call itself and never emits a tool result for a backend search, so without
+// this a web search renders as a query with nothing behind it.
+func formatWebSearchBody(input map[string]any) string {
+	sources, _ := input["sources"].([]string)
+	if len(sources) == 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.WriteString("Sources:\n")
+	for _, url := range sources {
+		fmt.Fprintf(&builder, "- %s\n", url)
+	}
+	return builder.String()
+}
+
+// formatOpenPageBody names the page that was opened. Grok records no result for
+// these backend calls, so without a body the tool would render as nothing at all
+// and the shared renderer would fall back to an empty Result heading.
+func formatOpenPageBody(input map[string]any) string {
+	url := stringArg(input, "url")
+	if url == "" {
+		return ""
+	}
+
+	var builder strings.Builder
+	fmt.Fprintf(&builder, "- url: %s\n", url)
+	if pattern := stringArg(input, "pattern"); pattern != "" {
+		fmt.Fprintf(&builder, "- find: `%s`\n", pattern)
+	}
+	return builder.String()
+}
+
+// formatXSearchBody shows the arguments an X search ran with. They vary by tool
+// (query, post_id, count, mode), so render whatever is present.
+func formatXSearchBody(input map[string]any) string {
+	if len(input) == 0 {
+		return ""
+	}
+
+	keys := make([]string, 0, len(input))
+	for key := range input {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	var builder strings.Builder
+	for _, key := range keys {
+		value := stringArg(input, key)
+		if value == "" {
+			continue
+		}
+		fmt.Fprintf(&builder, "- %s: `%s`\n", key, value)
+	}
+	return builder.String()
 }
 
 func formatShellBody(input map[string]any) string {
@@ -190,7 +265,7 @@ func formatWriteBody(input map[string]any) string {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
-		builder.WriteString(spi.CodeFence(languageFromPath(path), truncate(content)))
+		builder.WriteString(spi.CodeFence(languageFromPath(path), content))
 	}
 	return builder.String()
 }
@@ -215,10 +290,10 @@ func formatSearchReplaceBody(input map[string]any) string {
 	}
 
 	var diff strings.Builder
-	for _, line := range strings.Split(truncate(oldString), "\n") {
+	for _, line := range strings.Split(truncate(oldString, maxDiffRunes), "\n") {
 		fmt.Fprintf(&diff, "-%s\n", line)
 	}
-	for _, line := range strings.Split(truncate(newString), "\n") {
+	for _, line := range strings.Split(truncate(newString, maxDiffRunes), "\n") {
 		fmt.Fprintf(&diff, "+%s\n", line)
 	}
 	builder.WriteString(spi.CodeFence("diff", strings.TrimRight(diff.String(), "\n")))
@@ -282,7 +357,7 @@ func formatSubagentBody(input map[string]any) string {
 		fmt.Fprintf(&builder, "Subagent: `%s`\n\n", subagentType)
 	}
 	if prompt := stringArg(input, "prompt"); prompt != "" {
-		builder.WriteString(truncate(prompt))
+		builder.WriteString(prompt)
 	}
 	return builder.String()
 }
@@ -300,7 +375,7 @@ func formatUseToolBody(input map[string]any) string {
 			if builder.Len() > 0 {
 				builder.WriteString("\n\n")
 			}
-			builder.WriteString(spi.CodeFence("json", truncate(string(encoded))))
+			builder.WriteString(spi.CodeFence("json", string(encoded)))
 		}
 	}
 	return builder.String()
@@ -311,7 +386,7 @@ func formatPromptBody(input map[string]any) string {
 	if prompt == "" {
 		return formatGenericBody(input)
 	}
-	return truncate(prompt)
+	return prompt
 }
 
 func formatGenericBody(input map[string]any) string {
@@ -322,7 +397,7 @@ func formatGenericBody(input map[string]any) string {
 	if err != nil {
 		return ""
 	}
-	return spi.CodeFence("json", truncate(string(encoded)))
+	return spi.CodeFence("json", string(encoded))
 }
 
 func fenceIfMultiline(text string) string {
@@ -395,11 +470,22 @@ func languageFromPath(path string) string {
 	return ext
 }
 
-// truncate caps runaway tool content, e.g. a whole-file read or a long listing.
-func truncate(text string) string {
-	runes := []rune(text)
-	if len(runes) <= maxToolBodyRunes {
+// truncate caps text at limit runes.
+func truncate(text string, limit int) string {
+	if limit <= 0 {
 		return text
 	}
-	return string(runes[:maxToolBodyRunes]) + "\n... (truncated)"
+	runes := []rune(text)
+	if len(runes) <= limit {
+		return text
+	}
+	return string(runes[:limit]) + "\n... (truncated)"
+}
+
+// looksLikeJSON reports whether output should be fenced to stay readable. Some
+// Grok tools return a JSON document as their text result, which collapses into
+// an unreadable run-on if it is emitted bare.
+func looksLikeJSON(text string) bool {
+	trimmed := strings.TrimSpace(text)
+	return strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")
 }

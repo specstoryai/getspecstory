@@ -92,12 +92,20 @@ type GrokBackendKind struct {
 	Status   string          `json:"status,omitempty"`
 }
 
-// GrokBackendAct is the web_search action detail.
+// GrokBackendAct is the web_search action detail. Sources carries the pages the
+// search actually returned, which is the only record of a web search's results.
 type GrokBackendAct struct {
-	Type    string `json:"type"` // search, open_page, find_in_page
-	Query   string `json:"query,omitempty"`
-	URL     string `json:"url,omitempty"`
-	Pattern string `json:"pattern,omitempty"`
+	Type    string              `json:"type"` // search, open_page, find_in_page
+	Query   string              `json:"query,omitempty"`
+	URL     string              `json:"url,omitempty"`
+	Pattern string              `json:"pattern,omitempty"`
+	Sources []GrokBackendSource `json:"sources,omitempty"`
+}
+
+// GrokBackendSource is one page a web search returned.
+type GrokBackendSource struct {
+	Type string `json:"type"`
+	URL  string `json:"url"`
 }
 
 // GrokSummary is summary.json: the session's identity and metadata.
@@ -131,13 +139,14 @@ type GrokUsage struct {
 // tool classification, tool outcomes, and per-turn usage. chat_history.jsonl has
 // none of this.
 type sessionIndex struct {
-	toolTime    map[string]string // tool_call_id -> ISO 8601
-	toolKind    map[string]string // tool_call_id -> Grok's own tool kind
-	toolError   map[string]bool   // tool_call_id -> the call failed
-	userTime    []string          // by prompt index
-	agentTime   []string          // assistant text, in order of appearance
-	thoughtTime []string          // reasoning, in order of appearance
-	usage       []*GrokUsage      // one per completed turn
+	toolTime    map[string]string     // tool_call_id -> ISO 8601
+	toolKind    map[string]string     // tool_call_id -> Grok's own tool kind
+	toolError   map[string]bool       // tool_call_id -> the call failed
+	userTime    []string              // by prompt index
+	agentTime   []string              // assistant text, in order of appearance
+	agentPrompt []string              // prompt id per assistant text, same order
+	thoughtTime []string              // reasoning, in order of appearance
+	usage       map[string]*GrokUsage // token totals by prompt id
 }
 
 // GrokSession is one parsed session directory.
@@ -217,6 +226,21 @@ func ParseSessionDir(dir string) (*GrokSession, error) {
 	session.Index = buildSessionIndex(dir)
 	session.Subagents = readSubagentMeta(filepath.Join(dir, subagentsDir))
 
+	// summary.json is where the times live, so a missing or corrupt one would
+	// otherwise leave createdAt empty, which the schema rejects. The transcript's
+	// own mtime is a truthful stand-in.
+	if session.CreatedAt == "" || session.UpdatedAt == "" {
+		if info, err := os.Stat(filepath.Join(dir, chatHistoryFile)); err == nil {
+			stamp := info.ModTime().UTC().Format("2006-01-02T15:04:05.000Z")
+			if session.CreatedAt == "" {
+				session.CreatedAt = stamp
+			}
+			if session.UpdatedAt == "" {
+				session.UpdatedAt = stamp
+			}
+		}
+	}
+
 	slog.Debug("ParseSessionDir: parsed Grok session",
 		"sessionID", session.ID, "records", len(session.Records), "subagentMeta", len(session.Subagents))
 
@@ -295,6 +319,7 @@ func newSessionIndex() *sessionIndex {
 		toolTime:  map[string]string{},
 		toolKind:  map[string]string{},
 		toolError: map[string]bool{},
+		usage:     map[string]*GrokUsage{},
 	}
 }
 
@@ -358,6 +383,13 @@ func buildSessionIndex(dir string) *sessionIndex {
 		case "agent_message_chunk":
 			if ts != "" {
 				idx.agentTime = append(idx.agentTime, ts)
+				// The prompt id ties this message to the turn whose token
+				// totals arrive later, in turn_completed.
+				promptID := ""
+				if meta, ok := update["_meta"].(map[string]any); ok {
+					promptID, _ = meta["promptId"].(string)
+				}
+				idx.agentPrompt = append(idx.agentPrompt, promptID)
 			}
 		case "agent_thought_chunk":
 			// Reasoning is timed separately from assistant text; sharing one
@@ -366,13 +398,19 @@ func buildSessionIndex(dir string) *sessionIndex {
 				idx.thoughtTime = append(idx.thoughtTime, ts)
 			}
 		case "turn_completed":
-			if usage, ok := update["usage"].(map[string]any); ok {
-				idx.usage = append(idx.usage, &GrokUsage{
-					InputTokens:      intFrom(usage["inputTokens"]),
-					OutputTokens:     intFrom(usage["outputTokens"]),
-					CachedReadTokens: intFrom(usage["cachedReadTokens"]),
-					ReasoningTokens:  intFrom(usage["reasoningTokens"]),
-				})
+			usage, ok := update["usage"].(map[string]any)
+			if !ok {
+				return
+			}
+			// Key by prompt id rather than by position: a session can complete
+			// more turns than it has user prompts, so counting would attribute
+			// one turn's tokens to another turn's conversation.
+			promptID, _ := update["prompt_id"].(string)
+			idx.usage[promptID] = &GrokUsage{
+				InputTokens:      intFrom(usage["inputTokens"]),
+				OutputTokens:     intFrom(usage["outputTokens"]),
+				CachedReadTokens: intFrom(usage["cachedReadTokens"]),
+				ReasoningTokens:  intFrom(usage["reasoningTokens"]),
 			}
 		}
 	})

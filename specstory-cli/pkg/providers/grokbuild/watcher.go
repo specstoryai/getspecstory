@@ -197,9 +197,20 @@ func watchSessions(ctx context.Context, groupDir string) {
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
 
+	// flush processes everything the debounce is holding. It runs on shutdown as
+	// well as on the timer, because otherwise the final turn of a session, which
+	// is the one that just triggered the exit, would never be saved.
+	flush := func() {
+		for dir := range pending {
+			processSessionChange(dir)
+			delete(pending, dir)
+		}
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
+			flush()
 			return
 
 		case <-ticker.C:
@@ -222,10 +233,7 @@ func watchSessions(ctx context.Context, groupDir string) {
 
 		case <-debounce:
 			debounce = nil
-			for dir := range pending {
-				processSessionChange(dir)
-				delete(pending, dir)
-			}
+			flush()
 
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -352,8 +360,14 @@ func processSessionChange(dir string) {
 	if len(session.Records) == 0 {
 		return
 	}
-	// A session directory can be created before summary.json lands, so the
-	// subagent check has to run on every event rather than once at discovery.
+	// A session directory can exist for several seconds before summary.json
+	// lands, and session_kind is the only thing that marks a subagent. Holding
+	// back until the metadata arrives is what stops a spawned subagent from
+	// being published as a session of its own.
+	if session.Cwd == "" {
+		slog.Debug("Grok watcher: waiting for session metadata", "dir", dir)
+		return
+	}
 	if session.IsSubagent() {
 		return
 	}
