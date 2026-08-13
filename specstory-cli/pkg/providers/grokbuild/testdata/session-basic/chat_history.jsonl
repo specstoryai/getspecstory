@@ -1,0 +1,10 @@
+{"type":"system","content":"You are Grok 4.6 released by xAI. You are an interactive CLI tool."}
+{"type":"user","content":[{"type":"text","text":"<user_info>\nOS Version: macos\nWorkspace Path: /Users/dev/project\n</user_info>\n\n<git_status>\n## main\n</git_status>\n\n<rules>\nnothing here\n</rules>"}]}
+{"type":"user","content":[{"type":"text","text":"<system-reminder>\nThe following skills are available: a, b, c\n</system-reminder>"}]}
+{"type":"user","content":[{"type":"text","text":"<user_query>\nread the README and tell me what it says\n</user_query>"}],"prompt_index":0}
+{"type":"reasoning","id":"rs-1","summary":[{"type":"summary_text","text":"The user wants the README contents. I will read the file first."}],"encrypted_content":"OPAQUE-DO-NOT-RENDER","status":"completed"}
+{"type":"assistant","content":"I'll read the README now.","model_id":"grok-4.6","model_fingerprint":"fp-1","reasoning_effort":"high","tool_calls":[{"id":"call-aaa-0","name":"read_file","arguments":"{\"target_file\":\"/Users/dev/project/README.md\"}"}]}
+{"type":"tool_result","tool_call_id":"call-aaa-0","content":"1→# Project\n2→\n3→Hello."}
+{"type":"assistant","content":"The README says the project is called Project and just says Hello.","model_id":"grok-4.6"}
+{"type":"user","content":[{"type":"text","text":"<user_query>\nthanks\n</user_query>"}],"prompt_index":1}
+{"type":"assistant","content":"You're welcome.","model_id":"grok-4.6"}

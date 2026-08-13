@@ -1,0 +1,436 @@
+package grokbuild
+
+import (
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"slices"
+	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+)
+
+// Type aliases for convenience - use the shared schema types
+type (
+	SessionData  = schema.SessionData
+	ProviderInfo = schema.ProviderInfo
+	Exchange     = schema.Exchange
+	Message      = schema.Message
+	ContentPart  = schema.ContentPart
+	ToolInfo     = schema.ToolInfo
+	Usage        = schema.Usage
+)
+
+// GenerateAgentSession converts a parsed Grok session into the unified schema.
+func GenerateAgentSession(session *GrokSession, workspaceRoot string) (*SessionData, error) {
+	slog.Info("GenerateAgentSession: starting", "sessionID", session.ID, "records", len(session.Records))
+
+	if len(session.Records) == 0 {
+		return nil, fmt.Errorf("session has no records")
+	}
+
+	createdAt := session.CreatedAt
+	if createdAt == "" {
+		createdAt = session.UpdatedAt
+	}
+
+	exchanges := buildExchanges(session, workspaceRoot)
+	for i := range exchanges {
+		exchanges[i].ExchangeID = fmt.Sprintf("%s:%d", session.ID, i)
+	}
+
+	// Pre-render each tool so the markdown layer has nothing left to decide.
+	for i := range exchanges {
+		for j := range exchanges[i].Messages {
+			msg := &exchanges[i].Messages[j]
+			if msg.Tool != nil {
+				formatted := formatToolAsMarkdown(msg.Tool)
+				msg.Tool.FormattedMarkdown = &formatted
+			}
+		}
+	}
+
+	version := session.Model
+	if version == "" {
+		version = "unknown"
+	}
+
+	return &SessionData{
+		SchemaVersion: "1.0",
+		Provider: ProviderInfo{
+			ID:      "grok-build",
+			Name:    "Grok Build",
+			Version: version,
+		},
+		SessionID:     session.ID,
+		CreatedAt:     createdAt,
+		UpdatedAt:     session.UpdatedAt,
+		WorkspaceRoot: workspaceRoot,
+		Exchanges:     exchanges,
+	}, nil
+}
+
+// buildExchanges walks the transcript and groups it into conversational turns.
+// An exchange starts at a real user turn and runs until the next one.
+func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
+	results := collectToolResults(session.Records)
+
+	var exchanges []Exchange
+	var current *Exchange
+	userSeen := 0
+	agentSeen := 0
+
+	flush := func() {
+		if current != nil && len(current.Messages) > 0 {
+			exchanges = append(exchanges, *current)
+		}
+		current = nil
+	}
+
+	for i := range session.Records {
+		record := &session.Records[i]
+
+		switch record.Type {
+		case "user":
+			query, ok := record.UserQuery()
+			if !ok {
+				// Injected context, not conversation.
+				continue
+			}
+			flush()
+			timestamp := session.Index.userTimeAt(userSeen)
+			if timestamp == "" {
+				timestamp = session.CreatedAt
+			}
+			userSeen++
+			current = &Exchange{
+				StartTime: timestamp,
+				Messages: []Message{{
+					Timestamp: timestamp,
+					Role:      schema.RoleUser,
+					Content:   []ContentPart{{Type: "text", Text: query}},
+				}},
+			}
+
+		case "reasoning":
+			thought := strings.TrimSpace(record.ThoughtContent())
+			if thought == "" {
+				continue
+			}
+			current = ensureExchange(current, session.CreatedAt)
+			current.Messages = append(current.Messages, Message{
+				ID:        record.ID,
+				Timestamp: session.Index.agentTimeAt(agentSeen),
+				Role:      schema.RoleAgent,
+				Model:     session.Model,
+				Content:   []ContentPart{{Type: "thinking", Text: thought}},
+			})
+
+		case "assistant":
+			current = ensureExchange(current, session.CreatedAt)
+			timestamp := session.Index.agentTimeAt(agentSeen)
+
+			if text := strings.TrimSpace(record.TextContent()); text != "" {
+				agentSeen++
+				current.Messages = append(current.Messages, Message{
+					Timestamp: timestamp,
+					Role:      schema.RoleAgent,
+					Model:     record.ModelID,
+					Content:   []ContentPart{{Type: "text", Text: text}},
+				})
+				current.EndTime = timestamp
+			}
+
+			for k := range record.ToolCalls {
+				call := &record.ToolCalls[k]
+				msg := buildToolMessage(session, record, call, results, workspaceRoot)
+				current.Messages = append(current.Messages, msg)
+				if msg.Timestamp != "" {
+					current.EndTime = msg.Timestamp
+				}
+			}
+
+		case "backend_tool_call":
+			if record.Kind == nil {
+				continue
+			}
+			current = ensureExchange(current, session.CreatedAt)
+			current.Messages = append(current.Messages, buildBackendToolMessage(session, record))
+		}
+	}
+
+	flush()
+	attachUsage(exchanges, session.Index.usage)
+	return exchanges
+}
+
+// ensureExchange starts an exchange for agent activity that arrives before any
+// user turn, so nothing is silently dropped.
+func ensureExchange(current *Exchange, fallbackTime string) *Exchange {
+	if current != nil {
+		return current
+	}
+	return &Exchange{StartTime: fallbackTime}
+}
+
+// collectToolResults indexes tool_result records by the call they answer.
+func collectToolResults(records []GrokRecord) map[string]string {
+	results := map[string]string{}
+	for i := range records {
+		record := &records[i]
+		if record.Type != "tool_result" || record.ToolCallID == "" {
+			continue
+		}
+		results[record.ToolCallID] = record.TextContent()
+	}
+	return results
+}
+
+// buildToolMessage renders one tool call with its result and outcome folded in.
+func buildToolMessage(session *GrokSession, record *GrokRecord, call *GrokToolCall, results map[string]string, workspaceRoot string) Message {
+	args := call.Args()
+
+	output := map[string]any{}
+	if result, ok := results[call.ID]; ok && result != "" {
+		output["output"] = result
+	}
+	// A failed call is only marked as failed in events.jsonl; the result text
+	// itself carries no error flag.
+	if session.Index.toolError[call.ID] {
+		output["status"] = "error"
+	} else if len(output) > 0 {
+		output["status"] = "success"
+	}
+
+	// spawn_subagent gets the sibling meta.json folded in, which is where the
+	// subagent's description and outcome actually live.
+	if call.Name == "spawn_subagent" {
+		if meta := session.subagentFor(args); meta != nil {
+			output["subagentStatus"] = meta.Status
+			output["subagentType"] = meta.SubagentType
+			if meta.DurationMs > 0 {
+				output["durationMs"] = meta.DurationMs
+			}
+		}
+	}
+
+	return Message{
+		ID:        call.ID,
+		Timestamp: session.Index.toolTime[call.ID],
+		Role:      schema.RoleAgent,
+		Model:     record.ModelID,
+		Tool: &ToolInfo{
+			Name:   call.Name,
+			Type:   classifyGrokTool(call.Name, session.Index.toolKind[call.ID]),
+			UseID:  call.ID,
+			Input:  args,
+			Output: output,
+		},
+		PathHints: extractPathHints(call.Name, args, workspaceRoot),
+	}
+}
+
+// buildBackendToolMessage renders a server-side web or X tool call. These never
+// appear in tool_calls, so without this they would vanish from the transcript.
+func buildBackendToolMessage(session *GrokSession, record *GrokRecord) Message {
+	kind := record.Kind
+
+	name := kind.Name
+	input := map[string]any{}
+
+	switch kind.ToolType {
+	case "web_search":
+		if kind.Action != nil {
+			switch kind.Action.Type {
+			case "open_page":
+				name = "open_page"
+				input["url"] = kind.Action.URL
+			case "find_in_page":
+				name = "open_page_with_find"
+				input["url"] = kind.Action.URL
+				input["pattern"] = kind.Action.Pattern
+			default:
+				name = "web_search"
+				input["query"] = kind.Action.Query
+			}
+		}
+		if name == "" {
+			name = "web_search"
+		}
+	case "x_search":
+		// kind.Input is a JSON string of the real arguments.
+		if kind.Input != "" {
+			var parsed map[string]any
+			if err := json.Unmarshal([]byte(kind.Input), &parsed); err == nil {
+				input = parsed
+			} else {
+				input["input"] = kind.Input
+			}
+		}
+		if name == "" {
+			name = "x_search"
+		}
+	default:
+		if name == "" {
+			name = kind.ToolType
+		}
+	}
+
+	useID := kind.ID
+	if useID == "" {
+		useID = kind.CallID
+	}
+
+	output := map[string]any{}
+	if kind.Status != "" {
+		output["status"] = kind.Status
+	}
+
+	return Message{
+		ID:        useID,
+		Timestamp: session.Index.toolTime[useID],
+		Role:      schema.RoleAgent,
+		Model:     session.Model,
+		Tool: &ToolInfo{
+			Name:   name,
+			Type:   classifyGrokTool(name, ""),
+			UseID:  useID,
+			Input:  input,
+			Output: output,
+		},
+	}
+}
+
+// subagentFor matches a spawn_subagent call to its meta.json by description,
+// which is the only field shared between the call arguments and the metadata.
+func (s *GrokSession) subagentFor(args map[string]any) *GrokSubagentMeta {
+	description, _ := args["description"].(string)
+	if description == "" {
+		return nil
+	}
+	for _, meta := range s.Subagents {
+		if meta.Description == description {
+			return meta
+		}
+	}
+	return nil
+}
+
+// attachUsage puts each turn's token totals on the last message of the matching
+// exchange, so aggregation does not double count.
+func attachUsage(exchanges []Exchange, usages []*GrokUsage) {
+	for i := range exchanges {
+		if i >= len(usages) || usages[i] == nil {
+			continue
+		}
+		messages := exchanges[i].Messages
+		if len(messages) == 0 {
+			continue
+		}
+		usage := usages[i]
+		messages[len(messages)-1].Usage = &Usage{
+			InputTokens:   usage.InputTokens,
+			OutputTokens:  usage.OutputTokens,
+			CachedTokens:  usage.CachedReadTokens,
+			ThoughtTokens: usage.ReasoningTokens,
+		}
+	}
+}
+
+// classifyGrokTool maps a Grok tool to a schema tool type.
+//
+// The name is checked first because chat_history.jsonl is always complete, while
+// updates.jsonl can be missing. Grok's own kind is the fallback, which is what
+// keeps MCP and future tools from all landing in "unknown".
+func classifyGrokTool(name, grokKind string) string {
+	switch name {
+	case "read_file", "web_fetch", "open_page", "open_page_with_find":
+		return "read"
+	case "write", "search_replace":
+		return "write"
+	case "grep", "search_tool", "web_search",
+		"x_user_search", "x_semantic_search", "x_keyword_search", "x_thread_fetch", "x_search":
+		return "search"
+	case "run_terminal_command", "list_dir", "monitor",
+		"get_command_or_subagent_output", "kill_command_or_subagent":
+		return "shell"
+	case "todo_write", "spawn_subagent", "workflow":
+		return "task"
+	case "use_tool", "image_gen", "image_edit", "image_to_video", "reference_to_video",
+		"scheduler_create", "scheduler_list", "scheduler_delete",
+		"enter_plan_mode", "exit_plan_mode", "ask_user_question":
+		return "generic"
+	}
+
+	// Fall back to Grok's own taxonomy from updates.jsonl.
+	switch grokKind {
+	case "read", "web_fetch":
+		return "read"
+	case "write", "edit":
+		return "write"
+	case "search", "search_tool":
+		return "search"
+	case "execute", "list", "monitor", "background_task_action", "kill_task_action":
+		return "shell"
+	case "task", "plan", "workflow":
+		return "task"
+	case "use_tool", "image_gen", "image_to_video", "reference_to_video", "other":
+		return "generic"
+	}
+
+	return "unknown"
+}
+
+// extractPathHints pulls file paths out of a tool call's arguments.
+func extractPathHints(name string, args map[string]any, workspaceRoot string) []string {
+	if len(args) == 0 {
+		return nil
+	}
+
+	var paths []string
+	add := func(value string) {
+		if value == "" {
+			return
+		}
+		normalized := spi.NormalizePath(value, workspaceRoot)
+		if !slices.Contains(paths, normalized) {
+			paths = append(paths, normalized)
+		}
+	}
+
+	// Grok uses target_file for reads and file_path for writes and edits.
+	for _, field := range []string{"target_file", "file_path", "path", "directory_path"} {
+		add(stringArg(args, field))
+	}
+
+	if command := stringArg(args, "command"); command != "" {
+		cwd := stringArg(args, "cwd")
+		if cwd == "" {
+			cwd = workspaceRoot
+		}
+		for _, hint := range spi.ExtractShellPathHints(command, cwd, workspaceRoot) {
+			if !slices.Contains(paths, hint) {
+				paths = append(paths, hint)
+			}
+		}
+	}
+
+	return paths
+}
+
+// userTimeAt returns the recorded start time of the nth real user turn.
+func (i *sessionIndex) userTimeAt(n int) string {
+	if i == nil || n < 0 || n >= len(i.userTime) {
+		return ""
+	}
+	return i.userTime[n]
+}
+
+// agentTimeAt returns the recorded time of the nth agent message.
+func (i *sessionIndex) agentTimeAt(n int) string {
+	if i == nil || n < 0 || n >= len(i.agentTime) {
+		return ""
+	}
+	return i.agentTime[n]
+}
