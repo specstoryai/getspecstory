@@ -75,6 +75,9 @@ func GenerateAgentSession(session *GrokSession, workspaceRoot string) (*SessionD
 // An exchange starts at a real user turn and runs until the next one.
 func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 	results := collectToolResults(session.Records)
+	// Grok's incremental todo updates carry only an id and a status, so remember
+	// each item's text from the call that introduced it.
+	todoText := map[string]string{}
 
 	var exchanges []Exchange
 	var current *Exchange
@@ -145,6 +148,11 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 			for k := range record.ToolCalls {
 				call := &record.ToolCalls[k]
 				msg := buildToolMessage(session, record, call, results, workspaceRoot)
+				if msg.Tool != nil && (msg.Tool.Name == "todo_write" || msg.Tool.Name == "write_todos") {
+					backfillTodoText(msg.Tool.Input, todoText)
+					formatted := formatToolAsMarkdown(msg.Tool)
+					msg.Tool.FormattedMarkdown = &formatted
+				}
 				current.Messages = append(current.Messages, msg)
 				if msg.Timestamp != "" {
 					current.EndTime = msg.Timestamp
@@ -172,6 +180,33 @@ func ensureExchange(current *Exchange, fallbackTime string) *Exchange {
 		return current
 	}
 	return &Exchange{StartTime: fallbackTime}
+}
+
+// backfillTodoText records the text of each todo item and fills it back in on
+// the incremental updates that omit it, so a merge update still renders as a
+// readable checklist instead of a row of empty bullets.
+func backfillTodoText(input map[string]any, seen map[string]string) {
+	todos, ok := input["todos"].([]any)
+	if !ok {
+		return
+	}
+	for _, raw := range todos {
+		todo, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, _ := todo["id"].(string)
+		if id == "" {
+			continue
+		}
+		if content, _ := todo["content"].(string); strings.TrimSpace(content) != "" {
+			seen[id] = content
+			continue
+		}
+		if content, ok := seen[id]; ok {
+			todo["content"] = content
+		}
+	}
 }
 
 // collectToolResults indexes tool_result records by the call they answer.
@@ -399,8 +434,10 @@ func extractPathHints(name string, args map[string]any, workspaceRoot string) []
 		}
 	}
 
-	// Grok uses target_file for reads and file_path for writes and edits.
-	for _, field := range []string{"target_file", "file_path", "path", "directory_path"} {
+	// Grok's argument names differ per tool: target_file for reads, file_path for
+	// writes and edits, target_directory for listings, and image for the video
+	// tools that take a generated frame as input.
+	for _, field := range []string{"target_file", "file_path", "target_directory", "path", "image"} {
 		add(stringArg(args, field))
 	}
 

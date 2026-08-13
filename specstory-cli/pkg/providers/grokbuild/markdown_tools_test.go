@@ -82,8 +82,13 @@ func TestFormatToolAsMarkdown_ErrorTakesPriority(t *testing.T) {
 
 	md := formatToolAsMarkdown(tool)
 
-	if !strings.Contains(md, "Result: File not found: /missing.txt") {
-		t.Errorf("error should render as the result:\n%s", md)
+	// A failed call must be visibly different from a successful one, because
+	// Grok records the failure only in events.jsonl.
+	if !strings.Contains(md, "Error: File not found: /missing.txt") {
+		t.Errorf("failure should be labelled as an error:\n%s", md)
+	}
+	if strings.Contains(md, "Result:") {
+		t.Errorf("a failed call should not be labelled as a result:\n%s", md)
 	}
 	// A failed read must not be dressed up as file content.
 	if strings.Contains(md, "```txt") {
@@ -118,6 +123,75 @@ func TestFormatToolAsMarkdown_TodoChecklist(t *testing.T) {
 	}
 	if strings.Contains(md, "Todos updated.") {
 		t.Errorf("the checklist is the whole story, so the result should be suppressed:\n%s", md)
+	}
+}
+
+func TestFormatToolAsMarkdown_TodoMergeUpdate(t *testing.T) {
+	// Grok sends incremental updates carrying only an id and a status. The
+	// parser backfills the text, but an item it never saw must still render as
+	// something a reader can identify.
+	tool := &ToolInfo{
+		Name: "todo_write",
+		Type: "task",
+		Input: map[string]any{
+			"merge": true,
+			"todos": []any{
+				map[string]any{"id": "3", "content": "Run the tests", "status": "completed"},
+				map[string]any{"id": "4", "status": "in_progress"},
+			},
+		},
+	}
+
+	md := formatToolAsMarkdown(tool)
+
+	if !strings.Contains(md, "Todo update:") {
+		t.Errorf("a merge update should be labelled as an update:\n%s", md)
+	}
+	if !strings.Contains(md, "- [x] Run the tests") {
+		t.Errorf("backfilled item text missing:\n%s", md)
+	}
+	if !strings.Contains(md, "- [⚡] (item 4)") {
+		t.Errorf("an unknown item should be named by id, not left blank:\n%s", md)
+	}
+}
+
+func TestBackfillTodoText(t *testing.T) {
+	seen := map[string]string{}
+
+	first := map[string]any{"todos": []any{
+		map[string]any{"id": "1", "content": "First step", "status": "in_progress"},
+		map[string]any{"id": "2", "content": "Second step", "status": "pending"},
+	}}
+	backfillTodoText(first, seen)
+
+	update := map[string]any{"merge": true, "todos": []any{
+		map[string]any{"id": "1", "status": "completed"},
+		map[string]any{"id": "2", "status": "in_progress"},
+	}}
+	backfillTodoText(update, seen)
+
+	todos := update["todos"].([]any)
+	if got := todos[0].(map[string]any)["content"]; got != "First step" {
+		t.Errorf("item 1 content = %v, want the text from the first call", got)
+	}
+	if got := todos[1].(map[string]any)["content"]; got != "Second step" {
+		t.Errorf("item 2 content = %v, want the text from the first call", got)
+	}
+}
+
+func TestFormatToolAsMarkdown_ListDirUsesTargetDirectory(t *testing.T) {
+	// Grok names this argument target_directory, not path.
+	tool := &ToolInfo{
+		Name:   "list_dir",
+		Type:   "shell",
+		Input:  map[string]any{"target_directory": "src"},
+		Output: map[string]any{"output": "- src/\n  - calc.py", "status": "success"},
+	}
+
+	formatToolAsMarkdown(tool)
+
+	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`src`") {
+		t.Errorf("summary should carry the listed directory: %v", tool.Summary)
 	}
 }
 

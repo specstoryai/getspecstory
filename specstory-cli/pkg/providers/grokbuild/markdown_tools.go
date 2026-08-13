@@ -58,7 +58,7 @@ func buildToolSummary(tool *ToolInfo) string {
 			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, path)
 		}
 	case "list_dir":
-		if path := stringArg(tool.Input, "path"); path != "" {
+		if path := stringArg(tool.Input, "target_directory"); path != "" {
 			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, path)
 		}
 	case "grep":
@@ -122,12 +122,18 @@ func formatToolBody(tool *ToolInfo) string {
 }
 
 func formatToolResult(tool *ToolInfo) string {
-	// A failed call reads as an error first, whatever the tool was.
+	// A failed call reads as an error first, whatever the tool was. Grok records
+	// the failure in events.jsonl rather than in the result text, so without this
+	// label a failed call would be indistinguishable from a successful one.
 	if isErrorOutput(tool.Output) {
-		if text := outputText(tool.Output); text != "" {
-			return addResultPrefix(fenceIfMultiline(text))
+		text := outputText(tool.Output)
+		if text == "" {
+			return "Error: the tool call failed"
 		}
-		return "Result: failed"
+		if strings.Contains(text, "\n") {
+			return fmt.Sprintf("Error:\n%s", spi.CodeFence("text", truncate(text)))
+		}
+		return fmt.Sprintf("Error: %s", text)
 	}
 
 	switch tool.Name {
@@ -219,14 +225,23 @@ func formatSearchReplaceBody(input map[string]any) string {
 	return builder.String()
 }
 
+// formatTodoBody renders a todo list. Grok also sends incremental updates with
+// merge set, which carry only an id and a status; the parser backfills the text
+// for those from the call that first introduced each item, so an update still
+// reads as a checklist rather than a row of empty bullets.
 func formatTodoBody(input map[string]any) string {
 	todos, ok := input["todos"].([]any)
 	if !ok || len(todos) == 0 {
 		return ""
 	}
 
+	heading := "Todo List:"
+	if merge, ok := input["merge"].(bool); ok && merge {
+		heading = "Todo update:"
+	}
+
 	var builder strings.Builder
-	builder.WriteString("Todo List:\n")
+	builder.WriteString(heading + "\n")
 	for _, raw := range todos {
 		todo, ok := raw.(map[string]any)
 		if !ok {
@@ -234,7 +249,15 @@ func formatTodoBody(input map[string]any) string {
 		}
 		content, _ := todo["content"].(string)
 		status, _ := todo["status"].(string)
-		fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(content))
+		content = strings.TrimSpace(content)
+		if content == "" {
+			// The item's text was never seen, so name it by id rather than
+			// rendering an empty bullet.
+			if id, _ := todo["id"].(string); id != "" {
+				content = fmt.Sprintf("(item %s)", id)
+			}
+		}
+		fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), content)
 	}
 	return builder.String()
 }
