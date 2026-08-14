@@ -95,7 +95,7 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		// Don't show input args - parameters are in the summary
 		return ""
 	default:
-		return formatGenericBodyFromInput(tool.Input)
+		return spi.RenderGenericJSON(tool.Input)
 	}
 }
 
@@ -153,7 +153,7 @@ func formatDefaultResultFromOutput(output map[string]interface{}) string {
 // formatOutputText wraps multi-line output in code fence, leaves single-line as-is
 func formatOutputText(output string) string {
 	if strings.Contains(output, "\n") {
-		return fmt.Sprintf("```text\n%s\n```", output)
+		return spi.CodeFence("text", output)
 	}
 	return output
 }
@@ -180,9 +180,7 @@ func formatShellBodyFromInput(input map[string]interface{}) string {
 	}
 
 	if command != "" {
-		builder.WriteString("```bash\n")
-		builder.WriteString(command)
-		builder.WriteString("\n```")
+		builder.WriteString(spi.CodeFence("bash", command))
 	}
 
 	return builder.String()
@@ -200,11 +198,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
-		builder.WriteString("```")
-		builder.WriteString(spi.LanguageFromPath(path))
-		builder.WriteString("\n")
-		builder.WriteString(content)
-		builder.WriteString("\n```")
+		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
 	}
 	return builder.String()
 }
@@ -221,9 +215,7 @@ func formatReplaceBodyFromInput(input map[string]interface{}) string {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if newString != "" {
-		builder.WriteString("```diff\n")
-		builder.WriteString(truncate(newString, 2000))
-		builder.WriteString("\n```")
+		builder.WriteString(spi.CodeFence("diff", truncate(newString, 2000)))
 	}
 	return builder.String()
 }
@@ -272,17 +264,6 @@ func todoStatusSymbol(status string) string {
 	default:
 		return " "
 	}
-}
-
-func formatGenericBodyFromInput(input map[string]interface{}) string {
-	if len(input) == 0 {
-		return ""
-	}
-	bytes, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf("```json\n%s\n```", string(bytes))
 }
 
 // inputAsString extracts a string value from tool input
