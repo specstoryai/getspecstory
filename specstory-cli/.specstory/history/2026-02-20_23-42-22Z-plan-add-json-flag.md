@@ -1462,7 +1462,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:56:17Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Improve `specstory watch` human-readable output
 
 ## Context

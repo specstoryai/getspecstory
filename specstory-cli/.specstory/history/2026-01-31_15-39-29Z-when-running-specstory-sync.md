@@ -11546,7 +11546,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:42:35Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Add Progress Feedback During Session Parsing
 
 ## Problem

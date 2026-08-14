@@ -10569,7 +10569,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:23:06Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Auto-Create Default User Config File
 
 ## Context
@@ -11003,7 +11003,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:57:49Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Fix Config Paths + Auto-Create Default User Config
 
 ## Context

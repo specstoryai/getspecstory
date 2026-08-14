@@ -5998,7 +5998,7 @@ _**Agent (claude-fable-5 2026-08-11 15:23:46Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 Review complete. I verified the local `windows-support` branch is exactly the PR head (09669f5), so all findings below were checked against the real tree, not just the diff. Verification results: `golangci-lint run` is clean, `go test ./...` all passes, and both `GOOS=windows` amd64/arm64 cross-compiles succeed.
 
 # PR #191 Review: Windows and remote workspaces support

@@ -20634,7 +20634,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:02:41Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Config Template Processing, debug-dir Flag, local_time_zone Config Support
 
 ## Context

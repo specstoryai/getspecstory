@@ -24885,7 +24885,7 @@ _**Agent (claude-opus-4-6 2026-02-16 23:29:20Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Add Timestamps to Cursor CLI Messages
 
 ## Context
@@ -25301,7 +25301,7 @@ _**Agent (claude-opus-4-6 2026-02-16 23:30:02Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Add Timestamps to Cursor CLI Messages
 
 ## Context

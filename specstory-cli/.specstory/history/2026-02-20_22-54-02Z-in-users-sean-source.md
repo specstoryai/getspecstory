@@ -12996,7 +12996,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:41:43Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Add `--json` flag to `specstory watch`
 
 ## Context
