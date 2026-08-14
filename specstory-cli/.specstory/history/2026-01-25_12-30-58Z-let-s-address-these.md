@@ -10,6 +10,8 @@ _**User (2026-01-25 12:30:58Z)**_
 <command-name>/pr-review</command-name>
 <command-args>152</command-args>
 
+---
+
 _**User (2026-01-25 12:30:58Z)**_
 
 ## Context
@@ -4469,6 +4471,8 @@ _**User (2026-01-25 12:50:54Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-01-25 12:50:59Z)**_
 
 I ran it, it's there.
@@ -4730,9 +4734,13 @@ _**User (2026-01-25 14:51:15Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-25 14:51:15Z)**_
 
 <local-command-stdout>See ya!</local-command-stdout>
+
+---
 
 _**User (2026-01-25 14:51:15Z)**_
 

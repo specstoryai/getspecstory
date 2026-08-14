@@ -3763,9 +3763,13 @@ _**User (2026-07-06 22:01:52Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-07-06 22:03:04Z)**_
 
 Index row + supress re-add (meaning... keep the row but remove the content/FTS index and flag it as soft removed). Only way to bring it back is to wipe the `ssessions.db` and reindex.
+
+---
 
 _**User (2026-07-06 22:04:22Z)**_
 
@@ -3774,6 +3778,8 @@ Index row + supress re-add (meaning... keep the row but remove the content/FTS i
 For project delete... do the removal/flag on all the current rows of that project.
 
 In the confirmation dialog, let them know about these semantics.
+
+---
 
 _**User (2026-07-06 22:04:31Z)**_
 
@@ -7006,6 +7012,8 @@ _**User (2026-07-06 22:28:12Z)**_
 
 after the search has been locked in with enter, it's put up here in the header... that's good, but the user has no idea really what "foo" there is. See how on agent when an agent filter is in use, we label it with "agent: "   let's do the same with "search: "
 
+---
+
 _**User (2026-07-06 22:28:12Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-06-18.27.02.png]
@@ -7125,6 +7133,8 @@ _**User (2026-07-06 22:29:39Z)**_
 hmmm when it gets locked in in `specstory resume` there is NOTHING in the header... should be consistent with search
 
 [Image #2]
+
+---
 
 _**User (2026-07-06 22:29:39Z)**_
 

@@ -7237,6 +7237,8 @@ _**User (2026-02-16 17:07:42Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 17:08:09Z)**_
 
 that's OK, presumably it's just cause there was no path hint, we don't generate w/o one, so that should resolve.
@@ -7516,9 +7518,13 @@ But no agent event: /Users/sean/.specstory/provenance/provenance.db
 
 Log is here: 
 
+---
+
 _**User (2026-02-16 17:23:34Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-16 17:23:43Z)**_
 
@@ -8360,6 +8366,8 @@ _**User (2026-02-16 17:27:26Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 17:28:16Z)**_
 
 No, I don't like that at all... what do file change type have to do with anything here? We don't need any mapping to change types. We just need to ensure the tool type is either shell, write or generic
@@ -8393,6 +8401,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-16 17:28:40Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-16 17:29:13Z)**_
 
@@ -8563,6 +8573,8 @@ _**Agent (claude-opus-4-6 2026-02-16 21:24:39Z)**_
 _**User (2026-02-16 21:24:44Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-16 21:24:47Z)**_
 
@@ -12257,6 +12269,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-16 22:20:52Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-16 22:21:03Z)**_
 
@@ -17451,6 +17465,8 @@ _**User (2026-02-16 22:54:52Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-16 22:55:38Z)**_
 
 Yes, by check if it's in SQLite but we didn't extract it, I mean in Cursor's sqlite DB, NOT our provenance.db.
@@ -21141,6 +21157,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-02-16 23:24:07Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-02-16 23:26:26Z)**_
 
@@ -24867,7 +24885,7 @@ _**Agent (claude-opus-4-6 2026-02-16 23:29:20Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add Timestamps to Cursor CLI Messages
 
 ## Context
@@ -24882,7 +24900,7 @@ The fix assigns timestamps in two different ways depending on the mode:
 
 ### 1. New type: `MessageTimestampCache` — `pkg/providers/cursorcli/agent_session.go`
 
-\```go
+```go
 // MessageTimestampCache tracks first-seen wall clock times for Cursor messages.
 // Cursor's SQLite data doesn't include per-message timestamps, so in run/watch
 // mode we stamp each message with time.Now() when we first see it. The cache
@@ -24909,27 +24927,27 @@ func (c *MessageTimestampCache) Stamp(messageID string) time.Time {
     c.times[messageID] = now
     return now
 }
-\```
+```
 
 ### 2. Modify `GenerateAgentSession` signature — `pkg/providers/cursorcli/agent_session.go:25`
 
 Add optional `tsCache *MessageTimestampCache` parameter:
 
-\```go
+```go
 func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, createdAt, slug string, tsCache *MessageTimestampCache) (*SessionData, error) {
-\```
+```
 
 After building exchanges and before returning, call a new `assignTimestamps` function:
 
-\```go
+```go
 assignTimestamps(sessionData, createdAt, tsCache)
-\```
+```
 
 ### 3. New function: `assignTimestamps` — `pkg/providers/cursorcli/agent_session.go`
 
 Walks all exchanges and messages, assigning timestamps where missing:
 
-\```go
+```go
 // assignTimestamps fills in empty Message.Timestamp and Exchange.StartTime/EndTime.
 // Cursor's data doesn't include per-message timestamps, so we derive them:
 //   - run/watch mode (tsCache != nil): wall clock time when first seen
@@ -24959,33 +24977,33 @@ func assignTimestamps(sd *SessionData, createdAt string, tsCache *MessageTimesta
         }
     }
 }
-\```
+```
 
 ### 4. Update callers of `GenerateAgentSession`
 
 **`sync` path — `provider.go:330`** (`GetAgentChatSession`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, projectPath, sessionID, createdAt, slug, nil)
-\```
+```
 
 **`run`/`watch` path — `watcher.go:294`** (`processSessionChanges`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug, w.tsCache)
-\```
+```
 
 **All tests** — `agent_session_test.go`: Add `nil` as the last argument to all `GenerateAgentSession` calls (sync-mode behavior, matching existing test expectations).
 
 ### 5. Add `tsCache` field to `CursorWatcher` — `watcher.go`
 
 **Struct** (line 19-33): Add field:
-\```go
+```go
 tsCache         *MessageTimestampCache          // Wall clock timestamps for messages
-\```
+```
 
 **Constructor** `NewCursorWatcher` (line 36-57): Initialize it:
-\```go
+```go
 tsCache:         NewMessageTimestampCache(),
-\```
+```
 
 ### 6. Add `"sync"` import to `agent_session.go`
 
@@ -25002,7 +25020,7 @@ The `MessageTimestampCache` uses `sync.Mutex`. Add `"sync"` to imports. Also nee
 
 ## Verification
 
-\```zsh
+```zsh
 # Run Cursor CLI tests
 go test -v ./pkg/providers/cursorcli/...
 
@@ -25014,11 +25032,11 @@ go test ./...
 
 # Lint
 golangci-lint run
-\```
+```
 
 Manual verification: `specstory sync` on the Cursor session at `/Users/sean/Source/SpecStory/compositions/shell-3/` — check that agent events now appear in `provenance.db` for the `3.txt` path hint.
 
-```
+````
 
 ```text
 <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
@@ -25283,7 +25301,7 @@ _**Agent (claude-opus-4-6 2026-02-16 23:30:02Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add Timestamps to Cursor CLI Messages
 
 ## Context
@@ -25301,7 +25319,7 @@ The fix assigns timestamps differently depending on the mode:
 
 New type at top of file (needs `"sync"` and `"time"` imports):
 
-\```go
+```go
 // MessageTimestampCache tracks first-seen wall clock times for Cursor messages.
 // Cursor's SQLite data doesn't include per-message timestamps, so in run/watch
 // mode we stamp each message with time.Now() when we first see it. The cache
@@ -25328,25 +25346,25 @@ func (c *MessageTimestampCache) Stamp(messageID string) time.Time {
     c.times[messageID] = now
     return now
 }
-\```
+```
 
 ### 2. Modify `GenerateAgentSession` signature — `agent_session.go:25`
 
 Add `tsCache *MessageTimestampCache` parameter. `nil` means sync mode (use `createdAt`).
 
-\```go
+```go
 func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, createdAt, slug string, tsCache *MessageTimestampCache) (*SessionData, error) {
-\```
+```
 
 Add call before return:
 
-\```go
+```go
 assignTimestamps(sessionData, createdAt, tsCache)
-\```
+```
 
 ### 3. New `assignTimestamps` function — `agent_session.go`
 
-\```go
+```go
 // assignTimestamps fills in empty Message.Timestamp and Exchange start/end times.
 // Cursor's data doesn't include per-message timestamps, so we derive them:
 //   - run/watch mode (tsCache != nil): wall clock time when message first seen
@@ -25375,33 +25393,33 @@ func assignTimestamps(sd *SessionData, createdAt string, tsCache *MessageTimesta
         }
     }
 }
-\```
+```
 
 ### 4. Update all callers
 
 **`provider.go:330`** — sync path (`GetAgentChatSession`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, projectPath, sessionID, createdAt, slug, nil)
-\```
+```
 
 **`watcher.go:294`** — run/watch path (`processSessionChanges`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug, w.tsCache)
-\```
+```
 
 **`agent_session_test.go`** — all 5 test functions: append `nil` as last arg.
 
 ### 5. Add `tsCache` to `CursorWatcher` — `watcher.go`
 
 **Struct field** (after line 31):
-\```go
+```go
 tsCache         *MessageTimestampCache
-\```
+```
 
 **Constructor** `NewCursorWatcher` (in the return struct literal):
-\```go
+```go
 tsCache:         NewMessageTimestampCache(),
-\```
+```
 
 ## Files Modified
 
@@ -25414,7 +25432,7 @@ tsCache:         NewMessageTimestampCache(),
 
 ## Verification
 
-\```zsh
+```zsh
 # Cursor CLI tests
 go test -v ./pkg/providers/cursorcli/...
 
@@ -25424,11 +25442,11 @@ go test -v ./pkg/provenance/...
 # All tests + lint
 go test ./...
 golangci-lint run
-\```
+```
 
 Manual: `specstory sync` on the Cursor session at `compositions/shell-3/` — verify agent events now appear in `provenance.db`.
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/vivid-churning-robin.md has been overwritten successfully.

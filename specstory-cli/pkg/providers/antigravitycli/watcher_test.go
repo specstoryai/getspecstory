@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -41,7 +42,7 @@ func TestIsTaskLogPath(t *testing.T) {
 // that's the freshness-key widening in processTranscriptFile.
 func TestProcessTranscriptFile_TaskLogUpdateReEmits(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	path := writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-07-24T10:00:00Z","content":"<USER_REQUEST>\nrun it\n</USER_REQUEST>"}`,
 		`{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-07-24T10:00:01Z","tool_calls":[{"name":"run_command","args":{"CommandLine":"slow-build"}}]}`,
@@ -102,7 +103,7 @@ func TestConversationIDFromTranscriptPath(t *testing.T) {
 
 func TestProcessTranscriptFile_DedupByModTime(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	path := writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`,
 		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"hello"}`,
@@ -126,7 +127,7 @@ func TestProcessTranscriptFile_DedupByModTime(t *testing.T) {
 
 func TestProcessTranscriptFile_PrefersPrimaryForFallbackEvents(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`,
 		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"from primary"}`,
@@ -159,7 +160,7 @@ func TestProcessTranscriptFile_PrefersPrimaryForFallbackEvents(t *testing.T) {
 
 func TestProcessTranscriptFile_IgnoresTranscriptOutsideBrain(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	dir := filepath.Join(t.TempDir(), "rogue-conv", systemGeneratedDir, logsDirName)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -194,7 +195,7 @@ func TestProcessTranscriptFile_IgnoresTranscriptOutsideBrain(t *testing.T) {
 
 func TestScanAndProcessConversations(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`,
 		`{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","created_at":"2026-05-26T21:31:14Z","content":"hello"}`,

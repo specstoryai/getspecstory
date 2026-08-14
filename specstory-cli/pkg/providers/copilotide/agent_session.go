@@ -642,8 +642,7 @@ func extractOperationsFromV2State(state *VSCodeStateFile) []string {
 				path = op.URI.Path
 			}
 			if path != "" {
-				parts := strings.Split(path, "/")
-				fileName = parts[len(parts)-1]
+				fileName = lastPathSegment(path)
 			} else {
 				fileName = "unknown file"
 			}
@@ -758,11 +757,14 @@ func extractFileNameFromEntry(entry VSCodeStopEntry) string {
 	}
 
 	// Handle both URI strings and file paths
-	resource := entry.Resource
-	parts := strings.Split(resource, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
-	}
+	return lastPathSegment(entry.Resource)
+}
 
-	return resource
+// lastPathSegment returns the final segment of a URI path or OS path. VS Code's
+// fsPath uses backslashes on Windows while URI paths always use forward slashes,
+// so both separators are treated as segment boundaries.
+func lastPathSegment(p string) string {
+	p = strings.ReplaceAll(p, `\`, "/")
+	parts := strings.Split(p, "/")
+	return parts[len(parts)-1]
 }

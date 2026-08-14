@@ -5,11 +5,96 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 )
 
+// resetUserDataDirOverride restores the package-level override after a test mutates it.
+// Tests must defer this — leaking state into sibling tests would silently change their behavior.
+func resetUserDataDirOverride(t *testing.T) {
+	t.Helper()
+	prev := userDataDirOverride
+	t.Cleanup(func() { userDataDirOverride = prev })
+}
+
+// TestUserDataDirOverride_WorkspaceStorage verifies that an override pointing to a
+// valid directory wins over OS-default discovery, and that a missing override path
+// falls through (warn-and-fall-back, not hard error).
+func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Build a fake user-data-dir: <tmp>/User/workspaceStorage
+	tmp := t.TempDir()
+	wantPath := filepath.Join(tmp, "User", "workspaceStorage")
+	if err := os.MkdirAll(wantPath, 0755); err != nil {
+		t.Fatalf("Failed to create fake workspaceStorage: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetWorkspaceStoragePath()
+	if err != nil {
+		t.Fatalf("GetWorkspaceStoragePath() with valid override returned error: %v", err)
+	}
+	if got != wantPath {
+		t.Errorf("GetWorkspaceStoragePath() = %q, want %q", got, wantPath)
+	}
+}
+
+// TestUserDataDirOverride_GlobalDatabase verifies override resolution for state.vscdb.
+func TestUserDataDirOverride_GlobalDatabase(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	tmp := t.TempDir()
+	globalDir := filepath.Join(tmp, "User", "globalStorage")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatalf("Failed to create fake globalStorage: %v", err)
+	}
+	wantPath := filepath.Join(globalDir, "state.vscdb")
+	if err := os.WriteFile(wantPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to write fake state.vscdb: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetGlobalDatabasePath()
+	if err != nil {
+		t.Fatalf("GetGlobalDatabasePath() with valid override returned error: %v", err)
+	}
+	if got != wantPath {
+		t.Errorf("GetGlobalDatabasePath() = %q, want %q", got, wantPath)
+	}
+}
+
+// TestUserDataDirOverride_MissingPathFallsThrough verifies that when the override is
+// set but the derived path does not exist, the resolver falls through to OS-default
+// discovery instead of failing fast. On systems without a real Cursor install, this
+// surfaces as the normal "not found" error from the OS-default path — proving we did
+// fall through and didn't get stuck on the bad override.
+func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Override points at a directory that exists but has no User/workspaceStorage inside.
+	override := t.TempDir()
+	SetUserDataDirOverride(override)
+
+	_, err := GetWorkspaceStoragePath()
+	if err == nil {
+		// If a real Cursor install happens to exist on this machine, the OS-default
+		// branch succeeded — also a valid fall-through outcome. Either way, the override
+		// must not have been used (we'd have failed before reaching here otherwise).
+		return
+	}
+	// The error must come from the OS-default path, not from the override candidate.
+	// The error message includes the path being checked; assert it doesn't mention
+	// the override dir.
+	if strings.Contains(err.Error(), override) {
+		t.Errorf("expected fall-through to OS default after bad override, but error mentions override path: %v", err)
+	}
+}
+
+// createWorkspaceDB builds a minimal workspace state.vscdb with the given composer IDs
+// stored in the allComposers list under the composer.composerData key.
 func createWorkspaceDB(t *testing.T, path string, composerIDs []string) {
 	t.Helper()
 	db, err := sql.Open("sqlite", path)

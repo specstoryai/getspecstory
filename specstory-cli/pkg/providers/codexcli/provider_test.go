@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestLoadCodexSessionMeta(t *testing.T) {
@@ -673,7 +675,7 @@ func TestFindCodexSessions(t *testing.T) {
 			}
 
 			// Override home directory for the test
-			t.Setenv("HOME", tempHome)
+			testutil.SetHome(t, tempHome)
 
 			// Call findCodexSessions
 			sessions, err := findCodexSessions(tt.projectPath, tt.targetSessionID, tt.stopOnFirst)
@@ -912,7 +914,7 @@ func TestFindCodexSessions_ShortCircuit(t *testing.T) {
 			}
 
 			// Override home directory for the test
-			t.Setenv("HOME", tempHome)
+			testutil.SetHome(t, tempHome)
 
 			// Call findCodexSessions with targetSessionID
 			// stopOnFirst parameter is ignored when targetSessionID is provided

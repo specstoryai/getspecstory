@@ -4,14 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
+
+// metaArgKeys are agy-injected human labels present on every tool call, not
+// real arguments; the generic JSON fallback drops them so it shows only the
+// arguments the tool was actually given.
+var metaArgKeys = []string{"toolAction", "toolSummary"}
 
 // classifyToolType maps an Antigravity tool name to a SpecStory tool type. The
 // cases below are Antigravity's complete tool set as of agy 1.1.x, captured by
@@ -65,7 +68,7 @@ func formatToolCall(tool *ToolInfo) string {
 // through to the raw-argument fallback rather than a guessed layout.
 func formatToolInput(tool *ToolInfo) string {
 	args := tool.Input
-	switch normalizeToolName(tool.Name) {
+	switch spi.NormalizeToolName(tool.Name) {
 	case "runcommand":
 		return renderRunCommandInput(args)
 	case "viewfile":
@@ -105,7 +108,7 @@ func formatToolInput(tool *ToolInfo) string {
 		// self-describing, so render input as empty and let the output stand alone.
 		return ""
 	default:
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 }
 
@@ -122,7 +125,7 @@ func formatToolOutput(tool *ToolInfo) string {
 	// A few tools return a JSON blob (agy's protobuf-JSON, double-spaced and full
 	// of internal ids) that reads far better as a short summary. These are scoped
 	// by tool name so JSON-lines results (list_dir, grep_search) are never touched.
-	switch normalizeToolName(tool.Name) {
+	switch spi.NormalizeToolName(tool.Name) {
 	case "invokesubagent":
 		if s := formatInvokeSubagentOutput(content); s != "" {
 			return s
@@ -140,7 +143,7 @@ func formatToolOutput(tool *ToolInfo) string {
 	}
 
 	if strings.Contains(content, "\n") {
-		return "Output:\n" + codeFence("text", content)
+		return "Output:\n" + spi.CodeFence("text", content)
 	}
 	return fmt.Sprintf("Output: %s", content)
 }
@@ -166,7 +169,7 @@ func formatDiffBlockOutput(content string) string {
 	if diff == "" {
 		return ""
 	}
-	return "Output:\n" + codeFence("diff", diff)
+	return "Output:\n" + spi.CodeFence("diff", diff)
 }
 
 // formatInvokeSubagentOutput summarizes invoke_subagent's result JSON as one
@@ -180,7 +183,7 @@ func formatInvokeSubagentOutput(content string) string {
 	}
 	var bullets []string
 	for _, o := range objs {
-		if id := stringValue(o, "conversationId"); id != "" {
+		if id := spi.StringValue(o, "conversationId"); id != "" {
 			bullets = append(bullets, fmt.Sprintf("- conversation `%s`", id))
 		}
 	}
@@ -204,9 +207,9 @@ func formatManageSubagentsOutput(content string) string {
 	for _, o := range objs {
 		spec, _ := o["spec"].(map[string]any)
 		result, _ := o["result"].(map[string]any)
-		role := stringValue(spec, "role")
-		typeName := stringValue(spec, "typeName")
-		id := stringValue(result, "conversationId")
+		role := spi.StringValue(spec, "role")
+		typeName := spi.StringValue(spec, "typeName")
+		id := spi.StringValue(result, "conversationId")
 
 		label := role
 		if label == "" {
@@ -331,9 +334,9 @@ func extractPathHints(input map[string]any, workspaceRoot string) []string {
 		}
 	}
 
-	command := stringValue(input, "CommandLine", "command", "cmd")
+	command := spi.StringValue(input, "CommandLine", "command", "cmd")
 	if command != "" {
-		cwd := stringValue(input, "Cwd", "workdir", "cwd")
+		cwd := spi.StringValue(input, "Cwd", "workdir", "cwd")
 		if cwd == "" {
 			cwd = workspaceRoot
 		}
@@ -365,15 +368,15 @@ func addPathHint(hints *[]string, value string, workspaceRoot string) {
 // (the format spec §3.5 and captured sessions) — no speculative aliases. Every
 // renderer is dispatched by the tool's real name, so a key that isn't present
 // means agy changed its arg shape; in that case the renderer falls back to
-// renderGenericJSON, which shows the raw args rather than guessing wrong.
+// the generic JSON fallback, which shows the raw args rather than guessing wrong.
 // NOTE: key casing varies by tool — the file tools are PascalCase, but e.g.
 // search_web is lowercase and define_subagent/ask_question are snake_case.
 
 func renderRunCommandInput(args map[string]any) string {
-	command := stringValue(args, "CommandLine")
-	workdir := stringValue(args, "Cwd")
+	command := spi.StringValue(args, "CommandLine")
+	workdir := spi.StringValue(args, "Cwd")
 	if command == "" && workdir == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	var b strings.Builder
 	if workdir != "" {
@@ -386,48 +389,48 @@ func renderRunCommandInput(args map[string]any) string {
 }
 
 func renderReadInput(args map[string]any) string {
-	path := stringValue(args, "AbsolutePath")
+	path := spi.StringValue(args, "AbsolutePath")
 	if path == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return fmt.Sprintf("Path: `%s`", stripFileURI(path))
 }
 
 func renderListInput(args map[string]any) string {
-	path := stringValue(args, "DirectoryPath")
+	path := spi.StringValue(args, "DirectoryPath")
 	if path == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return fmt.Sprintf("Path: `%s`", stripFileURI(path))
 }
 
 func renderGrepInput(args map[string]any) string {
 	var parts []string
-	if pat := stringValue(args, "Query"); pat != "" {
+	if pat := spi.StringValue(args, "Query"); pat != "" {
 		parts = append(parts, fmt.Sprintf("Pattern: `%s`", pat))
 	}
-	if path := stringValue(args, "SearchPath"); path != "" {
+	if path := spi.StringValue(args, "SearchPath"); path != "" {
 		parts = append(parts, fmt.Sprintf("Path: `%s`", stripFileURI(path)))
 	}
 	if len(parts) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return strings.Join(parts, "\n")
 }
 
 func renderWebSearchInput(args map[string]any) string {
 	// search_web's observed arg key is lowercase, unlike the file tools.
-	if q := stringValue(args, "query"); q != "" {
+	if q := spi.StringValue(args, "query"); q != "" {
 		return fmt.Sprintf("Query: `%s`", q)
 	}
-	return renderGenericJSON(args)
+	return spi.RenderGenericJSON(args, metaArgKeys...)
 }
 
 func renderWebFetchInput(args map[string]any) string {
-	url := stringValue(args, "Url")
-	prompt := stringValue(args, "Prompt")
+	url := spi.StringValue(args, "Url")
+	prompt := spi.StringValue(args, "Prompt")
 	if url == "" && prompt == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	var parts []string
 	if url != "" {
@@ -440,10 +443,10 @@ func renderWebFetchInput(args map[string]any) string {
 }
 
 func renderWriteInput(args map[string]any) string {
-	path := stripFileURI(stringValue(args, "TargetFile", "file_path", "path", "file"))
-	content := stringValue(args, "CodeContent", "content", "contents", "text", "data")
+	path := stripFileURI(spi.StringValue(args, "TargetFile", "file_path", "path", "file"))
+	content := spi.StringValue(args, "CodeContent", "content", "contents", "text", "data")
 	if path == "" && content == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	var b strings.Builder
 	if path != "" {
@@ -453,15 +456,15 @@ func renderWriteInput(args map[string]any) string {
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(codeFence(languageFromPath(path), content))
+		b.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
 	}
 	return b.String()
 }
 
 func renderEditInput(args map[string]any) string {
-	path := stripFileURI(stringValue(args, "TargetFile", "file_path", "path", "file"))
-	oldText := stringValue(args, "TargetContent", "old_str", "old_text", "old_string", "old")
-	newText := stringValue(args, "ReplacementContent", "new_str", "new_text", "new_string", "new")
+	path := stripFileURI(spi.StringValue(args, "TargetFile", "file_path", "path", "file"))
+	oldText := spi.StringValue(args, "TargetContent", "old_str", "old_text", "old_string", "old")
+	newText := spi.StringValue(args, "ReplacementContent", "new_str", "new_text", "new_string", "new")
 
 	var b strings.Builder
 	if path != "" {
@@ -471,10 +474,10 @@ func renderEditInput(args map[string]any) string {
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(formatDiffBlock(oldText, newText))
+		b.WriteString(spi.FormatDiffBlock(oldText, newText))
 	}
 	if b.Len() == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return b.String()
 }
@@ -482,14 +485,14 @@ func renderEditInput(args map[string]any) string {
 // renderMultiEditInput renders a multi_replace_file_content call: the target
 // file, the optional instruction, then one diff block per replacement chunk.
 func renderMultiEditInput(args map[string]any) string {
-	path := stripFileURI(stringValue(args, "TargetFile", "file_path", "path", "file"))
+	path := stripFileURI(spi.StringValue(args, "TargetFile", "file_path", "path", "file"))
 	chunks, _ := args["ReplacementChunks"].([]any)
 
 	var b strings.Builder
 	if path != "" {
 		fmt.Fprintf(&b, "Path: `%s`", path)
 	}
-	if instr := strings.TrimSpace(stringValue(args, "Instruction")); instr != "" {
+	if instr := strings.TrimSpace(spi.StringValue(args, "Instruction")); instr != "" {
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
@@ -502,12 +505,12 @@ func renderMultiEditInput(args map[string]any) string {
 		if chunk == nil {
 			continue
 		}
-		oldText := stringValue(chunk, "TargetContent")
-		newText := stringValue(chunk, "ReplacementContent")
+		oldText := spi.StringValue(chunk, "TargetContent")
+		newText := spi.StringValue(chunk, "ReplacementContent")
 		if oldText == "" && newText == "" {
 			continue
 		}
-		diffs = append(diffs, formatDiffBlock(oldText, newText))
+		diffs = append(diffs, spi.FormatDiffBlock(oldText, newText))
 	}
 	if len(diffs) > 0 {
 		if b.Len() > 0 {
@@ -517,7 +520,7 @@ func renderMultiEditInput(args map[string]any) string {
 	}
 
 	if b.Len() == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return b.String()
 }
@@ -525,11 +528,11 @@ func renderMultiEditInput(args map[string]any) string {
 // renderGenerateImageInput renders a generate_image call: the image name and
 // aspect ratio, then the generation prompt.
 func renderGenerateImageInput(args map[string]any) string {
-	prompt := strings.TrimSpace(stringValue(args, "Prompt", "prompt"))
-	name := stringValue(args, "ImageName", "name")
-	aspect := stringValue(args, "AspectRatio", "aspect_ratio")
+	prompt := strings.TrimSpace(spi.StringValue(args, "Prompt", "prompt"))
+	name := spi.StringValue(args, "ImageName", "name")
+	aspect := spi.StringValue(args, "AspectRatio", "aspect_ratio")
 	if prompt == "" && name == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 
 	var parts []string
@@ -550,11 +553,11 @@ func renderGenerateImageInput(args map[string]any) string {
 // renderDefineSubagentInput renders a define_subagent call: the subagent name and
 // description, then its system prompt as a blockquote.
 func renderDefineSubagentInput(args map[string]any) string {
-	name := stringValue(args, "name")
-	desc := strings.TrimSpace(stringValue(args, "description"))
-	sysPrompt := strings.TrimSpace(stringValue(args, "system_prompt"))
+	name := spi.StringValue(args, "name")
+	desc := strings.TrimSpace(spi.StringValue(args, "description"))
+	sysPrompt := strings.TrimSpace(spi.StringValue(args, "system_prompt"))
 	if name == "" && desc == "" && sysPrompt == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 
 	var b strings.Builder
@@ -582,7 +585,7 @@ func renderDefineSubagentInput(args map[string]any) string {
 func renderInvokeSubagentInput(args map[string]any) string {
 	subs, _ := args["Subagents"].([]any)
 	if len(subs) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 
 	var b strings.Builder
@@ -592,10 +595,10 @@ func renderInvokeSubagentInput(args map[string]any) string {
 		if sub == nil {
 			continue
 		}
-		role := stringValue(sub, "Role", "role")
-		typeName := stringValue(sub, "TypeName", "type_name")
-		model := stringValue(sub, "Model", "model")
-		prompt := strings.TrimSpace(stringValue(sub, "Prompt", "prompt"))
+		role := spi.StringValue(sub, "Role", "role")
+		typeName := spi.StringValue(sub, "TypeName", "type_name")
+		model := spi.StringValue(sub, "Model", "model")
+		prompt := strings.TrimSpace(spi.StringValue(sub, "Prompt", "prompt"))
 
 		label := role
 		if label == "" {
@@ -627,7 +630,7 @@ func renderInvokeSubagentInput(args map[string]any) string {
 // list of strings.
 func renderManageInput(args map[string]any, idLabel string, idKeys ...string) string {
 	var parts []string
-	if action := stringValue(args, "Action", "action"); action != "" {
+	if action := spi.StringValue(args, "Action", "action"); action != "" {
 		parts = append(parts, fmt.Sprintf("Action: `%s`", action))
 	}
 	if ids := collectStringList(args, idKeys...); len(ids) > 0 {
@@ -638,7 +641,7 @@ func renderManageInput(args map[string]any, idLabel string, idKeys ...string) st
 		parts = append(parts, fmt.Sprintf("%s: %s", idLabel, strings.Join(quoted, ", ")))
 	}
 	if len(parts) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return strings.Join(parts, "\n")
 }
@@ -646,10 +649,10 @@ func renderManageInput(args map[string]any, idLabel string, idKeys ...string) st
 // renderSendMessageInput renders a send_message call: the recipient and the
 // message body.
 func renderSendMessageInput(args map[string]any) string {
-	recipient := stringValue(args, "Recipient", "recipient", "to")
-	message := strings.TrimSpace(stringValue(args, "Message", "message", "text"))
+	recipient := spi.StringValue(args, "Recipient", "recipient", "to")
+	message := strings.TrimSpace(spi.StringValue(args, "Message", "message", "text"))
 	if recipient == "" && message == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 
 	var parts []string
@@ -665,11 +668,11 @@ func renderSendMessageInput(args map[string]any) string {
 // renderScheduleInput renders a schedule call: the timer duration and condition,
 // then the prompt the timer will fire.
 func renderScheduleInput(args map[string]any) string {
-	duration := stringValue(args, "DurationSeconds", "duration_seconds", "duration")
-	prompt := strings.TrimSpace(stringValue(args, "Prompt", "prompt"))
-	condition := stringValue(args, "TimerCondition", "timer_condition", "condition")
+	duration := spi.StringValue(args, "DurationSeconds", "duration_seconds", "duration")
+	prompt := strings.TrimSpace(spi.StringValue(args, "Prompt", "prompt"))
+	condition := spi.StringValue(args, "TimerCondition", "timer_condition", "condition")
 	if duration == "" && prompt == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 
 	var parts []string
@@ -692,7 +695,7 @@ func renderScheduleInput(args map[string]any) string {
 func renderAskQuestionInput(args map[string]any) string {
 	questions, _ := args["questions"].([]any)
 	if len(questions) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 
 	var b strings.Builder
@@ -701,7 +704,7 @@ func renderAskQuestionInput(args map[string]any) string {
 		if q == nil {
 			continue
 		}
-		text := strings.TrimSpace(stringValue(q, "question"))
+		text := strings.TrimSpace(spi.StringValue(q, "question"))
 		if text == "" {
 			continue
 		}
@@ -722,93 +725,12 @@ func renderAskQuestionInput(args map[string]any) string {
 	}
 	out := strings.TrimRight(b.String(), "\n")
 	if out == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args, metaArgKeys...)
 	}
 	return out
 }
 
-func formatDiffBlock(oldText, newText string) string {
-	var b strings.Builder
-	if oldText != "" {
-		for _, line := range strings.Split(oldText, "\n") {
-			b.WriteString("-")
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
-	}
-	if newText != "" {
-		for _, line := range strings.Split(newText, "\n") {
-			b.WriteString("+")
-			b.WriteString(line)
-			b.WriteString("\n")
-		}
-	}
-	return codeFence("diff", strings.TrimSuffix(b.String(), "\n"))
-}
-
-// codeFence wraps body in a fenced code block tagged with lang. The fence is
-// one backtick longer than the longest backtick run inside body (never fewer
-// than the standard three), because a backslash cannot escape a backtick inside
-// a fence — lengthening the fence is the only way to keep an embedded ```
-// (e.g. a written markdown file) from terminating the block early. The body is
-// never altered.
-func codeFence(lang, body string) string {
-	longest, run := 0, 0
-	for _, r := range body {
-		if r != '`' {
-			run = 0
-			continue
-		}
-		run++
-		if run > longest {
-			longest = run
-		}
-	}
-	fence := strings.Repeat("`", max(3, longest+1))
-	return fence + lang + "\n" + body + "\n" + fence
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return ""
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return ""
-	}
-	switch ext {
-	case "yml":
-		return "yaml"
-	case "md":
-		return "markdown"
-	default:
-		return ext
-	}
-}
-
 // --- generic helpers ---
-
-func renderGenericJSON(args map[string]any) string {
-	// toolAction/toolSummary are agy-injected human labels present on every
-	// call, not real arguments; drop them so the fallback shows only real args.
-	real := make(map[string]any, len(args))
-	for k, v := range args {
-		if k == "toolAction" || k == "toolSummary" {
-			continue
-		}
-		real[k] = v
-	}
-	if len(real) == 0 {
-		return ""
-	}
-	// MarshalIndent emits map keys sorted, so the fallback is deterministic.
-	// Args come from json.Unmarshal, so re-marshaling them cannot fail.
-	data, err := json.MarshalIndent(real, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return codeFence("json", string(data))
-}
 
 // collectStringList gathers string values from args across the given keys. Each
 // key's value may be a single string or a list of strings; empties are skipped.
@@ -843,36 +765,4 @@ func blockquote(text string) string {
 		lines[i] = "> " + line
 	}
 	return strings.Join(lines, "\n")
-}
-
-func stringValue(args map[string]any, keys ...string) string {
-	for _, key := range keys {
-		val, ok := args[key]
-		if !ok {
-			continue
-		}
-		switch v := val.(type) {
-		case string:
-			return v
-		case json.Number:
-			return v.String()
-		case float64:
-			return strconv.FormatFloat(v, 'f', -1, 64)
-		case int:
-			return strconv.Itoa(v)
-		case int64:
-			return strconv.FormatInt(v, 10)
-		case bool:
-			return strconv.FormatBool(v)
-		}
-	}
-	return ""
-}
-
-func normalizeToolName(name string) string {
-	cleaned := strings.ToLower(strings.TrimSpace(name))
-	cleaned = strings.ReplaceAll(cleaned, " ", "")
-	cleaned = strings.ReplaceAll(cleaned, "-", "")
-	cleaned = strings.ReplaceAll(cleaned, "_", "")
-	return cleaned
 }

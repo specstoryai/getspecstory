@@ -142,13 +142,15 @@ func TestRenderHighValueInputs(t *testing.T) {
 	}
 }
 
-func TestRenderGenericJSON_DropsMetaKeys(t *testing.T) {
-	// toolAction/toolSummary are agy-injected labels, not args; the generic
-	// fallback must omit them (and render nothing when they are all that's left).
-	if got := renderGenericJSON(map[string]any{"toolAction": "x", "toolSummary": "y"}); got != "" {
+func TestGenericFallback_DropsMetaKeys(t *testing.T) {
+	// toolAction/toolSummary are agy-injected labels, not args. Rendering an
+	// unrecognized tool must route them through metaArgKeys so they are omitted
+	// (and nothing renders when they are all that's left).
+	meta := map[string]any{"toolAction": "x", "toolSummary": "y"}
+	if got := formatToolInput(&ToolInfo{Name: "some_unmapped_tool", Input: meta}); got != "" {
 		t.Errorf("expected empty for meta-only args, got %q", got)
 	}
-	got := renderGenericJSON(map[string]any{"toolAction": "x", "Real": "keep"})
+	got := formatToolInput(&ToolInfo{Name: "some_unmapped_tool", Input: map[string]any{"toolAction": "x", "Real": "keep"}})
 	if strings.Contains(got, "toolAction") || !strings.Contains(got, "Real") {
 		t.Errorf("expected meta dropped and real key kept, got %q", got)
 	}
@@ -194,24 +196,6 @@ func TestCleanResultContent_TabHandling(t *testing.T) {
 	view := "build:\n\tgo build ./..."
 	if got := cleanResultContent(transcriptStep{Type: typeViewFile, Content: view}); got != view {
 		t.Errorf("view_file content altered: got %q, want %q", got, view)
-	}
-}
-
-func TestCodeFence_OutrunsEmbeddedBackticks(t *testing.T) {
-	// A written markdown file containing its own ``` fence: the wrapper fence
-	// must be longer so the block doesn't terminate early, and the body must not
-	// be altered (backslash-escaping backticks inside a fence does nothing).
-	got := codeFence("markdown", "# Doc\n```go\nx := 1\n```")
-	if !strings.HasPrefix(got, "````markdown\n") || !strings.HasSuffix(got, "\n````") {
-		t.Errorf("fence should be one backtick longer than embedded runs: %q", got)
-	}
-	if !strings.Contains(got, "```go") {
-		t.Errorf("body must be unaltered: %q", got)
-	}
-
-	// No backticks in the body → the standard three-backtick fence.
-	if got := codeFence("diff", "-a\n+b"); !strings.HasPrefix(got, "```diff\n") || !strings.HasSuffix(got, "\n```") {
-		t.Errorf("plain body should use the standard fence: %q", got)
 	}
 }
 

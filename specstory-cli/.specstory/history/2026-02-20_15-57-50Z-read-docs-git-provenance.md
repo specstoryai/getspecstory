@@ -314,7 +314,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:58:28Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,220p' docs/git-provenance/systems/agentblame.md`</summary>
-```
+````
 Chunk ID: e904eb
 Wall time: 0.0529 seconds
 Process exited with code 0
@@ -405,7 +405,7 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 | Strength                                             | Trade-off                                                    |
 |------------------------------------------------------|--------------------
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:32Z)**_
@@ -733,7 +733,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:05Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/standards/*.md; do echo "\n===== $f =====\n"; cat "$f"; done`</summary>
-```
+````
 Chunk ID: dece2c
 Wall time: 0.0518 seconds
 Process exited with code 0
@@ -880,7 +880,7 @@ _Last updated: 2026-02-18 (UTC)_
 **Metaphor:** C2PA is a sealed evidence bag attached to media.
 It packages a chain of assertions about how an asset was created or edited, then seals it wit
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:13Z)**_
@@ -893,7 +893,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:16Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/*.md; do echo "\n===== $f =====\n"; awk 'BEGIN{show=0} /^## Executive Summary/{show=1} /^## System At A Glance/{show=1} /^## Challenge 4: Representing Agent Provenance/{show=1} /^## Challenge 5: Storing Agent Provenance/{show=1} /^## Challenge 6: AI Blame/{show=1} /^## Overall Assessment/{show=1} /^## Overall Assessment For SpecStory Research/{show=1} /^## Sources/{if(show){print; show=0; next}} /^## /{if(show && $0 !~ /^## (Executive Summary|System At A Glance|Challenge 4: Representing Agent Provenance|Challenge 5: Storing Agent Provenance|Challenge 6: AI Blame|Overall Assessment|Overall Assessment For SpecStory Research)/){show=0}} {if(show) print}' "$f"; done`</summary>
-```
+````
 Chunk ID: 39be5e
 Wall time: 0.0515 seconds
 Process exited with code 0
@@ -1012,7 +1012,7 @@ refs/notes/agentblame-analytics @ <analytics-anchor-commit>
 
 Agent Blame writes
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:21Z)**_
@@ -1029,7 +1029,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/entire.md`</summary>
-```
+````
 Chunk ID: 5d1803
 Wall time: 0.0520 seconds
 Process exited with code 0
@@ -1131,14 +1131,14 @@ Entire supports two micro-versioning strategies:
 - each commit gets `Entire-Checkpoint: <id>` trailer
 - metadat
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/git-ai.md`</summary>
-```
+````
 Chunk ID: c0b3b0
 Wall time: 0.0512 seconds
 Process exited with code 0
@@ -1239,7 +1239,7 @@ Coverage note:
 
 | Strength                  
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:34Z)**_
@@ -1262,7 +1262,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/aider.md`</summary>
-```
+````
 Chunk ID: f6d4a2
 Wall time: 0.0518 seconds
 Process exited with code 0
@@ -1422,14 +1422,14 @@ Aider provides no dedicated AI blame command. Typical approach:
 
 ### Colla
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/aittributor.md`</summary>
-```
+````
 Chunk ID: 60906c
 Wall time: 0.0506 seconds
 Process exited with code 0
@@ -1576,14 +1576,14 @@ No dedicated AI blame command. Teams can parse trailers after `git blame` identi
 |---------------------------------|---------------------------------------------:|
 | Open PRs                        |                                   
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/tempo-cli.md`</summary>
-```
+````
 Chunk ID: 0c531e
 Wall time: 0.0506 seconds
 Process exited with code 0
@@ -1761,14 +1761,14 @@ No built-in blame UX. Users must manually inspect `.tempo/pending/` data or exte
 
 **Observed in code/docs:*
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/whogitit.md`</summary>
-```
+````
 Chunk ID: 8aaa52
 Wall time: 0.0514 seconds
 Process exited with code 0
@@ -1908,7 +1908,7 @@ Field usage for blame:
 
 1. Post-commit hook ser
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
@@ -1921,7 +1921,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/agentblame.md`</summary>
-```
+````
 Chunk ID: 47a343
 Wall time: 0.0515 seconds
 Process exited with code 0
@@ -2012,14 +2012,14 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 | Strength                                             | Trade-off                                                    |
 |------------------------------------------------------|--------------------
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/cnotes.md`</summary>
-```
+````
 Chunk ID: cde0df
 Wall time: 0.0507 seconds
 Process exited with code 0
@@ -2121,14 +2121,14 @@ cnotes does **not** maintain per-edit checkpoints or delta logs. Its capture bou
 1. Agent performs arbitrary edits during a session.
 2. None
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/git-with-intent.md`</summary>
-```
+````
 Chunk ID: 3eb954
 Wall time: 0.0509 seconds
 Process exited with code 0
@@ -2220,14 +2220,14 @@ What is missing for micro-versioning:
 
 Result: Git flattening behavior remai
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/intent-git-mode.md`</summary>
-```
+````
 Chunk ID: 2025e8
 Wall time: 0.0507 seconds
 Process exited with code 0
@@ -2344,7 +2344,7 @@ Intent uses two aligned representations:
 {
   "name": "intent:p
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:46Z)**_

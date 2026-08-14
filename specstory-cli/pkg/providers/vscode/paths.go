@@ -28,12 +28,80 @@ func URIToPath(uri string) (string, error) {
 	return spi.FileURIToPath(uri)
 }
 
-// PathToFileURI builds the file:// URI the IDE stores in workspace.json, with
-// url.URL handling percent-encoding (e.g. spaces) the way the IDE writes it —
-// raw concatenation would mis-associate paths containing encodable characters.
+// PathToFileURI builds the file:// URI the IDE stores in workspace.json, matching
+// the IDE's own encoding — percent-encoding (e.g. spaces) plus the Windows
+// drive-letter handling described on fileURIParts. Raw concatenation would
+// mis-associate paths containing encodable characters.
 func PathToFileURI(path string) string {
-	u := url.URL{Scheme: "file", Path: path}
-	return u.String()
+	_, _, external := fileURIParts(path)
+	return external
+}
+
+// WorkspaceURIMap builds the serialized URI object the IDE stores in
+// workspaceIdentifier.uri for a workspace root. Shared by every writer of those
+// rows so reconstructed sessions carry byte-identical, IDE-native encoding —
+// a mismatch here can mis-associate a reconstructed session with its workspace.
+func WorkspaceURIMap(workspaceRoot string) map[string]interface{} {
+	fsPath, uriPath, external := fileURIParts(workspaceRoot)
+	uri := map[string]interface{}{
+		"$mid":     1,
+		"fsPath":   fsPath,
+		"external": external,
+		"path":     uriPath,
+		"scheme":   "file",
+	}
+	// The IDE stamps "_sep": 1 alongside a cached fsPath on Windows only
+	// (_pathSepMarker = isWindows ? 1 : undefined). URI.revive() discards the cached
+	// fsPath unless _sep matches that marker, so native Windows rows always carry it
+	// and Unix rows never do. Emitting it keeps reconstructed rows byte-identical to
+	// the IDE's own.
+	if isWindowsDrivePath(workspaceRoot) {
+		uri["_sep"] = 1
+	}
+	return uri
+}
+
+// fileURIParts converts an absolute filesystem path into the three related values a
+// VS Code-style serialized URI carries:
+//
+//	fsPath   — the OS path ("c:\Users\x\proj" on Windows, "/home/x/proj" on Unix)
+//	uriPath  — the URI path component ("/c:/Users/x/proj"), forward slashes, decoded
+//	external — the full percent-encoded URI ("file:///c%3A/Users/x/proj")
+//
+// The IDE normalizes drive letters to lowercase and percent-encodes the drive colon
+// in external (Go's URL encoder leaves ':' bare in paths, so it is encoded by hand).
+// UNC paths (\\server\share) are not handled — workspace roots are local directories.
+func fileURIParts(osPath string) (fsPath, uriPath, external string) {
+	fsPath = osPath
+	p := osPath
+
+	// Lowercase the drive and use forward slashes in the URI path, backslashes in fsPath.
+	if isWindowsDrivePath(p) {
+		drive := strings.ToLower(p[:1])
+		fsPath = drive + strings.ReplaceAll(p[1:], "/", `\`)
+		p = "/" + drive + strings.ReplaceAll(p[1:], `\`, "/")
+	}
+	uriPath = p
+
+	u := url.URL{Scheme: "file", Path: p}
+	external = u.String()
+	// Percent-encode the drive colon ("file:///c:/..." -> "file:///c%3A/...") to match
+	// the IDE's serialization.
+	const pfx = "file:///"
+	if len(external) > len(pfx)+1 && external[len(pfx)+1] == ':' {
+		external = external[:len(pfx)+1] + "%3A" + external[len(pfx)+2:]
+	}
+	return fsPath, uriPath, external
+}
+
+// isWindowsDrivePath reports whether osPath is a Windows-shaped absolute path
+// (leading drive letter, e.g. "C:\proj" or "c:/proj"). Detected by shape rather than
+// runtime.GOOS so the conversion is deterministic and testable on any platform — a
+// Windows-written URI can be read on macOS and vice versa.
+func isWindowsDrivePath(osPath string) bool {
+	return len(osPath) >= 3 && osPath[1] == ':' &&
+		(osPath[2] == '\\' || osPath[2] == '/') &&
+		('a' <= osPath[0]|0x20 && osPath[0]|0x20 <= 'z')
 }
 
 // NormalizePathForComparison normalizes a path for workspace matching.

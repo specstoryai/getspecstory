@@ -80,7 +80,8 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			configDir, _ := cmd.Flags().GetString("config-dir")
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in watch mode")
 
 			registry := factory.GetRegistry()
@@ -100,11 +101,18 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				spi.SetDebugBaseDir(flagDebugDir)
 			}
 
+			// Apply per-provider user-data-dir overrides before any provider initializes
+			// its watchers (they read the override at first lookup).
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir, flagDebugDir)
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 			// Ensure history directory exists for watch mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -117,7 +125,14 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+			// Read project identity override flags (inherited from root persistent flags)
+			projectPathOverride, _ := cmd.Flags().GetString("project-path")
+			gitOriginOverride, _ := cmd.Flags().GetString("git-origin")
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
+			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
@@ -303,7 +318,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				OnSaved:    onSaved,
 			})
 
-			return utils.WatchProviders(ctx, cwd, providers, processing.DebugRaw, sessionCallback)
+			return utils.WatchProviders(ctx, effectiveProjectPath, providers, processing.DebugRaw, sessionCallback)
 		},
 	}
 
@@ -313,7 +328,9 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 	// filtering by provider has no meaning.
 	registerSessionProcessingFlags(watchCmd, cloudURL, defaults)
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
+	watchCmd.Flags().String("config-dir", "", "custom directory for the project-level config.toml (default: ./.specstory/cli)")
 	AddProvidersFlag(watchCmd)
+	AddUserDataDirFlag(watchCmd)
 
 	return watchCmd
 }

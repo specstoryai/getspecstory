@@ -10,18 +10,20 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// FindWorkspaceForProject finds the workspace directory that matches the given project path
-// Returns the workspace match or an error if not found
-func (p *Provider) FindWorkspaceForProject(projectPath string) (*vscode.WorkspaceEntry, error) {
-	return p.findWorkspaceForProject(projectPath, true)
+// FindAllWorkspacesForProject finds every workspace entry matching the project.
+// A single project can match more than one entry — under WSL the same project is
+// recorded under several URI forms — so readers that aggregate sessions use this
+// rather than picking one entry and missing the rest.
+func (p *Provider) FindAllWorkspacesForProject(projectPath string) ([]vscode.WorkspaceEntry, error) {
+	return p.findAllWorkspacesForProject(projectPath, true)
 }
 
-// findWorkspaceForProject matches projectPath against the variant's workspace
+// findAllWorkspacesForProject matches projectPath against the variant's workspace
 // storage via the shared VS Code-lineage engine. requireChatSessions filters
 // out matches that have never had a chat session — wanted when reading
 // sessions, not when picking a write target for reconstruction (the resume
 // flow creates the chatSessions directory when writing).
-func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*vscode.WorkspaceEntry, error) {
+func (p *Provider) findAllWorkspacesForProject(projectPath string, requireChatSessions bool) ([]vscode.WorkspaceEntry, error) {
 	storageRoot := p.workspaceStoragePath()
 	if storageRoot == "" {
 		return nil, fmt.Errorf("workspace storage directory not found")
@@ -35,10 +37,23 @@ func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessio
 	if err != nil {
 		return nil, err
 	}
+	if len(entries) == 0 {
+		return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, storageRoot)
+	}
+	return entries, nil
+}
+
+// findWorkspaceForProject picks the single entry the IDE itself would use, for
+// callers that need exactly one read/write target rather than every match.
+func (p *Provider) findWorkspaceForProject(projectPath string, requireChatSessions bool) (*vscode.WorkspaceEntry, error) {
+	entries, err := p.findAllWorkspacesForProject(projectPath, requireChatSessions)
+	if err != nil {
+		return nil, err
+	}
 
 	primary := vscode.SelectPrimary(entries, projectPath)
 	if primary == nil {
-		return nil, fmt.Errorf("no workspace found for project path %s (searched VS Code workspace storage in %s; open the folder in VS Code once to create one)", projectPath, storageRoot)
+		return nil, fmt.Errorf("no workspace found for project path %s", projectPath)
 	}
 
 	slog.Debug("Found matching workspace",
@@ -72,7 +87,7 @@ func (p *Provider) ensureWorkspaceForReconstruction(projectPath string) (*vscode
 		canonical = absPath
 	}
 
-	storageRoot := workspaceStorageRoot(p.variant.DataDirName)
+	storageRoot := workspaceStorageRoot(p.variant)
 	if storageRoot == "" {
 		return nil, fmt.Errorf("cannot locate %s workspace storage on this machine", p.variant.AppName)
 	}

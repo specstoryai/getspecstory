@@ -4,11 +4,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestLoadHistoryIndex(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	// Missing file → empty map, nil error.
 	idx, err := loadHistoryIndex()
@@ -39,7 +41,7 @@ func TestLoadHistoryIndex(t *testing.T) {
 
 func TestParseTranscript(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 
 	path := writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-05-26T21:31:13Z","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`,
@@ -97,7 +99,7 @@ func TestNormalizeFallbackArgs(t *testing.T) {
 
 func TestLoadTaskOutputs(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.SetHome(t, home)
 	path := writeConversation(t, home, "conv-1",
 		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"<USER_REQUEST>\nhi\n</USER_REQUEST>"}`,
 	)

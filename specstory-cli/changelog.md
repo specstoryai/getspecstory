@@ -1,5 +1,23 @@
 # Specstory CLI Changelog
 
+## v2.9.0 2026-08-12
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL). Install on Windows by downloading `SpecStoryCLI_Windows_x86_64.zip` (or `_arm64`) from the [GitHub release](https://github.com/specstoryai/getspecstory/releases) and putting `specstory.exe` on your PATH. Signing the binary, and a package manager install (e.g. winget) is planned. Since the binaries are not yet code-signed, Windows SmartScreen may show an "unrecognized app" warning on first run. WSL users should just keep using the standard Linux install, which now reads Windows-side IDE data automatically.
+
+### 🔧 CLI Configuration & Commands
+
+- New `--user-data-dir` flag on `sync`, `check`, `list` and `watch` points an IDE provider at a non-default install location, for portable installs and for reading a Windows-side install from WSL. It takes a `provider_id:path` pair and is repeatable, e.g. `--user-data-dir cursoride:D:\apps\cursor\current\data\user-data --user-data-dir copilotide:/opt/vscode/data`. The path is the user-data-dir itself (the parent of the `User` directory), the same value the IDE's own `--user-data-dir` argument takes. Supported provider IDs are `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS rather than leaving the provider idle.
+- New `--config-dir` flag on `run`, `sync` and `watch` relocates the project-level config directory — both where the default `config.toml` is created and where it is read from — for cases where the project directory itself shouldn't be written to, e.g. `specstory sync --config-dir ~/specstory-configs/myproject`. Without the flag the project-level config stays at `./.specstory/cli/config.toml`.
+- New `--no-stats` flag on `run`, `sync`, `watch`, `resume` and `search` skips session statistics entirely, so `./.specstory/statistics.json` is neither read nor written. Statistics stay on by default; `--no-stats` cannot be combined with `--only-stats`.
+
+### ⚙️ Improvements
+
+- Cursor IDE and VS Code Copilot conversations from WSL and SSH remote workspaces are now discovered and saved. The IDE records the same project differently depending on how it was opened (local path, WSL distro, or SSH remote); SpecStory now matches all of these forms and aggregates the sessions from every matching workspace entry, so conversations are found no matter which environment they were created in. Running from inside WSL also works: SpecStory detects WSL and reads the IDE's data from the Windows side via `/mnt/c/`.
+- When `--output-dir` is set, the project identity file `.project.json` now lives in that directory alongside the markdown, statistics and debug output, instead of staying at `./.specstory/.project.json` — so you still capture every SpecStory output file under one directory, and SpecStory Cloud sync reads the identity from there too. If you already use `--output-dir` with SpecStory Cloud, copy your existing `./.specstory/.project.json` into the output directory once to keep the same project identity.
+- Session statistics (`./.specstory/statistics.json`) now stay current during `run`, `watch`, `resume` and `sync -s` as each session saves, instead of updating only during a full `sync`. Use the new `--no-stats` flag if you don't want this.
+
 ## v2.8.0 2026-08-10
 
 ### 🐛 Bug Fixes

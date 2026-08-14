@@ -32,7 +32,7 @@ jobs:
         working-directory: specstory-cli
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.26.5'
           cache-dependency-path: specstory-cli/go.sum
@@ -49,7 +49,36 @@ jobs:
         working-directory: specstory-cli
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.5'
+          cache-dependency-path: specstory-cli/go.sum
+      - name: Run tests
+        run: go test ./...
+
+      # Release builds every platform via goreleaser, but tests above only compile
+      # for linux — a broken GOOS=windows or GOOS=darwin build would otherwise
+      # surface for the first time when the release tag is pushed. Compile-only,
+      # so build-tagged files (e.g. workspace_id_windows.go) at least compile;
+      # they still only *execute* on a native runner (the test-windows job below).
+      - name: Cross-compile release targets
+        run: |
+          GOOS=windows GOARCH=amd64 go build ./...
+          GOOS=windows GOARCH=arm64 go build ./...
+          GOOS=darwin GOARCH=amd64 go build ./...
+          GOOS=darwin GOARCH=arm64 go build ./...
+
+  # Runs the suite natively on Windows so GOOS-gated branches and build-tagged
+  # files actually execute, not just compile.
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: specstory-cli
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: '1.26.5'
           cache-dependency-path: specstory-cli/go.sum

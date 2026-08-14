@@ -5731,7 +5731,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:30:44Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add SpecStory Cloud promotional link after cloud sync
 
 ## Summary
@@ -5742,20 +5742,20 @@ Add an attractive, enticing link to SpecStory Cloud in the CLI output after a su
 
 The cloud sync output is displayed in `main.go` lines 1867-1897, in the defer cleanup function. Currently it shows:
 
-\```
+```
 ☁️  Cloud sync complete! 📊 5 sessions processed
 
   ⏭️ 2 sessions up to date (skipped)
   ♻️ 1 session updated
   ✨ 2 new sessions created
 
-\```
+```
 
 ## Proposed Change
 
 After the sync statistics, add a promotional line with the project-specific URL:
 
-\```
+```
 ☁️  Cloud sync complete! 📊 5 sessions processed
 
   ⏭️ 2 sessions up to date (skipped)
@@ -5765,7 +5765,7 @@ After the sync statistics, add a promotional line with the project-specific URL:
 🔍 Search and chat with your AI conversation history at
    https://cloud.specstory.com/projects/eb9c-5483-e950-6f83
 
-\```
+```
 
 ## Implementation
 
@@ -5777,7 +5777,7 @@ After the sync statistics, add a promotional line with the project-specific URL:
 
 Add after the current `fmt.Println()` at line 1896:
 
-\```go
+```go
 // Display promotional link to SpecStory Cloud
 cwd, cwdErr := os.Getwd()
 if cwdErr == nil {
@@ -5788,7 +5788,7 @@ if cwdErr == nil {
             log.ColorBoldCyan, projectID, log.ColorReset)
     }
 }
-\```
+```
 
 ### Styling details
 
@@ -5809,7 +5809,7 @@ if cwdErr == nil {
 5. Run linter: `golangci-lint run`
 6. Run tests: `go test ./...`
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/wiggly-churning-petal.md
@@ -7068,9 +7068,13 @@ _**User (2026-01-19 16:30:30Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-19 16:30:30Z)**_
 
 <local-command-stdout>Goodbye!</local-command-stdout>
+
+---
 
 _**User (2026-01-19 16:30:30Z)**_
 

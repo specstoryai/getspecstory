@@ -1889,7 +1889,7 @@ _**Agent (claude-opus-4-8 2026-06-18 15:18:57Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Restore Index (`restore.db`)
 
 > **STATUS: STRAWMAN — NOT RATIFIED.** This document captures an in-progress design
@@ -2002,7 +2002,7 @@ truth) — providers surface the cwd, they do not compute `project_id`.
 
 Proposed shape (**OPEN** — names and exact fields illustrative, not final):
 
-\```go
+```go
 // ListAllAgentChatSessions enumerates every session in this provider's native store,
 // regardless of project. Unlike ListAgentChatSessions(projectPath), the project is not an
 // input — each returned ref carries the originating cwd so the caller can resolve project
@@ -2016,7 +2016,7 @@ type GlobalSessionRef struct {
     NativePath string // absolute path to the native session file
     OriginCwd  string // working dir the session was launched from (→ project_id)
 }
-\```
+```
 
 Why each provider's implementation differs (the inversion is not uniform):
 
@@ -2090,7 +2090,7 @@ never blocks on parsing.
 - [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface the new enumeration method joins.
 - `pkg/utils/project_identity.go` — `git_id` / `workspace_id` / `GetProjectID()`.
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/RESTORE-DB.md (file state is current in your context — no need to Read it back)
@@ -4277,6 +4277,8 @@ _**User (2026-06-18 21:18:30Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-18 21:20:15Z)**_
 
 Can I get a clean MD table in the doc of the proposed DB schema... 1 table per table (if multiple are proposed) and 1 md table row per column. Dankon.
@@ -4728,6 +4730,8 @@ The reason this is best is simple: coding agents do not create ordinary chat thr
 
 What do these tell us about our schema? And what's maybe missing? (or... unlikely... but not needed)
 
+---
+
 _**User (2026-06-18 21:32:16Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-18-17.29.44.png]
@@ -4816,6 +4820,8 @@ The user wants to clarify these questions.
 _**User (2026-06-18 21:39:48Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-18 21:41:40Z)**_
 
@@ -5102,6 +5108,8 @@ Want me to kick off with step 1?
 _**User (2026-06-18 21:47:11Z)**_
 
 Yup. And proceed through step 5.
+
+---
 
 _**User (2026-06-18 21:47:52Z)**_
 
@@ -7937,7 +7945,7 @@ _**Agent (claude-opus-4-8 2026-06-18 22:13:53Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 ---
 name: restore-cursor-cwd-deferred
 description: Deferred next-step work — recover Cursor session cwd/project for restore.db via md5 reverse-lookup
@@ -8117,6 +8125,8 @@ _**User (2026-06-18 22:22:16Z)**_
 yup. this concurrency plan sounds exactly perfect... let's kick it off w/ the quick audit of the providers, then proceed to implement 5.
 
 But first we need to come back to the UX... we want a WORLD CLASS UX here.... what shall we output to keep users informed/engaged as the index build is happening?
+
+---
 
 _**User (2026-06-18 22:22:49Z)**_
 
@@ -10965,6 +10975,8 @@ _**User (2026-06-19 00:40:55Z)**_
 
 What's this count down here... it starts high and never gets to 0
 
+---
+
 _**User (2026-06-19 00:40:55Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-18-20.40.25.png]
@@ -11028,6 +11040,8 @@ _**Agent (claude-opus-4-8 2026-06-19 00:41:35Z)**_
 _**User (2026-06-19 00:41:44Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-19 00:42:46Z)**_
 
@@ -11935,6 +11949,8 @@ Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 _**User (2026-06-19 01:01:12Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-19 01:06:34Z)**_
 
@@ -13218,7 +13234,7 @@ _**Agent (claude-opus-4-8 2026-06-19 01:14:10Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 # `specstory resume` — the picker TUI
 
 The interactive session picker that makes SpecStory the best way to resume a coding-agent
@@ -13431,6 +13447,8 @@ Want me to proceed building Stage A on this keymap, or adjust the bindings first
 _**User (2026-06-19 10:04:41Z)**_
 
 hmm I like those key bindings... except where is the preview?
+
+---
 
 _**User (2026-06-19 10:05:03Z)**_
 
@@ -16535,6 +16553,8 @@ And at the project view, I have all these Claude sessions w/ just a UUID. Why?!?
 
 [Image #6]
 
+---
+
 _**User (2026-06-19 12:24:34Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-08.23.03.png]
@@ -17232,6 +17252,8 @@ _**User (2026-06-19 12:44:12Z)**_
 So this is better. Ideally we'd not have the "[Request interrupted by user]" and "[Request interrupted by user for tool use]"
 
 These... this isn't a real message messages are provider specific... we probably don't want a bunch of Claude specific skips in the resume functionality... is get me the first user message for a session delegated to the provider? So each provider is responsible for it? And we are just improving the Claude providers implementation here?
+
+---
 
 _**User (2026-06-19 12:44:12Z)**_
 
@@ -18193,6 +18215,8 @@ But there's no a weird/bad delay. One thing that's odd is it type / and there's 
 
 Then when I do type something... there's a noticeable and bothersom delay before my text starts to appear. Once it starts to appear, things are fine and responsive, but it's so delayed that by then I've determinied it's not working so I'm either pressing ESC trying to back out of this broken thing, or mashing random keys trying to understand why the keyboard input isn't doing anything.
 
+---
+
 _**User (2026-06-19 16:00:42Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-11.57.19.png]
@@ -18468,6 +18492,8 @@ _**User (2026-06-19 16:07:15Z)**_
 
 the debounce feels a little slow, let's do 50ms, yes, start the SESSION-SEARCH.md plan
 
+---
+
 _**User (2026-06-19 16:07:29Z)**_
 
 the debounce feels a little slow, let's do 50ms, yes, start the SESSION-SEARCH.md plan
@@ -18510,7 +18536,7 @@ _**Agent (claude-opus-4-8 2026-06-19 16:09:24Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # `specstory search` — find & read your sessions
 
 > **STATUS: PLAN / STRAWMAN.** Design for a read-first search TUI over the
@@ -18562,7 +18588,7 @@ Consistency is the whole point — learnings and patterns must transfer both way
 Search input is always active at the top (it's a search tool), results below, a reader on
 `↵`. Rough layout:
 
-\```
+```
  search · all projects                                   42 results   ·   agent: all
  / max cpu▌
  ─────────────────────────────────────────────────────────────────────────────────────
@@ -18571,12 +18597,12 @@ Search input is always active at the top (it's a search tool), results below, a 
    gemini   3w   stoa-cli        …cap …cpu… usage; the …max… concurrency was…
  ─────────────────────────────────────────────────────────────────────────────────────
  ↑↓ move   ↵ read   r resume   a agent   tab this project   v dense/sparse   esc quit
-\```
+```
 
 The **reader** (`↵`) — a full-screen, scrollable view of the session transcript with matches
 highlighted and jumpable:
 
-\```
+```
  specstory-cli · claude · 2d                                              match 2 / 7
  ─────────────────────────────────────────────────────────────────────────────────────
    user ⟶  diagnose the [max cpu] spike when reindex runs on a big index
@@ -18584,7 +18610,7 @@ highlighted and jumpable:
    …
  ─────────────────────────────────────────────────────────────────────────────────────
  ↑↓ scroll   n/N next/prev match   r resume   esc back   q quit
-\```
+```
 
 ## Command
 
@@ -18634,7 +18660,7 @@ initial query. No args → empty input, ready to type. Reuses `openOrBuildResume
 - [RESUME-TUI.md](RESUME-TUI.md) — the sibling picker whose UI/keymap/code this shares.
 - [SESSIONS-DB.md](SESSIONS-DB.md) — the index both read from.
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/SESSION-SEARCH.md (file state is current in your context — no need to Read it back)
@@ -18932,6 +18958,8 @@ _**User (2026-06-19 19:04:42Z)**_
 
 uhh. I don't understand how to see it, preview just looks like: [Image #9]
 
+---
+
 _**User (2026-06-19 19:04:42Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-15.04.25.png]
@@ -18997,6 +19025,8 @@ exit: 0
 _**User (2026-06-19 19:05:32Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-19 19:05:50Z)**_
 
@@ -19355,7 +19385,7 @@ _**Agent (claude-opus-4-8 2026-06-19 19:13:51Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```go
+````go
 package cmd
 
 import (
@@ -19720,7 +19750,7 @@ func (m searchTUI) sessionMarkdown(s *sessionindex.Session) string {
 		}
 	}
 	if body, _ := m.store.SessionBody(s.Agent, s.SessionID); strings.TrimSpace(body) != "" {
-		return "\```\n" + body + "\n\```"
+		return "```\n" + body + "\n```"
 	}
 	return "_(no readable content for this session)_"
 }
@@ -19802,7 +19832,7 @@ func (m searchTUI) lineW() int {
 	return m.width
 }
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/search_tui.go (file state is current in your context — no need to Read it back)
@@ -20336,6 +20366,8 @@ uhhh... doesn't seem to work, I get here... but further typing does nothing
 
 [Image #10]
 
+---
+
 _**User (2026-06-19 19:22:32Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-15.22.04.png]
@@ -20400,13 +20432,19 @@ _**User (2026-06-19 19:28:07Z)**_
 
 yeah, no I get typing... but the matches don't come show [Image #11]
 
+---
+
 _**User (2026-06-19 19:28:07Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-15.27.53.png]
 
+---
+
 _**User (2026-06-19 19:28:16Z)**_
 
 yeah, now I get typing... but the matches don't come show [Image #11]
+
+---
 
 _**User (2026-06-19 19:28:16Z)**_
 
@@ -20469,6 +20507,8 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	1.979s
 _**User (2026-06-19 19:29:30Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-19 19:29:45Z)**_
 
@@ -20718,6 +20758,8 @@ _**User (2026-06-19 19:34:33Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-19 19:34:48Z)**_
 
 what's interesting is we don't have this problem w/ `specstory resume`
@@ -20775,6 +20817,8 @@ It records three checkpoints: whether the keystroke schedules the debounce, whet
 _**User (2026-06-19 19:38:19Z)**_
 
 k, done
+
+---
 
 _**User (2026-06-19 19:40:24Z)**_
 
@@ -23243,6 +23287,8 @@ _**User (2026-06-19 22:21:42Z)**_
 
 Presumably there's no "meaningful" order returned by the sqlite FTS? Assuming so, FTS search results should always be in reverse chronological order.
 
+---
+
 _**User (2026-06-19 22:21:42Z)**_
 
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-06-19-18.20.34.png]
@@ -23300,6 +23346,8 @@ pkg/cmd/search_tui.go:555:	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt)
 _**User (2026-06-19 22:22:15Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-19 22:22:59Z)**_
 
@@ -24372,9 +24420,13 @@ _**User (2026-06-23 13:42:54Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-23 14:10:13Z)**_
 
 proceed
+
+---
 
 _**User (2026-06-23 14:11:05Z)**_
 
@@ -24471,17 +24523,25 @@ _**User (2026-06-23 14:12:16Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-23 14:12:20Z)**_
 
 proceed
+
+---
 
 _**User (2026-06-23 14:14:17Z)**_
 
 proceed
 
+---
+
 _**User (2026-06-23 14:15:00Z)**_
 
 proceed
+
+---
 
 _**User (2026-06-23 14:17:01Z)**_
 
@@ -24489,9 +24549,13 @@ _**User (2026-06-23 14:17:01Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-06-23 14:17:01Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-06-23 14:17:01Z)**_
 

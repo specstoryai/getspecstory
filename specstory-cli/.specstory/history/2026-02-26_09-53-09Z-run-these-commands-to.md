@@ -10,6 +10,8 @@ _**User (2026-02-26 09:53:09Z)**_
 <command-name>/pr-review</command-name>
 <command-args>168</command-args>
 
+---
+
 _**User (2026-02-26 09:53:09Z)**_
 
 ## Context
@@ -5573,6 +5575,8 @@ _**User (2026-02-26 10:04:34Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-26 10:05:33Z)**_
 
 no man... add a function like GetLogPath that does the whole thing in path_utils, don't do a join outside of it
@@ -5677,6 +5681,8 @@ pkg/session/session.go:83:func GetSpecStoryDir(config utils.OutputConfig) string
 _**User (2026-02-26 10:06:16Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-26 10:06:33Z)**_
 
@@ -6337,6 +6343,8 @@ _**User (2026-02-26 10:09:04Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-26 10:09:43Z)**_
 
 Dude.... you are DUMB this morning.
@@ -6978,6 +6986,8 @@ _**User (2026-02-26 10:10:43Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-26 10:11:27Z)**_
 
 proceed
@@ -7492,9 +7502,13 @@ _**User (2026-02-26 10:19:09Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-26 10:19:09Z)**_
 
 <local-command-stdout>Catch you later!</local-command-stdout>
+
+---
 
 _**User (2026-02-26 10:19:09Z)**_
 

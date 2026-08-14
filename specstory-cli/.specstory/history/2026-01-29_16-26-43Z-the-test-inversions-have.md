@@ -10,6 +10,8 @@ _**User (2026-01-29 16:26:43Z)**_
 <command-name>/pr-review</command-name>
 <command-args>150</command-args>
 
+---
+
 _**User (2026-01-29 16:26:43Z)**_
 
 ## Context
@@ -4058,6 +4060,8 @@ The user doesn't want to proceed with this tool use. The tool use was rejected (
 _**User (2026-01-29 16:28:02Z)**_
 
 [Request interrupted by user for tool use]
+
+---
 
 _**User (2026-01-29 16:28:10Z)**_
 

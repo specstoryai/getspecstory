@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 func TestIsAuthenticated(t *testing.T) {
@@ -13,15 +16,7 @@ func TestIsAuthenticated(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Override home directory for testing
-	origHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", tempDir); err != nil {
-		t.Fatalf("Failed to set HOME env var: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", origHome); err != nil {
-			t.Errorf("Failed to restore HOME env var: %v", err)
-		}
-	}()
+	testutil.SetHome(t, tempDir)
 
 	// Create the .specstory/cli directory structure
 	authDir := filepath.Join(tempDir, ".specstory", "cli")
@@ -32,6 +27,9 @@ func TestIsAuthenticated(t *testing.T) {
 		setup          func()
 		expectedResult bool
 		description    string
+		// skipOnWindows marks cases whose setup relies on Unix permission
+		// semantics (e.g. chmod 0000) that Windows mode bits cannot express.
+		skipOnWindows bool
 	}{
 		{
 			name: "auth file does not exist",
@@ -281,11 +279,15 @@ func TestIsAuthenticated(t *testing.T) {
 			},
 			expectedResult: false,
 			description:    "Should return false when auth.json cannot be read",
+			skipOnWindows:  true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.skipOnWindows && runtime.GOOS == "windows" {
+				t.Skip("relies on chmod semantics Windows mode bits cannot express")
+			}
 			tt.setup()
 			result := IsAuthenticated()
 			if result != tt.expectedResult {
@@ -367,15 +369,7 @@ func TestAuthenticationCaching(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Override home directory for testing
-	origHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", tempDir); err != nil {
-		t.Fatalf("Failed to set HOME env var: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", origHome); err != nil {
-			t.Errorf("Failed to restore HOME env var: %v", err)
-		}
-	}()
+	testutil.SetHome(t, tempDir)
 
 	// Create the .specstory/cli directory structure
 	authDir := filepath.Join(tempDir, ".specstory", "cli")
