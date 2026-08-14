@@ -1853,6 +1853,8 @@ _**User (2026-03-02 23:19:25Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-03-02 23:19:40Z)**_
 
 Let me setup that scenario. 1 sec.
@@ -3006,9 +3008,13 @@ _**User (2026-03-03 14:01:39Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-03-03 14:01:39Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-03-03 14:01:39Z)**_
 

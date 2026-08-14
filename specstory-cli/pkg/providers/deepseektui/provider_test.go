@@ -1,49 +1,13 @@
 package deepseektui
 
 import (
-	"errors"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
-
-func TestClassifyCheckError(t *testing.T) {
-	tests := []struct {
-		name string
-		err  error
-		want string
-	}{
-		{
-			name: "nil error returns version_failed",
-			err:  errors.New("boom"),
-			want: "version_failed",
-		},
-		{
-			name: "permission denied via os.ErrPermission",
-			err:  os.ErrPermission,
-			want: "permission_denied",
-		},
-		{
-			name: "wrapped permission denied",
-			err:  &os.PathError{Op: "exec", Path: "/x", Err: os.ErrPermission},
-			want: "permission_denied",
-		},
-		{
-			name: "generic error falls back to version_failed",
-			err:  errors.New("the binary crashed"),
-			want: "version_failed",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := classifyCheckError(tt.err)
-			if got != tt.want {
-				t.Errorf("classifyCheckError(%v) = %q, want %q", tt.err, got, tt.want)
-			}
-		})
-	}
-}
 
 func TestBuildCheckErrorMessage(t *testing.T) {
 	tests := []struct {
@@ -75,15 +39,15 @@ func TestBuildCheckErrorMessage(t *testing.T) {
 			mustHave:  []string{"chmod", "/usr/bin/deepseek"},
 		},
 		{
-			name:      "version_failed includes stderr verbatim",
-			errorType: "version_failed",
+			name:      "unclassified failure includes stderr verbatim",
+			errorType: spi.CheckErrorUnknown,
 			command:   "deepseek",
 			stderr:    "deepseek: bad runtime, no biscuit",
 			mustHave:  []string{"--version", "deepseek: bad runtime, no biscuit"},
 		},
 		{
-			name:      "version_failed without stderr still gives diagnosis hint",
-			errorType: "version_failed",
+			name:      "unclassified failure without stderr still gives diagnosis hint",
+			errorType: spi.CheckErrorUnknown,
 			command:   "deepseek",
 			mustHave:  []string{"--version"},
 		},
@@ -106,7 +70,7 @@ func TestDetectAgent_NoSessionsReturnsFalse(t *testing.T) {
 	// return false without panicking. This guards against regressions where
 	// listSessionFiles starts erroring on missing dirs.
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	testutil.SetHome(t, tmp)
 
 	p := NewProvider()
 	if got := p.DetectAgent("/some/project", false); got {
@@ -119,7 +83,7 @@ func TestDetectAgent_EmptyProjectMatchesAnySession(t *testing.T) {
 	// return true regardless of which workspace they're tied to. This matches
 	// the convention used by droid/gemini.
 	tmp := t.TempDir()
-	t.Setenv("HOME", tmp)
+	testutil.SetHome(t, tmp)
 	if err := os.MkdirAll(tmp+"/.deepseek/sessions", 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

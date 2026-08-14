@@ -117,14 +117,8 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		// workspaceIdentifier associates this session with its workspace so Cursor's Agent
 		// sidebar shows it under the right project. Without this field Cursor ignores the session.
 		"workspaceIdentifier": map[string]interface{}{
-			"id": workspace.ID,
-			"uri": map[string]interface{}{
-				"$mid":     1,
-				"fsPath":   workspaceRoot,
-				"external": vscode.PathToFileURI(workspaceRoot),
-				"path":     workspaceRoot,
-				"scheme":   "file",
-			},
+			"id":  workspace.ID,
+			"uri": vscode.WorkspaceURIMap(workspaceRoot),
 		},
 		// Conversation index
 		"fullConversationHeadersOnly": headers,

@@ -136,7 +136,7 @@ func NewFSWatcher(engine *Engine, rootDir string) (*FSWatcher, error) {
 		}
 		w.loadIgnoreFile(path, ".gitignore")
 		if addErr := watcher.Add(path); addErr != nil {
-			slog.Debug("Failed to watch directory", "path", path, "error", addErr)
+			slog.Warn("Failed to watch directory", "path", path, "error", addErr)
 		}
 		return nil
 	})
@@ -202,7 +202,9 @@ func (w *FSWatcher) eventLoop(ctx context.Context) {
 			if !ok {
 				return
 			}
-			slog.Debug("FSWatcher error", "error", err)
+			// Warn, not Debug: a watcher error usually means events are being
+			// dropped (e.g. overflow), which silently degrades provenance.
+			slog.Warn("FSWatcher error", "error", err)
 		}
 	}
 }
@@ -224,7 +226,7 @@ func (w *FSWatcher) handleEvent(ctx context.Context, event fsnotify.Event) {
 	if isDir && event.Has(fsnotify.Create) {
 		w.loadIgnoreFile(path, ".gitignore")
 		if addErr := w.watcher.Add(path); addErr != nil {
-			slog.Debug("Failed to watch new directory", "path", path, "error", addErr)
+			slog.Warn("Failed to watch new directory", "path", path, "error", addErr)
 		}
 		return // directories themselves don't produce FileEvents
 	}
@@ -260,7 +262,7 @@ func (w *FSWatcher) handleEvent(ctx context.Context, event fsnotify.Event) {
 	}
 
 	if _, err := w.engine.PushFileEvent(ctx, fileEvent); err != nil {
-		slog.Debug("Failed to push file event",
+		slog.Warn("Failed to push file event",
 			"path", path,
 			"changeType", changeType,
 			"error", err)

@@ -2,6 +2,7 @@ package codexcli
 
 import (
 	"os"
+	slashpath "path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,6 +22,14 @@ func codexSessionsRoot(homeDir string) string {
 func normalizeCodexPath(path string) string {
 	if strings.TrimSpace(path) == "" {
 		return ""
+	}
+
+	// A rooted path that is not absolute by this host's rules is a foreign
+	// recorded path (a Unix cwd read on a Windows host): normalize it as a
+	// string — filepath.Abs would staple the current drive letter on and
+	// EvalSymlinks would consult the wrong filesystem.
+	if !filepath.IsAbs(path) && strings.HasPrefix(path, "/") {
+		return slashpath.Clean(path)
 	}
 
 	cleaned := filepath.Clean(path)

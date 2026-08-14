@@ -6,10 +6,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
@@ -293,14 +293,18 @@ func TestWriteSessionIndexEntry_PreservesExisting(t *testing.T) {
 // at the folder, and state.vscdb carries the ItemTable the index write needs.
 func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 	fakeHome := t.TempDir()
-	t.Setenv("HOME", fakeHome)
-	storageRoot := filepath.Join(fakeHome, "Library", "Application Support", "Code", "User", "workspaceStorage")
-	if runtime.GOOS == "linux" {
-		storageRoot = filepath.Join(fakeHome, ".config", "Code", "User", "workspaceStorage")
-	}
+	testutil.SetHome(t, fakeHome)
+	// Point the provider at a fake install via the --user-data-dir override
+	// rather than per-OS home layouts (macOS/Linux/Windows all differ, and
+	// Windows resolves via APPDATA, which SetHome deliberately doesn't touch).
+	// The override is the same resolution path a portable install takes.
+	userData := t.TempDir()
+	storageRoot := filepath.Join(userData, "User", "workspaceStorage")
 	if err := os.MkdirAll(storageRoot, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	SetUserDataDirOverride(VSCode.ID, userData)
+	t.Cleanup(func() { SetUserDataDirOverride(VSCode.ID, "") })
 	projectDir := filepath.Join(fakeHome, "proj")
 	if err := os.MkdirAll(projectDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -328,7 +332,8 @@ func TestEnsureWorkspaceForReconstruction_MintsEntry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if got, err := vscode.URIToPath(wsJSON.Folder); err != nil || got != canonical {
+	// EqualPaths: the URI round-trip lowercases the drive letter on Windows.
+	if got, err := vscode.URIToPath(wsJSON.Folder); err != nil || !testutil.EqualPaths(got, canonical) {
 		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, canonical)
 	}
 

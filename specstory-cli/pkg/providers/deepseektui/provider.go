@@ -39,27 +39,34 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustom := strings.TrimSpace(customCommand) != ""
 	slog.Info("Check: verifying DeepSeek TUI installation",
 		"command", cmdName, "customCommand", isCustom)
+	attempt := analytics.CheckAttempt{
+		Provider:      "deepseek",
+		CustomCommand: isCustom,
+		CommandPath:   cmdName,
+		VersionFlag:   versionFlag,
+	}
 
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
 		slog.Info("Check: binary not found on PATH", "command", cmdName, "error", err)
-		msg := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
-		trackCheckFailure("deepseek", isCustom, cmdName, "", versionFlag, "", "not_found", err.Error())
+		msg := buildCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
 		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
 	}
 	slog.Info("Check: binary resolved", "command", cmdName, "resolved", resolved)
+	attempt.ResolvedPath = resolved
 
 	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(resolved, versionFlag)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := classifyCheckError(err)
+		errorType := spi.ClassifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		slog.Info("Check: version probe failed",
 			"resolved", resolved, "errorType", errorType, "stderr", stderrOutput, "error", err)
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
-		trackCheckFailure("deepseek", isCustom, cmdName, resolved, versionFlag, stderrOutput, errorType, err.Error())
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
 	}
 
@@ -68,7 +75,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		version = "unknown"
 	}
 	slog.Info("Check: succeeded", "resolved", resolved, "version", version)
-	trackCheckSuccess("deepseek", isCustom, cmdName, resolved, version, versionFlag)
+	analytics.TrackCheckSuccess(attempt, version)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -244,21 +251,6 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 
 // --- helpers shared across the package ---
 
-func classifyCheckError(err error) string {
-	var execErr *exec.Error
-	var pathErr *os.PathError
-	switch {
-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return "not_found"
-	case errors.As(err, &pathErr) && errors.Is(pathErr.Err, os.ErrPermission):
-		return "permission_denied"
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	default:
-		return "version_failed"
-	}
-}
-
 func buildCheckErrorMessage(errorType string, command string, isCustom bool, stderr string) string {
 	var builder strings.Builder
 	switch errorType {
@@ -284,34 +276,6 @@ func buildCheckErrorMessage(errorType string, command string, isCustom bool, std
 		builder.WriteString("Run `deepseek --version` manually to diagnose, then retry.")
 	}
 	return builder.String()
-}
-
-func trackCheckSuccess(provider string, custom bool, commandPath string, resolvedPath string, version string, versionFlag string) {
-	props := analytics.Properties{
-		"provider":       provider,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version":        version,
-		"version_flag":   versionFlag,
-	}
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, props)
-}
-
-func trackCheckFailure(provider string, custom bool, commandPath string, resolvedPath string, versionFlag string, stderrOutput string, errorType string, message string) {
-	props := analytics.Properties{
-		"provider":       provider,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version_flag":   versionFlag,
-		"error_type":     errorType,
-		"error_message":  message,
-	}
-	if stderrOutput != "" {
-		props["stderr"] = stderrOutput
-	}
-	analytics.TrackEvent(analytics.EventCheckInstallFailed, props)
 }
 
 func printDetectionHelp() {

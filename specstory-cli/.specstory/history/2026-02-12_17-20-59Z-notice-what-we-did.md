@@ -2183,7 +2183,7 @@ _**Agent (claude-opus-4-6 2026-02-12 17:23:33Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Extract commands from main.go into pkg/cmd/
 
 ## Context
@@ -2251,13 +2251,13 @@ This reduces `main.go` by ~500 lines and follows the established pattern.
 
 - `createRootCommand()` Run handler (line 325): `displayLogoAndHelp(cmd)` → `cmd_pkg.DisplayLogoAndHelp(cmd)` (using the import alias or just `cmd.DisplayLogoAndHelp(cmd)`)
 - `main()` command creation section: replace direct vars with factory calls:
-  \```go
+  ```go
   checkCmd := cmd.CreateCheckCommand()
   versionCmd := cmd.CreateVersionCommand(version)
   loginCmd := cmd.CreateLoginCommand(&cloudURL)
   logoutCmd := cmd.CreateLogoutCommand(&cloudURL)
   helpCmd := cmd.CreateHelpCommand(rootCmd)
-  \```
+  ```
 - Remove `os/exec` and `runtime` from main.go imports (only used by openBrowser)
 - Remove `bufio` from main.go imports if no longer needed (check: it's also used by logoutCmd's reader)
 
@@ -2274,7 +2274,7 @@ This reduces `main.go` by ~500 lines and follows the established pattern.
 3. `golangci-lint run` — confirms no lint issues
 4. Quick smoke test: `./specstory help`, `./specstory version`, `./specstory check`, `./specstory login --help`, `./specstory logout --help`
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/nifty-meandering-candy.md

@@ -3,6 +3,7 @@ package spi
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -57,8 +58,10 @@ func TestGetCanonicalPath(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input, result string) {
-				if !strings.HasSuffix(result, "nonexistent/path/components") {
-					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with nonexistent/path/components", input, result)
+				// filepath.Join gives the platform's separators (backslashes on Windows)
+				want := filepath.Join("nonexistent", "path", "components")
+				if !strings.HasSuffix(result, want) {
+					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with %q", input, result, want)
 				}
 			},
 		},
@@ -74,8 +77,9 @@ func TestGetCanonicalPath(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input, result string) {
-				if !strings.HasSuffix(result, "level1/level2/level3") {
-					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with level1/level2/level3", input, result)
+				want := filepath.Join("level1", "level2", "level3")
+				if !strings.HasSuffix(result, want) {
+					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with %q", input, result, want)
 				}
 			},
 		},
@@ -260,6 +264,41 @@ func TestGetCanonicalPath(t *testing.T) {
 	}
 }
 
+func TestCanonicalizePathOrClean(t *testing.T) {
+	// Use real temp dirs so canonicalization (which calls filepath.EvalSymlinks
+	// under the hood) can resolve them. We can't assert exact strings on macOS
+	// because /var → /private/var, so we assert that equivalent inputs produce
+	// equivalent outputs and that empty input returns empty.
+	t.Run("empty input returns empty", func(t *testing.T) {
+		if got := CanonicalizePathOrClean(""); got != "" {
+			t.Errorf("expected empty, got %q", got)
+		}
+		if got := CanonicalizePathOrClean("   "); got != "" {
+			t.Errorf("expected empty for whitespace, got %q", got)
+		}
+	})
+
+	t.Run("equivalent paths canonicalize to same value", func(t *testing.T) {
+		dir := t.TempDir()
+		// Same dir referenced two ways must canonicalize identically.
+		canonical := CanonicalizePathOrClean(dir)
+		canonicalAgain := CanonicalizePathOrClean(dir + "/")
+		if canonical != canonicalAgain {
+			t.Errorf("trailing slash changed canonical form: %q vs %q", canonical, canonicalAgain)
+		}
+		if canonical == "" {
+			t.Errorf("expected non-empty canonical for %q", dir)
+		}
+	})
+
+	t.Run("nonexistent path still canonicalizes to absolute form", func(t *testing.T) {
+		got := CanonicalizePathOrClean(filepath.Join(t.TempDir(), "definitely", "does", "not", "exist"))
+		if !filepath.IsAbs(got) {
+			t.Errorf("expected absolute path for nonexistent input, got %q", got)
+		}
+	})
+}
+
 // TestSetDebugBaseDir tests the debug base dir override mechanism
 func TestSetDebugBaseDir(t *testing.T) {
 	// Clean up after test to avoid affecting other tests
@@ -372,6 +411,12 @@ func TestGenerateReadableName(t *testing.T) {
 // (the Windows drive-letter/UNC branches are separator-gated and can only run
 // on a Windows build; cursoride's TestUriToPath_WindowsPaths documents them).
 func TestFileURIToPath(t *testing.T) {
+	// A non-WSL host is dropped on posix but names a UNC share on Windows.
+	nonWSLHostWant := "/share/dir"
+	if runtime.GOOS == "windows" {
+		nonWSLHostWant = `\\server\share\dir`
+	}
+
 	tests := []struct {
 		name    string
 		uri     string
@@ -382,8 +427,11 @@ func TestFileURIToPath(t *testing.T) {
 		{name: "percent escapes decoded", uri: "file:///tmp/my%20file.go", want: "/tmp/my file.go"},
 		{name: "literal percent sequence decoded exactly once", uri: "file:///tmp/literal%2520pct", want: "/tmp/literal%20pct"},
 		{name: "wsl.localhost strips host and distro", uri: "file://wsl.localhost/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl.localhost host is case-insensitive", uri: "file://WSL.LOCALHOST/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl$ host strips host and distro", uri: "file://wsl$/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl$ host is case-insensitive", uri: "file://WSL$/Ubuntu/home/u/proj", want: "/home/u/proj"},
 		{name: "wsl host without in-distro path is malformed", uri: "file://wsl.localhost/Ubuntu", wantErr: true},
-		{name: "non-wsl host dropped on posix", uri: "file://server/share/dir", want: "/share/dir"},
+		{name: "non-wsl host", uri: "file://server/share/dir", want: nonWSLHostWant},
 		{name: "non-file scheme rejected", uri: "https://example.com/x", wantErr: true},
 	}
 	for _, tt := range tests {
@@ -592,6 +640,36 @@ func TestIsRemoteURIRequiringBasenameMatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := IsRemoteURIRequiringBasenameMatch(tt.uri); got != tt.want {
 				t.Errorf("IsRemoteURIRequiringBasenameMatch(%q) = %v, want %v", tt.uri, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWindowsFileURIPath covers the Windows-native conversion of decoded file-URI
+// paths, runnable from any platform (the function deliberately avoids GOOS-dependent
+// filepath helpers). Drive URIs lose their spurious leading slash and gain
+// backslashes; Unix-shaped rooted paths — sessions or workspaces recorded on
+// another OS — must pass through untouched, keeping their absolute root.
+func TestWindowsFileURIPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "uppercase drive", path: "/C:/Users/x/proj", want: `C:\Users\x\proj`},
+		{name: "lowercase drive", path: "/c:/Users/x/proj", want: `c:\Users\x\proj`},
+		{name: "drive with space", path: "/c:/a b/c", want: `c:\a b\c`},
+		{name: "drive root", path: "/c:/", want: `c:\`},
+		{name: "unix path preserved", path: "/tmp/project/main.go", want: "/tmp/project/main.go"},
+		{name: "unix home path preserved", path: "/Users/me/proj", want: "/Users/me/proj"},
+		{name: "bare root preserved", path: "/", want: "/"},
+		{name: "colon later in path is not a drive", path: "/tmp/a:b/c", want: "/tmp/a:b/c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := windowsFileURIPath(tt.path); got != tt.want {
+				t.Errorf("windowsFileURIPath(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}

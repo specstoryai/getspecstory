@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -111,24 +110,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := "unknown"
-
-		var execErr *exec.Error
-		var pathErr *os.PathError
-
-		// Check error types in order of specificity
-		switch {
-		case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-			errorType = "not_found"
-		case errors.As(err, &pathErr):
-			if errors.Is(pathErr.Err, os.ErrNotExist) {
-				errorType = "not_found"
-			} else if errors.Is(pathErr.Err, os.ErrPermission) {
-				errorType = "permission_denied"
-			}
-		case errors.Is(err, os.ErrPermission):
-			errorType = "permission_denied"
-		}
+		errorType := spi.ClassifyCheckError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
 		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
@@ -157,11 +139,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 			"provider":       "cursor",
 			"custom_command": isCustomCommand,
 			"command_path":   cursorCmd,
-			"error_type":     "no_output",
+			"error_type":     spi.CheckErrorNoOutput,
 			"output":         "",
 		})
 
-		errorMessage := buildCheckErrorMessage("no_output", cursorCmd, isCustomCommand, "")
+		errorMessage := buildCheckErrorMessage(spi.CheckErrorNoOutput, cursorCmd, isCustomCommand, "")
 
 		return spi.CheckResult{
 			Success:      false,

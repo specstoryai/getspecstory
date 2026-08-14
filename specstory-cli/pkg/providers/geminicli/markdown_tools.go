@@ -3,7 +3,6 @@ package geminicli
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -124,7 +123,7 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
 	}
 
 	filePath := inputAsString(tool.Input, "file_path")
-	lang := languageFromPath(filePath)
+	lang := spi.LanguageFromPath(filePath)
 	return spi.CodeFence(lang, output)
 }
 
@@ -202,7 +201,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 	}
 	if content != "" {
 		builder.WriteString("```")
-		builder.WriteString(languageFromPath(path))
+		builder.WriteString(spi.LanguageFromPath(path))
 		builder.WriteString("\n")
 		builder.WriteString(content)
 		builder.WriteString("\n```")
@@ -333,17 +332,6 @@ func outputAsString(output map[string]interface{}) string {
 	}
 
 	return ""
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return "text"
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return "text"
-	}
-	return ext
 }
 
 func truncate(text string, limit int) string {

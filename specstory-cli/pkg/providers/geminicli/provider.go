@@ -55,7 +55,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := classifyGeminiCheckError(err)
+		errorType := spi.ClassifyCheckError(err)
 		errorMessage := buildGeminiCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
 		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
 			"provider":       "gemini",
@@ -199,23 +199,6 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	StopWatcher()
 
 	return ctx.Err()
-}
-
-func classifyGeminiCheckError(err error) string {
-	var execErr *exec.Error
-	var pathErr *os.PathError
-
-	switch {
-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return "not_found"
-	case errors.As(err, &pathErr):
-		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return "permission_denied"
-		}
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	}
-	return "version_failed"
 }
 
 func buildGeminiCheckErrorMessage(errorType string, geminiCmd string, isCustom bool, stderr string) string {

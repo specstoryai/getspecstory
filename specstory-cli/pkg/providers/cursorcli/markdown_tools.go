@@ -2,55 +2,11 @@ package cursorcli
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
-
-// getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
-func getLanguageFromExtension(filePath string) string {
-	if filePath == "" {
-		return ""
-	}
-
-	ext := strings.TrimPrefix(filepath.Ext(filePath), ".")
-	if ext == "" {
-		return ""
-	}
-
-	// Map common extensions to language identifiers
-	switch ext {
-	case "js":
-		return "javascript"
-	case "ts":
-		return "typescript"
-	case "py":
-		return "python"
-	case "rb":
-		return "ruby"
-	case "yml":
-		return "yaml"
-	case "md":
-		return "markdown"
-	case "jsx":
-		return "javascript"
-	case "tsx":
-		return "typescript"
-	case "h", "c":
-		return "c"
-	case "hpp", "cpp", "cc":
-		return "cpp"
-	case "cs":
-		return "csharp"
-	case "rs":
-		return "rust"
-	default:
-		// Common extensions that don't need mapping: go, java, json, xml, sh, html, css, etc.
-		return ext
-	}
-}
 
 // formatWriteTool formats Write tool usage with file content in triple backticks
 // Expected args: "path" (filename) and "contents" (file content)
@@ -65,7 +21,7 @@ func formatWriteTool(args map[string]interface{}) string {
 	}
 
 	// Get language for syntax highlighting
-	lang := getLanguageFromExtension(filePath)
+	lang := spi.LanguageFromPath(filePath)
 
 	// Add content in a safely sized code fence with language hint
 	return spi.CodeFence(lang, contents)

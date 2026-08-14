@@ -56,6 +56,10 @@ Specify a specific agent ID to check only a specific coding agent.`,
 			customCmd, _ := cmd.Flags().GetString("command")
 			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
 
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
 			if err != nil {
 				return err
@@ -103,6 +107,7 @@ Specify a specific agent ID to check only a specific coding agent.`,
 
 	cmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
 	AddProvidersFlag(cmd)
+	AddUserDataDirFlag(cmd)
 
 	return cmd
 }

@@ -1940,6 +1940,8 @@ _**User (2026-06-23 13:27:57Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-23 13:27:57Z)**_
 
 why ignore the workspace-id? Seems if we have one... reindex should be using it... if we don't have one... re-index should be writing one (AND we can have the canonicalization fix)
@@ -2005,6 +2007,8 @@ OK — every line parses
 _**User (2026-06-23 13:33:29Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-06-23 13:33:29Z)**_
 
@@ -2595,6 +2599,8 @@ _**User (2026-06-23 13:44:03Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-06-23 13:44:08Z)**_
 
 proceed
@@ -3124,6 +3130,8 @@ _**User (2026-06-23 13:55:55Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-23 13:55:57Z)**_
 
 proceed
@@ -3488,6 +3496,8 @@ _**User (2026-06-23 14:05:33Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-06-23 14:05:39Z)**_
 
 proceed
@@ -3552,9 +3562,13 @@ _**User (2026-06-23 14:30:02Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-06-23 14:30:02Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-06-23 14:30:02Z)**_
 
