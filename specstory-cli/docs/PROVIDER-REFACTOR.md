@@ -205,7 +205,7 @@ Only one, and it is the accepted cost of 5b: in deepseektui and droidcli, **nest
 
 ## 9. What actually landed (Phase 3, items 1 and 3)
 
-Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§10).
 
 ### Item 1 — language maps
 
@@ -236,3 +236,30 @@ Telemetry changes: deepseektui, droidcli, antigravitycli and geminicli now emit 
 ### The one thing that made item 3 risky
 
 `codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
+
+---
+
+## 10. Follow-on: bringing `musecode` in line
+
+`musecode` was written in parallel with this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all seven fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+
+Applied, using the same decisions recorded in §7:
+
+| Removed from `musecode` | Replaced with | Effect |
+|---|---|---|
+| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was behaviorally identical |
+| `canonicalPath` | `spi.CanonicalizePathOrClean` | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
+| `classifyMuseCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported) |
+
+`classifyMuseCheckError` was the pre-fix shape, carrying both §2.3 and §2.4. Verified deltas against the shared classifier: a `PathError` wrapping `ErrNotExist` was `version_failed`, now `not_found` (the practical bug — a binary that vanishes between `LookPath` and `Run`); a plain error and an unrelated `PathError` were `version_failed`, now `unknown`; `nil` was `version_failed`, now `""`. The §2.3 arm needs a contrived multi-`%w` chain to trigger, so it was latent rather than user-visible. `buildMuseCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so muse picks up the same changes: `Makefile` and `""` go from ` ```text ` to an untagged fence, and the aliases apply (`.md` → markdown, `.py` → python, `.yml` → yaml). `TestLanguageFromPath` moved to `pkg/spi`; one fence assertion in `markdown_tools_test.go` moved from ` ````md ` to ` ````markdown `.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not muse-specific and remains open.
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; muse follows the former.)
+
+Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).

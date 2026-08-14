@@ -172,7 +172,7 @@ func findMuseSessions(projectPath string) ([]museSessionFile, error) {
 		return nil, fmt.Errorf("failed to read Muse sessions directory %q: %w", sessionsRoot, err)
 	}
 
-	targetRoot := canonicalPath(projectPath)
+	targetRoot := spi.CanonicalizePathOrClean(projectPath)
 
 	var paths []string
 	if err := walkMuseSessionFiles(sessionsRoot, func(path string) {
@@ -188,7 +188,7 @@ func findMuseSessions(projectPath string) ([]museSessionFile, error) {
 			slog.Debug("findMuseSessions: Skipping unreadable transcript", "path", path, "error", err)
 			continue
 		}
-		if workspaceRoot == "" || canonicalPath(workspaceRoot) != targetRoot {
+		if workspaceRoot == "" || spi.CanonicalizePathOrClean(workspaceRoot) != targetRoot {
 			continue
 		}
 		matches = append(matches, museSessionFile{
@@ -240,18 +240,4 @@ func findMuseSessionPathByID(sessionID string) (string, error) {
 	// re-shared across days, so take the most recent.
 	sort.Sort(sort.Reverse(sort.StringSlice(matches)))
 	return matches[0], nil
-}
-
-// canonicalPath normalizes a path for comparison, falling back to the cleaned
-// input when canonicalization fails (a store entry may name a directory that no
-// longer exists).
-func canonicalPath(path string) string {
-	if strings.TrimSpace(path) == "" {
-		return ""
-	}
-	canonical, err := spi.GetCanonicalPath(path)
-	if err != nil {
-		return filepath.Clean(path)
-	}
-	return canonical
 }

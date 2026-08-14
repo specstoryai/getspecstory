@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,6 +23,10 @@ var (
 	_ spi.PathSessionReader  = (*Provider)(nil)
 )
 
+// versionFlag is the flag Check probes the binary with, reported alongside the
+// result so analytics can tell a flag change from a genuine failure.
+const versionFlag = "--version"
+
 type Provider struct{}
 
 func NewProvider() *Provider {
@@ -37,40 +40,36 @@ func (p *Provider) Name() string {
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseMuseCommand(customCommand)
 	isCustom := customCommand != ""
+	attempt := analytics.CheckAttempt{
+		Provider:      "muse",
+		CustomCommand: isCustom,
+		CommandPath:   cmdName,
+		VersionFlag:   versionFlag,
+	}
 
 	resolvedPath, err := exec.LookPath(cmdName)
 	if err != nil {
-		errorMessage := buildMuseCheckErrorMessage("not_found", cmdName, isCustom, "")
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "muse",
-			"custom_command": isCustom,
-			"command_path":   cmdName,
-			"error_type":     "not_found",
-			"error_message":  err.Error(),
-		})
+		errorMessage := buildMuseCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
 	}
+	attempt.ResolvedPath = resolvedPath
 
-	cmd := exec.Command(cmdName, "--version")
+	cmd := exec.Command(cmdName, versionFlag)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := classifyMuseCheckError(err)
-		errorMessage := buildMuseCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "muse",
-			"custom_command": isCustom,
-			"command_path":   resolvedPath,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		errorType := spi.ClassifyCheckError(err)
+		stderrOutput := strings.TrimSpace(stderr.String())
+		errorMessage := buildMuseCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
@@ -79,13 +78,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		}
 	}
 
+	// A binary that runs but prints nothing still passes the check; report a
+	// placeholder rather than an empty version so the result reads unambiguously.
 	version := strings.TrimSpace(stdout.String())
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "muse",
-		"custom_command": isCustom,
-		"command_path":   resolvedPath,
-		"version":        version,
-	})
+	if version == "" {
+		version = "unknown"
+	}
+	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
 		Success:  true,
@@ -94,28 +93,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 }
 
-func classifyMuseCheckError(err error) string {
-	var execErr *exec.Error
-	var pathErr *os.PathError
-
-	switch {
-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return "not_found"
-	case errors.As(err, &pathErr):
-		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return "permission_denied"
-		}
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	}
-	return "version_failed"
-}
-
 func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool, stderr string) string {
 	var b strings.Builder
 
 	switch errorType {
-	case "not_found":
+	case spi.CheckErrorNotFound:
 		b.WriteString("Muse Code could not be found.\n\n")
 		if isCustom {
 			b.WriteString("• Verify the path you supplied actually points to the `muse` executable.\n")
@@ -124,7 +106,7 @@ func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool,
 			b.WriteString("• Install Muse Code and ensure `muse` is on your PATH.\n")
 			b.WriteString("• Or pass a custom command via `specstory check muse -c \"path/to/muse\"`.\n")
 		}
-	case "permission_denied":
+	case spi.CheckErrorPermissionDenied:
 		b.WriteString("Muse Code exists but isn't executable.\n\n")
 		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", museCmd)
 		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")

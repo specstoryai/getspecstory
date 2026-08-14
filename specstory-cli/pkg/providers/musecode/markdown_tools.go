@@ -3,7 +3,6 @@ package musecode
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -87,7 +86,7 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		// Don't show input args - parameters are in the summary
 		return ""
 	default:
-		return formatGenericBodyFromInput(tool.Input)
+		return spi.RenderGenericJSON(tool.Input)
 	}
 }
 
@@ -184,7 +183,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
-		builder.WriteString(spi.CodeFence(languageFromPath(path), content))
+		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
 	}
 	return builder.String()
 }
@@ -278,17 +277,6 @@ func formatSubagentBodyFromInput(input map[string]interface{}) string {
 	return builder.String()
 }
 
-func formatGenericBodyFromInput(input map[string]interface{}) string {
-	if len(input) == 0 {
-		return ""
-	}
-	bytes, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return spi.CodeFence("json", string(bytes))
-}
-
 // formatDefaultResultFromOutput builds result with "Result:" prefix
 func formatDefaultResultFromOutput(output map[string]interface{}) string {
 	content := outputAsString(output)
@@ -364,17 +352,6 @@ func outputErrorString(output map[string]interface{}) string {
 		return strings.TrimSpace(errStr)
 	}
 	return ""
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return "text"
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return "text"
-	}
-	return ext
 }
 
 func truncate(text string, limit int) string {

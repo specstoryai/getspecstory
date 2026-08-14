@@ -266,7 +266,7 @@ func TestFormatToolAsMarkdown_UsesCodeFenceForEmbeddedBackticks(t *testing.T) {
 					"content": "intro\n```zsh\nspecstory sync\n```\n",
 				},
 			},
-			expect: "````md\n",
+			expect: "````markdown\n",
 		},
 		{
 			name: "generic result with a long backtick run",
@@ -349,26 +349,6 @@ func TestInputAsString(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := inputAsString(tt.input, tt.key); got != tt.expected {
 				t.Errorf("inputAsString() = %q, want %q", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestLanguageFromPath(t *testing.T) {
-	tests := []struct {
-		path     string
-		expected string
-	}{
-		{path: "", expected: "text"},
-		{path: "Makefile", expected: "text"},
-		{path: "src/calc.py", expected: "py"},
-		{path: "README.MD", expected: "md"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			if got := languageFromPath(tt.path); got != tt.expected {
-				t.Errorf("languageFromPath(%q) = %q, want %q", tt.path, got, tt.expected)
 			}
 		})
 	}

@@ -204,3 +204,20 @@ func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
 		t.Errorf("published %d sessions for a conversation-less transcript, want 0", published)
 	}
 }
+
+// A panic in the consumer's callback must not escape delivery: it would unwind
+// the fsnotify event goroutine and take the process down over one bad session.
+func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
+	var called bool
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		called = true
+		panic("consumer blew up")
+	})
+	t.Cleanup(func() { SetWatcherCallback(nil) })
+
+	triggerCallback(&spi.AgentChatSession{SessionID: "s-1"})
+
+	if !called {
+		t.Fatal("callback was never invoked")
+	}
+}

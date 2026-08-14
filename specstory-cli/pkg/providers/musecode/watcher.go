@@ -381,7 +381,7 @@ func processSessionChange(filePath string) {
 	}
 
 	workspaceRoot := getWatcherWorkspaceRoot()
-	if session.WorkspaceRoot == "" || canonicalPath(session.WorkspaceRoot) != canonicalPath(workspaceRoot) {
+	if session.WorkspaceRoot == "" || spi.CanonicalizePathOrClean(session.WorkspaceRoot) != spi.CanonicalizePathOrClean(workspaceRoot) {
 		slog.Debug("processSessionChange: Session belongs to another project, skipping",
 			"file", filePath, "sessionRoot", session.WorkspaceRoot, "watchedRoot", workspaceRoot)
 		return
@@ -392,12 +392,24 @@ func processSessionChange(filePath string) {
 }
 
 // triggerCallback is a helper to call the watcher callback with proper locking.
+//
+// Delivery is synchronous so transcript changes reach the consumer in the order
+// fsnotify reported them, but a panic in the consumer is contained here: it
+// would otherwise unwind the fsnotify event goroutine and take down the whole
+// process over one malformed session.
 func triggerCallback(agentSession *spi.AgentChatSession) {
 	watcherMutex.RLock()
 	cb := watcherCallback
 	watcherMutex.RUnlock()
 
-	if cb != nil && agentSession != nil {
-		cb(agentSession)
+	if cb == nil || agentSession == nil {
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("muse: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
+		}
+	}()
+	cb(agentSession)
 }
