@@ -311,6 +311,28 @@ func GetCanonicalPath(p string) (string, error) {
 	return result, nil
 }
 
+// CanonicalizePathOrClean resolves path to the canonical form used for
+// comparing paths recorded by an agent against paths seen locally, and returns
+// "" for blank input.
+//
+// Unlike GetCanonicalPath it never fails: a path that cannot be canonicalized
+// (most often because it was recorded on another machine and does not exist
+// here) still needs to compare equal to itself, so it degrades to a cleaned
+// absolute path and finally to a plain Clean.
+func CanonicalizePathOrClean(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+	if canonical, err := GetCanonicalPath(trimmed); err == nil {
+		return canonical
+	}
+	if abs, err := filepath.Abs(trimmed); err == nil {
+		return filepath.Clean(abs)
+	}
+	return filepath.Clean(trimmed)
+}
+
 // debugBaseDirOverride allows overriding the base directory for debug output.
 // When set, debug files are written to this directory instead of the default
 // .specstory/debug/ location. This is set via the --debug-dir CLI flag or

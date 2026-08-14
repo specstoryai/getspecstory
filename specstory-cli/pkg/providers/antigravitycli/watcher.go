@@ -316,21 +316,5 @@ func emitConversation(file conversationFile, projectPath string, debugRaw bool,
 		return
 	}
 	state.lastProcessed[file.Path] = file.ModTime
-	dispatchSession(sessionCallback, chat)
-}
-
-// dispatchSession invokes the session callback in a goroutine with panic
-// recovery so a misbehaving callback cannot crash the watcher.
-func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.AgentChatSession) {
-	if sessionCallback == nil || session == nil {
-		return
-	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("antigravity: session callback panicked", "panic", r)
-			}
-		}()
-		sessionCallback(session)
-	}()
+	spi.DispatchSession("antigravity", sessionCallback, chat)
 }

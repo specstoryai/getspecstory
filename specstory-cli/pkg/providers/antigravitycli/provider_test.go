@@ -3,7 +3,6 @@ package antigravitycli
 import (
 	"database/sql"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,18 +32,6 @@ func writeConversationSummary(t *testing.T, home, conversationID, title, preview
 	}
 }
 
-func TestClassifyCheckError(t *testing.T) {
-	if got := classifyCheckError(&exec.Error{Name: "agy", Err: exec.ErrNotFound}); got != "not_found" {
-		t.Errorf("not-found error classified as %q", got)
-	}
-	if got := classifyCheckError(&os.PathError{Op: "exec", Path: "agy", Err: os.ErrPermission}); got != "permission_denied" {
-		t.Errorf("permission error classified as %q", got)
-	}
-	if got := classifyCheckError(os.ErrInvalid); got != "version_failed" {
-		t.Errorf("generic error classified as %q", got)
-	}
-}
-
 func TestBuildCheckErrorMessage(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -57,9 +44,9 @@ func TestBuildCheckErrorMessage(t *testing.T) {
 		{name: "not found default", errorType: "not_found", want: []string{"Antigravity CLI was not found", "agy", "PATH"}},
 		{name: "not found custom", errorType: "not_found", isCustom: true, want: []string{"custom path"}},
 		{name: "permission", errorType: "permission_denied", want: []string{"chmod +x"}},
-		{name: "version failed with stderr", errorType: "version_failed", stderr: "boom", want: []string{"agy --version", "boom"}},
+		{name: "unclassified failure with stderr", errorType: spi.CheckErrorUnknown, stderr: "boom", want: []string{"agy --version", "boom"}},
 		// A custom antigravity_cmd must be named in the guidance, not a hardcoded `agy`.
-		{name: "version failed names the custom command", errorType: "version_failed", command: "/opt/wrap/agy-wrap", isCustom: true, want: []string{"/opt/wrap/agy-wrap --version"}},
+		{name: "unclassified failure names the custom command", errorType: spi.CheckErrorUnknown, command: "/opt/wrap/agy-wrap", isCustom: true, want: []string{"/opt/wrap/agy-wrap --version"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

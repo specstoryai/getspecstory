@@ -117,8 +117,8 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 		return false
 	}
 
-	canonicalProject := canonicalizePath(projectPath)
-	canonicalWorkspace := canonicalizePath(workspace)
+	canonicalProject := spi.CanonicalizePathOrClean(projectPath)
+	canonicalWorkspace := spi.CanonicalizePathOrClean(workspace)
 
 	return canonicalProject == canonicalWorkspace
 }
@@ -178,20 +178,4 @@ func matchWorkspace(line string) string {
 		return ""
 	}
 	return rest[:end]
-}
-
-// canonicalizePath resolves a path to its canonical form for comparison.
-func canonicalizePath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	canonical, err := spi.GetCanonicalPath(trimmed)
-	if err == nil {
-		return canonical
-	}
-	if abs, err := filepath.Abs(trimmed); err == nil {
-		return filepath.Clean(abs)
-	}
-	return filepath.Clean(trimmed)
 }
