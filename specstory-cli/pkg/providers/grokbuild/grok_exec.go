@@ -98,6 +98,11 @@ func ExecuteGrok(customCommand string, resumeSessionID string) error {
 		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteGrok: Grok Build exited", "exitCode", exitCode)
+			// os.Exit skips ExecAgentAndWatch's deferred StopWatcher, and the
+			// watcher's debounce may be holding the session's final turn, the
+			// very one the abnormal exit just produced. Stop it here so that
+			// turn is flushed to markdown before the process dies.
+			StopWatcher()
 			os.Exit(exitCode)
 		}
 		return fmt.Errorf("grok execution failed: %w", err)

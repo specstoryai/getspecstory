@@ -162,6 +162,48 @@ func TestSessionIndex_TimingAndOutcomes(t *testing.T) {
 	}
 }
 
+func TestReadChatHistoryCapped_RefusesOversizedLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, chatHistoryFile)
+
+	// One valid record, then a line past the cap. The scanner's buffer cap is
+	// what bounds the allocation, so the oversized line must surface as a
+	// refusal rather than being read whole first.
+	oversized := `{"type":"assistant","content":"` + strings.Repeat("x", 4096) + `"}`
+	content := `{"type":"user","content":[{"type":"text","text":"<user_query>hi</user_query>"}]}` + "\n" + oversized + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := readChatHistoryCapped(path, 1024)
+	if err == nil {
+		t.Fatal("an oversized line should refuse the file")
+	}
+	if !strings.Contains(err.Error(), "size limit") {
+		t.Errorf("error should name the size limit, got: %v", err)
+	}
+}
+
+func TestForEachJSONLineCapped_StopsAtOversizedLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, updatesFile)
+
+	oversized := `{"big":"` + strings.Repeat("y", 4096) + `"}`
+	content := `{"n":1}` + "\n" + oversized + "\n" + `{"n":3}` + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var seen int
+	forEachJSONLineCapped(path, 1024, func(raw []byte) { seen++ })
+
+	// Sidecars are best effort: everything before the oversized line is kept,
+	// and the scan stops there instead of allocating past the cap.
+	if seen != 1 {
+		t.Errorf("lines handed to fn = %d, want 1 (the line before the oversized one)", seen)
+	}
+}
+
 func TestFindSessions_ExcludesSubagentsAndSorts(t *testing.T) {
 	dir := t.TempDir()
 

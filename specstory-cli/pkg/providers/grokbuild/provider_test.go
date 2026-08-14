@@ -1,6 +1,7 @@
 package grokbuild
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,14 +40,29 @@ func seedSession(t *testing.T, home, projectPath, fixture, sessionID string) str
 	sessionDir := filepath.Join(groupDir, sessionID)
 	copyFixture(t, fixture, sessionDir)
 
-	// Rewrite the fixture's identity so it matches where it now lives.
+	// Rewrite the fixture's identity so it matches where it now lives. Decode
+	// and re-encode rather than splicing the path into the raw text: a Windows
+	// path's backslashes would otherwise become invalid JSON escapes and
+	// silently corrupt the file, taking session_kind and the title with it.
 	summaryPath := filepath.Join(sessionDir, summaryFile)
 	data, err := os.ReadFile(summaryPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated := strings.ReplaceAll(string(data), "/Users/dev/project", projectPath)
-	if err := os.WriteFile(summaryPath, []byte(updated), 0o644); err != nil {
+	var summary map[string]any
+	if err := json.Unmarshal(data, &summary); err != nil {
+		t.Fatal(err)
+	}
+	info, ok := summary["info"].(map[string]any)
+	if !ok {
+		t.Fatalf("fixture %s has no info object", fixture)
+	}
+	info["cwd"] = projectPath
+	updated, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(summaryPath, updated, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return sessionDir

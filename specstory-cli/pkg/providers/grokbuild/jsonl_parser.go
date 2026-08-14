@@ -3,8 +3,8 @@ package grokbuild
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -268,6 +268,16 @@ func readSummary(path string) (*GrokSummary, error) {
 // live session can be mid-write when the watcher fires, so a corrupt trailing
 // line is expected rather than fatal.
 func readChatHistory(path string) ([]GrokRecord, error) {
+	return readChatHistoryCapped(path, maxReasonableLineSize)
+}
+
+// readChatHistoryCapped is readChatHistory with the line cap as a parameter so
+// tests can exercise the limit without a multi-hundred-megabyte fixture.
+//
+// The scanner's buffer cap is what actually bounds memory: an unterminated
+// multi-gigabyte line fails with ErrTooLong once the cap is hit, rather than
+// being read whole before any size check can run.
+func readChatHistoryCapped(path string, maxLine int) ([]GrokRecord, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -278,37 +288,34 @@ func readChatHistory(path string) ([]GrokRecord, error) {
 	defer func() { _ = file.Close() }()
 
 	var records []GrokRecord
-	reader := bufio.NewReader(file)
+	scanner := bufio.NewScanner(file)
+	// The initial buffer must not exceed the cap: Scanner's effective limit is
+	// the larger of the two, so an initial buffer bigger than maxLine would
+	// quietly raise it.
+	scanner.Buffer(make([]byte, 0, min(64*1024, maxLine)), maxLine)
 	lineNumber := 0
 
-	for {
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
-
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
+			continue
 		}
+		lineNumber++
 
-		atEOF := err == io.EOF
-		if strings.TrimSpace(line) != "" {
-			lineNumber++
-
-			if len(line) > maxReasonableLineSize {
-				return nil, fmt.Errorf("line %d exceeds the %d MB size limit: refusing to process", lineNumber, maxReasonableLineSize/mb)
-			}
-
-			var record GrokRecord
-			if err := json.Unmarshal([]byte(line), &record); err != nil {
-				slog.Warn("readChatHistory: skipping corrupted line",
-					"file", filepath.Base(path), "line", lineNumber, "error", err)
-			} else {
-				records = append(records, record)
-			}
+		var record GrokRecord
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			slog.Warn("readChatHistory: skipping corrupted line",
+				"file", filepath.Base(path), "line", lineNumber, "error", err)
+			continue
 		}
+		records = append(records, record)
+	}
 
-		if atEOF {
-			break
+	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			return nil, fmt.Errorf("line %d exceeds the %d MB size limit: refusing to process", lineNumber+1, maxLine/mb)
 		}
+		return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 	}
 
 	return records, nil
@@ -454,21 +461,32 @@ func buildSessionIndex(dir string) *sessionIndex {
 // forEachJSONLine streams a JSONL file, handing each non-empty line to fn.
 // A missing file is not an error: every sidecar is optional.
 func forEachJSONLine(path string, fn func(raw []byte)) {
+	forEachJSONLineCapped(path, maxReasonableLineSize, fn)
+}
+
+// forEachJSONLineCapped is forEachJSONLine with the line cap as a parameter so
+// tests can exercise the limit. The scanner's buffer cap bounds the allocation;
+// a line past the cap stops the scan, which for a best-effort sidecar means the
+// session renders with whatever was indexed up to that point.
+func forEachJSONLineCapped(path string, maxLine int, fn func(raw []byte)) {
 	file, err := os.Open(path)
 	if err != nil {
 		return
 	}
 	defer func() { _ = file.Close() }()
 
-	reader := bufio.NewReader(file)
-	for {
-		line, err := reader.ReadString('\n')
-		if trimmed := strings.TrimSpace(line); trimmed != "" && len(trimmed) <= maxReasonableLineSize {
+	scanner := bufio.NewScanner(file)
+	// The initial buffer must not exceed the cap: Scanner's effective limit is
+	// the larger of the two, so an initial buffer bigger than maxLine would
+	// quietly raise it.
+	scanner.Buffer(make([]byte, 0, min(64*1024, maxLine)), maxLine)
+	for scanner.Scan() {
+		if trimmed := strings.TrimSpace(scanner.Text()); trimmed != "" {
 			fn([]byte(trimmed))
 		}
-		if err != nil {
-			return
-		}
+	}
+	if err := scanner.Err(); err != nil {
+		slog.Debug("forEachJSONLine: stopped reading sidecar", "path", filepath.Base(path), "error", err)
 	}
 }
 

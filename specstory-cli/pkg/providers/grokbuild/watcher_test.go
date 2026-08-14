@@ -157,7 +157,10 @@ func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
 }
 
 func TestSessionDirFor(t *testing.T) {
-	groupDir := "/store/sessions/%2Ftmp%2Fproject"
+	// Built with filepath.Join so the separators are native: sessionDirFor
+	// compares filepath.Dir results, and a hardcoded forward-slash prefix would
+	// never match them on Windows.
+	groupDir := filepath.Join("store", "sessions", "%2Ftmp%2Fproject")
 	sessionID := "11111111-2222-7333-8444-555555555555"
 	sessionDir := filepath.Join(groupDir, sessionID)
 
