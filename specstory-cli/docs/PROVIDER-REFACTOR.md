@@ -205,7 +205,7 @@ Only one, and it is the accepted cost of 5b: in deepseektui and droidcli, **nest
 
 ## 9. What actually landed (Phase 3, items 1 and 3)
 
-Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `qwencode` (§10).
 
 ### Item 1 — language maps
 
@@ -236,3 +236,36 @@ Telemetry changes: deepseektui, droidcli, antigravitycli and geminicli now emit 
 ### The one thing that made item 3 risky
 
 `codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
+
+---
+
+## 10. Follow-on: bringing `qwencode` in line
+
+`qwencode` was developed on its own branch alongside this refactor and merged after it, so it reintroduced four of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all eight fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+
+> Other new-provider branches (e.g. `musecode`) carry their own version of this section. When those branches land, fold the per-provider sections into one.
+
+Applied, using the same decisions recorded in §7:
+
+| Removed from `qwencode` | Replaced with | Effect |
+|---|---|---|
+| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was byte-identical |
+| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+| `classifyQwenCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which qwen captured but never reported) |
+
+`classifyQwenCheckError` was the pre-fix shape, carrying both §2.3 and §2.4: a `PathError` wrapping `ErrNotExist` was `version_failed` and is now `not_found` (the practical case — a binary that vanishes between `LookPath` and `Run`), and plain errors move from `version_failed` to `unknown`. `buildQwenCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so qwen picks up the same changes, verified through the real render path: `README.md` → ` ```markdown `, `src/calc.py` → ` ```python `, and an extensionless file → an untagged fence (was ` ```text `). The package's existing tests passed unmodified because its only language-tagged fence assertion uses a `.go` path, which passes through unchanged in both implementations — the changed cases were never covered.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by the new `watcher_test.go`. **geminicli still has this gap**, with the same singleton-watcher shape; it is not qwen-specific and remains open.
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; qwen follows the former.)
+
+### What does *not* apply to qwencode
+
+- **No `canonicalizePath` duplicate.** `qwencode` calls `spi.GetCanonicalPath` once, in `candidateProjectDirNames`, and deliberately keeps **both** the canonical and the raw-absolute sanitized directory names as lookup candidates — Qwen's own store naming sanitizes the process cwd verbatim, without symlink resolution. Collapsing that into `spi.CanonicalizePathOrClean` would drop one of the two spellings and break session discovery for symlinked project paths. This is the same reasoning that keeps `codexcli.normalizeCodexPath` and `vscode.NormalizePathForComparison` local (§5).
+- **No `FormatDiffBlock` overlap.** Edits render from the tool outcome's pre-formed unified diff (`resultDisplay`), not from a find/replace pair.
+
+Left alone deliberately: `inputAsString` (single-key, with a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).

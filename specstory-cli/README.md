@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Qwen Code) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -35,6 +35,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
 | [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
+| [Qwen Code](https://github.com/QwenLM/qwen-code)          | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`          |
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
@@ -325,6 +326,9 @@ specstory sync --config-dir ~/specstory-configs/myproject
 
 # Antigravity CLI command
 # antigravity_cmd = "agy"
+
+# Qwen Code command
+# qwen_cmd = "qwen"
 ```
 
 ### Configuration Options
@@ -358,6 +362,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 | `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
+| `[providers]`     | `qwen_cmd`        | `"qwen"`             | Qwen Code command                          |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
