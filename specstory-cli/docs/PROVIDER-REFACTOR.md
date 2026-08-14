@@ -41,7 +41,7 @@ Call-site volume (excluding definitions and tests): `stringValue` 84, `renderGen
 These exist today and are worth fixing as part of (or independent of) the dedup:
 
 1. **droidcli `renderJSONValue` escaping** (`pkg/providers/droidcli/markdown_tools.go:593`): the marshal-error fallback uses `fmt.Sprintf("\"%s\"", …)` instead of `%q`, so a value containing quotes or backslashes produces malformed JSON in the rendered fence. deepseektui's copy already uses `%q` correctly.
-2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason.
+2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason. **(Fixed — see §10. The real count was five sites, not the two recorded here.)**
 3. **geminicli `classifyCheckError` unreachable arm** (`pkg/providers/geminicli/provider.go:204`): its `case errors.As(err, &pathErr):` matches *any* `os.PathError`, so a permission error wrapped in a `PathError` returns `version_failed` and the later `os.ErrPermission` arm can never fire for that shape.
 4. **Trio `classifyCheckError` gap**: a `PathError` wrapping `os.ErrNotExist` falls through to `version_failed` instead of `not_found`. codexcli's version handles this correctly.
 
@@ -236,3 +236,35 @@ Telemetry changes: deepseektui, droidcli, antigravitycli and geminicli now emit 
 ### The one thing that made item 3 risky
 
 `codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
+
+---
+
+## 10. geminicli: fence bug and missing panic recovery
+
+Two loose ends are now closed: the hardcoded fences from §2.2, and a missing panic recovery in the watcher's session delivery — the latter found while reviewing a new provider against this refactor on another branch, not by the original sweep.
+
+### The fence bug was five sites, not two
+
+§2.2 recorded two hardcoded fences. Grepping the file for ``` turned up **five** distinct constructions, three of which the original sweep missed because they build the fence across several `WriteString` calls rather than in one `fmt.Sprintf`:
+
+| Site | Was | Now |
+|---|---|---|
+| `formatOutputText` | `fmt.Sprintf("```text\n%s\n```", …)` | `spi.CodeFence("text", …)` |
+| `formatShellBodyFromInput` | three `WriteString` calls around ` ```bash ` | `spi.CodeFence("bash", command)` |
+| `formatWriteFileBodyFromInput` | five `WriteString` calls around a dynamic tag | `spi.CodeFence(spi.LanguageFromPath(path), content)` |
+| `formatReplaceBodyFromInput` | three `WriteString` calls around ` ```diff ` | `spi.CodeFence("diff", truncate(newString, 2000))` |
+| `formatGenericBodyFromInput` | `fmt.Sprintf("```json\n%s\n```", …)` | deleted; callers use `spi.RenderGenericJSON` |
+
+The last one is the payoff case: with the fence fixed, that function was byte-identical to `spi.RenderGenericJSON`, so fixing the bug and removing the duplication were the same edit. geminicli was the last provider still carrying a private copy of it.
+
+Every site is exercised by `TestFencedSitesOutrunEmbeddedBackticks`, which feeds each one content containing its own ` ```go ` fence and asserts both that the wrapper widened to four backticks and that the inner content passed through unaltered. Before the fix, all five would emit a three-backtick wrapper that the embedded fence closes early, truncating the rendered document from that point on.
+
+**Lesson for future sweeps:** grepping for ``` catches `Sprintf`-style fences but not ones assembled across `WriteString` calls. The reliable check is "which call sites do *not* go through `spi.CodeFence`", not "which lines contain backticks".
+
+### Missing panic recovery
+
+`triggerCallback` invoked the consumer's callback with no recovery, so a panic would unwind the fsnotify event goroutine and take the process down over one malformed session. Delivery stays synchronous — ordering matters, and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()` that logs the session id. Locked in by a new `watcher_test.go` covering both the panic containment and the nil-argument guards, which the restructure touched.
+
+This gap is inherent to the singleton-watcher shape (package-global callback behind a mutex, invoked straight from the fsnotify handler) rather than to geminicli specifically. Providers that deliver through `spi.DispatchSession` get containment for free; any provider written on the singleton pattern needs this `recover()` explicitly.
+
+With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
