@@ -3603,7 +3603,7 @@ _**Agent (claude-fable-5 2026-07-20 14:37:04Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Secret Redaction Performance
 
 ## Background
@@ -4436,7 +4436,7 @@ _**Agent (claude-fable-5 2026-07-20 14:55:06Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Secret Redaction Performance
 
 ## Background

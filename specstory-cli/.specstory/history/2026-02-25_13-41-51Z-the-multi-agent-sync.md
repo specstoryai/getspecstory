@@ -3468,7 +3468,7 @@ _**Agent (claude-opus-4-6 2026-02-25 14:01:48Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 # Fix: Single stats write + single output message for `--only-stats`
 
 ## Context

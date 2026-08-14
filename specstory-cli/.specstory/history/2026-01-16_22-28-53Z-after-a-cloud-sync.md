@@ -5731,7 +5731,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:30:44Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Add SpecStory Cloud promotional link after cloud sync
 
 ## Summary

@@ -264,6 +264,41 @@ func TestGetCanonicalPath(t *testing.T) {
 	}
 }
 
+func TestCanonicalizePathOrClean(t *testing.T) {
+	// Use real temp dirs so canonicalization (which calls filepath.EvalSymlinks
+	// under the hood) can resolve them. We can't assert exact strings on macOS
+	// because /var → /private/var, so we assert that equivalent inputs produce
+	// equivalent outputs and that empty input returns empty.
+	t.Run("empty input returns empty", func(t *testing.T) {
+		if got := CanonicalizePathOrClean(""); got != "" {
+			t.Errorf("expected empty, got %q", got)
+		}
+		if got := CanonicalizePathOrClean("   "); got != "" {
+			t.Errorf("expected empty for whitespace, got %q", got)
+		}
+	})
+
+	t.Run("equivalent paths canonicalize to same value", func(t *testing.T) {
+		dir := t.TempDir()
+		// Same dir referenced two ways must canonicalize identically.
+		canonical := CanonicalizePathOrClean(dir)
+		canonicalAgain := CanonicalizePathOrClean(dir + "/")
+		if canonical != canonicalAgain {
+			t.Errorf("trailing slash changed canonical form: %q vs %q", canonical, canonicalAgain)
+		}
+		if canonical == "" {
+			t.Errorf("expected non-empty canonical for %q", dir)
+		}
+	})
+
+	t.Run("nonexistent path still canonicalizes to absolute form", func(t *testing.T) {
+		got := CanonicalizePathOrClean(filepath.Join(t.TempDir(), "definitely", "does", "not", "exist"))
+		if !filepath.IsAbs(got) {
+			t.Errorf("expected absolute path for nonexistent input, got %q", got)
+		}
+	})
+}
+
 // TestSetDebugBaseDir tests the debug base dir override mechanism
 func TestSetDebugBaseDir(t *testing.T) {
 	// Clean up after test to avoid affecting other tests

@@ -154,7 +154,7 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
 	}
 
 	state.lastProcessed[filePath] = modTime
-	dispatchSession(sessionCallback, chat)
+	spi.DispatchSession("deepseek", sessionCallback, chat)
 }
 
 // scanAndProcessSessions scans all session files and processes any that have been modified.
@@ -181,22 +181,7 @@ func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback f
 			continue
 		}
 		state.lastProcessed[file.Path] = file.ModTime
-		dispatchSession(sessionCallback, chat)
+		spi.DispatchSession("deepseek", sessionCallback, chat)
 	}
 	return nil
-}
-
-// dispatchSession invokes the session callback in a goroutine with panic recovery.
-func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.AgentChatSession) {
-	if sessionCallback == nil || session == nil {
-		return
-	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("deepseek: session callback panicked", "panic", r)
-			}
-		}()
-		sessionCallback(session)
-	}()
 }

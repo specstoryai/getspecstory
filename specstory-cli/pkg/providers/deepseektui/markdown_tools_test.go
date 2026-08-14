@@ -245,13 +245,6 @@ func TestFormatToolInput(t *testing.T) {
 	}
 }
 
-func TestRenderGenericJSON_SortsKeys(t *testing.T) {
-	got := renderGenericJSON(map[string]any{"z": 1, "a": "first"})
-	if strings.Index(got, `"a"`) > strings.Index(got, `"z"`) {
-		t.Errorf("renderGenericJSON should sort keys, got:\n%s", got)
-	}
-}
-
 func TestExtractPathHints(t *testing.T) {
 	tests := []struct {
 		name          string

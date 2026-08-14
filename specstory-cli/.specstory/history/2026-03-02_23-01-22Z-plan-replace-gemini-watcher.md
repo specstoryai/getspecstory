@@ -5675,7 +5675,7 @@ _**Agent (claude-opus-4-6 2026-03-02 23:14:17Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Support Gemini CLI's New Project-Name-Based Directory Format (Issue #183)
 
 ## Context

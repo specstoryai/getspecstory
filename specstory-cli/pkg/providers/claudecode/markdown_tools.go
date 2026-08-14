@@ -2,7 +2,6 @@ package claudecode
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -90,32 +89,6 @@ func makeRelativePath(absolutePath, cwd string) string {
 	return "./" + rel
 }
 
-// getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
-func getLanguageFromExtension(filePath string) string {
-	if filePath == "" {
-		return ""
-	}
-
-	ext := strings.TrimPrefix(filepath.Ext(filePath), ".")
-
-	// Map common extensions to language identifiers
-	switch ext {
-	case "js":
-		return "javascript"
-	case "ts":
-		return "typescript"
-	case "py":
-		return "python"
-	case "rb":
-		return "ruby"
-	case "yml":
-		return "yaml"
-	default:
-		// Common extensions that don't need mapping: go, java, c, cpp, json, xml, sh, etc.
-		return ext
-	}
-}
-
 // formatBashTool formats Bash tool usage with command on a new line in backticks
 func formatBashTool(toolName string, input map[string]interface{}, description string) string {
 	var result strings.Builder
@@ -157,7 +130,7 @@ func formatWriteTool(toolName string, input map[string]interface{}, description 
 			filePath, _ := input["file_path"].(string)
 
 			// Get language for syntax highlighting
-			lang := getLanguageFromExtension(filePath)
+			lang := spi.LanguageFromPath(filePath)
 
 			fmt.Fprintf(&result, "\n%s", spi.CodeFence(lang, content))
 		}

@@ -11312,7 +11312,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:21:00Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 # Plan: Move watch command to pkg/cmd/watch.go
 
 ## Context
@@ -11471,7 +11471,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:21:24Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 # Plan: Move watch command to pkg/cmd/watch.go
 
 ## Context
@@ -14455,7 +14455,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:38:36Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Move watch command to pkg/cmd/watch.go and restructure shared code
 
 ## Context

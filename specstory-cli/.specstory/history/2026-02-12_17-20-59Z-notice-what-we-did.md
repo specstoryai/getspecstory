@@ -2183,7 +2183,7 @@ _**Agent (claude-opus-4-6 2026-02-12 17:23:33Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Extract commands from main.go into pkg/cmd/
 
 ## Context

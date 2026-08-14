@@ -2366,7 +2366,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 16:03:39Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Plan: Migrate Droid Provider from Polling to fsnotify
 
 ## Overview

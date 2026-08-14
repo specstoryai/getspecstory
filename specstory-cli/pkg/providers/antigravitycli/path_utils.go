@@ -160,28 +160,12 @@ func listConversationFiles() ([]conversationFile, error) {
 	return files, nil
 }
 
-// canonicalizePath resolves a path to its canonical form for comparison, so that
-// symlinks and case-insensitive filesystems (macOS) compare equal.
-func canonicalizePath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	if canonical, err := spi.GetCanonicalPath(trimmed); err == nil {
-		return canonical
-	}
-	if abs, err := filepath.Abs(trimmed); err == nil {
-		return filepath.Clean(abs)
-	}
-	return filepath.Clean(trimmed)
-}
-
 // pathWithin reports whether candidate is equal to or nested inside root, after
 // canonicalizing both. Used to match a session's touched files against the
 // project path the user is syncing from.
 func pathWithin(candidate, root string) bool {
-	cRoot := canonicalizePath(root)
-	cCandidate := canonicalizePath(candidate)
+	cRoot := spi.CanonicalizePathOrClean(root)
+	cCandidate := spi.CanonicalizePathOrClean(candidate)
 	if cRoot == "" || cCandidate == "" {
 		return false
 	}

@@ -1889,7 +1889,7 @@ _**Agent (claude-opus-4-8 2026-06-18 15:18:57Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # Restore Index (`restore.db`)
 
 > **STATUS: STRAWMAN — NOT RATIFIED.** This document captures an in-progress design
@@ -7945,7 +7945,7 @@ _**Agent (claude-opus-4-8 2026-06-18 22:13:53Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 ---
 name: restore-cursor-cwd-deferred
 description: Deferred next-step work — recover Cursor session cwd/project for restore.db via md5 reverse-lookup
@@ -13234,7 +13234,7 @@ _**Agent (claude-opus-4-8 2026-06-19 01:14:10Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+```markdown
 # `specstory resume` — the picker TUI
 
 The interactive session picker that makes SpecStory the best way to resume a coding-agent
@@ -18536,7 +18536,7 @@ _**Agent (claude-opus-4-8 2026-06-19 16:09:24Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-````md
+````markdown
 # `specstory search` — find & read your sessions
 
 > **STATUS: PLAN / STRAWMAN.** Design for a read-first search TUI over the
