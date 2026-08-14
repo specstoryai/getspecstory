@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Type aliases for convenience - use the shared schema types
@@ -59,6 +61,12 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 	// Render each exchange, tracking role across exchanges for proper separators
 	prevRole := ""
 	for _, exchange := range sessionData.Exchanges {
+		// The first rendered message of a new exchange always separates from the
+		// previous one: role transitions alone miss the case where one exchange
+		// ends with a user message (e.g. a canceled turn that produced no agent
+		// output) and the next begins with one — without this, consecutive user
+		// turns run together with no divider.
+		newExchange := true
 		for _, msg := range exchange.Messages {
 			// A single agent turn is split across several JSONL records (thinking,
 			// text, tool_use). A record can carry no renderable body — e.g. a
@@ -69,8 +77,9 @@ func GenerateMarkdownFromAgentSession(sessionData *SessionData, includeMessageID
 			if !hasRenderableContent(msg) {
 				continue
 			}
-			markdown.WriteString(renderMessage(msg, prevRole, includeMessageIDs, useUTC))
+			markdown.WriteString(renderMessage(msg, prevRole, newExchange, includeMessageIDs, useUTC))
 			prevRole = msg.Role
+			newExchange = false
 		}
 	}
 
@@ -129,11 +138,13 @@ func hasRenderableContent(msg Message) bool {
 }
 
 // renderMessage renders a single message with role header, content, and optional tool use
-func renderMessage(msg Message, prevRole string, includeMessageIDs bool, useUTC bool) string {
+func renderMessage(msg Message, prevRole string, newExchange bool, includeMessageIDs bool, useUTC bool) string {
 	var markdown strings.Builder
 
-	// Add separator before this message if role changed from previous message
-	if shouldAddSeparator(msg.Role, prevRole) {
+	// Add separator before this message if role changed from previous message,
+	// or if this message opens a new exchange (which a same-role boundary —
+	// user turn following a user-only exchange — would otherwise not separate).
+	if shouldAddSeparator(msg.Role, prevRole, newExchange) {
 		markdown.WriteString("---\n\n")
 	}
 
@@ -301,9 +312,8 @@ func renderGenericTool(tool *ToolInfo) string {
 		}
 
 		if content, ok := tool.Output["content"].(string); ok {
-			markdown.WriteString("```\n")
-			markdown.WriteString(content)
-			markdown.WriteString("\n```\n")
+			markdown.WriteString(spi.CodeFence("", content))
+			markdown.WriteString("\n")
 		}
 	}
 
@@ -311,10 +321,11 @@ func renderGenericTool(tool *ToolInfo) string {
 }
 
 // shouldAddSeparator determines if a separator should be added between messages
-func shouldAddSeparator(currentRole, prevRole string) bool {
-	// Add separator on role transitions
+func shouldAddSeparator(currentRole, prevRole string, newExchange bool) bool {
+	// Never before the very first rendered message
 	if prevRole == "" {
 		return false
 	}
-	return currentRole != prevRole
+	// Always between exchanges; within an exchange, on role transitions
+	return newExchange || currentRole != prevRole
 }

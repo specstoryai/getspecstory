@@ -54,18 +54,32 @@ Specify a specific agent ID to check only a specific coding agent.`,
 
 			// Get custom command if provided via flag
 			customCmd, _ := cmd.Flags().GetString("command")
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
 
-			// Validate that -c flag requires a provider
-			if customCmd != "" && len(args) == 0 {
-				registry := factory.GetRegistry()
-				ids := registry.ListIDs()
-				example := "specstory check <provider> -c \"/custom/path/to/agent\""
-				if len(ids) > 0 {
-					example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
+			// Apply per-provider user-data-dir overrides before any provider lookup runs.
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+
+			// Validate that -c flag requires exactly one provider
+			if customCmd != "" {
+				if len(resolvedIDs) == 0 {
+					ids := registry.ListIDs()
+					example := "specstory check <provider> -c \"/custom/path/to/agent\""
+					if len(ids) > 0 {
+						example = fmt.Sprintf("specstory check %s -c \"/custom/path/to/agent\"", ids[0])
+					}
+					return utils.ValidationError{
+						Message: "The -c/--command flag requires a provider to be specified.\n" +
+							"Example: " + example,
+					}
 				}
-				return utils.ValidationError{
-					Message: "The -c/--command flag requires a provider to be specified.\n" +
-						"Example: " + example,
+				if len(resolvedIDs) > 1 {
+					return utils.ValidationError{Message: "The -c/--command flag can only be used with a single provider ID"}
 				}
 			}
 
@@ -74,12 +88,10 @@ Specify a specific agent ID to check only a specific coding agent.`,
 			printDivider()
 
 			var providerErr error
-			if len(args) == 0 {
-				// Check all providers
-				providerErr = checkAllProviders(registry)
+			if len(resolvedIDs) == 1 {
+				providerErr = checkSingleProvider(registry, resolvedIDs[0], customCmd)
 			} else {
-				// Check specific provider
-				providerErr = checkSingleProvider(registry, args[0], customCmd)
+				providerErr = checkAllProviders(registry, resolvedIDs)
 			}
 
 			// Fail if either config or provider checks failed
@@ -94,6 +106,8 @@ Specify a specific agent ID to check only a specific coding agent.`,
 	}
 
 	cmd.Flags().StringP("command", "c", "", "custom agent execution command for the provider")
+	AddProvidersFlag(cmd)
+	AddUserDataDirFlag(cmd)
 
 	return cmd
 }
@@ -132,7 +146,11 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 	// Display results with the nice formatting
 	if result.Success {
 		fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-		fmt.Printf("  📦 Version: %s\n", result.Version)
+		// IDE-backed providers report no version (none is discoverable cheaply);
+		// omit the line rather than printing an empty value.
+		if result.Version != "" {
+			fmt.Printf("  📦 Version: %s\n", result.Version)
+		}
 		fmt.Printf("  📍 Location: %s\n", result.Location)
 		fmt.Printf("  ✅ Status: All systems go!\n\n")
 
@@ -152,10 +170,13 @@ func checkSingleProvider(registry *factory.Registry, providerID, customCmd strin
 	}
 }
 
-// checkAllProviders checks all registered providers
-func checkAllProviders(registry *factory.Registry) error {
-	// Sort for consistent output
+// checkAllProviders checks all (or a filtered subset of) registered providers.
+// filterIDs, if non-empty, limits which providers are checked; nil or empty means check all.
+func checkAllProviders(registry *factory.Registry, filterIDs []string) error {
 	ids := registry.ListIDs()
+	if len(filterIDs) > 0 {
+		ids = filterIDs
+	}
 
 	// Collect all provider names for analytics
 	var providerNames []string
@@ -189,7 +210,11 @@ func checkAllProviders(registry *factory.Registry) error {
 			anySuccess = true
 			successfulProviders = append(successfulProviders, providerInfo{id: id, name: provider.Name()})
 			fmt.Printf("\n✨ %s is installed and ready! ✨\n\n", provider.Name())
-			fmt.Printf("  📦 Version: %s\n", result.Version)
+			// IDE-backed providers report no version; omit the line rather than
+			// printing an empty value.
+			if result.Version != "" {
+				fmt.Printf("  📦 Version: %s\n", result.Version)
+			}
 			fmt.Printf("  📍 Location: %s\n", result.Location)
 			fmt.Printf("  ✅ Status: All systems go!\n")
 		} else {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -116,14 +117,8 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		// workspaceIdentifier associates this session with its workspace so Cursor's Agent
 		// sidebar shows it under the right project. Without this field Cursor ignores the session.
 		"workspaceIdentifier": map[string]interface{}{
-			"id": workspace.ID,
-			"uri": map[string]interface{}{
-				"$mid":     1,
-				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
-				"path":     workspaceRoot,
-				"scheme":   "file",
-			},
+			"id":  workspace.ID,
+			"uri": vscode.WorkspaceURIMap(workspaceRoot),
 		},
 		// Conversation index
 		"fullConversationHeadersOnly": headers,
@@ -227,7 +222,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}
 	// Append to selectedComposerIds so Cursor opens the resumed session as an active tab.
 	// This is a UX convenience only — sidebar visibility comes from composer.composerHeaders above.
-	if selErr := AppendToSelectedComposerIDs(workspace.DBPath, newID); selErr != nil {
+	if selErr := AppendToSelectedComposerIDs(workspace.StateDBPath(), newID); selErr != nil {
 		slog.Warn("Failed to register session as active tab in workspace", "composerID", newID, "error", selErr)
 	}
 	slog.Info("Reconstructed session registered in Cursor IDE",
@@ -249,4 +244,10 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 // harmless and will be cleaned up by the OS.
 func (p *Provider) NativeSessionPath(_ string, filename string) (string, error) {
 	return filepath.Join(os.TempDir(), "specstory-cursor-"+filename), nil
+}
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
 }

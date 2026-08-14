@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -44,7 +46,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		"id":                        newID,
 		"title":                     title,
 		"sessionTitle":              title,
-		"owner":                     os.Getenv("USER"),
+		"owner":                     currentUsername(),
 		"version":                   2,
 		"cwd":                       cwd,
 		"isSessionTitleManuallySet": false,
@@ -104,4 +106,30 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 		return "", fmt.Errorf("droidcli: cannot resolve session directory for project path")
 	}
 	return filepath.Join(dir, filename), nil
+}
+
+// currentUsername returns the login name for the session_start owner field.
+// os/user is the portable source of truth; on Windows it reports "DOMAIN\name",
+// so the domain prefix is stripped to keep the bare login name Droid records.
+// Environment variables are the fallback for the rare lookup failure (e.g. a
+// stripped-down container with no passwd database) — USER on Unix, USERNAME
+// being the Windows equivalent.
+func currentUsername() string {
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		name := u.Username
+		if i := strings.LastIndexByte(name, '\\'); i >= 0 {
+			name = name[i+1:]
+		}
+		return name
+	}
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	return os.Getenv("USERNAME")
+}
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
 }

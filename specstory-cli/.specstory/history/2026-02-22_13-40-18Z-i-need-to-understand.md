@@ -10,6 +10,8 @@ _**User (2026-02-22 13:40:18Z)**_
 <command-name>/pr-review</command-name>
 <command-args>170</command-args>
 
+---
+
 _**User (2026-02-22 13:40:18Z)**_
 
 ## Context
@@ -7805,9 +7807,13 @@ _**User (2026-02-22 14:29:42Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-22 14:29:42Z)**_
 
 <local-command-stdout>Bye!</local-command-stdout>
+
+---
 
 _**User (2026-02-22 14:29:42Z)**_
 

@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	_ "modernc.org/sqlite" // Pure Go SQLite driver
 )
 
@@ -18,18 +20,12 @@ import (
 // well under that limit.
 const composerBatchSize = 200
 
-// busyTimeoutPragma is appended to every DSN so each new connection waits for a
-// briefly-held lock instead of failing immediately with SQLITE_BUSY. Cursor itself
-// may be running and writing to these databases (e.g. during a checkpoint), so
-// without a busy timeout a resume or watch operation can fail on a transient lock.
-const busyTimeoutPragma = "_pragma=busy_timeout(5000)"
-
 // OpenDatabase opens a SQLite database in read-only mode with controlled
 // connection pooling. Callers that need WAL mode guaranteed should call
-// EnsureWALMode once before using this function (e.g. at watcher startup).
+// spi.EnsureWALMode once before using this function (e.g. at watcher startup).
 func OpenDatabase(dbPath string) (*sql.DB, error) {
 	// Open in read-only mode
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+busyTimeoutPragma)
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -43,67 +39,6 @@ func OpenDatabase(dbPath string) (*sql.DB, error) {
 	slog.Debug("Successfully opened database", "path", dbPath)
 
 	return db, nil
-}
-
-// EnsureWALMode ensures the database is running in WAL journal mode.
-// WAL mode is required so that the -wal file exists for fsnotify to watch.
-// This must be called with a read-write connection because PRAGMA journal_mode
-// cannot change the mode on a read-only connection. It is intended to be called
-// once at watcher startup, not on every query.
-func EnsureWALMode(dbPath string) error {
-	// Open read-write to be able to change journal mode
-	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
-	if err != nil {
-		return fmt.Errorf("failed to open database for WAL check: %w", err)
-	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			slog.Warn("Failed to close database after WAL check", "error", closeErr)
-		}
-	}()
-
-	// Check current journal mode
-	var currentMode string
-	if err := db.QueryRow("PRAGMA journal_mode").Scan(&currentMode); err != nil {
-		return fmt.Errorf("failed to query journal mode: %w", err)
-	}
-
-	if strings.EqualFold(currentMode, "wal") {
-		slog.Debug("Database already in WAL mode", "path", dbPath)
-		return nil
-	}
-
-	// Switch to WAL mode
-	var newMode string
-	if err := db.QueryRow("PRAGMA journal_mode=WAL").Scan(&newMode); err != nil {
-		return fmt.Errorf("failed to set WAL mode: %w", err)
-	}
-
-	if !strings.EqualFold(newMode, "wal") {
-		return fmt.Errorf("failed to enable WAL mode: got %q instead", newMode)
-	}
-
-	slog.Info("Enabled WAL mode on database", "path", dbPath)
-	return nil
-}
-
-// createEmptyWorkspaceDB creates a state.vscdb containing VS Code's exact ItemTable
-// schema (key UNIQUE ON CONFLICT REPLACE, BLOB value), so Cursor adopts a minted
-// workspace entry as its own on first open instead of treating it as corrupt.
-func createEmptyWorkspaceDB(dbPath string) error {
-	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
-	if err != nil {
-		return fmt.Errorf("failed to create workspace database: %w", err)
-	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			slog.Warn("Failed to close new workspace database", "error", closeErr)
-		}
-	}()
-	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)"); err != nil {
-		return fmt.Errorf("failed to create ItemTable: %w", err)
-	}
-	return nil
 }
 
 // LoadWorkspaceComposerIDs loads the composer IDs from a workspace database.
@@ -371,13 +306,13 @@ func assembleComposerConversations(composers map[string]*ComposerData, bubbles m
 }
 
 // OpenDatabaseReadWrite opens a SQLite database in read-write mode with controlled
-// connection pooling. It calls EnsureWALMode before returning so the database is
+// connection pooling. It calls spi.EnsureWALMode before returning so the database is
 // in WAL mode when the caller starts writing.
 func OpenDatabaseReadWrite(dbPath string) (*sql.DB, error) {
-	if err := EnsureWALMode(dbPath); err != nil {
+	if err := spi.EnsureWALMode(dbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode before opening read-write database", "error", err)
 	}
-	db, err := sql.Open("sqlite", dbPath+"?"+busyTimeoutPragma)
+	db, err := sql.Open("sqlite", dbPath+"?"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database for writing: %w", err)
 	}
@@ -427,7 +362,8 @@ func InsertComposerSession(db *sql.DB, composerID string, composerJSON []byte, b
 }
 
 // ComposerHeadMeta holds the session metadata needed to register a reconstructed session
-// in the workspace-level indexes (both the JSON allComposers array and the SQL composerHeaders table).
+// in the global DB's two composer indexes: the JSON allComposers array and the
+// composerHeaders SQL table. Both live in globalStorage/state.vscdb, not the workspace DB.
 type ComposerHeadMeta struct {
 	ComposerID    string
 	Name          string
@@ -498,11 +434,16 @@ func AppendToSelectedComposerIDs(workspaceDbPath, composerID string) error {
 	return nil
 }
 
-// WriteGlobalComposerHeader adds a lightweight "head" entry for the reconstructed session to
-// the "composer.composerHeaders" key in the GLOBAL DB's ItemTable. This is the authoritative
-// source from which composerDataService.allComposersData.allComposers is populated on startup.
-// Cursor's Agent sidebar SWC component reads allComposersData.allComposers and filters by name,
-// so the entry MUST have a non-empty "name" field or it is silently hidden.
+// WriteGlobalComposerHeader registers a reconstructed session in the GLOBAL DB's two
+// composer indexes, which Cursor keeps in sync and which serve different readers:
+//
+//  1. The "composer.composerHeaders" key in ItemTable (JSON, allComposers array).
+//  2. The composerHeaders SQL table, keyed by composerId and filtered by workspaceId.
+//
+// The Agent sidebar lists sessions from the SQL table, so a session missing there is
+// invisible in the sidebar even though it loads correctly when opened directly by ID
+// (e.g. via selectedComposerIds). Both writes therefore happen in one transaction.
+// Entries in either index MUST have a non-empty "name" or Cursor silently hides them.
 func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, workspaceRoot string) error {
 	db, err := OpenDatabaseReadWrite(globalDbPath)
 	if err != nil {
@@ -514,10 +455,22 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		}
 	}()
 
+	// The two indexes must move together — a failure after the first write would
+	// leave them diverged (a session listed in one index but not the other), so the
+	// JSON read-modify-write and the table upsert run in one transaction and commit
+	// only after both succeed.
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for composer header: %w", err)
+	}
+	// Rollback after Commit is a no-op; deferring it releases the transaction on
+	// every early error return below.
+	defer func() { _ = tx.Rollback() }()
+
 	// Read the existing blob; handle missing key gracefully.
 	var raw string
 	blob := make(map[string]json.RawMessage)
-	err = db.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'").Scan(&raw)
+	err = tx.QueryRow("SELECT value FROM ItemTable WHERE key = 'composer.composerHeaders'").Scan(&raw)
 	if err != nil && err != sql.ErrNoRows {
 		return fmt.Errorf("failed to read composer.composerHeaders: %w", err)
 	}
@@ -572,14 +525,8 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		"referencedPlans":           []interface{}{},
 		"trackedGitRepos":           []interface{}{},
 		"workspaceIdentifier": map[string]interface{}{
-			"id": meta.WorkspaceID,
-			"uri": map[string]interface{}{
-				"$mid":     1,
-				"fsPath":   workspaceRoot,
-				"external": pathToFileURI(workspaceRoot),
-				"path":     workspaceRoot,
-				"scheme":   "file",
-			},
+			"id":  meta.WorkspaceID,
+			"uri": vscode.WorkspaceURIMap(workspaceRoot),
 		},
 	}
 
@@ -603,7 +550,7 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 		if mErr != nil {
 			return fmt.Errorf("failed to marshal composer.composerHeaders: %w", mErr)
 		}
-		if _, execErr := db.Exec(
+		if _, execErr := tx.Exec(
 			"INSERT OR REPLACE INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
 			string(dataJSON),
 		); execErr != nil {
@@ -616,8 +563,12 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 	// that table against the glass membership map, so the session is invisible in newer
 	// Cursors without this row. The table is created by Cursor itself; when absent
 	// (older versions) the JSON key is the only source and the insert is skipped.
-	if err := insertComposerHeaderRow(db, meta, entryJSON); err != nil {
+	if err := insertComposerHeaderRow(tx, meta, entryJSON); err != nil {
 		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit composer header writes: %w", err)
 	}
 
 	// Checkpoint the WAL so our write lands in the main DB file before Cursor opens it.
@@ -633,9 +584,9 @@ func WriteGlobalComposerHeader(globalDbPath string, meta ComposerHeadMeta, works
 // it exists (see the call site in WriteGlobalComposerHeader for why). Column values
 // mirror what Cursor writes for its own sessions: recency and checkpointAt track
 // lastUpdatedAt, and isSubagent/isArchived are 0 for a normal visible session.
-func insertComposerHeaderRow(db *sql.DB, meta ComposerHeadMeta, headJSON []byte) error {
+func insertComposerHeaderRow(tx *sql.Tx, meta ComposerHeadMeta, headJSON []byte) error {
 	var tableName string
-	err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='composerHeaders'").Scan(&tableName)
+	err := tx.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name='composerHeaders'").Scan(&tableName)
 	if err == sql.ErrNoRows {
 		slog.Debug("composerHeaders table not present, skipping table registration (pre-3.12 Cursor)")
 		return nil
@@ -644,7 +595,7 @@ func insertComposerHeaderRow(db *sql.DB, meta ComposerHeadMeta, headJSON []byte)
 		return fmt.Errorf("failed to check for composerHeaders table: %w", err)
 	}
 
-	if _, err := db.Exec(
+	if _, err := tx.Exec(
 		`INSERT OR REPLACE INTO composerHeaders
 			(composerId, workspaceId, createdAt, lastUpdatedAt, isArchived, isSubagent, recency, checkpointAt, value)
 			VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)`,
@@ -715,7 +666,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 		}
 	}
 
-	canonicalRoot, cErr := normalizePathForComparison(workspaceRoot)
+	canonicalRoot, cErr := vscode.NormalizePathForComparison(workspaceRoot)
 	if cErr != nil {
 		canonicalRoot = workspaceRoot
 	}
@@ -730,7 +681,7 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 			break
 		}
 		if project.Workspace.URI.FsPath != "" {
-			if canonical, pErr := normalizePathForComparison(project.Workspace.URI.FsPath); pErr == nil && canonical == canonicalRoot {
+			if canonical, pErr := vscode.NormalizePathForComparison(project.Workspace.URI.FsPath); pErr == nil && canonical == canonicalRoot {
 				projectID = project.ID
 				break
 			}
@@ -746,14 +697,8 @@ func RegisterGlassProjectMembership(globalDbPath, composerID, workspaceID, works
 			"id":   projectID,
 			"name": "New Project",
 			"workspace": map[string]interface{}{
-				"id": workspaceID,
-				"uri": map[string]interface{}{
-					"$mid":     1,
-					"fsPath":   workspaceRoot,
-					"external": pathToFileURI(workspaceRoot),
-					"path":     workspaceRoot,
-					"scheme":   "file",
-				},
+				"id":  workspaceID,
+				"uri": vscode.WorkspaceURIMap(workspaceRoot),
 			},
 			"createdAt":     nowMs,
 			"lastUpdatedAt": nowMs,

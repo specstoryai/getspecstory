@@ -1,6 +1,7 @@
 package deepseektui
 
 import (
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -314,12 +315,24 @@ func TestConvertAssistantMessage(t *testing.T) {
 }
 
 func TestGenerateAgentSession_MetadataWorkspaceAndUsage(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
 	tests := []struct {
 		name              string
 		metadataWorkspace string
 		callerWorkspace   string
 		wantWorkspace     string
 	}{
+		{
+			// Schema requires WorkspaceRoot; with neither source available the
+			// CLI's own cwd is the fallback (reindex ref with empty OriginCwd).
+			name:              "cwd fallback when metadata and caller workspace both empty",
+			metadataWorkspace: "",
+			callerWorkspace:   "",
+			wantWorkspace:     cwd,
+		},
 		{
 			name:              "metadata workspace overrides caller workspace",
 			metadataWorkspace: "/metadata/workspace",
@@ -367,8 +380,10 @@ func TestGenerateAgentSession_MetadataWorkspaceAndUsage(t *testing.T) {
 			if data.Provider.Name != "DeepSeek TUI" {
 				t.Errorf("Provider.Name = %q, want DeepSeek TUI", data.Provider.Name)
 			}
-			if data.Provider.Version != "deepseek-r1" {
-				t.Errorf("Provider.Version = %q, want deepseek-r1", data.Provider.Version)
+			// The model belongs on each assistant message, not on
+			// Provider.Version (the agent's version, unrecorded by DeepSeek TUI).
+			if got := data.Exchanges[0].Messages[1].Model; got != "deepseek-r1" {
+				t.Errorf("assistant message Model = %q, want deepseek-r1", got)
 			}
 			if data.WorkspaceRoot != tt.wantWorkspace {
 				t.Errorf("WorkspaceRoot = %q, want %q", data.WorkspaceRoot, tt.wantWorkspace)

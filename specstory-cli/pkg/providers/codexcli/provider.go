@@ -144,7 +144,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	if versionOutput == "" {
-		errorType := "no_output"
+		errorType := spi.CheckErrorNoOutput
 		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
 			"provider":       "codex",
 			"custom_command": isCustomCommand,

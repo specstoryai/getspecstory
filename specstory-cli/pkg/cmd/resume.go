@@ -74,7 +74,7 @@ type agentChoice struct {
 // picker (a Bubble Tea TUI over the sessions.db index — see docs/RESUME-TUI.md): browse
 // the current project's sessions across all agents, pick one, choose a target agent, then
 // reconstruct (cross-agent) or native-resume (same agent) and launch with auto-save.
-func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
+func CreateResumeCommand(cloudURL *string, defaults SessionFlagDefaults) *cobra.Command {
 	longDesc := `Resume a past coding-agent session — in the same agent, or a different one.
 
 'resume' opens an interactive picker of the sessions in the current project across all agents. Press tab to switch projects. Pick a session, then choose which installed agent to continue it in, and go. Resuming into a different agent reconstructs the conversation into that agent's native format first.
@@ -91,7 +91,9 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 		Long:  longDesc,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			// resume doesn't register --config-dir (only run/sync/watch do), so the
+			// default project config always lands at the standard location here.
+			config.EnsureDefaultProjectConfig("")
 			slog.Info("Running in resume mode")
 
 			registry := factory.GetRegistry()
@@ -105,9 +107,19 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 			presetTarget := ""
 			if len(args) == 1 {
 				presetTarget = strings.ToLower(strings.TrimSpace(args[0]))
-				if _, err := registry.Get(presetTarget); err != nil {
+				presetProvider, err := registry.Get(presetTarget)
+				if err != nil {
 					return utils.ValidationError{Message: fmt.Sprintf(
 						"unknown agent %q. Valid agents: %s", presetTarget, registry.GetProviderList())}
+				}
+				// A preset applies the target to whatever session is picked next,
+				// but an agent without a native serializer can only resume its own
+				// local sessions in place — so as a blanket target it is invalid.
+				// Fail here, before the picker opens on a dead-end choice.
+				if !presetProvider.SupportsReconstruction() {
+					return utils.ValidationError{Message: fmt.Sprintf(
+						"%s can't be a resume target for other agents' sessions. Run 'specstory resume' without a target and pick one of its own sessions to resume in place",
+						presetProvider.Name())}
 				}
 			}
 
@@ -169,77 +181,48 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 		},
 	}
 
-	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
-	// --session is registered on `resume` only — deliberately NOT in registerResumeLaunchFlags,
-	// so `search` is untouched.
+	registerSessionProcessingFlags(resumeCmd, cloudURL, defaults)
+	// --session is registered on `resume` only — deliberately NOT in the shared
+	// flag registration, so `search` is untouched.
 	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
 	return resumeCmd
 }
 
-// registerResumeLaunchFlags registers the run/watch flags that affect the resumed session,
-// shared by `resume` and `search` so the two stay in lockstep with each other and with watch.
-// cloud-url binds to the shared pointer the root applies in PersistentPreRunE. The telemetry
-// endpoint/service-name flags are inert here — they are consumed process-wide by main's startup
-// arg scan — and registered only so cobra accepts them. debug-raw, provenance and cloud-url are
-// hidden, matching run/watch.
-func registerResumeLaunchFlags(cmd *cobra.Command, cloudURL *string, localTimeZone bool, debugDir string) {
-	cmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
-	cmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
-	cmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
-	cmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
-	cmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
-	_ = cmd.Flags().MarkHidden("debug-raw")
-	cmd.Flags().Bool("local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
-	cmd.Flags().Bool("provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
-	_ = cmd.Flags().MarkHidden("provenance")
-	cmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = cmd.Flags().MarkHidden("cloud-url")
-	cmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
-	cmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
-	cmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
-}
-
-// readResumeLaunchOpts reads the session-affecting flags registered by registerResumeLaunchFlags
-// into the launch options, applying the debug-dir override as a side effect (mirrors run/watch).
-// cloud-url and the telemetry endpoint/service-name are consumed elsewhere (PersistentPreRunE and
-// main's startup scan, respectively), so they are deliberately absent from the returned opts.
+// readResumeLaunchOpts reads the session-affecting flags registered by
+// registerSessionProcessingFlags into the launch options, applying the debug-dir override as
+// a side effect (mirrors run/watch). cloud-url and the telemetry endpoint/service-name are
+// consumed elsewhere (PersistentPreRunE and main's startup scan, respectively), so they are
+// deliberately absent from the returned opts.
 func readResumeLaunchOpts(cmd *cobra.Command) resumeLaunchOpts {
 	debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-	useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
 	outputDir, _ := cmd.Flags().GetString("output-dir")
 	flagDebugDir, _ := cmd.Flags().GetString("debug-dir")
 	noCloudSync, _ := cmd.Flags().GetBool("no-cloud-sync")
-	onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
 	provenanceEnabled, _ := cmd.Flags().GetBool("provenance")
-	noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
 
 	if flagDebugDir != "" {
 		spi.SetDebugBaseDir(flagDebugDir)
 	}
 
 	return resumeLaunchOpts{
-		outputDir:          outputDir,
-		flagDebugDir:       flagDebugDir,
-		debugRaw:           debugRaw,
-		useUTC:             !useLocalTimezone,
-		noCloudSync:        noCloudSync,
-		onlyCloudSync:      onlyCloudSync,
-		provenanceEnabled:  provenanceEnabled,
-		noTelemetryPrompts: noTelemetryPrompts,
+		outputDir:         outputDir,
+		flagDebugDir:      flagDebugDir,
+		debugRaw:          debugRaw,
+		noCloudSync:       noCloudSync,
+		provenanceEnabled: provenanceEnabled,
+		processing:        ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */),
 	}
 }
 
 // resumeLaunchOpts carries the resume launch configuration shared by `resume` and
 // `search` (whose `r` action resumes a found session through the same path).
 type resumeLaunchOpts struct {
-	outputDir          string
-	flagDebugDir       string
-	debugRaw           bool
-	useUTC             bool
-	noCloudSync        bool
-	onlyCloudSync      bool
-	provenanceEnabled  bool
-	noTelemetryPrompts bool
+	outputDir         string
+	flagDebugDir      string
+	debugRaw          bool
+	noCloudSync       bool
+	provenanceEnabled bool
+	processing        session.ProcessingOptions // shared autosave processing options
 }
 
 // launchResume reconstructs (cross-agent) or natively resumes the planned session and
@@ -253,12 +236,16 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	if err := utils.EnsureHistoryDirectoryExists(outConfig); err != nil {
 		return err
 	}
-	if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+	// Tell cloud sync where .project.json lives (respects --output-dir) — without
+	// this the autosave callback's cloud sync reads ./.specstory/.project.json and
+	// fails or syncs under the wrong identity when --output-dir is set.
+	cloud.SetSpecstoryDir(outConfig.GetSpecstoryDir())
+	if _, err := utils.NewProjectIdentityManager(cwd, outConfig.GetSpecstoryDir()).EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
 
 	CheckAndWarnAuthentication(o.noCloudSync)
-	if o.onlyCloudSync && !cloud.IsAuthenticated() {
+	if o.processing.OnlyCloudSync && !cloud.IsAuthenticated() {
 		return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
 	}
 
@@ -301,24 +288,17 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	liveIndex := NewLiveIndexer(cwd)
 	defer liveIndex.Close()
 
-	// Auto-save callback: identical behavior to run/watch.
+	// Auto-save callback: the shared run/watch handling (markdown + cloud sync
+	// + live index + provenance), recorded against the agent we resumed INTO.
+	autosave := NewAutosaveCallback(AutosaveDeps{
+		Ctx:        ctx,
+		Config:     outConfig,
+		Processing: o.processing,
+		LiveIndex:  liveIndex,
+		Provenance: provenanceEngine,
+	})
 	sessionCallback := func(sess *spi.AgentChatSession) {
-		if sess == nil {
-			return
-		}
-		_, perr := session.ProcessSingleSession(context.Background(), sess, outConfig, session.ProcessingOptions{
-			OnlyCloudSync:      o.onlyCloudSync,
-			IsAutosave:         true,
-			DebugRaw:           o.debugRaw,
-			UseUTC:             o.useUTC,
-			NoTelemetryPrompts: o.noTelemetryPrompts,
-		})
-		if perr != nil {
-			slog.Error("Failed to process session update", "sessionId", sess.SessionID, "error", perr)
-		}
-		// Mirror the markdown write into the restore index (agent we resumed INTO).
-		liveIndex.Record(plan.toID, sess)
-		provenance.ProcessEvents(ctx, provenanceEngine, sess)
+		autosave(plan.toID, sess)
 	}
 
 	slog.Info("Launching resume", "provider", plan.to.Name(), "resumeSessionID", resumeSessionID)
@@ -382,7 +362,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a cross-agent resume target. Choose Claude Code or Codex CLI (or resume in %s itself).",
+				"%s can't be a cross-agent resume target — it has no native session serializer. Choose a different target agent, or resume the session in %s itself",
 				plan.to.Name(), plan.from.Name())}
 		}
 		slog.Warn("resume: reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
@@ -391,7 +371,7 @@ func prepareResumeTarget(plan *resumePlan, cwd string, out io.Writer) (string, e
 	}
 	track("success")
 	fprintf(out, "\nReconstructed %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	printCursorIDERestartNote(plan, out)
+	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
 }
 
@@ -435,7 +415,7 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 		if errors.Is(err, spi.ErrReconstructionUnsupported) {
 			track("unsupported")
 			return "", utils.ValidationError{Message: fmt.Sprintf(
-				"%s can't yet be a resume target. Choose Claude Code or Codex CLI.", plan.to.Name())}
+				"%s can't be a resume target for cloud sessions — resuming from the cloud requires reconstructing a local native session, which it doesn't support. Choose a different target agent", plan.to.Name())}
 		}
 		slog.Warn("resume: cloud reconstruction failed", "from", plan.fromID, "to", plan.toID, "error", err)
 		track("error")
@@ -443,16 +423,30 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 	}
 	track("success")
 	fprintf(out, "Reconstructed cloud %s session into %s as %s.\n", plan.from.Name(), plan.to.Name(), shortID(rec.SessionID))
-	printCursorIDERestartNote(plan, out)
+	printIDERestartNote(plan, out)
 	return rec.SessionID, nil
 }
 
-// printCursorIDERestartNote tells the user how to surface a session reconstructed into Cursor
-// IDE's store: Cursor only picks up imported sessions from its SQLite database on startup, so
-// unlike CLI targets the result is not visible until the app is restarted.
-func printCursorIDERestartNote(plan *resumePlan, out io.Writer) {
+// printIDERestartNote tells the user how to surface a session reconstructed into an
+// IDE-backed store. Unlike CLI targets, these are not visible until the app restarts:
+// Cursor only picks up imported sessions from its SQLite database on startup, and VS
+// Code holds its chat session index in memory and flushes it over ours on shutdown.
+func printIDERestartNote(plan *resumePlan, out io.Writer) {
 	if plan.toID == "cursoride" {
 		fprintf(out, "\nNote: only Cursor 3 is supported. Restart Cursor to see the imported session in the Agent sidebar.\n")
+	}
+	// An ID-prefix check so every Copilot IDE variant — stock VS Code, Insiders,
+	// VSCodium, and any added later — gets the note without this layer importing
+	// a concrete provider package. Reconstruction normally holds its write until
+	// the app is quit, so this only matters for the scripted path that warned
+	// and proceeded with the app still running.
+	if strings.HasPrefix(plan.toID, "copilotide") {
+		// The provider name is "<app> Copilot IDE"; trimming the suffix names the
+		// actual app (VS Code, VSCodium, ...) so Insiders/VSCodium users aren't
+		// told about the wrong application. If the naming convention ever
+		// changes, the full provider name prints — awkward but still correct.
+		app := strings.TrimSuffix(plan.to.Name(), " Copilot IDE")
+		fprintf(out, "\nNote: if %s was running during the import, fully quit and reopen it to see the session.\n", app)
 	}
 }
 

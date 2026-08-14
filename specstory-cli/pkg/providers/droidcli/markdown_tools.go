@@ -3,10 +3,9 @@ package droidcli
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func formatToolCall(tool *fdToolCall) string {
@@ -28,7 +27,7 @@ func formatToolCall(tool *fdToolCall) string {
 
 func formatToolInput(tool *fdToolCall) string {
 	args := decodeInput(tool.Input)
-	switch normalizeToolName(tool.Name) {
+	switch spi.NormalizeToolName(tool.Name) {
 	case "execute", "run", "bash", "shell", "command", "exec":
 		return formatExecuteInput(args)
 	case "read", "cat", "readfile", "view", "viewimage":
@@ -58,7 +57,7 @@ func formatToolInput(tool *fdToolCall) string {
 	case "generatedroid":
 		return renderGenerateDroidInput(args, tool.Result)
 	default:
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 }
 
@@ -67,7 +66,7 @@ func formatToolOutput(tool *fdToolCall) string {
 		return ""
 	}
 	// AskUser and GenerateDroid output is already included in the input rendering
-	name := normalizeToolName(tool.Name)
+	name := spi.NormalizeToolName(tool.Name)
 	if name == "askuser" || name == "askuserquestion" || name == "generatedroid" {
 		return ""
 	}
@@ -110,7 +109,6 @@ func formatEditDiffOutput(content string) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString("```diff\n")
 	for _, line := range result.DiffLines {
 		switch line.Type {
 		case "added":
@@ -127,8 +125,7 @@ func formatEditDiffOutput(content string) string {
 			builder.WriteString("\n")
 		}
 	}
-	builder.WriteString("```")
-	return builder.String()
+	return spi.CodeFence("diff", strings.TrimRight(builder.String(), "\n"))
 }
 
 func decodeInput(raw json.RawMessage) map[string]any {
@@ -143,8 +140,8 @@ func decodeInput(raw json.RawMessage) map[string]any {
 }
 
 func formatExecuteInput(args map[string]any) string {
-	command := stringValue(args, "command", "cmd")
-	workdir := stringValue(args, "workdir", "dir", "cwd")
+	command := spi.StringValue(args, "command", "cmd")
+	workdir := spi.StringValue(args, "workdir", "dir", "cwd")
 	if command == "" && workdir == "" {
 		return ""
 	}
@@ -156,14 +153,6 @@ func formatExecuteInput(args map[string]any) string {
 		fmt.Fprintf(&builder, "`%s`", command)
 	}
 	return builder.String()
-}
-
-func normalizeToolName(name string) string {
-	cleaned := strings.ToLower(strings.TrimSpace(name))
-	cleaned = strings.ReplaceAll(cleaned, " ", "")
-	cleaned = strings.ReplaceAll(cleaned, "-", "")
-	cleaned = strings.ReplaceAll(cleaned, "_", "")
-	return cleaned
 }
 
 // fieldSpec describes how to extract and format a single field from tool input.
@@ -184,20 +173,20 @@ func renderFields(args map[string]any, specs []fieldSpec) string {
 				parts = append(parts, fmt.Sprintf("%s: %s", spec.label, formatQuotedList(values)))
 			}
 		} else {
-			value := stringValue(args, spec.keys...)
+			value := spi.StringValue(args, spec.keys...)
 			if value != "" {
 				parts = append(parts, fmt.Sprintf("%s: `%s`", spec.label, value))
 			}
 		}
 	}
 	if len(parts) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return strings.Join(parts, "\n")
 }
 
 func renderReadInput(args map[string]any) string {
-	path := stringValue(args, "file_path", "path", "file", "filePath")
+	path := spi.StringValue(args, "file_path", "path", "file", "filePath")
 	if path == "" {
 		paths := stringSliceValue(args, "file_paths", "paths")
 		if len(paths) > 0 {
@@ -205,12 +194,12 @@ func renderReadInput(args map[string]any) string {
 		}
 	}
 	if path == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "Path: `%s`", path)
-	offset := stringValue(args, "offset", "start")
-	limit := stringValue(args, "limit", "lines", "max_lines")
+	offset := spi.StringValue(args, "offset", "start")
+	limit := spi.StringValue(args, "limit", "lines", "max_lines")
 	if offset != "" || limit != "" {
 		if offset == "" {
 			offset = "0"
@@ -232,11 +221,11 @@ func renderListInput(args map[string]any) string {
 func renderGlobInput(args map[string]any) string {
 	patterns := stringSliceValue(args, "patterns", "glob_patterns")
 	if len(patterns) == 0 {
-		if pattern := stringValue(args, "glob_pattern", "pattern", "glob"); pattern != "" {
+		if pattern := spi.StringValue(args, "glob_pattern", "pattern", "glob"); pattern != "" {
 			patterns = []string{pattern}
 		}
 	}
-	path := stringValue(args, "path", "dir", "directory")
+	path := spi.StringValue(args, "path", "dir", "directory")
 	var parts []string
 	if len(patterns) > 0 {
 		label := "Pattern"
@@ -249,7 +238,7 @@ func renderGlobInput(args map[string]any) string {
 		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
 	}
 	if len(parts) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return strings.Join(parts, "\n")
 }
@@ -274,10 +263,10 @@ func renderWebSearchInput(args map[string]any) string {
 }
 
 func renderWebFetchInput(args map[string]any) string {
-	url := stringValue(args, "url", "uri")
-	prompt := stringValue(args, "prompt", "query")
+	url := spi.StringValue(args, "url", "uri")
+	prompt := spi.StringValue(args, "prompt", "query")
 	if url == "" && prompt == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var parts []string
 	if url != "" {
@@ -290,10 +279,10 @@ func renderWebFetchInput(args map[string]any) string {
 }
 
 func renderWriteInput(args map[string]any) string {
-	path := stringValue(args, "file_path", "path", "file", "filePath")
-	content := stringValue(args, "content", "contents", "text", "data")
+	path := spi.StringValue(args, "file_path", "path", "file", "filePath")
+	content := spi.StringValue(args, "content", "contents", "text", "data")
 	if path == "" && content == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var builder strings.Builder
 	if path != "" {
@@ -309,10 +298,10 @@ func renderWriteInput(args map[string]any) string {
 }
 
 func renderEditInput(args map[string]any) string {
-	path := stringValue(args, "file_path", "path", "file", "filePath")
+	path := spi.StringValue(args, "file_path", "path", "file", "filePath")
 	diff := renderEdits(args)
 	if path == "" && diff == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var builder strings.Builder
 	if path != "" {
@@ -349,41 +338,20 @@ func renderEdits(args map[string]any) string {
 }
 
 func renderSingleEdit(args map[string]any) string {
-	oldText := stringValue(args, "old_str", "old_text", "old_string", "old")
-	newText := stringValue(args, "new_str", "new_text", "new_string", "new")
+	oldText := spi.StringValue(args, "old_str", "old_text", "old_string", "old")
+	newText := spi.StringValue(args, "new_str", "new_text", "new_string", "new")
 	if oldText == "" && newText == "" {
 		return ""
 	}
-	return formatDiffBlock(oldText, newText)
-}
-
-func formatDiffBlock(oldText string, newText string) string {
-	var builder strings.Builder
-	builder.WriteString("```diff\n")
-	if oldText != "" {
-		for _, line := range strings.Split(oldText, "\n") {
-			builder.WriteString("-")
-			builder.WriteString(line)
-			builder.WriteString("\n")
-		}
-	}
-	if newText != "" {
-		for _, line := range strings.Split(newText, "\n") {
-			builder.WriteString("+")
-			builder.WriteString(line)
-			builder.WriteString("\n")
-		}
-	}
-	builder.WriteString("```")
-	return builder.String()
+	return spi.FormatDiffBlock(oldText, newText)
 }
 
 func renderApplyPatch(args map[string]any) string {
-	patch := stringValue(args, "patch", "input")
+	patch := spi.StringValue(args, "patch", "input")
 	if patch == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+	return spi.CodeFence("diff", strings.TrimSpace(patch))
 }
 
 func renderTodoWrite(args map[string]any) string {
@@ -405,27 +373,27 @@ func renderTodoWrite(args map[string]any) string {
 	builder.WriteString("Todo List:\n")
 	for _, raw := range itemsRaw {
 		item, _ := raw.(map[string]interface{})
-		status := strings.TrimSpace(stringValue(item, "status"))
-		desc := strings.TrimSpace(stringValue(item, "description"))
+		status := strings.TrimSpace(spi.StringValue(item, "status"))
+		desc := strings.TrimSpace(spi.StringValue(item, "description"))
 		if desc == "" {
 			desc = "(no description)"
 		}
-		fmt.Fprintf(&builder, "- [%s] %s\n", todoSymbol(status), desc)
+		fmt.Fprintf(&builder, "- [%s] %s\n", spi.TodoSymbol(status), desc)
 	}
 	return builder.String()
 }
 
 func renderSkillInput(args map[string]any) string {
-	skill := stringValue(args, "skill", "name")
+	skill := spi.StringValue(args, "skill", "name")
 	if skill == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return fmt.Sprintf("Skill: `%s`", skill)
 }
 
 func renderGenerateDroidInput(args map[string]any, result *fdToolResult) string {
-	description := stringValue(args, "description")
-	location := stringValue(args, "location")
+	description := spi.StringValue(args, "description")
+	location := spi.StringValue(args, "location")
 
 	var builder strings.Builder
 	if description != "" {
@@ -458,7 +426,7 @@ func renderGenerateDroidInput(args map[string]any, result *fdToolResult) string 
 
 	out := strings.TrimSpace(builder.String())
 	if out == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return out
 }
@@ -466,15 +434,15 @@ func renderGenerateDroidInput(args map[string]any, result *fdToolResult) string 
 // renderAskUserInput formats the AskUser tool input with questions, options, and answers.
 // It parses the questionnaire format and extracts answers from the tool result.
 func renderAskUserInput(args map[string]any, result *fdToolResult) string {
-	questionnaire := stringValue(args, "questionnaire", "questions")
+	questionnaire := spi.StringValue(args, "questionnaire", "questions")
 	if questionnaire == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 
 	// Parse the questionnaire format to extract questions and options
 	questions := parseQuestionnaire(questionnaire)
 	if len(questions) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 
 	// Parse answers from the result if available
@@ -568,83 +536,6 @@ func parseAskUserAnswers(text string) []string {
 	return answers
 }
 
-func renderGenericJSON(args map[string]any) string {
-	if len(args) == 0 {
-		return ""
-	}
-	ordered := make([]string, 0, len(args))
-	for key := range args {
-		ordered = append(ordered, key)
-	}
-	sort.Strings(ordered)
-	var builder strings.Builder
-	builder.WriteString("```json\n{")
-	for idx, key := range ordered {
-		if idx > 0 {
-			builder.WriteString(",")
-		}
-		builder.WriteString("\n  \"")
-		builder.WriteString(key)
-		builder.WriteString("\": ")
-		builder.WriteString(renderJSONValue(args[key]))
-	}
-	builder.WriteString("\n}\n```")
-	return builder.String()
-}
-
-func renderJSONValue(v any) string {
-	switch val := v.(type) {
-	case string:
-		bytes, _ := json.Marshal(val)
-		return string(bytes)
-	case json.Number:
-		return val.String()
-	case []byte:
-		bytes, _ := json.Marshal(string(val))
-		return string(bytes)
-	default:
-		bytes, err := json.Marshal(val)
-		if err != nil {
-			return fmt.Sprintf("\"%s\"", fmt.Sprint(val))
-		}
-		return string(bytes)
-	}
-}
-
-func stringValue(args map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if val, ok := args[key]; ok {
-			switch v := val.(type) {
-			case string:
-				return v
-			case json.Number:
-				return v.String()
-			case fmt.Stringer:
-				return v.String()
-			case []byte:
-				return string(v)
-			case float64:
-				return strconv.FormatFloat(v, 'f', -1, 64)
-			case float32:
-				return strconv.FormatFloat(float64(v), 'f', -1, 32)
-			case int:
-				return strconv.Itoa(v)
-			case int64:
-				return strconv.FormatInt(v, 10)
-			case int32:
-				return strconv.FormatInt(int64(v), 10)
-			case uint:
-				return strconv.FormatUint(uint64(v), 10)
-			case uint64:
-				return strconv.FormatUint(v, 10)
-			case bool:
-				return strconv.FormatBool(v)
-			}
-		}
-	}
-	return ""
-}
-
 func stringSliceValue(args map[string]any, keys ...string) []string {
 	for _, key := range keys {
 		if val, ok := args[key]; ok {
@@ -700,49 +591,14 @@ func formatQuotedList(values []string) string {
 }
 
 func formatContentBlock(content string, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
-	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return ""
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return ""
-	}
-	switch ext {
-	case "yml":
-		return "yaml"
-	case "md":
-		return "markdown"
-	default:
-		return ext
-	}
-}
-
-func todoSymbol(status string) string {
-	s := strings.ToLower(status)
-	switch s {
-	case "completed", "done":
-		return "x"
-	case "in_progress", "active":
-		return "⚡"
-	default:
-		return " "
-	}
+	return spi.CodeFence(spi.LanguageFromPath(path), content)
 }
 
 // toolType returns the tool category for a Droid tool.
 // Droid has 14 tools: Read, LS, Execute, Edit, Grep, Glob, Create,
 // ExitSpecMode, AskUser, WebSearch, TodoWrite, FetchUrl, GenerateDroid, Skill
 func toolType(name string) string {
-	switch normalizeToolName(name) {
+	switch spi.NormalizeToolName(name) {
 	case "execute":
 		return "shell"
 	case "read", "fetchurl":
@@ -771,7 +627,7 @@ func formatTodoUpdate(todo *fdTodoState) string {
 			desc = "(no description)"
 		}
 		status := strings.ToLower(strings.TrimSpace(item.Status))
-		fmt.Fprintf(&builder, "- [%s] %s (%s)\n", todoSymbol(item.Status), desc, status)
+		fmt.Fprintf(&builder, "- [%s] %s (%s)\n", spi.TodoSymbol(item.Status), desc, status)
 	}
 	return strings.TrimRight(builder.String(), "\n")
 }

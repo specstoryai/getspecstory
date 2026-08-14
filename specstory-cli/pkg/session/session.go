@@ -11,6 +11,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/redact"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
@@ -74,12 +75,32 @@ type ProcessingOptions struct {
 	DebugRaw           bool // Enable schema validation (only in debug mode to avoid overhead)
 	UseUTC             bool // Timestamp format: true=UTC, false=local
 	NoTelemetryPrompts bool // Exclude user prompt text from telemetry spans for privacy
+	RedactSecrets      bool // Redact API keys and tokens from markdown output
+	NoStats            bool // Skip statistics collection entirely (--no-stats)
+}
+
+// markdownWriteEvent selects the analytics event for a successful markdown
+// write from the two axes that distinguish the four events: autosave vs
+// manual sync, and new file vs update of an existing one.
+func markdownWriteEvent(isAutosave, fileExists bool) string {
+	if isAutosave {
+		if fileExists {
+			return analytics.EventAutosaveSuccess
+		}
+		return analytics.EventAutosaveNew
+	}
+	if fileExists {
+		return analytics.EventSyncMarkdownSuccess
+	}
+	return analytics.EventSyncMarkdownNew
 }
 
 // ProcessSingleSession writes markdown and triggers cloud sync for a single session.
 // ctx is used for OTel trace/span propagation (no-op when telemetry is disabled).
+// providerID is the registry/CLI provider id, needed for statistics (see
+// ComputeSessionStatistics for why it can't come from the session data).
 // Returns the size of the markdown content in bytes.
-func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
+func ProcessSingleSession(ctx context.Context, providerID string, session *spi.AgentChatSession, config utils.OutputConfig, opts ProcessingOptions) (int, error) {
 	if session == nil || session.SessionData == nil {
 		return 0, fmt.Errorf("session or session data is nil")
 	}
@@ -123,6 +144,24 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 		return 0, fmt.Errorf("failed to generate markdown: %w", err)
 	}
 
+	// Redact secrets from the markdown before writing to disk, collecting
+	// statistics, or syncing to cloud. The count feeds the analytics
+	// redacted_count property and covers the markdown only: the cloud
+	// payloads are redacted later, inside the sync machinery at actual send
+	// time.
+	redactedCount := 0
+	if opts.RedactSecrets {
+		markdownContent, redactedCount = redact.RedactContent(markdownContent)
+	}
+
+	// Collect statistics on the redacted content, so stats reflect what's
+	// actually written to disk. Failures warn but never fail the save.
+	if !opts.NoStats {
+		if err := CollectSessionStatistics(providerID, session, markdownContent, config); err != nil {
+			slog.Warn("Failed to collect session statistics", "sessionId", session.SessionID, "error", err)
+		}
+	}
+
 	// Calculate markdown size in bytes
 	markdownSize := len(markdownContent)
 
@@ -157,52 +196,25 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 			err := os.WriteFile(fileFullPath, []byte(markdownContent), 0644)
 			if err != nil {
 				// Track write error
+				errorEvent := analytics.EventSyncMarkdownError
 				if opts.IsAutosave {
-					analytics.TrackEvent(analytics.EventAutosaveError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
-				} else {
-					analytics.TrackEvent(analytics.EventSyncMarkdownError, analytics.Properties{
-						"session_id":      session.SessionID,
-						"error":           err.Error(),
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
+					errorEvent = analytics.EventAutosaveError
 				}
+				analytics.TrackEvent(errorEvent, analytics.Properties{
+					"session_id":      session.SessionID,
+					"error":           err.Error(),
+					"only_cloud_sync": opts.OnlyCloudSync,
+				})
 				return 0, fmt.Errorf("error writing markdown file: %w", err)
 			}
 
 			// Track successful write
-			if opts.IsAutosave {
-				if !fileExists {
-					// New file created during autosave
-					analytics.TrackEvent(analytics.EventAutosaveNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
-				} else {
-					// File updated during autosave
-					analytics.TrackEvent(analytics.EventAutosaveSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
-				}
-			} else {
-				if !fileExists {
-					// New file created during manual sync
-					analytics.TrackEvent(analytics.EventSyncMarkdownNew, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
-				} else {
-					// File updated during manual sync
-					analytics.TrackEvent(analytics.EventSyncMarkdownSuccess, analytics.Properties{
-						"session_id":      session.SessionID,
-						"only_cloud_sync": opts.OnlyCloudSync,
-					})
-				}
-			}
+			analytics.TrackEvent(markdownWriteEvent(opts.IsAutosave, fileExists), analytics.Properties{
+				"session_id":        session.SessionID,
+				"only_cloud_sync":   opts.OnlyCloudSync,
+				"redaction_enabled": opts.RedactSecrets,
+				"redacted_count":    redactedCount,
+			})
 
 			slog.Info("Successfully wrote file",
 				"sessionId", session.SessionID,
@@ -228,7 +240,12 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	// In only-cloud-sync mode: always sync (no file to check for identical content)
 	// In normal mode: skip sync only if identical content AND in autosave mode
 	if opts.OnlyCloudSync || !identicalContent || !opts.IsAutosave {
-		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.IsAutosave)
+		// Raw data and SessionData carry the same conversation content as the
+		// markdown (plus tool payloads and metadata), so they need the same
+		// redaction. It happens inside the sync machinery at actual send time,
+		// so payloads replaced during the autosave debounce are never scanned;
+		// the markdown is already redacted above.
+		cloud.SyncSessionToCloud(session.SessionID, fileFullPath, markdownContent, []byte(session.RawData), session.SessionDataJSON(), session.SessionData.Provider.Name, spi.ReadableTitleFromSessionData(session.SessionData), opts.RedactSecrets, opts.IsAutosave)
 	}
 
 	if opts.ShowOutput && !log.IsSilent() {
@@ -237,4 +254,16 @@ func ProcessSingleSession(ctx context.Context, session *spi.AgentChatSession, co
 	}
 
 	return markdownSize, nil
+}
+
+// CollectSessionStatistics computes one session's statistics and persists them
+// immediately through the process-wide shared collector. The immediate flush
+// keeps statistics.json current during long-running run/watch sessions; the
+// shared collector makes concurrent callbacks serialize instead of losing
+// sessions in racing read-modify-write cycles. providerID is the registry id
+// (see ComputeSessionStatistics for why it must not come from SessionData).
+func CollectSessionStatistics(providerID string, session *spi.AgentChatSession, markdownContent string, config utils.OutputConfig) error {
+	collector := SharedStatisticsCollector(filepath.Join(config.GetSpecstoryDir(), utils.STATISTICS_FILE))
+	collector.AddSessionStats(session.SessionID, ComputeSessionStatistics(session.SessionData, markdownContent, providerID))
+	return collector.Flush()
 }

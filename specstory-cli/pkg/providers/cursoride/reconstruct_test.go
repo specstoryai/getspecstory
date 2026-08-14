@@ -8,16 +8,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 // createTestWorkspaceDB creates an in-temp-dir SQLite workspace database with an ItemTable
 // and returns both its path and a WorkspaceMatch pointing at it.
-func createTestWorkspaceDB(t *testing.T) (string, *WorkspaceMatch) {
+func createTestWorkspaceDB(t *testing.T) (string, *vscode.WorkspaceEntry) {
 	t.Helper()
 	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "workspace.vscdb")
+	dbPath := filepath.Join(dir, "state.vscdb")
 	db, err := OpenDatabaseReadWrite(dbPath)
 	if err != nil {
 		t.Fatalf("createTestWorkspaceDB: open: %v", err)
@@ -27,16 +28,16 @@ func createTestWorkspaceDB(t *testing.T) (string, *WorkspaceMatch) {
 		t.Fatalf("createTestWorkspaceDB: create ItemTable: %v", err)
 	}
 	_ = db.Close()
-	ws := &WorkspaceMatch{ID: "test-workspace", DBPath: dbPath, URI: "file:///tmp/proj"}
+	ws := &vscode.WorkspaceEntry{ID: "test-workspace", Dir: dir, URI: "file:///tmp/proj"}
 	return dbPath, ws
 }
 
 // patchWorkspace replaces FindWorkspaceForProject for the duration of the test,
 // always returning the provided workspace regardless of the project path argument.
-func patchWorkspace(t *testing.T, ws *WorkspaceMatch) {
+func patchWorkspace(t *testing.T, ws *vscode.WorkspaceEntry) {
 	t.Helper()
 	orig := FindWorkspaceForProject
-	FindWorkspaceForProject = func(_ string) (*WorkspaceMatch, error) { return ws, nil }
+	FindWorkspaceForProject = func(_ string) (*vscode.WorkspaceEntry, error) { return ws, nil }
 	t.Cleanup(func() { FindWorkspaceForProject = orig })
 }
 

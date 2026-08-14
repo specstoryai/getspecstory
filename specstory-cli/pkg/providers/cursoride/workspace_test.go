@@ -5,429 +5,91 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 )
 
-func TestUriToPath(t *testing.T) {
-	tests := []struct {
-		name      string
-		uri       string
-		wantPath  string
-		wantError string
-	}{
-		// Standard file:// URIs (Linux/macOS)
-		{
-			name:     "standard Linux file URI",
-			uri:      "file:///home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "standard Linux file URI with spaces",
-			uri:      "file:///home/user/my%20project",
-			wantPath: "/home/user/my project",
-		},
-
-		// WSL file://wsl.localhost URIs
-		{
-			name:     "WSL wsl.localhost URI with Ubuntu",
-			uri:      "file://wsl.localhost/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl.localhost URI with different distro",
-			uri:      "file://wsl.localhost/Debian/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl.localhost URI case insensitive host",
-			uri:      "file://WSL.LOCALHOST/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl.localhost URI with deep path",
-			uri:      "file://wsl.localhost/Ubuntu/home/user/code/specstory-monorepo",
-			wantPath: "/home/user/code/specstory-monorepo",
-		},
-		{
-			name:      "WSL wsl.localhost URI with only distro (no path)",
-			uri:       "file://wsl.localhost/Ubuntu",
-			wantError: "malformed WSL URI path",
-		},
-
-		// WSL wsl$ URIs
-		{
-			name:     "WSL wsl$ URI",
-			uri:      "file://wsl$/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "WSL wsl$ URI case insensitive",
-			uri:      "file://WSL$/Ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-
-		// vscode-remote:// URIs (delegated to parseVSCodeRemoteURI)
-		{
-			name:     "vscode-remote URI with percent-encoded host",
-			uri:      "vscode-remote://wsl%2Bubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "vscode-remote URI with plus in host",
-			uri:      "vscode-remote://wsl+ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "vscode-remote SSH URI with hex-encoded config",
-			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
-			wantPath: "/Users/bago/code/getspecstory",
-		},
-		{
-			name:     "vscode-remote tunnel URI with percent-encoded host",
-			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
-			wantPath: "/work/group/user/myproject",
-		},
-
-		// Unsupported schemes
-		{
-			name:      "unsupported http scheme",
-			uri:       "http://example.com/path",
-			wantError: "unsupported URI scheme",
-		},
-		{
-			name:      "unsupported https scheme",
-			uri:       "https://example.com/path",
-			wantError: "unsupported URI scheme",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := uriToPath(tt.uri)
-
-			if tt.wantError != "" {
-				if err == nil {
-					t.Errorf("uriToPath(%q) expected error containing %q, got nil", tt.uri, tt.wantError)
-					return
-				}
-				if got := err.Error(); !strings.Contains(got, tt.wantError) {
-					t.Errorf("uriToPath(%q) error = %q, want error containing %q", tt.uri, got, tt.wantError)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("uriToPath(%q) unexpected error: %v", tt.uri, err)
-				return
-			}
-
-			if got != tt.wantPath {
-				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.wantPath)
-			}
-		})
-	}
+// resetUserDataDirOverride restores the package-level override after a test mutates it.
+// Tests must defer this — leaking state into sibling tests would silently change their behavior.
+func resetUserDataDirOverride(t *testing.T) {
+	t.Helper()
+	prev := userDataDirOverride
+	t.Cleanup(func() { userDataDirOverride = prev })
 }
 
-func TestUriToPath_WindowsPaths(t *testing.T) {
-	// Windows-specific path handling only runs on Windows
-	if runtime.GOOS != "windows" {
-		t.Skip("Windows path tests only run on Windows")
+// TestUserDataDirOverride_WorkspaceStorage verifies that an override pointing to a
+// valid directory wins over OS-default discovery, and that a missing override path
+// falls through (warn-and-fall-back, not hard error).
+func TestUserDataDirOverride_WorkspaceStorage(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Build a fake user-data-dir: <tmp>/User/workspaceStorage
+	tmp := t.TempDir()
+	wantPath := filepath.Join(tmp, "User", "workspaceStorage")
+	if err := os.MkdirAll(wantPath, 0755); err != nil {
+		t.Fatalf("Failed to create fake workspaceStorage: %v", err)
 	}
 
-	tests := []struct {
-		name     string
-		uri      string
-		wantPath string
-	}{
-		{
-			name:     "Windows file URI",
-			uri:      "file:///c%3A/Users/Admin/project",
-			wantPath: "c:\\Users\\Admin\\project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := uriToPath(tt.uri)
-			if err != nil {
-				t.Errorf("uriToPath(%q) unexpected error: %v", tt.uri, err)
-				return
-			}
-			if got != tt.wantPath {
-				t.Errorf("uriToPath(%q) = %q, want %q", tt.uri, got, tt.wantPath)
-			}
-		})
-	}
-}
-
-func TestParseVSCodeRemoteURI(t *testing.T) {
-	tests := []struct {
-		name      string
-		uri       string
-		wantPath  string
-		wantError string
-	}{
-		// Valid WSL URIs
-		{
-			name:     "percent-encoded wsl+ubuntu",
-			uri:      "vscode-remote://wsl%2Bubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "unencoded wsl+ubuntu",
-			uri:      "vscode-remote://wsl+ubuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "percent-encoded wsl+Debian",
-			uri:      "vscode-remote://wsl%2BDebian/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "case insensitive WSL host",
-			uri:      "vscode-remote://WSL%2BUbuntu/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "wsl host without distro name",
-			uri:      "vscode-remote://wsl/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "deep path",
-			uri:      "vscode-remote://wsl%2Bubuntu/home/user/code/specstory-monorepo",
-			wantPath: "/home/user/code/specstory-monorepo",
-		},
-		{
-			name:     "path with spaces encoded",
-			uri:      "vscode-remote://wsl%2Bubuntu/home/user/my%20project",
-			wantPath: "/home/user/my project",
-		},
-		{
-			name:     "root path",
-			uri:      "vscode-remote://wsl%2Bubuntu/",
-			wantPath: "/",
-		},
-
-		// Valid SSH remote URIs
-		{
-			name:     "ssh-remote with simple config",
-			uri:      "vscode-remote://ssh-remote+myserver/home/user/project",
-			wantPath: "/home/user/project",
-		},
-		{
-			name:     "ssh-remote with hex-encoded config",
-			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
-			wantPath: "/Users/bago/code/getspecstory",
-		},
-		{
-			name:     "ssh-remote case insensitive",
-			uri:      "vscode-remote://SSH-REMOTE+myserver/home/user/project",
-			wantPath: "/home/user/project",
-		},
-
-		// Valid tunnel URIs
-		{
-			name:     "tunnel with simple host",
-			uri:      "vscode-remote://tunnel+myhost/work/group/user/myproject",
-			wantPath: "/work/group/user/myproject",
-		},
-		{
-			name:     "tunnel with percent-encoded host",
-			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
-			wantPath: "/work/group/user/myproject",
-		},
-		{
-			name:     "tunnel case insensitive",
-			uri:      "vscode-remote://TUNNEL+myhost/home/user/project",
-			wantPath: "/home/user/project",
-		},
-
-		// Dev container URIs - path returned as-is (container-internal path)
-		{
-			name:     "dev container URI with hex-encoded config",
-			uri:      "vscode-remote://dev-container%2B7b2273657474696e6754797065223a22636f6e7461696e6572222c22636f6e7461696e65724964223a22656335613261653766636632227d/workspace",
-			wantPath: "/workspace",
-		},
-		{
-			name:     "dev container URI case insensitive",
-			uri:      "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
-			wantPath: "/home/user/project",
-		},
-
-		// Error cases
-		{
-			name:      "no path component",
-			uri:       "vscode-remote://wsl%2Bubuntu",
-			wantError: "malformed vscode-remote URI (no path)",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseVSCodeRemoteURI(tt.uri)
-
-			if tt.wantError != "" {
-				if err == nil {
-					t.Errorf("parseVSCodeRemoteURI(%q) expected error containing %q, got nil", tt.uri, tt.wantError)
-					return
-				}
-				if got := err.Error(); !strings.Contains(got, tt.wantError) {
-					t.Errorf("parseVSCodeRemoteURI(%q) error = %q, want error containing %q", tt.uri, got, tt.wantError)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("parseVSCodeRemoteURI(%q) unexpected error: %v", tt.uri, err)
-				return
-			}
-
-			if got != tt.wantPath {
-				t.Errorf("parseVSCodeRemoteURI(%q) = %q, want %q", tt.uri, got, tt.wantPath)
-			}
-		})
-	}
-}
-
-func TestIsRemoteURIRequiringBasenameMatch(t *testing.T) {
-	tests := []struct {
-		name string
-		uri  string
-		want bool
-	}{
-		{
-			name: "ssh-remote URI matches",
-			uri:  "vscode-remote://ssh-remote+myserver/home/user/project",
-			want: true,
-		},
-		{
-			name: "ssh-remote URI case insensitive",
-			uri:  "vscode-remote://SSH-REMOTE+myserver/home/user/project",
-			want: true,
-		},
-		{
-			name: "tunnel URI matches",
-			uri:  "vscode-remote://tunnel+myhost/work/group/user/myproject",
-			want: true,
-		},
-		{
-			name: "tunnel URI case insensitive",
-			uri:  "vscode-remote://TUNNEL+myhost/work/group/user/myproject",
-			want: true,
-		},
-		{
-			name: "dev-container URI matches",
-			uri:  "vscode-remote://dev-container%2Babc123/workspace",
-			want: true,
-		},
-		{
-			name: "dev-container URI case insensitive",
-			uri:  "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
-			want: true,
-		},
-		{
-			name: "wsl URI does not match",
-			uri:  "vscode-remote://wsl%2Bubuntu/home/user/project",
-			want: false,
-		},
-		{
-			name: "local file URI does not match",
-			uri:  "file:///Users/bago/code/getspecstory",
-			want: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isRemoteURIRequiringBasenameMatch(tt.uri); got != tt.want {
-				t.Errorf("isRemoteURIRequiringBasenameMatch(%q) = %v, want %v", tt.uri, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestCodeWorkspaceContainsFolder(t *testing.T) {
-	// Create a temporary directory structure.
-	tmpDir, err := os.MkdirTemp("", "workspace-contains-test")
+	SetUserDataDirOverride(tmp)
+	got, err := GetWorkspaceStoragePath()
 	if err != nil {
-		t.Fatalf("Failed to create temp dir: %v", err)
+		t.Fatalf("GetWorkspaceStoragePath() with valid override returned error: %v", err)
 	}
-	defer func() { _ = os.RemoveAll(tmpDir) }()
+	if got != wantPath {
+		t.Errorf("GetWorkspaceStoragePath() = %q, want %q", got, wantPath)
+	}
+}
 
-	// Create the target project folder.
-	projectDir := filepath.Join(tmpDir, "my-project")
-	if err := os.Mkdir(projectDir, 0755); err != nil {
-		t.Fatalf("Failed to create project dir: %v", err)
+// TestUserDataDirOverride_GlobalDatabase verifies override resolution for state.vscdb.
+func TestUserDataDirOverride_GlobalDatabase(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	tmp := t.TempDir()
+	globalDir := filepath.Join(tmp, "User", "globalStorage")
+	if err := os.MkdirAll(globalDir, 0755); err != nil {
+		t.Fatalf("Failed to create fake globalStorage: %v", err)
 	}
-	// Resolve symlinks so the canonical path matches what normalizePathForComparison returns
-	// (e.g. /var → /private/var on macOS).
-	canonicalProjectDir, err := filepath.EvalSymlinks(projectDir)
+	wantPath := filepath.Join(globalDir, "state.vscdb")
+	if err := os.WriteFile(wantPath, []byte{}, 0644); err != nil {
+		t.Fatalf("Failed to write fake state.vscdb: %v", err)
+	}
+
+	SetUserDataDirOverride(tmp)
+	got, err := GetGlobalDatabasePath()
 	if err != nil {
-		canonicalProjectDir = projectDir
+		t.Fatalf("GetGlobalDatabasePath() with valid override returned error: %v", err)
 	}
-
-	// Create a workspace file in a sibling directory (common real-world pattern).
-	workspacesDir := filepath.Join(tmpDir, "workspaces")
-	if err := os.Mkdir(workspacesDir, 0755); err != nil {
-		t.Fatalf("Failed to create workspaces dir: %v", err)
+	if got != wantPath {
+		t.Errorf("GetGlobalDatabasePath() = %q, want %q", got, wantPath)
 	}
-	workspaceFile := filepath.Join(workspacesDir, "my-project.code-workspace")
+}
 
-	writeWorkspaceFile := func(content string) {
-		if err := os.WriteFile(workspaceFile, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to write workspace file: %v", err)
-		}
+// TestUserDataDirOverride_MissingPathFallsThrough verifies that when the override is
+// set but the derived path does not exist, the resolver falls through to OS-default
+// discovery instead of failing fast. On systems without a real Cursor install, this
+// surfaces as the normal "not found" error from the OS-default path — proving we did
+// fall through and didn't get stuck on the bad override.
+func TestUserDataDirOverride_MissingPathFallsThrough(t *testing.T) {
+	resetUserDataDirOverride(t)
+
+	// Override points at a directory that exists but has no User/workspaceStorage inside.
+	override := t.TempDir()
+	SetUserDataDirOverride(override)
+
+	_, err := GetWorkspaceStoragePath()
+	if err == nil {
+		// If a real Cursor install happens to exist on this machine, the OS-default
+		// branch succeeded — also a valid fall-through outcome. Either way, the override
+		// must not have been used (we'd have failed before reaching here otherwise).
+		return
 	}
-
-	tests := []struct {
-		name             string
-		workspaceContent string
-		targetFolder     string
-		expected         bool
-	}{
-		{
-			name:             "relative path that resolves to target folder",
-			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         true,
-		},
-		{
-			name:             "absolute path matching target folder",
-			workspaceContent: `{"folders": [{"path": "` + projectDir + `"}]}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         true,
-		},
-		{
-			name:             "no folders entry matching target",
-			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         false,
-		},
-		{
-			name:             "empty folders array",
-			workspaceContent: `{"folders": []}`,
-			targetFolder:     canonicalProjectDir,
-			expected:         false,
-		},
-		{
-			name:             "malformed JSON",
-			workspaceContent: `not json`,
-			targetFolder:     canonicalProjectDir,
-			expected:         false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			writeWorkspaceFile(tt.workspaceContent)
-			result := codeWorkspaceContainsFolder(workspaceFile, tt.targetFolder)
-			if result != tt.expected {
-				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
-			}
-		})
+	// The error must come from the OS-default path, not from the override candidate.
+	// The error message includes the path being checked; assert it doesn't mention
+	// the override dir.
+	if strings.Contains(err.Error(), override) {
+		t.Errorf("expected fall-through to OS default after bad override, but error mentions override path: %v", err)
 	}
 }
 
@@ -579,7 +241,7 @@ func TestFindProjectComposerIDs(t *testing.T) {
 	// (with no workspaceIdentifier) to prove IDs are deduplicated across sources.
 	wsDBPath := filepath.Join(tmp, "state.vscdb")
 	createWorkspaceDB(t, wsDBPath, []string{"ws-composer"})
-	workspaces := []WorkspaceMatch{{ID: "ws-hash-1", DBPath: wsDBPath}}
+	workspaces := []vscode.WorkspaceEntry{{ID: "ws-hash-1", Dir: tmp}}
 
 	marshal := func(c ComposerData) string {
 		t.Helper()
@@ -656,7 +318,7 @@ func TestEnsureWorkspaceForProject_MintsEntry(t *testing.T) {
 	}
 
 	// The ID must be Cursor's scheme: md5(path + platform stat salt).
-	wantID, err := cursorWorkspaceID(projectDir)
+	wantID, err := vscode.WorkspaceID(projectDir)
 	if err != nil {
 		t.Fatalf("cursorWorkspaceID: %v", err)
 	}
@@ -665,16 +327,16 @@ func TestEnsureWorkspaceForProject_MintsEntry(t *testing.T) {
 	}
 
 	// workspace.json must parse and carry the folder URI.
-	wj, err := readWorkspaceJSON(filepath.Join(ws.Path, "workspace.json"))
+	wj, err := vscode.ReadWorkspaceJSON(filepath.Join(ws.Dir, "workspace.json"))
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if wj.Folder != pathToFileURI(projectDir) {
-		t.Errorf("workspace.json folder = %q, want %q", wj.Folder, pathToFileURI(projectDir))
+	if wj.Folder != vscode.PathToFileURI(projectDir) {
+		t.Errorf("workspace.json folder = %q, want %q", wj.Folder, vscode.PathToFileURI(projectDir))
 	}
 
 	// The state.vscdb must exist with a usable ItemTable (our own readers query it).
-	if _, err := LoadWorkspaceComposerIDs(ws.DBPath); err != nil {
+	if _, err := LoadWorkspaceComposerIDs(ws.StateDBPath()); err != nil {
 		t.Errorf("minted state.vscdb not readable: %v", err)
 	}
 

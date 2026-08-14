@@ -12,8 +12,6 @@ Give me the git commands to run so you can review it with the /pr-review skill
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-29 16:25:03Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-29 16:25:04Z)**_
 
 I'll look up the PR first so I can give you the exact worktree commands (correct branch name, etc.).
@@ -30,8 +28,6 @@ Fetch PR 237 metadata
 {"author":{"id":"MDQ6VXNlcjI4NjI2NTEz","is_bot":false,"login":"huangruizhe","name":""},"baseRefName":"dev","headRefName":"fix/suppress-empty-agent-rounds","headRepository":{"id":"R_kgDOS8r_Yg","name":"getspecstory","nameWithOwner":"huangruizhe/getspecstory"},"headRepositoryOwner":{"id":"MDQ6VXNlcjI4NjI2NTEz","login":"huangruizhe"},"isCrossRepository":true,"number":237,"state":"OPEN","title":"fix(markdown): skip rendering content-less messages (empty role rounds)","url":"https://github.com/specstoryai/getspecstory/pull/237"}
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 16:25:13Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 16:25:14Z)**_
 
@@ -52,8 +48,6 @@ origin	git@github.com:specstoryai/getspecstory.git (push)
 /Users/sean/Source/SpecStory/getspecstory 9237ccf [session-portability]
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 16:25:28Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 16:25:33Z)**_
 
@@ -92,6 +86,8 @@ _**User (2026-06-29 16:28:26Z)**_
 <command-args>237
 
 using ../getspecstory-pr237 work tree</command-args>
+
+---
 
 _**User (2026-06-29 16:28:26Z)**_
 
@@ -257,8 +253,6 @@ For any new test cases that were added, confirm the tests are:
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-29 16:28:31Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-29 16:28:32Z)**_
 
 The auto-populated context is for PR **#244** (your current branch), but the task is PR **#237**. Let me ignore the #244 context and review #237 properly. First, let me confirm the worktree exists and get the actual diff.
@@ -403,8 +397,6 @@ index 75c5c737..43049874 100644
  	var markdown strings.Builder
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 16:28:38Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 16:28:38Z)**_
 
@@ -642,8 +634,6 @@ _**Agent (claude-opus-4-8 2026-06-29 16:28:39Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 16:28:51Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-29 16:28:51Z)**_
-
 Let me check `shouldAddSeparator`, the schema's `ContentPart` types, and whether other content-part types could slip through the text check.
 
 _**Agent (claude-opus-4-8 2026-06-29 16:28:53Z)**_
@@ -807,8 +797,6 @@ Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-29 16:28:58Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-29 16:28:59Z)**_
 
 There's existing content-detection logic in `schema/types.go` (lines 220-259). Let me read it — relevant to the DRY question.
@@ -900,8 +888,6 @@ _**Agent (claude-opus-4-8 2026-06-29 16:29:00Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 16:29:17Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-29 16:29:17Z)**_
-
 Let me run the new tests and the linter in the worktree to confirm they pass and build.
 
 _**Agent (claude-opus-4-8 2026-06-29 16:29:21Z)**_
@@ -932,8 +918,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	0.016s
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 16:29:26Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 16:30:07Z)**_
 
@@ -1037,8 +1021,6 @@ We're going to make the fixes here in the worktree. Let's address MII 1-4
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-29 17:57:27Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-29 17:57:28Z)**_
 
 I'll make the fixes in the worktree. First let me check the schema constants so I use them consistently (MII 2).
@@ -1065,8 +1047,6 @@ Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
 
-_**Agent (claude-opus-4-8 2026-06-29 17:58:15Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-29 17:58:16Z)**_
 
 Now I'll apply the fixes. Let me make the `markdown.go` edits (MII 2 + MII 4) and read the test file (for MII 1 + MII 3) in parallel.
@@ -1090,8 +1070,6 @@ _**Agent (claude-opus-4-8 2026-06-29 17:58:30Z)**_
 The file /Users/sean/Source/SpecStory/getspecstory/getspecstory-pr237/specstory-cli/pkg/session/markdown.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 17:58:33Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 17:58:33Z)**_
 
@@ -1169,8 +1147,6 @@ _**Agent (claude-opus-4-8 2026-06-29 17:58:34Z)**_
 63
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 17:58:37Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 17:58:38Z)**_
 
@@ -1257,8 +1233,6 @@ Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 
 _**Agent (claude-opus-4-8 2026-06-29 17:59:10Z)**_
 
-_**Agent (claude-opus-4-8 2026-06-29 17:59:10Z)**_
-
 All pass (gofmt just realigned the trailing comments). Let me run the full `pkg/session` suite and the linter to confirm nothing else regressed.
 
 _**Agent (claude-opus-4-8 2026-06-29 17:59:16Z)**_
@@ -1280,8 +1254,6 @@ pkg/session/empty_rounds_test.go:45:5: QF1001: could apply De Morgan's law (stat
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 17:59:20Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 17:59:20Z)**_
 
@@ -1312,8 +1284,6 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/session	(cached)
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 17:59:32Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 17:59:32Z)**_
 
@@ -1386,8 +1356,6 @@ OK, what are the git steps to get this PR w/ our changes committed and merged to
 
 ---
 
-_**Agent (claude-opus-4-8 2026-06-29 18:01:56Z)**_
-
 _**Agent (claude-opus-4-8 2026-06-29 18:01:58Z)**_
 
 Good question — and the right path depends on one thing: this is a PR from an **external fork** (`huangruizhe`), so you almost certainly can't push our fix commit back onto their branch. That means the clean route is to land it through `dev` locally. Let me confirm the commit shape first (read-only).
@@ -1411,8 +1379,6 @@ pr-237
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 ```
 </details></tool-use>
-
-_**Agent (claude-opus-4-8 2026-06-29 18:02:30Z)**_
 
 _**Agent (claude-opus-4-8 2026-06-29 18:02:41Z)**_
 
@@ -1479,9 +1445,13 @@ _**User (2026-06-30 13:53:56Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-06-30 13:53:56Z)**_
 
 <local-command-stdout>(no content)</local-command-stdout>
+
+---
 
 _**User (2026-06-30 13:53:56Z)**_
 

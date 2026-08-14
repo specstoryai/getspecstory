@@ -26,6 +26,21 @@ brew upgrade specstory
 specstory version
 ```
 
+Verify the Windows build (v2.9.0 and later). On a Windows machine, download `SpecStoryCLI_Windows_x86_64.zip` from the release, then:
+
+```powershell
+Expand-Archive SpecStoryCLI_Windows_x86_64.zip -DestinationPath .
+.\specstory.exe version
+```
+
+Or spot-check the artifact from macOS/Linux without a Windows machine:
+
+```zsh
+VERSION="2.9.0"
+curl -sLO "https://github.com/specstoryai/getspecstory/releases/download/specstory-cli/v${VERSION}/SpecStoryCLI_Windows_x86_64.zip"
+unzip -o SpecStoryCLI_Windows_x86_64.zip && file specstory.exe   # expect: PE32+ executable
+```
+
 Optional: Update the SpecStory CLI dependency version of Intent.
 
 ### Update Any Product/Feature Changes in the Documentation
@@ -36,12 +51,29 @@ Scan the [SpecStory CLI documentation](https://docs.specstory.com/) and update a
 
 The release workflow handles everything after you push the tag:
 
-| Job                   | Description                                                 |
-|-----------------------|-------------------------------------------------------------|
-| `goreleaser`          | Builds binaries for all platforms, creates GitHub release   |
-| Release notes         | Extracts changelog section and updates GitHub release notes |
-| Slack notification    | Posts release announcement to #clients channel              |
-| `update-homebrew-tap` | Updates formula with new version and SHA256 hashes          |
+|          Job          |                                Description                                |
+| --------------------- | ------------------------------------------------------------------------- |
+| `goreleaser`          | Builds binaries for all platforms (incl. Windows), creates GitHub release |
+| Release notes         | Extracts changelog section and updates GitHub release notes               |
+| Slack notification    | Posts release announcement to #clients channel                            |
+| `update-homebrew-tap` | Updates formula with new version and SHA256 hashes                        |
+
+### Release Artifacts
+
+Each release publishes ten archives, each containing just the `specstory` binary:
+
+|  Format  |                                       Platforms                                       |
+| -------- | ------------------------------------------------------------------------------------- |
+| `tar.gz` | Darwin_arm64, Darwin_x86_64, Linux_arm64, Linux_x86_64                                |
+| `zip`    | Darwin_arm64, Darwin_x86_64, Linux_arm64, Linux_x86_64, Windows_arm64, Windows_x86_64 |
+
+Windows ships zip-only per platform convention; the Unix tar.gz artifacts are what Homebrew and `install.sh` consume.
+
+### Windows Distribution (current state)
+
+- **Install channel:** direct download of the zip from the GitHub release only — there is no winget or Scoop package yet (`install.sh` covers WSL, which installs the Linux binary). The docs site's install instructions must say this.
+- **Unsigned binaries:** the Windows executables are not Authenticode-signed, so first run shows a SmartScreen "unrecognized app" warning, and Go binaries occasionally trip Defender heuristics. Code signing is planned future work.
+- **Test coverage:** CI cross-compiles the Windows (and Darwin) targets and runs the full test suite natively on a `windows-latest` runner. The Windows job reports failures like any other.
 
 ## Required Secrets
 
@@ -63,11 +95,15 @@ The release workflow handles everything after you push the tag:
 
 Check that the version in `changelog.md` matches the tag format (e.g., `## v2.0.0` for tag `specstory-cli/v2.0.0`).
 
+### Missing release artifacts
+
+Verify all ten archives listed under [Release Artifacts](#release-artifacts) were uploaded. A missing Windows zip fails no downstream job (nothing consumes it automatically), so it must be caught by eye here.
+
 ### Homebrew tap not updated
 
 1. Verify `HOMEBREW_TAP_TOKEN` secret exists and has write access
 2. Check the `update-homebrew-tap` job logs for errors
-3. Verify all four artifacts were uploaded: `SpecStoryCLI_Darwin_arm64.tar.gz`, `SpecStoryCLI_Darwin_x86_64.tar.gz`, `SpecStoryCLI_Linux_arm64.tar.gz`, `SpecStoryCLI_Linux_x86_64.tar.gz`
+3. Verify the four tar.gz artifacts the formula consumes were uploaded: `SpecStoryCLI_Darwin_arm64.tar.gz`, `SpecStoryCLI_Darwin_x86_64.tar.gz`, `SpecStoryCLI_Linux_arm64.tar.gz`, `SpecStoryCLI_Linux_x86_64.tar.gz`
 
 ### Manual homebrew update
 

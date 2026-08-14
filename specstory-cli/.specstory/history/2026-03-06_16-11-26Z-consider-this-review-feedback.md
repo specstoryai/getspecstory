@@ -1165,15 +1165,21 @@ _**User (2026-03-06 20:25:00Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-03-06 20:25:03Z)**_
 
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-03-06 20:25:03Z)**_
 
 <local-command-stdout>Catch you later!</local-command-stdout>
+
+---
 
 _**User (2026-03-06 20:25:03Z)**_
 

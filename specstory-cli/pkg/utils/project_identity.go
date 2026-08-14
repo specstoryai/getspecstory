@@ -29,29 +29,97 @@ type ProjectIdentity struct {
 
 // ProjectIdentityManager handles project identity operations
 type ProjectIdentityManager struct {
-	projectRoot string
+	projectRoot         string
+	specstoryDir        string // optional override for the .specstory directory location (from --output-dir, when set)
+	detectionRoot       string // when non-empty, identity auto-detection walks up from here instead of projectRoot (a locally readable --project-path)
+	overrideProjectName string // when non-empty, use instead of auto-detecting project name (the basename of --project-path)
+	overrideGitOrigin   string // when non-empty, use instead of reading from .git/config (from --git-origin)
 }
 
-// NewProjectIdentityManager creates a new project identity manager
-func NewProjectIdentityManager(projectRoot string) *ProjectIdentityManager {
+// NewProjectIdentityManager creates a new project identity manager.
+// specstoryDir overrides the default {projectRoot}/.specstory location when non-empty,
+// directing .project.json reads and writes to that directory instead.
+func NewProjectIdentityManager(projectRoot, specstoryDir string) *ProjectIdentityManager {
 	return &ProjectIdentityManager{
-		projectRoot: projectRoot,
+		projectRoot:  projectRoot,
+		specstoryDir: specstoryDir,
 	}
 }
 
-// getProjectJSONPath returns the path to .specstory/.project.json
+// NewProjectIdentityManagerWithOverrides builds the identity manager the CLI
+// commands share, wiring in the hidden override flags. gitOriginOverride always
+// feeds WithGitOrigin (empty means no override). When projectPathOverride is
+// set, the project is named after the effective path's basename: the walk-up
+// name detection would otherwise describe the directory the CLI happens to run
+// from rather than the project being targeted.
+func NewProjectIdentityManagerWithOverrides(cwd, specstoryDir, projectPathOverride, gitOriginOverride string) *ProjectIdentityManager {
+	manager := NewProjectIdentityManager(cwd, specstoryDir).WithGitOrigin(gitOriginOverride)
+	if projectPathOverride != "" {
+		effectivePath := ResolveProjectPath(projectPathOverride, cwd)
+		manager = manager.WithProjectName(filepath.Base(effectivePath))
+		// The target drives identity detection: the identity describes the project
+		// being targeted, not the directory the CLI was launched from. This holds
+		// even for remote (SSH) paths that don't exist locally — the manager hashes
+		// the path itself for workspace_id, so two different remote projects
+		// launched from the same local directory get distinct identities.
+		manager = manager.WithDetectionRoot(effectivePath)
+	}
+	return manager
+}
+
+// WithProjectName sets an explicit project name override, bypassing auto-detection.
+// The override is applied even if a project name already exists in .project.json.
+func (m *ProjectIdentityManager) WithProjectName(name string) *ProjectIdentityManager {
+	m.overrideProjectName = name
+	return m
+}
+
+// WithGitOrigin sets an explicit git remote origin URL override, bypassing .git/config.
+// The override is used to compute the git_id even if one already exists in .project.json.
+func (m *ProjectIdentityManager) WithGitOrigin(origin string) *ProjectIdentityManager {
+	m.overrideGitOrigin = origin
+	return m
+}
+
+// WithDetectionRoot points identity auto-detection (the workspace_id/git_id/name
+// walk-up) at dir instead of projectRoot, while the .specstory location stays
+// anchored to projectRoot. Callers pass the effective --project-path here so the
+// detected identity describes that project rather than the launch directory. The
+// path may name a remote (SSH) directory that does not exist locally — detection
+// then hashes the path for workspace_id and skips the filesystem-dependent steps.
+func (m *ProjectIdentityManager) WithDetectionRoot(dir string) *ProjectIdentityManager {
+	m.detectionRoot = dir
+	return m
+}
+
+// getDetectionRoot returns the directory identity auto-detection starts from.
+func (m *ProjectIdentityManager) getDetectionRoot() string {
+	if m.detectionRoot != "" {
+		return m.detectionRoot
+	}
+	return m.projectRoot
+}
+
+// getSpecstoryDir returns the .specstory directory to use for this project.
+func (m *ProjectIdentityManager) getSpecstoryDir() string {
+	if m.specstoryDir != "" {
+		return m.specstoryDir
+	}
+	return filepath.Join(m.projectRoot, SPECSTORY_DIR)
+}
+
+// getProjectJSONPath returns the path to .project.json
 func (m *ProjectIdentityManager) getProjectJSONPath() string {
-	return filepath.Join(m.projectRoot, SPECSTORY_DIR, PROJECT_JSON_FILE)
+	return filepath.Join(m.getSpecstoryDir(), PROJECT_JSON_FILE)
 }
 
 // EnsureProjectIdentity initializes or updates the project identity
 // Returns true if the identity was created or modified
 func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
-	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot)
+	slog.Debug("Ensuring project identity", "projectRoot", m.projectRoot, "specstoryDir", m.getSpecstoryDir())
 
-	// Ensure .specstory directory exists (create if needed)
-	specstoryDir := filepath.Join(m.projectRoot, SPECSTORY_DIR)
-	if err := os.MkdirAll(specstoryDir, 0755); err != nil {
+	// Ensure the specstory directory exists (create if needed)
+	if err := os.MkdirAll(m.getSpecstoryDir(), 0755); err != nil {
 		return false, fmt.Errorf("failed to create .specstory directory: %w", err)
 	}
 
@@ -65,7 +133,33 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 	// Resolve identity by walking up to the git root (NOT the launch directory), so a
 	// session run from a monorepo subdirectory attributes to the repo, not a fragment.
 	// resolvedName always falls back to the root's base name, so it is never empty.
-	resolvedGitID, resolvedWorkspaceID, resolvedName, _ := resolveIdentity(m.projectRoot)
+	// The walk starts from the detection root, which a --project-path override may
+	// have pointed at the targeted project instead of the launch directory.
+	//
+	// A detection root that isn't a locally readable directory is a remote (SSH)
+	// project path: either it doesn't exist here, or — a driveless rooted path on
+	// Windows like \home\u\project — it cannot even be probed safely, because
+	// os.Stat resolves it against the process's current drive and could match an
+	// unrelated local directory. Its identity still must come from the path
+	// itself: hashing the launch directory instead would hand every remote
+	// project launched from the same local directory the same workspace_id.
+	//
+	// The path is hashed exactly as given, skipping every host-filesystem step:
+	// no walk-up (the remote path's LOCAL ancestors could hold an unrelated
+	// repo's .git — git identity for remote targets comes from --git-origin), no
+	// filepath.Abs (it would staple the current drive letter on), and no host
+	// case-folding (the host may be case-insensitive, but remote SSH/WSL
+	// filesystems are case-sensitive — folding would collide /home/u/Repo with
+	// /home/u/repo).
+	var resolvedGitID, resolvedWorkspaceID, resolvedName string
+	detectionRoot := m.getDetectionRoot()
+	if info, statErr := os.Stat(detectionRoot); !IsDrivelessRootedPath(detectionRoot) && statErr == nil && info.IsDir() {
+		resolvedGitID, resolvedWorkspaceID, resolvedName, _ = resolveIdentity(detectionRoot)
+	} else {
+		rooted := &ProjectIdentityManager{projectRoot: detectionRoot}
+		resolvedWorkspaceID = rooted.createHash(detectionRoot)
+		resolvedName = filepath.Base(detectionRoot)
+	}
 
 	// Determine what needs to be done
 	var identity ProjectIdentity
@@ -92,18 +186,52 @@ func (m *ProjectIdentityManager) EnsureProjectIdentity() (bool, error) {
 			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
 			isModified = true
 		}
+
+		// With --project-path in effect, a stored identity whose workspace_id
+		// doesn't match the target belongs to a DIFFERENT project — most likely
+		// this .specstory dir was previously used for another target. The
+		// fill-if-empty rules below would keep the old project's ids (only the
+		// name would update), so sessions of the new target would sync under the
+		// old project's identity. Retarget wholesale: take the new workspace_id
+		// and drop the stale git_id so the override/detection logic below fills
+		// it fresh for the new target.
+		if m.detectionRoot != "" && identity.WorkspaceID != resolvedWorkspaceID {
+			slog.Debug("Retargeting stored identity to the --project-path target",
+				"oldWorkspaceID", identity.WorkspaceID, "newWorkspaceID", resolvedWorkspaceID)
+			identity.WorkspaceID = resolvedWorkspaceID
+			identity.WorkspaceIDAt = time.Now().UTC().Format(time.RFC3339)
+			identity.GitID = ""
+			identity.GitIDAt = ""
+			isModified = true
+		}
 	}
 
-	// Check if we need to add git_id
-	if identity.GitID == "" && resolvedGitID != "" {
+	// Determine git_id: prefer explicit override, then the walk-up resolver
+	if m.overrideGitOrigin != "" {
+		// Always apply the explicit override (force-update even if already set)
+		gitID := m.createHash(m.normalizeGitURL(m.overrideGitOrigin))
+		if identity.GitID != gitID {
+			identity.GitID = gitID
+			identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
+			isModified = true
+			slog.Debug("Set git_id from --git-origin override", "git_id", gitID)
+		}
+	} else if identity.GitID == "" && resolvedGitID != "" {
 		identity.GitID = resolvedGitID
 		identity.GitIDAt = time.Now().UTC().Format(time.RFC3339)
 		isModified = true
 		slog.Debug("Added git_id to project identity", "git_id", resolvedGitID)
 	}
 
-	// Check if we need to add project_name
-	if identity.ProjectName == "" {
+	// Determine project_name: prefer explicit override, then the walk-up resolver
+	if m.overrideProjectName != "" {
+		// Always apply the explicit override (force-update even if already set)
+		if identity.ProjectName != m.overrideProjectName {
+			identity.ProjectName = m.overrideProjectName
+			isModified = true
+			slog.Debug("Set project_name from --project-path override", "project_name", m.overrideProjectName)
+		}
+	} else if identity.ProjectName == "" {
 		identity.ProjectName = resolvedName
 		isModified = true
 		slog.Debug("Added project_name to project identity", "project_name", resolvedName)
@@ -191,10 +319,6 @@ func (m *ProjectIdentityManager) generateWorkspaceID() string {
 // should be case-folded — NOT a per-volume probe. macOS and Windows volumes are
 // usually case-insensitive and Linux case-sensitive, so we key off GOOS for
 // simplicity and stability. It is a var so tests can exercise both behaviors.
-// Windows is included even though the app is built only for macOS/Linux today: the
-// in-flight Windows support lives on a branch that does not carry this file, so
-// folding case here keeps that branch from silently reintroducing case-divergent
-// workspace ids when it merges.
 //
 // Accepted trade-off: macOS (APFS/HFS+) can be formatted case-SENSITIVE, where
 // this default wrongly folds two genuinely-distinct directories that differ only

@@ -1,11 +1,7 @@
 package deepseektui
 
 import (
-	"encoding/json"
 	"fmt"
-	"path/filepath"
-	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -36,7 +32,7 @@ func formatToolCall(tool *ToolInfo) string {
 
 func formatToolInput(tool *ToolInfo) string {
 	args := tool.Input
-	switch normalizeToolName(tool.Name) {
+	switch spi.NormalizeToolName(tool.Name) {
 	case "execshell", "execshellwait", "execinteract", "execshellinteract",
 		"taskshellstart", "taskshellwait":
 		return formatExecuteInput(args)
@@ -61,9 +57,9 @@ func formatToolInput(tool *ToolInfo) string {
 	case "todowrite", "updateplan", "checklistwrite":
 		return renderTodoWrite(args)
 	case "taskcreate", "taskread", "tasklist", "note":
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	default:
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 }
 
@@ -151,14 +147,14 @@ func addPathHint(hints *[]string, value string, workspaceRoot string) {
 // --- per-tool input renderers ---
 
 func renderReadInput(args map[string]any) string {
-	path := stringValue(args, "file_path", "path", "file", "filePath")
+	path := spi.StringValue(args, "file_path", "path", "file", "filePath")
 	if path == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Path: `%s`", path)
-	offset := stringValue(args, "offset", "start")
-	limit := stringValue(args, "limit", "lines", "max_lines")
+	offset := spi.StringValue(args, "offset", "start")
+	limit := spi.StringValue(args, "limit", "lines", "max_lines")
 	if offset != "" || limit != "" {
 		if offset == "" {
 			offset = "0"
@@ -172,49 +168,49 @@ func renderReadInput(args map[string]any) string {
 }
 
 func renderListInput(args map[string]any) string {
-	path := stringValue(args, "path", "dir", "directory", "directory_path", "target_directory")
+	path := spi.StringValue(args, "path", "dir", "directory", "directory_path", "target_directory")
 	if path == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return fmt.Sprintf("Path: `%s`", path)
 }
 
 func renderGrepInput(args map[string]any) string {
 	parts := []string{}
-	if pat := stringValue(args, "pattern", "query", "regex"); pat != "" {
+	if pat := spi.StringValue(args, "pattern", "query", "regex"); pat != "" {
 		parts = append(parts, fmt.Sprintf("Pattern: `%s`", pat))
 	}
-	if path := stringValue(args, "path", "dir", "directory"); path != "" {
+	if path := spi.StringValue(args, "path", "dir", "directory"); path != "" {
 		parts = append(parts, fmt.Sprintf("Path: `%s`", path))
 	}
-	if glob := stringValue(args, "include", "glob"); glob != "" {
+	if glob := spi.StringValue(args, "include", "glob"); glob != "" {
 		parts = append(parts, fmt.Sprintf("Glob: `%s`", glob))
 	}
 	if len(parts) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return strings.Join(parts, "\n")
 }
 
 func renderFileSearchInput(args map[string]any) string {
-	if pat := stringValue(args, "pattern", "query", "name"); pat != "" {
+	if pat := spi.StringValue(args, "pattern", "query", "name"); pat != "" {
 		return fmt.Sprintf("Pattern: `%s`", pat)
 	}
-	return renderGenericJSON(args)
+	return spi.RenderGenericJSON(args)
 }
 
 func renderWebSearchInput(args map[string]any) string {
-	if q := stringValue(args, "query", "q", "search"); q != "" {
+	if q := spi.StringValue(args, "query", "q", "search"); q != "" {
 		return fmt.Sprintf("Query: `%s`", q)
 	}
-	return renderGenericJSON(args)
+	return spi.RenderGenericJSON(args)
 }
 
 func renderWebFetchInput(args map[string]any) string {
-	url := stringValue(args, "url", "uri")
-	prompt := stringValue(args, "prompt", "query")
+	url := spi.StringValue(args, "url", "uri")
+	prompt := spi.StringValue(args, "prompt", "query")
 	if url == "" && prompt == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var parts []string
 	if url != "" {
@@ -227,10 +223,10 @@ func renderWebFetchInput(args map[string]any) string {
 }
 
 func renderWriteInput(args map[string]any) string {
-	path := stringValue(args, "file_path", "path", "file", "filePath")
-	content := stringValue(args, "content", "contents", "text", "data")
+	path := spi.StringValue(args, "file_path", "path", "file", "filePath")
+	content := spi.StringValue(args, "content", "contents", "text", "data")
 	if path == "" && content == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var b strings.Builder
 	if path != "" {
@@ -246,9 +242,9 @@ func renderWriteInput(args map[string]any) string {
 }
 
 func renderEditInput(args map[string]any) string {
-	path := stringValue(args, "file_path", "path", "file", "filePath")
-	oldText := stringValue(args, "old_str", "old_text", "old_string", "old")
-	newText := stringValue(args, "new_str", "new_text", "new_string", "new")
+	path := spi.StringValue(args, "file_path", "path", "file", "filePath")
+	oldText := spi.StringValue(args, "old_str", "old_text", "old_string", "old")
+	newText := spi.StringValue(args, "new_str", "new_text", "new_string", "new")
 
 	var b strings.Builder
 	if path != "" {
@@ -258,20 +254,20 @@ func renderEditInput(args map[string]any) string {
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(formatDiffBlock(oldText, newText))
+		b.WriteString(spi.FormatDiffBlock(oldText, newText))
 	}
 	if b.Len() == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	return b.String()
 }
 
 func renderApplyPatch(args map[string]any) string {
-	patch := stringValue(args, "patch", "input")
+	patch := spi.StringValue(args, "patch", "input")
 	if patch == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
-	return fmt.Sprintf("```diff\n%s\n```", strings.TrimSpace(patch))
+	return spi.CodeFence("diff", strings.TrimSpace(patch))
 }
 
 func renderTodoWrite(args map[string]any) string {
@@ -288,7 +284,7 @@ func renderTodoWrite(args map[string]any) string {
 		}
 	}
 	if len(itemsRaw) == 0 {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var b strings.Builder
 	b.WriteString("Todo List:\n")
@@ -297,21 +293,21 @@ func renderTodoWrite(args map[string]any) string {
 		if item == nil {
 			continue
 		}
-		status := strings.TrimSpace(stringValue(item, "status"))
-		desc := strings.TrimSpace(stringValue(item, "description", "content", "text"))
+		status := strings.TrimSpace(spi.StringValue(item, "status"))
+		desc := strings.TrimSpace(spi.StringValue(item, "description", "content", "text"))
 		if desc == "" {
 			desc = "(no description)"
 		}
-		fmt.Fprintf(&b, "- [%s] %s\n", todoSymbol(status), desc)
+		fmt.Fprintf(&b, "- [%s] %s\n", spi.TodoSymbol(status), desc)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
 func formatExecuteInput(args map[string]any) string {
-	command := stringValue(args, "command", "cmd")
-	workdir := stringValue(args, "workdir", "dir", "cwd")
+	command := spi.StringValue(args, "command", "cmd")
+	workdir := spi.StringValue(args, "workdir", "dir", "cwd")
 	if command == "" && workdir == "" {
-		return renderGenericJSON(args)
+		return spi.RenderGenericJSON(args)
 	}
 	var b strings.Builder
 	if workdir != "" {
@@ -323,137 +319,8 @@ func formatExecuteInput(args map[string]any) string {
 	return b.String()
 }
 
-func formatDiffBlock(oldText, newText string) string {
-	var b strings.Builder
-	b.WriteString("```diff\n")
-	for _, line := range strings.Split(oldText, "\n") {
-		if oldText == "" {
-			break
-		}
-		b.WriteString("-")
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-	for _, line := range strings.Split(newText, "\n") {
-		if newText == "" {
-			break
-		}
-		b.WriteString("+")
-		b.WriteString(line)
-		b.WriteString("\n")
-	}
-	b.WriteString("```")
-	return b.String()
-}
-
 func formatContentBlock(content, path string) string {
-	lang := languageFromPath(path)
-	escaped := strings.ReplaceAll(content, "```", "\\```")
-	if lang == "" {
-		return fmt.Sprintf("```\n%s\n```", escaped)
-	}
-	return fmt.Sprintf("```%s\n%s\n```", lang, escaped)
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return ""
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return ""
-	}
-	switch ext {
-	case "yml":
-		return "yaml"
-	case "md":
-		return "markdown"
-	default:
-		return ext
-	}
+	return spi.CodeFence(spi.LanguageFromPath(path), content)
 }
 
 // --- generic helpers (decoupled copy of droidcli's, scoped to this package) ---
-
-func renderGenericJSON(args map[string]any) string {
-	if len(args) == 0 {
-		return ""
-	}
-	keys := make([]string, 0, len(args))
-	for k := range args {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var b strings.Builder
-	b.WriteString("```json\n{")
-	for i, k := range keys {
-		if i > 0 {
-			b.WriteString(",")
-		}
-		b.WriteString("\n  \"")
-		b.WriteString(k)
-		b.WriteString("\": ")
-		b.WriteString(renderJSONValue(args[k]))
-	}
-	b.WriteString("\n}\n```")
-	return b.String()
-}
-
-func renderJSONValue(v any) string {
-	switch val := v.(type) {
-	case string:
-		bytes, _ := json.Marshal(val)
-		return string(bytes)
-	case json.Number:
-		return val.String()
-	default:
-		bytes, err := json.Marshal(val)
-		if err != nil {
-			return fmt.Sprintf("%q", fmt.Sprint(val))
-		}
-		return string(bytes)
-	}
-}
-
-func stringValue(args map[string]any, keys ...string) string {
-	for _, key := range keys {
-		val, ok := args[key]
-		if !ok {
-			continue
-		}
-		switch v := val.(type) {
-		case string:
-			return v
-		case json.Number:
-			return v.String()
-		case float64:
-			return strconv.FormatFloat(v, 'f', -1, 64)
-		case int:
-			return strconv.Itoa(v)
-		case int64:
-			return strconv.FormatInt(v, 10)
-		case bool:
-			return strconv.FormatBool(v)
-		}
-	}
-	return ""
-}
-
-func normalizeToolName(name string) string {
-	cleaned := strings.ToLower(strings.TrimSpace(name))
-	cleaned = strings.ReplaceAll(cleaned, " ", "")
-	cleaned = strings.ReplaceAll(cleaned, "-", "")
-	cleaned = strings.ReplaceAll(cleaned, "_", "")
-	return cleaned
-}
-
-func todoSymbol(status string) string {
-	switch strings.ToLower(strings.TrimSpace(status)) {
-	case "completed", "done":
-		return "x"
-	case "in_progress", "active":
-		return "⚡"
-	default:
-		return " "
-	}
-}

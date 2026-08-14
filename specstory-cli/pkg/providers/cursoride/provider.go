@@ -6,15 +6,19 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+// ProviderID is the registry/CLI identifier for this provider (the key used in
+// the provider registry and in flags like `--user-data-dir cursoride:<path>`).
+const ProviderID = "cursoride"
 
 // Provider implements the SPI Provider interface for Cursor IDE
 type Provider struct{}
@@ -143,7 +147,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 // (GetAgentChatSessions, ListAgentChatSessions), which differ only in how they treat a
 // missing workspace and what they convert the composers into. Returns an empty map
 // (not an error) when the project has no composers.
-func loadProjectComposers(projectPath string, workspaces []WorkspaceMatch) (map[string]*ComposerData, error) {
+func loadProjectComposers(projectPath string, workspaces []vscode.WorkspaceEntry) (map[string]*ComposerData, error) {
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get global database path: %w", err)
@@ -462,16 +466,16 @@ func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
 // The resume flow (resumeSessionID != "") arrives here after ReconstructSession has
 // already written the imported session into the global database — the "session is ready"
 // note only makes sense in that case, not on a plain `specstory run cursoride`.
-func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	if resumeSessionID != "" {
 		fmt.Fprintln(os.Stderr, "\nSession is ready in the Cursor IDE. Open the Agents panel to find it.")
 	}
-	if err := openCursorIDE(projectPath); err != nil {
+	if err := openCursorIDE(projectPath, customCommand); err != nil {
 		// Opening is best-effort; a failure here should not surface as a hard error
 		// since the user can open Cursor manually and watching still works.
 		slog.Debug("Could not open Cursor IDE automatically", "error", err)
 		fmt.Fprintf(os.Stderr, "Open Cursor IDE manually in: %s\n", projectPath)
-		if errors.Is(err, errCursorCLIMissing) {
+		if errors.Is(err, vscode.ErrCLIMissing) {
 			fmt.Fprintln(os.Stderr, "To let SpecStory open the project for you, install Cursor's shell command:")
 			fmt.Fprintln(os.Stderr, "open the command palette in Cursor (Cmd/Ctrl+Shift+P) and run \"Shell Command: Install 'cursor' command\".")
 		}
@@ -504,26 +508,14 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, _ string, resumeSession
 	}
 }
 
-// errCursorCLIMissing signals that Cursor's `cursor` shell command is not on PATH. The
-// command is opt-in (installed from Cursor's command palette), so its absence is an
-// expected condition, not a failure — callers use this to print installation guidance
-// instead of a generic error.
-var errCursorCLIMissing = errors.New("the `cursor` shell command is not installed")
-
-// openCursorIDE launches Cursor IDE at the given project path via Cursor's own `cursor`
-// CLI — the only launcher that reliably opens the directory as a workspace window
-// (`open -a Cursor` on macOS mostly just activates an already-running instance on its
-// home screen, so it is deliberately not used as a fallback). When the CLI isn't on
-// PATH, nothing is launched and errCursorCLIMissing is returned so the caller can tell
-// the user how to install the command.
-func openCursorIDE(projectPath string) error {
-	if _, err := exec.LookPath("cursor"); err != nil {
-		return errCursorCLIMissing
-	}
-	if out, err := exec.Command("cursor", projectPath).CombinedOutput(); err != nil {
-		return fmt.Errorf("cursor CLI failed: %w: %s", err, string(out))
-	}
-	return nil
+// openCursorIDE launches Cursor IDE at the given project path via the shared
+// lineage launcher, using Cursor's own `cursor` CLI. A custom command (from
+// --command or the cursoride_cmd config) overrides the launcher binary and
+// prepends extra arguments before the project path. vscode.ErrCLIMissing
+// surfaces when Cursor's own CLI is not installed so the caller can print
+// installation guidance.
+func openCursorIDE(projectPath, customCommand string) error {
+	return vscode.OpenApp("Cursor IDE", "cursor", customCommand, projectPath)
 }
 
 // WatchAgent watches for Cursor IDE activity and calls the callback with AgentChatSession
@@ -531,6 +523,26 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	slog.Info("WatchAgent: Starting Cursor IDE activity monitoring",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
+
+	// The workspace entry may not exist yet — a watch can start before the
+	// project is ever opened in Cursor. Erroring would permanently disable this
+	// provider for the multi-provider watch, so wait for the entry instead.
+	loggedWaiting := false
+	for {
+		if _, err := FindWorkspaceForProject(projectPath); err == nil {
+			break
+		}
+		if !loggedWaiting {
+			slog.Info("No Cursor workspace for project yet; waiting for it to be opened",
+				"projectPath", projectPath)
+			loggedWaiting = true
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(2 * time.Second):
+		}
+	}
 
 	// Create and start watcher
 	watcher, err := NewCursorIDEWatcher(projectPath, debugRaw, sessionCallback, defaultCheckInterval)

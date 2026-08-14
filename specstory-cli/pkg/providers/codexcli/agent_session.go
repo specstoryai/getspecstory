@@ -541,7 +541,7 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 				if len(cleaned) > 5000 {
 					cleaned = cleaned[:5000] + "\n... (truncated)"
 				}
-				formattedMd.WriteString("```\n" + cleaned + "\n```")
+				formattedMd.WriteString(spi.CodeFence("", cleaned))
 			}
 		}
 	}
