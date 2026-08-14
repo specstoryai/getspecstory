@@ -101,9 +101,12 @@ func walkMuseSessionFiles(sessionsRoot string, visit func(path string)) error {
 // IsSubagentTranscript reports whether a transcript path sits under a subagent
 // directory. Subagent transcripts share the session format but belong to their
 // parent session, so every enumeration path filters them out.
+//
+// Matching happens on the slash form so the shape of the path decides, not the
+// platform: Windows accepts forward slashes too, and a path can arrive from a
+// record written on another OS.
 func IsSubagentTranscript(path string) bool {
-	separator := string(filepath.Separator)
-	return strings.Contains(path, separator+subagentDirName+separator)
+	return strings.Contains(filepath.ToSlash(path), "/"+subagentDirName+"/")
 }
 
 // readSessionWorkspaceRoot reads just enough of a transcript to recover the

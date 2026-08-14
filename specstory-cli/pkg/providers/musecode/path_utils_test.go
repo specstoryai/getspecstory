@@ -1,6 +1,7 @@
 package musecode
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,6 +31,18 @@ func seedStore(t *testing.T) string {
 	return filepath.Join(dataHome, "muse", "sessions")
 }
 
+// jsonEscape returns s as it must appear inside a JSON string literal, i.e.
+// without the surrounding quotes.
+func jsonEscape(t *testing.T, s string) string {
+	t.Helper()
+
+	encoded, err := json.Marshal(s)
+	if err != nil {
+		t.Fatalf("failed to escape %q: %v", s, err)
+	}
+	return string(encoded[1 : len(encoded)-1])
+}
+
 // writeSession copies a fixture into the store under datePath/sessionID,
 // rewriting its workspace root. Returns the transcript path.
 func writeSession(t *testing.T, sessionsRoot, datePath, sessionID, fixture, workspaceRoot string) string {
@@ -39,7 +52,16 @@ func writeSession(t *testing.T, sessionsRoot, datePath, sessionID, fixture, work
 	if err != nil {
 		t.Fatalf("failed to read fixture %s: %v", fixture, err)
 	}
-	content := strings.ReplaceAll(string(data), fixtureWorkspaceRoot, workspaceRoot)
+
+	// The root is substituted into JSON string literals, where a Windows path's
+	// backslashes would otherwise read as escape characters and leave the
+	// fixture unparseable. Tool payloads carry a second layer of JSON encoding,
+	// so occurrences nested inside an escaped string need escaping twice; they
+	// are recognizable by their escaped surrounding quotes and rewritten first.
+	escaped := jsonEscape(t, workspaceRoot)
+	nested := jsonEscape(t, escaped)
+	content := strings.ReplaceAll(string(data), `\"`+fixtureWorkspaceRoot+`\"`, `\"`+nested+`\"`)
+	content = strings.ReplaceAll(content, fixtureWorkspaceRoot, escaped)
 
 	dir := filepath.Join(sessionsRoot, filepath.FromSlash(datePath), sessionID)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
