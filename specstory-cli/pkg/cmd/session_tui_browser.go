@@ -266,6 +266,10 @@ func colorForAgent(id string) color.Color {
 		return lipgloss.Color("#4C59FA") // blue-violet
 	case "antigravity":
 		return lipgloss.Color("#3781DE") // blue
+	case "grok":
+		// xAI's black and white brand is invisible on one terminal theme or the
+		// other, so use a distinct readable accent instead.
+		return lipgloss.Color("#D6336C") // magenta
 	default:
 		return lipgloss.Color("250")
 	}

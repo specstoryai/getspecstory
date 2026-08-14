@@ -1,0 +1,5 @@
+{"ts":"2026-08-12T20:00:10.000Z","type":"tool_completed","tool_name":"search_replace","duration_ms":6,"outcome":"success","tool_call_id":"call-edit-1"}
+{"ts":"2026-08-12T20:00:11.000Z","type":"tool_completed","tool_name":"run_terminal_command","duration_ms":120,"outcome":"success","tool_call_id":"call-shell-1"}
+{"ts":"2026-08-12T20:00:12.000Z","type":"tool_completed","tool_name":"read_file","duration_ms":2,"outcome":"error","tool_call_id":"call-miss-1"}
+{"ts":"2026-08-12T20:00:13.000Z","type":"tool_completed","tool_name":"todo_write","duration_ms":1,"outcome":"success","tool_call_id":"call-todo-1"}
+{"ts":"2026-08-12T20:00:14.000Z","type":"mcp_tool_call_completed","tool_name":"use_tool","duration_ms":30,"outcome":"success","tool_call_id":"call-mcp-1"}

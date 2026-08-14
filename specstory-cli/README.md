@@ -35,6 +35,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
 | [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
+| [Grok Build](https://x.ai/cli)                            | [grokbuild](pkg/providers/grokbuild/)           | JSONL       | `~/.grok/sessions/`          |
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
@@ -325,6 +326,9 @@ specstory sync --config-dir ~/specstory-configs/myproject
 
 # Antigravity CLI command
 # antigravity_cmd = "agy"
+
+# Grok Build command
+# grok_cmd = "grok"
 ```
 
 ### Configuration Options
@@ -358,6 +362,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 | `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
+| `[providers]`     | `grok_cmd`        | `"grok"`             | Grok Build command                         |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 

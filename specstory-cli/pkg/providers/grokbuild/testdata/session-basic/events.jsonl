@@ -1,0 +1,4 @@
+{"ts":"2026-08-12T19:08:39.292Z","type":"turn_started","session_id":"11111111-2222-7333-8444-555555555555","turn_number":0,"model_id":"grok-4.6","session_relationship":"primary"}
+{"ts":"2026-08-12T19:09:16.072Z","type":"tool_started","tool_name":"read_file"}
+{"ts":"2026-08-12T19:09:16.088Z","type":"tool_completed","tool_name":"read_file","duration_ms":4,"outcome":"success","tool_call_id":"call-aaa-0"}
+{"ts":"2026-08-12T19:12:00.000Z","type":"turn_ended","outcome":"completed"}

@@ -205,7 +205,7 @@ Only one, and it is the accepted cost of 5b: in deepseektui and droidcli, **nest
 
 ## 9. What actually landed (Phase 3, items 1 and 3)
 
-Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. All ten provider packages now share one language map and one check-error classifier.
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `grokbuild` (§11).
 
 ### Item 1 — language maps
 
@@ -268,3 +268,36 @@ Every site is exercised by `TestFencedSitesOutrunEmbeddedBackticks`, which feeds
 This gap is inherent to the singleton-watcher shape (package-global callback behind a mutex, invoked straight from the fsnotify handler) rather than to geminicli specifically. Providers that deliver through `spi.DispatchSession` get containment for free; any provider written on the singleton pattern needs this `recover()` explicitly.
 
 With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+
+---
+
+## 11. Follow-on: bringing `grokbuild` in line
+
+`grokbuild` was developed on its own branch alongside this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all ten fence sites, so it never had the §2.2 bug — and its exact-match tool dispatch needs no name normalization.
+
+> Other new-provider branches carry their own version of this section. When they land, fold the per-provider sections into one and renumber.
+
+Applied, using the same decisions recorded in §7:
+
+| Removed from `grokbuild` | Replaced with | Effect |
+|---|---|---|
+| `formatGenericBody` | `spi.RenderGenericJSON` | none — was byte-identical |
+| `canonical` | `spi.CanonicalizePathOrClean` | trims and falls back through `filepath.Abs` (below) |
+| `classifyGrokCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
+| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which grok captured but never reported) |
+
+`classifyGrokCheckError` was the pre-fix shape carrying both §2.3 and §2.4: a `PathError` wrapping `ErrNotExist` was `version_failed` and is now `not_found`, and plain errors move from `version_failed` to `unknown`. `buildGrokCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so grok picks up the same changes, verified through the real render path: `README.md` → ` ```markdown `, `src/calc.py` → ` ```python `, extensionless → an untagged fence (was ` ```text `). As with the other new providers, the package's own tests did not cover this — its only language-tagged assertion uses a `.go` path, which is unchanged in both implementations.
+
+### The `canonical` swap needed more care here than elsewhere
+
+In the other providers this helper only ever fed a comparison. In `grokbuild` its result is also **encoded into an on-disk directory name** — `EncodeCwdDirname(canonical(projectPath))` — so a normalization change could in principle move the directory the provider looks for. It is safe because both sides of every comparison pass through the same helper (`path_utils.go` resolves with `canonical(DecodeCwdDirname(dir)) == canonical(projectPath)`), and `spi.CanonicalizePathOrClean` is idempotent for paths that exist. The package's own tests construct their fixture directories through the same call, so they exercise the encode/decode round trip and would have failed had it shifted; they pass unchanged.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). Same singleton-watcher gap described in §10: a panic in the consumer would unwind the fsnotify event goroutine and take the process down. Delivery stays synchronous with a local `defer recover()` logging the session id, locked in by two new cases in the existing `watcher_test.go`.
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli.
+
+Left alone deliberately: `stringArg` (single-key, with explicit `nil` handling and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).

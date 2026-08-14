@@ -1,0 +1,10 @@
+{
+  "info": { "id": "99999999-8888-7777-6666-555555555555", "cwd": "/Users/dev/project" },
+  "session_summary": "Count files in project",
+  "created_at": "2026-08-12T20:10:00.000000Z",
+  "updated_at": "2026-08-12T20:10:05.000000Z",
+  "current_model_id": "grok-4.6",
+  "session_kind": "subagent",
+  "agent_name": "general-purpose",
+  "chat_format_version": 1
+}

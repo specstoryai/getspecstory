@@ -4,6 +4,8 @@
 
 ### 📢 Announcements
 
+- The SpecStory CLI now supports [Grok Build](https://x.ai/cli) (i.e. `grok`, SpaceXAI's terminal coding agent) for sessions created from Grok Build version `1.0.3` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot). Grok Build sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Grok Build.
+
 - The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL). Install on Windows by downloading `SpecStoryCLI_Windows_x86_64.zip` (or `_arm64`) from the [GitHub release](https://github.com/specstoryai/getspecstory/releases) and putting `specstory.exe` on your PATH. Signing the binary, and a package manager install (e.g. winget) is planned. Since the binaries are not yet code-signed, Windows SmartScreen may show an "unrecognized app" warning on first run. WSL users should just keep using the standard Linux install, which now reads Windows-side IDE data automatically.
 
 ### 🔧 CLI Configuration & Commands
