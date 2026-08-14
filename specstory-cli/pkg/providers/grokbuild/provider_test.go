@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestProviderName(t *testing.T) {
@@ -36,7 +38,7 @@ func withFakeGrokHome(t *testing.T) string {
 func seedSession(t *testing.T, home, projectPath, fixture, sessionID string) string {
 	t.Helper()
 
-	groupDir := filepath.Join(home, "sessions", EncodeCwdDirname(canonical(projectPath)))
+	groupDir := filepath.Join(home, "sessions", EncodeCwdDirname(spi.CanonicalizePathOrClean(projectPath)))
 	sessionDir := filepath.Join(groupDir, sessionID)
 	copyFixture(t, fixture, sessionDir)
 

@@ -396,14 +396,27 @@ func processSessionChange(dir string) {
 	triggerCallback(agentSession)
 }
 
+// triggerCallback delivers a session to the watcher callback under the lock.
+//
+// Delivery is synchronous so transcript changes reach the consumer in the order
+// fsnotify reported them, but a panic in the consumer is contained here: it
+// would otherwise unwind the fsnotify event goroutine and take down the whole
+// process over one malformed session.
 func triggerCallback(agentSession *spi.AgentChatSession) {
 	watcherMutex.RLock()
 	callback := watcherCallback
 	watcherMutex.RUnlock()
 
-	if callback != nil && agentSession != nil {
-		callback(agentSession)
+	if callback == nil || agentSession == nil {
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("grok: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
+		}
+	}()
+	callback(agentSession)
 }
 
 // waitForDirectory blocks until a directory exists, watching its parent.

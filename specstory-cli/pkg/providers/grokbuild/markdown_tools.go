@@ -3,7 +3,6 @@ package grokbuild
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -125,7 +124,7 @@ func formatToolBody(tool *ToolInfo) string {
 		// Everything identifying is already in the summary.
 		return ""
 	default:
-		return formatGenericBody(tool.Input)
+		return spi.RenderGenericJSON(tool.Input)
 	}
 }
 
@@ -150,7 +149,7 @@ func formatToolResult(tool *ToolInfo) string {
 		return ""
 	case "read_file":
 		if text := outputText(tool.Output); text != "" {
-			return spi.CodeFence(languageFromPath(stringArg(tool.Input, "target_file")), text)
+			return spi.CodeFence(spi.LanguageFromPath(stringArg(tool.Input, "target_file")), text)
 		}
 		return ""
 	case "run_terminal_command", "monitor":
@@ -265,7 +264,7 @@ func formatWriteBody(input map[string]any) string {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
-		builder.WriteString(spi.CodeFence(languageFromPath(path), content))
+		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
 	}
 	return builder.String()
 }
@@ -384,20 +383,9 @@ func formatUseToolBody(input map[string]any) string {
 func formatPromptBody(input map[string]any) string {
 	prompt := stringArg(input, "prompt")
 	if prompt == "" {
-		return formatGenericBody(input)
+		return spi.RenderGenericJSON(input)
 	}
 	return prompt
-}
-
-func formatGenericBody(input map[string]any) string {
-	if len(input) == 0 {
-		return ""
-	}
-	encoded, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return spi.CodeFence("json", string(encoded))
 }
 
 func fenceIfMultiline(text string) string {
@@ -457,17 +445,6 @@ func stringArg(args map[string]any, key string) string {
 		}
 		return string(encoded)
 	}
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return "text"
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return "text"
-	}
-	return ext
 }
 
 // truncate caps text at limit runes.

@@ -65,7 +65,7 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 	// proves the <user_query> wrapper survives the round trip.
 	home := withFakeGrokHome(t)
 	project := t.TempDir()
-	sessionDir := filepath.Join(home, "sessions", EncodeCwdDirname(canonical(project)), result.SessionID)
+	sessionDir := filepath.Join(home, "sessions", EncodeCwdDirname(spi.CanonicalizePathOrClean(project)), result.SessionID)
 	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestNativeSessionPath_DoesNotClobberExistingSummary(t *testing.T) {
 		t.Fatalf("NativeSessionPath failed: %v", err)
 	}
 
-	groupDir := filepath.Join(home, "sessions", EncodeCwdDirname(canonical(project)))
+	groupDir := filepath.Join(home, "sessions", EncodeCwdDirname(spi.CanonicalizePathOrClean(project)))
 	summary, err := readSummary(filepath.Join(groupDir, "11111111-2222-7333-8444-555555555555", summaryFile))
 	if err != nil || summary == nil {
 		t.Fatalf("summary.json did not parse: %v", err)

@@ -130,7 +130,7 @@ func ResolveGrokProjectDir(projectPath string) (string, error) {
 		return "", fmt.Errorf("failed to read Grok sessions directory %q: %w", sessionsDir, err)
 	}
 
-	wanted := canonical(projectPath)
+	wanted := spi.CanonicalizePathOrClean(projectPath)
 
 	entries, err := os.ReadDir(sessionsDir)
 	if err != nil {
@@ -148,7 +148,7 @@ func ResolveGrokProjectDir(projectPath string) (string, error) {
 			continue
 		}
 		known = append(known, cwd)
-		if canonical(cwd) == wanted {
+		if spi.CanonicalizePathOrClean(cwd) == wanted {
 			slog.Debug("ResolveGrokProjectDir: matched project group directory",
 				"projectPath", projectPath, "groupDir", groupDir)
 			return groupDir, nil
@@ -182,16 +182,6 @@ func defaultProjectPath(projectPath string) (string, error) {
 		return "", fmt.Errorf("failed to get current working directory: %w", err)
 	}
 	return cwd, nil
-}
-
-// canonical resolves symlinks and filesystem casing so two spellings of the same
-// directory compare equal. Falls back to the input when the path cannot be resolved.
-func canonical(p string) string {
-	resolved, err := spi.GetCanonicalPath(p)
-	if err != nil {
-		return p
-	}
-	return resolved
 }
 
 // ListGrokProjectCwds returns the working directories of every project group in
