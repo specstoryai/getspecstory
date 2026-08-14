@@ -3,7 +3,6 @@ package qwencode
 import (
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -108,7 +107,7 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		// Don't show input args - parameters are in the summary
 		return ""
 	default:
-		return formatGenericBodyFromInput(tool.Input)
+		return spi.RenderGenericJSON(tool.Input)
 	}
 }
 
@@ -146,7 +145,7 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
 	}
 
 	filePath := inputAsString(tool.Input, "file_path")
-	lang := languageFromPath(filePath)
+	lang := spi.LanguageFromPath(filePath)
 	return spi.CodeFence(lang, output)
 }
 
@@ -240,7 +239,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
 	}
 	if content != "" {
-		builder.WriteString(spi.CodeFence(languageFromPath(path), content))
+		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
 	}
 	return builder.String()
 }
@@ -345,17 +344,6 @@ func todoStatusSymbol(status string) string {
 	}
 }
 
-func formatGenericBodyFromInput(input map[string]interface{}) string {
-	if len(input) == 0 {
-		return ""
-	}
-	bytes, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		return ""
-	}
-	return spi.CodeFence("json", string(bytes))
-}
-
 // inputAsString extracts a string value from tool input
 func inputAsString(input map[string]interface{}, key string) string {
 	if input == nil {
@@ -425,17 +413,6 @@ func outputErrorString(output map[string]interface{}) string {
 		}
 	}
 	return ""
-}
-
-func languageFromPath(path string) string {
-	if path == "" {
-		return "text"
-	}
-	ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), ".")
-	if ext == "" {
-		return "text"
-	}
-	return ext
 }
 
 func truncate(text string, limit int) string {
