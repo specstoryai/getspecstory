@@ -91,7 +91,9 @@ Resuming SpecStory Cloud sessions (from your other machines) requires an active 
 		Long:  longDesc,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			// resume doesn't register --config-dir (only run/sync/watch do), so the
+			// default project config always lands at the standard location here.
+			config.EnsureDefaultProjectConfig("")
 			slog.Info("Running in resume mode")
 
 			registry := factory.GetRegistry()
@@ -234,7 +236,11 @@ func launchResume(plan *resumePlan, cwd string, o resumeLaunchOpts) error {
 	if err := utils.EnsureHistoryDirectoryExists(outConfig); err != nil {
 		return err
 	}
-	if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+	// Tell cloud sync where .project.json lives (respects --output-dir) — without
+	// this the autosave callback's cloud sync reads ./.specstory/.project.json and
+	// fails or syncs under the wrong identity when --output-dir is set.
+	cloud.SetSpecstoryDir(outConfig.GetSpecstoryDir())
+	if _, err := utils.NewProjectIdentityManager(cwd, outConfig.GetSpecstoryDir()).EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
 	}
 

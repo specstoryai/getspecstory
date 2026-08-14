@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 )
 
 // writeWorkspaceEntry creates a workspace storage entry with the given
@@ -233,7 +235,9 @@ func TestMintWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("minted workspace.json unreadable: %v", err)
 	}
-	if got, err := URIToPath(wsJSON.Folder); err != nil || got != projectDir {
+	// The URI round-trip lowercases the drive letter on Windows (fileURIParts
+	// matches the IDE's own serialization), so compare with the platform's rules.
+	if got, err := URIToPath(wsJSON.Folder); err != nil || !testutil.EqualPaths(got, projectDir) {
 		t.Errorf("workspace.json folder = %q (%v), want %q", got, err, projectDir)
 	}
 
@@ -258,5 +262,226 @@ func TestOpenApp_MissingLaunchers(t *testing.T) {
 	err = OpenApp("VS Test", "code", "also-not-real-xyz --flag", t.TempDir())
 	if err == nil || errors.Is(err, ErrCLIMissing) {
 		t.Errorf("missing custom launcher error = %v, want plain error", err)
+	}
+}
+
+// TestFileURIParts verifies the VS Code-style URI serialization used for
+// workspaceIdentifier.uri, in particular the Windows drive-letter normalization
+// (lowercase drive, forward-slash URI path, %3A-encoded colon in external).
+func TestFileURIParts(t *testing.T) {
+	tests := []struct {
+		name         string
+		osPath       string
+		wantFSPath   string
+		wantURIPath  string
+		wantExternal string
+	}{
+		{
+			name:         "unix path",
+			osPath:       "/home/user/proj",
+			wantFSPath:   "/home/user/proj",
+			wantURIPath:  "/home/user/proj",
+			wantExternal: "file:///home/user/proj",
+		},
+		{
+			name:         "unix path with space",
+			osPath:       "/home/user/my proj",
+			wantFSPath:   "/home/user/my proj",
+			wantURIPath:  "/home/user/my proj",
+			wantExternal: "file:///home/user/my%20proj",
+		},
+		{
+			name:         "windows path uppercase drive",
+			osPath:       `C:\Users\Admin\proj`,
+			wantFSPath:   `c:\Users\Admin\proj`,
+			wantURIPath:  "/c:/Users/Admin/proj",
+			wantExternal: "file:///c%3A/Users/Admin/proj",
+		},
+		{
+			name:         "windows path lowercase drive",
+			osPath:       `c:\Users\Admin\proj`,
+			wantFSPath:   `c:\Users\Admin\proj`,
+			wantURIPath:  "/c:/Users/Admin/proj",
+			wantExternal: "file:///c%3A/Users/Admin/proj",
+		},
+		{
+			name:         "windows path with space",
+			osPath:       `C:\Users\Admin\my proj`,
+			wantFSPath:   `c:\Users\Admin\my proj`,
+			wantURIPath:  "/c:/Users/Admin/my proj",
+			wantExternal: "file:///c%3A/Users/Admin/my%20proj",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fsPath, uriPath, external := fileURIParts(tt.osPath)
+			if fsPath != tt.wantFSPath {
+				t.Errorf("fsPath = %q, want %q", fsPath, tt.wantFSPath)
+			}
+			if uriPath != tt.wantURIPath {
+				t.Errorf("uriPath = %q, want %q", uriPath, tt.wantURIPath)
+			}
+			if external != tt.wantExternal {
+				t.Errorf("external = %q, want %q", external, tt.wantExternal)
+			}
+		})
+	}
+}
+
+// TestWorkspaceURIMap_SepMarker verifies the "_sep" marker is emitted for Windows paths and
+// omitted for Unix ones, matching VS Code's _pathSepMarker (1 on Windows, undefined elsewhere).
+// URI.revive() drops the cached fsPath when the marker is absent, so native Windows rows
+// always carry it.
+func TestWorkspaceURIMap_SepMarker(t *testing.T) {
+	tests := []struct {
+		name    string
+		osPath  string
+		wantSep bool
+	}{
+		{name: "windows path gets marker", osPath: `C:\Users\Admin\proj`, wantSep: true},
+		{name: "windows forward slash path gets marker", osPath: "c:/Users/Admin/proj", wantSep: true},
+		{name: "unix path has no marker", osPath: "/home/user/proj", wantSep: false},
+		{name: "macos path has no marker", osPath: "/Users/bago/code/proj", wantSep: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			uri := WorkspaceURIMap(tt.osPath)
+			sep, ok := uri["_sep"]
+			if tt.wantSep {
+				if !ok {
+					t.Fatalf("_sep missing for %q, want 1", tt.osPath)
+				}
+				if sep != 1 {
+					t.Errorf("_sep = %v, want 1", sep)
+				}
+			} else if ok {
+				t.Errorf("_sep = %v for %q, want it absent", sep, tt.osPath)
+			}
+		})
+	}
+}
+
+func TestCodeWorkspaceContainsFolder(t *testing.T) {
+	// Create a temporary directory structure.
+	tmpDir := t.TempDir()
+
+	// Create the target project folder.
+	projectDir := filepath.Join(tmpDir, "my-project")
+	if err := os.Mkdir(projectDir, 0755); err != nil {
+		t.Fatalf("Failed to create project dir: %v", err)
+	}
+	// Resolve symlinks so the canonical path matches what normalizePathForComparison returns
+	// (e.g. /var → /private/var on macOS).
+	canonicalProjectDir, err := filepath.EvalSymlinks(projectDir)
+	if err != nil {
+		canonicalProjectDir = projectDir
+	}
+
+	// Create a workspace file in a sibling directory (common real-world pattern).
+	workspacesDir := filepath.Join(tmpDir, "workspaces")
+	if err := os.Mkdir(workspacesDir, 0755); err != nil {
+		t.Fatalf("Failed to create workspaces dir: %v", err)
+	}
+	workspaceFile := filepath.Join(workspacesDir, "my-project.code-workspace")
+
+	writeWorkspaceFile := func(content string) {
+		if err := os.WriteFile(workspaceFile, []byte(content), 0644); err != nil {
+			t.Fatalf("Failed to write workspace file: %v", err)
+		}
+	}
+
+	// nonExistentFile is a path that does not exist locally, simulating a remote-SSH workspace file.
+	nonExistentFile := filepath.Join(tmpDir, "remote-host", "my-project", "my-project.code-workspace")
+	// parentOfNonExistent is the directory that contains the non-existent file.
+	parentOfNonExistent := filepath.Dir(nonExistentFile)
+
+	tests := []struct {
+		name             string
+		workspaceContent string // empty means use nonExistentFile (skip writeWorkspaceFile)
+		workspaceFile    string
+		targetFolder     string
+		isRemote         bool
+		expected         bool
+	}{
+		{
+			name:             "relative path that resolves to target folder",
+			workspaceContent: `{"folders": [{"path": "../my-project"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         true,
+		},
+		{
+			name: "absolute path matching target folder",
+			// JSONString: a raw Windows path in a JSON literal is invalid escaping.
+			workspaceContent: `{"folders": [{"path": ` + testutil.JSONString(projectDir) + `}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         true,
+		},
+		{
+			name:             "no folders entry matching target",
+			workspaceContent: `{"folders": [{"path": "../other-project"}]}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         false,
+		},
+		{
+			name:             "empty folders array",
+			workspaceContent: `{"folders": []}`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         false,
+		},
+		{
+			name:             "malformed JSON",
+			workspaceContent: `not json`,
+			workspaceFile:    workspaceFile,
+			targetFolder:     canonicalProjectDir,
+			isRemote:         false,
+			expected:         false,
+		},
+		// Remote-SSH fallback: file doesn't exist locally but isRemote=true and the target
+		// folder matches the workspace file's parent directory.
+		{
+			name:          "remote SSH workspace file unreadable, parent dir matches project path",
+			workspaceFile: nonExistentFile,
+			targetFolder:  parentOfNonExistent,
+			isRemote:      true,
+			expected:      true,
+		},
+		// Remote-SSH fallback: file doesn't exist but the target folder is NOT the parent dir.
+		{
+			name:          "remote SSH workspace file unreadable, parent dir does not match",
+			workspaceFile: nonExistentFile,
+			targetFolder:  canonicalProjectDir,
+			isRemote:      true,
+			expected:      false,
+		},
+		// Non-remote: deleted local file should not trigger the parent-dir fallback.
+		{
+			name:          "local workspace file missing, isRemote false, no fallback",
+			workspaceFile: nonExistentFile,
+			targetFolder:  parentOfNonExistent,
+			isRemote:      false,
+			expected:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.workspaceContent != "" {
+				writeWorkspaceFile(tt.workspaceContent)
+			}
+			result := codeWorkspaceContainsFolder(tt.workspaceFile, tt.targetFolder, tt.isRemote)
+			if result != tt.expected {
+				t.Errorf("codeWorkspaceContainsFolder() = %v, want %v", result, tt.expected)
+			}
+		})
 	}
 }

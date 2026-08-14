@@ -153,7 +153,7 @@ _**Agent (gpt-5.2 2026-02-20 15:53:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/*.md; do echo '###' $f; sed -n '1,240p' $f; echo; done`</summary>
-```
+````
 Chunk ID: 523804
 Wall time: 0.0516 seconds
 Process exited with code 0
@@ -247,7 +247,7 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 | Strength                                             | Trade-off                                                    |
 |--
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:07Z)**_
@@ -266,7 +266,7 @@ _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,220p' docs/git-provenance/systems/aider.md`</summary>
-```
+````
 Chunk ID: 20d020
 Wall time: 0.0520 seconds
 Process exited with code 0
@@ -426,14 +426,14 @@ Aider provides no dedicated AI blame command. Typical approach:
 
 ### Colla
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,240p' docs/git-provenance/systems/aittributor.md`</summary>
-```
+````
 Chunk ID: 473df7
 Wall time: 0.0520 seconds
 Process exited with code 0
@@ -580,14 +580,14 @@ No dedicated AI blame command. Teams can parse trailers after `git blame` identi
 |---------------------------------|---------------------------------------------:|
 | Open PRs                        |                                   
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,240p' docs/git-provenance/systems/cnotes.md`</summary>
-```
+````
 Chunk ID: b7e761
 Wall time: 0.0520 seconds
 Process exited with code 0
@@ -689,14 +689,14 @@ cnotes does **not** maintain per-edit checkpoints or delta logs. Its capture bou
 1. Agent performs arbitrary edits during a session.
 2. None
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/entire.md`</summary>
-```
+````
 Chunk ID: bed34e
 Wall time: 0.0521 seconds
 Process exited with code 0
@@ -798,14 +798,14 @@ Entire supports two micro-versioning strategies:
 - each commit gets `Entire-Checkpoint: <id>` trailer
 - metadat
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '240,560p' docs/git-provenance/systems/entire.md`</summary>
-```
+````
 Chunk ID: b65ca1
 Wall time: 0.0522 seconds
 Process exited with code 0
@@ -917,14 +917,14 @@ Pre-push hooks can push the metadata branch alongside normal pushes, including m
 
 Entire does **not** currently provide a nat
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/git-ai.md`</summary>
-```
+````
 Chunk ID: 0ea07c
 Wall time: 0.0512 seconds
 Process exited with code 0
@@ -1025,14 +1025,14 @@ Coverage note:
 
 | Strength                  
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/git-with-intent.md`</summary>
-```
+````
 Chunk ID: d90753
 Wall time: 0.0513 seconds
 Process exited with code 0
@@ -1124,14 +1124,14 @@ What is missing for micro-versioning:
 
 Result: Git flattening behavior remai
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,320p' docs/git-provenance/systems/intent-git-mode.md`</summary>
-```
+````
 Chunk ID: 741692
 Wall time: 0.0513 seconds
 Process exited with code 0
@@ -1248,14 +1248,14 @@ Intent uses two aligned representations:
 {
   "name": "intent:p
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/tempo-cli.md`</summary>
-```
+````
 Chunk ID: a5bad2
 Wall time: 0.0522 seconds
 Process exited with code 0
@@ -1433,14 +1433,14 @@ No built-in blame UX. Users must manually inspect `.tempo/pending/` data or exte
 
 **Observed in code/docs:*
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/whogitit.md`</summary>
-```
+````
 Chunk ID: 9d665a
 Wall time: 0.0520 seconds
 Process exited with code 0
@@ -1580,14 +1580,14 @@ Field usage for blame:
 
 1. Post-commit hook ser
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `sed -n '1,260p' docs/git-provenance/systems/agentblame.md`</summary>
-```
+````
 Chunk ID: edc8b2
 Wall time: 0.0521 seconds
 Process exited with code 0
@@ -1678,7 +1678,7 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 | Strength                                             | Trade-off                                                    |
 |------------------------------------------------------|--------------------
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.2 2026-02-20 15:54:31Z)**_

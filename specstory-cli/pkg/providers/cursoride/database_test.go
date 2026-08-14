@@ -272,6 +272,170 @@ func TestWriteGlobalComposerHeader_NoTable(t *testing.T) {
 	}
 }
 
+// composerHeaderRow is a row of the composerHeaders SQL index, the source the Agent
+// sidebar lists sessions from.
+type composerHeaderRow struct {
+	workspaceID   string
+	createdAt     int64
+	lastUpdatedAt int64
+	recency       int64
+	isArchived    int64
+	isSubagent    int64
+	value         string
+}
+
+// readComposerHeaderRows reads the composerHeaders SQL table keyed by composerId.
+func readComposerHeaderRows(t *testing.T, dbPath string) map[string]composerHeaderRow {
+	t.Helper()
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("readComposerHeaderRows: open: %v", err)
+	}
+	defer func() { _ = db.Close() }()
+	rows, err := db.Query(`SELECT composerId, workspaceId, createdAt, lastUpdatedAt,
+		isArchived, isSubagent, recency, value FROM composerHeaders`)
+	if err != nil {
+		t.Fatalf("readComposerHeaderRows: query: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[string]composerHeaderRow)
+	for rows.Next() {
+		var id string
+		var r composerHeaderRow
+		if err := rows.Scan(&id, &r.workspaceID, &r.createdAt, &r.lastUpdatedAt,
+			&r.isArchived, &r.isSubagent, &r.recency, &r.value); err != nil {
+			t.Fatalf("readComposerHeaderRows: scan: %v", err)
+		}
+		out[id] = r
+	}
+	return out
+}
+
+// TestWriteGlobalComposerHeader_WritesSQLRow verifies the session is registered in the
+// composerHeaders SQL table. Without this row the Agent sidebar cannot list the session,
+// even though it loads correctly when opened directly by ID.
+func TestWriteGlobalComposerHeader_WritesSQLRow(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+	nowMs := time.Now().UnixMilli()
+	meta := ComposerHeadMeta{
+		ComposerID:    "sql-row-abc",
+		Name:          "Fix the login bug",
+		CreatedAt:     nowMs,
+		LastUpdatedAt: nowMs + 1000,
+		WorkspaceID:   "ws-hash-123",
+	}
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/proj"); err != nil {
+		t.Fatalf("WriteGlobalComposerHeader: %v", err)
+	}
+
+	rows := readComposerHeaderRows(t, dbPath)
+	row, ok := rows["sql-row-abc"]
+	if !ok {
+		t.Fatalf("no composerHeaders row for the session; got rows for %v", rows)
+	}
+	// workspaceId is the column the sidebar filters on, so a wrong value hides the session.
+	if row.workspaceID != "ws-hash-123" {
+		t.Errorf("workspaceId = %q, want %q", row.workspaceID, "ws-hash-123")
+	}
+	if row.createdAt != nowMs {
+		t.Errorf("createdAt = %d, want %d", row.createdAt, nowMs)
+	}
+	if row.lastUpdatedAt != nowMs+1000 {
+		t.Errorf("lastUpdatedAt = %d, want %d", row.lastUpdatedAt, nowMs+1000)
+	}
+	// recency drives sidebar ordering; Cursor sets it to lastUpdatedAt for an unopened session.
+	if row.recency != nowMs+1000 {
+		t.Errorf("recency = %d, want %d", row.recency, nowMs+1000)
+	}
+	if row.isArchived != 0 || row.isSubagent != 0 {
+		t.Errorf("isArchived = %d, isSubagent = %d, want 0, 0", row.isArchived, row.isSubagent)
+	}
+	// The row's value must be the same head entry stored in the JSON index.
+	var v map[string]interface{}
+	if err := json.Unmarshal([]byte(row.value), &v); err != nil {
+		t.Fatalf("value is not valid JSON: %v", err)
+	}
+	if v["name"] != "Fix the login bug" {
+		t.Errorf("value.name = %v, want %q", v["name"], "Fix the login bug")
+	}
+	if v["composerId"] != "sql-row-abc" {
+		t.Errorf("value.composerId = %v, want %q", v["composerId"], "sql-row-abc")
+	}
+}
+
+// TestWriteGlobalComposerHeader_BackfillsSQLRow guards the regression that made an imported
+// session invisible: when the JSON entry already exists, the write must still upsert the SQL
+// row rather than returning early on the duplicate.
+func TestWriteGlobalComposerHeader_BackfillsSQLRow(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+	nowMs := time.Now().UnixMilli()
+	meta := ComposerHeadMeta{
+		ComposerID:    "backfill-id",
+		Name:          "Resumed session",
+		CreatedAt:     nowMs,
+		LastUpdatedAt: nowMs,
+		WorkspaceID:   "ws-backfill",
+	}
+
+	// Seed only the JSON index, mimicking a session written before the SQL row was written.
+	existing, _ := json.Marshal(map[string]interface{}{
+		"type": "head", "composerId": "backfill-id", "name": "Resumed session",
+	})
+	initial, _ := json.Marshal(map[string]interface{}{
+		"allComposers": []interface{}{json.RawMessage(existing)},
+	})
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := db.Exec("INSERT INTO ItemTable (key, value) VALUES ('composer.composerHeaders', ?)",
+		string(initial)); err != nil {
+		t.Fatalf("seed ItemTable: %v", err)
+	}
+	_ = db.Close()
+
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/p"); err != nil {
+		t.Fatalf("WriteGlobalComposerHeader: %v", err)
+	}
+
+	if _, ok := readComposerHeaderRows(t, dbPath)["backfill-id"]; !ok {
+		t.Error("SQL row missing: a duplicate JSON entry must not skip the composerHeaders upsert")
+	}
+	// The JSON entry is rewritten in place, not duplicated.
+	if entries := readComposerHeaders(t, dbPath); len(entries) != 1 {
+		t.Errorf("expected 1 JSON entry, got %d", len(entries))
+	}
+}
+
+// TestWriteGlobalComposerHeader_NoComposerHeadersTable verifies that a global database
+// without the SQL index (a Cursor version that uses the JSON index alone) still gets its
+// JSON entry and does not fail the resume.
+func TestWriteGlobalComposerHeader_NoComposerHeadersTable(t *testing.T) {
+	dbPath := createTestGlobalDB(t, map[string]string{})
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if _, err := db.Exec("DROP TABLE composerHeaders"); err != nil {
+		t.Fatalf("drop composerHeaders: %v", err)
+	}
+	_ = db.Close()
+
+	meta := ComposerHeadMeta{
+		ComposerID:    "no-table-id",
+		Name:          "Session",
+		CreatedAt:     1700000000000,
+		LastUpdatedAt: 1700000000000,
+		WorkspaceID:   "ws-x",
+	}
+	if err := WriteGlobalComposerHeader(dbPath, meta, "/tmp/p"); err != nil {
+		t.Fatalf("want success when composerHeaders table is absent, got: %v", err)
+	}
+	if entries := readComposerHeaders(t, dbPath); len(entries) != 1 {
+		t.Errorf("expected the JSON entry to still be written, got %d entries", len(entries))
+	}
+}
+
 // TestWriteGlobalComposerHeader_Idempotent verifies a second call with the same composerId
 // is a no-op (the entry is not duplicated).
 func TestWriteGlobalComposerHeader_Idempotent(t *testing.T) {

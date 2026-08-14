@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -165,7 +166,7 @@ func FindWorkspaces(storageRoot, projectPath string, opts MatchOptions) ([]Works
 
 		// Method 3: the entry's .code-workspace file lists our folder.
 		if !isMatch && strings.HasSuffix(canonicalWorkspacePath, ".code-workspace") {
-			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath) {
+			if codeWorkspaceContainsFolder(canonicalWorkspacePath, canonicalProjectPath, spi.IsRemoteURIRequiringBasenameMatch(workspaceURI)) {
 				isMatch = true
 				slog.Debug("Matched workspace by .code-workspace folder reference",
 					"workspaceID", workspaceID,
@@ -304,11 +305,17 @@ func collectCodeWorkspaceFolders(workspaceFilePath string) []string {
 
 // codeWorkspaceContainsFolder reports whether canonicalFolder is listed in the
 // .code-workspace file at workspaceFilePath.
-func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string) bool {
-	for _, folder := range collectCodeWorkspaceFolders(workspaceFilePath) {
-		if folder == canonicalFolder {
-			return true
-		}
+//
+// isRemote must be true when workspaceFilePath was decoded from a remote URI. The
+// file then lives on the remote host and cannot be read locally, so an unreadable
+// file falls back to treating its parent directory as the project root — correct for
+// the single-root remote workspaces this covers. The fallback is gated on isRemote
+// because for a local workspace an unreadable file means it was deleted, and matching
+// on its parent directory would be a false positive.
+func codeWorkspaceContainsFolder(workspaceFilePath, canonicalFolder string, isRemote bool) bool {
+	folders := collectCodeWorkspaceFolders(workspaceFilePath)
+	if len(folders) == 0 && isRemote {
+		return filepath.Dir(workspaceFilePath) == canonicalFolder
 	}
-	return false
+	return slices.Contains(folders, canonicalFolder)
 }

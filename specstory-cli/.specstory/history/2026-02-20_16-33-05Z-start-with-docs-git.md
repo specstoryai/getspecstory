@@ -367,7 +367,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:33:44Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/standards/*.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
-```
+````
 Chunk ID: 985afa
 Wall time: 0.0521 seconds
 Process exited with code 0
@@ -511,7 +511,7 @@ _Last updated: 2026-02-18 (UTC)_
 **Metaphor:** C2PA is a sealed evidence bag attached to media.
 It packages a chain of assertions about how an asset was created or edited, then seals it with c
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:49Z)**_
@@ -534,7 +534,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:33:53Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/aittributor.md docs/git-provenance/systems/tempo-cli.md docs/git-provenance/systems/aider.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
-```
+````
 Chunk ID: a31217
 Wall time: 0.0519 seconds
 Process exited with code 0
@@ -682,7 +682,7 @@ No dedicated AI blame command. Teams can parse trailers after `git blame` identi
 |---------------------------------|---------------------------------------------:|
 | Open PRs     
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:56Z)**_
@@ -699,7 +699,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:33:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/whogitit.md docs/git-provenance/systems/git-with-intent.md docs/git-provenance/systems/intent-git-mode.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
-```
+````
 Chunk ID: aad200
 Wall time: 0.0512 seconds
 Process exited with code 0
@@ -836,7 +836,7 @@ Field usage for blame:
 
 ## Challenge 5: Storing Agent Provenan
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:33:59Z)**_
@@ -853,7 +853,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:34:01Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `for f in docs/git-provenance/systems/agentblame.md docs/git-provenance/systems/cnotes.md docs/git-provenance/systems/entire.md docs/git-provenance/systems/git-ai.md; do echo "===== $f ====="; cat "$f"; echo; done`</summary>
-```
+````
 Chunk ID: 8a9483
 Wall time: 0.0520 seconds
 Process exited with code 0
@@ -945,7 +945,7 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 | Strength                                             | Trade-off                                                    |
 |--------------------
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:05Z)**_
@@ -962,7 +962,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:34:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/cnotes.md`</summary>
-```
+````
 Chunk ID: f9d837
 Wall time: 0.0522 seconds
 Process exited with code 0
@@ -1064,14 +1064,14 @@ cnotes does **not** maintain per-edit checkpoints or delta logs. Its capture bou
 1. Agent performs arbitrary edits during a session.
 2. None
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="exec_command"><details>
 <summary>Tool use: **exec_command** `cat docs/git-provenance/systems/entire.md`</summary>
-```
+````
 Chunk ID: 9d6da9
 Wall time: 0.0522 seconds
 Process exited with code 0
@@ -1173,7 +1173,7 @@ Entire supports two micro-versioning strategies:
 - each commit gets `Entire-Checkpoint: <id>` trailer
 - metadat
 ... (truncated)
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:34:11Z)**_
@@ -1256,7 +1256,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:37:03Z)**_
 <summary>Tool use: **apply_patch**</summary>
 **Add: `docs/git-provenance/RECOMMENDATIONS.md`**
 
-```diff
+````diff
 +# AI Git Provenance Recommendations
 +
 +_Last updated: 2026-02-20 (UTC)_
@@ -1564,7 +1564,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:37:03Z)**_
 +## Final Recommendation
 +
 +Adopt a **Git Notes + micro-versioning + dual-layer representation** architecture, with Agent Trace-compatible semantics and optional attestation envelopes. This is the highest-confidence path to accurate, practical, and scalable AI provenance across all 7 challenge areas.
-```
+````
 </details></tool-use>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:37:06Z)**_

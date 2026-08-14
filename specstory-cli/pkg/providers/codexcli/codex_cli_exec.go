@@ -185,7 +185,8 @@ func runCodexVersionCommand(command string) (string, string, string, error) {
 			lastStderr = stderrStr
 
 			// For fatal errors (binary missing/permission issues) or last attempt, stop immediately.
-			if classifyCheckError(err) != "unknown" || idx == len(flags)-1 {
+			// An unclassified failure is the only kind another flag might fix.
+			if classifyCheckError(err) != spi.CheckErrorUnknown || idx == len(flags)-1 {
 				return "", flag, lastStderr, err
 			}
 			continue
@@ -206,36 +207,15 @@ func runCodexVersionCommand(command string) (string, string, string, error) {
 	return "", "", lastStderr, errors.New("failed to execute codex version command")
 }
 
-// classifyCheckError buckets common error categories for user guidance and analytics.
+// classifyCheckError buckets common error categories for user guidance and
+// analytics. A silent `--version` is specific to how Codex reports an
+// unsupported flag, so that sentinel is resolved here before deferring to the
+// shared classification every provider uses.
 func classifyCheckError(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	var execErr *exec.Error
-	if errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound {
-		return "not_found"
-	}
-
-	var pathErr *os.PathError
-	if errors.As(err, &pathErr) {
-		if errors.Is(pathErr.Err, os.ErrNotExist) {
-			return "not_found"
-		}
-		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return "permission_denied"
-		}
-	}
-
-	if errors.Is(err, os.ErrPermission) {
-		return "permission_denied"
-	}
-
 	if errors.Is(err, errNoVersionOutput) {
-		return "no_output"
+		return spi.CheckErrorNoOutput
 	}
-
-	return "unknown"
+	return spi.ClassifyCheckError(err)
 }
 
 // ExecuteCodex executes the Codex CLI in interactive mode and blocks until it exits.

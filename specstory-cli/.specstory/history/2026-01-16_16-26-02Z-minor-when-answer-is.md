@@ -9,6 +9,8 @@ _**User (2026-01-16 16:26:02Z)**_
 <command-message>code-review</command-message>
 <command-name>/code-review</command-name>
 
+---
+
 _**User (2026-01-16 16:26:02Z)**_
 
 ## Context
@@ -3809,9 +3811,13 @@ _**User (2026-01-25 12:29:05Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-01-25 12:29:05Z)**_
 
 <local-command-stdout>Goodbye!</local-command-stdout>
+
+---
 
 _**User (2026-01-25 12:29:05Z)**_
 

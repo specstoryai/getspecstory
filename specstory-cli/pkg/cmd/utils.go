@@ -9,6 +9,8 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
@@ -20,6 +22,14 @@ import (
 func AddProvidersFlag(cmd *cobra.Command) {
 	cmd.Flags().StringSlice("providers", []string{}, "comma-separated list of provider IDs to limit the operation to (e.g., claude,cursor)")
 	_ = cmd.Flags().MarkHidden("providers")
+}
+
+// AddUserDataDirFlag registers the --user-data-dir override flag on a command. Shared so
+// the flag stays identical across every command that resolves IDE storage locations.
+// Unlike --providers this flag stays visible: a portable or otherwise non-standard IDE
+// install cannot be found any other way, so it has to be discoverable from --help.
+func AddUserDataDirFlag(cmd *cobra.Command) {
+	cmd.Flags().StringSlice("user-data-dir", []string{}, "per-provider IDE user-data-dir override formatted as provider_id:path (repeatable, e.g., cursoride:D:\\apps\\cursor\\current\\data\\user-data)")
 }
 
 // ResolveProviderIDs resolves the effective list of provider IDs from a positional
@@ -66,6 +76,43 @@ func ResolveProviderIDs(registry *factory.Registry, args []string, providersFlag
 
 	// Neither specified: caller should use all providers
 	return nil, nil
+}
+
+// ApplyUserDataDirOverrides parses --user-data-dir entries of the form `provider_id:path`
+// and dispatches each to the matching provider's package-level setter. Splits on the
+// first ':' so Windows paths like `cursoride:D:\apps\cursor\...` parse correctly.
+// Invalid entries (no ':') and unknown provider IDs are logged as warnings and skipped,
+// so a typo in one entry never silently disables other valid overrides.
+func ApplyUserDataDirOverrides(entries []string) {
+	for _, raw := range entries {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		id, path, ok := strings.Cut(entry, ":")
+		if !ok {
+			slog.Warn("ignoring --user-data-dir entry: expected provider_id:path", "entry", entry)
+			continue
+		}
+		id = strings.ToLower(strings.TrimSpace(id))
+		path = strings.TrimSpace(path)
+		if id == "" || path == "" {
+			slog.Warn("ignoring --user-data-dir entry: provider_id and path must both be non-empty", "entry", entry)
+			continue
+		}
+		switch id {
+		case cursoride.ProviderID:
+			cursoride.SetUserDataDirOverride(path)
+			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
+		case copilotide.VSCode.ID, copilotide.VSCodeInsiders.ID, copilotide.VSCodium.ID, copilotide.VSCodiumInsiders.ID:
+			copilotide.SetUserDataDirOverride(id, path)
+			slog.Debug("Applied --user-data-dir override", "provider", id, "path", path)
+		default:
+			slog.Warn("ignoring --user-data-dir entry: unknown provider ID "+
+				"(supported: cursoride, copilotide, copilotide-insiders, copilotide-vscodium, copilotide-vscodium-insiders)",
+				"providerId", id)
+		}
+	}
 }
 
 // CheckAndWarnAuthentication warns the user if cloud sync is enabled but authentication
