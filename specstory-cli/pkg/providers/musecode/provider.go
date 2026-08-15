@@ -190,11 +190,18 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 
 	// The store is keyed by session id (the id IS the directory name), so a
 	// glob resolves the path without reading any transcript.
+	//
+	// The id alone does not establish ownership, though: the store is global, so
+	// the glob will just as happily find another project's session. Confirm the
+	// transcript names this project before converting it — conversion stamps the
+	// requested project onto the result, so returning an unchecked match would
+	// file one project's conversation under another. The scan below applies the
+	// same rule via findMuseSessions.
 	directPath, err := findMuseSessionPathByID(sessionID)
 	if err != nil {
 		return nil, err
 	}
-	if directPath != "" {
+	if directPath != "" && sessionFileBelongsToProject(directPath, projectPath) {
 		if chatSession := parseAndConvert(directPath, projectPath, debugRaw); chatSession != nil {
 			return chatSession, nil
 		}

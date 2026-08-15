@@ -109,6 +109,34 @@ func IsSubagentTranscript(path string) bool {
 	return strings.Contains(filepath.ToSlash(path), "/"+subagentDirName+"/")
 }
 
+// workspaceMatchesProject reports whether a transcript's recorded workspace
+// root is the given project, which must already be canonicalized.
+//
+// A transcript that records no workspace root never matches. The store is
+// global, so a session that cannot name its own project cannot be claimed by
+// one: treating "unknown" as "mine" would let any project adopt it.
+func workspaceMatchesProject(workspaceRoot string, canonicalProject string) bool {
+	return workspaceRoot != "" && spi.CanonicalizePathOrClean(workspaceRoot) == canonicalProject
+}
+
+// sessionFileBelongsToProject reports whether the transcript at path records
+// this project as its workspace, reading only the file's bounded header rather
+// than parsing it.
+//
+// The Muse store is global and keyed by session id alone, so possessing an id
+// says nothing about which project the session belongs to. Callers that resolve
+// a session by id must ask this before returning it, or a lookup made from one
+// project will hand back another project's conversation.
+func sessionFileBelongsToProject(path string, projectPath string) bool {
+	workspaceRoot, err := readSessionWorkspaceRoot(path)
+	if err != nil {
+		slog.Debug("sessionFileBelongsToProject: Skipping unreadable transcript",
+			"path", path, "error", err)
+		return false
+	}
+	return workspaceMatchesProject(workspaceRoot, spi.CanonicalizePathOrClean(projectPath))
+}
+
 // readSessionWorkspaceRoot reads just enough of a transcript to recover the
 // workspace root recorded in its metadata record. Returns "" when the file
 // carries no metadata (a transcript truncated before its first record).
@@ -191,7 +219,7 @@ func findMuseSessions(projectPath string) ([]museSessionFile, error) {
 			slog.Debug("findMuseSessions: Skipping unreadable transcript", "path", path, "error", err)
 			continue
 		}
-		if workspaceRoot == "" || spi.CanonicalizePathOrClean(workspaceRoot) != targetRoot {
+		if !workspaceMatchesProject(workspaceRoot, targetRoot) {
 			continue
 		}
 		matches = append(matches, museSessionFile{

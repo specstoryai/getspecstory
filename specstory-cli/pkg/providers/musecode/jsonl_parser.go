@@ -3,8 +3,8 @@ package musecode
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,8 +13,14 @@ import (
 )
 
 const (
-	mb                    = 1024 * 1024
-	maxReasonableLineSize = 250 * mb // 250MB sanity limit to prevent OOM from malformed or malicious files
+	mb = 1024 * 1024
+	// maxReasonableLineSize bounds a single transcript line, so a malformed or
+	// truncated file cannot force an unbounded allocation. Matched to the limit
+	// antigravitycli and deepseektui use for the same job.
+	maxReasonableLineSize = 16 * mb
+	// initialScanBuffer is the scanner's starting capacity; it grows from here
+	// as needed, up to maxReasonableLineSize.
+	initialScanBuffer = 64 * 1024
 )
 
 // Payload types carried by the record envelope. Everything not listed here is
@@ -206,8 +212,12 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 	}
 	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
-	reader := bufio.NewReader(file)
+	// A size-bounded Scanner rather than a bufio.Reader: ReadString materializes
+	// a whole line before any length check can reject it, so one enormous line
+	// forces exactly the allocation such a check exists to prevent. Scanner
+	// grows only to maxReasonableLineSize and then reports bufio.ErrTooLong.
+	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 0, initialScanBuffer), maxReasonableLineSize)
 
 	// The store lays sessions out as <session-id>/session.jsonl, so the
 	// directory name is the authoritative session id when it is present.
@@ -220,34 +230,17 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 	// when the path did not settle the id).
 	var pending []MuseRecord
 
-	for {
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
-
-		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
-		}
-
-		atEOF := err == io.EOF
-		hasContent := len(strings.TrimSpace(line)) > 0
-
-		if hasContent || !atEOF {
-			lineNumber++
-		}
-
-		if !hasContent {
-			if atEOF {
-				break
-			}
+	for scanner.Scan() {
+		lineNumber++
+		line := scanner.Text()
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
-		if len(line) > maxReasonableLineSize {
-			return nil, fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/mb)
-		}
-
 		var record MuseRecord
+		// Unmarshal from a copy of the line: record.Payload is a
+		// json.RawMessage that aliases its input, records outlive the loop
+		// iteration, and the scanner reuses its buffer on the next line.
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			// Log and skip corrupted lines rather than failing the entire parse:
 			// the file may be mid-write when the watcher fires.
@@ -255,9 +248,6 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 				"file", filepath.Base(filePath),
 				"line", lineNumber,
 				"error", err)
-			if atEOF {
-				break
-			}
 			continue
 		}
 
@@ -274,9 +264,6 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 				pending = nil
 			} else {
 				pending = append(pending, record)
-				if atEOF {
-					break
-				}
 				continue
 			}
 		}
@@ -286,17 +273,18 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 		// stays with the session.
 		if record.Stream.ID != "" && record.Stream.ID != session.ID {
 			foreignStreamRecords++
-			if atEOF {
-				break
-			}
 			continue
 		}
 
 		accumulateRecord(session, &record)
+	}
 
-		if atEOF {
-			break
+	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			return nil, fmt.Errorf("line %d exceeds the %d MB limit: refusing to process a potentially malformed transcript",
+				lineNumber+1, maxReasonableLineSize/mb)
 		}
+		return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 	}
 
 	// Nothing settled the stream: fall back to the first record's stream id

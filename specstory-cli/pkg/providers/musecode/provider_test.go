@@ -241,3 +241,36 @@ func TestMuseSessionSlug(t *testing.T) {
 		})
 	}
 }
+
+// The Muse store is global and keyed by session id alone, so a by-id lookup can
+// reach any project's transcript. Returning one would not merely answer the
+// wrong question: conversion stamps the requesting project onto the result, so
+// the session would be filed under a project that never ran it.
+func TestGetAgentChatSession_RejectsAnotherProjectsSession(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	projectA := t.TempDir()
+	projectB := t.TempDir()
+
+	writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", projectB)
+
+	got, err := NewProvider().GetAgentChatSession(projectA, basicSessionID, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("project A was handed project B's session %q", got.SessionID)
+	}
+
+	// The owning project must still resolve it, or the guard has simply broken
+	// by-id lookup instead of scoping it.
+	got, err = NewProvider().GetAgentChatSession(projectB, basicSessionID, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("owning project could not resolve its own session")
+	}
+	if got.SessionID != basicSessionID {
+		t.Errorf("SessionID = %q, want %q", got.SessionID, basicSessionID)
+	}
+}
