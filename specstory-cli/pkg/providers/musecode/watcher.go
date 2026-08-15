@@ -295,6 +295,43 @@ func (s *watchSet) handleEvent(event fsnotify.Event) {
 		return
 	}
 	s.addWatch(event.Name)
+	s.adoptExisting(event.Name)
+}
+
+// adoptExisting reconciles a directory that appeared while the watcher was
+// already running, picking up whatever Muse put inside it before the watch
+// landed.
+//
+// fsnotify only reports what happens after a watch is added, and Muse creates a
+// session by making the day directory, the session directory and the transcript
+// in immediate succession. Adding a watch on the day directory is therefore too
+// late for everything already inside it: the first session of a day would be
+// invisible until the next refresh, by which point the transcript is fully
+// written and emits no further events. Walking the new directory once on
+// arrival is what makes that session show up.
+func (s *watchSet) adoptExisting(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		slog.Debug("Muse watcher: could not adopt new directory", "directory", dir, "error", err)
+		return
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(dir, entry.Name())
+		switch {
+		case entry.IsDir():
+			// Subagent transcripts are never sessions of their own.
+			if entry.Name() == subagentDirName {
+				continue
+			}
+			s.addWatch(path)
+			s.adoptExisting(path)
+		case entry.Name() == sessionFileName:
+			if !IsSubagentTranscript(path) {
+				processSessionChange(path)
+			}
+		}
+	}
 }
 
 // watchWindowCutoff returns the earliest date (local midnight) whose directory

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -219,5 +220,46 @@ func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
 
 	if !called {
 		t.Fatal("callback was never invoked")
+	}
+}
+
+// Muse creates a day directory, a session directory and the transcript in
+// immediate succession, so by the time the watcher adds a watch on the new day
+// directory the whole session can already be on disk. fsnotify reports nothing
+// that happened before the watch existed, so the directory must be walked on
+// arrival or the first session of every day is lost until the next refresh.
+func TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+
+	writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", project)
+	// A subagent transcript sits one level deeper and is never a session.
+	subagentDir := filepath.Join(sessionsRoot, "2026", "08", "07", basicSessionID, subagentDirName, "child-id")
+	if err := os.MkdirAll(subagentDir, 0o755); err != nil {
+		t.Fatalf("failed to create subagent dir: %v", err)
+	}
+	writeFileFrom(t,
+		filepath.Join(sessionsRoot, "2026", "08", "07", basicSessionID, sessionFileName),
+		filepath.Join(subagentDir, sessionFileName))
+
+	var published []string
+	SetWatcherCallback(func(s *spi.AgentChatSession) { published = append(published, s.SessionID) })
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("failed to create watcher: %v", err)
+	}
+	t.Cleanup(func() { _ = watcher.Close() })
+
+	set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: map[string]bool{}}
+	set.adoptExisting(filepath.Join(sessionsRoot, "2026", "08", "07"))
+
+	if len(published) != 1 || published[0] != basicSessionID {
+		t.Errorf("adopting a pre-populated day directory published %v, want exactly [%s]", published, basicSessionID)
 	}
 }
