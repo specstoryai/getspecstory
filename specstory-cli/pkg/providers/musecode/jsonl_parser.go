@@ -26,8 +26,9 @@ const (
 // Payload types carried by the record envelope. Everything not listed here is
 // telemetry, subagent control or cron/reminder machinery and is skipped.
 const (
-	payloadTypeMetadata = "runtime.session.metadata"
-	payloadTypeSession  = "runtime.session"
+	payloadTypeMetadata   = "runtime.session.metadata"
+	payloadTypeSession    = "runtime.session"
+	payloadTypeSessionEnd = "session.end"
 )
 
 // Run event kinds that carry conversation content. The runtime emits many more

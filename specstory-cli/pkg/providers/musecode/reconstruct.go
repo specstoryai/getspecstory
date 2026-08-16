@@ -136,6 +136,27 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		return nil, err
 	}
 
+	// Close the session explicitly. Muse treats a transcript that ends without a
+	// session.end record as a process that died, and on resume it writes its own
+	// session.end with exit_reason "crash_inferred" and warns the user that the
+	// previous run ended abnormally. Nothing crashed here: the transcript is
+	// written complete in one pass, so it is closed as such.
+	//
+	// The record carries no resource_usage block, which is exactly the shape
+	// Muse itself writes when it has no runtime measurements to report; uptime
+	// is zero because no process ever ran.
+	if err := emit(payloadTypeSessionEnd, map[string]any{
+		"kind": "session_end",
+		"record": map[string]any{
+			"schema_version": 1,
+			"session_id":     newID,
+			"exit_reason":    "clean",
+			"uptime_ms":      0,
+		},
+	}); err != nil {
+		return nil, err
+	}
+
 	// Muse keys a session by directory, so the "filename" carries the session
 	// directory: NativeSessionPath joins it under today's date shard and the
 	// caller's MkdirAll creates the directory on the way to the file.

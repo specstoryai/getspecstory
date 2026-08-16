@@ -130,9 +130,9 @@ func TestReconstructSession_RecordEnvelope(t *testing.T) {
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(rec.Content)), "\n")
-	// metadata + (started + assistant + terminal) per turn pair.
-	if len(lines) != 7 {
-		t.Fatalf("record count = %d, want 7", len(lines))
+	// metadata + (started + assistant + terminal) per turn pair + session.end.
+	if len(lines) != 8 {
+		t.Fatalf("record count = %d, want 8", len(lines))
 	}
 
 	var previousSequence, previousRecordedAt int64
@@ -271,5 +271,66 @@ func TestNativeSessionPath(t *testing.T) {
 func TestSupportsReconstruction(t *testing.T) {
 	if !NewProvider().SupportsReconstruction() {
 		t.Error("SupportsReconstruction() = false, want true")
+	}
+}
+
+// Muse treats a transcript that ends without a session.end record as a process
+// that died: on resume it writes its own session.end with exit_reason
+// "crash_inferred" and tells the user the previous run ended abnormally. A
+// reconstructed session never crashed, so it must close itself.
+func TestReconstructSession_ClosesTheSessionCleanly(t *testing.T) {
+	provider := NewProvider()
+	workspaceRoot := t.TempDir()
+
+	rec, err := provider.ReconstructSession(sourceSessionData(workspaceRoot), spi.ReconstructOptions{
+		WorkspaceRoot: workspaceRoot,
+	})
+	if err != nil {
+		t.Fatalf("ReconstructSession failed: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(rec.Content)), "\n")
+
+	var last MuseRecord
+	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &last); err != nil {
+		t.Fatalf("final record does not parse: %v", err)
+	}
+	if last.PayloadType != payloadTypeSessionEnd {
+		t.Fatalf("final record payload_type = %q, want %q", last.PayloadType, payloadTypeSessionEnd)
+	}
+
+	var payload struct {
+		Kind   string `json:"kind"`
+		Record struct {
+			SessionID  string `json:"session_id"`
+			ExitReason string `json:"exit_reason"`
+		} `json:"record"`
+	}
+	if err := json.Unmarshal(last.Payload, &payload); err != nil {
+		t.Fatalf("session.end payload does not parse: %v", err)
+	}
+	if payload.Kind != "session_end" {
+		t.Errorf("payload kind = %q, want session_end", payload.Kind)
+	}
+	if payload.Record.ExitReason != "clean" {
+		t.Errorf("exit_reason = %q, want clean — Muse warns on anything else", payload.Record.ExitReason)
+	}
+	if payload.Record.SessionID != rec.SessionID {
+		t.Errorf("session_id = %q, want %q", payload.Record.SessionID, rec.SessionID)
+	}
+
+	// The close must not disturb the conversation: a reconstructed transcript
+	// still parses back to the same exchanges.
+	dir := t.TempDir()
+	path := filepath.Join(dir, sessionFileName)
+	if err := os.WriteFile(path, rec.Content, 0o644); err != nil {
+		t.Fatalf("failed to write transcript: %v", err)
+	}
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatalf("reconstructed transcript no longer parses: %v", err)
+	}
+	if len(session.Events) == 0 {
+		t.Error("reconstructed transcript parsed to no events")
 	}
 }
