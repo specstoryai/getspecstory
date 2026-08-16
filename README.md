@@ -171,4 +171,4 @@ Love SpecStory? Help others discover their AI coding memory upgrade by leaving a
 
 ## Star History
 
-![Star History Chart](https://api.star-history.com/svg?repos=specstoryai/getspecstory&type=Date)
+![Star History Chart](https://star-history.dera.page/svg?repos=specstoryai/getspecstory&type=Date)
