@@ -47,8 +47,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
+	slog.Info("Check: verifying Muse Code installation", "command", cmdName, "customCommand", isCustom)
+
 	resolvedPath, err := exec.LookPath(cmdName)
 	if err != nil {
+		slog.Info("Check: binary not found on PATH", "command", cmdName, "error", err)
 		errorMessage := buildMuseCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
 		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
 		return spi.CheckResult{
@@ -68,6 +71,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if err := cmd.Run(); err != nil {
 		errorType := spi.ClassifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
+		slog.Info("Check: version probe failed",
+			"resolved", resolvedPath,
+			"errorType", errorType,
+			"error", err,
+			"stderr", stderrOutput)
 		errorMessage := buildMuseCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 
@@ -84,6 +92,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = "unknown"
 	}
+	slog.Info("Check: succeeded", "resolved", resolvedPath, "version", version)
 	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
@@ -127,8 +136,6 @@ func buildMuseCheckErrorMessage(errorType string, museCmd string, isCustom bool,
 // transcript name this workspace root?) rather than a "does a directory exist"
 // question.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
-	sessionsRoot, rootErr := GetMuseSessionsDir()
-
 	sessions, err := findMuseSessions(projectPath)
 	if err != nil {
 		if helpOutput {
@@ -141,6 +148,9 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	}
 
 	if helpOutput {
+		// Only the guidance below needs the store location; the detection
+		// itself already resolved it inside findMuseSessions.
+		sessionsRoot, rootErr := GetMuseSessionsDir()
 		if rootErr != nil || sessionsRoot == "" {
 			fmt.Println("No Muse Code sessions found.")
 			fmt.Println("Start a Muse Code session in this project (e.g. `muse`) so a transcript is created.")
@@ -330,7 +340,14 @@ func writeDebugRawFiles(session *MuseSession) error {
 	return nil
 }
 
-// ListAgentChatSessions retrieves lightweight session metadata without full conversion.
+// ListAgentChatSessions retrieves lightweight session metadata without full
+// conversion.
+//
+// Each matching transcript is read twice: findMuseSessions filters the global
+// store by a bounded header scan, and only this project's matches pay for the
+// full parse here — the first prompt and timestamps the metadata needs live in
+// the event log, not the header, so the second read cannot be avoided without
+// giving up the cheap cross-project filter.
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {

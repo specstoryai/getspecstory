@@ -14,7 +14,10 @@ import (
 )
 
 var (
-	watcherCtx           context.Context
+	// watcherCancel stops the currently running watcher goroutine; nil when no
+	// watcher is running. Each start creates its own context rather than
+	// sharing one made at package load, so stopping a watcher never poisons a
+	// later start.
 	watcherCancel        context.CancelFunc
 	watcherWg            sync.WaitGroup
 	watcherCallback      func(*spi.AgentChatSession)
@@ -22,10 +25,6 @@ var (
 	watcherDebugRaw      bool
 	watcherWorkspaceRoot string
 )
-
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
 
 const (
 	// museStoreDepth is how many path components sit below the sessions root:
@@ -79,10 +78,19 @@ func getWatcherDebugRaw() bool {
 	return watcherDebugRaw
 }
 
-// StopWatcher gracefully stops the watcher goroutine.
+// StopWatcher gracefully stops the watcher goroutine. Safe to call when no
+// watcher is running.
 func StopWatcher() {
+	watcherMutex.Lock()
+	cancel := watcherCancel
+	watcherCancel = nil
+	watcherMutex.Unlock()
+	if cancel == nil {
+		return
+	}
+
 	slog.Info("StopWatcher: Signaling Muse watcher to stop")
-	watcherCancel()
+	cancel()
 	watcherWg.Wait()
 	slog.Info("StopWatcher: Muse watcher stopped")
 }
@@ -98,6 +106,11 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 		return err
 	}
 
+	// At most one watcher runs per process: replace any previous one before
+	// publishing the new callback, so a stopping watcher can never deliver
+	// into the new consumer.
+	StopWatcher()
+
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
 
@@ -110,6 +123,11 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 	if err != nil {
 		return fmt.Errorf("failed to create file watcher: %w", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	watcherMutex.Lock()
+	watcherCancel = cancel
+	watcherMutex.Unlock()
 
 	set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: make(map[string]bool)}
 
@@ -131,7 +149,7 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 
 		for {
 			select {
-			case <-watcherCtx.Done():
+			case <-ctx.Done():
 				slog.Info("Muse watcher: context cancelled, stopping")
 				return
 

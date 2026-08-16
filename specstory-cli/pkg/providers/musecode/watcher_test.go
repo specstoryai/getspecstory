@@ -150,6 +150,33 @@ func TestTriggerCallback_ContainsConsumerPanic(t *testing.T) {
 	}
 }
 
+// The watcher must be restartable: each start owns its own context, so a stop
+// must only end the current run, never poison a later start (a context created
+// once at package load would leave every watcher after the first stillborn).
+func TestWatcherRestart(t *testing.T) {
+	seedStore(t)
+	project := t.TempDir()
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	StopWatcher() // no watcher running: must be a safe no-op
+
+	for i := range 2 {
+		if err := WatchMuseProject(project, func(*spi.AgentChatSession) {}); err != nil {
+			t.Fatalf("start %d failed: %v", i+1, err)
+		}
+		watcherMutex.RLock()
+		running := watcherCancel != nil
+		watcherMutex.RUnlock()
+		if !running {
+			t.Fatalf("start %d did not register a running watcher", i+1)
+		}
+		StopWatcher() // must end this run and leave the next start usable
+	}
+}
+
 // Muse creates a day directory, a session directory and the transcript in
 // immediate succession, so by the time the watcher adds a watch on the new day
 // directory the whole session can already be on disk. fsnotify reports nothing

@@ -224,7 +224,7 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 	// directory name is the authoritative session id when it is present.
 	// Settling the id up front makes parsing immune to record order, which
 	// matters for a transcript truncated mid-subagent.
-	session := &MuseSession{FilePath: filePath, ID: storeSessionIDFromPath(filePath)}
+	session := &MuseSession{FilePath: filePath, ID: sessionIDFromStoreLayout(filePath)}
 	lineNumber := 0
 	foreignStreamRecords := 0
 	// Records read before the session's own stream is known (only reachable
@@ -261,7 +261,7 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 		if session.ID == "" {
 			if record.PayloadType == payloadTypeMetadata && record.Stream.ID != "" {
 				session.ID = record.Stream.ID
-				foreignStreamRecords += len(flushPending(session, pending))
+				foreignStreamRecords += flushPending(session, pending)
 				pending = nil
 			} else {
 				pending = append(pending, record)
@@ -299,11 +299,11 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 			}
 		}
 		if session.ID == "" {
-			session.ID = sessionIDFromPath(filePath)
+			session.ID = sessionIDFromDirOrFilename(filePath)
 		}
 	}
 	if len(pending) > 0 {
-		foreignStreamRecords += len(flushPending(session, pending))
+		foreignStreamRecords += flushPending(session, pending)
 	}
 
 	slog.Debug("ParseSessionFile: Parsed Muse session",
@@ -315,12 +315,13 @@ func ParseSessionFile(filePath string) (*MuseSession, error) {
 	return session, nil
 }
 
-// storeSessionIDFromPath returns the session id from the store layout
-// (<session-id>/session.jsonl) when the containing directory is named like a
-// session id. It returns empty for transcripts kept elsewhere (e.g. test
-// fixtures in a testdata directory), leaving the id to be settled from the
-// records themselves.
-func storeSessionIDFromPath(filePath string) string {
+// sessionIDFromStoreLayout returns the session id from the store layout
+// (<session-id>/session.jsonl), but only when the containing directory is
+// actually named like a session id. It returns empty for transcripts kept
+// elsewhere (e.g. test fixtures in a testdata directory), leaving the id to be
+// settled from the records themselves — the validated counterpart of the
+// take-anything sessionIDFromDirOrFilename.
+func sessionIDFromStoreLayout(filePath string) string {
 	dir := filepath.Base(filepath.Dir(filePath))
 	if isSessionID(dir) {
 		return dir
@@ -351,12 +352,12 @@ func isSessionID(s string) bool {
 }
 
 // flushPending folds the held-back records that belong to the now-known
-// session stream, returning the records it dropped as foreign.
-func flushPending(session *MuseSession, pending []MuseRecord) []MuseRecord {
-	var foreign []MuseRecord
+// session stream, returning how many it dropped as foreign.
+func flushPending(session *MuseSession, pending []MuseRecord) int {
+	foreign := 0
 	for i := range pending {
 		if pending[i].Stream.ID != "" && pending[i].Stream.ID != session.ID {
-			foreign = append(foreign, pending[i])
+			foreign++
 			continue
 		}
 		accumulateRecord(session, &pending[i])
@@ -364,10 +365,11 @@ func flushPending(session *MuseSession, pending []MuseRecord) []MuseRecord {
 	return foreign
 }
 
-// sessionIDFromPath derives the session id from the store layout
-// (<session-id>/session.jsonl), falling back to the filename stem for
-// transcripts kept outside that layout.
-func sessionIDFromPath(filePath string) string {
+// sessionIDFromDirOrFilename derives a session id from the directory name,
+// falling back to the filename stem. Unlike sessionIDFromStoreLayout it never
+// returns empty and does not validate the id's shape — it is the last-resort
+// answer for transcripts kept outside the store layout.
+func sessionIDFromDirOrFilename(filePath string) string {
 	dir := filepath.Base(filepath.Dir(filePath))
 	if dir != "" && dir != "." && dir != string(filepath.Separator) {
 		return dir

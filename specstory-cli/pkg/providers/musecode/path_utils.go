@@ -1,6 +1,7 @@
 package musecode
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -147,19 +148,24 @@ func readSessionWorkspaceRoot(filePath string) (string, error) {
 	}
 	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
 
-	header := make([]byte, maxHeaderBytes)
-	n, err := io.ReadFull(file, header)
-	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-		return "", fmt.Errorf("failed to read session header: %w", err)
-	}
-
-	// The final line of the prefix is usually cut mid-record; it fails to
-	// unmarshal and is skipped like any other unreadable line.
-	for _, line := range bytes.Split(header[:n], []byte("\n")) {
+	// Scan line by line instead of slurping the whole header: the metadata
+	// record is normally the first line, so this reads a few kilobytes and
+	// returns, where an up-front header buffer would allocate maxHeaderBytes
+	// for every transcript inspected during a store sweep. The LimitReader
+	// still bounds the scan so a transcript with no metadata record cannot
+	// drag it through megabytes of conversation.
+	scanner := bufio.NewScanner(io.LimitReader(file, maxHeaderBytes))
+	scanner.Buffer(make([]byte, 0, initialScanBuffer), maxHeaderBytes)
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
 
+		// The byte limit can cut the final line mid-record; it fails to
+		// unmarshal and is skipped like any other unreadable line. Decoding
+		// completes before the next Scan, so aliasing the scanner's buffer
+		// is safe here.
 		var record MuseRecord
 		if err := json.Unmarshal(line, &record); err != nil {
 			continue
@@ -175,6 +181,9 @@ func readSessionWorkspaceRoot(filePath string) (string, error) {
 		if payload.Record.WorkspaceRoot != "" {
 			return payload.Record.WorkspaceRoot, nil
 		}
+	}
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("failed to read session header: %w", err)
 	}
 
 	return "", nil
@@ -224,7 +233,7 @@ func findMuseSessions(projectPath string) ([]museSessionFile, error) {
 		}
 		matches = append(matches, museSessionFile{
 			Path:          path,
-			SessionID:     sessionIDFromPath(path),
+			SessionID:     sessionIDFromDirOrFilename(path),
 			WorkspaceRoot: workspaceRoot,
 		})
 	}
