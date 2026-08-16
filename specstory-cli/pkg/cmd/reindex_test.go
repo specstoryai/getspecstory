@@ -276,9 +276,7 @@ func TestLiveIndexerRecordConcurrent(t *testing.T) {
 	const n = 24
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			sid := fmt.Sprintf("sess-%d", i)
 			li.Record("claude", &spi.AgentChatSession{
 				SessionID: sid,
@@ -289,7 +287,7 @@ func TestLiveIndexerRecordConcurrent(t *testing.T) {
 					}}},
 				},
 			})
-		}(i)
+		})
 	}
 	wg.Wait()
 

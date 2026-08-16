@@ -55,10 +55,7 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 	errChan := make(chan error, len(providers))
 
 	for providerID, provider := range providers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			slog.Info("WatchProviders: Starting watcher for provider", "providerID", providerID, "providerName", provider.Name())
 
 			// Wrap the callback to deduplicate and include provider ID
@@ -111,7 +108,7 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 			} else {
 				errChan <- nil
 			}
-		}()
+		})
 	}
 
 	// Wait for all watchers to complete (they run until Ctrl+C)

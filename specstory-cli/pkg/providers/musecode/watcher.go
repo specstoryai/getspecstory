@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -131,9 +132,7 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 
 	set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: make(map[string]bool)}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			if err := watcher.Close(); err != nil {
 				slog.Debug("Muse watcher: error closing watcher", "error", err)
@@ -170,7 +169,7 @@ func WatchMuseProject(projectPath string, callback func(*spi.AgentChatSession)) 
 				slog.Error("Muse watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
@@ -333,8 +332,13 @@ func (s *watchSet) adoptExisting(dir string) {
 		path := filepath.Join(dir, entry.Name())
 		switch {
 		case entry.IsDir():
-			// Subagent transcripts are never sessions of their own.
-			if entry.Name() == subagentDirName {
+			// Never descend past the store layout. subagent/ and tool-outputs/
+			// live inside a session directory: the former holds transcripts that
+			// are not sessions of their own, and watching the latter would pin an
+			// open file descriptor per spilled tool output on kqueue platforms to
+			// no purpose, since the transcript that matters sits in the session
+			// directory itself.
+			if !s.withinStoreLayout(path) {
 				continue
 			}
 			s.addWatch(path)
@@ -345,6 +349,22 @@ func (s *watchSet) adoptExisting(dir string) {
 			}
 		}
 	}
+}
+
+// withinStoreLayout reports whether dir is one of the directories the store
+// layout is made of (YYYY/MM/DD/<session-id> under the sessions root) rather
+// than something a session created inside its own directory.
+//
+// This is the same depth rule handleEvent gets from
+// spi.DateDirWithinWatchWindow, minus the date cutoff: callers of this have
+// already established the directory is in the window, and re-applying the
+// cutoff would only make walking a directory depend on today's date.
+func (s *watchSet) withinStoreLayout(dir string) bool {
+	rel, err := filepath.Rel(s.sessionsRoot, dir)
+	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
+		return false
+	}
+	return len(strings.Split(filepath.ToSlash(rel), "/")) <= museStoreDepth
 }
 
 // processSessionChange parses a changed transcript and publishes it, but only

@@ -1042,15 +1042,11 @@ func (syncMgr *SyncManager) debouncedSync(sessionID, mdPath, mdContent string, r
 		}
 
 		// Start sync in goroutine (always skip HEAD check in autosave mode)
-		syncMgr.wg.Add(1)
 		atomic.AddInt32(&syncMgr.syncCount, 1)
-		go func() {
-			defer func() {
-				syncMgr.wg.Done()
-				atomic.AddInt32(&syncMgr.syncCount, -1)
-			}()
+		syncMgr.wg.Go(func() {
+			defer atomic.AddInt32(&syncMgr.syncCount, -1)
 			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, true)
-		}()
+		})
 
 		// Log with timeSinceLastSync only if meaningful (not after cleanup)
 		if state.lastSyncTime.IsZero() {
@@ -1121,15 +1117,11 @@ func (syncMgr *SyncManager) flushPendingSync(sessionID string) {
 	syncMgr.debounceSessions.Delete(sessionID)
 
 	// Start sync in goroutine (always skip HEAD check for debounced syncs)
-	syncMgr.wg.Add(1)
 	atomic.AddInt32(&syncMgr.syncCount, 1)
-	go func() {
-		defer func() {
-			syncMgr.wg.Done()
-			atomic.AddInt32(&syncMgr.syncCount, -1)
-		}()
+	syncMgr.wg.Go(func() {
+		defer atomic.AddInt32(&syncMgr.syncCount, -1)
 		syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
-	}()
+	})
 
 	slog.Debug("Flushed pending sync after debounce, cleaned up session state",
 		"sessionId", sessionID)
@@ -1158,15 +1150,11 @@ func (syncMgr *SyncManager) flushAllPending() {
 			state.pending = nil
 
 			// Start sync in goroutine (always skip HEAD check for debounced syncs)
-			syncMgr.wg.Add(1)
 			atomic.AddInt32(&syncMgr.syncCount, 1)
-			go func() {
-				defer func() {
-					syncMgr.wg.Done()
-					atomic.AddInt32(&syncMgr.syncCount, -1)
-				}()
+			syncMgr.wg.Go(func() {
+				defer atomic.AddInt32(&syncMgr.syncCount, -1)
 				syncMgr.performSync(req.sessionID, req.mdPath, req.mdContent, req.rawData, req.sessionData, req.agentName, req.title, req.redactPayloads, true)
-			}()
+			})
 
 			slog.Info("Flushing pending sync on shutdown",
 				"sessionId", sessionID)
@@ -1208,15 +1196,11 @@ func SyncSessionToCloud(sessionID string, mdPath string, mdContent string, rawDa
 		syncMgr.debouncedSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads)
 	} else {
 		// Manual sync mode: immediate sync with HEAD check
-		syncMgr.wg.Add(1)
 		atomic.AddInt32(&syncMgr.syncCount, 1)
-		go func() {
-			defer func() {
-				syncMgr.wg.Done()
-				atomic.AddInt32(&syncMgr.syncCount, -1)
-			}()
+		syncMgr.wg.Go(func() {
+			defer atomic.AddInt32(&syncMgr.syncCount, -1)
 			syncMgr.performSync(sessionID, mdPath, mdContent, rawData, sessionData, agentName, title, redactPayloads, false)
-		}()
+		})
 	}
 }
 

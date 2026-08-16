@@ -262,28 +262,57 @@ func TestGenerateAgentSession_NoEvents(t *testing.T) {
 	}
 }
 
+// museToolInventory is every tool Muse Code 0.1.0 exposes, as the agent
+// enumerated them in a live all-tools session (see docs/MUSE-FORMAT.md). When
+// Muse ships new tools, add them here and to classifyMuseToolType.
+var museToolInventory = []string{
+	"read_file", "search", "write_file", "edit_file",
+	"read_memory", "add_memory", "edit_memory",
+	"list_peer_sessions", "send_session_message",
+	"web_search", "bash", "bash_input",
+	"cron_create", "cron_delete", "cron_list",
+	"get_goal", "create_goal", "update_goal", "report_progress",
+	"request_user_input",
+	"subagent_spawn", "subagent_status", "subagent_send_message",
+	"subagent_wait", "subagent_read_result", "subagent_cancel",
+	"read_skill", "snooze_reminder", "write_todos",
+}
+
+// Every known tool must classify as something other than unknown. This sweep
+// exists because sampling cannot catch omission: list_peer_sessions and
+// send_session_message were missing from the classifier and every sampled
+// name still passed, so the gap only surfaced in a rendered session.
+func TestClassifyMuseToolType_CoversFullInventory(t *testing.T) {
+	for _, toolName := range museToolInventory {
+		t.Run(toolName, func(t *testing.T) {
+			if got := classifyMuseToolType(toolName); got == schema.ToolTypeUnknown {
+				t.Errorf("known tool %q classifies as unknown; add it to classifyMuseToolType", toolName)
+			}
+		})
+	}
+}
+
+// Spot checks for the placements that carry a decision, plus the unknown
+// fallback; exhaustive name→type pairs would just restate the switch (the
+// inventory sweep above is what guards against omissions).
 func TestClassifyMuseToolType(t *testing.T) {
 	tests := []struct {
 		toolName string
 		expected string
 	}{
 		{toolName: "read_file", expected: schema.ToolTypeRead},
-		{toolName: "read_memory", expected: schema.ToolTypeRead},
-		{toolName: "write_file", expected: schema.ToolTypeWrite},
 		{toolName: "edit_file", expected: schema.ToolTypeWrite},
-		{toolName: "add_memory", expected: schema.ToolTypeWrite},
-		{toolName: "edit_memory", expected: schema.ToolTypeWrite},
-		{toolName: "search", expected: schema.ToolTypeSearch},
 		{toolName: "web_search", expected: schema.ToolTypeSearch},
-		{toolName: "bash", expected: schema.ToolTypeShell},
+		// bash_input drives a PTY rather than running a command, but it is
+		// still shell interaction.
 		{toolName: "bash_input", expected: schema.ToolTypeShell},
-		{toolName: "write_todos", expected: schema.ToolTypeTask},
 		{toolName: "subagent_spawn", expected: schema.ToolTypeTask},
-		{toolName: "subagent_cancel", expected: schema.ToolTypeTask},
-		{toolName: "get_goal", expected: schema.ToolTypeGeneric},
-		{toolName: "cron_create", expected: schema.ToolTypeGeneric},
+		// Memory operates on Muse's own store, not workspace documents.
+		{toolName: "read_memory", expected: schema.ToolTypeGeneric},
+		{toolName: "add_memory", expected: schema.ToolTypeGeneric},
+		// Skill loading is a named capability, not a document read (matches
+		// the claudecode provider's classification of its skill tool).
 		{toolName: "read_skill", expected: schema.ToolTypeGeneric},
-		{toolName: "snooze_reminder", expected: schema.ToolTypeGeneric},
 		{toolName: "mystery_tool", expected: schema.ToolTypeUnknown},
 	}
 

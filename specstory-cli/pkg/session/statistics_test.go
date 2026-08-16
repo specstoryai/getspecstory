@@ -25,9 +25,7 @@ func TestCollectSessionStatistics_ConcurrentSaves(t *testing.T) {
 	const sessionCount = 25
 	var wg sync.WaitGroup
 	for i := 0; i < sessionCount; i++ {
-		wg.Add(1)
-		go func(i int) {
-			defer wg.Done()
+		wg.Go(func() {
 			sess := &spi.AgentChatSession{
 				SessionID: fmt.Sprintf("session-%02d", i),
 				SessionData: &schema.SessionData{
@@ -38,7 +36,7 @@ func TestCollectSessionStatistics_ConcurrentSaves(t *testing.T) {
 			if err := CollectSessionStatistics("claude", sess, "# markdown", config); err != nil {
 				t.Errorf("CollectSessionStatistics(%s): %v", sess.SessionID, err)
 			}
-		}(i)
+		})
 	}
 	wg.Wait()
 

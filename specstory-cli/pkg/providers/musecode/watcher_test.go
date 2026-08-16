@@ -217,3 +217,91 @@ func TestAdoptExisting_PublishesASessionThatLandedBeforeTheWatch(t *testing.T) {
 		t.Errorf("adopting a pre-populated day directory published %v, want exactly [%s]", published, basicSessionID)
 	}
 }
+
+// Adoption walks a new directory to find sessions, but must stop at the session
+// directory: fsnotify's kqueue backend holds an open file descriptor per file in
+// every watched directory, so watching a session's own spill directories buys
+// nothing and costs fds that the trailing watch window exists to conserve.
+func TestAdoptExisting_StopsAtTheSessionDirectory(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+
+	transcript := writeSession(t, sessionsRoot, "2026/08/07", basicSessionID, "session-basic.jsonl", project)
+	sessionDir := filepath.Dir(transcript)
+
+	// The two directories Muse creates inside a session directory.
+	toolOutputsDir := filepath.Join(sessionDir, "tool-outputs")
+	if err := os.MkdirAll(toolOutputsDir, 0o755); err != nil {
+		t.Fatalf("failed to create tool-outputs dir: %v", err)
+	}
+	subagentChildDir := filepath.Join(sessionDir, subagentDirName, "child-id")
+	writeFileFrom(t, transcript, filepath.Join(subagentChildDir, sessionFileName))
+
+	SetWatcherCallback(func(*spi.AgentChatSession) {})
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("failed to create watcher: %v", err)
+	}
+	t.Cleanup(func() { _ = watcher.Close() })
+
+	set := &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: map[string]bool{}}
+	set.adoptExisting(filepath.Join(sessionsRoot, "2026", "08", "07"))
+
+	// The session directory itself is where the transcript lives, so it is the
+	// deepest directory that ever earns a watch.
+	if !set.watched[sessionDir] {
+		t.Errorf("session directory not watched: %s", sessionDir)
+	}
+	for _, dir := range []string{
+		toolOutputsDir,
+		filepath.Join(sessionDir, subagentDirName),
+		subagentChildDir,
+	} {
+		if set.watched[dir] {
+			t.Errorf("directory inside a session is watched: %s", dir)
+		}
+	}
+}
+
+func TestWithinStoreLayout(t *testing.T) {
+	sessionsRoot := filepath.Join(t.TempDir(), "muse", "sessions")
+	set := &watchSet{sessionsRoot: sessionsRoot}
+
+	tests := []struct {
+		name     string
+		relative string
+		expected bool
+	}{
+		{"year directory", "2026", true},
+		{"month directory", "2026/08", true},
+		{"day directory", "2026/08/07", true},
+		{"session directory", "2026/08/07/" + basicSessionID, true},
+		{"spill directory inside a session", "2026/08/07/" + basicSessionID + "/tool-outputs", false},
+		{"subagent directory inside a session", "2026/08/07/" + basicSessionID + "/" + subagentDirName, false},
+		{"subagent session directory", "2026/08/07/" + basicSessionID + "/" + subagentDirName + "/child-id", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(sessionsRoot, filepath.FromSlash(tt.relative))
+			if got := set.withinStoreLayout(path); got != tt.expected {
+				t.Errorf("withinStoreLayout(%q) = %v, want %v", tt.relative, got, tt.expected)
+			}
+		})
+	}
+
+	// The sessions root is not a directory the walk descends into, and neither is
+	// anything outside it.
+	if set.withinStoreLayout(sessionsRoot) {
+		t.Error("the sessions root itself reported as a descendable store directory")
+	}
+	if set.withinStoreLayout(filepath.Join(sessionsRoot, "..", "elsewhere")) {
+		t.Error("a directory outside the sessions root reported as inside the store layout")
+	}
+}

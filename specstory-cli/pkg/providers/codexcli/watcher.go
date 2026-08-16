@@ -181,14 +181,9 @@ func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDa
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
 
-	// Increment wait group before starting goroutine
-	watcherWg.Add(1)
-
-	// Start watching in a goroutine
-	go func() {
-		// Decrement wait group when done
-		defer watcherWg.Done()
-
+	// Start watching in a goroutine tracked by the wait group, so Stop can
+	// block until it has finished
+	watcherWg.Go(func() {
 		// Log when goroutine starts
 		slog.Info("startCodexSessionWatcher: Goroutine started")
 
@@ -454,7 +449,7 @@ func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDa
 				slog.Error("startCodexSessionWatcher: Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

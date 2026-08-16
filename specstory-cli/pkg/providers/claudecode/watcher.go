@@ -133,14 +133,9 @@ func startProjectWatcher(claudeProjectDir string) error {
 		return fmt.Errorf("failed to create file watcher: %v", err)
 	}
 
-	// Increment wait group before starting goroutine
-	watcherWg.Add(1)
-
-	// Start watching in a goroutine
-	go func() {
-		// Decrement wait group when done
-		defer watcherWg.Done()
-
+	// Start watching in a goroutine tracked by the wait group, so Stop can
+	// block until it has finished
+	watcherWg.Go(func() {
 		// Log when goroutine starts
 		slog.Info("startProjectWatcher: Goroutine started")
 
@@ -348,7 +343,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 				log.UserError("Watcher error: %v", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

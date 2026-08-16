@@ -121,6 +121,7 @@ analytics.TrackEvent(analytics.EventExtensionActivated, analytics.Properties{
 - Use "Why" comments, not "what" or "how" unless specifically requested
 - Use single function exit point where possible (immediate guard clauses are OK)
 - Provide consistent observability and tracing with log/slog for logging, not fmt.Println or fmt.Printf
+- Start wait-group goroutines with `wg.Go(func() { ... })`, never `wg.Add(1)` plus `go func() { defer wg.Done() ... }()`. The pairing is what goes wrong: an `Add` without its `Done`, or a `Done` that lives in a different function from its `Add`, deadlocks `Wait` or panics. `wg.Go` makes them inseparable.
 - Follow existing patterns in the codebase
 - The application supports macOS, Linux (including WSL), and native Windows. Keep all three platforms working: guard OS-specific code by `runtime.GOOS` or build tags, and prefer shape-based path handling (e.g. drive-letter detection) over GOOS checks where data written on one OS is read on another.
 

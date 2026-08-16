@@ -324,9 +324,9 @@ func convertUsage(usage *MuseUsage) *Usage {
 // Valid types: write, read, search, shell, task, generic, unknown
 func classifyMuseToolType(toolName string) string {
 	switch toolName {
-	case "read_file", "read_memory":
+	case "read_file":
 		return schema.ToolTypeRead
-	case "write_file", "edit_file", "add_memory", "edit_memory":
+	case "write_file", "edit_file":
 		return schema.ToolTypeWrite
 	case "search", "web_search":
 		return schema.ToolTypeSearch
@@ -335,9 +335,14 @@ func classifyMuseToolType(toolName string) string {
 	case "write_todos", "subagent_spawn", "subagent_status", "subagent_wait",
 		"subagent_read_result", "subagent_send_message", "subagent_cancel":
 		return schema.ToolTypeTask
-	case "get_goal", "create_goal", "update_goal", "report_progress",
+	// The memory tools operate on Muse's own memory store, not workspace
+	// documents, so they group with the other agent-state tools rather than
+	// with file read/write.
+	case "read_memory", "add_memory", "edit_memory",
+		"get_goal", "create_goal", "update_goal", "report_progress",
 		"cron_create", "cron_list", "cron_delete", "read_skill",
-		"request_user_input", "snooze_reminder":
+		"request_user_input", "snooze_reminder",
+		"list_peer_sessions", "send_session_message":
 		return schema.ToolTypeGeneric
 	default:
 		return schema.ToolTypeUnknown
