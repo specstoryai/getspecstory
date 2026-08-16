@@ -106,10 +106,10 @@ func formatToolResultFromOutput(tool *ToolInfo) string {
 		return ""
 	case "bash", "bash_input":
 		return formatShellResultFromOutput(tool.Output)
-	case "search":
-		// ripgrep output is already file:line:text; fencing it adds nothing
-		return outputAsString(tool.Output)
 	default:
+		// search results deliberately take this path too: hits are arbitrary
+		// file content, so they must land inside a fence where embedded
+		// markdown or HTML cannot break the enclosing tool block.
 		return formatDefaultResultFromOutput(tool.Output)
 	}
 }
@@ -244,20 +244,9 @@ func formatTodoBodyFromInput(input map[string]interface{}) string {
 		}
 		text, _ := todo["text"].(string)
 		status, _ := todo["status"].(string)
-		fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(text))
+		fmt.Fprintf(&builder, "- [%s] %s\n", spi.TodoSymbol(status), strings.TrimSpace(text))
 	}
 	return builder.String()
-}
-
-func todoStatusSymbol(status string) string {
-	switch status {
-	case "completed":
-		return "x"
-	case "in_progress":
-		return "⚡"
-	default:
-		return " "
-	}
 }
 
 // formatSubagentBodyFromInput shows what a spawned subagent was asked to do.

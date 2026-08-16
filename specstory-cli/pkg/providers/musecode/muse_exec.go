@@ -12,22 +12,14 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// Package-level variable for mocking in tests
-var execLookPath = exec.LookPath
-
 // resumeSubcommand is how Muse Code continues a session: `muse resume <id>`,
 // a subcommand rather than a flag (like Codex, unlike Qwen's --resume).
 const resumeSubcommand = "resume"
 
-// getDefaultMuseCommand returns the default muse command. It checks for muse in PATH.
-func getDefaultMuseCommand() string {
-	if _, err := execLookPath("muse"); err == nil {
-		slog.Info("Found Muse Code in PATH")
-		return "muse"
-	}
-	slog.Info("Muse Code not found in PATH, defaulting to 'muse'")
-	return "muse"
-}
+// defaultMuseCommand is used when no custom command is configured. No PATH
+// probing here: Check reports a missing binary with remediation steps, and
+// exec surfaces the OS error directly, so a lookup would only duplicate both.
+const defaultMuseCommand = "muse"
 
 // parseMuseCommand parses a custom command string into executable and arguments.
 func parseMuseCommand(customCommand string) (string, []string) {
@@ -37,7 +29,7 @@ func parseMuseCommand(customCommand string) (string, []string) {
 			return parts[0], parts[1:]
 		}
 	}
-	return getDefaultMuseCommand(), nil
+	return defaultMuseCommand, nil
 }
 
 // ensureResumeArgs makes sure the command line carries `resume <id>`. A custom

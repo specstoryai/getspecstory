@@ -312,20 +312,23 @@ func TestFormatToolAsMarkdown_SubagentSpawnBody(t *testing.T) {
 	}
 }
 
-func TestFormatToolAsMarkdown_SearchResultRenderedRaw(t *testing.T) {
+// Search hits are arbitrary file content: markdown or HTML inside a matched
+// line must render as text inside a fence, not as markup that can break the
+// enclosing tool block.
+func TestFormatToolAsMarkdown_SearchResultsFenced(t *testing.T) {
 	tool := &ToolInfo{
 		Name:   "search",
 		Type:   "search",
 		Input:  map[string]any{"pattern": "beta"},
-		Output: map[string]any{"output": "notes.txt:2:beta"},
+		Output: map[string]any{"output": "notes.txt:2:beta\nREADME.md:9:</details> beta"},
 	}
 
 	markdown, _ := toolMarkdown(tool)
 
-	if strings.Contains(markdown, "```") {
-		t.Errorf("ripgrep output should not be fenced:\n%s", markdown)
+	if !strings.Contains(markdown, "```text\n") {
+		t.Errorf("search hits not fenced:\n%s", markdown)
 	}
-	if !strings.Contains(markdown, "notes.txt:2:beta") {
+	if !strings.Contains(markdown, "notes.txt:2:beta") || !strings.Contains(markdown, "</details> beta") {
 		t.Errorf("search hits missing:\n%s", markdown)
 	}
 }

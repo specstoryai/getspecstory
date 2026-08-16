@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -30,18 +28,15 @@ func init() {
 }
 
 const (
-	// watchWindowDays is how many days of lookback before today stay under an
-	// active fsnotify watch; the window also includes today, so up to
-	// watchWindowDays+1 date directories are watched at once.
+	// museStoreDepth is how many path components sit below the sessions root:
+	// unlike Codex's rollout files, each session is a directory inside its day
+	// directory (YYYY/MM/DD/<session-id>), so four levels belong to the store
+	// layout. Anything deeper (subagent/, tool-outputs/) is inside a session.
 	//
 	// Muse's store is global and date-sharded, exactly the shape that caused
-	// Codex's fd exhaustion (changelog v2.6.0): fsnotify's kqueue backend on
-	// macOS holds an open file descriptor for every file in a watched
-	// directory, so watching all history pins one fd per session ever
-	// recorded. The trailing window keeps fd usage flat while still
-	// live-streaming sessions that span midnight or were resumed outside
-	// SpecStory.
-	watchWindowDays = 7
+	// Codex's fd exhaustion, so only a trailing window of date directories is
+	// ever watched — see spi.WatchWindowDays.
+	museStoreDepth = 4
 
 	// watchRefreshInterval is how often the watched set is re-evaluated, which
 	// is what carries the watcher across a day rollover: the new day's
@@ -208,7 +203,7 @@ func (s *watchSet) refresh() {
 func desiredWatchDirs(sessionsRoot string, now time.Time) map[string]bool {
 	desired := map[string]bool{sessionsRoot: true}
 
-	for offset := 0; offset <= watchWindowDays; offset++ {
+	for offset := 0; offset <= spi.WatchWindowDays; offset++ {
 		date := now.AddDate(0, 0, -offset)
 		yearDir := filepath.Join(sessionsRoot, fmt.Sprintf("%04d", date.Year()))
 		monthDir := filepath.Join(yearDir, fmt.Sprintf("%02d", int(date.Month())))
@@ -291,7 +286,7 @@ func (s *watchSet) handleEvent(event fsnotify.Event) {
 	if filepath.Base(event.Name) == subagentDirName {
 		return
 	}
-	if !dirWithinWatchWindow(event.Name, s.sessionsRoot, watchWindowCutoff(time.Now())) {
+	if !spi.DateDirWithinWatchWindow(event.Name, s.sessionsRoot, museStoreDepth, spi.WatchWindowCutoff(time.Now())) {
 		return
 	}
 	s.addWatch(event.Name)
@@ -332,73 +327,6 @@ func (s *watchSet) adoptExisting(dir string) {
 			}
 		}
 	}
-}
-
-// watchWindowCutoff returns the earliest date (local midnight) whose directory
-// is still watched.
-func watchWindowCutoff(now time.Time) time.Time {
-	year, month, day := now.AddDate(0, 0, -watchWindowDays).Date()
-	return time.Date(year, month, day, 0, 0, 0, 0, now.Location())
-}
-
-// museDirDepth returns how deep a directory sits under the sessions root:
-// 1 = year, 2 = month, 3 = day, 4 = session directory. 0 means the path is not
-// part of the store layout (which includes anything inside a session, such as
-// subagent/ and tool-outputs/).
-func museDirDepth(path string, sessionsRoot string) int {
-	rel, err := filepath.Rel(sessionsRoot, path)
-	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
-		return 0
-	}
-	parts := strings.Split(filepath.ToSlash(rel), "/")
-	if len(parts) > 4 {
-		return 0
-	}
-	return len(parts)
-}
-
-// dirWithinWatchWindow reports whether a store directory could hold sessions
-// dated on or after cutoff, and therefore deserves an fsnotify watch. A session
-// directory inherits the date of the day directory holding it.
-func dirWithinWatchWindow(path string, sessionsRoot string, cutoff time.Time) bool {
-	depth := museDirDepth(path, sessionsRoot)
-	if depth == 0 {
-		return false
-	}
-
-	rel, err := filepath.Rel(sessionsRoot, path)
-	if err != nil {
-		return false
-	}
-	parts := strings.Split(filepath.ToSlash(rel), "/")
-
-	year, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return false
-	}
-	if depth == 1 {
-		return year >= cutoff.Year()
-	}
-
-	month, err := strconv.Atoi(parts[1])
-	if err != nil || month < 1 || month > 12 {
-		return false
-	}
-	if depth == 2 {
-		return year > cutoff.Year() || (year == cutoff.Year() && time.Month(month) >= cutoff.Month())
-	}
-
-	day, err := strconv.Atoi(parts[2])
-	if err != nil {
-		return false
-	}
-	date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, cutoff.Location())
-	// time.Date normalizes out-of-range values (Feb 30 becomes March 2); a
-	// round-trip mismatch means the components were not a real calendar date.
-	if date.Year() != year || date.Month() != time.Month(month) || date.Day() != day {
-		return false
-	}
-	return !date.Before(cutoff)
 }
 
 // processSessionChange parses a changed transcript and publishes it, but only

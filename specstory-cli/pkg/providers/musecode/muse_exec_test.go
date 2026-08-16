@@ -1,16 +1,11 @@
 package musecode
 
 import (
-	"os/exec"
 	"slices"
 	"testing"
 )
 
 func TestParseMuseCommand(t *testing.T) {
-	original := execLookPath
-	execLookPath = func(string) (string, error) { return "/usr/local/bin/muse", nil }
-	t.Cleanup(func() { execLookPath = original })
-
 	tests := []struct {
 		name          string
 		customCommand string
@@ -113,34 +108,6 @@ func TestEnsureResumeArgs(t *testing.T) {
 			// sub-slice of the parsed command line.
 			if !slices.Equal(tt.args, input) {
 				t.Errorf("input args mutated: %v, want %v", tt.args, input)
-			}
-		})
-	}
-}
-
-func TestGetDefaultMuseCommand(t *testing.T) {
-	tests := []struct {
-		name     string
-		lookPath func(string) (string, error)
-	}{
-		{
-			name:     "found in PATH",
-			lookPath: func(string) (string, error) { return "/usr/local/bin/muse", nil },
-		},
-		{
-			name:     "not in PATH still yields the bare name",
-			lookPath: func(string) (string, error) { return "", exec.ErrNotFound },
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			original := execLookPath
-			execLookPath = tt.lookPath
-			t.Cleanup(func() { execLookPath = original })
-
-			if got := getDefaultMuseCommand(); got != "muse" {
-				t.Errorf("getDefaultMuseCommand() = %q, want muse", got)
 			}
 		})
 	}

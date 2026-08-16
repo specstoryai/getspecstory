@@ -277,13 +277,13 @@ With this, no provider is known to deliver sessions without panic containment, a
 
 Applied, using the same decisions recorded in §7:
 
-| Removed from `musecode` | Replaced with | Effect |
-|---|---|---|
-| `formatGenericBodyFromInput` | `spi.RenderGenericJSON` | none — was behaviorally identical |
-| `canonicalPath` | `spi.CanonicalizePathOrClean` | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
-| `classifyMuseCheckError` | `spi.ClassifyCheckError` | `error_type` values change (below) |
-| `languageFromPath` | `spi.LanguageFromPath` | fence tags change (below) |
-| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported) |
+|          Removed from `musecode`          |                           Replaced with                            |                                                                 Effect                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `formatGenericBodyFromInput`              | `spi.RenderGenericJSON`                                            | none — was behaviorally identical                                                                                                       |
+| `canonicalPath`                           | `spi.CanonicalizePathOrClean`                                      | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
+| `classifyMuseCheckError`                  | `spi.ClassifyCheckError`                                           | `error_type` values change (below)                                                                                                      |
+| `languageFromPath`                        | `spi.LanguageFromPath`                                             | fence tags change (below)                                                                                                               |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported)                                             |
 
 `classifyMuseCheckError` was the pre-fix shape, carrying both §2.3 and §2.4. Verified deltas against the shared classifier: a `PathError` wrapping `ErrNotExist` was `version_failed`, now `not_found` (the practical bug — a binary that vanishes between `LookPath` and `Run`); a plain error and an unrelated `PathError` were `version_failed`, now `unknown`; `nil` was `version_failed`, now `""`. The §2.3 arm needs a contrived multi-`%w` chain to trigger, so it was latent rather than user-visible. `buildMuseCheckErrorMessage` has a `default:` arm, so no remediation text changed.
 
@@ -294,4 +294,36 @@ Two fixes outside the dedup:
 - **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. geminicli had the same gap from the same singleton-watcher shape; it is not muse-specific, and was closed separately (§10).
 - **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; muse follows the former.)
 
-Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
+Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), and `truncate` (duplicates `spi.CapRunes` with a different visible marker).
+
+---
+
+## 12. Review follow-ups to §11
+
+Applied after code review of the muse provider branch.
+
+### Watch-window extraction (the third copy problem)
+
+`watchWindowDays`, `watchWindowCutoff`, and `dirWithinWatchWindow` existed as near-verbatim copies in `codexcli` and `musecode` (muse's extended one level for its per-session directories), and `claudecode` carried the same 7-day constant for its mtime-based flat-store variant. All three now share `pkg/spi/watch_window.go`:
+
+| Symbol | Consumers |
+|---|---|
+| `spi.WatchWindowDays` | all three watchers — the window is one product decision, not a per-provider tunable |
+| `spi.WatchWindowCutoff` | codexcli, musecode |
+| `spi.DateDirWithinWatchWindow(path, root, maxDepth, cutoff)` | codexcli (`maxDepth` 3: files in day dirs), musecode (`maxDepth` 4: one directory per session) |
+
+codexcli keeps its private `dirType` — the fsnotify Create-event switch still dispatches on year/month/day — but its window decision now goes through the shared helper. claudecode keeps its own mtime comparison and only takes the constant.
+
+Behavioral delta: the shared helper enforces zero-padded date components (codex's `dirType` always did; muse's copy accepted `2026/8/7`). Muse writes zero-padded paths, so the stricter check changes nothing against a real store — a non-conforming look-alike directory now simply gets no watch.
+
+Tests: the two provider-local window test suites merged into `pkg/spi/watch_window_test.go` (codex's calendar-validation and year-boundary cases plus muse's depth-4 session-directory cases); `codexcli/watcher_test.go` held nothing else and was deleted.
+
+### `todoStatusSymbol` → `spi.TodoSymbol`
+
+The swap deferred above landed. Deltas: the shared symbol map trims and lowercases the status and accepts `done`/`active` as synonyms for `completed`/`in_progress`; muse's exact-match copy rendered those as unchecked boxes.
+
+### Muse-local fixes from the same review
+
+- **Search results are now fenced.** They previously rendered raw on the theory that `file:line:text` needs no fence, but hits are arbitrary file content — embedded markdown or HTML could break the enclosing tool block. The `search` case now falls through to the default result renderer, which fences multi-line output via `spi.CodeFence`.
+- **The `"muse-session"` slug fallback had two copies** in `provider.go`; `extractMuseSessionMetadata` now delegates to `museSessionSlug`.
+- **`getDefaultMuseCommand` probed PATH and ignored the answer** (both branches returned `"muse"`). Replaced with a `defaultMuseCommand` constant; the `execLookPath` test seam and its tautological test went with it.

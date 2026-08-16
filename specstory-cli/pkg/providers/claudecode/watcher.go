@@ -29,17 +29,6 @@ func init() {
 	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 }
 
-// watchWindowDays is how many days of file-modification lookback keep a session
-// file under an active fsnotify watch. Claude Code stores every session ever run
-// in a project as a flat directory of JSONL files, and fsnotify's kqueue backend
-// on macOS holds an open file descriptor for every file in a watched directory —
-// so watching the project directory itself pins one fd per historical session
-// file, growing without bound as sessions accumulate. Instead, only session
-// files modified within this window are watched individually (one fd each);
-// everything else is covered by the periodic reconcile pass, which re-watches
-// any dormant file the moment its modification time moves again.
-const watchWindowDays = 7
-
 // watchReconcileInterval is how often the project directory is re-listed to
 // detect newly created session files, re-watch dormant sessions that have woken
 // (a write to an unwatched file produces no fsnotify event, so polling is the
@@ -241,7 +230,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 			"directory", actualProjectDir)
 
 		// Session files watched individually, one fd each. The project directory
-		// itself is never added to the watcher — see watchWindowDays for why.
+		// itself is never added to the watcher — see spi.WatchWindowDays for why.
 		watchedFiles := make(map[string]bool)
 
 		// reconcile lists the project directory and converges the watched set on
@@ -272,7 +261,12 @@ func startProjectWatcher(claudeProjectDir string) error {
 				files[filepath.Join(actualProjectDir, entry.Name())] = info.ModTime()
 			}
 
-			cutoff := time.Now().AddDate(0, 0, -watchWindowDays)
+			// Claude Code stores every session ever run in a project as a flat
+			// directory of JSONL files, so the shared trailing window applies
+			// to modification times: only files touched within the window are
+			// watched individually (one fd each), and the reconcile pass
+			// re-watches any dormant file the moment its mtime moves again.
+			cutoff := time.Now().AddDate(0, 0, -spi.WatchWindowDays)
 			add, remove := reconcileFileWatches(files, watchedFiles, cutoff)
 
 			for _, file := range remove {

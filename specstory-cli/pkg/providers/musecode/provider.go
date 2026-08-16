@@ -370,15 +370,10 @@ func extractMuseSessionMetadata(session *MuseSession) *spi.SessionMetadata {
 		return nil
 	}
 
-	slug := spi.GenerateFilenameFromUserMessage(firstPrompt)
-	if slug == "" {
-		slug = "muse-session"
-	}
-
 	return &spi.SessionMetadata{
 		SessionID: session.ID,
 		CreatedAt: session.StartTime,
-		Slug:      slug,
+		Slug:      museSessionSlug(session),
 		Name:      spi.GenerateReadableName(firstPrompt),
 	}
 }
