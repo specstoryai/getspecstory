@@ -89,10 +89,19 @@ func TestEnsureResumeArgs(t *testing.T) {
 			expected:  []string{"resume", "abc-123", "--verbose"},
 		},
 		{
-			name:      "resume that already names a session is untouched",
+			// A pinned id in the configured command is a default; the requested
+			// one is this run's instruction and has to win, or the wrong
+			// conversation opens without a word.
+			name:      "requested session replaces one pinned in the command",
 			args:      []string{"resume", "existing-id"},
 			sessionID: "abc-123",
-			expected:  []string{"resume", "existing-id"},
+			expected:  []string{"resume", "abc-123"},
+		},
+		{
+			name:      "pinned id is replaced without disturbing surrounding args",
+			args:      []string{"--model", "muse-spark-1.2", "resume", "existing-id", "--verbose"},
+			sessionID: "abc-123",
+			expected:  []string{"--model", "muse-spark-1.2", "resume", "abc-123", "--verbose"},
 		},
 	}
 

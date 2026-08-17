@@ -32,11 +32,12 @@ func parseMuseCommand(customCommand string) (string, []string) {
 	return defaultMuseCommand, nil
 }
 
-// ensureResumeArgs makes sure the command line carries `resume <id>`. A custom
-// command that already names the resume subcommand keeps its position (the id
-// is filled in after it when missing) rather than gaining a second one; any
-// other custom subcommand is left alone and the resume pair is appended, which
-// is the only thing that can be done without second-guessing the user.
+// ensureResumeArgs makes sure the command line carries `resume <id>` for the
+// session the caller asked for. A custom command that already names the resume
+// subcommand keeps its position — the id is filled in after it, replacing one
+// the command already carried — rather than gaining a second one; any other
+// custom subcommand is left alone and the resume pair is appended, which is the
+// only thing that can be done without second-guessing the user.
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
 	if resumeSessionID == "" {
 		return args
@@ -46,9 +47,15 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 		if arg != resumeSubcommand {
 			continue
 		}
-		// An id already follows the subcommand: nothing to add.
+		// A configured command can pin an id of its own, but it describes a
+		// default while resumeSessionID describes this run: resuming the pinned
+		// session instead would silently open a different conversation than the
+		// one asked for. spi.Provider requires the requested session to win.
 		if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
-			return args
+			// Cloned so the caller's slice is never mutated.
+			replaced := slices.Clone(args)
+			replaced[i+1] = resumeSessionID
+			return replaced
 		}
 		// slices.Concat always allocates a new backing array, so the caller's
 		// slice is never mutated.
