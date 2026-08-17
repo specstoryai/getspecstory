@@ -28,6 +28,7 @@ import (
 // defaults.
 type SessionFlagDefaults struct {
 	LocalTimeZone      bool
+	OutputDir          string
 	DebugDir           string
 	NoTelemetryPrompts bool
 	NoRedactSecrets    bool
@@ -44,7 +45,7 @@ type SessionFlagDefaults struct {
 // accepts them. debug-raw, provenance and cloud-url are hidden, matching
 // run/sync.
 func registerSessionProcessingFlags(cmd *cobra.Command, cloudURL *string, d SessionFlagDefaults) {
-	cmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
+	cmd.Flags().String("output-dir", d.OutputDir, "custom output directory for markdown files (default: ./.specstory/history)")
 	cmd.Flags().String("debug-dir", d.DebugDir, "custom output directory for debug data (default: ./.specstory/debug)")
 	cmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
 	cmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")

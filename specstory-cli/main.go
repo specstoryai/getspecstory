@@ -1560,6 +1560,7 @@ func main() {
 	// pkg/cmd, resolved once so their flags can't drift from each other.
 	sessionFlagDefaults := cmdpkg.SessionFlagDefaults{
 		LocalTimeZone:      localTimeZone,
+		OutputDir:          outputDir,
 		DebugDir:           debugDir,
 		NoTelemetryPrompts: noTelemetryPrompts,
 		NoRedactSecrets:    noRedactSecrets,
