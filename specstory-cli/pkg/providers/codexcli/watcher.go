@@ -160,15 +160,26 @@ func dirType(path string, sessionsRoot string) string {
 // those three levels are part of the store layout.
 const codexStoreDepth = 3
 
+// dirInWatchScope reports whether a date directory is one the watcher should
+// hold a watch on and scan. The pinned day directory — the one holding a
+// resumed session — qualifies at any age, since the user is working in it right
+// now; everything else has to fall inside the trailing window.
+func dirInWatchScope(dir string, sessionsRoot string, pinnedDayDir string, now time.Time) bool {
+	if pinnedDayDir != "" && dir == pinnedDayDir {
+		return true
+	}
+	return spi.DateDirWithinWatchWindow(dir, sessionsRoot, codexStoreDepth, spi.WatchWindowCutoff(now))
+}
+
 // startCodexSessionWatcher starts watching hierarchically for Codex sessions.
 // Watches sessionsRoot/YYYY/MM/DD/ structure to handle date changes across days, months, and years.
 // The initialDayDir is scanned immediately if it exists.
 //
-// All historical day directories are scanned at startup, but fsnotify watches are
-// limited to directories within the trailing spi.WatchWindowDays window (plus
-// pinnedDayDir, if non-empty, which holds a resumed session and is watched
-// regardless of age). See spi.WatchWindowDays for why watching everything is
-// harmful.
+// Both the fsnotify watches and the startup scan are limited to day directories
+// within the trailing spi.WatchWindowDays window, plus pinnedDayDir if non-empty,
+// which holds a resumed session and is watched and scanned regardless of age.
+// See spi.WatchWindowDays for why watching everything is harmful; scanning
+// everything is the same lesson applied to reprocessing rather than to fds.
 func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDayDir string, pinnedDayDir string) error {
 	slog.Info("startCodexSessionWatcher: Creating hierarchical watcher",
 		"sessionsRoot", sessionsRoot,
@@ -244,14 +255,10 @@ func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDa
 			slog.Info("startCodexSessionWatcher: Removed watch", "directory", dir)
 		}
 
-		// Helper deciding whether a directory deserves an fsnotify watch: the
-		// pinned (resumed session) day directory always does, otherwise only
-		// directories within the trailing watch window.
+		// Helper deciding whether a directory deserves an fsnotify watch and a
+		// scan — see dirInWatchScope.
 		shouldWatch := func(dir string) bool {
-			if dir == pinnedDayDir {
-				return true
-			}
-			return spi.DateDirWithinWatchWindow(dir, sessionsRoot, codexStoreDepth, spi.WatchWindowCutoff(time.Now()))
+			return dirInWatchScope(dir, sessionsRoot, pinnedDayDir, time.Now())
 		}
 
 		// Helper to drop watches on directories that have aged out of the window.
@@ -261,10 +268,10 @@ func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDa
 			watchedDirsMutex.Lock()
 			staleDirs := make([]string, 0)
 			for dir := range watchedDirs {
-				if dir == sessionsRoot || dir == pinnedDayDir {
+				if dir == sessionsRoot {
 					continue
 				}
-				if !spi.DateDirWithinWatchWindow(dir, sessionsRoot, codexStoreDepth, spi.WatchWindowCutoff(time.Now())) {
+				if !shouldWatch(dir) {
 					staleDirs = append(staleDirs, dir)
 				}
 			}
@@ -275,17 +282,25 @@ func startCodexSessionWatcher(projectPath string, sessionsRoot string, initialDa
 			}
 		}
 
-		// Helper to watch a day directory (if within the watch window) and scan it.
-		// The watch is added before the scan so files created between the two are
-		// not missed.
+		// Helper to watch a day directory and scan it. The watch is added before
+		// the scan so files created between the two are not missed.
+		//
+		// A day outside the window is skipped entirely rather than scanned
+		// unwatched: a scan re-emits every session in the directory, and each
+		// emit costs a markdown rewrite and a cloud sync, so a long-lived store
+		// made every watcher start replay its whole history. The window that
+		// bounds fd usage bounds the reprocessing too.
 		watchDayDir := func(dayDir string) {
-			if shouldWatch(dayDir) {
-				if err := addWatch(dayDir); err != nil {
-					slog.Error("startCodexSessionWatcher: Failed to watch day directory",
-						"directory", dayDir,
-						"error", err)
-					return
-				}
+			if !shouldWatch(dayDir) {
+				slog.Debug("startCodexSessionWatcher: Day directory outside watch window, not scanning",
+					"directory", dayDir)
+				return
+			}
+			if err := addWatch(dayDir); err != nil {
+				slog.Error("startCodexSessionWatcher: Failed to watch day directory",
+					"directory", dayDir,
+					"error", err)
+				return
 			}
 			scanDayDir(dayDir)
 		}
