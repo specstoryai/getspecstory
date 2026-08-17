@@ -269,6 +269,103 @@ func TestAdoptExisting_StopsAtTheSessionDirectory(t *testing.T) {
 	}
 }
 
+// newRefreshHarness wires a watchSet to a callback that records published
+// session IDs, for the refresh cases below.
+func newRefreshHarness(t *testing.T, sessionsRoot, project string) (*watchSet, *[]string) {
+	t.Helper()
+
+	published := &[]string{}
+	SetWatcherCallback(func(s *spi.AgentChatSession) { *published = append(*published, s.SessionID) })
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		SetWatcherCallback(nil)
+		SetWatcherWorkspaceRoot("")
+	})
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatalf("failed to create watcher: %v", err)
+	}
+	t.Cleanup(func() { _ = watcher.Close() })
+
+	return &watchSet{watcher: watcher, sessionsRoot: sessionsRoot, watched: map[string]bool{}}, published
+}
+
+// The store not existing yet is the one case no fsnotify event can cover: with
+// no watch anywhere, a `muse exec` that finishes inside a single bootstrap tick
+// is complete before its watch lands and emits nothing afterwards. The refresh
+// that first sees the store has to adopt what is already in it.
+func TestRefresh_AdoptsSessionsWrittenWhileTheStoreDidNotExist(t *testing.T) {
+	sessionsRoot := seedStore(t) // Muse has never run: the root is absent
+	project := t.TempDir()
+	set, published := newRefreshHarness(t, sessionsRoot, project)
+
+	set.refresh()
+	if len(set.watched) != 0 {
+		t.Fatalf("watches held before the store exists: %v", set.watched)
+	}
+
+	// Muse runs to completion between two ticks.
+	today := time.Now().Format("2006/01/02")
+	writeSession(t, sessionsRoot, today, basicSessionID, "session-basic.jsonl", project)
+
+	set.refresh()
+
+	if len(*published) != 1 || (*published)[0] != basicSessionID {
+		t.Errorf("published %v, want exactly [%s]", *published, basicSessionID)
+	}
+}
+
+// The counterpart: adoption is for a store that appears mid-flight, not for one
+// that was already there. Republishing everything in the trailing window on
+// every watcher start would rewrite markdown and re-sync sessions that predate
+// the watcher, which is `sync`'s job to handle.
+func TestRefresh_DoesNotAdoptSessionsThatPredateTheWatcher(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+
+	// The store, and a finished session in it, exist before the watcher starts.
+	today := time.Now().Format("2006/01/02")
+	writeSession(t, sessionsRoot, today, basicSessionID, "session-basic.jsonl", project)
+
+	set, published := newRefreshHarness(t, sessionsRoot, project)
+	set.refresh()
+
+	sessionDir := filepath.Join(sessionsRoot, filepath.FromSlash(today), basicSessionID)
+	if !set.watched[sessionDir] {
+		t.Errorf("session directory not watched: %s", sessionDir)
+	}
+	if len(*published) != 0 {
+		t.Errorf("published %v, want nothing: these sessions predate the watcher", *published)
+	}
+}
+
+// Adoption is seeded from the day directories the trailing window already
+// chose, so the fd-exhaustion lesson survives it: a first-ever store containing
+// old history must not be walked or watched outside the window.
+func TestRefresh_BootstrapAdoptionStaysInsideTheWatchWindow(t *testing.T) {
+	sessionsRoot := seedStore(t)
+	project := t.TempDir()
+	set, published := newRefreshHarness(t, sessionsRoot, project)
+
+	set.refresh() // root absent
+
+	now := time.Now()
+	today := now.Format("2006/01/02")
+	stale := now.AddDate(0, 0, -30).Format("2006/01/02")
+	writeSession(t, sessionsRoot, today, basicSessionID, "session-basic.jsonl", project)
+	stalePath := writeSession(t, sessionsRoot, stale, toolsSessionID, "session-tools.jsonl", project)
+
+	set.refresh()
+
+	if len(*published) != 1 || (*published)[0] != basicSessionID {
+		t.Errorf("published %v, want only today's session [%s]", *published, basicSessionID)
+	}
+	if set.watched[filepath.Dir(stalePath)] {
+		t.Errorf("stale session directory is watched: %s", filepath.Dir(stalePath))
+	}
+}
+
 func TestWithinStoreLayout(t *testing.T) {
 	sessionsRoot := filepath.Join(t.TempDir(), "muse", "sessions")
 	set := &watchSet{sessionsRoot: sessionsRoot}

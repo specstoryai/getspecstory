@@ -38,6 +38,12 @@ const (
 	// ever watched — see spi.WatchWindowDays.
 	museStoreDepth = 4
 
+	// museDayDepth is how many path components below the sessions root a day
+	// directory sits (YYYY/MM/DD). It is the deepest level desiredWatchDirs has
+	// already filtered by date, so a walk seeded there cannot wander into
+	// history outside the trailing window.
+	museDayDepth = 3
+
 	// watchRefreshInterval is how often the watched set is re-evaluated, which
 	// is what carries the watcher across a day rollover: the new day's
 	// directory is picked up and directories that aged out are released.
@@ -180,6 +186,12 @@ type watchSet struct {
 	watcher      *fsnotify.Watcher
 	sessionsRoot string
 	watched      map[string]bool
+
+	// rootMissing records that the previous refresh found no session store, so
+	// the next one that does find it knows the store appeared mid-flight — see
+	// refresh. The zero value is what makes a store that already existed at
+	// startup take the ordinary path.
+	rootMissing bool
 }
 
 // refreshInterval slows down once the store exists: the fast cadence only
@@ -197,9 +209,20 @@ func (s *watchSet) refreshInterval() time.Duration {
 // a day rollover.
 func (s *watchSet) refresh() {
 	if info, err := os.Stat(s.sessionsRoot); err != nil || !info.IsDir() {
+		// Remember the absence: there is nothing to hang a watch on, so whatever
+		// Muse writes first will predate every watch this set can hold.
+		s.rootMissing = true
 		slog.Debug("Muse watcher: sessions root not present yet", "sessionsRoot", s.sessionsRoot)
 		return
 	}
+
+	// Muse ran for the first time while this watcher was already up. Its store,
+	// day directory and transcript were all created before any of the watches
+	// below existed, and fsnotify reports nothing from before a watch — so a
+	// one-shot `muse exec`, which is complete the moment it exits, would never
+	// emit another event to be noticed by. Those sessions have to be adopted.
+	storeJustAppeared := s.rootMissing
+	s.rootMissing = false
 
 	desired := desiredWatchDirs(s.sessionsRoot, time.Now())
 
@@ -209,6 +232,17 @@ func (s *watchSet) refresh() {
 	for dir := range s.watched {
 		if !desired[dir] {
 			s.removeWatch(dir)
+		}
+	}
+
+	// Only on that first appearance: a store that was already there when the
+	// watcher started holds sessions that predate the watcher itself, and
+	// publishing those is `sync`'s job, not a watcher's.
+	if storeJustAppeared {
+		for dir := range desired {
+			if s.storeDepth(dir) == museDayDepth {
+				s.adoptExisting(dir)
+			}
 		}
 	}
 }
@@ -360,11 +394,18 @@ func (s *watchSet) adoptExisting(dir string) {
 // already established the directory is in the window, and re-applying the
 // cutoff would only make walking a directory depend on today's date.
 func (s *watchSet) withinStoreLayout(dir string) bool {
+	depth := s.storeDepth(dir)
+	return depth > 0 && depth <= museStoreDepth
+}
+
+// storeDepth returns how many path components dir sits below the sessions root,
+// and 0 for the root itself or anything outside it.
+func (s *watchSet) storeDepth(dir string) int {
 	rel, err := filepath.Rel(s.sessionsRoot, dir)
 	if err != nil || rel == "." || strings.HasPrefix(rel, "..") {
-		return false
+		return 0
 	}
-	return len(strings.Split(filepath.ToSlash(rel), "/")) <= museStoreDepth
+	return len(strings.Split(filepath.ToSlash(rel), "/"))
 }
 
 // processSessionChange parses a changed transcript and publishes it, but only
