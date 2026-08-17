@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	gosync "sync"
 	"syscall"
 	"time"
 
@@ -213,26 +212,15 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			liveIndex := NewLiveIndexer(cwd)
 			defer liveIndex.Close()
 
-			// Track sessions we've seen to suppress initial-scan output.
-			// Existing sessions found at startup get their markdown refreshed
-			// but don't produce output — only new activity does.
-			var seenMu gosync.Mutex
-			seenSessions := make(map[string]bool)
-
 			// The per-update output decoration on top of the shared autosave
-			// handling: suppress initial-scan noise, then print a console or
-			// JSON line per real update.
+			// handling: print a console or JSON line per update.
+			//
+			// Every callback that arrives here is new activity, so none of it is
+			// filtered. Providers no longer emit what was already on disk when
+			// the watcher started; suppressing a session's first sighting used to
+			// swallow the first real update to any session that already had
+			// markdown.
 			onSaved := func(providerID string, sess *spi.AgentChatSession, fileExisted bool, markdownSize int) {
-				// Suppress output for existing sessions seen for the first time (initial scan).
-				// New sessions (!fileExisted) always get output since they represent real activity.
-				seenMu.Lock()
-				firstSeen := !seenSessions[sess.SessionID]
-				seenSessions[sess.SessionID] = true
-				seenMu.Unlock()
-				if firstSeen && fileExisted {
-					return
-				}
-
 				if log.IsSilent() {
 					return
 				}
