@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Latest released versions of the Copilot IDE surface — a COMPOSITE reading.
+#
+# The copilotide provider's parse surface drifts with two things: the VS Code
+# distribution (per variant) and the GitHub Copilot Chat extension. Any one of
+# them changing can change the on-disk chat format, so this script emits one
+# labeled line per component; the factory byte-compares the whole blob, so a
+# change in any line is a change event.
+#
+# Channels:
+# - VS Code stable/insiders: the official update API
+#   (update.code.visualstudio.com). We read productVersion (the release, e.g.
+#   "1.134.0"), NOT "version" (a build commit sha) — insiders builds ship
+#   daily, but only productVersion changes are release-meaningful; tracking
+#   shas would fire a format-meaningless change event every day.
+# - VSCodium + insiders: GitHub releases redirect (no API rate limits).
+# - Copilot Chat extension: the VS Code Marketplace gallery API (POST query).
+#   Not on open-vsx — the marketplace is the single source for all variants.
+#
+# Requires jq (present on GitHub Actions runners).
+#
+# Factory SPI contract: print the current released version(s) to stdout and
+# exit 0. Non-zero exit means "sensor failure", never "no change". Output is
+# opaque to the factory — byte-compared against the stored reading, never
+# parsed.
+set -euo pipefail
+
+fail() { echo "$1" >&2; exit 1; }
+
+code_product_version() { # $1 = stable|insider
+  curl -fsSL "https://update.code.visualstudio.com/api/update/darwin/$1/latest" \
+    | jq -re '.productVersion // empty'
+}
+
+github_latest_tag() { # $1 = owner/repo
+  local url tag
+  url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")
+  tag=${url##*/}
+  { [ -n "$tag" ] && [ "$tag" != "latest" ]; } || return 1
+  printf '%s\n' "$tag"
+}
+
+stable=$(code_product_version stable)            || fail "vscode stable: update API unreadable"
+insiders=$(code_product_version insider)         || fail "vscode insiders: update API unreadable"
+codium=$(github_latest_tag VSCodium/vscodium)    || fail "vscodium: no release tag resolved"
+codium_ins=$(github_latest_tag VSCodium/vscodium-insiders) || fail "vscodium-insiders: no release tag resolved"
+copilot_chat=$(curl -fsSL -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+  -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
+  -d '{"filters":[{"criteria":[{"filterType":7,"value":"GitHub.copilot-chat"}]}],"flags":103}' \
+  | jq -re '.results[0].extensions[0].versions[0].version // empty') || fail "copilot-chat: marketplace query failed"
+
+printf 'vscode %s\n'            "$stable"
+printf 'vscode-insiders %s\n'   "$insiders"
+printf 'vscodium %s\n'          "$codium"
+printf 'vscodium-insiders %s\n' "$codium_ins"
+printf 'copilot-chat %s\n'      "$copilot_chat"

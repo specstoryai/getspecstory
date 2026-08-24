@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Latest released version of Muse Code (Meta's terminal coding agent).
+#
+# Channel: Meta's own release channel manifest at
+# https://api.meta.ai/muse-code/channels/muse-stable — the JSON document the
+# muse launcher itself consults for updates (discovered via
+# dev.meta.ai/install.sh → api.meta.ai/muse-launcher.sh). "muse-stable" is the
+# public channel; the manifest's "version" field is the current release.
+# Muse is not on npm and its GitHub repo is not public.
+#
+# Requires jq (present on GitHub Actions runners). Not parsed with sed because
+# the manifest also carries a "min_version" field that substring-matches
+# "version".
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+version=$(curl -fsSL https://api.meta.ai/muse-code/channels/muse-stable | jq -r '.version // empty')
+if [ -z "$version" ]; then
+  echo "could not read .version from muse-stable channel manifest" >&2
+  exit 1
+fi
+printf '%s\n' "$version"
