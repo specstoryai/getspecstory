@@ -19,7 +19,7 @@ require (
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
-	github.com/posthog/posthog-go v1.22.0 // Analytics tracking
+	github.com/posthog/posthog-go v1.23.1 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
@@ -72,7 +72,7 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sprout/sprout v1.0.3 // indirect
-	github.com/goccy/go-json v0.10.5 // indirect
+	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/google/go-github/v72 v72.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
