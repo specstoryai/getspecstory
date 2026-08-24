@@ -4,9 +4,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: daily
   # Go module deps for the CLI
   - package-ecosystem: gomod
     directory: /specstory-cli
     schedule:
-      interval: monthly
+      interval: daily
