@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Latest released version of Antigravity CLI (agy).
+#
+# Channel: GitHub releases of google-antigravity/antigravity-cli — the repo the
+# official installer (antigravity.google/cli/install.sh) pulls from. Antigravity
+# is NOT on npm: the registry package named "antigravity-cli" is an unrelated
+# squatter. Resolved via the releases/latest web redirect rather than the GitHub
+# API to avoid unauthenticated API rate limits on shared CI runners.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/google-antigravity/antigravity-cli/releases/latest)
+tag=${url##*/}
+# "latest" comes back unredirected when the repo has no releases — that is a
+# sensor failure, not a version.
+if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
+  echo "could not resolve a release tag (got: $url)" >&2
+  exit 1
+fi
+printf '%s\n' "$tag"
