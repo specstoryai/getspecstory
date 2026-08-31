@@ -235,7 +235,14 @@ func ownerLabel(ownerID, ownerName, ownerEmail, viewerEmail string) string {
 func cloudEligibilityCmd() tea.Cmd {
 	return func() tea.Msg {
 		loggedIn, pro := cloud.ResumeEligibility()
+		// The second return is the login TIME, not an error — AuthenticatedAs reports its own
+		// failures (see there). What it cannot know is that an empty email while signed in is
+		// meaningful HERE: it silently disables owner attribution on every cloud row, and the
+		// conservative ownerLabel rule makes that indistinguishable from "no teammates".
 		viewerEmail, _ := cloud.AuthenticatedAs()
+		if loggedIn && viewerEmail == "" {
+			slog.Debug("cloud resume: no viewer email; owner attribution disabled")
+		}
 		return cloudEligibilityMsg{loggedIn: loggedIn, pro: pro, viewerEmail: viewerEmail}
 	}
 }
