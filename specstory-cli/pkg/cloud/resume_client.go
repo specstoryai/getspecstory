@@ -60,7 +60,8 @@ type CloudSession struct {
 	// Owner attribution (Teams). A team-shared project's listings union your own rows with
 	// teammates' copies, so these say whose row this is. Absent on an older cloud deployment,
 	// and OwnerName/OwnerEmail are empty when the owner's profile has not been cached yet —
-	// so never branch on OwnerID alone, use ownerLabel() in pkg/cmd.
+	// so attribution/presence checks should require a displayable owner value instead of
+	// branching on OwnerID alone.
 	OwnerID    string `json:"ownerId"`
 	OwnerName  string `json:"ownerName"`
 	OwnerEmail string `json:"ownerEmail"`
