@@ -712,9 +712,9 @@ type ProjectSummary struct {
 	// breakdown).
 	IsCloud bool
 
-	// Owner attribution for a team-shared project, on cloud-blended rows only. OwnerID names
-	// the teammate whose copy this entry describes; ContributorCount is how many teammates
-	// hold a copy the server collapsed into it.
+	// Owner attribution for a team-shared project, on cloud-only rows only. OwnerID names
+	// the teammate whose copy this entry describes; ContributorCount is how many team members
+	// (including you) hold a copy the server collapsed into it.
 	OwnerID          string
 	OwnerName        string
 	OwnerEmail       string
