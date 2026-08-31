@@ -100,8 +100,8 @@ type CloudProject struct {
 	OwnerName  string `json:"ownerName"`
 	OwnerEmail string `json:"ownerEmail"`
 
-	// Teammates holding their own copy of this repo, collapsed into this one entry by the
-	// server. 1 (or 0 on an older deployment) means nobody else has synced it.
+	// Team members holding their own copy of this repo (including you), collapsed into this one
+	// entry by the server. 1 (or 0 on an older deployment) means only you have synced it.
 	ContributorCount int `json:"contributorCount"`
 }
 
