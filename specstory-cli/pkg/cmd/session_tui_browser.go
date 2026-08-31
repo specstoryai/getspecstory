@@ -554,8 +554,12 @@ func (m sessionTUI) projectRow(p sessionindex.ProjectSummary, selected bool) str
 	}
 	chips := m.agentCountChips(p.AgentCounts)
 	when := relativeTime(p.LastActivity)
-	return cursor + cloudMark(p.IsCloud) + " " + renderName(projectDisplayName(p), selected, 30) + "  " +
+	row := cursor + cloudMark(p.IsCloud) + " " + renderName(projectDisplayName(p), selected, 30) + "  " +
 		chips + styDim.Render("  · "+when)
+	if by := ownerLabel(p.OwnerID, p.OwnerName, p.OwnerEmail, m.viewerEmail); by != "" {
+		row += styFaint.Render("  · " + by)
+	}
+	return row
 }
 
 // agentCountChips renders "claude 12 · codex 3" with colored agent tags.
@@ -920,16 +924,29 @@ func (m sessionTUI) globalRow(s sessionindex.Session, selected bool, snippet str
 
 	pad := m.agentColW - agentColMinWidth // widen with a long agent id so columns stay aligned
 
+	// Attribution is appended AFTER the label width maths rather than folded into it: the row
+	// budget is tuned for the title/snippet, and on a shared project every row would otherwise
+	// lose the same handful of columns whether or not it turned out to be a teammate's.
+	by := ownerLabel(s.OwnerID, s.OwnerName, s.OwnerEmail, m.viewerEmail)
+
 	if m.viewMode == "sparse" {
 		label := rowLabel(s, selected, snippet, m.lineWidth()-33-pad, m.lineWidth()-35-pad)
 		head := cursor + mark + " " + agent + "  " + styFaint.Render(proj) + "  " + label
-		sub := "       " + styFaint.Render(fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID)))
+		meta := fmt.Sprintf("%s ago · %s", relativeTime(s.UpdatedAt), shortID(s.SessionID))
+		if by != "" {
+			meta += " · " + by
+		}
+		sub := "       " + styFaint.Render(meta)
 		return head + "\n" + sub
 	}
 
 	when := fmt.Sprintf("%-4s", relativeTime(s.UpdatedAt))
 	label := rowLabel(s, selected, snippet, m.lineWidth()-49-pad, m.lineWidth()-51-pad)
-	return cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
+	row := cursor + mark + " " + agent + " " + styDim.Render(when) + "  " + styFaint.Render(proj) + "  " + label
+	if by != "" {
+		row += styFaint.Render("  · " + by)
+	}
+	return row
 }
 
 func sessionProject(s sessionindex.Session) string {

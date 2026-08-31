@@ -56,6 +56,14 @@ type CloudSession struct {
 	StartedAt string               `json:"startedAt"`
 	EndedAt   string               `json:"endedAt"`
 	Metadata  CloudSessionMetadata `json:"metadata"`
+
+	// Owner attribution (Teams). A team-shared project's listings union your own rows with
+	// teammates' copies, so these say whose row this is. Absent on an older cloud deployment,
+	// and OwnerName/OwnerEmail are empty when the owner's profile has not been cached yet —
+	// so never branch on OwnerID alone, use ownerLabel() in pkg/cmd.
+	OwnerID    string `json:"ownerId"`
+	OwnerName  string `json:"ownerName"`
+	OwnerEmail string `json:"ownerEmail"`
 }
 
 // CloudProject is a project (workspace) known to the cloud (server type: Project). Used to blend
@@ -83,6 +91,18 @@ type CloudProject struct {
 	LastUpdated  string         `json:"lastUpdated"`
 	SessionCount int            `json:"sessionCount"`
 	Sessions     []CloudSession `json:"sessions"` // populated only with ?resumable=true
+
+	// Owner attribution (Teams). A team-shared project's listings union your own rows with
+	// teammates' copies, so these say whose row this is. Absent on an older cloud deployment,
+	// and OwnerName/OwnerEmail are empty when the owner's profile has not been cached yet —
+	// so never branch on OwnerID alone, use ownerLabel() in pkg/cmd.
+	OwnerID    string `json:"ownerId"`
+	OwnerName  string `json:"ownerName"`
+	OwnerEmail string `json:"ownerEmail"`
+
+	// Teammates holding their own copy of this repo, collapsed into this one entry by the
+	// server. 1 (or 0 on an older deployment) means nobody else has synced it.
+	ContributorCount int `json:"contributorCount"`
 }
 
 // ResumeEligibility reports whether cross-machine cloud resume is available to the user, for
