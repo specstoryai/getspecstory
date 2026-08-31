@@ -262,3 +262,57 @@ func TestProjectRowRendersAttribution(t *testing.T) {
 		t.Error("un-attributed row should not end in a separator")
 	}
 }
+
+// TestGlobalRowRendersAttribution covers the search rows, in both view modes.
+//
+// globalRow lays out sparse and dense differently — sparse puts the label on the row's second
+// (meta) line, dense appends it to the single line — so a regression can drop it from one while
+// the other still works. Both are asserted, along with the un-attributed case not leaving a
+// dangling separator behind.
+func TestGlobalRowRendersAttribution(t *testing.T) {
+	// agentColW at its historical minimum keeps the label width maths at pad=0, and lineWidth()
+	// falls back to 80 when width is unset — enough room that the title is not truncated into
+	// the assertions.
+	base := sessionTUI{viewerEmail: viewer, agentColW: agentColMinWidth}
+
+	theirs := sessionindex.Session{
+		ProjectID: "p1", ProjectName: "stoa", Agent: "claude",
+		SessionID: "aaaaaaaa", Name: "retry logic", UpdatedAt: "2026-08-02T10:00:00Z",
+		IsCloud: true,
+		OwnerID: "user_greg", OwnerName: "Greg", OwnerEmail: "greg@specstory.com",
+	}
+
+	mine := theirs
+	mine.OwnerID, mine.OwnerName, mine.OwnerEmail = "user_me", "Winifred", viewer
+
+	bare := theirs
+	bare.OwnerID, bare.OwnerName, bare.OwnerEmail = "", "", ""
+
+	for _, mode := range []string{"sparse", "dense"} {
+		t.Run(mode, func(t *testing.T) {
+			m := base
+			m.viewMode = mode
+
+			if got := m.globalRow(theirs, false, ""); !strings.Contains(got, "Greg") {
+				t.Errorf("teammate's search row should name Greg, got %q", got)
+			}
+
+			// "Winifred" appears nowhere else in the row, so a hit here is unambiguously the
+			// attribution label rather than an incidental substring.
+			if got := m.globalRow(mine, false, ""); strings.Contains(got, "Winifred") {
+				t.Errorf("your own search row must not be attributed, got %q", got)
+			}
+
+			// An older cloud deployment sends no owner fields; the row must not trail a
+			// separator with nothing after it.
+			got := m.globalRow(bare, false, "")
+			lines := strings.Split(got, "\n")
+			// stripANSI is the package's existing helper (skills_test.go) — a suffix assertion
+			// must see visible text, not a trailing style reset.
+			last := strings.TrimSpace(stripANSI(lines[len(lines)-1]))
+			if strings.HasSuffix(last, "·") {
+				t.Errorf("un-attributed row should not end in a separator, got %q", last)
+			}
+		})
+	}
+}
