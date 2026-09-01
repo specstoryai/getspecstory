@@ -12,7 +12,7 @@ go 1.26.5
 require (
 	charm.land/bubbles/v2 v2.1.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
 	charm.land/bubbletea/v2 v2.0.9 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
-	charm.land/lipgloss/v2 v2.0.5 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
+	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
 	github.com/betterleaks/betterleaks v1.7.3 // Detect and redact secrets
 	github.com/charmbracelet/fang v1.0.0 // Styled terminal output for Cobra commands
@@ -53,8 +53,8 @@ require (
 	github.com/charlievieth/fastwalk v1.0.14 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834 // indirect
-	github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7 // indirect
-	github.com/charmbracelet/x/ansi v0.11.7 // indirect
+	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886 // indirect
+	github.com/charmbracelet/x/ansi v0.11.8 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.15 // indirect
 	github.com/charmbracelet/x/exp/charmtone v0.0.0-20250603201427-c31516f43444 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
@@ -83,7 +83,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.18.6 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
-	github.com/lucasb-eyer/go-colorful v1.4.0 // indirect
+	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.24 // indirect
