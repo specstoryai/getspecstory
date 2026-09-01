@@ -11,7 +11,7 @@ go 1.26.5
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
 require (
 	charm.land/bubbles/v2 v2.1.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
-	charm.land/bubbletea/v2 v2.0.8 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
+	charm.land/bubbletea/v2 v2.0.9 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
 	charm.land/lipgloss/v2 v2.0.5 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
 	github.com/betterleaks/betterleaks v1.7.3 // Detect and redact secrets
