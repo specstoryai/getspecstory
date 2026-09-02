@@ -16,7 +16,7 @@
 # Non-zero exit means "sensor failure", never "no change". Output is opaque to
 # the factory — byte-compared against the stored reading, never parsed.
 set -euo pipefail
-version=$(curl -fsSL https://api.meta.ai/muse-code/channels/muse-stable | jq -r '.version // empty')
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://api.meta.ai/muse-code/channels/muse-stable | jq -r '.version // empty')
 if [ -z "$version" ]; then
   echo "could not read .version from muse-stable channel manifest" >&2
   exit 1

@@ -11,7 +11,7 @@
 # Non-zero exit means "sensor failure", never "no change". Output is opaque to
 # the factory — byte-compared against the stored reading, never parsed.
 set -euo pipefail
-url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/google-antigravity/antigravity-cli/releases/latest)
+url=$(curl -fsSLI --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 -o /dev/null -w '%{url_effective}' https://github.com/google-antigravity/antigravity-cli/releases/latest)
 tag=${url##*/}
 # "latest" comes back unredirected when the repo has no releases — that is a
 # sensor failure, not a version.

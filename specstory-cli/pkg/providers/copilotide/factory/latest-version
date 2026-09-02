@@ -28,13 +28,13 @@ set -euo pipefail
 fail() { echo "$1" >&2; exit 1; }
 
 code_product_version() { # $1 = stable|insider
-  curl -fsSL "https://update.code.visualstudio.com/api/update/darwin/$1/latest" \
+  curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 "https://update.code.visualstudio.com/api/update/darwin/$1/latest" \
     | jq -re '.productVersion // empty'
 }
 
 github_latest_tag() { # $1 = owner/repo
   local url tag
-  url=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")
+  url=$(curl -fsSLI --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 -o /dev/null -w '%{url_effective}' "https://github.com/$1/releases/latest")
   tag=${url##*/}
   { [ -n "$tag" ] && [ "$tag" != "latest" ]; } || return 1
   printf '%s\n' "$tag"
@@ -44,7 +44,7 @@ stable=$(code_product_version stable)            || fail "vscode stable: update 
 insiders=$(code_product_version insider)         || fail "vscode insiders: update API unreadable"
 codium=$(github_latest_tag VSCodium/vscodium)    || fail "vscodium: no release tag resolved"
 codium_ins=$(github_latest_tag VSCodium/vscodium-insiders) || fail "vscodium-insiders: no release tag resolved"
-copilot_chat=$(curl -fsSL -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
+copilot_chat=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 -X POST "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" \
   -H "Content-Type: application/json" -H "Accept: application/json;api-version=3.0-preview.1" \
   -d '{"filters":[{"criteria":[{"filterType":7,"value":"GitHub.copilot-chat"}]}],"flags":103}' \
   | jq -re '.results[0].extensions[0].versions[0].version // empty') || fail "copilot-chat: marketplace query failed"

@@ -11,7 +11,7 @@
 # Non-zero exit means "sensor failure", never "no change". Output is opaque to
 # the factory — byte-compared against the stored reading, never parsed.
 set -euo pipefail
-version=$(curl -fsSL https://app.factory.ai/cli \
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://app.factory.ai/cli \
   | sed -n 's/^VER="\([^"]*\)".*/\1/p' | head -1)
 if [ -z "$version" ]; then
   echo "could not extract VER= from app.factory.ai/cli (installer format changed?)" >&2

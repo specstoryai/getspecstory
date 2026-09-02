@@ -10,7 +10,7 @@
 # Non-zero exit means "sensor failure", never "no change". Output is opaque to
 # the factory — byte-compared against the stored reading, never parsed.
 set -euo pipefail
-version=$(curl -fsSL https://cursor.com/install \
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://cursor.com/install \
   | sed -n 's|.*downloads\.cursor\.com/lab/\([^/]*\)/.*|\1|p' | head -1)
 if [ -z "$version" ]; then
   echo "could not extract version from cursor.com/install (installer format changed?)" >&2
