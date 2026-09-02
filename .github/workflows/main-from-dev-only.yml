@@ -31,10 +31,13 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
           BASE_REF: ${{ github.base_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
         run: |
           echo "Base branch: ${BASE_REF}"
           echo "Head branch: ${HEAD_REF}"
-          if [ "${HEAD_REF}" != "dev" ]; then
-            echo "::error::Pull requests into main must come from dev. Current head branch is '${HEAD_REF}'."
+          echo "Head repo: ${HEAD_REPO}"
+          if [[ "${HEAD_REF}" != "dev" || "${HEAD_REPO}" != "${REPO}" ]]; then
+            echo "::error::Pull requests into main must come from the dev branch in this repository. Current head is '${HEAD_REPO}:${HEAD_REF}'."
             exit 1
           fi
