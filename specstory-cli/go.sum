@@ -28,8 +28,8 @@ github.com/aymanbagabas/go-udiff v0.4.1 h1:OEIrQ8maEeDBXQDoGCbbTTXYJMYRCRO1fnodZ
 github.com/aymanbagabas/go-udiff v0.4.1/go.mod h1:0L9PGwj20lrtmEMeyw4WKJ/TMyDtvAoK9bf2u/mNo3w=
 github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=
 github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
-github.com/betterleaks/betterleaks v1.7.3 h1:la4EfTeJQnUOlluAMLCIaKCfyfN3Ut5qwizqapdCGCE=
-github.com/betterleaks/betterleaks v1.7.3/go.mod h1:/H0ZCwn7H2OO9ztmaH2iijwPQS4JFvFtW/BGlRj309U=
+github.com/betterleaks/betterleaks v1.8.1 h1:tTSQAdQe+S4MF69o6VtpRDlml1b73F1xNUUA3PcrHiI=
+github.com/betterleaks/betterleaks v1.8.1/go.mod h1:M8pR9QvWFx+iWcRH2HG6Qe1wP9DLXhHt75iMNyZ7Y+s=
 github.com/betterleaks/go-re2 v1.11.0-betterleaks.3 h1:89efHsGJOOCl1KH6GxBtixZNBkNzYIlKPtmQJizCBXU=
 github.com/betterleaks/go-re2 v1.11.0-betterleaks.3/go.mod h1:UzEofSJPdMG4B9tgB7ExxybS/jEV4nZxVdd2T5PcsEY=
 github.com/bodgit/plumbing v1.3.0 h1:pf9Itz1JOQgn7vEOE7v7nlEfBykYqvUYioC61TwWCFU=
