@@ -10,7 +10,7 @@ go 1.26.5
 // To check for outdated direct dependencies:
 // `go list -m -u -json all | jq -r 'select(.Indirect != true) | select(.Update != null) | "\(.Path) \(.Version) -> \(.Update.Version)"'`
 require (
-	charm.land/bubbles/v2 v2.1.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
+	charm.land/bubbles/v2 v2.2.1 // Terminal UI components for Go https://github.com/charmbracelet/bubbles
 	charm.land/bubbletea/v2 v2.0.9 // Terminal UI framework for Go https://github.com/charmbracelet/bubbletea
 	charm.land/lipgloss/v2 v2.0.6 // Terminal styling for Go https://github.com/charmbracelet/lipgloss
 	github.com/BurntSushi/toml v1.6.0 // TOML parsing for configuration files
@@ -86,7 +86,7 @@ require (
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.24 // indirect
+	github.com/mattn/go-runewidth v0.0.27 // indirect
 	github.com/mholt/archives v0.1.6-0.20260429171216-ef71b7a32fae // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/mikelolasagasti/xz v1.0.1 // indirect
