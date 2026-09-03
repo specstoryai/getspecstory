@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Enumerate Claude Code's self-reported tool inventory, for TOOL-AUDIT.
+#
+# Headless mode: `claude -p`. Run this in an empty throwaway directory under an
+# isolated $HOME (the caller's job — no user settings, no MCP servers, no
+# plugins: the inventory is the agent's built-in surface, deferred tools
+# included). Auth arrives as CLAUDE_CODE_OAUTH_TOKEN in the environment.
+#
+# Factory SPI contract: print the agent's raw tool list (as it wrote it) to
+# stdout and exit 0. Non-zero exit means enumeration failed — never an empty
+# or partial inventory. The agent's full JSON result is left in ./result.json
+# for diagnosis.
+set -euo pipefail
+claude="$HOME/.local/bin/claude"
+export DISABLE_AUTOUPDATER=1   # a native install auto-updates in the background; the audit pins its version
+
+prompt='Hello Claude, tell me all the tools you have access to, including any deferred tools you can load or discover through a tool search. Write all the tool names, one per line and nothing else, to the file `./tools.txt`.'
+
+rm -f tools.txt result.json
+"$claude" -p "$prompt" \
+  --output-format json --max-turns 10 \
+  --allowedTools Write --strict-mcp-config \
+  < /dev/null > result.json
+
+# The process exits 0 even on "Not logged in"; the JSON carries the truth.
+if [ "$(jq -r '.is_error' result.json)" != "false" ]; then
+  echo "list-tools: agent run failed: $(jq -r '.result' result.json)" >&2
+  exit 1
+fi
+if [ ! -s tools.txt ]; then
+  echo "list-tools: agent did not write tools.txt; its reply was:" >&2
+  jq -r '.result' result.json >&2
+  exit 1
+fi
+cat tools.txt
