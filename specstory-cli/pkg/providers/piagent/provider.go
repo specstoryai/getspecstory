@@ -132,9 +132,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		slog.Info("pi: Check version probe failed", "resolved", resolved, "error", err, "stderr", stderrOutput)
 		trackCheckFailure(isCustom, displayCmd, resolved, stderrOutput, errorType, err.Error())
 		return spi.CheckResult{
-			Success:      false,
-			Location:     resolved,
-			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, stderrOutput),
+			Success:  false,
+			Location: resolved,
+			// Use the resolved path, not displayCmd: LookPath already succeeded
+			// here, so any permission-fix guidance (e.g. "chmod +x") must point at
+			// the actual binary on disk, not a command/args string that isn't a
+			// valid chmod target and may not exist relative to the user's cwd.
+			ErrorMessage: buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput),
 		}
 	}
 	version := strings.TrimSpace(stdout.String())
