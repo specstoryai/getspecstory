@@ -16,15 +16,13 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
 const (
-	providerID    = "pi"
-	providerName  = "Pi"
-	defaultCmd    = "pi"
-	versionFlag   = "--version"
-	notYetSupport = "pi: %s not yet supported for the pi provider (v1 supports sync, list, search, reindex, check, and detect)"
+	providerID   = "pi"
+	providerName = "Pi"
+	defaultCmd   = "pi"
+	versionFlag  = "--version"
 )
 
 // Compile-time assertion that Provider satisfies the full spi.Provider contract.
@@ -54,7 +52,7 @@ func parsePiCommand(customCommand string) (string, []string) {
 			return expandTilde(parts[0]), parts[1:]
 		}
 	}
-	return defaultCmd, nil
+	return getDefaultPiCommand(), nil
 }
 
 // classifyCheckError buckets a Check failure for messaging and analytics,
@@ -172,31 +170,57 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return false
 }
 
-// ExecAgentAndWatch is the `specstory run pi` wrapper — out of v1 scope.
-func (p *Provider) ExecAgentAndWatch(_ string, _ string, _ string, _ bool, _ func(*spi.AgentChatSession)) error {
-	return fmt.Errorf(notYetSupport, "ExecAgentAndWatch (specstory run pi)")
+// ExecAgentAndWatch runs pi interactively (`specstory run pi`) while watching the
+// project's session directory, invoking sessionCallback as pi writes JSONL so
+// markdown generation and cloud sync happen live. It blocks until pi exits.
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	// pi resumes by exact session id (`pi --session-id <id>`); the id is pi's
+	// header `id`, an arbitrary string, so we only trim + reject empty here and
+	// let pi surface its own id-shape validation rather than second-guessing it
+	// (unlike Claude Code, whose ids are strictly UUIDs).
+	if resumeSessionID != "" {
+		resumeSessionID = strings.TrimSpace(resumeSessionID)
+		if resumeSessionID == "" {
+			return fmt.Errorf("pi: resume session id is empty after trimming whitespace")
+		}
+		slog.Info("pi: resuming session", "sessionId", resumeSessionID)
+	}
+
+	SetWatcherCallback(sessionCallback)
+	defer ClearWatcherCallback()
+	SetWatcherDebugRaw(debugRaw)
+
+	// Start the watcher before launching pi so nothing pi writes is missed.
+	// Non-fatal (same as the sibling providers): a failed watcher must not stop
+	// the user's interactive pi session.
+	if err := WatchForProjectDir(projectPath); err != nil {
+		slog.Error("pi: failed to start session watcher", "error", err)
+	}
+
+	err := ExecutePi(customCommand, resumeSessionID)
+	StopWatcher()
+	if err != nil {
+		return fmt.Errorf("pi execution failed: %w", err)
+	}
+	return nil
 }
 
-// WatchAgent is live watch — out of v1 scope.
-func (p *Provider) WatchAgent(_ context.Context, _ string, _ bool, _ func(*spi.AgentChatSession)) error {
-	return fmt.Errorf(notYetSupport, "WatchAgent")
-}
+// WatchAgent watches for pi session activity (`specstory watch pi`) and invokes
+// sessionCallback with each parsed session. It does not launch pi; it blocks
+// until the context is cancelled.
+func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	SetWatcherCallback(sessionCallback)
+	defer ClearWatcherCallback()
+	SetWatcherDebugRaw(debugRaw)
 
-// ReconstructSession is out of v1 scope; pi has no native serializer yet.
-func (p *Provider) ReconstructSession(_ *schema.SessionData, _ spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
-	return nil, errors.Join(spi.ErrReconstructionUnsupported, fmt.Errorf(notYetSupport, "ReconstructSession"))
-}
+	if err := WatchForProjectDir(projectPath); err != nil {
+		slog.Error("pi: failed to start session watcher", "error", err)
+		return fmt.Errorf("pi: failed to start watcher: %w", err)
+	}
 
-// NativeSessionPath is out of v1 scope (no native serializer).
-func (p *Provider) NativeSessionPath(_ string, _ string) (string, error) {
-	return "", errors.Join(spi.ErrReconstructionUnsupported, fmt.Errorf(notYetSupport, "NativeSessionPath"))
-}
-
-// SupportsReconstruction reports false: ReconstructSession/NativeSessionPath
-// above are out of v1 scope, so this provider must never be offered as a
-// cross-agent or cloud resume target until a native serializer exists.
-func (p *Provider) SupportsReconstruction() bool {
-	return false
+	<-ctx.Done()
+	StopWatcher()
+	return ctx.Err()
 }
 
 // trackCheckSuccess emits the standard install-check success analytics event,

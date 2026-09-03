@@ -250,7 +250,7 @@ func (f *fakeProvider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error
 // invalid reconstruction target.
 func TestSupportsReconstruction(t *testing.T) {
 	registry := factory.GetRegistry()
-	for id, want := range map[string]bool{"claude": true, "codex": true, "antigravity": false} {
+	for id, want := range map[string]bool{"claude": true, "codex": true, "pi": true, "antigravity": false} {
 		prov, err := registry.Get(id)
 		if err != nil {
 			t.Fatalf("registry.Get(%q): %v", id, err)

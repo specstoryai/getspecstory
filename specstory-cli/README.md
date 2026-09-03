@@ -38,7 +38,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Muse Code](https://github.com/facebook/muse-code)        | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
 | [Pi](https://pi.dev)                                      | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`      |
 
-> **Note:** Pi support currently covers `sync`, `list`, `search`, `reindex`, `check`, and `detect`. `specstory run pi`, `specstory watch pi`, and cross-machine session resume are not yet supported.
+> **Note:** Pi support covers `sync`, `list`, `search`, `reindex`, `check`, `detect`, `run`, and `watch`, plus cross-provider session reconstruction (`specstory resume`). Pi resumes an existing session by exact id via `pi --session-id <id>`.
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 

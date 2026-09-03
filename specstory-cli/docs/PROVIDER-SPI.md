@@ -17,7 +17,7 @@ The SPI defines a standard interface that all agent providers must implement. Th
 | `muse` | Muse Code | `~/.local/share/muse/sessions/YYYY/MM/DD/<session-id>/session.jsonl` |
 | `pi` | Pi | `~/.pi/agent/sessions/--<encoded-cwd>--/<timestamp>_<uuid>.jsonl` |
 
-> The `pi` provider currently implements sync/list/search/reindex/check/detect; `run`, `watch`, and session reconstruction return descriptive "not yet supported" errors.
+> The `pi` provider implements sync/list/search/reindex/check/detect, `run`, `watch`, and native session reconstruction (`ReconstructSession`/`NativeSessionPath`), so it can be a cross-provider `resume` target.
 
 ## Quick Start: Implementing a New Provider
 
