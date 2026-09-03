@@ -2,6 +2,7 @@ package piagent
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,9 +17,14 @@ import (
 // malicious files (a legitimate pi session line — a big tool result or base64
 // image — can exceed the 16MB bufio.Scanner cap, so we do NOT use Scanner).
 const (
-	KB                    = 1024
-	MB                    = 1024 * 1024
-	maxReasonableLineSize = 250 * MB
+	KB = 1024
+	MB = 1024 * 1024
+)
+
+var (
+	maxReasonableLineSize       = 250 * MB
+	maxReasonableSessionBytes   = 512 * MB
+	maxReasonableSessionEntries = 200_000
 )
 
 // readLines reads a pi session file line-by-line via bufio.Reader (unbounded
@@ -34,14 +40,51 @@ func readLines(path string, visit func(line string) error) error {
 
 	reader := bufio.NewReader(f)
 	lineNum := 0
+	var longLine bytes.Buffer
 	for {
-		line, readErr := reader.ReadString('\n')
+		part, isPrefix, readErr := reader.ReadLine()
 		if readErr != nil && readErr != io.EOF {
 			return fmt.Errorf("pi: reading line %d of %s: %w", lineNum+1, path, readErr)
 		}
-		line = strings.TrimSuffix(line, "\n")
+		if len(part) > 0 {
+			if longLine.Len()+len(part) > maxReasonableLineSize {
+				slog.Warn("pi: line exceeds reasonable size limit",
+					"lineNumber", lineNum+1, "sizeMB", (longLine.Len()+len(part))/MB,
+					"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
+				return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
+					lineNum+1, path, maxReasonableLineSize/MB)
+			}
+			if _, wErr := longLine.Write(part); wErr != nil {
+				return fmt.Errorf("pi: buffering line %d of %s: %w", lineNum+1, path, wErr)
+			}
+		}
+		if readErr == io.EOF {
+			if longLine.Len() == 0 {
+				return nil
+			}
+			lineNum++
+			trimmed := strings.TrimSpace(longLine.String())
+			longLine.Reset()
+			if trimmed != "" {
+				if len(trimmed) > maxReasonableLineSize {
+					slog.Warn("pi: line exceeds reasonable size limit",
+						"lineNumber", lineNum, "sizeMB", len(trimmed)/MB,
+						"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
+					return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
+						lineNum, path, maxReasonableLineSize/MB)
+				}
+				if vErr := visit(trimmed); vErr != nil {
+					return vErr
+				}
+			}
+			return nil
+		}
+		if isPrefix {
+			continue
+		}
 		lineNum++
-		trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(longLine.String())
+		longLine.Reset()
 		if trimmed != "" {
 			if len(trimmed) > maxReasonableLineSize {
 				slog.Warn("pi: line exceeds reasonable size limit",
@@ -54,9 +97,6 @@ func readLines(path string, visit func(line string) error) error {
 				return vErr
 			}
 		}
-		if readErr == io.EOF {
-			return nil
-		}
 	}
 }
 
@@ -66,7 +106,13 @@ func readLines(path string, visit func(line string) error) error {
 func readEntries(path string) (*sessionHeader, []rawEntry, error) {
 	var header *sessionHeader
 	var entries []rawEntry
+	totalBytes := 0
 	err := readLines(path, func(line string) error {
+		totalBytes += len(line)
+		if totalBytes > maxReasonableSessionBytes {
+			return fmt.Errorf("pi: session %s exceeds %dMB total JSONL payload (refusing to process potentially malformed file)",
+				path, maxReasonableSessionBytes/MB)
+		}
 		if header == nil {
 			h := sessionHeader{}
 			if jErr := json.Unmarshal([]byte(line), &h); jErr != nil {
@@ -94,6 +140,10 @@ func readEntries(path string) (*sessionHeader, []rawEntry, error) {
 				pid := entries[len(entries)-1].ID
 				e.ParentID = &pid
 			}
+		}
+		if len(entries)+1 > maxReasonableSessionEntries {
+			return fmt.Errorf("pi: session %s exceeds %d entries (refusing to process potentially malformed file)",
+				path, maxReasonableSessionEntries)
 		}
 		entries = append(entries, e)
 		return nil

@@ -114,6 +114,52 @@ func TestParse_LargeLineOverScannerCap(t *testing.T) {
 	}
 }
 
+// TestParse_OversizeLineWithoutTrailingNewlineRejected asserts readLines rejects
+// oversized final lines even when the file does not end with '\n'.
+func TestParse_OversizeLineWithoutTrailingNewlineRejected(t *testing.T) {
+	origLineLimit := maxReasonableLineSize
+	maxReasonableLineSize = 64
+	t.Cleanup(func() {
+		maxReasonableLineSize = origLineLimit
+	})
+
+	path := filepath.Join(t.TempDir(), "no-newline-oversize.jsonl")
+	payload := `{"type":"session","version":3,"id":"x","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}` + "\n" +
+		strings.Repeat("x", 80) // no trailing newline on purpose
+	if err := os.WriteFile(path, []byte(payload), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	if _, err := ParseSession(path); err == nil {
+		t.Fatal("ParseSession returned nil error for oversized final line without newline")
+	}
+}
+
+// TestParse_AggregateEntryLimitRejected asserts parse refuses sessions with an
+// unreasonable number of entries to bound aggregate memory usage.
+func TestParse_AggregateEntryLimitRejected(t *testing.T) {
+	origEntryLimit := maxReasonableSessionEntries
+	maxReasonableSessionEntries = 2
+	t.Cleanup(func() {
+		maxReasonableSessionEntries = origEntryLimit
+	})
+
+	path := filepath.Join(t.TempDir(), "too-many-entries.jsonl")
+	session := `{"type":"session","version":3,"id":"limit-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+` +
+		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"one","timestamp":1783600001000}}
+` +
+		`{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"two"}],"provider":"x","model":"m"}}
+` +
+		`{"type":"message","id":"u2","parentId":"a1","timestamp":"2026-07-09T10:00:03.000Z","message":{"role":"user","content":"three","timestamp":1783600003000}}
+`
+	if err := os.WriteFile(path, []byte(session), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	if _, err := ParseSession(path); err == nil {
+		t.Fatal("ParseSession returned nil error for over-limit entry count")
+	}
+}
+
 // TestParse_ParentIdCycleTerminates asserts walkToRoot's visited guard prevents
 // an infinite loop when a corrupted session has a parentId cycle.
 func TestParse_ParentIdCycleTerminates(t *testing.T) {

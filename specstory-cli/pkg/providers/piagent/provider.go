@@ -106,37 +106,42 @@ func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr str
 // Check verifies the pi binary is available and reports its version.
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustom := strings.TrimSpace(customCommand) != ""
-	cmdName, _ := parsePiCommand(customCommand)
+	cmdName, cmdArgs := parsePiCommand(customCommand)
+	displayCmd := strings.TrimSpace(strings.Join(append([]string{cmdName}, cmdArgs...), " "))
+	if displayCmd == "" {
+		displayCmd = cmdName
+	}
 	resolved, err := exec.LookPath(cmdName)
 	if err != nil {
 		errorType := classifyCheckError(err)
 		slog.Info("pi: Check binary not found", "command", cmdName, "error", err)
-		trackCheckFailure(isCustom, cmdName, "", "", errorType, err.Error())
+		trackCheckFailure(isCustom, displayCmd, "", "", errorType, err.Error())
 		return spi.CheckResult{
 			Success:      false,
-			ErrorMessage: buildCheckErrorMessage(errorType, cmdName, isCustom, ""),
+			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, ""),
 		}
 	}
 	var stdout, stderr bytes.Buffer
-	cmd := exec.Command(resolved, versionFlag)
+	versionArgs := append(append([]string{}, cmdArgs...), versionFlag)
+	cmd := exec.Command(resolved, versionArgs...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		errorType := classifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		slog.Info("pi: Check version probe failed", "resolved", resolved, "error", err, "stderr", stderrOutput)
-		trackCheckFailure(isCustom, cmdName, resolved, stderrOutput, errorType, err.Error())
+		trackCheckFailure(isCustom, displayCmd, resolved, stderrOutput, errorType, err.Error())
 		return spi.CheckResult{
 			Success:      false,
 			Location:     resolved,
-			ErrorMessage: buildCheckErrorMessage(errorType, cmdName, isCustom, stderrOutput),
+			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, stderrOutput),
 		}
 	}
 	version := strings.TrimSpace(stdout.String())
 	if version == "" {
 		version = "unknown"
 	}
-	trackCheckSuccess(isCustom, cmdName, resolved, version)
+	trackCheckSuccess(isCustom, displayCmd, resolved, version)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -481,6 +486,15 @@ type piSessionScan struct {
 	foundUser        bool
 }
 
+// scanEntry is the lightweight branch-walk shape used by scanPiSession.
+// It avoids retaining full message payloads for list/reindex metadata scans.
+type scanEntry struct {
+	ID       string
+	ParentID *string
+	Type     string
+	UserText string
+}
+
 // scanPiSession reads a pi session file's metadata for listing: the header
 // (session id, timestamp, cwd), the first user message text on the active leaf
 // path, and the latest session_info display name. Returns (scan, nil) for a
@@ -495,28 +509,25 @@ func scanPiSession(path string) (*piSessionScan, error) {
 	if h == nil {
 		return nil, nil // not a pi session file
 	}
-	_, entries, err := readEntries(path)
+	entries, latestSessionName, err := readScanEntries(path)
 	if err != nil {
 		return nil, err
 	}
 	if len(entries) == 0 {
 		return nil, nil // header-only session; nothing to list
 	}
-	scan := &piSessionScan{sessionID: h.ID, timestamp: h.Timestamp, cwd: h.Cwd}
-	// pi resolves the display name from the LATEST session_info entry in file
-	// order (not the leaf path), and an empty name explicitly clears the title
-	// (session-manager.ts getSessionName) — mirror both rules.
-	for _, e := range entries {
-		if e.Type == entrySessionInfo {
-			scan.sessionName = strings.TrimSpace(e.Name)
-		}
+	scan := &piSessionScan{
+		sessionID:   h.ID,
+		timestamp:   h.Timestamp,
+		cwd:         h.Cwd,
+		sessionName: latestSessionName,
 	}
-	for _, e := range leafPathEntries(entries) {
+	for _, e := range leafPathScanEntries(entries) {
 		if scan.foundUser || e.Type != entryMessage {
 			continue
 		}
-		if msg := firstUserText(e); msg != "" {
-			scan.firstUserMessage = msg
+		if e.UserText != "" {
+			scan.firstUserMessage = e.UserText
 			scan.foundUser = true
 		}
 	}
@@ -524,6 +535,83 @@ func scanPiSession(path string) (*piSessionScan, error) {
 		return nil, nil // no user prompt; nothing worth listing
 	}
 	return scan, nil
+}
+
+func readScanEntries(path string) ([]scanEntry, string, error) {
+	var entries []scanEntry
+	var sessionName string
+	totalBytes := 0
+	first := true
+	err := readLines(path, func(line string) error {
+		totalBytes += len(line)
+		if totalBytes > maxReasonableSessionBytes {
+			return fmt.Errorf("pi: session %s exceeds %dMB total JSONL payload (refusing to process potentially malformed file)",
+				path, maxReasonableSessionBytes/MB)
+		}
+		if first {
+			first = false // header already parsed by readHeader
+			return nil
+		}
+		var e rawEntry
+		if jErr := json.Unmarshal([]byte(line), &e); jErr != nil {
+			return nil // skip malformed line, keep going
+		}
+		if e.Type == "" {
+			return nil
+		}
+		if len(entries)+1 > maxReasonableSessionEntries {
+			return fmt.Errorf("pi: session %s exceeds %d entries (refusing to process potentially malformed file)",
+				path, maxReasonableSessionEntries)
+		}
+		if e.Type == entrySessionInfo {
+			sessionName = strings.TrimSpace(e.Name)
+		}
+		id := e.ID
+		parentID := e.ParentID
+		if id == "" {
+			id = fmt.Sprintf("legacy-%d", len(entries)+1)
+			if len(entries) > 0 {
+				prevID := entries[len(entries)-1].ID
+				parentID = &prevID
+			}
+		}
+		light := scanEntry{ID: id, ParentID: parentID, Type: e.Type}
+		if e.Type == entryMessage {
+			light.UserText = firstUserText(e)
+		}
+		entries = append(entries, light)
+		return nil
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return entries, sessionName, nil
+}
+
+func leafPathScanEntries(entries []scanEntry) []scanEntry {
+	byID := make(map[string]scanEntry, len(entries))
+	for _, e := range entries {
+		byID[e.ID] = e
+	}
+	cur := entries[len(entries)-1]
+	path := make([]scanEntry, 0, len(entries))
+	visited := make(map[string]bool)
+	for !visited[cur.ID] {
+		visited[cur.ID] = true
+		path = append(path, cur)
+		if cur.ParentID == nil {
+			break
+		}
+		parent, ok := byID[*cur.ParentID]
+		if !ok {
+			break
+		}
+		cur = parent
+	}
+	for i, j := 0, len(path)-1; i < j; i, j = i+1, j-1 {
+		path[i], path[j] = path[j], path[i]
+	}
+	return path
 }
 
 // scanName returns the display name for a scanned session: the user-set
