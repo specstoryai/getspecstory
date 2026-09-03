@@ -27,6 +27,12 @@ const (
 	notYetSupport = "pi: %s not yet supported for the pi provider (v1 supports sync, list, search, reindex, check, and detect)"
 )
 
+// Compile-time assertion that Provider satisfies the full spi.Provider contract.
+// The interface conformance is otherwise only exercised at registration in the
+// factory package, so a locally missing method fails there rather than here;
+// this guard surfaces the gap in the provider's own package.
+var _ spi.Provider = (*Provider)(nil)
+
 // Provider implements spi.Provider for the pi coding agent.
 // pi stores sessions as JSONL v3 trees under ~/.pi/agent/sessions/--<encoded-cwd>--/.
 type Provider struct{}
@@ -175,6 +181,13 @@ func (p *Provider) ReconstructSession(_ *schema.SessionData, _ spi.ReconstructOp
 // NativeSessionPath is out of v1 scope (no native serializer).
 func (p *Provider) NativeSessionPath(_ string, _ string) (string, error) {
 	return "", errors.Join(spi.ErrReconstructionUnsupported, fmt.Errorf(notYetSupport, "NativeSessionPath"))
+}
+
+// SupportsReconstruction reports false: ReconstructSession/NativeSessionPath
+// above are out of v1 scope, so this provider must never be offered as a
+// cross-agent or cloud resume target until a native serializer exists.
+func (p *Provider) SupportsReconstruction() bool {
+	return false
 }
 
 // trackCheckSuccess emits the standard install-check success analytics event,
