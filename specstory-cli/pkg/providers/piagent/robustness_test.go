@@ -134,29 +134,61 @@ func TestParse_OversizeLineWithoutTrailingNewlineRejected(t *testing.T) {
 	}
 }
 
-// TestParse_AggregateEntryLimitRejected asserts parse refuses sessions with an
-// unreasonable number of entries to bound aggregate memory usage.
-func TestParse_AggregateEntryLimitRejected(t *testing.T) {
-	origEntryLimit := maxReasonableSessionEntries
-	maxReasonableSessionEntries = 2
-	t.Cleanup(func() {
-		maxReasonableSessionEntries = origEntryLimit
-	})
-
-	path := filepath.Join(t.TempDir(), "too-many-entries.jsonl")
-	session := `{"type":"session","version":3,"id":"limit-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+// TestScan_DoesNotRetainMessagePayloads asserts the metadata-only scan path
+// (readScanEntries) never keeps an entry's large message body in memory: for
+// a session with a large assistant message and a large tool result, every
+// non-user scanEntry must come back with an empty UserText, and the total
+// bytes retained across all entries must be tiny relative to the session
+// file — proving the scan discards each rawEntry's Message payload after a
+// per-line decode instead of accumulating it the way a full parse must.
+// This is the aggregate-memory fix from the greptile review: rather than
+// capping session size, the scan path stops retaining what it never reads.
+func TestScan_DoesNotRetainMessagePayloads(t *testing.T) {
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "big-payloads.jsonl")
+	bigAssistantText := strings.Repeat("a", 5*1024*1024) // 5MB assistant text
+	bigToolResult := strings.Repeat("b", 5*1024*1024)    // 5MB tool result
+	session := `{"type":"session","version":3,"id":"big-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
 ` +
-		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"one","timestamp":1783600001000}}
+		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"go","timestamp":1783600001000}}
 ` +
-		`{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"two"}],"provider":"x","model":"m"}}
+		`{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"` + bigAssistantText + `"},{"type":"toolCall","id":"call-1","name":"bash","arguments":{"command":"cat big"}}],"provider":"x","model":"m"}}
 ` +
-		`{"type":"message","id":"u2","parentId":"a1","timestamp":"2026-07-09T10:00:03.000Z","message":{"role":"user","content":"three","timestamp":1783600003000}}
+		`{"type":"message","id":"tr1","parentId":"a1","timestamp":"2026-07-09T10:00:03.000Z","message":{"role":"toolResult","toolCallId":"call-1","toolName":"bash","content":[{"type":"text","text":"` + bigToolResult + `"}],"isError":false,"timestamp":1783600003000}}
 `
 	if err := os.WriteFile(path, []byte(session), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
-	if _, err := ParseSession(path); err == nil {
-		t.Fatal("ParseSession returned nil error for over-limit entry count")
+
+	entries, _, err := readScanEntries(path)
+	if err != nil {
+		t.Fatalf("readScanEntries returned error: %v", err)
+	}
+	if len(entries) != 3 {
+		t.Fatalf("got %d scan entries, want 3", len(entries))
+	}
+	var retainedBytes int
+	for _, e := range entries {
+		retainedBytes += len(e.UserText)
+		if e.ID == "u1" {
+			continue // the one entry allowed to carry text
+		}
+		if e.UserText != "" {
+			t.Errorf("non-user scan entry %q retained %d bytes of message text, want none", e.ID, len(e.UserText))
+		}
+	}
+	if retainedBytes > 1*KB {
+		t.Errorf("readScanEntries retained %d bytes across all entries, want well under the 10MB of message payloads in the fixture", retainedBytes)
+	}
+
+	// scanPiSession must still resolve the session end to end via the same
+	// lightweight path.
+	scan, err := scanPiSession(path)
+	if err != nil {
+		t.Fatalf("scanPiSession returned error: %v", err)
+	}
+	if scan == nil || !scan.foundUser || scan.firstUserMessage != "go" {
+		t.Fatalf("scanPiSession = %+v, want foundUser with firstUserMessage \"go\"", scan)
 	}
 }
 
