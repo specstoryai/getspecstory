@@ -1,6 +1,7 @@
 package piagent
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -448,7 +449,16 @@ func TestPath_FlatSessionDirFiltersByHeaderCwd(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv(envSessionDir, dir)
 	proj := t.TempDir()
-	mine := `{"type":"session","version":3,"id":"mine-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"` + proj + `"}
+	// proj is a real OS temp dir path; on Windows it contains backslashes,
+	// which are not valid unescaped inside a JSON string. json.Marshal
+	// produces a correctly quoted/escaped JSON string literal so the fixture
+	// is valid JSON on every platform, matching what a real pi session file
+	// (written by an actual JSON encoder) would contain.
+	projJSON, err := json.Marshal(proj)
+	if err != nil {
+		t.Fatalf("marshal proj: %v", err)
+	}
+	mine := `{"type":"session","version":3,"id":"mine-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":` + string(projJSON) + `}
 {"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"hi","timestamp":1783600001000}}
 `
 	other := `{"type":"session","version":3,"id":"other-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/somewhere/else"}
