@@ -35,6 +35,7 @@ In the line by line review, pay attention to:
 - missing log output
 - missing analytics tracking
 - single function exit point where possible (immediate guard clauses are OK)
+- goroutines tracked by a `sync.WaitGroup` use `wg.Go(func() { ... })`, never `wg.Add(1)` paired with a `defer wg.Done()` — flag any `Add`/`Done` pair, especially one where the `Done` sits in a different function from its `Add`
 - verify the code has to exist, is actually needed, and is in use
 - verify the code is DRY, and doesn't replicate the same or similar code
 - for test cases, ensure a data-driven approach is being used rather than lots of repetitive test code

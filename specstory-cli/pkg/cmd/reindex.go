@@ -186,13 +186,11 @@ func enumerateAll(registry *factory.Registry, visible bool) (ids []string, provs
 		}
 		provs[i] = prov
 		reporter := scan.reporterFor(id)
-		ewg.Add(1)
-		go func(i int, id string, prov spi.Provider, reporter *spi.ScanReporter) {
-			defer ewg.Done()
+		ewg.Go(func() {
 			refs := enumerateOne(id, prov, reporter)
 			perProvider[i] = refs
 			scan.markDone(id, len(refs))
-		}(i, id, prov, reporter)
+		})
 	}
 	ewg.Wait()
 	return ids, provs, perProvider
@@ -395,9 +393,7 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 	workCh := make(chan reindexItem)
 	var wwg sync.WaitGroup
 	for w := 0; w < workers; w++ {
-		wwg.Add(1)
-		go func() {
-			defer wwg.Done()
+		wwg.Go(func() {
 			for item := range workCh {
 				sess := buildSession(item, cache, indexedAt)
 				rep.observe(sess.ProjectID)
@@ -410,7 +406,7 @@ func processWork(ctx context.Context, store *sessionindex.Store, work []reindexI
 					return
 				}
 			}
-		}()
+		})
 	}
 
 	for _, item := range work {

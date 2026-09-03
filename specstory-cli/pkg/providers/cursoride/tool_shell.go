@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // ShellCommandHandler handles run_terminal_cmd, run_terminal_command, and run_terminal_command_v2 tool invocations
@@ -55,7 +57,7 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (summary 
 	var message strings.Builder
 	if command != "" {
 		summary = fmt.Sprintf("Tool use: **%s** • Run command: %s", escapeSummaryText(bubble.Name), escapeSummaryText(command))
-		message.WriteString(fencedBlock("bash", command))
+		message.WriteString(spi.CodeFence("bash", command))
 	} else {
 		summary = fmt.Sprintf("Tool use: **%s**", escapeSummaryText(bubble.Name))
 	}
@@ -64,7 +66,7 @@ func (h *ShellCommandHandler) AdaptMessage(bubble *BubbleConversation) (summary 
 	// capped — command output can be arbitrarily large.
 	if result.Output != "" {
 		message.WriteString("\n\n")
-		message.WriteString(fencedBlock("", capRunes(result.Output, toolResultCap)))
+		message.WriteString(spi.CodeFence("", spi.CapRunes(result.Output, toolResultCap)))
 	}
 
 	return summary, message.String(), nil

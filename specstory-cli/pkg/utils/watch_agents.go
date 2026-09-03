@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"sync"
 
@@ -54,10 +55,7 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 	errChan := make(chan error, len(providers))
 
 	for providerID, provider := range providers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			slog.Info("WatchProviders: Starting watcher for provider", "providerID", providerID, "providerName", provider.Name())
 
 			// Wrap the callback to deduplicate and include provider ID
@@ -110,7 +108,7 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 			} else {
 				errChan <- nil
 			}
-		}()
+		})
 	}
 
 	// Wait for all watchers to complete (they run until Ctrl+C)
@@ -137,33 +135,45 @@ func WatchProviders(ctx context.Context, projectPath string, providers map[strin
 // sessionFingerprint summarizes the parsed content of a session for callback
 // deduplication. Comparable by value.
 type sessionFingerprint struct {
-	messages     int // total messages across all exchanges
-	contentBytes int // total bytes of message text, tool summaries, and pre-rendered tool markdown
+	messages     int    // total messages across all exchanges
+	contentBytes int    // total bytes of message text, tool summaries, and pre-rendered tool markdown
+	contentHash  uint64 // FNV-1a over the same content; catches edits that keep the total length identical
 }
 
 // fingerprintSession computes the dedup fingerprint for a session. Content size
 // is tracked alongside the message count because a streaming agent response can
-// grow the text of an existing message without adding new messages.
+// grow the text of an existing message without adding new messages; the hash is
+// tracked as well because an in-place edit can change content without changing
+// its total length, and suppressing that callback would leave stale markdown.
 func fingerprintSession(session *spi.AgentChatSession) sessionFingerprint {
 	var fp sessionFingerprint
+	h := fnv.New64a()
+	// A zero byte after every part keeps part boundaries in the hash, so content
+	// shifting between adjacent parts can't collide with the original.
+	addContent := func(s string) {
+		fp.contentBytes += len(s)
+		_, _ = h.Write([]byte(s))
+		_, _ = h.Write([]byte{0})
+	}
 	for _, exchange := range session.SessionData.Exchanges {
 		fp.messages += len(exchange.Messages)
 		for _, msg := range exchange.Messages {
 			for _, part := range msg.Content {
-				fp.contentBytes += len(part.Text)
+				addContent(part.Text)
 			}
 			if msg.Tool != nil {
 				// The summary is rendered content too (markdown <summary> tag), and a
 				// provider can update it alone — e.g. when a running tool completes —
 				// without growing any message text or formatted markdown.
 				if msg.Tool.Summary != nil {
-					fp.contentBytes += len(*msg.Tool.Summary)
+					addContent(*msg.Tool.Summary)
 				}
 				if msg.Tool.FormattedMarkdown != nil {
-					fp.contentBytes += len(*msg.Tool.FormattedMarkdown)
+					addContent(*msg.Tool.FormattedMarkdown)
 				}
 			}
 		}
 	}
+	fp.contentHash = h.Sum64()
 	return fp
 }

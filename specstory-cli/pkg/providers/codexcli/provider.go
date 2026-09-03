@@ -144,7 +144,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	if versionOutput == "" {
-		errorType := "no_output"
+		errorType := spi.CheckErrorNoOutput
 		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
 			"provider":       "codex",
 			"custom_command": isCustomCommand,
@@ -886,9 +886,15 @@ func findFirstUserMessage(records []map[string]interface{}) string {
 			continue
 		}
 
-		// Check if this is a user message
+		// Check if this is a user message, in either of the shapes Codex writes
 		payloadType, ok := payload["type"].(string)
-		if !ok || payloadType != "user_message" {
+		if !ok {
+			continue
+		}
+		if payloadType == itemCompletedEvent {
+			payloadType, payload = codexItemAsLegacyEvent(payload)
+		}
+		if payloadType != "user_message" {
 			continue
 		}
 
@@ -984,7 +990,11 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 					"error", jsonErr)
 			} else if recordType, ok := record["type"].(string); ok && recordType == "event_msg" {
 				if payload, ok := record["payload"].(map[string]interface{}); ok {
-					if payloadType, ok := payload["type"].(string); ok && payloadType == "user_message" {
+					payloadType, _ := payload["type"].(string)
+					if payloadType == itemCompletedEvent {
+						payloadType, payload = codexItemAsLegacyEvent(payload)
+					}
+					if payloadType == "user_message" {
 						if message, ok := payload["message"].(string); ok && message != "" {
 							firstUserMessage = message
 						}
@@ -1027,11 +1037,16 @@ type codexSessionHeader struct {
 	firstUserMessage string
 }
 
-// userMessageMarker is the cheap substring screen for a Codex user_message record. Every real
-// user_message record contains it (it is the payload "type" value), so screening on it before a
-// full JSON parse never misses one; a rare false positive (the literal text inside an injected
-// context record) just costs one extra parse that codexUserMessageText then rejects.
-const userMessageMarker = `"user_message"`
+// userMessageMarker and itemUserMessageMarker are the cheap substring screens for the two shapes
+// a Codex first prompt takes: the user_message event, and the thread item 0.147's TUI writes in
+// its place. Every real record of either kind contains its marker (each is a JSON "type" value),
+// so screening on them before a full JSON parse never misses one; a rare false positive (the
+// literal text inside an injected context record) just costs one extra parse that
+// codexUserMessageText then rejects.
+const (
+	userMessageMarker     = `"user_message"`
+	itemUserMessageMarker = `"UserMessage"`
+)
 
 // scanCodexSessionHeader reads a Codex session file ONCE and extracts the session_meta
 // (id/cwd/timestamp from line 1) and the first user message. It deliberately avoids fully
@@ -1086,7 +1101,7 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 				h.cwd = meta.Payload.CWD
 				h.createdAt = meta.Timestamp
 			}
-		} else if strings.Contains(line, userMessageMarker) {
+		} else if strings.Contains(line, userMessageMarker) || strings.Contains(line, itemUserMessageMarker) {
 			// Cheap screen passed: only now pay for a full parse. The big context records before
 			// the first user message lack the marker and are skipped without a parse. The marker
 			// is interior JSON, so the screen runs on the RAW line — no TrimSpace copy of a
@@ -1111,9 +1126,9 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 	return h, nil
 }
 
-// codexUserMessageText returns the message text when line is an event_msg user_message with a
-// non-empty message, else "". It is only called for lines that passed the userMessageMarker
-// screen, and applies the same structural checks extractCodexSessionMetadata used.
+// codexUserMessageText returns the message text when line is an event_msg carrying a user prompt
+// in either shape Codex writes, else "". It is only called for lines that passed one of the
+// marker screens, and applies the same structural checks extractCodexSessionMetadata used.
 func codexUserMessageText(line string) string {
 	var record map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &record); err != nil {
@@ -1126,7 +1141,11 @@ func codexUserMessageText(line string) string {
 	if !ok {
 		return ""
 	}
-	if payloadType, _ := payload["type"].(string); payloadType != "user_message" {
+	payloadType, _ := payload["type"].(string)
+	if payloadType == itemCompletedEvent {
+		payloadType, payload = codexItemAsLegacyEvent(payload)
+	}
+	if payloadType != "user_message" {
 		return ""
 	}
 	message, _ := payload["message"].(string)

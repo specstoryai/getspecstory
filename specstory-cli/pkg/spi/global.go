@@ -114,9 +114,7 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for path := range pathCh {
 				ref, scanErr := safeScan(scan, path)
 				if scanErr != nil {
@@ -131,7 +129,7 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 				mu.Unlock()
 				r.Add(1) // count sessions found, not files scanned
 			}
-		}()
+		})
 	}
 	for _, path := range paths {
 		pathCh <- path
@@ -139,6 +137,26 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 	close(pathCh)
 	wg.Wait()
 	return refs, nil
+}
+
+// DispatchSession hands session to cb on its own goroutine, recovering from a
+// panic so that one malformed session cannot take down a running watcher.
+// label names the provider in the panic log.
+//
+// Delivery is fire-and-forget: a watcher that must wait for in-flight callbacks
+// before shutting down needs its own WaitGroup around cb instead.
+func DispatchSession(label string, cb func(*AgentChatSession), session *AgentChatSession) {
+	if cb == nil || session == nil {
+		return
+	}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error(label+": session callback panicked", "panic", r)
+			}
+		}()
+		cb(session)
+	}()
 }
 
 // safeScan runs scan(path), converting a panic into an error so one malformed session file is

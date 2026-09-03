@@ -160,12 +160,6 @@ If you need specific details from before exiting plan mode (like exact code snip
 
 _**Agent (claude-opus-4-6 2026-02-16 23:35:58Z)**_
 
-
-
-
-
-_**Agent (claude-opus-4-6 2026-02-16 23:35:58Z)**_
-
 <think><details><summary>Thought Process</summary>
 Let me implement this plan step by step. First, I need to read the relevant files to understand the current code before making changes.
 </details></think>
@@ -3037,9 +3031,13 @@ _**User (2026-02-20 16:31:42Z)**_
             <command-message>exit</command-message>
             <command-args></command-args>
 
+---
+
 _**User (2026-02-20 16:31:42Z)**_
 
 <local-command-stdout>See ya!</local-command-stdout>
+
+---
 
 _**User (2026-02-20 16:31:42Z)**_
 

@@ -2,10 +2,10 @@ package claudecode
 
 import (
 	"fmt"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Todo status constants
@@ -71,61 +71,22 @@ var (
 
 // makeRelativePath converts an absolute path to relative if it's within the cwd
 func makeRelativePath(absolutePath, cwd string) string {
-	if cwd == "" {
+	// Delegate the relativization to the shared shape-based engine. The path
+	// comes from the session recording — possibly written on another OS — so
+	// host-dependent filepath helpers and host case-folding would corrupt it.
+	// The comparison is exact: cwd is the canonicalized effective project path
+	// (see utils.ResolveProjectPath), which matches the on-disk spelling agents
+	// record even when the specstory process was launched from a
+	// differently-cased spelling of the same directory.
+	rel := spi.NormalizePath(absolutePath, cwd)
+	if rel == absolutePath {
+		// Outside cwd (or already relative): keep the recorded form.
 		return absolutePath
 	}
-
-	// Normalize paths
-	normalizedPath := filepath.Clean(absolutePath)
-	normalizedCwd := filepath.Clean(cwd)
-
-	// On macOS, filesystem is case-insensitive by default, so use case-insensitive comparison
-	// On Linux and other OSes, use case-sensitive comparison
-	var hasPrefix bool
-	if runtime.GOOS == "darwin" {
-		// Case-insensitive comparison for macOS
-		hasPrefix = strings.HasPrefix(strings.ToLower(normalizedPath), strings.ToLower(normalizedCwd))
-	} else {
-		// Case-sensitive comparison for other OSes
-		hasPrefix = strings.HasPrefix(normalizedPath, normalizedCwd)
+	if rel == "." {
+		return "./"
 	}
-
-	if hasPrefix {
-		// Use the original normalized path lengths to trim (preserving original case)
-		relativePath := normalizedPath[len(normalizedCwd):]
-		if !strings.HasPrefix(relativePath, "/") {
-			relativePath = "/" + relativePath
-		}
-		return "." + relativePath
-	}
-
-	return absolutePath
-}
-
-// getLanguageFromExtension returns the language identifier for syntax highlighting based on file extension
-func getLanguageFromExtension(filePath string) string {
-	if filePath == "" {
-		return ""
-	}
-
-	ext := strings.TrimPrefix(filepath.Ext(filePath), ".")
-
-	// Map common extensions to language identifiers
-	switch ext {
-	case "js":
-		return "javascript"
-	case "ts":
-		return "typescript"
-	case "py":
-		return "python"
-	case "rb":
-		return "ruby"
-	case "yml":
-		return "yaml"
-	default:
-		// Common extensions that don't need mapping: go, java, c, cpp, json, xml, sh, etc.
-		return ext
-	}
+	return "./" + rel
 }
 
 // formatBashTool formats Bash tool usage with command on a new line in backticks
@@ -143,8 +104,7 @@ func formatBashTool(toolName string, input map[string]interface{}, description s
 		if command, ok := input["command"].(string); ok && command != "" {
 			// If command includes \n we wrap it in a code block
 			if strings.Contains(command, "\n") {
-				escapedCommand := strings.ReplaceAll(command, "```", "\\```")
-				fmt.Fprintf(&result, "\n```bash\n%s\n```", escapedCommand)
+				fmt.Fprintf(&result, "\n%s", spi.CodeFence("bash", command))
 			} else {
 				fmt.Fprintf(&result, "\n`%s`", command)
 			}
@@ -170,12 +130,9 @@ func formatWriteTool(toolName string, input map[string]interface{}, description 
 			filePath, _ := input["file_path"].(string)
 
 			// Get language for syntax highlighting
-			lang := getLanguageFromExtension(filePath)
+			lang := spi.LanguageFromPath(filePath)
 
-			// Escape triple backticks in content
-			escapedContent := strings.ReplaceAll(content, "```", "\\```")
-
-			fmt.Fprintf(&result, "\n```%s\n%s\n```", lang, escapedContent)
+			fmt.Fprintf(&result, "\n%s", spi.CodeFence(lang, content))
 		}
 	}
 

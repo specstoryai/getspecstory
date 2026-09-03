@@ -89,6 +89,7 @@ The codebase package structure:
 - `pkg/config` - Optional TOML config file handling
 - `pkg/log/` - Logging utilities
 - `pkg/provenance/` - Optional AI provenance tracking
+- `pkg/redact/` - Secret redaction (betterleaks) shared by markdown generation and cloud sync
 - `pkg/providers/*` - Provider implementations including file watching, data processing, and session data generation
 - `pkg/session/` - Session data validation, helpers and markdown generation
 - `pkg/spi/` - SPI implementation for provider implementations
@@ -120,8 +121,9 @@ analytics.TrackEvent(analytics.EventExtensionActivated, analytics.Properties{
 - Use "Why" comments, not "what" or "how" unless specifically requested
 - Use single function exit point where possible (immediate guard clauses are OK)
 - Provide consistent observability and tracing with log/slog for logging, not fmt.Println or fmt.Printf
+- Start wait-group goroutines with `wg.Go(func() { ... })`, never `wg.Add(1)` plus `go func() { defer wg.Done() ... }()`. The pairing is what goes wrong: an `Add` without its `Done`, or a `Done` that lives in a different function from its `Add`, deadlocks `Wait` or panics. `wg.Go` makes them inseparable.
 - Follow existing patterns in the codebase
-- The application doesn't support Windows, only Linux and macOS, don't include Windows support in the codebase.
+- The application supports macOS, Linux (including WSL), and native Windows. Keep all three platforms working: guard OS-specific code by `runtime.GOOS` or build tags, and prefer shape-based path handling (e.g. drive-letter detection) over GOOS checks where data written on one OS is read on another.
 
 ## Testing Strategy & Conventions
 

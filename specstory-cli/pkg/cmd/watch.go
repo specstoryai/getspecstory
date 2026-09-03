@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	gosync "sync"
 	"syscall"
 	"time"
 
@@ -38,8 +37,8 @@ func truncateSessionID(id string) string {
 
 // CreateWatchCommand dynamically creates the watch command with provider information.
 // cloudURL binds to the parent's --cloud-url flag so PersistentPreRunE can apply it.
-// localTimeZone and debugDir are passed from the global config/flag values.
-func CreateWatchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
+// defaults carries the config-derived flag defaults shared with resume/search.
+func CreateWatchCommand(cloudURL *string, defaults SessionFlagDefaults) *cobra.Command {
 	registry := factory.GetRegistry()
 	ids := registry.ListIDs()
 	providerList := registry.GetProviderList()
@@ -80,33 +79,39 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 		Example: examples,
 		Args:    cobra.MaximumNArgs(1), // Accept 0 or 1 argument (provider ID)
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config.EnsureDefaultProjectConfig()
+			configDir, _ := cmd.Flags().GetString("config-dir")
+			config.EnsureDefaultProjectConfig(configDir)
 			slog.Info("Running in watch mode")
 
 			registry := factory.GetRegistry()
 
-			// Read flags from the command
-			debugRaw, _ := cmd.Flags().GetBool("debug-raw")
-			useLocalTimezone, _ := cmd.Flags().GetBool("local-time-zone")
-			useUTC := !useLocalTimezone
+			// Read flags from the command. The session-processing flags
+			// resolve through the shared helper; watch-specific flags are
+			// read individually.
+			processing := ResolveProcessingOptions(cmd, true /* isAutosave */, false /* showOutput */)
 			jsonOutput, _ := cmd.Flags().GetBool("json")
 			outputDir, _ := cmd.Flags().GetString("output-dir")
 			flagDebugDir, _ := cmd.Flags().GetString("debug-dir")
 			noCloudSync, _ := cmd.Flags().GetBool("no-cloud-sync")
-			onlyCloudSync, _ := cmd.Flags().GetBool("only-cloud-sync")
 			provenanceEnabled, _ := cmd.Flags().GetBool("provenance")
-			noTelemetryPrompts, _ := cmd.Flags().GetBool("no-telemetry-prompts")
 
 			// Apply debug dir override from flag if provided
 			if flagDebugDir != "" {
 				spi.SetDebugBaseDir(flagDebugDir)
 			}
 
+			// Apply per-provider user-data-dir overrides before any provider initializes
+			// its watchers (they read the override at first lookup).
+			userDataDirOverrides, _ := cmd.Flags().GetStringSlice("user-data-dir")
+			ApplyUserDataDirOverrides(userDataDirOverrides)
+
 			// Setup output configuration
 			config, err := utils.SetupOutputConfig(outputDir, flagDebugDir)
 			if err != nil {
 				return err
 			}
+			// Tell cloud sync where .project.json lives (respects --output-dir)
+			cloud.SetSpecstoryDir(config.GetSpecstoryDir())
 
 			// Ensure history directory exists for watch mode
 			if err := utils.EnsureHistoryDirectoryExists(config); err != nil {
@@ -119,7 +124,14 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 				slog.Error("Failed to get current working directory", "error", err)
 				return err
 			}
-			if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
+			// Read project identity override flags (inherited from root persistent flags)
+			projectPathOverride, _ := cmd.Flags().GetString("project-path")
+			gitOriginOverride, _ := cmd.Flags().GetString("git-origin")
+			// effectiveProjectPath is what providers use for session discovery.
+			// When --project-path is set, it resolves to that path; otherwise uses cwd.
+			effectiveProjectPath := utils.ResolveProjectPath(projectPathOverride, cwd)
+			identityManager := utils.NewProjectIdentityManagerWithOverrides(cwd, config.GetSpecstoryDir(), projectPathOverride, gitOriginOverride)
+			if _, err := identityManager.EnsureProjectIdentity(); err != nil {
 				// Log error but don't fail the command
 				slog.Error("Failed to ensure project identity", "error", err)
 			}
@@ -128,7 +140,7 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			CheckAndWarnAuthentication(noCloudSync)
 
 			// Validate that --only-cloud-sync requires authentication
-			if onlyCloudSync && !cloud.IsAuthenticated() {
+			if processing.OnlyCloudSync && !cloud.IsAuthenticated() {
 				return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
 			}
 
@@ -139,12 +151,18 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			}
 			defer provenanceCleanup()
 
-			providerIDs := registry.ListIDs()
-			if len(providerIDs) == 0 {
+			if len(registry.ListIDs()) == 0 {
 				return fmt.Errorf("no providers registered")
 			}
-			if len(args) > 0 {
-				providerIDs = []string{args[0]}
+
+			providersFlag, _ := cmd.Flags().GetStringSlice("providers")
+			resolvedIDs, err := ResolveProviderIDs(registry, args, providersFlag)
+			if err != nil {
+				return err
+			}
+			providerIDs := registry.ListIDs()
+			if len(resolvedIDs) > 0 {
+				providerIDs = resolvedIDs
 			}
 
 			// Collect provider names for analytics
@@ -194,150 +212,113 @@ By default, 'watch' is for activity from all registered agent providers. Specify
 			liveIndex := NewLiveIndexer(cwd)
 			defer liveIndex.Close()
 
-			// Track sessions we've seen to suppress initial-scan output.
-			// Existing sessions found at startup get their markdown refreshed
-			// but don't produce output — only new activity does.
-			var seenMu gosync.Mutex
-			seenSessions := make(map[string]bool)
-
-			// Session callback for watch mode output
-			sessionCallback := func(providerID string, sess *spi.AgentChatSession) {
-				// Check if markdown file already exists to determine if this is an update or creation
-				fileFullPath := session.BuildSessionFilePath(sess, config.GetHistoryDir(), useUTC)
-				_, fileExistsErr := os.Stat(fileFullPath)
-				fileExists := fileExistsErr == nil
-
-				// Process the session (write markdown and sync to cloud)
-				// Don't show output during watch mode
-				// This is autosave mode (true)
-				markdownSize, err := session.ProcessSingleSession(ctx, sess, config, session.ProcessingOptions{
-					OnlyCloudSync:      onlyCloudSync,
-					IsAutosave:         true,
-					DebugRaw:           debugRaw,
-					UseUTC:             useUTC,
-					NoTelemetryPrompts: noTelemetryPrompts,
-				})
-				if err != nil {
-					// Log error but continue - don't fail the whole watch
-					// In watch mode, we prioritize keeping the watcher running.
-					// Failed markdown writes or cloud syncs can be retried later via
-					// the sync command, so we just log and continue.
-					slog.Error("Failed to process session update",
-						"sessionId", sess.SessionID,
-						"provider", providerID,
-						"error", err)
+			// The per-update output decoration on top of the shared autosave
+			// handling: print a console or JSON line per update.
+			//
+			// Every callback that arrives here is new activity, so none of it is
+			// filtered. Providers no longer emit what was already on disk when
+			// the watcher started; suppressing a session's first sighting used to
+			// swallow the first real update to any session that already had
+			// markdown.
+			onSaved := func(providerID string, sess *spi.AgentChatSession, fileExisted bool, markdownSize int) {
+				if log.IsSilent() {
 					return
 				}
 
-				// Mirror the markdown write into the restore index in real time.
-				liveIndex.Record(providerID, sess)
-
-				// Suppress output for existing sessions seen for the first time (initial scan).
-				// New sessions (!fileExists) always get output since they represent real activity.
-				seenMu.Lock()
-				firstSeen := !seenSessions[sess.SessionID]
-				seenSessions[sess.SessionID] = true
-				seenMu.Unlock()
-				if firstSeen && fileExists {
-					return
+				// Determine if this was an update or creation
+				action := "updated"
+				if !fileExisted {
+					action = "created"
 				}
 
-				// Output formatted line to stdout for watch mode
-				if !log.IsSilent() {
-					// Determine if this was an update or creation
-					action := "updated"
-					if !fileExists {
-						action = "created"
-					}
+				// Get timestamps from session data
+				startTime := sess.CreatedAt
+				endTime := startTime
+				if sess.SessionData != nil && sess.SessionData.UpdatedAt != "" {
+					endTime = sess.SessionData.UpdatedAt
+				}
 
-					// Get timestamps from session data
-					startTime := sess.CreatedAt
-					endTime := startTime
-					if sess.SessionData != nil && sess.SessionData.UpdatedAt != "" {
-						endTime = sess.SessionData.UpdatedAt
-					}
-
-					// Count messages by role
-					userPrompts := 0
-					agentActivity := 0
-					if sess.SessionData != nil {
-						for _, exchange := range sess.SessionData.Exchanges {
-							for _, msg := range exchange.Messages {
-								if msg.Role == schema.RoleUser {
-									userPrompts++
-								} else {
-									agentActivity++
-								}
+				// Count messages by role
+				userPrompts := 0
+				agentActivity := 0
+				if sess.SessionData != nil {
+					for _, exchange := range sess.SessionData.Exchanges {
+						for _, msg := range exchange.Messages {
+							if msg.Role == schema.RoleUser {
+								userPrompts++
+							} else {
+								agentActivity++
 							}
 						}
 					}
-
-					// Output the formatted line
-					if jsonOutput {
-						record := map[string]interface{}{
-							"timestamp":          time.Now().Format(time.RFC3339),
-							"action":             action,
-							"session_id":         sess.SessionID,
-							"start_time":         startTime,
-							"end_time":           endTime,
-							"provider":           providerID,
-							"markdown_size":      markdownSize,
-							"total_user_prompts": userPrompts,
-							"agent_activity":     agentActivity,
-						}
-						if !onlyCloudSync {
-							record["markdown_file"] = fileFullPath
-						}
-						_ = json.NewEncoder(os.Stdout).Encode(record)
-					} else {
-						emoji := "♻️"
-						if action == "created" {
-							emoji = "✨"
-						}
-						activityWord := "activities"
-						if agentActivity == 1 {
-							activityWord = "activity"
-						}
-						promptWord := "prompts"
-						if userPrompts == 1 {
-							promptWord = "prompt"
-						}
-						fmt.Printf("  %s  %s  %s · %s · %d %s · %d agent %s\n",
-							time.Now().Format("15:04:05"),
-							emoji,
-							providerID,
-							truncateSessionID(sess.SessionID),
-							userPrompts,
-							promptWord,
-							agentActivity,
-							activityWord)
-					}
 				}
 
-				// Push agent events to provenance engine for correlation
-				provenance.ProcessEvents(ctx, provenanceEngine, sess)
+				// Output the formatted line
+				if jsonOutput {
+					record := map[string]interface{}{
+						"timestamp":          time.Now().Format(time.RFC3339),
+						"action":             action,
+						"session_id":         sess.SessionID,
+						"start_time":         startTime,
+						"end_time":           endTime,
+						"provider":           providerID,
+						"markdown_size":      markdownSize,
+						"total_user_prompts": userPrompts,
+						"agent_activity":     agentActivity,
+					}
+					if !processing.OnlyCloudSync {
+						record["markdown_file"] = session.BuildSessionFilePath(sess, config.GetHistoryDir(), processing.UseUTC)
+					}
+					_ = json.NewEncoder(os.Stdout).Encode(record)
+				} else {
+					emoji := "♻️"
+					if action == "created" {
+						emoji = "✨"
+					}
+					activityWord := "activities"
+					if agentActivity == 1 {
+						activityWord = "activity"
+					}
+					promptWord := "prompts"
+					if userPrompts == 1 {
+						promptWord = "prompt"
+					}
+					fmt.Printf("  %s  %s  %s · %s · %d %s · %d agent %s\n",
+						time.Now().Format("15:04:05"),
+						emoji,
+						providerID,
+						truncateSessionID(sess.SessionID),
+						userPrompts,
+						promptWord,
+						agentActivity,
+						activityWord)
+				}
 			}
 
-			return utils.WatchProviders(ctx, cwd, providers, debugRaw, sessionCallback)
+			// Shared autosave handling (markdown + cloud sync + live index +
+			// provenance), decorated with watch's output hook.
+			sessionCallback := NewAutosaveCallback(AutosaveDeps{
+				Ctx:        ctx,
+				Config:     config,
+				Processing: processing,
+				LiveIndex:  liveIndex,
+				Provenance: provenanceEngine,
+				OnSaved:    onSaved,
+			})
+
+			return utils.WatchProviders(ctx, effectiveProjectPath, providers, processing.DebugRaw, sessionCallback)
 		},
 	}
 
-	// Watch-specific flags
+	// Shared session-processing flags plus watch's own json output and provider
+	// filter. The provider filter stays here rather than in the shared helper
+	// because resume and search act on one already-identified session, where
+	// filtering by provider has no meaning.
+	registerSessionProcessingFlags(watchCmd, cloudURL, defaults)
 	watchCmd.Flags().Bool("json", false, "output session updates as JSON lines (one JSON object per line)")
-	watchCmd.Flags().String("output-dir", "", "custom output directory for markdown files (default: ./.specstory/history)")
-	watchCmd.Flags().String("debug-dir", debugDir, "custom output directory for debug data (default: ./.specstory/debug)")
-	watchCmd.Flags().Bool("only-cloud-sync", false, "skip local markdown file saves, only upload to cloud (requires authentication)")
-	watchCmd.Flags().Bool("no-cloud-sync", false, "disable cloud sync functionality")
-	watchCmd.Flags().Bool("debug-raw", false, "debug mode to output pretty-printed raw data files")
-	_ = watchCmd.Flags().MarkHidden("debug-raw") // Hidden flag
-	watchCmd.Flags().Bool("local-time-zone", localTimeZone, "use local timezone for file name and content timestamps (when not present: UTC)")
-	watchCmd.Flags().Bool("provenance", false, "enable AI provenance tracking (correlate file changes to agent activity)")
-	_ = watchCmd.Flags().MarkHidden("provenance") // Hidden flag
-	watchCmd.Flags().StringVar(cloudURL, "cloud-url", "", "override the default cloud API base URL")
-	_ = watchCmd.Flags().MarkHidden("cloud-url") // Hidden flag
-	watchCmd.Flags().String("telemetry-endpoint", "", "Open Telemetry Protocol (OTLP) gRPC collector endpoint (default is off, e.g., localhost:4317)")
-	watchCmd.Flags().String("telemetry-service-name", "", "override the default service name for telemetry, if telemetry is enabled")
-	watchCmd.Flags().Bool("no-telemetry-prompts", false, "exclude prompt text from telemetry spans, if telemetry is enabled")
+	watchCmd.Flags().String("config-dir", "", "custom directory for the project-level config.toml (default: ./.specstory/cli)")
+	AddProvidersFlag(watchCmd)
+	AddUserDataDirFlag(watchCmd)
 
 	return watchCmd
 }

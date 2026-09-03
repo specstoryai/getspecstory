@@ -10,13 +10,16 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/antigravitycli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/claudecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/codexcli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/copilotide"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursorcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/cursoride"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/piagent"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -81,12 +84,43 @@ func (r *Registry) registerAll() {
 	slog.Debug("Registered provider", "id", "droid", "name", droidProvider.Name())
 
 	cursorideProvider := cursoride.NewProvider()
-	r.providers["cursoride"] = cursorideProvider
-	slog.Debug("Registered provider", "id", "cursoride", "name", cursorideProvider.Name())
+	r.providers[cursoride.ProviderID] = cursorideProvider
+	slog.Debug("Registered provider", "id", cursoride.ProviderID, "name", cursorideProvider.Name())
+
+	// The Copilot IDE provider is variant-driven: one instance per VS Code
+	// distribution, keyed by the variant's own ID so the registry key always
+	// matches the provider ID stamped into generated session data. Stock VS Code
+	// is always registered like every other provider; the alternative
+	// distributions register only when they hold at least one Copilot chat, so
+	// merely having Insiders or VSCodium installed doesn't add provider entries
+	// to watch banners, all-provider checks, and sync sweeps. The trade-off: a
+	// variant's very first Copilot chat must happen without SpecStory (nothing
+	// to watch exists until then).
+	copilotideProvider := copilotide.NewProvider(copilotide.VSCode)
+	r.providers[copilotide.VSCode.ID] = copilotideProvider
+	slog.Debug("Registered provider", "id", copilotide.VSCode.ID, "name", copilotideProvider.Name())
+
+	for _, variant := range []copilotide.Variant{copilotide.VSCodeInsiders, copilotide.VSCodium, copilotide.VSCodiumInsiders} {
+		if !copilotide.HasAnyChatSessions(variant) {
+			slog.Debug("Skipping Copilot IDE variant (no Copilot chats)", "id", variant.ID)
+			continue
+		}
+		variantProvider := copilotide.NewProvider(variant)
+		r.providers[variant.ID] = variantProvider
+		slog.Debug("Registered provider", "id", variant.ID, "name", variantProvider.Name())
+	}
 
 	deepseekProvider := deepseektui.NewProvider()
 	r.providers["deepseek"] = deepseekProvider
 	slog.Debug("Registered provider", "id", "deepseek", "name", deepseekProvider.Name())
+
+	antigravityProvider := antigravitycli.NewProvider()
+	r.providers["antigravity"] = antigravityProvider
+	slog.Debug("Registered provider", "id", "antigravity", "name", antigravityProvider.Name())
+
+	museProvider := musecode.NewProvider()
+	r.providers["muse"] = museProvider
+	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
 
 	piProvider := piagent.NewProvider()
 	r.providers["pi"] = piProvider

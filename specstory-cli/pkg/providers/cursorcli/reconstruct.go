@@ -219,3 +219,9 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 	}
 	return filepath.Join(hashDir, filename), nil
 }
+
+// SupportsReconstruction reports true: this provider has a native serializer
+// (see ReconstructSession), so it can be a cross-agent resume target.
+func (p *Provider) SupportsReconstruction() bool {
+	return true
+}

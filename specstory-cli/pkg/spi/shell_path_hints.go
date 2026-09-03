@@ -2,24 +2,51 @@ package spi
 
 import (
 	"os"
+	slashpath "path"
 	"path/filepath"
 	"strings"
 )
 
-// NormalizePath converts absolute paths to workspace-relative paths when they
-// fall under workspaceRoot. This consolidates the identical normalization logic
-// previously duplicated across all 5 providers.
+// Path hints operate on paths as RECORDED in session data, not host paths: a
+// Windows machine renders sessions recorded on macOS/Linux/WSL and vice versa.
+// Every operation here is therefore shape-based string algebra in
+// forward-slash space — GOOS-dependent filepath helpers corrupt
+// foreign-shaped paths (filepath.IsAbs("/project/…") is false on Windows, so
+// nothing relativized; filepath.Join prepended cwd onto already-absolute
+// recorded paths). Relativized hints come out forward-slashed, the markdown
+// display convention on every platform.
+
+// recordedAbs reports whether a slash-normalized recorded path is absolute in
+// its own recorded shape: Unix-rooted (also covers slash-normalized UNC) or
+// Windows drive-lettered.
+func recordedAbs(p string) bool {
+	if strings.HasPrefix(p, "/") {
+		return true
+	}
+	return len(p) >= 3 && p[1] == ':' && p[2] == '/' &&
+		('a' <= p[0]|0x20 && p[0]|0x20 <= 'z')
+}
+
+// NormalizePath converts absolute recorded paths to workspace-relative paths
+// when they fall under workspaceRoot. This consolidates the identical
+// normalization logic previously duplicated across all 5 providers.
 func NormalizePath(path, workspaceRoot string) string {
 	if workspaceRoot == "" {
 		return path
 	}
 
-	// If path is absolute and starts with workspace root, make it relative
-	if filepath.IsAbs(path) && strings.HasPrefix(path, workspaceRoot) {
-		relPath, err := filepath.Rel(workspaceRoot, path)
-		if err == nil {
-			return relPath
-		}
+	p := strings.ReplaceAll(path, `\`, "/")
+	root := strings.TrimSuffix(strings.ReplaceAll(workspaceRoot, `\`, "/"), "/")
+	if root == "" || !recordedAbs(p) {
+		return path
+	}
+	if p == root {
+		return "."
+	}
+	// The "/" guard keeps a sibling with a shared name prefix (/project-api
+	// under root /project) from being treated as inside the workspace.
+	if strings.HasPrefix(p, root+"/") {
+		return p[len(root)+1:]
 	}
 
 	return path
@@ -633,24 +660,24 @@ func readHeredocMarker(runes []rune, i int) string {
 }
 
 // resolvePath expands tildes, resolves relative paths against cwd, and
-// normalizes against workspaceRoot.
+// normalizes against workspaceRoot. Like NormalizePath it works on recorded
+// shapes, not host shapes: the join and clean happen in forward-slash space so
+// a Unix-recorded cwd resolves correctly on a Windows host and vice versa.
 func resolvePath(raw, cwd, workspaceRoot string) string {
 	if raw == "" {
 		return ""
 	}
 
-	path := raw
-
 	// Expand tilde
-	path = expandTilde(path)
+	p := strings.ReplaceAll(expandTilde(raw), `\`, "/")
 
 	// Resolve relative paths against cwd
-	if !filepath.IsAbs(path) && cwd != "" {
-		path = filepath.Clean(filepath.Join(cwd, path))
+	if !recordedAbs(p) && cwd != "" {
+		p = slashpath.Clean(strings.ReplaceAll(cwd, `\`, "/") + "/" + p)
 	}
 
 	// Normalize against workspace root
-	return NormalizePath(path, workspaceRoot)
+	return NormalizePath(p, workspaceRoot)
 }
 
 // isNumeric returns true if the string contains only digits.

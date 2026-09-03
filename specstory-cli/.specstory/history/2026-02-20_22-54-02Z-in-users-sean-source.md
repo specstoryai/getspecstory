@@ -10,6 +10,8 @@ _**User (2026-02-20 22:54:02Z)**_
 <command-name>/pr-review</command-name>
 <command-args>170</command-args>
 
+---
+
 _**User (2026-02-20 22:54:02Z)**_
 
 ## Context
@@ -12994,7 +12996,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:41:43Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add `--json` flag to `specstory watch`
 
 ## Context
@@ -13011,15 +13013,15 @@ Add a `--json` boolean flag to the watch command. When set, replace the `fmt.Pri
 
 **1. Add flag variable** (~line 50, near other flag vars):
 
-\```go
+```go
 var jsonOutput bool
-\```
+```
 
 **2. Register flag on watch command** (~line 1791, with other watch flags):
 
-\```go
+```go
 watchCmd.Flags().BoolVar(&jsonOutput, "json", false, "output session updates as JSON lines (one JSON object per line)")
-\```
+```
 
 **3. Modify the output block in the watch session callback** (~lines 713-750):
 
@@ -13036,9 +13038,9 @@ Both branches remain gated behind `if !silent`.
 
 ## Example JSON output
 
-\```json
+```json
 {"timestamp":"2026-02-20T18:03:47-05:00","action":"created","session_id":"019c7d4b-22b8-7b22-ad07-df6bcffdd205","start_time":"2026-02-20T23:03:47.053Z","end_time":"2026-02-20T23:03:47.053Z","provider":"codex","markdown_size":248,"total_user_prompts":1,"markdown_file":"/Users/sean/.specstory/history/2026-02-20_23-03-47Z.md"}
-\```
+```
 
 ## Files modified
 
@@ -13051,7 +13053,7 @@ Both branches remain gated behind `if !silent`.
 3. Manual: `go build -o specstory && ./specstory watch --json` — confirm JSONL output
 4. Manual: `./specstory watch` (no flag) — confirm text output unchanged
 
-```
+````
 
 ```text
 File created successfully at: /Users/sean/.claude/plans/wobbly-tickling-pretzel.md

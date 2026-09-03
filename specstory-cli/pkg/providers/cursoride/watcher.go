@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -21,7 +22,7 @@ const defaultCheckInterval = 2 * time.Minute
 // CursorIDEWatcher monitors Cursor IDE databases for changes and notifies when sessions are updated
 type CursorIDEWatcher struct {
 	projectPath     string
-	workspaces      []WorkspaceMatch // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
+	workspaces      []vscode.WorkspaceEntry // All workspace entries matching projectPath (e.g. WSL/SSH/.code-workspace can produce more than one)
 	globalDbPath    string
 	debugRaw        bool
 	sessionCallback func(*spi.AgentChatSession)
@@ -139,13 +140,13 @@ func (w *CursorIDEWatcher) Start() error {
 	// WAL mode is required so that the -wal file exists for fsnotify to detect changes.
 	// This is a one-time read-write operation at startup; all subsequent reads are read-only.
 	for _, ws := range w.workspaces {
-		if err := EnsureWALMode(ws.DBPath); err != nil {
+		if err := spi.EnsureWALMode(ws.StateDBPath()); err != nil {
 			slog.Warn("Failed to ensure WAL mode on workspace database",
 				"workspaceID", ws.ID,
 				"error", err)
 		}
 	}
-	if err := EnsureWALMode(w.globalDbPath); err != nil {
+	if err := spi.EnsureWALMode(w.globalDbPath); err != nil {
 		slog.Warn("Failed to ensure WAL mode on global database", "error", err)
 	}
 
@@ -157,7 +158,7 @@ func (w *CursorIDEWatcher) Start() error {
 
 	// Set up file watching on all matching workspace databases
 	for _, ws := range w.workspaces {
-		if err := w.watchDatabaseFiles(ws.DBPath); err != nil {
+		if err := w.watchDatabaseFiles(ws.StateDBPath()); err != nil {
 			slog.Warn("Failed to watch workspace database files",
 				"workspaceID", ws.ID,
 				"error", err)
@@ -170,12 +171,10 @@ func (w *CursorIDEWatcher) Start() error {
 	}
 
 	// Start the file event handler goroutine
-	w.wg.Add(1)
-	go w.handleFileEvents()
+	w.wg.Go(w.handleFileEvents)
 
 	// Start the safety net polling goroutine
-	w.wg.Add(1)
-	go w.safetyNetPoller()
+	w.wg.Go(w.safetyNetPoller)
 
 	// Perform initial check after a short delay. The timer is stored so Stop() can
 	// cancel it if it hasn't fired yet.
@@ -298,8 +297,6 @@ func (w *CursorIDEWatcher) isWatchedDBFile(name string) bool {
 
 // handleFileEvents processes file system events from fsnotify
 func (w *CursorIDEWatcher) handleFileEvents() {
-	defer w.wg.Done()
-
 	for {
 		select {
 		case <-w.ctx.Done():
@@ -329,8 +326,6 @@ func (w *CursorIDEWatcher) handleFileEvents() {
 
 // safetyNetPoller ensures we check the database periodically even if file events are missed
 func (w *CursorIDEWatcher) safetyNetPoller() {
-	defer w.wg.Done()
-
 	ticker := time.NewTicker(w.checkInterval)
 	defer ticker.Stop()
 
@@ -370,9 +365,7 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 				"trigger", trigger,
 				"delay", delay)
 
-			w.wg.Add(1)
-			go func() {
-				defer w.wg.Done()
+			w.wg.Go(func() {
 				timer := time.NewTimer(delay)
 				defer timer.Stop()
 				select {
@@ -381,7 +374,7 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 				case <-timer.C:
 					w.executePendingCheck()
 				}
-			}()
+			})
 		}
 		return
 	}
@@ -396,16 +389,14 @@ func (w *CursorIDEWatcher) triggerCheck(trigger string) {
 // w.wg.Wait() actually waits for it instead of returning while it's still running.
 // It's a no-op if the watcher's context is already cancelled.
 // Must be called with w.mu held: Stop() cancels the context under the same lock, which
-// is what makes the ctx check and wg.Add here atomic with respect to shutdown.
+// is what makes the ctx check and the wg registration here atomic with respect to shutdown.
 func (w *CursorIDEWatcher) runCheckAsync(trigger string) {
 	if w.ctx.Err() != nil {
 		return
 	}
-	w.wg.Add(1)
-	go func() {
-		defer w.wg.Done()
+	w.wg.Go(func() {
 		w.checkForChanges(trigger)
-	}()
+	})
 }
 
 // executePendingCheck executes a pending check if one was scheduled
@@ -608,16 +599,14 @@ func (w *CursorIDEWatcher) checkForChanges(trigger string) {
 			slog.Info("Invoking callback for session",
 				"sessionID", session.SessionID,
 				"slug", session.Slug)
-			w.callbackWg.Add(1)
-			go func(s *spi.AgentChatSession) {
-				defer w.callbackWg.Done()
+			w.callbackWg.Go(func() {
 				defer func() {
 					if r := recover(); r != nil {
-						slog.Error("Session callback panicked", "panic", r, "sessionID", s.SessionID)
+						slog.Error("Session callback panicked", "panic", r, "sessionID", session.SessionID)
 					}
 				}()
-				w.sessionCallback(s)
-			}(session)
+				w.sessionCallback(session)
+			})
 		}
 	}
 

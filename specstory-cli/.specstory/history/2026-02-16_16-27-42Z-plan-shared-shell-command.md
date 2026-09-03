@@ -254,12 +254,6 @@ If you need specific details from before exiting plan mode (like exact code snip
 
 _**Agent (claude-opus-4-6 2026-02-16 16:27:45Z)**_
 
-
-
-
-
-_**Agent (claude-opus-4-6 2026-02-16 16:27:45Z)**_
-
 <think><details><summary>Thought Process</summary>
 Let me start by understanding the codebase structure and the existing code before implementing. I need to:
 
@@ -3685,12 +3679,6 @@ Why is ExpandTilde exported? I thought our plan was NOT to export it?
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-16 16:50:50Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-16 16:50:59Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -3828,12 +3816,6 @@ OK... well that didn't work.
 See the sed usage starting at 242. We got no path hint
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 17:02:36Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 17:02:37Z)**_
 
@@ -7255,6 +7237,8 @@ _**User (2026-02-16 17:07:42Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 17:08:09Z)**_
 
 that's OK, presumably it's just cause there was no path hint, we don't generate w/o one, so that should resolve.
@@ -7262,12 +7246,6 @@ that's OK, presumably it's just cause there was no path hint, we don't generate 
 What about awk? Will we have similar issues as sed?
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 17:08:14Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 17:08:21Z)**_
 
@@ -7307,12 +7285,6 @@ Why is the agent event ID so long? /Users/sean/.specstory/provenance/provenance.
 Aren't agent event IDs meant to be UUIDs too?
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 17:10:52Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 17:10:55Z)**_
 
@@ -7546,21 +7518,19 @@ But no agent event: /Users/sean/.specstory/provenance/provenance.db
 
 Log is here: 
 
+---
+
 _**User (2026-02-16 17:23:34Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-16 17:23:43Z)**_
 
 here: /Users/sean/Source/SpecStory/compositions/shell-3/.specstory/debug/f3d86446-65c1-4c1a-b3e7-6a43b426348d/session-data.json
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 17:23:46Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 17:23:46Z)**_
 
@@ -8396,17 +8366,13 @@ _**User (2026-02-16 17:27:26Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 17:28:16Z)**_
 
 No, I don't like that at all... what do file change type have to do with anything here? We don't need any mapping to change types. We just need to ensure the tool type is either shell, write or generic
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 17:28:19Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 17:28:21Z)**_
 
@@ -8436,6 +8402,8 @@ _**User (2026-02-16 17:28:40Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 17:29:13Z)**_
 
 uhh... DUDE
@@ -8443,12 +8411,6 @@ uhh... DUDE
 write, shell and generic AREN'T change types, they are tool types
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 17:29:16Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 17:29:24Z)**_
 
@@ -8561,12 +8523,6 @@ I got no provenance events in the DB at all for this Codex session though: /User
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-16 21:24:33Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-16 21:24:34Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -8617,6 +8573,8 @@ _**Agent (claude-opus-4-6 2026-02-16 21:24:39Z)**_
 _**User (2026-02-16 21:24:44Z)**_
 
 [Request interrupted by user]
+
+---
 
 _**User (2026-02-16 21:24:47Z)**_
 
@@ -8733,12 +8691,6 @@ _**User (2026-02-16 21:25:14Z)**_
 ah true
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 21:25:16Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 21:25:17Z)**_
 
@@ -9750,12 +9702,6 @@ but that doesn't explain us getting the first couple messages of the session, an
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-16 21:42:13Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-16 21:42:14Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -10527,12 +10473,6 @@ If you need specific details from before compaction (like exact code snippets, e
 Please continue the conversation from where we left off without asking the user any further questions. Continue with the last task that you were asked to work on.
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 21:44:30Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 21:44:31Z)**_
 
@@ -12330,6 +12270,8 @@ _**User (2026-02-16 22:20:52Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 22:21:03Z)**_
 
 I ran it. It worked: /Users/sean/Source/SpecStory/compositions/shell-3/.specstory/history/2026-02-16_21-35-38Z-create-a-new-hello.md
@@ -12494,12 +12436,6 @@ When we were planning this work, we explicitly talked about the droidcli provide
    input["command"]. If Droid CLI's shell tool uses "cmd" as the field name, this would silently miss those commands. Why did we drop this part? Did we decide it wasn't needed?
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 22:27:48Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 22:27:50Z)**_
 
@@ -12686,12 +12622,6 @@ _**User (2026-02-16 22:44:21Z)**_
 OK, so that cwd change worked well for Claude Code. How about the other 4 providers though? Do any of them have the same issue where they are assuming cwd and the project root will always be one and the same?
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 22:44:24Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 22:44:26Z)**_
 
@@ -16716,12 +16646,6 @@ Also, no matter if it knew the cwd or not, this tool use did create a path hint 
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-16 22:53:21Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-16 22:53:23Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -17541,6 +17465,8 @@ _**User (2026-02-16 22:54:52Z)**_
 
 [Request interrupted by user]
 
+---
+
 _**User (2026-02-16 22:55:38Z)**_
 
 Yes, by check if it's in SQLite but we didn't extract it, I mean in Cursor's sqlite DB, NOT our provenance.db.
@@ -17548,12 +17474,6 @@ Yes, by check if it's in SQLite but we didn't extract it, I mean in Cursor's sql
 the prior event for 2.txt was from a different agent, not Cursor.
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 22:55:40Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 22:55:43Z)**_
 
@@ -20946,12 +20866,6 @@ For CWD let's just stick w/ project root for both for now as it was. Just make s
 
 ---
 
-_**Agent (claude-opus-4-6 2026-02-16 23:20:47Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-16 23:20:56Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -21058,12 +20972,6 @@ _**User (2026-02-16 23:23:29Z)**_
 As for the agent_event that we didn't get from the Cursor provider. The session create time will be far too old to be useful. The best we can do is use wall clock time of when we see the message when we are providing data for the `run` or `watch` commands. When we are providing data for the `sync` command we can use the session time.
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 23:23:32Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 23:23:51Z)**_
 
@@ -21250,6 +21158,8 @@ _**User (2026-02-16 23:24:07Z)**_
 
 [Request interrupted by user for tool use]
 
+---
+
 _**User (2026-02-16 23:26:26Z)**_
 
 here's the issue for `run` and `watch`, each time they see new agent activity, they create the SessionData for the ENTIRE session, so the passed messages that have already been seen as well as the new message seen for the first time. So the only way we can use clock time is if we hash the message ID and the clock time when we first see it so that each subsequent message doesn't rewrite all the prior messages with the current clock time, make sense?
@@ -21257,12 +21167,6 @@ here's the issue for `run` and `watch`, each time they see new agent activity, t
 Other than that, yes, proceed with you understanding of how run/watch differ from sync at the Cursor provider level.
 
 ---
-
-_**Agent (claude-opus-4-6 2026-02-16 23:26:28Z)**_
-
-
-
-
 
 _**Agent (claude-opus-4-6 2026-02-16 23:26:44Z)**_
 
@@ -24949,12 +24853,6 @@ if metadata.CreatedAt > 0 {
 | **Session CreatedAt** | Derived from Cursor SQLite metadata as RFC3339 string |
 | **Provenance Parsing** | Accepts RFC3339 and RFC3339Nano formats |
 
-_**Agent (claude-opus-4-6 2026-02-16 23:28:42Z)**_
-
-
-
-
-
 _**Agent (claude-opus-4-6 2026-02-16 23:28:50Z)**_
 
 <think><details><summary>Thought Process</summary>
@@ -24987,7 +24885,7 @@ _**Agent (claude-opus-4-6 2026-02-16 23:29:20Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add Timestamps to Cursor CLI Messages
 
 ## Context
@@ -25002,7 +24900,7 @@ The fix assigns timestamps in two different ways depending on the mode:
 
 ### 1. New type: `MessageTimestampCache` — `pkg/providers/cursorcli/agent_session.go`
 
-\```go
+```go
 // MessageTimestampCache tracks first-seen wall clock times for Cursor messages.
 // Cursor's SQLite data doesn't include per-message timestamps, so in run/watch
 // mode we stamp each message with time.Now() when we first see it. The cache
@@ -25029,27 +24927,27 @@ func (c *MessageTimestampCache) Stamp(messageID string) time.Time {
     c.times[messageID] = now
     return now
 }
-\```
+```
 
 ### 2. Modify `GenerateAgentSession` signature — `pkg/providers/cursorcli/agent_session.go:25`
 
 Add optional `tsCache *MessageTimestampCache` parameter:
 
-\```go
+```go
 func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, createdAt, slug string, tsCache *MessageTimestampCache) (*SessionData, error) {
-\```
+```
 
 After building exchanges and before returning, call a new `assignTimestamps` function:
 
-\```go
+```go
 assignTimestamps(sessionData, createdAt, tsCache)
-\```
+```
 
 ### 3. New function: `assignTimestamps` — `pkg/providers/cursorcli/agent_session.go`
 
 Walks all exchanges and messages, assigning timestamps where missing:
 
-\```go
+```go
 // assignTimestamps fills in empty Message.Timestamp and Exchange.StartTime/EndTime.
 // Cursor's data doesn't include per-message timestamps, so we derive them:
 //   - run/watch mode (tsCache != nil): wall clock time when first seen
@@ -25079,33 +24977,33 @@ func assignTimestamps(sd *SessionData, createdAt string, tsCache *MessageTimesta
         }
     }
 }
-\```
+```
 
 ### 4. Update callers of `GenerateAgentSession`
 
 **`sync` path — `provider.go:330`** (`GetAgentChatSession`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, projectPath, sessionID, createdAt, slug, nil)
-\```
+```
 
 **`run`/`watch` path — `watcher.go:294`** (`processSessionChanges`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug, w.tsCache)
-\```
+```
 
 **All tests** — `agent_session_test.go`: Add `nil` as the last argument to all `GenerateAgentSession` calls (sync-mode behavior, matching existing test expectations).
 
 ### 5. Add `tsCache` field to `CursorWatcher` — `watcher.go`
 
 **Struct** (line 19-33): Add field:
-\```go
+```go
 tsCache         *MessageTimestampCache          // Wall clock timestamps for messages
-\```
+```
 
 **Constructor** `NewCursorWatcher` (line 36-57): Initialize it:
-\```go
+```go
 tsCache:         NewMessageTimestampCache(),
-\```
+```
 
 ### 6. Add `"sync"` import to `agent_session.go`
 
@@ -25122,7 +25020,7 @@ The `MessageTimestampCache` uses `sync.Mutex`. Add `"sync"` to imports. Also nee
 
 ## Verification
 
-\```zsh
+```zsh
 # Run Cursor CLI tests
 go test -v ./pkg/providers/cursorcli/...
 
@@ -25134,11 +25032,11 @@ go test ./...
 
 # Lint
 golangci-lint run
-\```
+```
 
 Manual verification: `specstory sync` on the Cursor session at `/Users/sean/Source/SpecStory/compositions/shell-3/` — check that agent events now appear in `provenance.db` for the `3.txt` path hint.
 
-```
+````
 
 ```text
 <tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>
@@ -25403,7 +25301,7 @@ _**Agent (claude-opus-4-6 2026-02-16 23:30:02Z)**_
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
 <summary>Tool use: **Write**</summary>
 
-```md
+````markdown
 # Plan: Add Timestamps to Cursor CLI Messages
 
 ## Context
@@ -25421,7 +25319,7 @@ The fix assigns timestamps differently depending on the mode:
 
 New type at top of file (needs `"sync"` and `"time"` imports):
 
-\```go
+```go
 // MessageTimestampCache tracks first-seen wall clock times for Cursor messages.
 // Cursor's SQLite data doesn't include per-message timestamps, so in run/watch
 // mode we stamp each message with time.Now() when we first see it. The cache
@@ -25448,25 +25346,25 @@ func (c *MessageTimestampCache) Stamp(messageID string) time.Time {
     c.times[messageID] = now
     return now
 }
-\```
+```
 
 ### 2. Modify `GenerateAgentSession` signature — `agent_session.go:25`
 
 Add `tsCache *MessageTimestampCache` parameter. `nil` means sync mode (use `createdAt`).
 
-\```go
+```go
 func GenerateAgentSession(blobRecords []BlobRecord, workspaceRoot, sessionID, createdAt, slug string, tsCache *MessageTimestampCache) (*SessionData, error) {
-\```
+```
 
 Add call before return:
 
-\```go
+```go
 assignTimestamps(sessionData, createdAt, tsCache)
-\```
+```
 
 ### 3. New `assignTimestamps` function — `agent_session.go`
 
-\```go
+```go
 // assignTimestamps fills in empty Message.Timestamp and Exchange start/end times.
 // Cursor's data doesn't include per-message timestamps, so we derive them:
 //   - run/watch mode (tsCache != nil): wall clock time when message first seen
@@ -25495,33 +25393,33 @@ func assignTimestamps(sd *SessionData, createdAt string, tsCache *MessageTimesta
         }
     }
 }
-\```
+```
 
 ### 4. Update all callers
 
 **`provider.go:330`** — sync path (`GetAgentChatSession`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, projectPath, sessionID, createdAt, slug, nil)
-\```
+```
 
 **`watcher.go:294`** — run/watch path (`processSessionChanges`):
-\```go
+```go
 sessionData, err := GenerateAgentSession(blobRecords, w.projectPath, sessionID, createdAt, slug, w.tsCache)
-\```
+```
 
 **`agent_session_test.go`** — all 5 test functions: append `nil` as last arg.
 
 ### 5. Add `tsCache` to `CursorWatcher` — `watcher.go`
 
 **Struct field** (after line 31):
-\```go
+```go
 tsCache         *MessageTimestampCache
-\```
+```
 
 **Constructor** `NewCursorWatcher` (in the return struct literal):
-\```go
+```go
 tsCache:         NewMessageTimestampCache(),
-\```
+```
 
 ## Files Modified
 
@@ -25534,7 +25432,7 @@ tsCache:         NewMessageTimestampCache(),
 
 ## Verification
 
-\```zsh
+```zsh
 # Cursor CLI tests
 go test -v ./pkg/providers/cursorcli/...
 
@@ -25544,11 +25442,11 @@ go test -v ./pkg/provenance/...
 # All tests + lint
 go test ./...
 golangci-lint run
-\```
+```
 
 Manual: `specstory sync` on the Cursor session at `compositions/shell-3/` — verify agent events now appear in `provenance.db`.
 
-```
+````
 
 ```text
 The file /Users/sean/.claude/plans/vivid-churning-robin.md has been overwritten successfully.

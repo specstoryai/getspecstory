@@ -45,6 +45,105 @@ type CodexEventMsg struct {
 	} `json:"payload"`
 }
 
+// itemCompletedEvent is the event_msg payload type Codex 0.147's TUI writes for
+// each completed thread item, replacing the user_message / agent_message /
+// agent_reasoning events it used through 0.146. The two forms are alternatives,
+// never both for the same turn, so a session recorded either way is read by
+// translating this one into the older shape — see codexItemAsLegacyEvent.
+//
+// Which form a session uses is Codex's choice, not a version cut: 0.147 writes
+// thread items for a session started in its TUI, and the older events for
+// `codex exec` and for any session it resumes that was created before 0.147.
+const itemCompletedEvent = "item_completed"
+
+// codexItemAsLegacyEvent reshapes a completed thread item into the payload type
+// and fields the parser already understands, returning an empty type for items
+// that carry no conversation text.
+//
+// Only the three conversation items are translated. The tool items
+// (CommandExecution, FileChange, McpToolCall and the rest) are deliberately
+// dropped: tool calls still arrive as response_item records, which 0.147 writes
+// alongside these, and reading both would render every tool call twice.
+func codexItemAsLegacyEvent(payload map[string]interface{}) (string, map[string]interface{}) {
+	item, ok := payload["item"].(map[string]interface{})
+	if !ok {
+		return "", nil
+	}
+
+	itemType, _ := item["type"].(string)
+	switch itemType {
+	case "UserMessage":
+		return "user_message", map[string]interface{}{"message": codexItemText(item)}
+
+	case "AgentMessage":
+		// Phase is either "commentary" (the preamble the agent prints before
+		// acting) or "final_answer". Both were emitted as agent_message by the
+		// older stream and both were shown to the user, so neither is filtered.
+		return "agent_message", map[string]interface{}{"message": codexItemText(item)}
+
+	case "Reasoning":
+		return "agent_reasoning", map[string]interface{}{"text": codexItemReasoningText(item)}
+	}
+
+	return "", nil
+}
+
+// codexItemText joins the text of a thread item's content parts. The part type
+// is spelled "text" on user items and "Text" on agent items, so the text field
+// is read without regard to it.
+func codexItemText(item map[string]interface{}) string {
+	parts, ok := item["content"].([]interface{})
+	if !ok {
+		return ""
+	}
+
+	var text strings.Builder
+	for _, entry := range parts {
+		part, ok := entry.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if partText, _ := part["text"].(string); partText != "" {
+			text.WriteString(partText)
+		}
+	}
+	return text.String()
+}
+
+// codexItemReasoningText pulls the visible reasoning out of a Reasoning item,
+// preferring the summary Codex displays over the raw content, which is what the
+// older agent_reasoning event carried.
+//
+// Both fields were empty in every 0.147 session available when this was written
+// — the substance sits in the paired response_item's encrypted_content, which is
+// opaque — so the element shape is unconfirmed and both a bare string and an
+// object with a text field are accepted.
+func codexItemReasoningText(item map[string]interface{}) string {
+	for _, field := range []string{"summary_text", "raw_content"} {
+		entries, ok := item[field].([]interface{})
+		if !ok {
+			continue
+		}
+
+		var text strings.Builder
+		for _, entry := range entries {
+			switch value := entry.(type) {
+			case string:
+				text.WriteString(value)
+			case map[string]interface{}:
+				if entryText, _ := value["text"].(string); entryText != "" {
+					text.WriteString(entryText)
+				}
+			}
+		}
+		if text.Len() > 0 {
+			return text.String()
+		}
+	}
+
+	return ""
+}
+
 // CodexResponseItem represents function calls and custom tool calls
 type CodexResponseItem struct {
 	Type      string `json:"type"` // "response_item"
@@ -213,6 +312,14 @@ func buildExchangesFromRecords(records []map[string]interface{}, workspaceRoot s
 			}
 
 			payloadType, _ := payload["type"].(string)
+
+			// Codex 0.147's TUI writes the conversation as thread items rather
+			// than the user_message/agent_message/agent_reasoning events. Reshape
+			// those into the older form so one set of message handling serves
+			// both, and a session recorded either way renders the same.
+			if payloadType == itemCompletedEvent {
+				payloadType, payload = codexItemAsLegacyEvent(payload)
+			}
 
 			switch payloadType {
 			case "user_message":
@@ -541,7 +648,7 @@ func formatToolWithSummary(tool *ToolInfo, workspaceRoot string) (string, string
 				if len(cleaned) > 5000 {
 					cleaned = cleaned[:5000] + "\n... (truncated)"
 				}
-				formattedMd.WriteString("```\n" + cleaned + "\n```")
+				formattedMd.WriteString(spi.CodeFence("", cleaned))
 			}
 		}
 	}

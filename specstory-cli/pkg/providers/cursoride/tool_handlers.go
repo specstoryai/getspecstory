@@ -6,6 +6,8 @@ import (
 	"html"
 	"log/slog"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // ToolType represents the category of a tool (read, write, search, etc.)
@@ -190,14 +192,16 @@ func escapeSummaryText(s string) string {
 // formatToolError formats a tool error message
 func formatToolError(bubble *BubbleConversation) string {
 	if bubble.Error != "" {
-		// Parse the error JSON
+		// Prefer the user-facing message from the error JSON, but only when it is
+		// actually present — valid error JSON can carry an empty
+		// clientVisibleErrorMessage, and returning that would hide the real error.
 		var errorData struct {
 			ClientVisibleErrorMessage string `json:"clientVisibleErrorMessage"`
 		}
-		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil {
+		if err := json.Unmarshal([]byte(bubble.Error), &errorData); err == nil && errorData.ClientVisibleErrorMessage != "" {
 			return errorData.ClientVisibleErrorMessage
 		}
-		// If parsing fails, return the raw error
+		// Unparseable or message-less error JSON: return the raw error
 		return bubble.Error
 	}
 	return "An unknown error occurred"
@@ -281,9 +285,9 @@ func formatJSONBlock(data map[string]interface{}, maxRunes int) string {
 		jsonStr = string(jsonBytes)
 	}
 	if maxRunes > 0 {
-		jsonStr = capRunes(jsonStr, maxRunes)
+		jsonStr = spi.CapRunes(jsonStr, maxRunes)
 	}
-	return fencedBlock("json", jsonStr) + "\n"
+	return spi.CodeFence("json", jsonStr) + "\n"
 }
 
 // toolResultCap bounds how much tool output is rendered into the markdown body.
@@ -291,46 +295,3 @@ func formatJSONBlock(data map[string]interface{}, maxRunes int) string {
 // edit content) — but results (command output, tool result payloads) can be
 // arbitrarily large and matter less once the agent has already responded to them.
 const toolResultCap = 2000
-
-// fencedBlock wraps content in a code fence with an optional language tag, keeping
-// the content verbatim. codeFence sizes the fence so embedded backtick runs can't
-// terminate the block early.
-func fencedBlock(lang, content string) string {
-	fence := codeFence(content)
-	return fmt.Sprintf("%s%s\n%s\n%s", fence, lang, content, fence)
-}
-
-// codeFence returns a backtick fence long enough to safely wrap s: one backtick more
-// than the longest backtick run inside it (a value containing ``` would otherwise
-// terminate a plain three-backtick fence early), never shorter than the standard three.
-func codeFence(s string) string {
-	longest, run := 0, 0
-	for _, r := range s {
-		if r == '`' {
-			run++
-			if run > longest {
-				longest = run
-			}
-		} else {
-			run = 0
-		}
-	}
-	size := longest + 1
-	if size < 3 {
-		size = 3
-	}
-	return strings.Repeat("`", size)
-}
-
-// capRunes truncates s to at most max runes, marking the cut. Rune-based so a cap
-// never splits a multi-byte character.
-func capRunes(s string, max int) string {
-	if len(s) <= max {
-		return s // fast path: byte length bounds rune length
-	}
-	runes := []rune(s)
-	if len(runes) <= max {
-		return s
-	}
-	return string(runes[:max]) + "\n… (output truncated)"
-}

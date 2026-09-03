@@ -135,6 +135,15 @@ type Provider interface {
 	// Providers without a native serializer return ErrReconstructionUnsupported.
 	NativeSessionPath(projectPath string, filename string) (string, error)
 
+	// SupportsReconstruction reports whether this provider has a native
+	// serializer — i.e. whether it can be a cross-agent (or cloud) resume
+	// target. It must agree with ReconstructSession/NativeSessionPath returning
+	// ErrReconstructionUnsupported, and must be a pure capability answer with no
+	// filesystem access: callers invoke it just to build target lists (some
+	// NativeSessionPath implementations prepare directories, so probing that is
+	// not a substitute).
+	SupportsReconstruction() bool
+
 	// ListAllAgentChatSessions enumerates every session in this provider's native
 	// store, regardless of project — the inverse of the project-scoped
 	// ListAgentChatSessions. Each returned ref carries the originating cwd (read from

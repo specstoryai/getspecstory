@@ -274,12 +274,9 @@ func TestTrackSessionInCategory_Concurrent(t *testing.T) {
 			// Launch goroutines for concurrent operations
 			var wg sync.WaitGroup
 			for _, category := range tt.operations {
-				wg.Add(1)
-				cat := category // Capture for goroutine
-				go func() {
-					defer wg.Done()
-					stats.trackSessionInCategory(sessionID, cat)
-				}()
+				wg.Go(func() {
+					stats.trackSessionInCategory(sessionID, category)
+				})
 			}
 
 			// Wait for all operations to complete
@@ -340,10 +337,8 @@ func TestTrackSessionInCategory_ManyConcurrentSessions(t *testing.T) {
 	// Track 100 sessions concurrently
 	// 25 skipped, 25 errored, 25 updated, 25 created
 	for i := 0; i < numSessions; i++ {
-		wg.Add(1)
 		sessionID := i
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			category := categorySkipped
 			switch sessionID % 4 {
 			case 0:
@@ -356,7 +351,7 @@ func TestTrackSessionInCategory_ManyConcurrentSessions(t *testing.T) {
 				category = categoryCreated
 			}
 			stats.trackSessionInCategory(string(rune(sessionID)), category)
-		}()
+		})
 	}
 
 	wg.Wait()

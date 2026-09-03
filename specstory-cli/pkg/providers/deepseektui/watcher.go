@@ -38,10 +38,8 @@ func watchSessions(ctx context.Context, projectPath string, debugRaw bool, sessi
 
 	state := &watchState{lastProcessed: make(map[string]int64)}
 
-	// Initial scan to process existing sessions.
-	if err := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, state); err != nil {
-		slog.Debug("deepseek: initial scan failed", "error", err)
-	}
+	// Record what is already on disk instead of emitting it.
+	seedProcessedSessions(state)
 
 	// Set up watching on the sessions directory.
 	if err := setupWatcher(watcher, sessionsDir); err != nil {
@@ -154,7 +152,29 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
 	}
 
 	state.lastProcessed[filePath] = modTime
-	dispatchSession(sessionCallback, chat)
+	spi.DispatchSession("deepseek", sessionCallback, chat)
+}
+
+// seedProcessedSessions marks every session already on disk as seen, without
+// parsing or emitting any of it. Those sessions predate the watcher and are
+// `sync`'s to save; re-emitting them on every start would rewrite their
+// markdown and re-sync them for content that has not changed. Recording only
+// the modification times means the next scan still emits any of them that
+// DeepSeek actually touches.
+//
+// Failures are non-fatal: the worst case is the first scan re-emitting existing
+// sessions, which is the behavior this exists to avoid rather than a
+// correctness problem.
+func seedProcessedSessions(state *watchState) {
+	files, err := listSessionFiles()
+	if err != nil {
+		slog.Debug("deepseek: could not seed existing sessions", "error", err)
+		return
+	}
+	for _, file := range files {
+		state.lastProcessed[file.Path] = file.ModTime
+	}
+	slog.Debug("deepseek: seeded existing sessions as known", "count", len(files))
 }
 
 // scanAndProcessSessions scans all session files and processes any that have been modified.
@@ -181,22 +201,7 @@ func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback f
 			continue
 		}
 		state.lastProcessed[file.Path] = file.ModTime
-		dispatchSession(sessionCallback, chat)
+		spi.DispatchSession("deepseek", sessionCallback, chat)
 	}
 	return nil
-}
-
-// dispatchSession invokes the session callback in a goroutine with panic recovery.
-func dispatchSession(sessionCallback func(*spi.AgentChatSession), session *spi.AgentChatSession) {
-	if sessionCallback == nil || session == nil {
-		return
-	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("deepseek: session callback panicked", "panic", r)
-			}
-		}()
-		sessionCallback(session)
-	}()
 }

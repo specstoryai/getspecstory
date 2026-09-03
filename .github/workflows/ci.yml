@@ -31,12 +31,12 @@ jobs:
       run:
         working-directory: specstory-cli
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.5'
           cache-dependency-path: specstory-cli/go.sum
-      - uses: golangci/golangci-lint-action@v9
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: latest
           working-directory: specstory-cli
@@ -48,8 +48,37 @@ jobs:
       run:
         working-directory: specstory-cli
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.5'
+          cache-dependency-path: specstory-cli/go.sum
+      - name: Run tests
+        run: go test ./...
+
+      # Release builds every platform via goreleaser, but tests above only compile
+      # for linux — a broken GOOS=windows or GOOS=darwin build would otherwise
+      # surface for the first time when the release tag is pushed. Compile-only,
+      # so build-tagged files (e.g. workspace_id_windows.go) at least compile;
+      # they still only *execute* on a native runner (the test-windows job below).
+      - name: Cross-compile release targets
+        run: |
+          GOOS=windows GOARCH=amd64 go build ./...
+          GOOS=windows GOARCH=arm64 go build ./...
+          GOOS=darwin GOARCH=amd64 go build ./...
+          GOOS=darwin GOARCH=arm64 go build ./...
+
+  # Runs the suite natively on Windows so GOOS-gated branches and build-tagged
+  # files actually execute, not just compile.
+  test-windows:
+    name: Test (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: specstory-cli
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.26.5'
           cache-dependency-path: specstory-cli/go.sum

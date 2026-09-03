@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
 )
 
 // projectDirNameRegex matches any character that is not alphanumeric or a dash.
@@ -15,14 +14,12 @@ import (
 var projectDirNameRegex = regexp.MustCompile(`[^a-zA-Z0-9-]`)
 
 // encodeProjectDirName converts a real (symlink-resolved) path into Claude Code's
-// project directory name: non-alphanumeric/dash characters become dashes, with a
-// guaranteed leading dash. Example: "/Users/sean/app" -> "-Users-sean-app".
+// project directory name: non-alphanumeric/dash characters become dashes.
+// On Unix: "/Users/sean/app" -> "-Users-sean-app".
+// On Windows: "C:\Users\Admin\code\app" -> "C--Users-Admin-code-app" (no leading
+// dash — Claude Code does not add one on Windows).
 func encodeProjectDirName(realPath string) string {
-	name := projectDirNameRegex.ReplaceAllString(realPath, "-")
-	if !strings.HasPrefix(name, "-") {
-		name = "-" + name
-	}
-	return name
+	return projectDirNameRegex.ReplaceAllString(realPath, "-")
 }
 
 // resolveClaudeProjectDir returns ~/.claude/projects/<encoded> for the given
@@ -112,7 +109,8 @@ func GetClaudeCodeProjectDir(projectPath string) (string, error) {
 	}
 
 	// Convert path to project directory format (matching Claude Code's behavior).
-	// Example: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
+	// On Unix: "/Users/sean/My Projects(1)/app" becomes "-Users-sean-My-Projects-1--app"
+	// On Windows: "C:\Users\Admin\code\app" becomes "C--Users-Admin-code-app"
 	projectDirName := encodeProjectDirName(realPath)
 
 	// Log the transformation for debugging path issues

@@ -5,7 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // Directory and file constants
@@ -19,6 +22,7 @@ const STATISTICS_FILE = "statistics.json"
 type OutputConfig interface {
 	GetHistoryDir() string
 	GetDebugDir() string
+	GetSpecstoryDir() string
 }
 
 // OutputPathConfig manages all output directory configuration
@@ -45,7 +49,8 @@ func ExpandTilde(path string) string {
 
 // validateDirectory validates a directory path: expands ~, converts to absolute,
 // checks existence and write permissions, or creates it if missing.
-// Returns the validated absolute path.
+// Returns the validated absolute path. label names the directory's role (e.g.
+// "output directory") so errors and logs identify which flag was at fault.
 func validateDirectory(dir, label string) (string, error) {
 	// Expand ~ to home directory before converting to absolute
 	dir = ExpandTilde(dir)
@@ -112,7 +117,8 @@ func NewOutputPathConfig(dir string, debugDir string) (*OutputPathConfig, error)
 	return config, nil
 }
 
-// getBasePath returns the base path for specstory files
+// getBasePath returns the base directory for all non-history outputs (.project.json, statistics.json, debug/).
+// When --output-dir is set it uses that directory; otherwise falls back to {cwd}/.specstory.
 func (c *OutputPathConfig) getBasePath() string {
 	if c.BaseDir != "" {
 		return c.BaseDir
@@ -124,13 +130,14 @@ func (c *OutputPathConfig) getBasePath() string {
 	return filepath.Join(cwd, SPECSTORY_DIR)
 }
 
-// GetHistoryDir returns the history directory path
+// GetHistoryDir returns the directory where markdown files are written.
+// When --output-dir is set, markdown files go directly in that directory (no history/ subfolder).
+// Otherwise they live in {cwd}/.specstory/history/.
 func (c *OutputPathConfig) GetHistoryDir() string {
-	basePath := c.getBasePath()
 	if c.BaseDir != "" {
-		return basePath
+		return c.BaseDir
 	}
-	return filepath.Join(basePath, HISTORY_DIR)
+	return filepath.Join(c.getBasePath(), HISTORY_DIR)
 }
 
 // GetDebugDir returns the debug directory path.
@@ -142,20 +149,20 @@ func (c *OutputPathConfig) GetDebugDir() string {
 	return filepath.Join(c.getBasePath(), DEBUG_DIR)
 }
 
+// GetSpecstoryDir returns the base directory for .project.json, statistics.json, and debug/.
+// When --output-dir is set this returns that directory; otherwise returns {cwd}/.specstory.
+func (c *OutputPathConfig) GetSpecstoryDir() string {
+	return c.getBasePath()
+}
+
 // GetLogPath returns the debug log file path
 func (c *OutputPathConfig) GetLogPath() string {
 	return filepath.Join(c.GetDebugDir(), DEBUG_LOG_FILE)
 }
 
-// GetSpecStoryDir returns the .specstory directory path.
-// With a custom output dir this is the output dir itself; otherwise cwd/.specstory.
-func (c *OutputPathConfig) GetSpecStoryDir() string {
-	return c.getBasePath()
-}
-
 // GetStatisticsPath returns the full path to the statistics.json file
 func (c *OutputPathConfig) GetStatisticsPath() string {
-	return filepath.Join(c.GetSpecStoryDir(), STATISTICS_FILE)
+	return filepath.Join(c.GetSpecstoryDir(), STATISTICS_FILE)
 }
 
 // ValidationError represents errors from flag validation that should not display usage
@@ -195,6 +202,62 @@ func SetupOutputConfig(outputDir string, debugDir string) (*OutputPathConfig, er
 		return nil, err
 	}
 	return config, nil
+}
+
+// ResolveProjectPath returns the effective project path for session discovery.
+// When overridePath is provided, it is resolved to an absolute path and returned.
+// Falls back to cwd when overridePath is empty or cannot be resolved.
+//
+// The result is canonicalized to its on-disk spelling (symlinks resolved, case
+// corrected). On case-insensitive filesystems the same directory can be spelled
+// several ways ("~/source" vs "~/Source"), while agents record the on-disk
+// spelling — a differently-spelled root would fail the exact prefix comparisons
+// used to relativize recorded paths in generated markdown.
+func ResolveProjectPath(overridePath, cwd string) string {
+	if overridePath == "" {
+		return canonicalizeLocalPath(cwd)
+	}
+
+	// Rootless remote paths must not be absolutized or canonicalized — they name
+	// directories on another machine, and filepath.Abs would corrupt them by
+	// prepending the current drive letter (e.g. C:\home\user\project).
+	if IsDrivelessRootedPath(overridePath) {
+		return filepath.Clean(overridePath)
+	}
+
+	abs, err := filepath.Abs(overridePath)
+	if err != nil {
+		slog.Warn("ResolveProjectPath: Failed to resolve override path, using cwd", "path", overridePath, "error", err)
+		return canonicalizeLocalPath(cwd)
+	}
+	return canonicalizeLocalPath(abs)
+}
+
+// canonicalizeLocalPath resolves a local path to its on-disk spelling, falling
+// back to the input when resolution fails. Only ever applied to paths naming
+// directories on this machine (the process cwd or a local override) — recorded
+// paths from session data must never pass through here, since they may have
+// been written on another OS.
+func canonicalizeLocalPath(p string) string {
+	canonical, err := spi.GetCanonicalPath(p)
+	if err != nil {
+		slog.Debug("Failed to canonicalize project path, using as-is", "path", p, "error", err)
+		return p
+	}
+	return canonical
+}
+
+// IsDrivelessRootedPath reports whether p is, on Windows, a rooted path with no
+// drive letter — the shape VS Code's fsPath produces for WSL and SSH remote
+// workspaces (e.g. /home/user/project or \home\user\project). Such a path names
+// a directory on another machine, but Windows path APIs would resolve it against
+// the process's current drive: filepath.Abs staples the drive letter on and
+// os.Stat may find an unrelated local directory of the same shape. Callers must
+// treat these paths as opaque strings. Always false off Windows, where a rooted
+// volume-less path is just a normal absolute path.
+func IsDrivelessRootedPath(p string) bool {
+	return runtime.GOOS == "windows" && filepath.VolumeName(p) == "" &&
+		(strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`))
 }
 
 // GetAuthPath returns the path to the auth.json file

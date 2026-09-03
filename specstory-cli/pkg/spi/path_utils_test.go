@@ -3,6 +3,7 @@ package spi
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -57,8 +58,10 @@ func TestGetCanonicalPath(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input, result string) {
-				if !strings.HasSuffix(result, "nonexistent/path/components") {
-					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with nonexistent/path/components", input, result)
+				// filepath.Join gives the platform's separators (backslashes on Windows)
+				want := filepath.Join("nonexistent", "path", "components")
+				if !strings.HasSuffix(result, want) {
+					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with %q", input, result, want)
 				}
 			},
 		},
@@ -74,8 +77,9 @@ func TestGetCanonicalPath(t *testing.T) {
 			},
 			wantErr: false,
 			validate: func(t *testing.T, input, result string) {
-				if !strings.HasSuffix(result, "level1/level2/level3") {
-					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with level1/level2/level3", input, result)
+				want := filepath.Join("level1", "level2", "level3")
+				if !strings.HasSuffix(result, want) {
+					t.Errorf("GetCanonicalPath(%q) = %q, want path ending with %q", input, result, want)
 				}
 			},
 		},
@@ -260,6 +264,41 @@ func TestGetCanonicalPath(t *testing.T) {
 	}
 }
 
+func TestCanonicalizePathOrClean(t *testing.T) {
+	// Use real temp dirs so canonicalization (which calls filepath.EvalSymlinks
+	// under the hood) can resolve them. We can't assert exact strings on macOS
+	// because /var → /private/var, so we assert that equivalent inputs produce
+	// equivalent outputs and that empty input returns empty.
+	t.Run("empty input returns empty", func(t *testing.T) {
+		if got := CanonicalizePathOrClean(""); got != "" {
+			t.Errorf("expected empty, got %q", got)
+		}
+		if got := CanonicalizePathOrClean("   "); got != "" {
+			t.Errorf("expected empty for whitespace, got %q", got)
+		}
+	})
+
+	t.Run("equivalent paths canonicalize to same value", func(t *testing.T) {
+		dir := t.TempDir()
+		// Same dir referenced two ways must canonicalize identically.
+		canonical := CanonicalizePathOrClean(dir)
+		canonicalAgain := CanonicalizePathOrClean(dir + "/")
+		if canonical != canonicalAgain {
+			t.Errorf("trailing slash changed canonical form: %q vs %q", canonical, canonicalAgain)
+		}
+		if canonical == "" {
+			t.Errorf("expected non-empty canonical for %q", dir)
+		}
+	})
+
+	t.Run("nonexistent path still canonicalizes to absolute form", func(t *testing.T) {
+		got := CanonicalizePathOrClean(filepath.Join(t.TempDir(), "definitely", "does", "not", "exist"))
+		if !filepath.IsAbs(got) {
+			t.Errorf("expected absolute path for nonexistent input, got %q", got)
+		}
+	})
+}
+
 // TestSetDebugBaseDir tests the debug base dir override mechanism
 func TestSetDebugBaseDir(t *testing.T) {
 	// Clean up after test to avoid affecting other tests
@@ -363,6 +402,274 @@ func TestGenerateReadableName(t *testing.T) {
 			result := GenerateReadableName(tt.message)
 			if result != tt.expected {
 				t.Errorf("GenerateReadableName() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestFileURIToPath covers the shared file-URI converter on the POSIX forms
+// (the Windows drive-letter/UNC branches are separator-gated and can only run
+// on a Windows build; cursoride's TestUriToPath_WindowsPaths documents them).
+func TestFileURIToPath(t *testing.T) {
+	// A non-WSL host is dropped on posix but names a UNC share on Windows.
+	nonWSLHostWant := "/share/dir"
+	if runtime.GOOS == "windows" {
+		nonWSLHostWant = `\\server\share\dir`
+	}
+
+	tests := []struct {
+		name    string
+		uri     string
+		want    string
+		wantErr bool
+	}{
+		{name: "plain posix path", uri: "file:///tmp/project/main.go", want: "/tmp/project/main.go"},
+		{name: "percent escapes decoded", uri: "file:///tmp/my%20file.go", want: "/tmp/my file.go"},
+		{name: "literal percent sequence decoded exactly once", uri: "file:///tmp/literal%2520pct", want: "/tmp/literal%20pct"},
+		{name: "wsl.localhost strips host and distro", uri: "file://wsl.localhost/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl.localhost host is case-insensitive", uri: "file://WSL.LOCALHOST/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl$ host strips host and distro", uri: "file://wsl$/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl$ host is case-insensitive", uri: "file://WSL$/Ubuntu/home/u/proj", want: "/home/u/proj"},
+		{name: "wsl host without in-distro path is malformed", uri: "file://wsl.localhost/Ubuntu", wantErr: true},
+		{name: "non-wsl host", uri: "file://server/share/dir", want: nonWSLHostWant},
+		{name: "non-file scheme rejected", uri: "https://example.com/x", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := FileURIToPath(tt.uri)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("FileURIToPath(%q) = %q, want error", tt.uri, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("FileURIToPath(%q) unexpected error: %v", tt.uri, err)
+			}
+			if got != tt.want {
+				t.Errorf("FileURIToPath(%q) = %q, want %q", tt.uri, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseVSCodeRemoteURI(t *testing.T) {
+	tests := []struct {
+		name      string
+		uri       string
+		wantPath  string
+		wantError string
+	}{
+		// Valid WSL URIs
+		{
+			name:     "percent-encoded wsl+ubuntu",
+			uri:      "vscode-remote://wsl%2Bubuntu/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "unencoded wsl+ubuntu",
+			uri:      "vscode-remote://wsl+ubuntu/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "percent-encoded wsl+Debian",
+			uri:      "vscode-remote://wsl%2BDebian/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "case insensitive WSL host",
+			uri:      "vscode-remote://WSL%2BUbuntu/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "wsl host without distro name",
+			uri:      "vscode-remote://wsl/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "deep path",
+			uri:      "vscode-remote://wsl%2Bubuntu/home/user/code/specstory-monorepo",
+			wantPath: "/home/user/code/specstory-monorepo",
+		},
+		{
+			name:     "path with spaces encoded",
+			uri:      "vscode-remote://wsl%2Bubuntu/home/user/my%20project",
+			wantPath: "/home/user/my project",
+		},
+		{
+			name:     "root path",
+			uri:      "vscode-remote://wsl%2Bubuntu/",
+			wantPath: "/",
+		},
+
+		// Valid SSH remote URIs
+		{
+			name:     "ssh-remote with simple config",
+			uri:      "vscode-remote://ssh-remote+myserver/home/user/project",
+			wantPath: "/home/user/project",
+		},
+		{
+			name:     "ssh-remote with hex-encoded config",
+			uri:      "vscode-remote://ssh-remote%2B7b22686f73744e616d65223a226d61632d6d696e69227d/Users/bago/code/getspecstory",
+			wantPath: "/Users/bago/code/getspecstory",
+		},
+		{
+			name:     "ssh-remote case insensitive",
+			uri:      "vscode-remote://SSH-REMOTE+myserver/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
+		// Valid tunnel URIs
+		{
+			name:     "tunnel with simple host",
+			uri:      "vscode-remote://tunnel+myhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
+		{
+			name:     "tunnel with percent-encoded host",
+			uri:      "vscode-remote://tunnel%2Bmyhost/work/group/user/myproject",
+			wantPath: "/work/group/user/myproject",
+		},
+		{
+			name:     "tunnel case insensitive",
+			uri:      "vscode-remote://TUNNEL+myhost/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
+		// Dev container URIs - path returned as-is (container-internal path)
+		{
+			name:     "dev container URI with hex-encoded config",
+			uri:      "vscode-remote://dev-container%2B7b2273657474696e6754797065223a22636f6e7461696e6572222c22636f6e7461696e65724964223a22656335613261653766636632227d/workspace",
+			wantPath: "/workspace",
+		},
+		{
+			name:     "dev container URI case insensitive",
+			uri:      "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
+			wantPath: "/home/user/project",
+		},
+
+		// Error cases
+		{
+			name:      "no path component",
+			uri:       "vscode-remote://wsl%2Bubuntu",
+			wantError: "malformed vscode-remote URI (no path)",
+		},
+		{
+			name:      "unsupported host",
+			uri:       "vscode-remote://codespaces%2Babc/home/user/project",
+			wantError: "unsupported vscode-remote host",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseVSCodeRemoteURI(tt.uri)
+
+			if tt.wantError != "" {
+				if err == nil {
+					t.Errorf("ParseVSCodeRemoteURI(%q) expected error containing %q, got nil", tt.uri, tt.wantError)
+					return
+				}
+				if got := err.Error(); !strings.Contains(got, tt.wantError) {
+					t.Errorf("ParseVSCodeRemoteURI(%q) error = %q, want error containing %q", tt.uri, got, tt.wantError)
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("ParseVSCodeRemoteURI(%q) unexpected error: %v", tt.uri, err)
+				return
+			}
+
+			if got != tt.wantPath {
+				t.Errorf("ParseVSCodeRemoteURI(%q) = %q, want %q", tt.uri, got, tt.wantPath)
+			}
+		})
+	}
+}
+
+func TestIsRemoteURIRequiringBasenameMatch(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+		want bool
+	}{
+		{
+			name: "ssh-remote URI matches",
+			uri:  "vscode-remote://ssh-remote+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "ssh-remote URI case insensitive",
+			uri:  "vscode-remote://SSH-REMOTE+myserver/home/user/project",
+			want: true,
+		},
+		{
+			name: "tunnel URI matches",
+			uri:  "vscode-remote://tunnel+myhost/work/group/user/myproject",
+			want: true,
+		},
+		{
+			name: "tunnel URI case insensitive",
+			uri:  "vscode-remote://TUNNEL+myhost/work/group/user/myproject",
+			want: true,
+		},
+		{
+			name: "dev-container URI matches",
+			uri:  "vscode-remote://dev-container%2Babc123/workspace",
+			want: true,
+		},
+		{
+			name: "dev-container URI case insensitive",
+			uri:  "vscode-remote://DEV-CONTAINER%2Babc123/home/user/project",
+			want: true,
+		},
+		{
+			name: "wsl URI does not match",
+			uri:  "vscode-remote://wsl%2Bubuntu/home/user/project",
+			want: false,
+		},
+		{
+			name: "local file URI does not match",
+			uri:  "file:///Users/bago/code/getspecstory",
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsRemoteURIRequiringBasenameMatch(tt.uri); got != tt.want {
+				t.Errorf("IsRemoteURIRequiringBasenameMatch(%q) = %v, want %v", tt.uri, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestWindowsFileURIPath covers the Windows-native conversion of decoded file-URI
+// paths, runnable from any platform (the function deliberately avoids GOOS-dependent
+// filepath helpers). Drive URIs lose their spurious leading slash and gain
+// backslashes; Unix-shaped rooted paths — sessions or workspaces recorded on
+// another OS — must pass through untouched, keeping their absolute root.
+func TestWindowsFileURIPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "uppercase drive", path: "/C:/Users/x/proj", want: `C:\Users\x\proj`},
+		{name: "lowercase drive", path: "/c:/Users/x/proj", want: `c:\Users\x\proj`},
+		{name: "drive with space", path: "/c:/a b/c", want: `c:\a b\c`},
+		{name: "drive root", path: "/c:/", want: `c:\`},
+		{name: "unix path preserved", path: "/tmp/project/main.go", want: "/tmp/project/main.go"},
+		{name: "unix home path preserved", path: "/Users/me/proj", want: "/Users/me/proj"},
+		{name: "bare root preserved", path: "/", want: "/"},
+		{name: "colon later in path is not a drive", path: "/tmp/a:b/c", want: "/tmp/a:b/c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := windowsFileURIPath(tt.path); got != tt.want {
+				t.Errorf("windowsFileURIPath(%q) = %q, want %q", tt.path, got, tt.want)
 			}
 		})
 	}

@@ -1,5 +1,94 @@
 # Specstory CLI Changelog
 
+## v2.10.0 2026-08-17
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Muse Code](https://developer.meta.com/ai/products/muse-code/) for agent sessions created from Muse Code `0.1.0-R708.1` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- You can use `specstory resume` to resume Muse Code sessions in other coding agents, and to resume any agent's session into Muse Code.
+
+### 🐛 Bug Fixes
+
+- `output_dir` in `config.toml` is now honored by `specstory watch` and `specstory resume`, not just by `run` and `sync`. Previously only the `--output-dir` flag reached `watch`, so with the setting in your config file the startup save went to your configured directory while everything written during the watch went to `./.specstory/history` — leaving markdown in two places, with the configured copy going stale. Thanks to [petercurcio](https://github.com/petercurcio) for the detailed report in [issue 273](https://github.com/specstoryai/getspecstory/issues/273). If you hit this, the copies under `./.specstory/history` are the newer ones; move or delete them once, and everything lands in your configured directory from now on.
+- Codex CLI sessions started in Codex `0.147.0`+ are saved again. Codex changed how its Codex CLI TUI records a conversation in that release, and SpecStory read only the older form, so those sessions produced a markdown file containing just a header, with every prompt and reply missing. Both forms are now read. This affects only sessions **started** in `0.147.0`+. Sessions from earlier versions, and older sessions you resume under `0.147` were never affected, and their markdown is unchanged. Re-run `specstory sync` to fill in any sessions that were saved empty.
+- `specstory watch` and `specstory run` now behave the same way at startup whichever agent you are watching: they save new activity from that point on, and leave sessions that already exist alone. Previously Codex CLI, Droid CLI, DeepSeek TUI and Antigravity CLI re-saved and re-synced their existing sessions on every start, while Claude Code, Cursor, VS Code Copilot, Gemini CLI and Muse Code did not. Run `specstory sync` when you want existing sessions written or refreshed.
+- The first update to a session that already had a markdown file is no longer missing from `specstory watch` output. The line was sometimes being swallowed as if it were startup noise, so for some agents, some of the time your first prompt after starting `watch` appeared to do nothing; only the second one showed up.
+- `specstory run` and `specstory watch` no longer reprocess your entire Codex CLI history every time they start. Codex stores sessions by date, and while SpecStory only ever watched the last few days for live changes, it was scanning and re-saving every day directory going back to your first ever session — rewriting all that markdown and re-syncing it to the SpecStory Cloud on each launch. Startup now covers the same trailing window that live watching does, plus the day of a session you are resuming, however old it is. If you have a long Codex history, expect `run` and `watch` to start noticeably faster and stop touching old markdown files; a full `specstory sync` still processes everything as before.
+
+## v2.9.0 2026-08-12
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL). Install on Windows by downloading `SpecStoryCLI_Windows_x86_64.zip` (or `_arm64`) from the [GitHub release](https://github.com/specstoryai/getspecstory/releases) and putting `specstory.exe` on your PATH. Signing the binary, and a package manager install (e.g. winget) is planned. Since the binaries are not yet code-signed, Windows SmartScreen may show an "unrecognized app" warning on first run. WSL users should just keep using the standard Linux install, which now reads Windows-side IDE data automatically.
+
+### 🔧 CLI Configuration & Commands
+
+- New `--user-data-dir` flag on `sync`, `check`, `list` and `watch` points an IDE provider at a non-default install location, for portable installs and for reading a Windows-side install from WSL. It takes a `provider_id:path` pair and is repeatable, e.g. `--user-data-dir cursoride:D:\apps\cursor\current\data\user-data --user-data-dir copilotide:/opt/vscode/data`. The path is the user-data-dir itself (the parent of the `User` directory), the same value the IDE's own `--user-data-dir` argument takes. Supported provider IDs are `cursoride`, `copilotide`, `copilotide-insiders`, `copilotide-vscodium` and `copilotide-vscodium-insiders`. If the override path doesn't exist, SpecStory warns and falls back to the standard location for your OS rather than leaving the provider idle.
+- New `--config-dir` flag on `run`, `sync` and `watch` relocates the project-level config directory — both where the default `config.toml` is created and where it is read from — for cases where the project directory itself shouldn't be written to, e.g. `specstory sync --config-dir ~/specstory-configs/myproject`. Without the flag the project-level config stays at `./.specstory/cli/config.toml`.
+- New `--no-stats` flag on `run`, `sync`, `watch`, `resume` and `search` skips session statistics entirely, so `./.specstory/statistics.json` is neither read nor written. Statistics stay on by default; `--no-stats` cannot be combined with `--only-stats`.
+
+### ⚙️ Improvements
+
+- Cursor IDE and VS Code Copilot conversations from WSL and SSH remote workspaces are now discovered and saved. The IDE records the same project differently depending on how it was opened (local path, WSL distro, or SSH remote); SpecStory now matches all of these forms and aggregates the sessions from every matching workspace entry, so conversations are found no matter which environment they were created in. Running from inside WSL also works: SpecStory detects WSL and reads the IDE's data from the Windows side via `/mnt/c/`.
+- When `--output-dir` is set, the project identity file `.project.json` now lives in that directory alongside the markdown, statistics and debug output, instead of staying at `./.specstory/.project.json` — so you still capture every SpecStory output file under one directory, and SpecStory Cloud sync reads the identity from there too. If you already use `--output-dir` with SpecStory Cloud, copy your existing `./.specstory/.project.json` into the output directory once to keep the same project identity.
+- Session statistics (`./.specstory/statistics.json`) now stay current during `run`, `watch`, `resume` and `sync -s` as each session saves, instead of updating only during a full `sync`. Use the new `--no-stats` flag if you don't want this.
+
+## v2.8.0 2026-08-10
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports Meta's [Muse Code](https://github.com/facebook/muse-code) (i.e. `muse`) for sessions created from Muse Code version `0.1.0` or higher. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for the other supported coding agents, including resuming Muse Code sessions in other agents and other agents' sessions in Muse Code with `specstory resume`. See [MUSE-FORMAT.md](docs/MUSE-FORMAT.md) for the session format details.
+
+### 🐛 Bug Fixes
+
+- Fenced code blocks in the rendered markdown (those triple backticks) are now sized correctly across all providers. When a session included tool output that itself contained embedded code fences — a cat of a README, a diff of a markdown file — the resulting markdown could become unbalanced and wreck how rendering engines display everything after it. Fences are now sized past any backtick runs in the content, and the old backslash-escape workaround (which left visible \ artifacts) is gone. Thanks to [huangruizhe](https://github.com/huangruizhe) for diagnosing the problem and proposing the fix in [PR 241](https://github.com/specstoryai/getspecstory/pull/241), which was the inspiration for this change. Note: your existing markdown files may update once on your next sync as fences are resized and escape artifacts removed.
+- Consecutive user messages (e.g. from a turn the agent never answered) are now separated by a --- divider in the generated markdown for all providers. This may also cause small one-time markdown updates on your next sync.
+- `specstory watch` no longer silently disables an IDE provider when the watch starts before the project has ever been opened in that IDE. Previously, running `specstory watch` in a fresh directory and then opening it in Cursor or VS Code meant nothing was ever saved; the watcher now waits for the IDE to create the workspace and picks up the first session automatically.
+- The Cursor IDE provider now prefers the workspace entry whose path exactly matches the on-disk spelling of the project directory. On macOS's case-insensitive filesystem, opening the same folder as ~/source/... and ~/Source/... creates two separate workspace entries, splitting sessions between them; SpecStory now reads and writes the entry the IDE itself will use, and launches the IDE with the canonical path so it stops creating case-duplicate entries.
+- `specstory run` for an IDE provider no longer hangs before watching starts when a custom launcher command includes `--wait`.
+
+### ⚙️ Improvements
+
+- `specstory run` with an IDE provider (Cursor IDE, VS Code Copilot) now shows progress in the terminal: a note while waiting for the IDE to open the project, confirmation when it connects, and a line for each session save, instead of sitting silent while you work in the IDE.
+
+## v2.7.0 2026-08-07
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot) for Copilot agent sessions created from  Visual Studio Code `1.132.0` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- VS Code Insiders, VSCodium, and VSCodium Insiders are supported as their own providers (`copilotide-insiders`, `copilotide-vscodium`, `copilotide-vscodium-insiders`). They register automatically once they contain at least one Copilot chat, so machines without them see no extra providers in `check`, `watch`, or `sync`.
+- You can use `specstory resume` to resume VS Code Copilot sessions in other coding agents, and to resume any agent's session into VS Code Copilot, including into a project folder that has never been opened in VS Code (SpecStory creates the workspace entry, which VS Code adopts on first open). When resuming into Copilot, SpecStory will prompt you to fully quit VS Code first: a running VS Code discards externally imported sessions when it exits.
+
+## v2.6.0 2026-08-03
+
+### 🐛 Bug Fixes
+
+- The Codex CLI provider no longer holds an open file descriptor for every historical Codex session file during `specstory run` and `specstory watch` on macOS. File watches are now limited to a trailing 7-day window of session directories (plus the directory of a resumed session), and watches that age out of the window are released at day rollover, so file descriptor usage stays flat no matter how long a watch runs. Previously, installs with a large Codex session history could pin tens of thousands of descriptors per process and exhaust the system-wide file table, [issue 266](https://github.com/specstoryai/getspecstory/issues/266). All historical sessions are still scanned and synced at startup and during `specstory sync`, as before.
+- The Claude Code provider no longer holds an open file descriptor for every historical Claude Code session file during `specstory run` and `specstory watch` on macOS. Session files modified within the trailing 7-day window are watched individually, and a periodic self-healing pass picks up new session files and re-watches dormant sessions the moment they become active again. Even a session idle for longer than the window resumes live markdown updates within seconds. Sessions are still fully covered at startup and during `specstory sync`, as before.
+
+## v2.5.0 2026-07-24
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports the [Antigravity CLI](https://antigravity.google/) (i.e. `antigravity-cli`, the `agy` binary) for sessions created from Antigravity CLI version `1.1.5` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- The [Antigravity CLI](https://antigravity.google/) provider does _not_ support using `specstory resume` to resume other agent's sessions in Antigravity. Resuming Antigravity CLI sessions in other agents is fully supported. This is due to issues with creating the protocol buffer data structures Antigravity uses for session storage.
+- The [Gemini CLI](https://github.com/google-gemini/gemini-cli) provider is now deprecated and will eventually be completely replaced by the [Antigravity CLI](https://antigravity.google/) provider. The Gemini CLI provider remains in place today to help with synchronizing legacy Gemini CLI sessions, and to allow those sessions to be resumed in other agents.
+
+## v2.4.0 2026-07-20
+
+### ⚙️ Improvements
+
+- SpecStory coding agent session histories are now saved by default with secrets redacted via the [Betterleaks](https://github.com/betterleaks/betterleaks) library. Thank you to [warnes](https://github.com/warnes) for the [contribution](https://github.com/specstoryai/getspecstory/pull/235).
+- Redaction also covers all the data synced to SpecStory Cloud, not just local markdown.
+
+### 🔧 CLI Configuration & Commands
+
+- If you don't want secret redaction for any reason (not recommended), use the `--no-redact-secrets` flag or `enabled = false` in the `[redaction]` section of your `.specstory/cli/config.toml`.
+
+### 🐛 Bug Fixes
+
+- Fixed some indeterminism in Clade Code session rendering order around the Claude `local-command-caveat` that could cause markdown edit churn on repeated `sync` runs.
+
 ## v2.3.0 2026-07-17
 
 ### 📢 Announcements

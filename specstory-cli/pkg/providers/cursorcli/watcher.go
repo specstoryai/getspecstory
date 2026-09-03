@@ -25,6 +25,7 @@ type CursorWatcher struct {
 	wg              sync.WaitGroup
 	callbackWg      sync.WaitGroup              // Track callback goroutines
 	lastCounts      map[string]int              // Track record counts per session
+	walEnabled      map[string]bool             // Sessions whose store.db is confirmed in WAL mode
 	knownSessions   map[string]bool             // Sessions that existed at startup (don't process unless resumed)
 	resumedSession  string                      // Session ID being resumed (watch for changes)
 	sessionCallback func(*spi.AgentChatSession) // Callback for session updates
@@ -50,6 +51,7 @@ func NewCursorWatcher(projectPath string, debugRaw bool, sessionCallback func(*s
 		ctx:             ctx,
 		cancel:          cancel,
 		lastCounts:      make(map[string]int),
+		walEnabled:      make(map[string]bool),
 		knownSessions:   make(map[string]bool),
 		resumedSession:  "",
 		sessionCallback: sessionCallback,
@@ -86,8 +88,7 @@ func (w *CursorWatcher) Start() error {
 			slog.Warn("Cannot access project hash directory", "hashDir", w.hashDir, "error", err)
 		}
 		// Start watching for the directory to be created
-		w.wg.Add(1)
-		go w.watchForDirectory()
+		w.wg.Go(w.watchForDirectory)
 		return nil
 	}
 
@@ -95,8 +96,7 @@ func (w *CursorWatcher) Start() error {
 	slog.Info("Project hash directory exists", "hashDir", w.hashDir, "isDir", stat.IsDir())
 
 	// Directory exists, start watching sessions
-	w.wg.Add(1)
-	go w.watchLoop()
+	w.wg.Go(w.watchLoop)
 
 	return nil
 }
@@ -122,8 +122,6 @@ func (w *CursorWatcher) Stop() {
 
 // watchForDirectory waits for the project hash directory to be created
 func (w *CursorWatcher) watchForDirectory() {
-	defer w.wg.Done()
-
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
@@ -136,8 +134,7 @@ func (w *CursorWatcher) watchForDirectory() {
 			if _, err := os.Stat(w.hashDir); err == nil {
 				slog.Info("Project hash directory detected, starting session watcher", "hashDir", w.hashDir)
 				// Directory exists now, start watching sessions
-				w.wg.Add(1)
-				go w.watchLoop()
+				w.wg.Go(w.watchLoop)
 				return
 			}
 		}
@@ -146,8 +143,6 @@ func (w *CursorWatcher) watchForDirectory() {
 
 // watchLoop is the main monitoring loop
 func (w *CursorWatcher) watchLoop() {
-	defer w.wg.Done()
-
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
@@ -192,22 +187,21 @@ func (w *CursorWatcher) checkForChanges() {
 		dbPath := filepath.Join(w.hashDir, sessionID, "store.db")
 
 		// Check if database exists
-		fileInfo, err := os.Stat(dbPath)
-		if err != nil {
+		if _, err := os.Stat(dbPath); err != nil {
 			continue // Skip sessions without store.db
 		}
 
 		// For NEW sessions, process them once and then watch for changes
 		if !isKnown {
 			// Check if we've already seen this new session
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
+			if w.hasSessionChanged(sessionID, dbPath) {
 				slog.Info("Detected NEW Cursor session", "sessionId", sessionID)
 				w.processSessionChanges(sessionID, dbPath)
 			}
 		} else if isResumed {
 			// For resumed session, check for changes
 			slog.Debug("Polling resumed session for changes", "sessionId", sessionID)
-			if w.hasSessionChanged(sessionID, fileInfo, dbPath) {
+			if w.hasSessionChanged(sessionID, dbPath) {
 				slog.Info("Detected changes in resumed Cursor session", "sessionId", sessionID)
 				w.processSessionChanges(sessionID, dbPath)
 			} else {
@@ -218,15 +212,29 @@ func (w *CursorWatcher) checkForChanges() {
 }
 
 // hasSessionChanged checks if a session database has new records
-func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo, dbPath string) bool {
+func (w *CursorWatcher) hasSessionChanged(sessionID string, dbPath string) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	// Ensure WAL mode before polling so our read-only connections and
+	// cursor-agent's writer don't block each other. Not marked done on failure,
+	// so a transient lock at first sight is retried on the next poll instead of
+	// leaving the session without WAL forever.
+	if !w.walEnabled[sessionID] {
+		if err := spi.EnsureWALMode(dbPath); err != nil {
+			slog.Warn("Failed to ensure WAL mode on session database",
+				"sessionId", sessionID, "error", err)
+		} else {
+			w.walEnabled[sessionID] = true
+		}
+	}
 
 	// Always check record count - don't rely on file modification time
 	// SQLite with WAL mode may not update file mtime when records are added
 
-	// Open database to count records (with WAL mode)
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro")
+	// Open read-only with a busy timeout so a transient lock held by
+	// cursor-agent's writer doesn't fail the poll
+	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		slog.Error("Failed to open database", "sessionId", sessionID, "error", err)
 		return false
@@ -237,10 +245,10 @@ func (w *CursorWatcher) hasSessionChanged(sessionID string, fileInfo os.FileInfo
 		}
 	}()
 
-	// Enable WAL mode for non-blocking reads
-	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		slog.Debug("Failed to enable WAL mode in watcher", "error", err)
-	}
+	// Limit the connection pool: SQLite serialises access anyway, so one
+	// connection is sufficient
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	// Count total records in the blobs table
 	var count int
@@ -325,16 +333,14 @@ func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) {
 
 	// Call the callback asynchronously to avoid blocking the watcher
 	if w.sessionCallback != nil {
-		w.callbackWg.Add(1)
-		go func(s *spi.AgentChatSession) {
-			defer w.callbackWg.Done()
+		w.callbackWg.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
+					slog.Error("Session callback panicked", "panic", r, "sessionId", agentSession.SessionID)
 				}
 			}()
-			w.sessionCallback(s)
-		}(agentSession)
+			w.sessionCallback(agentSession)
+		})
 
 		// Log that we detected changes and invoked the callback
 		slog.Info("Detected session changes, callback invoked", "sessionId", sessionID)
