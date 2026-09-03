@@ -708,3 +708,5 @@ The SpecStory CLI is licensed under the [Apache 2.0 open source license](LICENSE
 Copyright 2025-2026 by SpecStory, Inc., All Rights Reserved.
 
 SpecStory® is a registered trademark of SpecStory, Inc.
+
+Made with ❤️ by the SpecStory team — thanks for turning your intent into source code.
