@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Latest released version of Droid CLI (Factory AI).
+#
+# Channel: the official installer at https://app.factory.ai/cli — Droid has no
+# npm/brew/GitHub-releases channel; the installer script pins the current
+# version in a VER="x.y.z" assignment and downloads from
+# downloads.factory.ai/factory-cli/releases/$VER/, so the installer itself is
+# the release manifest.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://app.factory.ai/cli \
+  | sed -n 's/^VER="\([^"]*\)".*/\1/p' | head -1)
+if [ -z "$version" ]; then
+  echo "could not extract VER= from app.factory.ai/cli (installer format changed?)" >&2
+  exit 1
+fi
+printf '%s\n' "$version"

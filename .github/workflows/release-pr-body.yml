@@ -1,0 +1,106 @@
+name: release-pr-body
+
+# Rewrites the body of the standing dev -> main release PR (see
+# release-pr-sync.yml, which dispatches this on every push to dev). Runs as a
+# separate workflow because claude-code-action requires an event it supports
+# (workflow_dispatch here), not `push`.
+#
+# Guardrail shape: the agent step writes only out/body.md; a mechanical step
+# applies it with `gh pr edit`. The agent holds no write credential.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Release PR number to rewrite
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-pr-body
+  cancel-in-progress: true
+
+jobs:
+  rewrite-body:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write # claude-code-action's OAuth auth exchanges a GitHub OIDC token
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch main and dev refs
+        run: git fetch origin main dev --no-tags --depth=200
+
+      - name: Build release PR context
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash ./scripts/ci/build-release-pr-context.sh origin/main origin/dev out/context.md
+
+      # Credential-less beyond its own auth; writes only out/body.md.
+      - name: Write release summary (agent)
+        uses: anthropics/claude-code-action@8251c103ac8c1d761882c86aba1412c7f583c844 # v1 (2026-09-01)
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Dispatched by release-pr-sync with GITHUB_TOKEN, so the actor is the
+          # github-actions bot; a human may also dispatch by hand.
+          allowed_bots: "github-actions,provider-factory"
+          claude_args: '--max-turns 80 --allowedTools "Bash,Read,Write,Grep,Glob"'
+          prompt: |
+            Write the body of release pull request #${{ inputs.pr_number }} so it reflects the
+            **current total accumulated diff from `main` to `dev`** of this repository
+            (${{ github.repository }}). Do not summarize only the latest push: this is a full
+            release summary of everything on dev that is not yet on main.
+
+            ## Sources, in order
+            1. out/context.md — the canonical scope: commit range, changelog lines added, changed
+               design docs, factory-merged dependency PRs (with verdict + assessment link), commits,
+               files changed.
+            2. The checkout itself: `git diff origin/main..origin/dev -- <path>` for anything you
+               need to understand; `specstory-cli/changelog.md` and `specstory-cli/docs/*.md` for
+               the maintainers' own descriptions.
+            Do not speculate beyond what the range and touched docs support.
+
+            ## Body structure
+            1. A short opening paragraph summarizing the release (what kind of release this is,
+               size of the range).
+            2. `## Highlights` — 3–6 concise bullets for the most important changes.
+            3. `## Major Change Areas` — related work grouped into themes; a short paragraph or a
+               few bullets per theme. Provider work (specstory-cli/pkg/providers/*) is usually its
+               own theme per provider.
+            4. `## Dependency Updates` — one line per factory-merged dependabot PR from the
+               context: `#N dependency old → new — verdict — [assessment](link)`. Do not re-derive
+               impact; the linked assessment is the record. If none, say so.
+            5. `## Operational Notes` — release/deploy implications, config changes, platform
+               caveats (three-platform support: macOS, Linux, Windows), follow-up validation, or
+               risks. If none are notable, say that explicitly.
+            6. `## Commits` — compact bullet list of non-merge commits, grouped by theme when
+               possible.
+
+            ## Style
+            Optimize for a human reviewing a release PR. Be specific; avoid changelog spam; prefer
+            synthesis over repeating every subject line. Mention docs, migration, or infra changes
+            when they matter operationally.
+
+            ## Output
+            Write the complete markdown body to out/body.md and nothing else. Do not edit any
+            tracked file, do not post, do not touch the PR — a following step applies your file.
+
+      - name: Apply body to the release PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          test -s out/body.md || { echo "::error::agent produced no out/body.md"; exit 1; }
+          gh pr edit "${PR_NUMBER}" --repo "${REPO}" --body-file out/body.md
+          echo "Release PR #${PR_NUMBER} body updated ($(wc -l < out/body.md) lines)"
