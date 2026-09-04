@@ -47,7 +47,8 @@ Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share
 Gemini CLI         │
 DeepSeek TUI       │
 Antigravity CLI    │
-Muse Code          ┘
+Muse Code          │
+Pi                 ┘
 ```
 
 ## Workflow
@@ -175,3 +176,7 @@ Love SpecStory? Help others discover their AI coding memory upgrade by leaving a
 ## Star History
 
 ![Star History Chart](https://api.star-history.com/svg?repos=specstoryai/getspecstory&type=Date)
+
+---
+
+Made with ❤️ by SpecStory

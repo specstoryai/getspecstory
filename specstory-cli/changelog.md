@@ -1,5 +1,11 @@
 # Specstory CLI Changelog
 
+## Unreleased
+
+### 📢 Announcements
+
+- The Pi coding agent (`pi`) now supports `specstory run pi` and `specstory watch pi`, so Pi sessions are saved to local markdown and the SpecStory Cloud live as you work, the same as the other supported agents. Pi is also now a cross-provider `specstory resume` target: you can resume any agent's session into Pi, and resume a Pi session into another agent. Pi continues an existing session by its exact id (`pi --session-id <id>`).
+
 ## v2.10.0 2026-08-17
 
 ### 📢 Announcements
