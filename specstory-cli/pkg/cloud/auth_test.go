@@ -423,3 +423,68 @@ func TestAuthenticationCaching(t *testing.T) {
 		t.Errorf("Expected true from cache even after removing auth file, got %v", result4)
 	}
 }
+
+// TestAuthenticatedAs covers the identity lookup behind owner attribution in the resume
+// browser. The empty-string returns matter as much as the successful one: an empty result
+// disables attribution entirely, so each path that produces one is exercised here rather than
+// left to be discovered as "the label just never shows up".
+func TestAuthenticatedAs(t *testing.T) {
+	// Every subtest calls ResetAuthCache() first. IsAuthenticated() memoises its answer in
+	// package-level state (authChecked), and AuthenticatedAs() returns early when it says no —
+	// so without a reset a stale result from an earlier test wins and the auth.json written
+	// here is never read. Verified: the suite fails under `go test -shuffle` without it.
+	authRelDir := filepath.Join(".specstory", "cli")
+
+	writeAuth := func(t *testing.T, home, contents string) {
+		t.Helper()
+		dir := filepath.Join(home, authRelDir)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "auth.json"), []byte(contents), 0o600); err != nil {
+			t.Fatalf("write auth.json: %v", err)
+		}
+	}
+
+	// A refresh token far enough in the future that IsAuthenticated accepts it.
+	valid := `{"cloud_refresh":{"token":"t","as":"eric@specstory.com",` +
+		`"createdAt":"2026-01-01T00:00:00Z","expiresAt":"2036-01-01T00:00:00Z"}}`
+
+	t.Run("returns the stored email", func(t *testing.T) {
+		ResetAuthCache()
+		home := t.TempDir()
+		testutil.SetHome(t, home)
+		writeAuth(t, home, valid)
+
+		email, loginTime := AuthenticatedAs()
+		if email != "eric@specstory.com" {
+			t.Errorf("email = %q, want eric@specstory.com", email)
+		}
+		if loginTime != "2026-01-01T00:00:00Z" {
+			t.Errorf("loginTime = %q, want the createdAt", loginTime)
+		}
+	})
+
+	t.Run("returns empty when nothing is stored", func(t *testing.T) {
+		ResetAuthCache()
+		testutil.SetHome(t, t.TempDir())
+
+		if email, _ := AuthenticatedAs(); email != "" {
+			t.Errorf("email = %q, want empty", email)
+		}
+	})
+
+	t.Run("returns empty rather than panicking on a corrupt auth.json", func(t *testing.T) {
+		// The path the reviewer flagged: a parse failure used to be swallowed silently and is
+		// now logged at debug. Behaviour is unchanged — still empty, so the UI stays
+		// conservative and simply shows no attribution.
+		ResetAuthCache()
+		home := t.TempDir()
+		testutil.SetHome(t, home)
+		writeAuth(t, home, "{ this is not json")
+
+		if email, _ := AuthenticatedAs(); email != "" {
+			t.Errorf("email = %q, want empty", email)
+		}
+	})
+}
