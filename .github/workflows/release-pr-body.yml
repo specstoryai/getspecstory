@@ -48,7 +48,7 @@ jobs:
 
       # Credential-less beyond its own auth; writes only out/body.md.
       - name: Write release summary (agent)
-        uses: anthropics/claude-code-action@781d62e9d5fbd78b24dcdfd42858332d485fe462 # v1 (2026-09-01)
+        uses: anthropics/claude-code-action@8251c103ac8c1d761882c86aba1412c7f583c844 # v1 (2026-09-01)
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # Dispatched by release-pr-sync with GITHUB_TOKEN, so the actor is the
