@@ -641,9 +641,11 @@ func firstUserText(e rawEntry) string {
 }
 
 // userContentString extracts a plain string from a pi user message content
-// field (either a string or an array of {type:text} blocks). The result is
-// trimmed so the scan path produces the same Slug/Name as the full-parse path
-// (deriveSlug trims too).
+// field (either a string or an array of {type:text} blocks). The result is the
+// first text block that is non-empty after trimming, so the scan path (list,
+// reindex) picks the same first user text as the full-parse path (sync), where
+// deriveSlug trims each part and skips the blank ones. A block that is only
+// whitespace does not count as text: it is skipped, not returned as "".
 func userContentString(raw json.RawMessage) string {
 	if len(raw) == 0 {
 		return ""
@@ -659,8 +661,11 @@ func userContentString(raw json.RawMessage) string {
 		return ""
 	}
 	for _, b := range blocks {
-		if b.Type == "text" && b.Text != "" {
-			return strings.TrimSpace(b.Text)
+		if b.Type != "text" {
+			continue
+		}
+		if t := strings.TrimSpace(b.Text); t != "" {
+			return t
 		}
 	}
 	return ""
