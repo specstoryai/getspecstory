@@ -198,8 +198,18 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	}
 
 	err := ExecutePi(customCommand, resumeSessionID)
+	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
+	// on: pi writes its session file right before it exits, and the callback
+	// for that write is what saves the markdown. This must run on the non-zero
+	// path too, which is why ExecutePi returns pi's status instead of exiting.
 	StopWatcher()
 	if err != nil {
+		var agentExit *spi.AgentExitError
+		if errors.As(err, &agentExit) {
+			// pi's own status, not a specstory failure: pass it through unwrapped
+			// so the CLI exits with that code and prints nothing extra.
+			return err
+		}
 		return fmt.Errorf("pi execution failed: %w", err)
 	}
 	return nil

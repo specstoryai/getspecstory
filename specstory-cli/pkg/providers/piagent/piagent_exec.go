@@ -1,12 +1,15 @@
 package piagent
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"log/slog"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // resumeFlag is how pi continues an existing session on the command line:
@@ -53,8 +56,13 @@ func getDefaultPiCommand() string {
 // ExecutePi runs the pi CLI with interactive TTY passthrough: stdin/stdout/stderr
 // are inherited from the parent so pi shares the terminal and Ctrl-C reaches it
 // (no explicit os/signal handling, same as the sibling providers). On a non-zero
-// child exit it propagates pi's exit code via os.Exit so the status flows
-// through unchanged; other wait errors are wrapped and returned.
+// child exit it returns a *spi.AgentExitError carrying pi's exit code rather
+// than calling os.Exit here: pi writes its session file in the same instant it
+// exits, and an os.Exit in this helper (the claudecode shape) leaves the process
+// before ExecAgentAndWatch can stop the watcher and join that save, so the
+// session pi wrote just before failing was lost. The CLI applies the code as
+// the process exit status after the watcher has stopped. Other wait errors are
+// wrapped and returned.
 func ExecutePi(customCommand string, resumeSessionID string) error {
 	piCmd, args := parsePiRunCommand(customCommand, resumeSessionID)
 
@@ -74,12 +82,13 @@ func ExecutePi(customCommand string, resumeSessionID string) error {
 
 	slog.Info("ExecutePi: waiting for pi to exit")
 	if err := cmd.Wait(); err != nil {
-		// A non-zero exit is normal for an interactive CLI; propagate pi's own
-		// exit code so the caller's shell sees it, matching the sibling providers.
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		// A non-zero exit is normal for an interactive CLI; hand pi's own exit
+		// code up so the caller's shell sees it once the watcher has stopped.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecutePi: pi exited", "exitCode", exitCode)
-			os.Exit(exitCode)
+			return &spi.AgentExitError{Agent: providerName, Code: exitCode}
 		}
 		return fmt.Errorf("pi execution failed: %w", err)
 	}
