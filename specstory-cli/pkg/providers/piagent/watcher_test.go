@@ -278,3 +278,127 @@ func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
 
 	assertNoSession(t, ch, 1*time.Second)
 }
+
+// TestStopWatcher_JoinsInFlightSave models the `run pi` exit: pi writes its
+// session file and exits, and StopWatcher runs right after. The callback here
+// stands in for the markdown save; it blocks on a gate the test controls so
+// the save is provably still in flight when StopWatcher is called. The
+// assertions are that StopWatcher does not return while the save is in flight
+// and that the markdown exists once it does return.
+func TestStopWatcher_JoinsInFlightSave(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(envAgentDir, tmp)
+	projectPath := filepath.FromSlash("/pi-join-proj")
+
+	targetDir, err := ProjectSessionDir(projectPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll: %v", mkErr)
+	}
+
+	markdown := filepath.Join(tmp, "saved-session.md")
+	started := make(chan struct{})
+	gate := make(chan struct{})
+	SetWatcherCallback(func(s *spi.AgentChatSession) {
+		close(started)
+		<-gate
+		if wErr := os.WriteFile(markdown, []byte("# "+s.SessionID+"\n"), 0o600); wErr != nil {
+			t.Errorf("WriteFile markdown: %v", wErr)
+		}
+	})
+	t.Cleanup(ClearWatcherCallback)
+	if wErr := WatchForProjectDir(projectPath); wErr != nil {
+		t.Fatalf("WatchForProjectDir: %v", wErr)
+	}
+	time.Sleep(200 * time.Millisecond) // let the goroutine register the directory watch
+
+	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-join.jsonl")
+	if wErr := os.WriteFile(path, []byte(validSession("sess-join", projectPath, "final prompt before exit")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile: %v", wErr)
+	}
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the callback to start")
+	}
+
+	// pi has "exited": stop the watcher while the save is still in flight.
+	stopped := make(chan struct{})
+	go func() {
+		StopWatcher()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+		t.Fatal("StopWatcher returned while the session save was still in flight")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	close(gate)
+	select {
+	case <-stopped:
+	case <-time.After(5 * time.Second):
+		t.Fatal("StopWatcher did not return after the save finished")
+	}
+	if _, statErr := os.Stat(markdown); statErr != nil {
+		t.Fatalf("markdown missing after StopWatcher returned: %v", statErr)
+	}
+}
+
+// TestStopWatcher_BoundsWaitOnStuckCallback asserts a callback that never
+// finishes cannot hang StopWatcher past callbackDrainTimeout.
+func TestStopWatcher_BoundsWaitOnStuckCallback(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(envAgentDir, tmp)
+	projectPath := filepath.FromSlash("/pi-stuck-proj")
+
+	targetDir, err := ProjectSessionDir(projectPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll: %v", mkErr)
+	}
+
+	prevTimeout := callbackDrainTimeout
+	callbackDrainTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { callbackDrainTimeout = prevTimeout })
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	finished := make(chan struct{})
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		close(started)
+		<-release
+		close(finished)
+	})
+	t.Cleanup(ClearWatcherCallback)
+	// Let the stuck callback go at the end so callbackWg is back to zero for
+	// the next test in the package.
+	t.Cleanup(func() {
+		close(release)
+		<-finished
+	})
+	if wErr := WatchForProjectDir(projectPath); wErr != nil {
+		t.Fatalf("WatchForProjectDir: %v", wErr)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-stuck.jsonl")
+	if wErr := os.WriteFile(path, []byte(validSession("sess-stuck", projectPath, "prompt for a stuck save")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile: %v", wErr)
+	}
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the callback to start")
+	}
+
+	begin := time.Now()
+	StopWatcher()
+	if elapsed := time.Since(begin); elapsed > 3*time.Second {
+		t.Fatalf("StopWatcher took %v with a stuck callback; want about %v", elapsed, callbackDrainTimeout)
+	}
+}

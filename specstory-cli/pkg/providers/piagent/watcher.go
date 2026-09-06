@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
@@ -20,10 +21,18 @@ var (
 	watcherCtx      context.Context
 	watcherCancel   context.CancelFunc
 	watcherWg       sync.WaitGroup
+	callbackWg      sync.WaitGroup              // in-flight callback goroutines started by emitSession
 	watcherCallback func(*spi.AgentChatSession) // invoked for each parsed session update
 	watcherDebugRaw bool                        // whether to write debug-raw artifacts while watching
 	watcherMutex    sync.RWMutex                // protects watcherCallback and watcherDebugRaw
 )
+
+// callbackDrainTimeout bounds how long StopWatcher waits for in-flight
+// callbacks (markdown write, cloud sync) after the watch loop has exited. The
+// bound keeps a stuck callback from hanging `run` or `watch` exit forever; a
+// callback that outlives it is logged and abandoned, and the next `sync pi`
+// picks the session up from disk. Tests shorten it.
+var callbackDrainTimeout = 10 * time.Second
 
 func init() {
 	watcherCtx, watcherCancel = context.WithCancel(context.Background())
@@ -67,13 +76,41 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 	return watcherCallback
 }
 
-// StopWatcher cancels the watch context and waits for the watch goroutine to
-// finish. Both `run` and `watch` rely on this graceful join before returning.
+// StopWatcher cancels the watch context, waits for the watch goroutine to
+// finish, then waits (bounded by callbackDrainTimeout) for every callback the
+// loop dispatched. Both `run` and `watch` rely on this graceful join before
+// returning: pi writes its session file right before it exits, and the
+// callback for that write is what saves the markdown. Returning before it has
+// run loses the session until the next `sync pi`.
+//
+// The callback join happens after watcherWg.Wait so no new callbackWg.Go can
+// race the Wait: emitSession only runs from the watch loop, and the loop has
+// exited by then.
 func StopWatcher() {
 	slog.Info("pi: signaling watcher to stop")
 	watcherCancel()
 	watcherWg.Wait()
+	if !waitWithTimeout(&callbackWg, callbackDrainTimeout) {
+		slog.Warn("pi: gave up waiting for in-flight session callbacks", "timeout", callbackDrainTimeout)
+	}
 	slog.Info("pi: watcher stopped")
+}
+
+// waitWithTimeout waits for wg or for d to pass, whichever comes first, and
+// reports whether wg finished. The helper goroutine exits on its own once wg
+// reaches zero, so a timeout does not leak it forever.
+func waitWithTimeout(wg *sync.WaitGroup, d time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-time.After(d):
+		return false
+	}
 }
 
 // WatchForProjectDir starts watching the pi session directory for the given
@@ -141,24 +178,17 @@ func startPiWatcher(ctx context.Context, targetDir, root string, flat bool, cand
 			select {
 			case <-ctx.Done():
 				slog.Info("pi: watch context cancelled")
+				// pi writes its session file and exits in the same instant, so an
+				// event for that write can already be queued when the context is
+				// cancelled. Hand those to the callback before leaving instead of
+				// dropping them on the floor.
+				drainPendingEvents(watcher, flat, candidates)
 				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
-				if !strings.HasSuffix(event.Name, ".jsonl") {
-					continue // only pi session files
-				}
-				// A removed/renamed file has nothing to emit; the next create/write
-				// of a successor produces its own event.
-				if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
-					continue
-				}
-				if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
-					continue
-				}
-				slog.Info("pi: session file changed", "file", event.Name, "op", event.Op.String())
-				emitSession(event.Name, flat, candidates)
+				handleEvent(event, flat, candidates)
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
@@ -170,6 +200,41 @@ func startPiWatcher(ctx context.Context, targetDir, root string, flat bool, cand
 	})
 
 	return nil
+}
+
+// handleEvent filters one fsnotify event down to a create/write of a pi session
+// file and emits the session for it.
+func handleEvent(event fsnotify.Event, flat bool, candidates []string) {
+	if !strings.HasSuffix(event.Name, ".jsonl") {
+		return // only pi session files
+	}
+	// A removed/renamed file has nothing to emit; the next create/write
+	// of a successor produces its own event.
+	if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+		return
+	}
+	if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
+		return
+	}
+	slog.Info("pi: session file changed", "file", event.Name, "op", event.Op.String())
+	emitSession(event.Name, flat, candidates)
+}
+
+// drainPendingEvents handles every event already waiting on the watcher
+// channel without blocking, so a write that landed just before cancellation
+// still reaches the callback.
+func drainPendingEvents(watcher *fsnotify.Watcher, flat bool, candidates []string) {
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
+			}
+			handleEvent(event, flat, candidates)
+		default:
+			return
+		}
+	}
 }
 
 // awaitTargetDir blocks until targetDir exists, watching its nearest existing
@@ -264,15 +329,18 @@ func emitSession(path string, flat bool, candidates []string) {
 	}
 
 	// Dispatch in a recover-guarded goroutine so a slow or panicking callback
-	// never blocks the watch loop (mirrors the sibling providers).
-	go func(s *spi.AgentChatSession) {
+	// never blocks the watch loop (mirrors the sibling providers). The goroutine
+	// is tracked in callbackWg so StopWatcher can join it: without the join,
+	// `run pi` returned as soon as pi exited and the save for pi's final write
+	// never ran.
+	callbackWg.Go(func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("pi: watcher callback panicked", "sessionId", s.SessionID, "panic", r)
+				slog.Error("pi: watcher callback panicked", "sessionId", chat.SessionID, "panic", r)
 			}
 		}()
-		callback(s)
-	}(chat)
+		callback(chat)
+	})
 }
 
 // cwdMatchesCandidate reports whether a session header cwd matches one of the
