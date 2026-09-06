@@ -83,7 +83,7 @@ func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr str
 			b.WriteString("• Verify the custom command/path you provided exists and is executable.\n")
 			fmt.Fprintf(&b, "• Provided command: %s\n", command)
 		} else {
-			b.WriteString("• Install pi (see https://pi.dev) and ensure `pi` is on your PATH.\n")
+			b.WriteString("• Install pi (`npm install -g @earendil-works/pi-coding-agent`, see https://pi.dev) and ensure `pi` is on your PATH.\n")
 			b.WriteString("• Re-run `specstory check pi` after installation.\n")
 		}
 	case "permission_denied":

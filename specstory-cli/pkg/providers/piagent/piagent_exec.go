@@ -14,9 +14,12 @@ import (
 // not a subcommand (like Codex's `codex resume <id>`), so spi.EnsureResumeArgs
 // is not used here.
 //
-// Verified empirically against pi v0.84.4: `--session-id <id>` matches the exact
-// project session id (the header `id` our parser reads and our serializer
-// writes), reopens the SAME conversation, and appends to the same session file.
+// Verified empirically against pi 0.85.1, the current npm package
+// @earendil-works/pi-coding-agent, on 2026-09-05 (the older
+// @mariozechner/pi-coding-agent package stopped at 0.73.1 and had no
+// `--session-id` flag): `--session-id <id>` matches the exact project session
+// id (the header `id` our parser reads and our serializer writes), reopens the
+// SAME conversation, and appends to the same session file.
 // The alternative `--session <path|id>` was rejected as the resume flag because
 // it is selection/partial-UUID driven and does not create-if-missing; a caller
 // resuming a specific id wants an exact match. `--session-id` additionally

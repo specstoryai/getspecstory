@@ -18,15 +18,18 @@ const (
 	// reconstructedPiProvider / reconstructedPiModel are placeholder labels stamped
 	// on reconstructed assistant records. They are historical display values only —
 	// on resume pi uses its own configured provider/model for the next turn.
-	// Verified against a real pi v0.84.4 assistant entry: provider/model/api/
-	// stopReason are display metadata the loader tolerates as arbitrary strings, so
-	// a constant placeholder is safe and no `usage` block is required.
+	// Verified against pi 0.85.1 (@earendil-works/pi-coding-agent) on 2026-09-05:
+	// pi loaded a reconstructed session and answered the next turn, so
+	// provider/model/api/stopReason are display metadata the loader tolerates as
+	// arbitrary strings, a constant placeholder is safe, and no `usage` block is
+	// required.
 	reconstructedPiProvider = "specstory"
 	reconstructedPiModel    = "claude-opus-4-8"
 
 	// piHeaderVersion is the integer format version pi stamps on a v3 session
-	// header. Confirmed by reading a pi v0.84.4 session file: {"type":"session",
-	// "version":3,...}. The read side maps header.Version>0 → "v3".
+	// header. Confirmed by reading session files written by pi 0.85.1
+	// (@earendil-works/pi-coding-agent): {"type":"session","version":3,...}. The
+	// read side maps header.Version>0 → "v3".
 	piHeaderVersion = 3
 
 	// reconstructedPiStopReason mirrors the stopReason pi writes on a completed
