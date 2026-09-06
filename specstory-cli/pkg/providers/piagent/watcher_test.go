@@ -214,8 +214,13 @@ func TestWatch_SessionInfoRename(t *testing.T) {
 func TestWatch_FlatLayoutFiltersByCwd(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envSessionDir, tmp) // flat layout: files live directly in tmp
-	projectPath := filepath.FromSlash("/pi-flat-proj")
-	otherPath := filepath.FromSlash("/some-other-proj")
+	// The flat filter compares the header's cwd with filepath.Abs of the
+	// project path. On Windows Abs prepends the drive letter to a rootless
+	// path such as \pi-flat-proj, so a header written with the rootless form
+	// never matches and the test timed out there. Pi records the full path
+	// its process saw, so the fixture uses real absolute paths too.
+	projectPath := filepath.Join(t.TempDir(), "pi-flat-proj")
+	otherPath := filepath.Join(t.TempDir(), "some-other-proj")
 
 	ch, stop := startWatch(t, projectPath)
 	defer stop()
