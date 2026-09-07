@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Enumerate Antigravity CLI's tool inventory, for TOOL-AUDIT.
+#
+# Source: the harness's own declaration. In `agy -p --output-format
+# stream-json`, the first event is an `init` record carrying the list of tools
+# the CLI registered for the session. That is the set of names that can appear
+# in session data, read from the wire rather than asked of the model (on 1.1.25
+# the CLI declares 57 tools; the model's self-report in the human-run
+# predecessor named 19 of them).
+#
+# Run this in an empty throwaway directory under an isolated $HOME (the
+# caller's job — no user settings, no MCP servers, no plugins). Auth: the
+# Gemini API-key path documented for CI — `modelProvider: gemini` in
+# $HOME/.gemini/antigravity-cli/settings.json plus GEMINI_API_KEY in the
+# environment; Google-account sign-in is browser/keyring-bound and unusable
+# headless. The init event precedes the model call, so this reading spends no
+# quota; the turn's outcome is reported on stderr as a credential health check.
+#
+# Factory SPI contract: print the raw tool list, one name per line, to stdout
+# and exit 0. Non-zero exit means enumeration failed — never an empty or
+# partial inventory. The event stream is left in ./stream.jsonl for diagnosis.
+set -euo pipefail
+agy="$HOME/.local/bin/agy"
+[ -n "${GEMINI_API_KEY:-}" ] || { echo "list-tools: GEMINI_API_KEY is not set" >&2; exit 1; }
+export AGY_CLI_DISABLE_AUTO_UPDATE=true   # agy self-updates in the background during runs; the audit pins its version
+mkdir -p "$HOME/.gemini/antigravity-cli"
+[ -s "$HOME/.gemini/antigravity-cli/settings.json" ] || printf '{"modelProvider":"gemini","enableTelemetry":false}\n' > "$HOME/.gemini/antigravity-cli/settings.json"
+
+rm -f stream.jsonl
+status=0
+timeout 600 "$agy" -p "Reply with exactly the word OK." --output-format stream-json \
+  < /dev/null > stream.jsonl || status=$?
+
+tools=$(jq -r 'select(.event=="init") | .init.tools[]' stream.jsonl 2>/dev/null || true)
+if [ -z "$tools" ]; then
+  echo "list-tools: no init event with tools (agy exit $status)" >&2
+  head -c 600 stream.jsonl >&2
+  exit 1
+fi
+jq -r 'select(.event=="result") | "turn: status=\(.result.status) error=\(.result.error // "none")"' stream.jsonl >&2 2>/dev/null || true
+printf '%s\n' "$tools"

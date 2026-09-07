@@ -19,7 +19,7 @@ require (
 	github.com/charmbracelet/glamour v1.0.0
 	github.com/fsnotify/fsnotify v1.10.1 // Cross-platform file system event notifications
 	github.com/google/uuid v1.6.0 // Generates and inspects UUIDs
-	github.com/posthog/posthog-go v1.24.3 // Analytics tracking
+	github.com/posthog/posthog-go v1.25.1 // Analytics tracking
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // Git ignore file parsing
 	github.com/spf13/cobra v1.10.2 // Command-line interface framework
 	github.com/xeipuuv/gojsonschema v1.2.0 // JSON document validation against a JSON schema
@@ -32,7 +32,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0
 	golang.org/x/term v0.45.0 // terminal and console support
 	golang.org/x/text v0.41.0 // Text processing and Unicode normalization
-	modernc.org/sqlite v1.57.0 // Pure Go SQLite database driver
+	modernc.org/sqlite v1.58.0 // Pure Go SQLite database driver
 )
 
 require (
@@ -137,7 +137,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/grpc v1.83.1 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
-	modernc.org/libc v1.74.4 // indirect
+	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
+	modernc.org/memory v1.12.1 // indirect
 )
