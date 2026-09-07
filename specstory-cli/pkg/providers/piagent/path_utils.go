@@ -115,10 +115,13 @@ func ProjectSessionDir(projectPath string) (string, error) {
 
 // SessionFilesInProject lists the pi session files belonging to the given
 // project. In the default layout it unions the encoded directories for each
-// project-path candidate (raw and symlink-resolved). In the flat override
-// layout it lists the root and keeps files whose header cwd matches the
-// project, the same filtering pi applies to custom session dirs. Returns an
-// empty slice (no error) if nothing exists yet.
+// project-path candidate (raw and symlink-resolved) and then checks each
+// file's header cwd, because EncodeCwd is lossy: /a-b and /a/b both encode to
+// --a-b--, so the directory alone can hold another project's sessions. A file
+// whose header has no cwd is kept there (see headerBelongsToProject). In the
+// flat override layout it lists the root and keeps only files whose header
+// cwd matches the project, the same filtering pi applies to custom session
+// dirs. Returns an empty slice (no error) if nothing exists yet.
 func SessionFilesInProject(projectPath string) ([]string, error) {
 	root, flat, err := piSessionsRoot()
 	if err != nil {
@@ -140,8 +143,11 @@ func SessionFilesInProject(projectPath string) ([]string, error) {
 			return nil, dErr
 		}
 		for _, f := range dirFiles {
-			if !seen[f] {
-				seen[f] = true
+			if seen[f] {
+				continue
+			}
+			seen[f] = true
+			if sessionFileBelongsToProject(f, candidates, false) {
 				files = append(files, f)
 			}
 		}
@@ -158,22 +164,63 @@ func flatSessionFiles(root string, candidates []string) ([]string, error) {
 	}
 	var files []string
 	for _, f := range all {
-		h, hErr := readHeader(f)
-		if hErr != nil {
-			slog.Debug("pi: skipping unreadable session file", "path", f, "error", hErr)
-			continue
-		}
-		if h == nil {
-			continue // not a pi session; skip in listing
-		}
-		for _, c := range candidates {
-			if h.Cwd == c {
-				files = append(files, f)
-				break
-			}
+		if sessionFileBelongsToProject(f, candidates, true) {
+			files = append(files, f)
 		}
 	}
 	return files, nil
+}
+
+// sessionFileBelongsToProject reads the header of the session file at path and
+// reports whether the file belongs to the project described by candidates. See
+// headerBelongsToProject for the rule. A header that cannot be read drops the
+// file when strict is set; otherwise the file is kept, and the caller that
+// parses it reports the error itself, as it did before the cwd check existed.
+func sessionFileBelongsToProject(path string, candidates []string, strict bool) bool {
+	h, err := readHeader(path)
+	if err != nil {
+		if strict {
+			slog.Debug("pi: skipping unreadable session file", "path", path, "error", err)
+			return false
+		}
+		return true
+	}
+	return headerBelongsToProject(path, h, candidates, strict)
+}
+
+// headerBelongsToProject decides from a session header whether the file at
+// path belongs to the project described by candidates (the raw absolute path
+// and its symlink-resolved form). A header cwd that is present and matches a
+// candidate keeps the file; one that matches no candidate rejects it, with a
+// debug log naming the file and the cwd.
+//
+// A nil header (not a pi session, or an empty file) or a header without a cwd
+// is decided by strict. The flat layout passes strict=true: the directory says
+// nothing about the project, so a file without a cwd cannot be placed and is
+// dropped. The default layout passes strict=false and fails open: the encoded
+// directory already names the project, so the file is kept. Pi lists cwd as a
+// required header field in every version of its format, so in practice the
+// check always has a value.
+func headerBelongsToProject(path string, h *sessionHeader, candidates []string, strict bool) bool {
+	if h == nil || h.Cwd == "" {
+		return !strict
+	}
+	if cwdMatchesCandidate(h.Cwd, candidates) {
+		return true
+	}
+	slog.Debug("pi: skipping session file recorded for another project", "path", path, "cwd", h.Cwd)
+	return false
+}
+
+// cwdMatchesCandidate reports whether a session header cwd matches one of the
+// project's candidate working-directory forms (raw and symlink-resolved).
+func cwdMatchesCandidate(cwd string, candidates []string) bool {
+	for _, c := range candidates {
+		if cwd == c {
+			return true
+		}
+	}
+	return false
 }
 
 // jsonlFilesInDir lists the *.jsonl files directly inside dir (no recursion).

@@ -253,6 +253,64 @@ func TestWatch_FlatLayoutFiltersByCwd(t *testing.T) {
 	}
 }
 
+// TestWatch_DefaultLayoutCollidingDirFiltersByCwd verifies the default per-cwd
+// layout emits only sessions whose header cwd matches the project when two
+// projects share an encoded directory (<base>/a/b and <base>/a-b both encode
+// to the same name). The paths are real absolute temp paths for the same
+// reason as in TestWatch_FlatLayoutFiltersByCwd.
+func TestWatch_DefaultLayoutCollidingDirFiltersByCwd(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(envAgentDir, tmp)
+	base := t.TempDir()
+	projectPath := filepath.Join(base, "a", "b")
+	otherPath := filepath.Join(base, "a-b")
+
+	targetDir, err := ProjectSessionDir(projectPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	otherDir, err := ProjectSessionDir(otherPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir(other): %v", err)
+	}
+	if otherDir != targetDir {
+		t.Fatalf("expected the two projects to share an encoded dir, got %q and %q", targetDir, otherDir)
+	}
+	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll: %v", mkErr)
+	}
+
+	ch, stop := startWatch(t, projectPath)
+	defer stop()
+
+	// A session for the colliding project must be filtered out.
+	otherFile := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_other.jsonl")
+	if wErr := os.WriteFile(otherFile, []byte(validSession("sess-other", otherPath, "other project prompt")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile other: %v", wErr)
+	}
+	// A session for our project must be emitted.
+	mineFile := filepath.Join(targetDir, "2026-09-03T10-00-05-000Z_mine.jsonl")
+	if wErr := os.WriteFile(mineFile, []byte(validSession("sess-mine", projectPath, "my project prompt")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile mine: %v", wErr)
+	}
+
+	// The first matching emit must be ours; the other-project file is never emitted.
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case s := <-ch:
+			if s.SessionID == "sess-other" {
+				t.Fatalf("emitted a session from a colliding project: %q", s.SessionID)
+			}
+			if s.SessionID == "sess-mine" {
+				return
+			}
+		case <-deadline:
+			t.Fatal("timed out waiting for the matching-project emit")
+		}
+	}
+}
+
 // TestWatch_IgnoresNonJSONLAndHeaderOnly asserts a .txt file and a header-only
 // .jsonl produce no emit.
 func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {

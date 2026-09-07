@@ -300,8 +300,12 @@ func nearestExistingAncestor(dir string) string {
 // leaf-path selection, and partial-line tolerance all come for free. A parse
 // error or nil session (empty/header-only file, or a truncated trailing line
 // mid-write) is treated as "nothing to emit yet" and skipped — the next write
-// event re-parses. In the flat PI_CODING_AGENT_SESSION_DIR layout, sessions for
-// every project share one directory, so files are filtered by header cwd first.
+// event re-parses. Files are filtered by header cwd first in both layouts: in
+// the flat PI_CODING_AGENT_SESSION_DIR layout sessions for every project share
+// one directory, and in the default layout the encoded directory can be shared
+// by projects whose paths collide under EncodeCwd (/a-b and /a/b). Only the
+// flat layout is strict; the default layout keeps a file whose header has no
+// cwd yet (see headerBelongsToProject).
 func emitSession(path string, flat bool, candidates []string) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -315,11 +319,8 @@ func emitSession(path string, flat bool, candidates []string) {
 		return
 	}
 
-	if flat {
-		h, err := readHeader(path)
-		if err != nil || h == nil || !cwdMatchesCandidate(h.Cwd, candidates) {
-			return // not a session for this project (or not a session file yet)
-		}
+	if !sessionFileBelongsToProject(path, candidates, flat) {
+		return // not a session for this project (or, when flat, not a session file yet)
 	}
 
 	chat, err := parseToAgentSession(path, getWatcherDebugRaw())
@@ -341,15 +342,4 @@ func emitSession(path string, flat bool, candidates []string) {
 		}()
 		callback(chat)
 	})
-}
-
-// cwdMatchesCandidate reports whether a session header cwd matches one of the
-// project's candidate working-directory forms (raw and symlink-resolved).
-func cwdMatchesCandidate(cwd string, candidates []string) bool {
-	for _, c := range candidates {
-		if cwd == c {
-			return true
-		}
-	}
-	return false
 }

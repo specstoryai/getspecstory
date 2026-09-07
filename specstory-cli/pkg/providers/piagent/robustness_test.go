@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -476,6 +478,107 @@ func TestPath_FlatSessionDirFiltersByHeaderCwd(t *testing.T) {
 	}
 	if len(files) != 1 || filepath.Base(files[0]) != "mine.jsonl" {
 		t.Errorf("files = %v, want just mine.jsonl", files)
+	}
+}
+
+// TestPath_DefaultLayoutCollidingDirFiltersByHeaderCwd asserts that in the
+// default per-cwd layout two projects whose paths encode to the same directory
+// (EncodeCwd turns both <base>/a-b and <base>/a/b into the same name) each see
+// only their own session file, because discovery checks the header cwd and not
+// just the directory.
+func TestPath_DefaultLayoutCollidingDirFiltersByHeaderCwd(t *testing.T) {
+	agentDir := t.TempDir()
+	t.Setenv(envAgentDir, agentDir)
+	base := t.TempDir()
+	dashProj := filepath.Join(base, "a-b")
+	slashProj := filepath.Join(base, "a", "b")
+
+	dashDir, err := ProjectSessionDir(dashProj)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir(dash): %v", err)
+	}
+	slashDir, err := ProjectSessionDir(slashProj)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir(slash): %v", err)
+	}
+	if dashDir != slashDir {
+		t.Fatalf("expected the two projects to share an encoded dir, got %q and %q", dashDir, slashDir)
+	}
+	if err := os.MkdirAll(dashDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	writeSessionForCwd(t, filepath.Join(dashDir, "dash.jsonl"), "dash-uuid", dashProj)
+	writeSessionForCwd(t, filepath.Join(dashDir, "slash.jsonl"), "slash-uuid", slashProj)
+
+	got, err := SessionFilesInProject(dashProj)
+	if err != nil {
+		t.Fatalf("SessionFilesInProject(dash): %v", err)
+	}
+	if len(got) != 1 || filepath.Base(got[0]) != "dash.jsonl" {
+		t.Errorf("dash project files = %v, want just dash.jsonl", got)
+	}
+	got, err = SessionFilesInProject(slashProj)
+	if err != nil {
+		t.Fatalf("SessionFilesInProject(slash): %v", err)
+	}
+	if len(got) != 1 || filepath.Base(got[0]) != "slash.jsonl" {
+		t.Errorf("slash project files = %v, want just slash.jsonl", got)
+	}
+}
+
+// TestPath_DefaultLayoutKeepsFileWithoutHeaderCwd asserts the default layout
+// fails open: a session file whose header has no cwd stays in the listing,
+// because the encoded directory already names the project. Only a cwd that is
+// present and names another project rejects a file.
+func TestPath_DefaultLayoutKeepsFileWithoutHeaderCwd(t *testing.T) {
+	agentDir := t.TempDir()
+	t.Setenv(envAgentDir, agentDir)
+	proj := filepath.Join(t.TempDir(), "proj")
+
+	dir, err := ProjectSessionDir(proj)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	noCwd := `{"type":"session","version":3,"id":"nocwd-uuid","timestamp":"2026-07-09T10:00:00.000Z"}
+{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"hi","timestamp":1783600001000}}
+`
+	if err := os.WriteFile(filepath.Join(dir, "nocwd.jsonl"), []byte(noCwd), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	writeSessionForCwd(t, filepath.Join(dir, "mine.jsonl"), "mine-uuid", proj)
+	writeSessionForCwd(t, filepath.Join(dir, "other.jsonl"), "other-uuid", filepath.Join(t.TempDir(), "elsewhere"))
+
+	got, err := SessionFilesInProject(proj)
+	if err != nil {
+		t.Fatalf("SessionFilesInProject: %v", err)
+	}
+	var names []string
+	for _, f := range got {
+		names = append(names, filepath.Base(f))
+	}
+	sort.Strings(names)
+	if want := []string{"mine.jsonl", "nocwd.jsonl"}; !slices.Equal(names, want) {
+		t.Errorf("files = %v, want %v", names, want)
+	}
+}
+
+// writeSessionForCwd writes a pi session file whose header records cwd, plus one
+// user message. The cwd goes through json.Marshal so a Windows path with
+// backslashes is a valid JSON string, as in a real pi session file.
+func writeSessionForCwd(t *testing.T, path, id, cwd string) {
+	t.Helper()
+	cwdJSON, err := json.Marshal(cwd)
+	if err != nil {
+		t.Fatalf("marshal cwd: %v", err)
+	}
+	body := `{"type":"session","version":3,"id":"` + id + `","timestamp":"2026-07-09T10:00:00.000Z","cwd":` + string(cwdJSON) + `}
+{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"hi","timestamp":1783600001000}}
+`
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }
 
