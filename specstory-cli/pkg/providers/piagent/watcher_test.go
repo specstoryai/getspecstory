@@ -444,10 +444,22 @@ func TestStopWatcher_BoundsWaitOnStuckCallback(t *testing.T) {
 	})
 	t.Cleanup(ClearWatcherCallback)
 	// Let the stuck callback go at the end so callbackWg is back to zero for
-	// the next test in the package.
+	// the next test in the package. Wait for it only if it ever started: when
+	// the session is never emitted (as happened on Windows before the test
+	// fixtures used absolute paths), a plain wait here blocked forever after
+	// t.Fatal and turned a five second failure into the package's ten minute
+	// timeout, hiding every later test's result.
 	t.Cleanup(func() {
 		close(release)
-		<-finished
+		select {
+		case <-started:
+			select {
+			case <-finished:
+			case <-time.After(5 * time.Second):
+				t.Log("the stuck callback did not finish within 5 s of release")
+			}
+		default:
+		}
 	})
 	if wErr := WatchForProjectDir(projectPath); wErr != nil {
 		t.Fatalf("WatchForProjectDir: %v", wErr)
