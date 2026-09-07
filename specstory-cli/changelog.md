@@ -4,7 +4,13 @@
 
 ### 📢 Announcements
 
-- The Pi coding agent (`pi`) now supports `specstory run pi` and `specstory watch pi`, so Pi sessions are saved to local markdown and the SpecStory Cloud live as you work, the same as the other supported agents. Pi is also now a cross-provider `specstory resume` target: you can resume any agent's session into Pi, and resume a Pi session into another agent. Pi continues an existing session by its exact id (`pi --session-id <id>`).
+- The SpecStory CLI now supports [Pi](https://pi.dev) for agent sessions created from Pi `0.84.4` or higher (verified on `0.85.1`, the current `@earendil-works/pi-coding-agent` release). Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [Muse Code](https://developer.meta.com/ai/products/muse-code/). `specstory sync`, `list`, `search`, `reindex` and `check` all understand Pi sessions, including Pi's branching, compaction and tool results.
+- `specstory run pi` and `specstory watch pi` save Pi sessions to local markdown and the SpecStory Cloud live as you work, the same as the other supported agents. `run pi` waits for the last save before it returns, and exits with Pi's own exit code when Pi fails.
+- Pi is a cross-provider `specstory resume` target: you can resume any agent's session into Pi, and resume a Pi session into another agent. Pi continues an existing session by its exact id (`pi --session-id <id>`).
+
+### ⚙️ Improvements
+
+- Pi's own `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` settings are honored, so sessions are found wherever Pi keeps them. Sessions are matched to your project by the working directory Pi recorded in each session, so two projects whose paths happen to map to the same Pi session directory (for example `~/dev/my-app` and `~/dev/my/app`) stay separate.
 
 ## v2.10.0 2026-08-17
 
