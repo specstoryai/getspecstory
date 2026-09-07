@@ -113,7 +113,7 @@ func TestExecAgentAndWatch_NonZeroExitStillSavesSession(t *testing.T) {
 
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-exit-proj")
+	projectPath := filepath.Join(t.TempDir(), "pi-exit-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {

@@ -94,7 +94,12 @@ func assertNoSession(t *testing.T, ch <-chan *spi.AgentChatSession, within time.
 func TestWatch_EmitsOnNewSession(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-watch-proj")
+	// Project paths are real absolute directories from t.TempDir. A rootless
+	// path such as /pi-watch-proj becomes D:\pi-watch-proj under filepath.Abs
+	// on Windows, and since the default layout checks the header cwd against
+	// the project, a header written with the rootless form would be filtered
+	// out there. Pi records the full path its process saw.
+	projectPath := filepath.Join(t.TempDir(), "pi-watch-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {
@@ -127,7 +132,7 @@ func TestWatch_EmitsOnNewSession(t *testing.T) {
 func TestWatch_PartialLineThenComplete(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-partial-proj")
+	projectPath := filepath.Join(t.TempDir(), "pi-partial-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {
@@ -169,7 +174,7 @@ func TestWatch_PartialLineThenComplete(t *testing.T) {
 func TestWatch_SessionInfoRename(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-rename-proj")
+	projectPath := filepath.Join(t.TempDir(), "pi-rename-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {
@@ -316,7 +321,7 @@ func TestWatch_DefaultLayoutCollidingDirFiltersByCwd(t *testing.T) {
 func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-ignore-proj")
+	projectPath := filepath.Join(t.TempDir(), "pi-ignore-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {
@@ -351,7 +356,7 @@ func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
 func TestStopWatcher_JoinsInFlightSave(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-join-proj")
+	projectPath := filepath.Join(t.TempDir(), "pi-join-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {
@@ -415,7 +420,7 @@ func TestStopWatcher_JoinsInFlightSave(t *testing.T) {
 func TestStopWatcher_BoundsWaitOnStuckCallback(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.FromSlash("/pi-stuck-proj")
+	projectPath := filepath.Join(t.TempDir(), "pi-stuck-proj")
 
 	targetDir, err := ProjectSessionDir(projectPath)
 	if err != nil {
