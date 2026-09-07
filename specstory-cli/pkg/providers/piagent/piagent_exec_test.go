@@ -106,6 +106,10 @@ func TestParsePiRunCommand(t *testing.T) {
 // with status 7 before asserting anything. Now the save must have landed by the
 // time ExecAgentAndWatch returns, and pi's status must come back as a
 // *spi.AgentExitError so the CLI can exit with it.
+//
+// The stand-in writes with no delay, so the write can land before the watch is
+// registered or its event can still be in the kernel when the loop is cancelled.
+// Either way the save must land: that is the case that failed on Linux CI.
 func TestExecAgentAndWatch_NonZeroExitStillSavesSession(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the stand-in pi is a POSIX shell script")
@@ -131,10 +135,14 @@ func TestExecAgentAndWatch_NonZeroExitStillSavesSession(t *testing.T) {
 	}
 	sessionPath := filepath.Join(targetDir, "2026-09-06T12-00-00-000Z_sess-exit7.jsonl")
 
-	// The 1s sleep gives the watcher goroutine time to register its directory
-	// watch, as a real pi takes far longer than that to write its first entry.
+	// No sleep before the write: the script writes and exits in the same
+	// instant, the way pi fails right after its last write. The watcher may not
+	// have registered its directory watch yet, or the kernel may not have handed
+	// over the event for the write by the time StopWatcher cancels the loop; the
+	// sweeps in startPiWatcher and StopWatcher cover both, and this test is what
+	// failed on Linux CI when only the event path existed.
 	fakePi := filepath.Join(tmp, "fakepi.sh")
-	script := "#!/bin/sh\nsleep 1\ncat \"$FAKE_PI_STAGED\" > \"$FAKE_PI_SESSION\"\nexit 7\n"
+	script := "#!/bin/sh\ncat \"$FAKE_PI_STAGED\" > \"$FAKE_PI_SESSION\"\nexit 7\n"
 	if wErr := os.WriteFile(fakePi, []byte(script), 0o700); wErr != nil {
 		t.Fatalf("WriteFile fakepi: %v", wErr)
 	}

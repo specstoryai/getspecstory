@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -458,6 +459,16 @@ func TestStopWatcher_BoundsWaitOnStuckCallback(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Log("the stuck callback did not finish within 5 s of release")
 			}
+			// StopWatcher gave up on the callback, but the goroutine it used
+			// to wait on callbackWg stays in Wait until the callback has
+			// finished. A WaitGroup must not be reused while a Wait is in
+			// progress, and the race detector reports the next test's first
+			// callback against that Wait, so join it before this test ends.
+			select {
+			case <-callbackWaitDone:
+			case <-time.After(5 * time.Second):
+				t.Log("the callback wait did not finish within 5 s of release")
+			}
 		default:
 		}
 	})
@@ -480,5 +491,143 @@ func TestStopWatcher_BoundsWaitOnStuckCallback(t *testing.T) {
 	StopWatcher()
 	if elapsed := time.Since(begin); elapsed > 3*time.Second {
 		t.Fatalf("StopWatcher took %v with a stuck callback; want about %v", elapsed, callbackDrainTimeout)
+	}
+}
+
+// TestWatch_DirectoryAppearsWithFileEmitsOnce covers the bootstrap gap: the
+// session directory does not exist when the watch starts, and it appears with a
+// complete session file already inside it (an agent that creates the directory
+// and writes the whole file at once). The directory watch added after the
+// bootstrap never sees an event for that file, so the sweep right after
+// watcher.Add must emit it, and the sweep in StopWatcher must not emit it a
+// second time. The directory is built elsewhere and renamed into place so the
+// file is present at the instant the directory exists.
+func TestWatch_DirectoryAppearsWithFileEmitsOnce(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(envAgentDir, tmp)
+	projectPath := filepath.Join(t.TempDir(), "pi-bootstrap-proj")
+
+	targetDir, err := ProjectSessionDir(projectPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	// The sessions root exists; the project's encoded directory does not.
+	if mkErr := os.MkdirAll(filepath.Dir(targetDir), 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll root: %v", mkErr)
+	}
+
+	staging := filepath.Join(tmp, "staging", filepath.Base(targetDir))
+	if mkErr := os.MkdirAll(staging, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll staging: %v", mkErr)
+	}
+	stagedFile := filepath.Join(staging, "2026-09-03T10-00-00-000Z_sess-boot.jsonl")
+	if wErr := os.WriteFile(stagedFile, []byte(validSession("sess-boot", projectPath, "prompt written with the directory")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile staged: %v", wErr)
+	}
+
+	ch, stop := startWatch(t, projectPath)
+	defer stop()
+
+	if rErr := os.Rename(staging, targetDir); rErr != nil {
+		t.Fatalf("Rename staging dir into place: %v", rErr)
+	}
+
+	s := waitForSession(t, ch)
+	if s.SessionID != "sess-boot" {
+		t.Errorf("SessionID = %q, want sess-boot", s.SessionID)
+	}
+
+	// StopWatcher joins every dispatched callback, so once it returns anything
+	// the stop sweep emitted is already in the channel.
+	stop()
+	if extra := len(ch); extra != 0 {
+		t.Fatalf("got %d extra emit(s) after stop; the file must be emitted exactly once", extra)
+	}
+}
+
+// TestStopWatcher_SweepSkipsSessionAlreadyEmitted asserts a session delivered
+// through an fsnotify event is not delivered again by the sweep in StopWatcher.
+// The file is renamed into the watched directory so it produces exactly one
+// event (a single Create) and exactly one event-driven emit; the callback count
+// must still be one after StopWatcher has swept the directory.
+func TestStopWatcher_SweepSkipsSessionAlreadyEmitted(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(envAgentDir, tmp)
+	projectPath := filepath.Join(t.TempDir(), "pi-sweep-proj")
+
+	targetDir, err := ProjectSessionDir(projectPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll: %v", mkErr)
+	}
+
+	var calls atomic.Int32
+	emitted := make(chan struct{}, 16)
+	SetWatcherCallback(func(*spi.AgentChatSession) {
+		calls.Add(1)
+		emitted <- struct{}{}
+	})
+	t.Cleanup(ClearWatcherCallback)
+	if wErr := WatchForProjectDir(projectPath); wErr != nil {
+		t.Fatalf("WatchForProjectDir: %v", wErr)
+	}
+	time.Sleep(200 * time.Millisecond) // let the goroutine register the directory watch
+
+	staged := filepath.Join(tmp, "staged.jsonl")
+	if wErr := os.WriteFile(staged, []byte(validSession("sess-sweep", projectPath, "prompt delivered by event")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile staged: %v", wErr)
+	}
+	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-sweep.jsonl")
+	if rErr := os.Rename(staged, path); rErr != nil {
+		t.Fatalf("Rename into watched dir: %v", rErr)
+	}
+	select {
+	case <-emitted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the event-driven emit")
+	}
+
+	StopWatcher()
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("callback ran %d times; want 1 (the stop sweep must skip a version already emitted)", got)
+	}
+}
+
+// TestStopWatcher_SweepLeavesOlderFileAlone asserts a session file whose mtime
+// predates the watch start is not emitted by either sweep: watch reports new
+// activity only, and older sessions belong to `sync pi`. The file is written
+// before the watch starts and its mtime is pushed an hour back so the grace
+// window for coarse filesystem clocks cannot admit it.
+func TestStopWatcher_SweepLeavesOlderFileAlone(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(envAgentDir, tmp)
+	projectPath := filepath.Join(t.TempDir(), "pi-older-proj")
+
+	targetDir, err := ProjectSessionDir(projectPath)
+	if err != nil {
+		t.Fatalf("ProjectSessionDir: %v", err)
+	}
+	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
+		t.Fatalf("MkdirAll: %v", mkErr)
+	}
+	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-older.jsonl")
+	if wErr := os.WriteFile(path, []byte(validSession("sess-older", projectPath, "prompt from before the watch")), 0o600); wErr != nil {
+		t.Fatalf("WriteFile: %v", wErr)
+	}
+	old := time.Now().Add(-time.Hour)
+	if cErr := os.Chtimes(path, old, old); cErr != nil {
+		t.Fatalf("Chtimes: %v", cErr)
+	}
+
+	ch, stop := startWatch(t, projectPath)
+	// A second StopWatcher after the explicit one below has nothing left to do.
+	defer stop()
+	assertNoSession(t, ch, 500*time.Millisecond) // the sweep after watcher.Add must skip it
+
+	stop()
+	if extra := len(ch); extra != 0 {
+		t.Fatalf("the stop sweep emitted %d session(s) older than the watch start", extra)
 	}
 }
