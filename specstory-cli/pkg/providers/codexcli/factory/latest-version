@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Latest released version of Codex CLI.
+#
+# Channel: npm (@openai/codex, dist-tag "latest") — the canonical release
+# channel; Homebrew and the GitHub releases follow it.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+npm view @openai/codex version

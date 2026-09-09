@@ -1,0 +1,93 @@
+name: release-pr-sync
+
+# Keeps a standing "Release dev to main" PR whose body is a synthesized summary
+# of everything on dev that is not yet on main. Ported from stoa/specstory-sync
+# (release-pr-sync + release-pr-body), with the agentic body rewrite running on
+# anthropics/claude-code-action (Claude subscription auth) instead of gh-aw.
+#
+# Two workflows because claude-code-action does not run on `push` events: this
+# one (push to dev) ensures the PR exists, then dispatches release-pr-body.yml
+# (workflow_dispatch) to rewrite the body. GITHUB_TOKEN may fire
+# workflow_dispatch — it is one of the two event types exempt from GitHub's
+# "token-created events don't trigger workflows" rule.
+#
+# This PR is the human-facing audit view for the provider factory's autonomous
+# merges into dev (DEPENDENCY-UPDATE): the body enumerates each factory-merged
+# dependabot PR with its verdict and links its assessment.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+    # Session histories and work threads never change the release story.
+    paths-ignore:
+      - "**/.specstory/**"
+      - "workthreads/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write # dispatch release-pr-body.yml
+
+concurrency:
+  group: release-pr-sync
+  cancel-in-progress: true
+
+jobs:
+  ensure-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch main and dev refs
+        run: git fetch origin main dev --no-tags --depth=200
+
+      - name: Determine whether main is behind dev
+        id: diff
+        run: |
+          AHEAD_COUNT="$(git rev-list --count --no-merges origin/main..origin/dev)"
+          echo "ahead_count=${AHEAD_COUNT}" >> "$GITHUB_OUTPUT"
+          if [[ "${AHEAD_COUNT}" -gt 0 ]]; then
+            echo "should_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_update=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "dev is ${AHEAD_COUNT} non-merge commits ahead of main"
+
+      - name: Find or create dev -> main release PR
+        id: pr
+        if: steps.diff.outputs.should_update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          EXISTING_PR="$(gh pr list --repo "${REPO}" --base main --head dev --state open --json number --jq '.[0].number // ""')"
+          if [[ -n "${EXISTING_PR}" ]]; then
+            echo "Found existing PR #${EXISTING_PR}"
+            echo "pr_number=${EXISTING_PR}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          PR_URL="$(gh pr create \
+            --repo "${REPO}" \
+            --base main \
+            --head dev \
+            --title "Release dev to main" \
+            --body "Generating release summary...")"
+          PR_NUMBER="${PR_URL##*/}"
+          echo "Created PR #${PR_NUMBER}"
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch the body rewrite
+        if: steps.diff.outputs.should_update == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ steps.pr.outputs.pr_number }}
+        run: |
+          gh workflow run release-pr-body.yml --repo "${REPO}" --ref dev -f "pr_number=${PR_NUMBER}"
+          echo "Dispatched release-pr-body for PR #${PR_NUMBER}"

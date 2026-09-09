@@ -1,12 +1,25 @@
 version: 2
 updates:
-  # GitHub Actions pins (whole repo)
+  # GitHub Actions pins (whole repo). Actions are sha-pinned; dependabot keeps
+  # the "# vX.Y.Z" comment current. Minor/patch bumps arrive as ONE grouped PR
+  # so actions that must move in lockstep (codeql-action init + analyze) land
+  # together; majors stay as individual PRs so a breaking change is assessed alone.
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
-  # Go module deps for the CLI
+      interval: daily
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+        patterns: ["*"]
+  # Go module deps for the CLI. The OpenTelemetry modules version in lockstep
+  # (sdk, sdk/metric, exporters, otel) — one grouped PR instead of a fan of
+  # PRs that close each other as "up-to-date now".
   - package-ecosystem: gomod
     directory: /specstory-cli
     schedule:
-      interval: monthly
+      interval: daily
+    groups:
+      opentelemetry:
+        patterns: ["go.opentelemetry.io/*"]
