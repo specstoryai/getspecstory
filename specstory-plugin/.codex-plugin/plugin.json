@@ -1,0 +1,21 @@
+{
+  "name": "specstory",
+  "version": "0.1.0",
+  "description": "Auto-save every Codex session as git-friendly markdown in .specstory/history. A Stop hook runs `specstory sync codex` after each turn, so your full conversation history is always on disk, searchable, and diffable.",
+  "author": "SpecStory",
+  "homepage": "https://specstory.com",
+  "repository": "https://github.com/specstoryai/getspecstory",
+  "keywords": [
+    "history",
+    "sessions",
+    "markdown",
+    "specstory",
+    "auto-save"
+  ],
+  "hooks": "./hooks/codex-hooks.json",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SpecStory",
+    "shortDescription": "Never lose a Codex session"
+  }
+}
