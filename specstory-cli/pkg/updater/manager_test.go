@@ -318,6 +318,9 @@ func TestInstallOwnership(t *testing.T) {
 	if installationKind("/usr/bin/specstory", root, "", "linux") != "managed" {
 		t.Fatal("system package not recognized")
 	}
+	if installationKind("/usr/local/bin/specstory", root, "", "darwin") != "manual" {
+		t.Fatal("legacy installer or arbitrary /usr/local/bin binary became auto-managed")
+	}
 	if runtime.GOOS != "windows" {
 		target := filepath.Join(root, "manual")
 		write(t, target, []byte("manual"))
@@ -435,6 +438,59 @@ func TestProbeRejectsInvalidExecutable(t *testing.T) {
 	m, _ := fixture(t, runtime.GOOS, runtime.GOARCH, []byte("1.0.0"), []byte("2.0.0"))
 	if err := m.verifyBinary(t.Context(), []byte("not an executable"), "2.0.0"); err == nil {
 		t.Fatal("invalid executable passed probe")
+	}
+	matches, err := filepath.Glob(filepath.Join(filepath.Dir(m.Executable), ".specstory-verify-*"))
+	must(t, err)
+	if len(matches) != 0 {
+		t.Fatalf("leaked staged probes: %v", matches)
+	}
+}
+
+func TestProbeOutputLimit(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	output := &probeOutput{cancel: cancel}
+	payload := bytes.Repeat([]byte("x"), maxProbeOutput)
+	_, err := output.Write(payload)
+	must(t, err)
+	if output.exceeded || ctx.Err() != nil {
+		t.Fatal("rejected output exactly at the cap")
+	}
+	for range 3 {
+		_, err = output.Write(payload)
+		must(t, err)
+	}
+	if !output.exceeded || !errors.Is(ctx.Err(), context.Canceled) || !bytes.Equal(output.buffer.Bytes(), payload) {
+		t.Fatalf("unbounded probe: exceeded=%v canceled=%v bytes=%d", output.exceeded, ctx.Err(), output.buffer.Len())
+	}
+}
+
+func TestProbeRejectsExcessOutput(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "noisy.go")
+	write(t, source, []byte(`package main
+import("fmt";"os";"strings";"time")
+func main(){fmt.Fprint(os.Stdout,strings.Repeat("o",3072));fmt.Fprint(os.Stderr,strings.Repeat("e",3072));time.Sleep(30*time.Second)}
+`))
+	name := filepath.Join(root, "noisy")
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", name, source)
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build noisy probe: %v\n%s", err, output)
+	}
+	m, _ := fixture(t, runtime.GOOS, runtime.GOARCH, []byte("1.0.0"), []byte("2.0.0"))
+	started := time.Now()
+	err := m.verifyBinary(t.Context(), contents(t, name), "2.0.0")
+	if err == nil || !strings.Contains(err.Error(), "output limit") {
+		t.Fatalf("noisy binary was not rejected at the shared output cap: %v", err)
+	}
+	if time.Since(started) >= 8*time.Second {
+		t.Fatal("noisy probe waited for its timeout instead of being canceled")
+	}
+	if string(contents(t, m.Executable)) != "1.0.0" {
+		t.Fatal("noisy probe changed the installed executable")
 	}
 	matches, err := filepath.Glob(filepath.Join(filepath.Dir(m.Executable), ".specstory-verify-*"))
 	must(t, err)

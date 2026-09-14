@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	apply "github.com/creativeprojects/go-selfupdate/update"
@@ -21,6 +22,29 @@ import (
 
 const checkInterval = 6 * time.Hour
 const workerTimeout = 3 * time.Minute
+const maxProbeOutput = 4 << 10
+
+type probeOutput struct {
+	mu       sync.Mutex
+	buffer   bytes.Buffer
+	exceeded bool
+	cancel   context.CancelFunc
+}
+
+// A shared cap covers stdout and stderr together. Cancel the process as soon as
+// it exceeds the cap, while discarding further pipe data without allocating it.
+func (out *probeOutput) Write(data []byte) (int, error) {
+	out.mu.Lock()
+	defer out.mu.Unlock()
+	remaining := maxProbeOutput - out.buffer.Len()
+	if len(data) > remaining {
+		_, _ = out.buffer.Write(data[:remaining])
+		out.exceeded = true
+		out.cancel()
+		return len(data), nil
+	}
+	return out.buffer.Write(data)
+}
 
 // ErrBusy means another process owns this installation's update lock.
 var ErrBusy = errors.New("another SpecStory update is running")
@@ -337,8 +361,13 @@ func (m *Manager) verifyBinary(ctx context.Context, binary []byte, version strin
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, file.Name(), "--no-usage-analytics", "--no-version-check", "--version")
-	output, err := command.CombinedOutput()
-	if err != nil || strings.TrimSpace(string(output)) != version+" (SpecStory)" {
+	output := &probeOutput{cancel: cancel}
+	command.Stdout, command.Stderr = output, output
+	err = command.Run()
+	if output.exceeded {
+		return errors.New("downloaded binary exceeded the version output limit; existing installation is unchanged")
+	}
+	if err != nil || strings.TrimSpace(output.buffer.String()) != version+" (SpecStory)" {
 		return errors.New("downloaded binary failed its version check; existing installation is unchanged")
 	}
 	return nil

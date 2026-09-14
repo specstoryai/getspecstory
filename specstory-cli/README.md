@@ -54,7 +54,7 @@ Full end-user installation and usage instructions are in the [SpecStory CLI Docu
 
 ### Updates
 
-The default curl and PowerShell installations update automatically in the background
+The default website curl and PowerShell installations update automatically in the background
 when you use `run`, `resume`, `watch`, or `sync`. Checks happen at most once every
 six hours, including during a long-running session. Your current session keeps
 running; the new version takes effect the next time you launch SpecStory.
@@ -64,6 +64,11 @@ and Linux, or `%LOCALAPPDATA%\SpecStory\bin\specstory.exe` on Windows. Homebrew 
 other recognized package-manager installations retain their own update process.
 Custom install paths require an explicit update. Development/prerelease builds and
 CI environments do not update automatically.
+
+The repository's legacy `install.sh` installs into `/usr/local/bin`, which remains
+a manual installation. Use `specstory update` there, or install through
+`https://specstory.com/install.sh` to use the native path. The updater never assumes
+that an arbitrary executable in `/usr/local/bin` belongs to the website installer.
 
 ```zsh
 specstory check             # Show the executable path and cached update status

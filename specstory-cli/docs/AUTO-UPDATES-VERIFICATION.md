@@ -11,6 +11,10 @@ Running sessions retain their executable; a subsequent launch uses the update.
 Homebrew, recognized system package directories, custom paths, development builds,
 CI, opt-out flags, and rollback pauses do not auto-update. Explicit custom-path
 updates are allowed; package-manager paths direct the user to their package manager.
+Native paths refer to the current website installers: `~/.local/bin/specstory` and
+`%LOCALAPPDATA%/SpecStory/bin/specstory.exe`. The repository's legacy `install.sh`
+defaults to `/usr/local/bin` and remains manual; recognizing any binary there as
+native would incorrectly take ownership of unrelated installations.
 A read-only version check does not require a writable binary directory, download
 an archive, or defer the next automatic installation.
 
@@ -21,6 +25,15 @@ expanded archives, and binary probes are bounded. Extraction reads only the exac
 root executable and never writes archive paths or links. SHA-256 and an actual
 version probe must pass before replacement. An externally changed executable is
 not overwritten. Rollback validates the saved binary hash and version before use.
+The probe retains at most 4 KiB of combined stdout/stderr and cancels the process
+as soon as it exceeds that limit. `update --silent` suppresses successful update,
+check, and rollback messages while preserving errors and performing the operation.
+
+The release contract is explicitly configured in `.goreleaser.yml` as
+`SpecStoryCLI_<version>_checksums.txt`. This matches both GoReleaser's documented
+[default checksum filename](https://goreleaser.com/customization/package/checksum/)
+and the actual [v2.11.0 manifest](https://github.com/specstoryai/getspecstory/releases/download/v2.11.0/SpecStoryCLI_2.11.0_checksums.txt).
+The live update test below consumed that versioned asset successfully.
 
 ## Go library review
 
@@ -53,6 +66,14 @@ verified by this implementation.
   process remained running, launched the new version, and rolled back successfully.
 - A separate process test verified that a detached worker finishes after its
   launching process exits. Probe failure cleans up its staged executable.
+- A native executable fixture emits 3 KiB to each output stream, then sleeps.
+  Verification rejects its combined output promptly, leaves the installed binary
+  unchanged, and removes the staged probe. A buffer test also covers the exact cap
+  and repeated writes after cancellation without retaining additional bytes.
+- Command tests exercise inherited `--silent`, a configured default, and an
+  explicit `--silent=false` override across update, check, rollback, and already
+  current results. Operations still run, and failures remain visible on stderr.
+- `goreleaser check` validates the explicit versioned manifest configuration.
 - An isolated full CLI invocation fetched the real GitHub v2.11.0 release and
   replaced a development binary labeled 2.10.0. Both the newly installed 2.11.0
   executable and the saved previous executable ran with the expected versions.

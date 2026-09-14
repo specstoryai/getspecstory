@@ -13,6 +13,19 @@ import (
 
 // CreateUpdateCommand follows the version command's output and analytics pattern.
 func CreateUpdateCommand(version string) *cobra.Command {
+	return createUpdateCommand(version, func(ctx context.Context, checkOnly, rollback bool) (updater.Status, error) {
+		manager, err := updater.New(version)
+		if err != nil {
+			return updater.Status{}, err
+		}
+		if rollback {
+			return manager.Rollback(ctx)
+		}
+		return manager.Run(ctx, checkOnly, false)
+	})
+}
+
+func createUpdateCommand(version string, runUpdate func(context.Context, bool, bool) (updater.Status, error)) *cobra.Command {
 	var checkOnly, rollback bool
 	command := &cobra.Command{
 		Use: "update", Short: "Update SpecStory to the latest verified release",
@@ -22,20 +35,17 @@ func CreateUpdateCommand(version string) *cobra.Command {
 		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
 		RunE: func(cmd *cobra.Command, args []string) error {
 			analytics.TrackEvent(analytics.EventUpdateCommand, analytics.Properties{"check_only": checkOnly, "rollback": rollback})
-			manager, err := updater.New(version)
-			if err != nil {
-				return err
-			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 3*time.Minute)
 			defer cancel()
-			var status updater.Status
-			if rollback {
-				status, err = manager.Rollback(ctx)
-			} else {
-				status, err = manager.Run(ctx, checkOnly, false)
-			}
+			status, err := runUpdate(ctx, checkOnly, rollback)
 			if err != nil {
 				return err
+			}
+			// The parent pre-run is skipped, so read the inherited flag rather than
+			// relying on logging's silent state having been initialized there.
+			silent, _ := cmd.Flags().GetBool("silent")
+			if silent {
+				return nil
 			}
 			switch {
 			case rollback:
