@@ -41,7 +41,7 @@ Call-site volume (excluding definitions and tests): `stringValue` 84, `renderGen
 These exist today and are worth fixing as part of (or independent of) the dedup:
 
 1. **droidcli `renderJSONValue` escaping** (`pkg/providers/droidcli/markdown_tools.go:593`): the marshal-error fallback uses `fmt.Sprintf("\"%s\"", …)` instead of `%q`, so a value containing quotes or backslashes produces malformed JSON in the rendered fence. deepseektui's copy already uses `%q` correctly.
-2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason.
+2. **geminicli hardcoded fences** (`pkg/providers/geminicli/markdown_tools.go:225` and `:278`): emits literal ` ```diff ` / ` ```json ` instead of `spi.CodeFence`, so content containing a triple-backtick run breaks out of the fence and swallows the rest of the document. Every other provider uses `spi.CodeFence` for exactly this reason. **(Fixed — see §10. The real count was five sites, not the two recorded here.)**
 3. **geminicli `classifyCheckError` unreachable arm** (`pkg/providers/geminicli/provider.go:204`): its `case errors.As(err, &pathErr):` matches *any* `os.PathError`, so a permission error wrapped in a `PathError` returns `version_failed` and the later `os.ErrPermission` arm can never fire for that shape.
 4. **Trio `classifyCheckError` gap**: a `PathError` wrapping `os.ErrNotExist` falls through to `version_failed` instead of `not_found`. codexcli's version handles this correctly.
 
@@ -205,7 +205,7 @@ Only one, and it is the accepted cost of 5b: in deepseektui and droidcli, **nest
 
 ## 9. What actually landed (Phase 3, items 1 and 3)
 
-Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `qwencode` (§10).
+Cumulative with Phases 1–2: **−953 lines** (307 added, 1260 deleted), `golangci-lint run` clean, `go test ./...` green. Every provider package now shares one language map and one check-error classifier — ten at the time of this phase, plus `musecode` (§11) and `qwencode` (§13).
 
 ### Item 1 — language maps
 
@@ -239,7 +239,98 @@ Telemetry changes: deepseektui, droidcli, antigravitycli and geminicli now emit 
 
 ---
 
-## 10. Follow-on: bringing `qwencode` in line
+## 10. geminicli: fence bug and missing panic recovery
+
+Two loose ends are now closed: the hardcoded fences from §2.2, and a missing panic recovery in the watcher's session delivery — the latter found while reviewing a new provider against this refactor on another branch, not by the original sweep.
+
+### The fence bug was five sites, not two
+
+§2.2 recorded two hardcoded fences. Grepping the file for ``` turned up **five** distinct constructions, three of which the original sweep missed because they build the fence across several `WriteString` calls rather than in one `fmt.Sprintf`:
+
+| Site | Was | Now |
+|---|---|---|
+| `formatOutputText` | `fmt.Sprintf("```text\n%s\n```", …)` | `spi.CodeFence("text", …)` |
+| `formatShellBodyFromInput` | three `WriteString` calls around ` ```bash ` | `spi.CodeFence("bash", command)` |
+| `formatWriteFileBodyFromInput` | five `WriteString` calls around a dynamic tag | `spi.CodeFence(spi.LanguageFromPath(path), content)` |
+| `formatReplaceBodyFromInput` | three `WriteString` calls around ` ```diff ` | `spi.CodeFence("diff", truncate(newString, 2000))` |
+| `formatGenericBodyFromInput` | `fmt.Sprintf("```json\n%s\n```", …)` | deleted; callers use `spi.RenderGenericJSON` |
+
+The last one is the payoff case: with the fence fixed, that function was byte-identical to `spi.RenderGenericJSON`, so fixing the bug and removing the duplication were the same edit. geminicli was the last provider still carrying a private copy of it.
+
+Every site is exercised by `TestFencedSitesOutrunEmbeddedBackticks`, which feeds each one content containing its own ` ```go ` fence and asserts both that the wrapper widened to four backticks and that the inner content passed through unaltered. Before the fix, all five would emit a three-backtick wrapper that the embedded fence closes early, truncating the rendered document from that point on.
+
+**Lesson for future sweeps:** grepping for ``` catches `Sprintf`-style fences but not ones assembled across `WriteString` calls. The reliable check is "which call sites do *not* go through `spi.CodeFence`", not "which lines contain backticks".
+
+### Missing panic recovery
+
+`triggerCallback` invoked the consumer's callback with no recovery, so a panic would unwind the fsnotify event goroutine and take the process down over one malformed session. Delivery stays synchronous — ordering matters, and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()` that logs the session id. Locked in by a new `watcher_test.go` covering both the panic containment and the nil-argument guards, which the restructure touched.
+
+This gap is inherent to the singleton-watcher shape (package-global callback behind a mutex, invoked straight from the fsnotify handler) rather than to geminicli specifically. Providers that deliver through `spi.DispatchSession` get containment for free; any provider written on the singleton pattern needs this `recover()` explicitly.
+
+With this, no provider is known to deliver sessions without panic containment, and no provider hardcodes a code fence.
+
+---
+
+## 11. Follow-on: bringing `musecode` in line
+
+`musecode` was written in parallel with this refactor and merged after it, so it reintroduced five of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all seven fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
+
+Applied, using the same decisions recorded in §7:
+
+|          Removed from `musecode`          |                           Replaced with                            |                                                                 Effect                                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `formatGenericBodyFromInput`              | `spi.RenderGenericJSON`                                            | none — was behaviorally identical                                                                                                       |
+| `canonicalPath`                           | `spi.CanonicalizePathOrClean`                                      | trims before canonicalizing and falls back through `filepath.Abs`, so a relative workspace root now compares equal to its absolute form |
+| `classifyMuseCheckError`                  | `spi.ClassifyCheckError`                                           | `error_type` values change (below)                                                                                                      |
+| `languageFromPath`                        | `spi.LanguageFromPath`                                             | fence tags change (below)                                                                                                               |
+| three inline `analytics.TrackEvent` calls | `analytics.CheckAttempt` + `TrackCheckSuccess`/`TrackCheckFailure` | adds `resolved_path`, `version_flag`, and `stderr` (which muse captured but never reported)                                             |
+
+`classifyMuseCheckError` was the pre-fix shape, carrying both §2.3 and §2.4. Verified deltas against the shared classifier: a `PathError` wrapping `ErrNotExist` was `version_failed`, now `not_found` (the practical bug — a binary that vanishes between `LookPath` and `Run`); a plain error and an unrelated `PathError` were `version_failed`, now `unknown`; `nil` was `version_failed`, now `""`. The §2.3 arm needs a contrived multi-`%w` chain to trigger, so it was latent rather than user-visible. `buildMuseCheckErrorMessage` has a `default:` arm, so no remediation text changed.
+
+`languageFromPath` was byte-identical to the geminicli variant deleted in item 1, so muse picks up the same changes: `Makefile` and `""` go from ` ```text ` to an untagged fence, and the aliases apply (`.md` → markdown, `.py` → python, `.yml` → yaml). `TestLanguageFromPath` moved to `pkg/spi`; one fence assertion in `markdown_tools_test.go` moved from ` ````md ` to ` ````markdown `.
+
+Two fixes outside the dedup:
+
+- **`triggerCallback` had no panic recovery** (`watcher.go`). A panic in the consumer's callback would unwind the fsnotify event goroutine and take the process down over one bad session. Delivery stays synchronous — ordering matters and `spi.DispatchSession` would have made it async — so the fix is a local `defer recover()`, locked in by `TestTriggerCallback_ContainsConsumerPanic`. geminicli had the same gap from the same singleton-watcher shape; it is not muse-specific, and was closed separately (§10).
+- **An empty `--version` reported success with a blank version.** Now substitutes `"unknown"`, matching deepseektui and antigravitycli. (cursorcli and codexcli instead treat empty output as a `no_output` failure; muse follows the former.)
+
+Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), and `truncate` (duplicates `spi.CapRunes` with a different visible marker).
+
+---
+
+## 12. Review follow-ups to §11
+
+Applied after code review of the muse provider branch.
+
+### Watch-window extraction (the third copy problem)
+
+`watchWindowDays`, `watchWindowCutoff`, and `dirWithinWatchWindow` existed as near-verbatim copies in `codexcli` and `musecode` (muse's extended one level for its per-session directories), and `claudecode` carried the same 7-day constant for its mtime-based flat-store variant. All three now share `pkg/spi/watch_window.go`:
+
+| Symbol | Consumers |
+|---|---|
+| `spi.WatchWindowDays` | all three watchers — the window is one product decision, not a per-provider tunable |
+| `spi.WatchWindowCutoff` | codexcli, musecode |
+| `spi.DateDirWithinWatchWindow(path, root, maxDepth, cutoff)` | codexcli (`maxDepth` 3: files in day dirs), musecode (`maxDepth` 4: one directory per session) |
+
+codexcli keeps its private `dirType` — the fsnotify Create-event switch still dispatches on year/month/day — but its window decision now goes through the shared helper. claudecode keeps its own mtime comparison and only takes the constant.
+
+Behavioral delta: the shared helper enforces zero-padded date components (codex's `dirType` always did; muse's copy accepted `2026/8/7`). Muse writes zero-padded paths, so the stricter check changes nothing against a real store — a non-conforming look-alike directory now simply gets no watch.
+
+Tests: the two provider-local window test suites merged into `pkg/spi/watch_window_test.go` (codex's calendar-validation and year-boundary cases plus muse's depth-4 session-directory cases); `codexcli/watcher_test.go` held nothing else and was deleted.
+
+### `todoStatusSymbol` → `spi.TodoSymbol`
+
+The swap deferred above landed. Deltas: the shared symbol map trims and lowercases the status and accepts `done`/`active` as synonyms for `completed`/`in_progress`; muse's exact-match copy rendered those as unchecked boxes.
+
+### Muse-local fixes from the same review
+
+- **Search results are now fenced.** They previously rendered raw on the theory that `file:line:text` needs no fence, but hits are arbitrary file content — embedded markdown or HTML could break the enclosing tool block. The `search` case now falls through to the default result renderer, which fences multi-line output via `spi.CodeFence`.
+- **The `"muse-session"` slug fallback had two copies** in `provider.go`; `extractMuseSessionMetadata` now delegates to `museSessionSlug`.
+- **`getDefaultMuseCommand` probed PATH and ignored the answer** (both branches returned `"muse"`). Replaced with a `defaultMuseCommand` constant; the `execLookPath` test seam and its tautological test went with it.
+
+---
+
+## 13. Follow-on: bringing `qwencode` in line
 
 `qwencode` was developed on its own branch alongside this refactor and merged after it, so it reintroduced four of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all eight fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
 

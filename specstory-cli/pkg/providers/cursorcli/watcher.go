@@ -88,8 +88,7 @@ func (w *CursorWatcher) Start() error {
 			slog.Warn("Cannot access project hash directory", "hashDir", w.hashDir, "error", err)
 		}
 		// Start watching for the directory to be created
-		w.wg.Add(1)
-		go w.watchForDirectory()
+		w.wg.Go(w.watchForDirectory)
 		return nil
 	}
 
@@ -97,8 +96,7 @@ func (w *CursorWatcher) Start() error {
 	slog.Info("Project hash directory exists", "hashDir", w.hashDir, "isDir", stat.IsDir())
 
 	// Directory exists, start watching sessions
-	w.wg.Add(1)
-	go w.watchLoop()
+	w.wg.Go(w.watchLoop)
 
 	return nil
 }
@@ -124,8 +122,6 @@ func (w *CursorWatcher) Stop() {
 
 // watchForDirectory waits for the project hash directory to be created
 func (w *CursorWatcher) watchForDirectory() {
-	defer w.wg.Done()
-
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
@@ -138,8 +134,7 @@ func (w *CursorWatcher) watchForDirectory() {
 			if _, err := os.Stat(w.hashDir); err == nil {
 				slog.Info("Project hash directory detected, starting session watcher", "hashDir", w.hashDir)
 				// Directory exists now, start watching sessions
-				w.wg.Add(1)
-				go w.watchLoop()
+				w.wg.Go(w.watchLoop)
 				return
 			}
 		}
@@ -148,8 +143,6 @@ func (w *CursorWatcher) watchForDirectory() {
 
 // watchLoop is the main monitoring loop
 func (w *CursorWatcher) watchLoop() {
-	defer w.wg.Done()
-
 	ticker := time.NewTicker(w.pollInterval)
 	defer ticker.Stop()
 
@@ -340,16 +333,14 @@ func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) {
 
 	// Call the callback asynchronously to avoid blocking the watcher
 	if w.sessionCallback != nil {
-		w.callbackWg.Add(1)
-		go func(s *spi.AgentChatSession) {
-			defer w.callbackWg.Done()
+		w.callbackWg.Go(func() {
 			defer func() {
 				if r := recover(); r != nil {
-					slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
+					slog.Error("Session callback panicked", "panic", r, "sessionId", agentSession.SessionID)
 				}
 			}()
-			w.sessionCallback(s)
-		}(agentSession)
+			w.sessionCallback(agentSession)
+		})
 
 		// Log that we detected changes and invoked the callback
 		slog.Info("Detected session changes, callback invoked", "sessionId", sessionID)

@@ -47,6 +47,8 @@ Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share
 Gemini CLI         │
 DeepSeek TUI       │
 Antigravity CLI    │
+Muse Code          │
+Pi                 │
 Qwen Code          ┘
 ```
 
@@ -75,7 +77,8 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)   | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | 0.15.1+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/deepseektui) | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)                        | 0.8.39+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/antigravitycli) | [Antigravity CLI](https://antigravity.google/)                             | v1.1.5+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/qwencode) | [Qwen Code](https://github.com/QwenLM/qwen-code)                                | 0.21.0+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/musecode) | [Muse Code](https://github.com/facebook/muse-code)                              | 0.1.0+       | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/qwencode) | [Qwen Code](https://github.com/QwenLM/qwen-code)                                | 0.23.3+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 | **[Lore](./lore)** 📜                                            | Skill | [Open](./lore)                                                                                       | Any [Agent Skills](https://agentskills.io) | Node 22.5+   | `npx skills add specstoryai/getspecstory --skill lore`        | [📋 View](./lore/CHANGELOG.md)                                                             |
 
 > [!NOTE]
@@ -97,6 +100,7 @@ specstory run droid        # Launch Droid CLI
 specstory run gemini       # Launch Gemini CLI
 specstory run deepseek     # Launch DeepSeek TUI
 specstory run antigravity  # Launch Antigravity CLI
+specstory run muse         # Launch Muse Code
 specstory run qwen         # Launch Qwen Code
 specstory run           # Launch default agent
 ```
@@ -175,3 +179,7 @@ Love SpecStory? Help others discover their AI coding memory upgrade by leaving a
 ## Star History
 
 ![Star History Chart](https://api.star-history.com/svg?repos=specstoryai/getspecstory&type=Date)
+
+---
+
+Made with ❤️ by SpecStory

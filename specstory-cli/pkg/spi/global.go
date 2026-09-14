@@ -114,9 +114,7 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for path := range pathCh {
 				ref, scanErr := safeScan(scan, path)
 				if scanErr != nil {
@@ -131,7 +129,7 @@ func ScanSessionsInParallel(root, label string, r *ScanReporter, scan func(path 
 				mu.Unlock()
 				r.Add(1) // count sessions found, not files scanned
 			}
-		}()
+		})
 	}
 	for _, path := range paths {
 		pathCh <- path

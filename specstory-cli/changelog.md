@@ -1,5 +1,38 @@
 # Specstory CLI Changelog
 
+## v2.12.0 2026-09-15
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Qwen Code](https://github.com/QwenLM/qwen-code) (i.e. `qwen`) for sessions created from Qwen Code version `0.23.3` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [Muse Code](https://developer.meta.com/ai/products/muse-code/) and [Pi](https://pi.dev). Qwen Code sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Qwen Code.
+
+## v2.11.0 2026-09-14
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Pi](https://pi.dev) for agent sessions created from Pi `0.85.1` (the current `@earendil-works/pi-coding-agent` release) or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [Muse Code](https://developer.meta.com/ai/products/muse-code/). `specstory sync`, `list`, `search`, `reindex` and `check` all understand Pi sessions, including Pi's branching, compaction and tool results. Pi's own `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` settings are honored, so sessions are found wherever Pi keeps them.
+- `specstory run pi` and `specstory watch pi` save Pi sessions to local markdown and the SpecStory Cloud live as you work, the same as the other supported agents. `run pi` waits for the last save before it returns, and exits with Pi's own exit code when Pi fails.
+- Pi is a cross-provider `specstory resume` target: you can resume any agent's session into Pi, and resume a Pi session into another agent. Pi continues an existing session by its exact id (`pi --session-id <id>`).
+
+### 🐛 Bug Fixes
+
+- `specstory watch` now exits with an error when no provider watcher could start, for example when watching a provider that does not support live watching. Previously it printed the watching banner and then silently exited 0.
+
+## v2.10.0 2026-08-17
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Muse Code](https://developer.meta.com/ai/products/muse-code/) for agent sessions created from Muse Code `0.1.0-R708.1` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- You can use `specstory resume` to resume Muse Code sessions in other coding agents, and to resume any agent's session into Muse Code.
+
+### 🐛 Bug Fixes
+
+- `output_dir` in `config.toml` is now honored by `specstory watch` and `specstory resume`, not just by `run` and `sync`. Previously only the `--output-dir` flag reached `watch`, so with the setting in your config file the startup save went to your configured directory while everything written during the watch went to `./.specstory/history` — leaving markdown in two places, with the configured copy going stale. Thanks to [petercurcio](https://github.com/petercurcio) for the detailed report in [issue 273](https://github.com/specstoryai/getspecstory/issues/273). If you hit this, the copies under `./.specstory/history` are the newer ones; move or delete them once, and everything lands in your configured directory from now on.
+- Codex CLI sessions started in Codex `0.147.0`+ are saved again. Codex changed how its Codex CLI TUI records a conversation in that release, and SpecStory read only the older form, so those sessions produced a markdown file containing just a header, with every prompt and reply missing. Both forms are now read. This affects only sessions **started** in `0.147.0`+. Sessions from earlier versions, and older sessions you resume under `0.147` were never affected, and their markdown is unchanged. Re-run `specstory sync` to fill in any sessions that were saved empty.
+- `specstory watch` and `specstory run` now behave the same way at startup whichever agent you are watching: they save new activity from that point on, and leave sessions that already exist alone. Previously Codex CLI, Droid CLI, DeepSeek TUI and Antigravity CLI re-saved and re-synced their existing sessions on every start, while Claude Code, Cursor, VS Code Copilot, Gemini CLI and Muse Code did not. Run `specstory sync` when you want existing sessions written or refreshed.
+- The first update to a session that already had a markdown file is no longer missing from `specstory watch` output. The line was sometimes being swallowed as if it were startup noise, so for some agents, some of the time your first prompt after starting `watch` appeared to do nothing; only the second one showed up.
+- `specstory run` and `specstory watch` no longer reprocess your entire Codex CLI history every time they start. Codex stores sessions by date, and while SpecStory only ever watched the last few days for live changes, it was scanning and re-saving every day directory going back to your first ever session — rewriting all that markdown and re-syncing it to the SpecStory Cloud on each launch. Startup now covers the same trailing window that live watching does, plus the day of a session you are resuming, however old it is. If you have a long Codex history, expect `run` and `watch` to start noticeably faster and stop touching old markdown files; a full `specstory sync` still processes everything as before.
+
 ## v2.9.0 2026-08-12
 
 ### 📢 Announcements
@@ -22,7 +55,7 @@
 
 ### 📢 Announcements
 
-- The SpecStory CLI now supports [Qwen Code](https://github.com/QwenLM/qwen-code) (i.e. `qwen`) for sessions created from Qwen Code version `0.21.0` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot). Qwen Code sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Qwen Code.
+- The SpecStory CLI now supports Meta's [Muse Code](https://github.com/facebook/muse-code) (i.e. `muse`) for sessions created from Muse Code version `0.1.0` or higher. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for the other supported coding agents, including resuming Muse Code sessions in other agents and other agents' sessions in Muse Code with `specstory resume`. See [MUSE-FORMAT.md](docs/MUSE-FORMAT.md) for the session format details.
 
 ### 🐛 Bug Fixes
 

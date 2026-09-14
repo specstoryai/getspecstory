@@ -77,10 +77,7 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 	geminiDir := filepath.Dir(filepath.Dir(hashDir)) // ~/.gemini
 	tmpDir := filepath.Dir(hashDir)                  // ~/.gemini/tmp
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-
+	watcherWg.Go(func() {
 		if err := waitForDirectoryFsnotify(watcherCtx, geminiDir, "Gemini root directory"); err != nil {
 			slog.Debug("Stopped Gemini watcher while waiting for root directory", "error", err)
 			return
@@ -115,7 +112,7 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 		if err := startArtifactWatcher(filepath.Join(resolvedDir, "shell_history"), "shell_history"); err != nil {
 			slog.Warn("Failed to watch shell_history", "error", err)
 		}
-	}()
+	})
 
 	return nil
 }
@@ -205,9 +202,7 @@ func startChatsWatcher(chatsDir string) error {
 		return err
 	}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			_ = watcher.Close()
 		}()
@@ -235,7 +230,7 @@ func startChatsWatcher(chatsDir string) error {
 				slog.Error("Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
@@ -311,15 +306,27 @@ func processSessionChange(filePath string) {
 	triggerCallback(agentSession)
 }
 
-// triggerCallback is a helper to call the watcher callback with proper locking
+// triggerCallback is a helper to call the watcher callback with proper locking.
+//
+// Delivery is synchronous so session changes reach the consumer in the order
+// fsnotify reported them, but a panic in the consumer is contained here: it
+// would otherwise unwind the fsnotify event goroutine and take down the whole
+// process over one malformed session.
 func triggerCallback(agentSession *spi.AgentChatSession) {
 	watcherMutex.RLock()
 	cb := watcherCallback
 	watcherMutex.RUnlock()
 
-	if cb != nil && agentSession != nil {
-		cb(agentSession)
+	if cb == nil || agentSession == nil {
+		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("gemini: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
+		}
+	}()
+	cb(agentSession)
 }
 
 // waitForDirectoryFsnotify waits for a directory to exist using fsnotify on its parent.
@@ -393,9 +400,7 @@ func startArtifactWatcher(filePath string, label string) error {
 		return err
 	}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			_ = watcher.Close()
 		}()
@@ -423,7 +428,7 @@ func startArtifactWatcher(filePath string, label string) error {
 				slog.Warn("Gemini artifact watcher error", "artifact", label, "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

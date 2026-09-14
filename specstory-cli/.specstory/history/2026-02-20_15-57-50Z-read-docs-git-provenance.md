@@ -64,7 +64,7 @@ docs/git-provenance/systems/agentblame.md
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:17Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning parallel reading strategy**
+**Listing files in docs directory****Planning parallel reading strategy**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:17Z)**_
@@ -101,7 +101,7 @@ Output:
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:22Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning structured extraction approach**
+**Listing files in docs directory****Planning parallel reading strategy****Planning structured extraction approach**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:22Z)**_
@@ -307,7 +307,7 @@ Output:
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:28Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Inspecting report structure**
+**Searching all headings****Inspecting report structure**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:28Z)**_
@@ -411,7 +411,7 @@ Captured payloads are normalized by `capture --provider <cursor|claude|opencode>
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:32Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Searching standard references**
+**Searching all headings****Inspecting report structure****Searching standard references**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:32Z)**_
@@ -475,7 +475,7 @@ docs/git-provenance/systems/tempo-cli.md:10:Tempo CLI is a commit-tim
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:38Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Reviewing research task for standards**
+**Searching standard keywords****Reviewing research task for standards**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:38Z)**_
@@ -562,7 +562,7 @@ Once a system has a handle on what files are changing and what agent activity is
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:43Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning standards summary gathering**
+**Searching standard keywords****Reviewing research task for standards****Planning standards summary gathering**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:44Z)**_
@@ -581,7 +581,7 @@ Output:
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:51Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning standards and reports review**
+**Searching standard keywords****Reviewing research task for standards****Planning standards summary gathering****Planning standards and reports review**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:52Z)**_
@@ -705,7 +705,7 @@ Output:
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:59Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Reviewing relevant documents**
+**Planning report extraction script****Reviewing relevant documents**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:58:59Z)**_
@@ -886,7 +886,7 @@ It packages a chain of assertions about how an asset was created or edited, then
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:13Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning targeted report extraction**
+**Planning bulk standards reading****Planning targeted report extraction**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:16Z)**_
@@ -1018,7 +1018,7 @@ Agent Blame writes
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:21Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning complete report reads**
+**Planning bulk standards reading****Planning targeted report extraction****Planning complete report reads**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:22Z)**_
@@ -1914,7 +1914,7 @@ Field usage for blame:
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Scheduling full reads for agent files**
+**Planning parallel file reads****Scheduling full reads for agent files**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:43Z)**_
@@ -2350,7 +2350,7 @@ Intent uses two aligned representations:
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:46Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Reviewing system summary for standards**
+**Planning parallel file reads****Scheduling full reads for agent files****Reviewing system summary for standards**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 15:59:47Z)**_
@@ -2456,7 +2456,7 @@ Legend:
 _**Agent (gpt-5.3-codex 2026-02-20 16:00:16Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Scoping comprehensive standards comparison**
+**Inspecting system summary structure****Scoping comprehensive standards comparison**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:00:16Z)**_
@@ -2571,7 +2571,7 @@ _**Agent (gpt-5.3-codex 2026-02-20 16:00:48Z)**_
 _**Agent (gpt-5.3-codex 2026-02-20 16:00:50Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Verifying file formatting**
+**Creating comprehensive AI provenance summary****Verifying file formatting**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:00:51Z)**_
@@ -2694,7 +2694,7 @@ Output:
 _**Agent (gpt-5.3-codex 2026-02-20 16:01:08Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Noticing pre-existing untracked file**
+**Verifying completion and changes****Noticing pre-existing untracked file**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:01:09Z)**_
@@ -3662,7 +3662,7 @@ Legend: `High` = native/first-class, `Medium` = possible with extensions, `Low` 
 _**Agent (gpt-5.3-codex 2026-02-20 16:12:03Z)**_
 
 <think><details><summary>Thought Process</summary>
-**Planning precise heading patch**
+**Verifying patch spacing alignment****Planning precise heading patch**
 </details></think>
 
 _**Agent (gpt-5.3-codex 2026-02-20 16:12:08Z)**_

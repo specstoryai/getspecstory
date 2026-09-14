@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Qwen Code) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, Qwen Code) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -35,7 +35,11 @@ The following coding agents are supported in the SpecStory CLI:
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
 | [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
+| [Muse Code](https://github.com/facebook/muse-code)        | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
+| [Pi](https://pi.dev)                                      | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`      |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)          | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`          |
+
+> **Note:** Pi support covers `sync`, `list`, `search`, `reindex`, `check`, `detect`, `run`, and `watch`, plus cross-provider session reconstruction (`specstory resume`). Pi resumes an existing session by exact id via `pi --session-id <id>`.
 
 Cursor IDE stores all of its conversations in a single global SQLite database (`state.vscdb`), located at `~/Library/Application Support/Cursor/User/globalStorage/` on macOS and `~/.config/Cursor/User/globalStorage/` on Linux. The `cursoride` provider reads that database directly (Cursor 3 is supported) and filters conversations to the current project via Cursor's workspace storage. Because an IDE has no exiting process to wrap, `specstory run cursoride` opens the project in Cursor and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
@@ -327,6 +331,8 @@ specstory sync --config-dir ~/specstory-configs/myproject
 # Antigravity CLI command
 # antigravity_cmd = "agy"
 
+# Muse Code command
+# muse_cmd = "muse"
 # Qwen Code command
 # qwen_cmd = "qwen"
 ```
@@ -362,6 +368,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `droid_cmd`       | `"droid"`            | Droid CLI command                          |
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 | `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
+| `[providers]`     | `muse_cmd`        | `"muse"`             | Muse Code command                          |
 | `[providers]`     | `qwen_cmd`        | `"qwen"`             | Qwen Code command                          |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
@@ -534,7 +541,7 @@ Each exchange is recorded as a child span with these attributes:
 ### Development Prerequisites
 
 - macOS development environment
-- Go 1.26.5 or later
+- Go 1.27.1 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 

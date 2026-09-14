@@ -1,6 +1,9 @@
 package spi
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // SplitCommandLine splits a command line string into arguments, respecting quoted strings.
 //
@@ -77,4 +80,42 @@ func SplitCommandLine(s string) []string {
 	}
 
 	return args
+}
+
+// EnsureResumeArgs makes sure a parsed command line carries `<subcommand> <id>`
+// for the session the caller asked for. Shared by the agents that resume via a
+// subcommand rather than a flag (Codex, Muse); providers using a flag build
+// their own arguments.
+//
+// A custom command that already names the subcommand keeps its position — the
+// id is filled in after it, replacing one the command already carried — rather
+// than gaining a second one; any other custom subcommand is left alone and the
+// pair is appended, which is the only thing that can be done without
+// second-guessing the user.
+//
+// The caller's slice is never mutated: providers hand in a sub-slice of their
+// parsed command line, which appending to in place would corrupt.
+func EnsureResumeArgs(args []string, subcommand string, resumeSessionID string) []string {
+	if resumeSessionID == "" {
+		return args
+	}
+
+	for i, arg := range args {
+		if arg != subcommand {
+			continue
+		}
+		// A configured command can pin an id of its own, but it describes a
+		// default while resumeSessionID describes this run: resuming the pinned
+		// session instead would silently open a different conversation than the
+		// one asked for. Provider requires the requested session to win.
+		if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
+			replaced := slices.Clone(args)
+			replaced[i+1] = resumeSessionID
+			return replaced
+		}
+		// slices.Concat always allocates a new backing array.
+		return slices.Concat(args[:i+1], []string{resumeSessionID}, args[i+1:])
+	}
+
+	return slices.Concat(args, []string{subcommand, resumeSessionID})
 }

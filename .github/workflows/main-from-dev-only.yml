@@ -1,0 +1,43 @@
+name: main-from-dev-only
+
+# main receives code only through the standing dev -> main release PR
+# (release-pr-sync.yml). Any other PR into main is rejected here.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main-from-dev-only-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  enforce:
+    name: enforce main PR source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject non-dev PRs into main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "Base branch: ${BASE_REF}"
+          echo "Head branch: ${HEAD_REF}"
+          echo "Head repo: ${HEAD_REPO}"
+          if [[ "${HEAD_REF}" != "dev" || "${HEAD_REPO}" != "${REPO}" ]]; then
+            echo "::error::Pull requests into main must come from the dev branch in this repository. Current head is '${HEAD_REPO}:${HEAD_REF}'."
+            exit 1
+          fi
