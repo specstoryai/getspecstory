@@ -514,3 +514,18 @@ func main(){if len(os.Args)!=2||os.Args[1]!="__specstory_update"{os.Exit(2)};tim
 	}
 	t.Fatal("detached worker did not survive parent exit")
 }
+
+func TestRollbackRefusesExternalVersionChange(t *testing.T) {
+	m, _ := fixture(t, "linux", "amd64", []byte("1.0.0"), []byte("2.0.0"))
+	_, err := m.Run(t.Context(), false, false)
+	must(t, err)
+	m.Version = "2.0.0"
+	write(t, m.Executable, []byte("3.0.0"))
+	_, err = m.Rollback(t.Context())
+	if err == nil {
+		t.Fatal("rollback overwrote a different installed version")
+	}
+	if string(contents(t, m.Executable)) != "3.0.0" {
+		t.Fatal("external installation was modified")
+	}
+}

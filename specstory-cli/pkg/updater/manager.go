@@ -158,10 +158,10 @@ func (m *Manager) Run(ctx context.Context, checkOnly, automatic bool) (status St
 		status.Latest, err = m.latest(ctx)
 		return status, err
 	}
-	if !checkOnly && m.Kind == "homebrew" {
+	if m.Kind == "homebrew" {
 		return status, errors.New("this installation is managed by Homebrew; run: brew upgrade specstoryai/tap/specstory")
 	}
-	if !checkOnly && m.Kind == "managed" {
+	if m.Kind == "managed" {
 		return status, errors.New("a package manager owns this installation; update it with that package manager")
 	}
 	if _, err = assetName(m.goos, m.arch); err != nil {
@@ -256,6 +256,9 @@ func (m *Manager) Rollback(ctx context.Context) (Status, error) {
 	current, err := readRegular(m.Executable)
 	if err != nil {
 		return status, err
+	}
+	if err = m.verify(ctx, current, m.Version); err != nil {
+		return status, fmt.Errorf("installed binary no longer matches this process; restart SpecStory and retry: %w", err)
 	}
 	if err = m.replace(previous, current); err != nil {
 		return status, err
