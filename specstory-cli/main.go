@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -1388,6 +1390,18 @@ func syncSingleProvider(registry *factory.Registry, providerID string, cmd *cobr
 
 var syncCmd *cobra.Command
 
+// quietAgentExitErrorHandler keeps fang from rendering an error box for an
+// agent's own non-zero exit status (main exits with that status instead, and
+// the agent already reported its error on the shared terminal). Every other
+// error is rendered by fang's default handler.
+func quietAgentExitErrorHandler(w io.Writer, styles fang.Styles, err error) {
+	var agentExit *spi.AgentExitError
+	if errors.As(err, &agentExit) {
+		return
+	}
+	fang.DefaultErrorHandler(w, styles, err)
+}
+
 // Main entry point for the CLI
 func main() {
 	// Parse critical flags early by manually checking os.Args
@@ -1789,7 +1803,20 @@ func main() {
 		log.CloseLogger()
 	}()
 
-	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
+	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version), fang.WithErrorHandler(quietAgentExitErrorHandler)); err != nil {
+		// The agent launched by run/resume exited non-zero on its own. The
+		// provider has already stopped its watcher and joined the in-flight
+		// session saves, so pass the agent's status through as ours, the way the
+		// providers that os.Exit from their exec helper do, but after the save.
+		var agentExit *spi.AgentExitError
+		if errors.As(err, &agentExit) {
+			if console || logFile {
+				slog.Info("=== SpecStory Exiting ===", "code", agentExit.Code, "status", "agent exit status", "agent", agentExit.Agent)
+			}
+			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
+			os.Exit(agentExit.Code)
+		}
+
 		// Check if we're running the check command by looking at the executed command
 		executedCmd, _, _ := rootCmd.Find(os.Args[1:])
 		if executedCmd == checkCmd {

@@ -1,0 +1,47 @@
+name: factory-relay
+
+# Fast path for the provider-factory's DEPENDENCY-UPDATE workflow:
+# when dependabot opens or updates a PR here, ring the factory's bell.
+# Definition: provider-factory/context/Workflows/dependency-maintenance/DEPENDENCY-UPDATE.md
+#
+# Why pull_request_target and why that is safe here: a plain pull_request run
+# from a dependabot branch gets a read-only token and NO secrets, so it cannot
+# reach the factory. pull_request_target runs in the base-branch context with
+# secrets — safe because this job NEVER checks out or executes anything from
+# the PR: no actions/checkout, no build, no scripts. It reads only the event
+# payload and sends a repository_dispatch. Keep it that way.
+#
+# The factory's daily sweep is the belt to this suspender: anything this relay
+# misses is picked up on the next sweep.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions: {} # the default token is used for nothing
+
+jobs:
+  ring:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mint App token scoped to the factory repo
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.FACTORY_APP_ID }}
+          private-key: ${{ secrets.FACTORY_APP_PRIVATE_KEY }}
+          owner: specstoryai
+          repositories: provider-factory
+
+      - name: repository_dispatch → provider-factory
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          gh api "repos/specstoryai/provider-factory/dispatches" \
+            -f event_type=dependabot-pr \
+            -F "client_payload[repo]=${GITHUB_REPOSITORY}" \
+            -F "client_payload[pr]=${PR}"
+          echo "Rang the factory for PR #${PR}"

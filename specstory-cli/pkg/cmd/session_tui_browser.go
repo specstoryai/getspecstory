@@ -268,6 +268,8 @@ func colorForAgent(id string) color.Color {
 		return lipgloss.Color("#3781DE") // blue
 	case "muse":
 		return lipgloss.Color("#0866FF") // Meta blue
+	case "pi":
+		return lipgloss.Color("#8B5CF6") // violet
 	default:
 		return lipgloss.Color("250")
 	}

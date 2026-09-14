@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Enumerate Codex CLI's self-reported tool inventory, for TOOL-AUDIT.
+#
+# Headless mode: `codex exec`. Run this in an empty throwaway directory under an
+# isolated $HOME (the caller's job — no user config, no MCP servers: the
+# inventory is the agent's built-in surface, deferred tools included). Auth
+# arrives as OPENAI_API_KEY in the environment; Codex does not read it directly
+# in exec mode, so the script logs in with it first (writes $HOME/.codex/auth.json).
+#
+# Factory SPI contract: print the agent's raw tool list (as it wrote it) to
+# stdout and exit 0. Non-zero exit means enumeration failed — never an empty
+# or partial inventory — and the reason (auth, billing, agent error) is on
+# stderr so credential rot is distinguishable from agent breakage. The event
+# stream and final message are left in ./events.jsonl and ./result.txt.
+#
+# Rate limits: Codex's own reconnect burst (5 tries, then a transport fallback
+# and 5 more) can exhaust a low per-minute quota by itself, so a turn that
+# failed on a rate limit is retried after a pause, a few times, before it is
+# reported as red.
+set -euo pipefail
+codex="$HOME/.local/bin/codex"
+[ -n "${OPENAI_API_KEY:-}" ] || { echo "list-tools: OPENAI_API_KEY is not set" >&2; exit 1; }
+printenv OPENAI_API_KEY | "$codex" login --with-api-key >&2
+
+prompt='Hello Codex, tell me all the tools you have access to, including any deferred tools you can load or discover through a tool search. Write all the tool names, one per line and nothing else, to the file `./tools.txt`.'
+
+failure_reason() { jq -r 'select(.type=="turn.failed") | .error.message' events.jsonl 2>/dev/null | tail -1; }
+
+for attempt in 1 2 3 4; do
+  rm -f tools.txt result.txt events.jsonl
+  status=0
+  "$codex" exec --skip-git-repo-check --sandbox workspace-write -C "$PWD" \
+    --json -o result.txt "$prompt" < /dev/null > events.jsonl || status=$?
+  if [ $status -eq 0 ] && [ -s tools.txt ]; then cat tools.txt; exit 0; fi
+  reason=$(failure_reason)
+  case "$reason" in
+    *"rate limit"*|*"Rate limit"*)
+      echo "list-tools: attempt $attempt rate-limited; pausing 60s ($reason)" >&2
+      sleep 60; continue ;;
+  esac
+  break
+done
+
+echo "list-tools: codex exec exit $status, tools.txt $([ -s tools.txt ] && echo present || echo missing)" >&2
+[ -n "${reason:-}" ] && echo "turn.failed: $reason" >&2
+[ -s result.txt ] && { echo "final message:" >&2; cat result.txt >&2; }
+exit 1

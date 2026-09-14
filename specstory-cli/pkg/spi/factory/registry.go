@@ -20,6 +20,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/piagent"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -120,6 +121,10 @@ func (r *Registry) registerAll() {
 	museProvider := musecode.NewProvider()
 	r.providers["muse"] = museProvider
 	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
+
+	piProvider := piagent.NewProvider()
+	r.providers["pi"] = piProvider
+	slog.Debug("Registered provider", "id", "pi", "name", piProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())

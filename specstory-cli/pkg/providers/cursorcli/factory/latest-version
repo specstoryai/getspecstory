@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Latest released version of Cursor CLI (cursor-agent).
+#
+# Channel: the official installer at https://cursor.com/install — Cursor CLI has
+# no npm/brew/GitHub-releases channel; the installer script embeds the current
+# version in its download URL (downloads.cursor.com/lab/<version>/...), so the
+# installer itself is the release manifest.
+#
+# Factory SPI contract: print the current released version to stdout and exit 0.
+# Non-zero exit means "sensor failure", never "no change". Output is opaque to
+# the factory — byte-compared against the stored reading, never parsed.
+set -euo pipefail
+version=$(curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2 https://cursor.com/install \
+  | sed -n 's|.*downloads\.cursor\.com/lab/\([^/]*\)/.*|\1|p' | head -1)
+if [ -z "$version" ]; then
+  echo "could not extract version from cursor.com/install (installer format changed?)" >&2
+  exit 1
+fi
+printf '%s\n' "$version"
