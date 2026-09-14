@@ -12,7 +12,11 @@ import (
 	"syscall"
 	"time"
 
+	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/fang"
+	mango "github.com/muesli/mango-cobra"
+	"github.com/muesli/roff"
 	"github.com/spf13/cobra"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -27,6 +31,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/updater"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
 )
 
@@ -38,6 +43,7 @@ var version = "dev" // Replaced with actual version in the production build proc
 // General Options
 var noAnalytics bool    // flag to disable usage analytics
 var noVersionCheck bool // flag to skip checking for newer versions
+var noAutoUpdate bool   // flag to disable background installation of updates
 var outputDir string    // custom output directory for markdown files
 var debugDir string     // custom output directory for debug files
 var configDir string    // custom directory for the project-level config.toml
@@ -216,6 +222,14 @@ specstory watch`
 
 			// Set silent mode for user messages
 			log.SetSilent(silent)
+
+			if cmd.Name() == "check" && !silent {
+				updater.PrintStatus(cmd.OutOrStdout(), version, noAutoUpdate || noVersionCheck)
+			}
+			switch cmd.Name() {
+			case "run", "resume", "watch", "sync":
+				updater.StartBackground(cmd.Context(), version, noAutoUpdate || noVersionCheck || printToStdout)
+			}
 
 			// Initialize cloud sync manager
 			cloud.InitSyncManager(!noCloudSync)
@@ -1404,6 +1418,14 @@ func quietAgentExitErrorHandler(w io.Writer, styles fang.Styles, err error) {
 
 // Main entry point for the CLI
 func main() {
+	// The detached updater must not start providers, Cloud sync, or analytics.
+	if len(os.Args) == 2 && os.Args[1] == updater.WorkerArgument {
+		if err := updater.Worker(version); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+
 	// Parse critical flags early by manually checking os.Args
 	// This is necessary because cobra's ParseFlags doesn't work correctly before subcommands are added
 	//
@@ -1613,6 +1635,7 @@ func main() {
 	rootCmd.AddCommand(syncCmd)
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(cmdpkg.CreateUpdateCommand(version))
 	rootCmd.AddCommand(checkCmd)
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
@@ -1625,6 +1648,7 @@ func main() {
 	rootCmd.PersistentFlags().BoolVar(&noAnalytics, "no-usage-analytics", noAnalytics, "disable usage analytics")
 	rootCmd.PersistentFlags().BoolVar(&silent, "silent", silent, "suppress all non-error output")
 	rootCmd.PersistentFlags().BoolVar(&noVersionCheck, "no-version-check", noVersionCheck, "skip checking for newer versions")
+	rootCmd.PersistentFlags().BoolVar(&noAutoUpdate, "no-auto-update", false, "disable background CLI updates for this invocation")
 	rootCmd.PersistentFlags().StringVar(&cloudToken, "cloud-token", "", "use a SpecStory Cloud refresh token for this session (bypasses login)")
 	_ = rootCmd.PersistentFlags().MarkHidden("cloud-token") // Hidden flag
 	rootCmd.PersistentFlags().StringVar(&projectPathOverride, "project-path", "", "override the project path used for session discovery and identity")
@@ -1710,8 +1734,7 @@ func main() {
 		}
 	}()
 
-	// Check for updates (blocking)
-	utils.CheckForUpdates(version, noVersionCheck, silent)
+	// Update checks run in a detached worker when an eligible command starts.
 
 	// Ensure proper cleanup and logging on exit
 	defer func() {
@@ -1803,7 +1826,27 @@ func main() {
 		log.CloseLogger()
 	}()
 
-	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version), fang.WithErrorHandler(quietAgentExitErrorHandler)); err != nil {
+	// Cobra's help renderer never probes terminal colors. Fang's automatic
+	// theme detection waits for terminal replies even for --help and NO_COLOR.
+	// Keep the existing hidden man command and styled error handler explicitly.
+	rootCmd.AddCommand(&cobra.Command{
+		Use: "man", Hidden: true, Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			page, err := mango.NewManPage(1, cmd.Root())
+			if err != nil {
+				return err
+			}
+			_, err = fmt.Fprint(cmd.OutOrStdout(), page.Build(roff.NewDocument()))
+			return err
+		},
+	})
+	commandContext, stopBackground := context.WithCancel(context.Background())
+	defer stopBackground()
+	if err := rootCmd.ExecuteContext(commandContext); err != nil {
+		quietAgentExitErrorHandler(colorprofile.NewWriter(rootCmd.ErrOrStderr(), os.Environ()), fang.Styles{
+			ErrorHeader: lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Red).SetString("Error"),
+			ErrorText:   lipgloss.NewStyle().MarginLeft(2),
+		}, err)
 		// The agent launched by run/resume exited non-zero on its own. The
 		// provider has already stopped its watcher and joined the in-flight
 		// session saves, so pass the agent's status through as ours, the way the
