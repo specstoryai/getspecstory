@@ -1,55 +1,50 @@
-# CLI Version Check
+# CLI version checks and updates
 
-## Overview
-Add version checking to the SpecStory CLI to notify users when updates are available.
+The CLI uses the updater in `pkg/updater`. Startup no longer performs a blocking
+HTTP version check or displays the old update banner.
 
-## Status: ✅ COMPLETED
+## Automatic updates
 
-## Implementation Summary
+The current website curl and PowerShell installers use native paths:
+`~/.local/bin/specstory` on macOS/Linux and
+`%LOCALAPPDATA%/SpecStory/bin/specstory.exe` on Windows. Eligible `run`, `resume`,
+`watch`, and `sync` commands start a detached worker when the six-hour cache is
+due. Long-running commands schedule another check after six hours. Running
+sessions continue using their executable; the next launch uses the new version.
 
-### ✅ Version Check
-- On CLI startup, checks for newer versions by checking the redirect from:
-  `https://github.com/specstoryai/getspecstory/releases/latest`
-- Uses HTTP HEAD request (no full GET needed)
-- Extracts version from the final URL after 302 redirect using regex: `/releases/tag/v?(.+)$`
-- Compares with current CLI version
-- Displays update notification if newer version exists
-- Skips version check entirely if current version is "dev" or --no-version-check flag is set
+Homebrew and recognized system packages retain their package-manager update
+process. Custom paths, including the repository's legacy `/usr/local/bin`
+installer, require an explicit update. Development/prerelease builds and CI do
+not auto-update.
 
-### ✅ User Notification
-- Shows simple, non-intrusive message when update available:
-  ```
-  A new version of SpecStory CLI is available!
-  Visit https://get.specstory.com/claude-code for update instructions.
-  ```
-- Message appears after version check completes
-- Runs synchronously (blocking) during CLI startup
+## Controls and diagnostics
 
-### ✅ Configuration
-- Added `--no-version-check` flag to skip version checking
-- Flag is respected for all commands
-- No persistent state/caching needed - check on every run unless flag present
+```zsh
+specstory check                 # Local installation and cached update status
+specstory update --check        # Query the latest stable release without installing
+specstory update                # Update an eligible installation explicitly
+specstory update --rollback     # Restore the previous version and pause auto-updates
+specstory update --silent       # Perform the update, printing errors only
+```
 
-## Technical Implementation Details
+Automatic updates honor `--no-auto-update`, `SPECSTORY_NO_AUTO_UPDATE=1`, and the
+existing `--no-version-check` / `version_check.enabled = false` setting. Explicit
+update commands remain available. A successful explicit update resumes a rollback
+pause. `--print-stdout` commands do not start background updates.
 
-### ✅ HTTP Client Configuration
-- Uses 2.5-second timeout to prevent delays
-- Custom redirect handler to capture redirect URL without following it
-- Proper error handling with silent fallback
+## Release and recovery contract
 
-### ✅ Version Parsing
-- Regex pattern matches `/releases/tag/v1.2.3` or `/releases/tag/1.2.3`
-- Simple string comparison (adequate for current needs)
-- Skips version check entirely for "dev" version (no HTTP request made)
+Both explicit updates and workers use the shared three-minute `updater.Timeout`.
+The updater follows the official GitHub latest-release redirect, compares stable
+semantic versions, and downloads the version-pinned archive and SHA-256 manifest.
+The staged executable must report the expected version within the probe's time
+and output limits. These checks trust GitHub release assets over HTTPS; they are
+not independent release signatures.
 
-### ✅ Performance Considerations
-- Runs synchronously during startup (blocking)
-- Includes panic recovery for robustness
-- 2.5-second HTTP timeout ensures minimal delays
-- No artificial delays added
+An OS lock serializes updates to each executable. Recovery metadata is saved
+before replacement, and each transaction uses a fresh backup filename. If the
+final status write fails, the next invocation reconciles the installed binary's
+hash with the saved intent, preserving rollback metadata and pause state.
 
-### ✅ Integration
-- Added to main.go directly (no separate module needed)
-- Integrated with existing flag system
-- Follows existing logging patterns
-- Respects existing `--silent` flag
+See [automatic update verification](AUTO-UPDATES-VERIFICATION.md) for tests,
+library review, failure behavior, and current limitations.

@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -35,7 +34,7 @@ func createUpdateCommand(version string, runUpdate func(context.Context, bool, b
 		PersistentPreRunE: func(*cobra.Command, []string) error { return nil },
 		RunE: func(cmd *cobra.Command, args []string) error {
 			analytics.TrackEvent(analytics.EventUpdateCommand, analytics.Properties{"check_only": checkOnly, "rollback": rollback})
-			ctx, cancel := context.WithTimeout(cmd.Context(), 3*time.Minute)
+			ctx, cancel := context.WithTimeout(cmd.Context(), updater.Timeout)
 			defer cancel()
 			status, err := runUpdate(ctx, checkOnly, rollback)
 			if err != nil {

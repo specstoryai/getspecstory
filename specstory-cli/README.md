@@ -55,8 +55,9 @@ Full end-user installation and usage instructions are in the [SpecStory CLI Docu
 ### Updates
 
 The default website curl and PowerShell installations update automatically in the background
-when you use `run`, `resume`, `watch`, or `sync`. Checks happen at most once every
-six hours, including during a long-running session. Your current session keeps
+when you use `run`, `resume`, `watch`, or `sync`. Completed checks are cached for
+six hours, including during a long-running session. Failed replacements can retry
+on the next launch after a file lock clears. Your current session keeps
 running; the new version takes effect the next time you launch SpecStory.
 
 Automatic updates apply to regular executables at `~/.local/bin/specstory` on macOS
@@ -94,8 +95,10 @@ replacement. It uses the pinned
 [`go-selfupdate/update` v1.6.0](https://github.com/creativeprojects/go-selfupdate/tree/v1.6.0/update)
 library for replacement and recovery, with an OS lock to coordinate concurrent
 terminals. The previous executable is kept beside the current one; update status
-is stored under `~/.specstory/cli/updates/`. It never needs administrator privileges
-or edits shell profiles. A failed download leaves the current executable in place.
+is stored under `~/.specstory/cli/updates/`. Native paths owned by your user do not
+need administrator privileges; custom and legacy paths require write access to
+the executable's directory and may need elevated permissions. The updater does
+not edit shell profiles. A failed download leaves the current executable in place.
 
 SHA-256 verifies integrity against the manifest served by GitHub over HTTPS;
 releases do not currently carry an independently verified signing key. Go's module

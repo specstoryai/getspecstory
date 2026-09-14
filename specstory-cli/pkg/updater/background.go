@@ -22,7 +22,7 @@ func Worker(version string) error {
 	if err != nil || !m.Due(time.Now()) {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), workerTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
 	_, err = m.Run(ctx, false, true)
 	return err
@@ -31,19 +31,23 @@ func Worker(version string) error {
 // StartBackground performs only local checks in the caller. A live run/watch
 // schedules another bounded worker after the cache interval, without restarting.
 func StartBackground(ctx context.Context, version string, disabled bool) {
+	startBackground(ctx, version, disabled, New, (*Manager).spawn)
+}
+
+func startBackground(ctx context.Context, version string, disabled bool, newManager func(string) (*Manager, error), spawn func(*Manager) error) {
 	if disabled || os.Getenv("SPECSTORY_NO_AUTO_UPDATE") == "1" || os.Getenv("CI") != "" {
 		return
 	}
 	if _, err := stableVersion(version); err != nil {
 		return
 	}
-	m, err := New(version)
+	m, err := newManager(version)
 	if err != nil || m.Kind != "native" {
 		return
 	}
 	start := func() {
-		if m.Due(time.Now()) {
-			if err := m.spawn(); err != nil {
+		if ctx.Err() == nil && m.Due(time.Now()) {
+			if err := spawn(m); err != nil {
 				slog.Debug("Could not start background updater", "error", err)
 			}
 		}
@@ -98,7 +102,7 @@ func PrintStatus(out io.Writer, version string, disabled bool) {
 		_, _ = fmt.Fprintln(out, "  Updates: brew upgrade specstoryai/tap/specstory")
 	case m.Kind != "native":
 		_, _ = fmt.Fprintln(out, "  Automatic updates: off (package manager or custom installation)")
-	case disabled || os.Getenv("SPECSTORY_NO_AUTO_UPDATE") == "1" || os.Getenv("CI") != "" || s.Paused:
+	case disabled || os.Getenv("SPECSTORY_NO_AUTO_UPDATE") == "1" || os.Getenv("CI") != "" || s.Paused || s.Pending != nil:
 		_, _ = fmt.Fprintln(out, "  Automatic updates: off; run specstory update to update manually")
 	default:
 		_, _ = fmt.Fprintln(out, "  Automatic updates: on; new versions apply on the next launch")
@@ -107,7 +111,7 @@ func PrintStatus(out io.Writer, version string, disabled bool) {
 		_, _ = fmt.Fprintln(out, "  Last update check:", s.CheckedAt.Format(time.RFC3339))
 	}
 	if s.Installed != "" {
-		_, _ = fmt.Fprintln(out, "  Last installed update:", s.Installed)
+		_, _ = fmt.Fprintln(out, "  Last recorded version:", s.Installed)
 	}
 	if s.Error != "" {
 		_, _ = fmt.Fprintln(out, "  Last update attempt:", s.Error)

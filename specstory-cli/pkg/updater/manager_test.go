@@ -126,7 +126,9 @@ func TestUpdateAndRollbackAllTargets(t *testing.T) {
 				m, f := fixture(t, goos, arch, []byte("1.0.0"), []byte("2.0.0"))
 				status, err := m.Run(t.Context(), false, false)
 				must(t, err)
-				if status.Installed != "2.0.0" || string(contents(t, m.Executable)) != "2.0.0" || string(contents(t, m.Executable+".previous")) != "1.0.0" {
+				backup, err := m.previousPath(status)
+				must(t, err)
+				if status.Installed != "2.0.0" || string(contents(t, m.Executable)) != "2.0.0" || string(contents(t, backup)) != "1.0.0" {
 					t.Fatalf("incorrect replacement: %+v", status)
 				}
 				if len(f.requests) != 3 {
@@ -253,7 +255,9 @@ func TestRollbackRejectsTamperedBackup(t *testing.T) {
 	_, err := m.Run(t.Context(), false, false)
 	must(t, err)
 	m.Version = "2.0.0"
-	write(t, m.Executable+".previous", []byte("tampered"))
+	backup, err := m.previousPath(m.Status())
+	must(t, err)
+	write(t, backup, []byte("tampered"))
 	_, err = m.Rollback(t.Context())
 	if err == nil {
 		t.Fatal("accepted tampered backup")
@@ -520,7 +524,12 @@ func TestReplacementRefusesLinks(t *testing.T) {
 				link = filepath.Join(filepath.Dir(link), ".specstory.update.lock")
 			}
 			must(t, os.Symlink(outside, link))
-			_, err := m.Run(t.Context(), false, false)
+			var err error
+			if suffix == "backup" {
+				err = m.replace([]byte("2.0.0"), []byte("1.0.0"), link)
+			} else {
+				_, err = m.Run(t.Context(), false, false)
+			}
 			if err == nil {
 				t.Fatal("followed an update symlink")
 			}

@@ -23,8 +23,11 @@ GitHub latest-release redirect. Only supported release asset names are requested
 Download redirects are restricted to GitHub HTTPS hosts. Downloads, manifests,
 expanded archives, and binary probes are bounded. Extraction reads only the exact
 root executable and never writes archive paths or links. SHA-256 and an actual
-version probe must pass before replacement. An externally changed executable is
-not overwritten. Rollback validates the saved binary hash and version before use.
+version probe must pass before replacement. A content comparison detects external
+changes made during the download. The OS lock coordinates SpecStory updaters;
+uncooperative installers can still race the final comparison and rename, so users
+should not run another installer concurrently. Rollback validates the saved binary
+hash and version before use.
 The probe retains at most 4 KiB of combined stdout/stderr and cancels the process
 as soon as it exceeds that limit. `update --silent` suppresses successful update,
 check, and rollback messages while preserving errors and performing the operation.
@@ -41,14 +44,26 @@ The replacement code uses `github.com/creativeprojects/go-selfupdate/update` fro
 v1.6.0 (MIT), pinned in go.mod/go.sum. The subpackage keeps the compiled updater
 independent of the library's GitLab/Gitea integrations. Reviewed source:
 [replacement](https://github.com/creativeprojects/go-selfupdate/blob/v1.6.0/update/apply.go)
-and [options](https://github.com/creativeprojects/go-selfupdate/blob/v1.6.0/update/config.go).
+and [options](https://github.com/creativeprojects/go-selfupdate/blob/v1.6.0/update/options.go).
 
 The library stages the candidate, saves the old executable, and restores it if
 replacement returns an error. The OS lock covers the transaction and backup.
-This is a two-rename transaction, not a guarantee against a power loss or forced
-termination between renames; the saved `.previous` file is the recovery copy.
-Windows can retain a running old executable's file lock, so a later attempt that
-cannot rotate the backup fails safely and asks the user to close that process.
+Each transaction reserves a fresh `.specstory.previous-*` backup (or a prefix
+matching the executable's filename), so the library cannot delete the preceding
+rollback copy before a successful rotation. Old private backups are pruned only
+after the new status is saved; Windows-locked files are retried on a later update.
+
+Before replacement, the updater saves an intent containing the target hash,
+backup filename/hash/version, and resulting pause state. If the final status write
+fails, the next invocation reconciles the current executable hash with this intent.
+An unresolved intent prevents background retries until an explicit update. This
+preserves rollback information and a rollback pause across post-swap write failures.
+Replacement failures with writable status remain retryable on the next launch.
+Both worker and explicit commands use the shared `updater.Timeout` constant.
+
+This remains a two-rename transaction, not a guarantee against a power loss or
+forced termination between renames. If the executable path is missing, use the
+backup named in the status intent/error or rerun the installer to recover.
 
 Module verification is Go checksum verification, and archive verification trusts
 the GitHub release manifest over HTTPS. Neither is a formal certification or an
@@ -74,6 +89,14 @@ verified by this implementation.
   explicit `--silent=false` override across update, check, rollback, and already
   current results. Operations still run, and failures remain visible on stderr.
 - `goreleaser check` validates the explicit versioned manifest configuration.
+- Fault-injection tests cover failure to save the initial intent, all final status
+  writes failing after update/rollback, and target rotation failing after the
+  library removes its reserved backup path. Existing rollback copies survive,
+  rollback remains usable, and a recovered rollback stays paused.
+- Go's `testing/synctest` clock exercises the actual six-hour scheduler, successful
+  and failed launches, and cancellation. Startup tests cover opt-outs, CI,
+  development/manual installs, inspection failure, cached checks, and pause state.
+- Read-only checks work for development/prerelease builds without writing status.
 - An isolated full CLI invocation fetched the real GitHub v2.11.0 release and
   replaced a development binary labeled 2.10.0. Both the newly installed 2.11.0
   executable and the saved previous executable ran with the expected versions.
