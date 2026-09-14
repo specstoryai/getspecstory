@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Install Pi at an exact version, for the factory's audits (TOOL-AUDIT,
+# SESSION-AUDIT).
+#
+# Channel: npm (@earendil-works/pi-coding-agent) — the only channel, and the
+# one `latest-version` reads. A global install with --prefix $HOME/.local puts
+# the binary at $HOME/.local/bin/pi (where Claude Code's and Codex's native
+# installers put theirs), so the caller isolates the install by pointing $HOME
+# at a throwaway directory; npm's cache lands under that $HOME too. Needs Node
+# >= 22.19 on the PATH (the package's engines field) — --engine-strict makes an
+# older runtime fail here rather than at first run.
+#
+# Factory SPI contract: `install <version>` installs the agent under $HOME,
+# prints the version as read back from the installed binary, and exits 0.
+# Non-zero exit means the install failed or the binary reports a different
+# version — never "close enough".
+set -euo pipefail
+version=${1:?usage: install <version>}
+npm install -g --prefix "$HOME/.local" --engine-strict --no-fund --no-audit --loglevel=error \
+  "@earendil-works/pi-coding-agent@$version" >&2
+installed=$(PI_OFFLINE=1 "$HOME/.local/bin/pi" --version)   # bare "X.Y.Z"
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+echo "$installed"
