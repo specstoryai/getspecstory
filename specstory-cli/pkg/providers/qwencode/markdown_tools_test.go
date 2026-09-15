@@ -30,6 +30,7 @@ func TestFormatToolAsMarkdown_ShellPrefersResultDisplay(t *testing.T) {
 		Input: map[string]any{
 			"command":     "ls -la",
 			"description": "List files",
+			"directory":   "/tmp",
 		},
 		Output: map[string]any{
 			"output":        "Command: ls -la\nDirectory: /tmp\nOutput: file.txt\nError: (none)\nExit Code: 0",
@@ -45,6 +46,9 @@ func TestFormatToolAsMarkdown_ShellPrefersResultDisplay(t *testing.T) {
 	}
 	if !strings.Contains(md, "List files") {
 		t.Errorf("shell description missing:\n%s", md)
+	}
+	if !strings.Contains(md, "Directory: `/tmp`") {
+		t.Errorf("shell working directory missing when resultDisplay omits it:\n%s", md)
 	}
 	// The raw stdout (resultDisplay), not the structured envelope, should be shown
 	if !strings.Contains(md, "Result:\n```text\nfile.txt\n```") {

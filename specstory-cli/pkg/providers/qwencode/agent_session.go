@@ -83,7 +83,7 @@ func GenerateAgentSession(session *QwenSession, workspaceRoot string) (*SessionD
 	}
 
 	sessionData := &SessionData{
-		SchemaVersion: "1.0",
+		SchemaVersion: schema.CurrentSchemaVersion,
 		Provider: ProviderInfo{
 			ID:      "qwen",
 			Name:    "Qwen Code",
@@ -167,7 +167,7 @@ func buildExchangesFromRecords(records []QwenRecord, workspaceRoot string) []Exc
 					ID:        record.UUID,
 					Timestamp: record.Timestamp,
 					Role:      schema.RoleUser,
-					Content:   []ContentPart{{Type: "text", Text: content}},
+					Content:   []ContentPart{{Type: schema.ContentTypeText, Text: content}},
 				}},
 			}
 
@@ -208,9 +208,9 @@ func buildAgentMessages(record *QwenRecord, outcomes map[string]toolOutcome, wor
 				if strings.TrimSpace(text) == "" {
 					continue
 				}
-				kind := "text"
+				kind := schema.ContentTypeText
 				if part.Thought {
-					kind = "thinking"
+					kind = schema.ContentTypeThinking
 				}
 				msg = Message{Timestamp: record.Timestamp, Role: schema.RoleAgent, Model: record.Model, Content: []ContentPart{{Type: kind, Text: text}}}
 			}

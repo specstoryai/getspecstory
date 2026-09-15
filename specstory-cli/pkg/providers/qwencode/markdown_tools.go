@@ -229,14 +229,18 @@ func addResultPrefix(content string) string {
 func formatShellBodyFromInput(input map[string]any) string {
 	command := spi.StringValue(input, "command")
 	description := spi.StringValue(input, "description")
+	directory := spi.StringValue(input, "directory")
 
-	if command == "" && description == "" {
+	if command == "" && description == "" && directory == "" {
 		return ""
 	}
 
 	var builder strings.Builder
 	if description != "" {
 		fmt.Fprintf(&builder, "%s\n\n", description)
+	}
+	if directory != "" {
+		fmt.Fprintf(&builder, "Directory: `%s`\n\n", directory)
 	}
 
 	if command != "" {

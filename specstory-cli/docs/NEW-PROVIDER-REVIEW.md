@@ -128,7 +128,7 @@ The `pr-review` checklist covers naming, idiomatic Go, simplicity, why-comments,
 
 Build a matrix of this provider against `pkg/spi/provider.go` and against the exemplar, one row per method, and against the shared behaviors recorded in §4.6 (watcher) and §4.2 (shared helpers).
 
-- Every method on `spi.Provider` present (twelve today; count them against the file); a compile-time `_ spi.Provider = (*Provider)(nil)` assertion present, in a `var` line or a grouped block.
+- Every method on `spi.Provider` present (twelve today; count them against the file); a compile-time `_ spi.Provider = (*Provider)(nil)` assertion present, in a `var` line or a grouped block. Check assertions for each implemented optional interface too (`spi.PathSessionReader`, `spi.ProgressEnumerator`).
 - `GetAgentChatSession` returns `nil, nil` for not found and errors only for real failures.
 - `GetAgentChatSessions` calls `progress` once per file, including skips and failures, so the bar reaches the total.
 - `ListAllAgentChatSessions` reads the originating cwd from inside the session; `spi.PathSessionReader` implemented if by-id lookup walks the store; `spi.ProgressEnumerator` via `spi.ScanSessionsInParallel` for a JSONL store (it walks `*.jsonl` only; other stores implement the enumeration themselves).
@@ -142,6 +142,7 @@ Produce a table: local helper, shared equivalent, behavioral delta if swapped. T
 
 Check specifically:
 
+- `SessionData` construction uses `schema.CurrentSchemaVersion` and `schema.ContentTypeText` / `schema.ContentTypeThinking`, not duplicated string values. Do not apply these constants to native record fields or code-fence language labels.
 - Fences: the reliable check is which call sites do not go through `spi.CodeFence`, not which lines contain backticks. Fences assembled across `WriteString` calls hide from grep. Backslash-escaped backticks are a bug.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName`, `spi.CapRunes` (no `s[:N]`).
 - `spi.ClassifyCheckError` with the `spi.CheckError*` constants; an `analytics.CheckAttempt` emitted through `TrackCheckSuccess` and `TrackCheckFailure`; a `versionFlag` constant that is what actually runs.

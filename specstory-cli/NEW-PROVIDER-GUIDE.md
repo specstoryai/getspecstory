@@ -133,6 +133,7 @@ These are the changes reviewers make most often. Each one is a real review findi
 
 Every helper below replaced copies that had drifted apart across providers. Do not reimplement them.
 
+- Use `schema.CurrentSchemaVersion` and the shared `schema.ContentTypeText` / `schema.ContentTypeThinking` constants when constructing `SessionData`, rather than repeating their string values. Native record fields and code-fence language labels follow their own formats.
 - `spi.CodeFence` for every fenced block, sized past any backtick run in the content. Never write a literal triple backtick, and never backslash-escape backticks.
 - `spi.CapRunes` for truncation. Never slice a string by bytes.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName` for tool rendering.
