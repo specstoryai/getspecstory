@@ -49,7 +49,7 @@
 
 ### 📢 Announcements
 
-- The SpecStory CLI now supports Meta's [Muse Code](https://github.com/facebook/muse-code) (i.e. `muse`) for sessions created from Muse Code version `0.1.0` or higher. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for the other supported coding agents, including resuming Muse Code sessions in other agents and other agents' sessions in Muse Code with `specstory resume`. See [MUSE-FORMAT.md](docs/MUSE-FORMAT.md) for the session format details.
+- The SpecStory CLI now supports Meta's [Muse Code](https://github.com/facebook/muse-code) (i.e. `muse`) for sessions created from Muse Code version `0.1.0` or higher. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for the other supported coding agents, including resuming Muse Code sessions in other agents and other agents' sessions in Muse Code with `specstory resume`. See [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) for the session format details.
 
 ### 🐛 Bug Fixes
 
