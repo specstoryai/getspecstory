@@ -3,7 +3,9 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/charmbracelet/colorprofile"
 	"github.com/spf13/cobra"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -13,8 +15,9 @@ import (
 // DisplayLogoAndHelp prints the SpecStory logo followed by the command's help text.
 // Exported because it's used by both the help command and the root command's Run handler.
 func DisplayLogoAndHelp(cmd *cobra.Command) {
-	fmt.Println() // Add visual separation before the logo
-	fmt.Println(utils.GetRandomLogo())
+	w := colorprofile.NewWriter(cmd.OutOrStdout(), os.Environ())
+	_, _ = fmt.Fprintln(w) // Add visual separation before the logo
+	_, _ = fmt.Fprintln(w, utils.GetRandomLogo())
 	_ = cmd.Help()
 }
 

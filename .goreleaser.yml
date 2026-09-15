@@ -2,6 +2,10 @@ version: 2
 
 project_name: SpecStoryCLI
 
+# Keep the manifest name explicit for both website installers and CLI updates.
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
 # Builds are split by OS family only so archives can differ per platform:
 # Unix ships both tar.gz and zip (long-standing dual-format convention),
 # Windows ships zip only (the platform convention).

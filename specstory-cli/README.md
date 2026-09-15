@@ -52,6 +52,60 @@ There is also an [Agent SPI (Service Provider Interface)](/pkg/spi/) that allows
 
 Full end-user installation and usage instructions are in the [SpecStory CLI Documentation](https://docs.specstory.com/integrations/terminal-coding-agents). Installation for developers is covered [here](#development).
 
+### Updates
+
+The default website curl and PowerShell installations update automatically in the background
+when you use `run`, `resume`, `watch`, or `sync`. Completed checks are cached for
+six hours, including during a long-running session. Failed replacements can retry
+on the next launch after a file lock clears. Your current session keeps
+running; the new version takes effect the next time you launch SpecStory.
+
+Automatic updates apply to regular executables at `~/.local/bin/specstory` on macOS
+and Linux, or `%LOCALAPPDATA%\SpecStory\bin\specstory.exe` on Windows. Homebrew and
+other recognized package-manager installations retain their own update process.
+Custom install paths require an explicit update. Development/prerelease builds and
+CI environments do not update automatically.
+
+The repository's legacy `install.sh` installs into `/usr/local/bin`, which remains
+a manual installation. Use `specstory update` there, or install through
+`https://specstory.com/install.sh` to use the native path. The updater never assumes
+that an arbitrary executable in `/usr/local/bin` belongs to the website installer.
+
+```zsh
+specstory check             # Show the executable path and cached update status
+specstory update --check    # Look up the latest stable version without installing
+specstory update           # Update now (also supports a custom install path)
+specstory update --rollback # Restore the previous binary and pause automatic updates
+```
+
+After a rollback, run `specstory update` to resume automatic updates. For Homebrew,
+use `brew upgrade specstoryai/tap/specstory` instead. The updater follows the actual
+running executable, so it cannot repair a different binary that comes earlier in
+your shell's PATH. `specstory check` shows which installation you are running.
+
+Use `--no-auto-update` for one invocation or set `SPECSTORY_NO_AUTO_UPDATE=1` to
+disable background installation. The existing `--no-version-check` flag and
+`[version_check] enabled = false` setting also disable it. Help, version, checks,
+and commands that print sync output to stdout do not start an update worker.
+
+Downloads come from the latest stable `specstoryai/getspecstory` GitHub release,
+pinned to one version for both the archive and its SHA-256 manifest. The updater
+checks the archive hash and runs the staged binary's version check before
+replacement. It uses the pinned
+[`go-selfupdate/update` v1.6.0](https://github.com/creativeprojects/go-selfupdate/tree/v1.6.0/update)
+library for replacement and recovery, with an OS lock to coordinate concurrent
+terminals. The previous executable is kept beside the current one; update status
+is stored under `~/.specstory/cli/updates/`. Native paths owned by your user do not
+need administrator privileges; custom and legacy paths require write access to
+the executable's directory and may need elevated permissions. The updater does
+not edit shell profiles. A failed download leaves the current executable in place.
+
+SHA-256 verifies integrity against the manifest served by GitHub over HTTPS;
+releases do not currently carry an independently verified signing key. Go's module
+checksum verification and `govulncheck` check the updater dependency, but do not
+constitute a formal security certification. Versions released before this updater
+must be upgraded once through the installer or their package manager.
+
 ### Quickstart Usage
 
 Basic usage: `specstory [flags]`
