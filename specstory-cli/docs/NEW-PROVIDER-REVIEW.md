@@ -70,7 +70,7 @@ Establish the facts before reading code.
 2. The agent: product name, vendor, binary name, release channel, install method, and the version currently installed on the review machine (`<agent> --version`). Note it as the provisional floor; it is re-read on release day.
 3. The store: where sessions live, the data format family (JSONL, JSON, SQLite, IDE workspace storage), whether the agent has a headless mode, and the write lifecycle: which file is the durable record, which files are transient (checkpoints, rolling "latest" files, locks), when each is written and deleted, and whether a transient file is shared across concurrent sessions. When a real session is not found, clone the agent's source to a scratch directory and read the writer rather than guessing.
 4. Which exemplar provider the submission was modeled on. The PR body often says. If it was copied from a sibling, plan to review the sibling too: fixes found here are mirrored there.
-5. Whether `docs/<AGENT>-FORMAT.md` exists and what version it was verified against.
+5. Whether `<AGENT>-FORMAT.md` exists in the provider package and what version it was verified against.
 6. Whether a tool enumeration session exists (see section 7), at what agent version, and whether the agent declares its own tools (a stream init event, an extension hook) or only the model's self-report is available.
 7. Test files and functions versus the exemplar. A fraction of the peers' count is a High ledger item, resolved by tests for the parser, watcher, and reconstruction logic that warrant them, not by coverage padding.
 8. Whether the branch compiles against the current SPI. A contribution that predates an SPI change fails at the registry with "does not implement spi.Provider (missing method ...)". Those gaps are yours to close.
@@ -210,6 +210,7 @@ The maintainer reads watchers for real races and startup behavior, and has rewri
 ### 4.7 Run and exec
 
 - `-c` is honored by `run` and `check`; `<id>_cmd` from the config file is honored by `run` (the check command reads only the flag). Whichever command was used is the one echoed in the check failure message.
+- The `<id>_cmd` wiring is now machine-checked rather than a matrix row to remember: `go test ./pkg/config/ ./pkg/cmd/` covers `TestProvidersConfigIsFullyWired` (each `ProvidersConfig` field reaches the template and a `GetProviderCmd` case) and `TestEveryRegisteredProviderHasACommandOverride` (each registered id resolves to a field). A partial wiring is otherwise silent — TOML accepts an unknown key and `GetProviderCmd` returns `""` — so neither the build nor a manual run surfaces it. Still confirm by hand that the provider actually *uses* the resolved command, since the tests only prove it is reachable.
 - The requested resume id wins over a pinned one in the configured command (this only arises through `run <id> --resume`; `resume` passes no custom command).
 - Non-zero agent exit: stop the watcher, join in-flight saves, then return `spi.AgentExitError`. `os.Exit` in the exec helper loses the last save; returning the raw process error collapses the status to exit 1 with an error box.
 - Process launch is non-blocking when the launcher may run for the whole session (`--wait`).

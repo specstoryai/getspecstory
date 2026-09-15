@@ -333,6 +333,10 @@ specstory sync --config-dir ~/specstory-configs/myproject
 
 # Muse Code command
 # muse_cmd = "muse"
+
+# Pi command
+# pi_cmd = "pi"
+
 # Qwen Code command
 # qwen_cmd = "qwen"
 ```
@@ -369,6 +373,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `gemini_cmd`      | `"gemini"`           | Gemini CLI command                         |
 | `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
 | `[providers]`     | `muse_cmd`        | `"muse"`             | Muse Code command                          |
+| `[providers]`     | `pi_cmd`          | `"pi"`               | Pi command                                 |
 | `[providers]`     | `qwen_cmd`        | `"qwen"`             | Qwen Code command                          |
 | `[resume]`†       | `view_mode`       | `"dense"`            | Picker layout: `dense` (more sessions) or `sparse` (more detail) |
 | `[resume]`†       | `last_agent`      | none                 | Provider id of the agent you last resumed into — the default target |

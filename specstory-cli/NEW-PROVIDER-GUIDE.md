@@ -98,7 +98,7 @@ Implement every method on `spi.Provider` in `pkg/spi/provider.go` (twelve today;
 ### Wiring outside the package
 
 - `pkg/spi/factory/registry.go`: register under a short lowercase id (`muse`, `antigravity`, `droid`).
-- `pkg/config/config.go`: a `<id>_cmd` entry in the default config template, a `ProvidersConfig` field, a `GetProviderCmd` case with its doc comment updated, and rows in the config tests. `specstory run <id>` must honor it; `specstory check <id> -c` honors the flag only.
+- `pkg/config/config.go`: a `<id>_cmd` entry in the default config template, a `ProvidersConfig` field, a `GetProviderCmd` case with its doc comment updated, and rows in the config tests. `specstory run <id>` must honor it; `specstory check <id> -c` honors the flag only. **All three parts are required and none of them fails loudly on its own** — TOML accepts a key with no struct field, and `GetProviderCmd` returns `""` for an unknown id — so a partial wiring ships a config key that silently does nothing. Two tests enforce it: `config.TestProvidersConfigIsFullyWired` checks each `ProvidersConfig` field reaches both the template and a `GetProviderCmd` case, and `cmd.TestEveryRegisteredProviderHasACommandOverride` checks every registered provider id resolves to one.
 - `pkg/cmd/session_tui_browser.go`: propose an accent color in `colorForAgent`, the agent's brand color if it is legible on both light and dark terminals. The maintainer may replace it.
 - `pkg/skills/agents.go`: a row when the agent supports agent skills (it has a project or global skills directory). Its `Name` is the public `npx skills` canonical id, not the provider id.
 - `README.md` in this directory: the intro sentence, the Agent Support table row, the `[providers]` example block, the Configuration Options row, and the Debug Raw Mode provider list. Write a prose paragraph only if the provider behaves differently from wrapping a terminal process.
@@ -260,7 +260,7 @@ The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs th
 
 - No new dependencies without asking first, with the reason. Prefer the standard library.
 - No new files beyond the canonical set without asking first. Test-only helpers belong under `internal/`.
-- No planning documents in `docs/`. Keep `docs/<AGENT>-FORMAT.md` as a description of what is, not a plan.
+- No planning documents in `docs/`. Keep `<AGENT>-FORMAT.md` as a description of what is, not a plan.
 - `.specstory/history` is committed in this repository; do not add `.specstory/` to any `.gitignore`, and do not add ignore entries for directories that do not exist.
 
 ## How your provider will be tested
@@ -315,8 +315,8 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 
 - [ ] Package named `<agent><kind>`; canonical files only; `var _ spi.Provider` assertion present
 - [ ] Every SPI method implemented, including `ListAllAgentChatSessions` and the three reconstruction methods, each with a test
-- [ ] Registry, config (`<id>_cmd` in template, struct, switch, doc comment, and test rows), TUI color, both READMEs, changelog
-- [ ] `docs/<AGENT>-FORMAT.md` written from the current release with the write lifecycle and baseline version, no legacy notes
+- [ ] Registry, config (`<id>_cmd` in template, struct, switch, doc comment, and test rows — the two wiring tests must pass), TUI color, both READMEs, changelog
+- [ ] `<AGENT>-FORMAT.md`, in the provider package, written from the current release with the write lifecycle and baseline version, no legacy notes
 - [ ] `tools.txt` from the agent itself, prefixes stripped, declaration preferred over self-report; renderers and type tables list exactly those names; an inventory sweep test exists
 - [ ] No literal fences, no byte slicing, no local copies of `pkg/spi` helpers, no inline `analytics.TrackEvent`
 - [ ] No `os.Exit`, no polling watcher, no emit at startup, panic recovery around the callback, `wg.Go` only, context created per start

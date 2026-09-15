@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
@@ -1045,6 +1046,7 @@ func TestGetProviderCmd(t *testing.T) {
 			DroidCmd:                      "droid --verbose",
 			GeminiCmd:                     "gemini --model pro",
 			MuseCmd:                       "muse --reasoning-effort high",
+			PiCmd:                         "pi --model sonnet",
 			QwenCmd:                       "qwen --approval-mode yolo",
 		},
 	}
@@ -1067,6 +1069,8 @@ func TestGetProviderCmd(t *testing.T) {
 		{"antigravity", "agy --sandbox"},
 		{"muse", "muse --reasoning-effort high"},
 		{"MUSE", "muse --reasoning-effort high"}, // case-insensitive
+		{"pi", "pi --model sonnet"},
+		{"Pi", "pi --model sonnet"}, // case-insensitive
 		{"qwen", "qwen --approval-mode yolo"},
 		{"QWEN", "qwen --approval-mode yolo"},               // case-insensitive
 		{"Claude", "claude --dangerously-skip-permissions"}, // case-insensitive
@@ -1081,6 +1085,50 @@ func TestGetProviderCmd(t *testing.T) {
 			got := cfg.GetProviderCmd(tt.providerID)
 			if got != tt.expected {
 				t.Errorf("GetProviderCmd(%q) = %q, want %q", tt.providerID, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestProvidersConfigIsFullyWired guards the gap that shipped with the Pi provider:
+// ProvidersConfig had no pi_cmd field, so `pi_cmd` in config.toml did nothing. Nothing
+// errored — TOML tolerates a key with no struct field, and GetProviderCmd's default arm
+// returns "" — so the only symptom was a setting that silently had no effect.
+//
+// A provider command is only usable when all three are present, so each field is checked
+// against the other two: the struct field (here), a line in the config template (so a user
+// can discover it), and a GetProviderCmd case (so it takes effect). The provider id is
+// derived from the toml key, which also pins the naming convention every provider follows:
+// pi_cmd -> "pi", copilotide_insiders_cmd -> "copilotide-insiders".
+func TestProvidersConfigIsFullyWired(t *testing.T) {
+	typ := reflect.TypeOf(ProvidersConfig{})
+
+	// A distinct sentinel per field proves which field each id resolves to, not merely
+	// that GetProviderCmd returned something non-empty.
+	filled := ProvidersConfig{}
+	val := reflect.ValueOf(&filled).Elem()
+	sentinels := make(map[string]string, typ.NumField())
+	for i := range typ.NumField() {
+		if val.Field(i).Kind() != reflect.String {
+			t.Fatalf("ProvidersConfig.%s is %s, expected string", typ.Field(i).Name, val.Field(i).Kind())
+		}
+		key := typ.Field(i).Tag.Get("toml")
+		sentinels[key] = "sentinel-" + key
+		val.Field(i).SetString(sentinels[key])
+	}
+	cfg := &Config{Providers: filled}
+
+	for i := range typ.NumField() {
+		field := typ.Field(i)
+		key := field.Tag.Get("toml")
+		t.Run(key, func(t *testing.T) {
+			if !strings.Contains(defaultConfigTemplate, key) {
+				t.Errorf("%s is missing from the config template, so no user can discover it", key)
+			}
+			id := strings.ReplaceAll(strings.TrimSuffix(key, "_cmd"), "_", "-")
+			if got := cfg.GetProviderCmd(id); got != sentinels[key] {
+				t.Errorf("GetProviderCmd(%q) = %q, want %q: %s has no case in GetProviderCmd, so %s in config.toml is silently ignored",
+					id, got, sentinels[key], field.Name, key)
 			}
 		})
 	}
@@ -1102,6 +1150,7 @@ claude_cmd = "claude --allow-dangerously-skip-permissions"
 codex_cmd = "/custom/codex"
 cursoride_cmd = "cursor --wait"
 copilotide_cmd = "code --wait"
+pi_cmd = "pi --model sonnet"
 `)
 
 		cfg, err := Load(nil)
@@ -1120,6 +1169,9 @@ copilotide_cmd = "code --wait"
 		}
 		if got := cfg.GetProviderCmd("copilotide"); got != "code --wait" {
 			t.Errorf("GetProviderCmd(copilotide) = %q, want %q", got, "code --wait")
+		}
+		if got := cfg.GetProviderCmd("pi"); got != "pi --model sonnet" {
+			t.Errorf("GetProviderCmd(pi) = %q, want %q", got, "pi --model sonnet")
 		}
 		// Unset provider should return empty
 		if got := cfg.GetProviderCmd("cursor"); got != "" {
