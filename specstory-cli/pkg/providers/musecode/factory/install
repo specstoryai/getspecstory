@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Install Muse Code at an exact release, for the factory's audits.
+#
+# Channel: Meta's public, version-addressed release manifests and artifacts —
+# the same downloads used by the official launcher. No login is needed to
+# download them. Install the binary directly at $HOME/.local/bin/muse so the
+# launcher's automatic updates cannot move an audit off its requested version.
+# The caller isolates the install by pointing $HOME at a throwaway directory.
+#
+# Factory SPI contract: `install <version>` installs under $HOME, prints the
+# full version read back from the binary (including -R...), and exits 0.
+# Download, integrity, or version mismatches fail non-zero. Requires jq and
+# sha256sum or shasum, as used by the version sensor and vendor launcher.
+set -euo pipefail
+version=${1:?usage: install <version>}
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+-R[0-9]+(\.[0-9]+)?$ ]]; then
+  echo "install: invalid Muse release version: $version" >&2
+  exit 1
+fi
+case "$(uname -s):$(uname -m)" in
+  Darwin:arm64|Darwin:aarch64) platform=aarch64_macos ;;
+  Darwin:x86_64|Darwin:amd64) platform=x86_macos ;;
+  Linux:arm64|Linux:aarch64) platform=aarch64_linux ;;
+  Linux:x86_64|Linux:amd64) platform=x86_linux ;;
+  *) echo "install: unsupported platform $(uname -s):$(uname -m)" >&2; exit 1 ;;
+esac
+
+# Stage beside the destination so only a verified binary replaces an install.
+mkdir -p "$HOME/.local/bin"
+tmp=$(mktemp -d "$HOME/.local/bin/.muse-install.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+manifest="https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=$version&file=manifest.json"
+curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 "$manifest" -o "$tmp/manifest.json"
+if ! artifact=$(jq -er --arg version "$version" --arg platform "$platform" '
+  select(.version == $version and .checksum_algorithm == "sha256")
+  | .artifacts[$platform]
+  | select((.url | type) == "string" and (.checksum | type) == "string" and (.size | type) == "number")
+  | select((.url | startswith("https://")) and (.checksum | test("^[0-9a-f]{64}$")) and .size > 0 and .size == (.size | floor))
+  | [.url, .checksum, (.size | tostring)] | @tsv
+' "$tmp/manifest.json"); then
+  echo "install: invalid release manifest for $version / $platform" >&2
+  exit 1
+fi
+IFS=$'\t' read -r url checksum size <<< "$artifact"
+curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 300 --retry 2 "$url" -o "$tmp/muse"
+actual_size=$(wc -c < "$tmp/muse" | tr -d '[:space:]')
+if [ "$actual_size" != "$size" ]; then
+  echo "install: artifact size mismatch: expected $size, got $actual_size" >&2
+  exit 1
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  actual_checksum=$(sha256sum "$tmp/muse")
+else
+  actual_checksum=$(shasum -a 256 "$tmp/muse")
+fi
+if [ "${actual_checksum%% *}" != "$checksum" ]; then
+  echo "install: artifact checksum mismatch" >&2
+  exit 1
+fi
+chmod 755 "$tmp/muse"
+reported=$("$tmp/muse" --version) # "Muse Code X.Y.Z (X.Y.Z-R...)"
+installed=$(printf '%s\n' "$reported" | sed -n 's/^Muse Code [^ ]* (\([^()]*\))$/\1/p')
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $reported" >&2
+  exit 1
+fi
+mv -f "$tmp/muse" "$HOME/.local/bin/muse"
+printf '%s\n' "$installed"
