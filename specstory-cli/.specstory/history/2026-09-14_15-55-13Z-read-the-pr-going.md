@@ -1475,3 +1475,183 @@ The release is out. Both jobs succeeded on the re-run.
 Two items from the release doc's verification list are still yours to check: that the release notes show the v2.11.0 changelog section, and a `brew upgrade specstory` on your machine reports 2.11.0.
 
 On the longer-term fix, the three options from my previous message still stand. Let me know which direction you want, or if the goreleaser version pinning versus tag creation trade-off needs more explaining, and I'll draft the workflow change on dev for you to review.
+
+---
+
+_**User (2026-09-14 21:49:51Z)**_
+
+mmk, so we're suggesting we updated the workflow so that when the user creates the 1 tag, it creates the plain tag, not having the user create 2 tags, yeah?
+
+---
+
+_**Agent (claude-fable-5-1 2026-09-14 21:49:57Z)**_
+
+Yes, exactly. You keep doing what the doc says: one annotated `specstory-cli/v2.11.0` tag, pushed once. Nothing changes on your side.
+
+The workflow gains one small step, right before goreleaser runs, that creates the plain `v2.11.0` tag inside the runner's checkout at the same commit. Goreleaser then finds a real tag to read. When it publishes the release under that name, GitHub records the plain tag on the remote, which is the same end state every previous release already produced.
+
+Two things worth being clear about:
+
+- The step needs to be tolerant of the plain tag already existing, so a re-run of a failed release does not fail on "tag already exists". A `git tag -f` handles that.
+- The plain tag is created only in the runner. The workflow does not push it. GitHub creates it on the remote as part of publishing the release, as it always has.
+
+Want me to draft that change to `release.yml` on dev, along with a short note in `CLI-RELEASE.md` explaining why a plain tag shows up on the remote after each release?
+
+---
+
+_**User (2026-09-14 21:51:48Z)**_
+
+yup
+
+---
+
+_**Agent (claude-fable-5-1 2026-09-14 21:51:55Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Check working tree state and branch position before editing
+
+`cd /Users/sean/Source/SpecStory/getspecstory && git status --short | grep -v '.specstory/'; git log --oneline -1 dev; git log --oneline -1 origin/dev; git branch --show-current`
+
+```text
+7199e95 Software factory affordances for Pi provider.
+7199e95 Software factory affordances for Pi provider.
+dev
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5-1 2026-09-14 21:52:08Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Add plain-tag step to release workflow and document it in the release doc
+
+```bash
+cd /Users/sean/Source/SpecStory/getspecstory && python3 - <<'EOF'
+p='.github/workflows/release.yml'
+s=open(p).read()
+old="""      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#specstory-cli/}" >> $GITHUB_OUTPUT
+
+      - uses: goreleaser/goreleaser-action"""
+new="""      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#specstory-cli/}" >> $GITHUB_OUTPUT
+
+      # goreleaser cannot parse a version out of the namespaced
+      # specstory-cli/vX.Y.Z tag (tag prefixes are a goreleaser Pro feature),
+      # so it is told the current tag is the plain vX.Y.Z instead. Since
+      # goreleaser 2.18 that tag must actually exist in the checkout: it reads
+      # the tag's contents during git-state setup, before publishing, and fails
+      # on an empty result. Create it here at the same commit; -f keeps a re-run
+      # of a failed release from tripping on a tag that already exists. GitHub
+      # records the plain tag on the remote when the release is published, as
+      # it always has for every release.
+      - name: Create the plain version tag goreleaser expects
+        run: git tag -f "${{ steps.version.outputs.version }}" "$GITHUB_SHA"
+
+      - uses: goreleaser/goreleaser-action"""
+assert old in s
+s=s.replace(old,new,1)
+open(p,'w').write(s)
+
+p='specstory-cli/docs/CLI-RELEASE.md'
+s=open(p).read()
+old="""4. Monitor the [GitHub Action](https://github.com/specstoryai/getspecstory/actions)
+"""
+new="""4. Monitor the [GitHub Action](https://github.com/specstoryai/getspecstory/actions)
+
+   Only the one `specstory-cli/vX.Y.Z` tag is ever pushed by hand. A plain `vX.Y.Z` tag will also appear on the remote after the release is published: goreleaser is given the un-prefixed name as its current tag (it cannot parse a version out of the namespaced one), the workflow creates that tag in the runner's checkout, and GitHub records it when the release is published under that name. The GitHub release itself is named `vX.Y.Z` for the same reason.
+"""
+assert old in s
+s=s.replace(old,new,1)
+open(p,'w').write(s)
+EOF
+git diff --stat; echo ---; git diff .github/workflows/release.yml
+```
+
+```text
+ .github/workflows/release.yml                      |   12 +
+ ...026-02-20_15-53-44Z-read-docs-git-provenance.md |  238 +-
+ ...026-02-20_15-57-50Z-read-docs-git-provenance.md |   32 +-
+ .../2026-02-20_16-33-05Z-start-with-docs-git.md    |    6 +-
+ ...-08-13_13-43-21Z-cross-provider-refactor-200.md | 9735 ++++++++++++++++++++
+ specstory-cli/docs/CLI-RELEASE.md                  |    2 +
+ 6 files changed, 9989 insertions(+), 36 deletions(-)
+---
+diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
+index 8bac585..9c2ea8e 100644
+--- a/.github/workflows/release.yml
++++ b/.github/workflows/release.yml
+@@ -24,6 +24,18 @@ jobs:
+         id: version
+         run: echo "version=${GITHUB_REF_NAME#specstory-cli/}" >> $GITHUB_OUTPUT
+ 
++      # goreleaser cannot parse a version out of the namespaced
++      # specstory-cli/vX.Y.Z tag (tag prefixes are a goreleaser Pro feature),
++      # so it is told the current tag is the plain vX.Y.Z instead. Since
++      # goreleaser 2.18 that tag must actually exist in the checkout: it reads
++      # the tag's contents during git-state setup, before publishing, and fails
++      # on an empty result. Create it here at the same commit; -f keeps a re-run
++      # of a failed release from tripping on a tag that already exists. GitHub
++      # records the plain tag on the remote when the release is published, as
++      # it always has for every release.
++      - name: Create the plain version tag goreleaser expects
++        run: git tag -f "${{ steps.version.outputs.version }}" "$GITHUB_SHA"
++
+       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+         with:
+           version: "~> v2"
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5-1 2026-09-14 21:52:13Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Validate the edited workflow file parses
+
+`cd /Users/sean/Source/SpecStory/getspecstory && (command -v actionlint >/dev/null && actionlint .github/workflows/release.yml && echo actionlint-ok) || python3 -c "import yaml,sys; yaml.safe_load(open('.github/workflows/release.yml')); print('yaml-ok')"`
+
+```text
+Exit code 1
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    import yaml,sys; yaml.safe_load(open('.github/workflows/release.yml')); print('yaml-ok')
+    ^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'yaml'
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5-1 2026-09-14 21:52:17Z)**_
+
+<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
+<summary>Tool use: **Bash**</summary>
+Validate workflow YAML parses using Ruby
+
+`cd /Users/sean/Source/SpecStory/getspecstory && ruby -ryaml -e 'YAML.load_file(".github/workflows/release.yml"); puts "yaml-ok"' 2>&1 | tail -1`
+
+```text
+yaml-ok
+Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
+```
+</details></tool-use>
+
+_**Agent (claude-fable-5-1 2026-09-14 21:52:23Z)**_
+
+Both edits are made on dev and uncommitted. The workflow file parses cleanly.
+
+**Workflow change in `release.yml`**
+
+A new step sits between the version extraction and the goreleaser action. It runs `git tag -f v2.11.0 $GITHUB_SHA` in the runner's checkout, using the version already computed from the pushed tag. The comment block above it explains why the un-prefixed tag is needed, why goreleaser 2.18 started requiring it to exist, and why `-f` is there so a re-run does not fail on an existing tag. Nothing is pushed from the runner. GitHub still records the plain tag on the remote when the release is published, as it did for every prior release.
+
+**Doc change in `CLI-RELEASE.md`**
+
+A short paragraph under the "monitor the GitHub Action" step says only the one namespaced tag is pushed by hand, explains why a plain tag and a plain-named release appear afterward, and points at the workflow as the thing that creates it.
+
+One caveat I can't verify locally: the step only proves itself on the next real release, since the workflow runs from the tag's commit. The command is the same one I ran by hand today, so I expect it to behave identically.
+
+The other modified files in the working tree are SpecStory history markdown files written by the running session, not part of this change. I have not committed anything.
