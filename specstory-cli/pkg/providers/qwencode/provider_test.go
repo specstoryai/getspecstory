@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -150,6 +151,54 @@ func TestGetAgentChatSessionByPath(t *testing.T) {
 	}
 	if session.SessionData.WorkspaceRoot != projectPath {
 		t.Errorf("WorkspaceRoot = %q, want origin cwd %q", session.SessionData.WorkspaceRoot, projectPath)
+	}
+}
+
+func TestReindexRejectsSymlinkedTranscripts(t *testing.T) {
+	home := withFakeHome(t)
+	project := t.TempDir()
+	path := seedFakeSession(t, home, project, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := filepath.Join(t.TempDir(), "external.jsonl")
+	if err := os.WriteFile(external, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(filepath.Dir(path), "linked.jsonl")
+	if err := os.Symlink(external, link); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("creating symlinks requires Windows developer mode or privileges: %v", err)
+		}
+		t.Fatal(err)
+	}
+
+	p := NewProvider()
+	var progress spi.ScanReporter
+	refs, err := p.ListAllAgentChatSessionsProgress(&progress)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 1 || refs[0].NativePath != path || progress.Found() != 1 {
+		t.Errorf("enumeration must include only the regular transcript: refs=%+v found=%d", refs, progress.Found())
+	}
+	if session, err := p.GetAgentChatSessionByPath(link, project, false); err != nil || session != nil {
+		t.Errorf("path lookup followed symlink: session=%v error=%v", session, err)
+	}
+	if session, err := p.GetAgentChatSessionByPath(path, project, false); err != nil || session == nil {
+		t.Fatalf("regular transcript must still load: session=%v error=%v", session, err)
+	}
+
+	// A previously enumerated path must also be rejected if replaced before full loading.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, path); err != nil {
+		t.Fatal(err)
+	}
+	if session, err := p.GetAgentChatSessionByPath(path, project, false); err != nil || session != nil {
+		t.Errorf("replaced transcript followed symlink: session=%v error=%v", session, err)
 	}
 }
 

@@ -201,6 +201,17 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 // native file path, skipping by-id discovery. Used by reindex (which already
 // holds NativePath from enumeration) to keep resolving N sessions O(N).
 func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
+	// Recheck indexed paths: a transcript may have been replaced with a symlink.
+	info, err := os.Lstat(nativePath)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, nil
+	}
 	session, err := ParseSessionFile(nativePath)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -499,6 +510,17 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 	return spi.ScanSessionsInParallel(projectsDir, "qwen", r, func(path string) (*spi.GlobalSessionRef, error) {
 		// Only chats/*.jsonl files are transcripts.
 		if !isSessionFile(filepath.Base(path)) || filepath.Base(filepath.Dir(path)) != "chats" || filepath.Dir(filepath.Dir(filepath.Dir(path))) != projectsDir {
+			return nil, nil
+		}
+		// The shared walker includes symlink entries; do not follow them into other stores.
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if !info.Mode().IsRegular() {
 			return nil, nil
 		}
 
