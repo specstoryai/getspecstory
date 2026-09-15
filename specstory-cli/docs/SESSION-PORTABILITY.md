@@ -272,5 +272,5 @@ These follow Stage 1 in the sequencing and are not part of the initial build:
 
 ## Related Documents
 
-- [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface and registry.
+- `pkg/spi/provider.go` and `pkg/spi/factory/registry.go` — the provider interface and registry (the doc comments are the spec); [NEW-PROVIDER-GUIDE.md](../NEW-PROVIDER-GUIDE.md) covers implementing a provider.
 - [SPI-SESSION-DATA-SCHEMA.md](SPI-SESSION-DATA-SCHEMA.md) — the neutral `SessionData` schema.

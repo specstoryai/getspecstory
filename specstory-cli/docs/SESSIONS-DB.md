@@ -550,5 +550,5 @@ Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-
 
 - [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md) — the reconstruction / resume design this
   index serves.
-- [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface the new enumeration method joins.
+- `pkg/spi/provider.go` — the provider interface the new enumeration method joins (its doc comments are the spec); [NEW-PROVIDER-GUIDE.md](../NEW-PROVIDER-GUIDE.md) covers implementing it.
 - `pkg/utils/project_identity.go` — `git_id` / `workspace_id` / `GetProjectID()`.

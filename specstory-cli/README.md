@@ -35,7 +35,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Gemini CLI](https://ai.google.dev/gemini-cli)            | [geminicli](pkg/providers/geminicli/)           | JSON        | `~/.gemini/tmp/`             |
 | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)    | [deepseektui](pkg/providers/deepseektui/)       | JSON        | `~/.deepseek/sessions/`      |
 | [Antigravity CLI](https://antigravity.google/)            | [antigravitycli](pkg/providers/antigravitycli/) | JSONL       | `~/.gemini/antigravity-cli/` |
-| [Muse Code](https://github.com/facebook/muse-code)        | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
+| [Muse Code](https://developer.meta.com/ai/products/muse-code/)        | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
 | [Pi](https://pi.dev)                                      | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`      |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)          | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`          |
 
@@ -45,9 +45,9 @@ Cursor IDE stores all of its conversations in a single global SQLite database (`
 
 VS Code Copilot stores its chats per workspace as JSON/JSONL session files under `Code/User/workspaceStorage/<workspace-id>/chatSessions/`, located under `~/Library/Application Support/` on macOS and `~/.config/` on Linux. The `copilotide` provider matches the current project to its workspace storage entry — including projects opened via SSH remotes, tunnels, and dev containers — and reads the session files directly. Each VS Code distribution is registered as its own provider: `copilotide` (stock VS Code), `copilotide-insiders`, `copilotide-vscodium`, and `copilotide-vscodium-insiders`. As with Cursor IDE, `specstory run copilotide` opens the project in VS Code and keeps auto-saving conversations until interrupted with `ctrl-c`.
 
-### Agent Provider SPI (Service Provider Interface)
+### Adding a New Agent Provider
 
-There is also an [Agent SPI (Service Provider Interface)](/pkg/spi/) that allows you to extend the SpecStory CLI with support for new agent providers. Creating a provider to support a new agent, using the Provider SPI is documented [here](./docs/PROVIDER-SPI.md). Pull requests are welcome!
+Every supported agent is a provider behind the [Agent SPI (Service Provider Interface)](/pkg/spi/), so support for a new coding agent is a pull request that adds one package under `pkg/providers/`. Start with [NEW-PROVIDER-GUIDE.md](./NEW-PROVIDER-GUIDE.md): it lists what a complete provider contains, the standards a submission is held to, the commands we exercise against the real agent before release, and a self-review checklist, so your pull request lands with as few changes as possible. Maintainers review every provider submission with [docs/NEW-PROVIDER-REVIEW.md](./docs/NEW-PROVIDER-REVIEW.md). Pull requests are welcome!
 
 ## Installation & Usage
 

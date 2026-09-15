@@ -62,7 +62,7 @@ So the candidates are `pkg/spi`, `pkg/analytics` (for the tracking helpers only)
 All twelve helpers become exported `spi` functions; `trackCheck*` pulls `pkg/analytics` into `spi`'s import set.
 
 - **Pros:** one shared home; providers already import it; `spi` already holds shared rendering helpers (`CodeFence`, `CapRunes`, `reconstruct.go`) and path helpers (`GetCanonicalPath`), so this follows precedent.
-- **Cons:** couples the SPI definition package to PostHog analytics. `spi` today depends on nothing but its own schema — that purity is worth something, and `PROVIDER-SPI.md` documents `spi` as the pure interface layer.
+- **Cons:** couples the SPI definition package to PostHog analytics. `spi` today depends on nothing but its own schema — that purity is worth something; `spi` is the pure interface layer.
 
 ### Option B — `pkg/spi` for pure helpers, `pkg/analytics` for the tracking pair
 
