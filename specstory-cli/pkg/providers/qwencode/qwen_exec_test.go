@@ -149,7 +149,8 @@ func TestExecAgentAndWatchDrainsNonzeroExitInSelectedProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	command := fmt.Sprintf(`"%s" -test.run=^TestQwenExecChild$ -- --resume old`, exe)
+	// The command parser consumes backslash escapes, including in quoted Windows paths.
+	command := fmt.Sprintf(`%q -test.run=^TestQwenExecChild$ -- --resume old`, exe)
 	var saved *spi.AgentChatSession
 	err = NewProvider().ExecAgentAndWatch(project, command, "requested", false, func(s *spi.AgentChatSession) { saved = s })
 	var exit *spi.AgentExitError
@@ -183,7 +184,8 @@ func TestExecRelativeStorageOverrideMatchesWatcher(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			command := fmt.Sprintf(`"%s" -test.run=^TestQwenExecChild$`, exe)
+			// Quote spaces and escape Windows path separators for the command parser.
+			command := fmt.Sprintf(`%q -test.run=^TestQwenExecChild$`, exe)
 			var saved *spi.AgentChatSession
 			err = NewProvider().ExecAgentAndWatch(project, command, "", false, func(s *spi.AgentChatSession) { saved = s })
 			var exit *spi.AgentExitError
