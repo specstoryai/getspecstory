@@ -116,8 +116,23 @@ func TestNativeSessionPath(t *testing.T) {
 	if !strings.HasPrefix(path, filepath.Join(home, ".qwen", "projects")) {
 		t.Errorf("path %q not under the qwen store", path)
 	}
-	// The chats directory must have been prepared
-	if _, err := os.Stat(filepath.Dir(path)); err != nil {
-		t.Errorf("chats dir not created: %v", err)
+	// Path resolution must leave directory creation to the command layer.
+	if _, err := os.Stat(filepath.Dir(path)); !os.IsNotExist(err) {
+		t.Errorf("path resolution created the store: %v", err)
+	}
+}
+
+func TestReconstructSessionUsesCanonicalTargetCwd(t *testing.T) {
+	project := t.TempDir()
+	result, err := NewProvider().ReconstructSession(sampleSessionData(), spi.ReconstructOptions{WorkspaceRoot: project})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record QwenRecord
+	if err := json.Unmarshal(bytes.SplitN(result.Content, []byte("\n"), 2)[0], &record); err != nil {
+		t.Fatal(err)
+	}
+	if want := spi.CanonicalizePathOrClean(project); record.Cwd != want {
+		t.Fatalf("cwd=%q want=%q; Qwen rejects a different spelling", record.Cwd, want)
 	}
 }

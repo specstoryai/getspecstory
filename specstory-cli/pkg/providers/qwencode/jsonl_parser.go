@@ -14,7 +14,7 @@ import (
 
 const (
 	mb                    = 1024 * 1024
-	maxReasonableLineSize = 250 * mb // 250MB sanity limit to prevent OOM from malformed or malicious files
+	maxReasonableLineSize = 16 * mb // Bound allocation per record; discard oversized lines and continue.
 )
 
 // QwenRecord is one line of a Qwen Code session transcript: a self-describing
@@ -35,14 +35,10 @@ const (
 //     summary in systemPayload; the transcript is never rewritten, so the
 //     append-only assumption holds through compaction)
 //
-// Subagent delegations (the "agent"/"task" tools) do not create separate
-// transcript files: the delegation and its result are an ordinary
-// functionCall/tool_result pair inline in the parent session.
-//
-// The "provenance" field is absent in Qwen Code versions before ~0.21.x
-// (verified against 0.20.1 and 0.21.0, which write the same envelope format
-// otherwise); parsing treats a missing provenance as a real record.
+// QWEN-FORMAT.md records the verified baseline and storage lifecycle. Keep
+// unknown native fields in Raw for diagnostics as the format evolves.
 type QwenRecord struct {
+	Raw            json.RawMessage     `json:"-"` // Preserve unknown fields for debug output.
 	UUID           string              `json:"uuid"`
 	ParentUUID     string              `json:"parentUuid"`
 	SessionID      string              `json:"sessionId"`
@@ -69,6 +65,13 @@ type QwenMessage struct {
 // is populated: plain text (Thought=false), thinking text (Thought=true),
 // a functionCall, or a functionResponse.
 type QwenPart struct {
+	InlineData *struct {
+		MimeType string `json:"mimeType"`
+	} `json:"inlineData,omitempty"`
+	FileData *struct {
+		MimeType string `json:"mimeType"`
+		FileURI  string `json:"fileUri"`
+	} `json:"fileData,omitempty"`
 	Text             string                `json:"text,omitempty"`
 	Thought          bool                  `json:"thought,omitempty"`
 	FunctionCall     *QwenFunctionCall     `json:"functionCall,omitempty"`
@@ -115,19 +118,25 @@ type QwenUsageMetadata struct {
 // JSONL file: `qwen --resume`/`--continue` appends to the same file, so no
 // cross-file merging is needed (unlike Gemini CLI's split session files).
 type QwenSession struct {
-	ID          string
-	FilePath    string
-	Records     []QwenRecord
-	StartTime   string // timestamp of the first record
-	LastUpdated string // timestamp of the last record
-	Cwd         string // working directory from the first record that carries one
-	Version     string // Qwen Code version from the first record that carries one
+	ID            string
+	FilePath      string
+	Records       []QwenRecord
+	StartTime     string // timestamp of the first record
+	LastUpdated   string // timestamp of the last record
+	Cwd           string // working directory from the first record that carries one
+	Version       string // Qwen Code version from the first record that carries one
+	FirstUserText string // Also retained by metadata-only scans.
 }
 
 // ParseSessionFile parses a single Qwen Code session JSONL file. Records are
 // kept in file order: the transcript is append-only and append order is the
 // true conversation order (resumed sessions append to the same file).
 func ParseSessionFile(filePath string) (*QwenSession, error) {
+	return parseSessionFile(filePath, false)
+}
+
+// metadataOnly keeps only envelope metadata and the first prompt, never the transcript body.
+func parseSessionFile(filePath string, metadataOnly bool) (*QwenSession, error) {
 	slog.Debug("ParseSessionFile: Reading Qwen session file", "path", filePath)
 
 	file, err := os.Open(filePath)
@@ -136,56 +145,30 @@ func ParseSessionFile(filePath string) (*QwenSession, error) {
 	}
 	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
 	reader := bufio.NewReader(file)
-
 	session := &QwenSession{FilePath: filePath}
-	lineNumber := 0
-
-	for {
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
-
+	for lineNumber := 1; ; lineNumber++ {
+		line, oversized, err := readRecordLine(reader)
 		if err != nil && err != io.EOF {
-			return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
+			return nil, fmt.Errorf("error reading line %d: %w", lineNumber, err)
 		}
-
-		atEOF := err == io.EOF
-		hasContent := len(strings.TrimSpace(line)) > 0
-
-		if hasContent || !atEOF {
-			lineNumber++
-		}
-
-		if !hasContent {
-			if atEOF {
-				break
+		if oversized {
+			slog.Warn("ParseSessionFile: Skipping oversized JSONL line", "path", filePath, "line", lineNumber, "limit", maxReasonableLineSize)
+		} else if len(strings.TrimSpace(string(line))) > 0 {
+			var record QwenRecord
+			if parseErr := json.Unmarshal(line, &record); parseErr != nil {
+				slog.Warn("ParseSessionFile: Skipping corrupted JSONL line", "path", filePath, "line", lineNumber, "error", parseErr)
+			} else {
+				if !metadataOnly {
+					record.Raw = line
+				}
+				accumulateRecord(session, record)
+				if metadataOnly {
+					session.Records = nil
+				}
 			}
-			continue
 		}
-
-		if len(line) > maxReasonableLineSize {
-			return nil, fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/mb)
-		}
-
-		var record QwenRecord
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			// Log and skip corrupted lines rather than failing the entire parse:
-			// the file may be mid-write when the watcher fires.
-			slog.Warn("ParseSessionFile: Skipping corrupted JSONL line",
-				"file", filepath.Base(filePath),
-				"line", lineNumber,
-				"error", err)
-			if atEOF {
-				break
-			}
-			continue
-		}
-
-		accumulateRecord(session, record)
-
-		if atEOF {
+		if err == io.EOF {
 			break
 		}
 	}
@@ -203,9 +186,33 @@ func ParseSessionFile(filePath string) (*QwenSession, error) {
 	return session, nil
 }
 
+// readRecordLine bounds allocation before appending each buffer fragment. An
+// oversized record is drained through its newline so subsequent turns survive.
+func readRecordLine(reader *bufio.Reader) ([]byte, bool, error) {
+	var line []byte
+	oversized := false
+	for {
+		fragment, err := reader.ReadSlice('\n')
+		if !oversized {
+			if len(line)+len(fragment) > maxReasonableLineSize {
+				oversized = true
+				line = nil
+			} else {
+				line = append(line, fragment...)
+			}
+		}
+		if err != bufio.ErrBufferFull {
+			return line, oversized, err
+		}
+	}
+}
+
 // accumulateRecord appends a record and folds its envelope metadata into the session.
 func accumulateRecord(session *QwenSession, record QwenRecord) {
 	session.Records = append(session.Records, record)
+	if session.FirstUserText == "" && record.IsRealUserTurn() {
+		session.FirstUserText = strings.TrimSpace(record.TextContent())
+	}
 
 	if session.ID == "" && record.SessionID != "" {
 		session.ID = record.SessionID
@@ -227,6 +234,10 @@ func accumulateRecord(session *QwenSession, record QwenRecord) {
 // FindSessions scans a Qwen project directory's chats/ subdirectory for
 // session transcripts. Returns sessions sorted by last update (most recent first).
 func FindSessions(projectDir string) ([]*QwenSession, error) {
+	return findSessions(projectDir, false, nil)
+}
+
+func findSessions(projectDir string, metadataOnly bool, progress func(int, int)) ([]*QwenSession, error) {
 	chatsDir := filepath.Join(projectDir, "chats")
 
 	slog.Debug("FindSessions: Scanning Qwen chats directory", "chatsDir", chatsDir)
@@ -241,24 +252,35 @@ func FindSessions(projectDir string) ([]*QwenSession, error) {
 		return nil, fmt.Errorf("failed to read chats directory: %w", err)
 	}
 
+	total := 0
+	for _, entry := range entries {
+		if entry.Type().IsRegular() && isSessionFile(entry.Name()) {
+			total++
+		}
+	}
+	current := 0
 	var sessions []*QwenSession
 	parseFailures := 0
 	for _, entry := range entries {
 		// The chats dir also holds <session-id>.runtime.json files; only .jsonl
 		// files are transcripts.
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+		if !entry.Type().IsRegular() || !isSessionFile(entry.Name()) {
 			continue
 		}
 
 		filePath := filepath.Join(chatsDir, entry.Name())
-		session, err := ParseSessionFile(filePath)
+		session, err := parseSessionFile(filePath, metadataOnly)
+		current++
+		if progress != nil {
+			progress(current, total)
+		}
 		if err != nil {
 			slog.Warn("FindSessions: Failed to parse session file, skipping",
 				"file", filePath, "error", err)
 			parseFailures++
 			continue
 		}
-		if len(session.Records) == 0 {
+		if session.FirstRealUserText() == "" {
 			slog.Debug("FindSessions: Skipping empty session file", "file", filePath)
 			continue
 		}
@@ -266,6 +288,9 @@ func FindSessions(projectDir string) ([]*QwenSession, error) {
 	}
 
 	sort.Slice(sessions, func(i, j int) bool {
+		if sessions[i].LastUpdated == sessions[j].LastUpdated {
+			return sessions[i].ID < sessions[j].ID
+		}
 		return sessions[i].LastUpdated > sessions[j].LastUpdated
 	})
 
@@ -281,6 +306,9 @@ func FindSessions(projectDir string) ([]*QwenSession, error) {
 // slugs and readable names. Records injected by the system (notifications,
 // telemetry) are skipped.
 func (s *QwenSession) FirstRealUserText() string {
+	if s.FirstUserText != "" {
+		return s.FirstUserText
+	}
 	for _, record := range s.Records {
 		if !record.IsRealUserTurn() {
 			continue
@@ -310,13 +338,13 @@ func (r *QwenRecord) TextContent() string {
 	}
 	var b strings.Builder
 	for _, part := range r.Message.Parts {
-		if part.Thought || part.Text == "" {
+		if part.Thought || part.displayText() == "" {
 			continue
 		}
 		if b.Len() > 0 {
 			b.WriteString("\n")
 		}
-		b.WriteString(part.Text)
+		b.WriteString(part.displayText())
 	}
 	return b.String()
 }
@@ -334,7 +362,7 @@ func (r *QwenRecord) ThoughtContent() string {
 		if b.Len() > 0 {
 			b.WriteString("\n\n")
 		}
-		b.WriteString(part.Text)
+		b.WriteString(part.displayText())
 	}
 	return b.String()
 }
@@ -362,5 +390,20 @@ func resultDisplayString(raw json.RawMessage) string {
 		}
 	}
 
+	return ""
+}
+
+// displayText makes non-text attachments visible without placing base64 image
+// bytes in markdown. The complete payload stays in RawData and debug records.
+func (p QwenPart) displayText() string {
+	if p.Text != "" {
+		return p.Text
+	}
+	if p.InlineData != nil {
+		return fmt.Sprintf("[Attachment: %s]", p.InlineData.MimeType)
+	}
+	if p.FileData != nil {
+		return fmt.Sprintf("[Attachment: %s (%s)]", p.FileData.FileURI, p.FileData.MimeType)
+	}
 	return ""
 }

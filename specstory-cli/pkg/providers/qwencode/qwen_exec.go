@@ -11,20 +11,6 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// Package-level variable for mocking in tests
-var execLookPath = exec.LookPath
-
-// getDefaultQwenCommand returns the default qwen command.
-// It checks for qwen in PATH.
-func getDefaultQwenCommand() string {
-	if _, err := execLookPath("qwen"); err == nil {
-		slog.Info("Found Qwen Code in PATH")
-		return "qwen"
-	}
-	slog.Info("Qwen Code not found in PATH, defaulting to 'qwen'")
-	return "qwen"
-}
-
 // parseQwenCommand parses a custom command string into executable and arguments.
 func parseQwenCommand(customCommand string) (string, []string) {
 	if customCommand != "" {
@@ -33,43 +19,40 @@ func parseQwenCommand(customCommand string) (string, []string) {
 			return parts[0], parts[1:]
 		}
 	}
-	return getDefaultQwenCommand(), nil
+	return "qwen", nil
 }
 
-// ensureResumeArgs makes sure the command carries `--resume <id>`. A resume
-// flag already present with a value is respected; a bare `--resume`/`-r`
-// (no value, or another flag where the value belongs) gets the session ID
-// inserted after it rather than a duplicate flag appended; an empty
-// `--resume=` is repaired in place.
+// ensureResumeArgs gives the requested id precedence over configured resume
+// flags, repairs bare flags, and never changes the caller's backing array.
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
 	if resumeSessionID == "" {
 		return args
 	}
-
-	for i, arg := range args {
+	result := slices.Clone(args)
+	found := false
+	for i := 0; i < len(result); i++ {
+		arg := result[i]
 		if arg == "--resume" || arg == "-r" {
-			if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
-				return args
+			found = true
+			if i+1 < len(result) && !strings.HasPrefix(result[i+1], "-") {
+				result[i+1] = resumeSessionID
+			} else {
+				result = slices.Insert(result, i+1, resumeSessionID)
 			}
-			// slices.Concat always allocates a new backing array, so the caller's
-			// slice is never mutated.
-			return slices.Concat(args[:i+1], []string{resumeSessionID}, args[i+1:])
-		}
-		if strings.HasPrefix(arg, "--resume=") {
-			if strings.TrimSpace(strings.TrimPrefix(arg, "--resume=")) != "" {
-				return args
-			}
-			repaired := slices.Clone(args)
-			repaired[i] = "--resume=" + resumeSessionID
-			return repaired
+			i++
+		} else if strings.HasPrefix(arg, "--resume=") || strings.HasPrefix(arg, "-r=") {
+			found = true
+			result[i] = strings.SplitN(arg, "=", 2)[0] + "=" + resumeSessionID
 		}
 	}
-
-	return append(args, "--resume", resumeSessionID)
+	if !found {
+		result = append(result, "--resume", resumeSessionID)
+	}
+	return result
 }
 
 // ExecuteQwen runs the Qwen Code CLI with the given arguments
-func ExecuteQwen(customCommand string, resumeSessionID string) error {
+func ExecuteQwen(projectPath string, customCommand string, resumeSessionID string) error {
 	// Parse the command and any custom arguments
 	qwenCmd, customArgs := parseQwenCommand(customCommand)
 
@@ -80,6 +63,19 @@ func ExecuteQwen(customCommand string, resumeSessionID string) error {
 
 	// Create the command
 	cmd := exec.Command(qwenCmd, customArgs...)
+	cmd.Dir = projectPath
+	// Relative storage paths must keep the same meaning for discovery and the
+	// child even when --project-path launches Qwen in a different directory.
+	cmd.Env = cmd.Environ()
+	for _, key := range []string{"QWEN_HOME", "QWEN_RUNTIME_DIR"} {
+		if value := os.Getenv(key); value != "" {
+			resolved, err := resolveQwenStoragePath(value)
+			if err != nil {
+				return err
+			}
+			cmd.Env = append(cmd.Env, key+"="+resolved)
+		}
+	}
 
 	// Set up stdin/stdout/stderr to match the parent process
 	cmd.Stdin = os.Stdin
@@ -89,7 +85,7 @@ func ExecuteQwen(customCommand string, resumeSessionID string) error {
 	// Start the command
 	slog.Info("ExecuteQwen: Starting Qwen Code process")
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start qwen: %v", err)
+		return fmt.Errorf("failed to start qwen: %w", err)
 	}
 
 	// Wait for the command to complete
@@ -98,9 +94,9 @@ func ExecuteQwen(customCommand string, resumeSessionID string) error {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteQwen: Qwen Code exited", "exitCode", exitCode)
-			os.Exit(exitCode)
+			return &spi.AgentExitError{Agent: "Qwen Code", Code: exitCode}
 		}
-		return fmt.Errorf("qwen execution failed: %v", err)
+		return fmt.Errorf("qwen execution failed: %w", err)
 	}
 
 	slog.Info("ExecuteQwen: Qwen Code exited normally", "exitCode", 0)

@@ -40,6 +40,7 @@ func (p *Provider) Name() string {
 }
 
 func (p *Provider) Check(customCommand string) spi.CheckResult {
+	slog.Info("Check: Starting Qwen Code check", "command", customCommand)
 	cmdName, _ := parseQwenCommand(customCommand)
 	isCustom := customCommand != ""
 	attempt := analytics.CheckAttempt{
@@ -53,6 +54,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if err != nil {
 		errorMessage := buildQwenCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
 		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
+		slog.Info("Check: Qwen Code unavailable", "command", cmdName, "error", err)
 		return spi.CheckResult{
 			Success:      false,
 			Location:     "",
@@ -60,8 +62,9 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		}
 	}
 	attempt.ResolvedPath = resolvedPath
+	slog.Info("Check: Resolved Qwen Code", "command", cmdName, "resolved", resolvedPath)
 
-	cmd := exec.Command(cmdName, versionFlag)
+	cmd := exec.Command(resolvedPath, versionFlag)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -72,6 +75,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		stderrOutput := strings.TrimSpace(stderr.String())
 		errorMessage := buildQwenCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
+		slog.Info("Check: Qwen Code version probe failed", "command", resolvedPath, "error", err)
 
 		return spi.CheckResult{
 			Success:      false,
@@ -87,6 +91,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		version = "unknown"
 	}
 	analytics.TrackCheckSuccess(attempt, version)
+	slog.Info("Check: Qwen Code check succeeded", "version", version, "resolved", resolvedPath)
 
 	return spi.CheckResult{
 		Success:  true,
@@ -105,13 +110,19 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	}
 
 	chatsDir := filepath.Join(projectDir, "chats")
-	if _, err := os.Stat(chatsDir); err == nil {
-		return true
+	entries, readErr := os.ReadDir(chatsDir)
+	if readErr == nil {
+		for _, entry := range entries {
+			if entry.Type().IsRegular() && isSessionFile(entry.Name()) {
+				return true
+			}
+		}
 	}
+	slog.Debug("DetectAgent: No Qwen transcripts", "path", chatsDir, "error", readErr)
 
 	if helpOutput {
-		fmt.Printf("Qwen Code data found at %s but no chats/*.jsonl files exist yet.\n", projectDir)
-		fmt.Printf("Start a Qwen Code session in this project so %s is created.\n", chatsDir)
+		log.UserMessage("Qwen Code data found at %s but no chats/*.jsonl files exist yet.\n", projectDir)
+		log.UserMessage("Start a Qwen Code session in this project so %s is created.\n", chatsDir)
 	}
 	return false
 }
@@ -127,23 +138,22 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		return nil, err
 	}
 
-	sessions, err := FindSessions(projectDir)
+	sessions, err := findSessions(projectDir, false, progress)
 	if err != nil {
 		return nil, err
 	}
 
-	totalSessions := len(sessions)
 	var result []spi.AgentChatSession
-	for i, s := range sessions {
+	for _, s := range sessions {
+		if !sessionBelongsToProject(s, projectPath) {
+			slog.Debug("GetAgentChatSessions: Skipping another project", "sessionId", s.ID, "cwd", s.Cwd)
+			continue
+		}
 		chatSession := convertToAgentChatSession(s, projectPath, debugRaw)
 		if chatSession != nil {
 			result = append(result, *chatSession)
 		}
 
-		// Report progress after each session
-		if progress != nil {
-			progress(i+1, totalSessions)
-		}
 	}
 	return result, nil
 }
@@ -156,32 +166,35 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 
 	projectDir, err := ResolveQwenProjectDir(projectPath)
 	if err != nil {
+		var pathErr *QwenPathError
+		if errors.As(err, &pathErr) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
-	// Sessions are stored one per file named <session-id>.jsonl, so resolve
-	// directly by path before falling back to a scan (IDs are user-supplied
-	// and may not match a filename exactly).
-	directPath := filepath.Join(projectDir, "chats", sessionID+".jsonl")
-	if _, err := os.Stat(directPath); err == nil {
-		session, parseErr := ParseSessionFile(directPath)
-		if parseErr == nil && len(session.Records) > 0 {
-			return convertToAgentChatSession(session, projectPath, debugRaw), nil
-		}
+	if !validSessionFilename(sessionID) {
+		return nil, nil
 	}
-
-	sessions, err := FindSessions(projectDir)
+	path := filepath.Join(projectDir, "chats", sessionID+".jsonl")
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-
-	for _, s := range sessions {
-		if s.ID == sessionID {
-			return convertToAgentChatSession(s, projectPath, debugRaw), nil
-		}
+	if !info.Mode().IsRegular() {
+		return nil, nil
 	}
-
-	return nil, nil
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		return nil, err
+	}
+	if session.ID != sessionID || !sessionBelongsToProject(session, projectPath) {
+		return nil, nil
+	}
+	return convertToAgentChatSession(session, projectPath, debugRaw), nil
 }
 
 // GetAgentChatSessionByPath parses a single session directly from its known
@@ -189,6 +202,9 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 // holds NativePath from enumeration) to keep resolving N sessions O(N).
 func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
 	session, err := ParseSessionFile(nativePath)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -199,12 +215,16 @@ func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string
 }
 
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	slog.Info("ExecAgentAndWatch: Starting Qwen Code", "project", projectPath)
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		return err
+	}
+	slog.Info("ExecAgentAndWatch: Starting Qwen Code", "projectPath", projectPath)
 
 	// Start watching
 	SetWatcherDebugRaw(debugRaw)
 	if err := WatchQwenProject(projectPath, sessionCallback); err != nil {
-		slog.Error("Failed to start watcher", "error", err)
+		return fmt.Errorf("start Qwen watcher: %w", err)
 	}
 	defer StopWatcher()
 
@@ -212,7 +232,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Attempting to resume Qwen Code session", "sessionId", resumeSessionID)
 	}
 
-	return ExecuteQwen(customCommand, resumeSessionID)
+	err = ExecuteQwen(projectPath, customCommand, resumeSessionID)
+	slog.Info("ExecAgentAndWatch: Qwen Code exited, draining saves", "error", err)
+	return err
 }
 
 // WatchAgent watches for Qwen Code agent activity and calls the callback with AgentChatSession
@@ -258,7 +280,7 @@ func buildQwenCheckErrorMessage(errorType string, qwenCmd string, isCustom bool,
 		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", qwenCmd)
 		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
 	default:
-		b.WriteString("`qwen --version` failed.\n\n")
+		fmt.Fprintf(&b, "`%s %s` failed.\n\n", qwenCmd, versionFlag)
 		if stderr != "" {
 			fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
 		}
@@ -296,6 +318,25 @@ func printQwenDetectionHelp(err error) {
 // convertToAgentChatSession converts a QwenSession to the provider-agnostic AgentChatSession format.
 // Used by both sync mode (GetAgentChatSession/GetAgentChatSessions) and watch mode.
 func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+	if session.FirstRealUserText() == "" {
+		slog.Debug("convertToAgentChatSession: Skipping empty session", "sessionId", session.ID)
+		return nil
+	}
+	if !validSessionFilename(session.ID) {
+		slog.Warn("convertToAgentChatSession: Invalid session id", "path", session.FilePath)
+		return nil
+	}
+	if workspaceRoot == "" {
+		workspaceRoot = session.Cwd
+	}
+	if workspaceRoot == "" {
+		var err error
+		workspaceRoot, err = defaultProjectPath("")
+		if err != nil {
+			slog.Error("convertToAgentChatSession: No workspace", "error", err)
+			return nil
+		}
+	}
 	sessionData, err := GenerateAgentSession(session, workspaceRoot)
 	if err != nil {
 		slog.Error("convertToAgentChatSession: failed to generate session data",
@@ -319,7 +360,7 @@ func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debug
 	if err != nil {
 		slog.Debug("convertToAgentChatSession: failed to read raw transcript",
 			"path", session.FilePath, "error", err)
-		rawData = nil
+		return nil
 	}
 
 	if debugRaw {
@@ -342,14 +383,28 @@ func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debug
 // writeDebugRawFiles writes debug JSON files for a Qwen Code session.
 // Each record is written as a numbered JSON file in .specstory/debug/<session-id>/
 func writeDebugRawFiles(session *QwenSession) error {
+	if !validSessionFilename(session.ID) {
+		return fmt.Errorf("invalid Qwen session id %q", session.ID)
+	}
 	debugDir := spi.GetDebugDir(session.ID)
+	if err := os.RemoveAll(debugDir); err != nil {
+		return fmt.Errorf("clear debug dir: %w", err)
+	}
 	if err := os.MkdirAll(debugDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create debug dir: %w", err)
 	}
 
 	for idx, record := range session.Records {
 		number := idx + 1
-		data, err := json.MarshalIndent(record, "", "  ")
+		var data []byte
+		var err error
+		if len(record.Raw) > 0 {
+			var pretty bytes.Buffer
+			err = json.Indent(&pretty, record.Raw, "", "  ")
+			data = pretty.Bytes()
+		} else {
+			data, err = json.MarshalIndent(record, "", "  ")
+		}
 		if err != nil {
 			slog.Debug("writeDebugRawFiles: failed to marshal", "index", number, "error", err)
 			continue
@@ -366,18 +421,25 @@ func writeDebugRawFiles(session *QwenSession) error {
 
 // ListAgentChatSessions retrieves lightweight session metadata without full conversion
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		return nil, err
+	}
 	projectDir, err := ResolveQwenProjectDir(projectPath)
 	if err != nil {
 		return nil, err
 	}
 
-	sessions, err := FindSessions(projectDir)
+	sessions, err := findSessions(projectDir, true, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	result := make([]spi.SessionMetadata, 0, len(sessions))
 	for _, session := range sessions {
+		if !sessionBelongsToProject(session, projectPath) {
+			continue
+		}
 		metadata := extractQwenSessionMetadata(session)
 		if metadata == nil {
 			slog.Debug("Skipping empty session", "sessionID", session.ID)
@@ -436,11 +498,11 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 
 	return spi.ScanSessionsInParallel(projectsDir, "qwen", r, func(path string) (*spi.GlobalSessionRef, error) {
 		// Only chats/*.jsonl files are transcripts.
-		if filepath.Base(filepath.Dir(path)) != "chats" {
+		if !isSessionFile(filepath.Base(path)) || filepath.Base(filepath.Dir(path)) != "chats" || filepath.Dir(filepath.Dir(filepath.Dir(path))) != projectsDir {
 			return nil, nil
 		}
 
-		session, err := ParseSessionFile(path)
+		session, err := parseSessionFile(path, true)
 		if err != nil {
 			return nil, err
 		}

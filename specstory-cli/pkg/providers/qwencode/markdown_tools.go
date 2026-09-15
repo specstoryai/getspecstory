@@ -3,6 +3,8 @@ package qwencode
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -18,14 +20,14 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 
 	// Build custom summary for certain tools (appending key parameters)
 	var customSummary string
-	switch tool.Name {
+	switch canonicalQwenToolName(tool.Name) {
 	case "read_file":
-		if filePath := inputAsString(tool.Input, "file_path"); filePath != "" {
+		if filePath := spi.StringValue(tool.Input, "file_path"); filePath != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, filePath)
 		}
 	case "grep_search":
-		pattern := inputAsString(tool.Input, "pattern")
-		path := inputAsString(tool.Input, "path")
+		pattern := spi.StringValue(tool.Input, "pattern")
+		path := spi.StringValue(tool.Input, "path")
 		if pattern != "" {
 			if path != "" {
 				customSummary = fmt.Sprintf("Tool use: **%s** `%s` in `%s`", tool.Name, pattern, path)
@@ -34,23 +36,23 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 			}
 		}
 	case "glob":
-		if pattern := inputAsString(tool.Input, "pattern"); pattern != "" {
+		if pattern := spi.StringValue(tool.Input, "pattern"); pattern != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, pattern)
 		}
 	case "list_directory":
-		if dirPath := inputAsString(tool.Input, "path"); dirPath != "" {
+		if dirPath := spi.StringValue(tool.Input, "path"); dirPath != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, dirPath)
 		}
 	case "skill":
-		if skill := inputAsString(tool.Input, "skill"); skill != "" {
+		if skill := spi.StringValue(tool.Input, "skill"); skill != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, skill)
 		}
-	case "tool_search", "web_search", "google_web_search":
-		if query := inputAsString(tool.Input, "query"); query != "" {
+	case "tool_search", "web_search":
+		if query := spi.StringValue(tool.Input, "query"); query != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, query)
 		}
-	case "agent", "task":
-		if desc := inputAsString(tool.Input, "description"); desc != "" {
+	case "agent":
+		if desc := spi.StringValue(tool.Input, "description"); desc != "" {
 			customSummary = fmt.Sprintf("Tool use: **%s** — %s", tool.Name, desc)
 		}
 	}
@@ -82,32 +84,50 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 
 // formatToolBodyFromInput formats the tool input/body section
 func formatToolBodyFromInput(tool *ToolInfo) string {
-	switch tool.Name {
+	switch canonicalQwenToolName(tool.Name) {
 	case "run_shell_command", "monitor":
 		// monitor streams a long-running command; its input is shaped like a
 		// shell command (command + description), so it renders the same way.
 		return formatShellBodyFromInput(tool.Input)
+	case "ask_user_question":
+		return formatQuestions(tool.Input)
+	case "notebook_edit":
+		var b strings.Builder
+		fmt.Fprintf(&b, "Path: `%s`\n\nCell: %s (%s)\n\n", spi.StringValue(tool.Input, "notebook_path"), spi.StringValue(tool.Input, "cell_id"), spi.StringValue(tool.Input, "edit_mode"))
+		lang := ""
+		if spi.StringValue(tool.Input, "cell_type") == "markdown" {
+			lang = "markdown"
+		}
+		if source := spi.StringValue(tool.Input, "new_source"); source != "" {
+			b.WriteString(spi.CodeFence(lang, source))
+		}
+		return b.String()
+	case "exec":
+		return spi.CodeFence("javascript", spi.StringValue(tool.Input, "source"))
 	case "write_file":
 		return formatWriteFileBodyFromInput(tool.Input)
-	case "edit", "replace", "smart_edit":
+	case "edit":
 		return formatEditBodyFromInput(tool)
 	case "web_fetch":
 		return formatWebFetchBodyFromInput(tool.Input)
-	case "agent", "task":
+	case "agent":
 		return formatAgentBodyFromInput(tool.Input)
-	case "todo_write", "write_todos":
+	case "todo_write":
 		return formatTodoBodyFromInput(tool.Input)
 	case "skill":
 		// The skill name is in the summary; show the arguments it was invoked with.
-		if args := inputAsString(tool.Input, "args"); args != "" {
+		if args := spi.StringValue(tool.Input, "args"); args != "" {
 			return fmt.Sprintf("Args: %s", args)
 		}
 		return ""
-	case "read_file", "grep_search", "glob", "list_directory", "tool_search", "web_search", "google_web_search":
-		// Don't show input args - parameters are in the summary
-		return ""
+	case "read_file", "grep_search", "glob", "list_directory", "tool_search", "web_search":
+		// Keep optional arguments (line ranges, filters, limits) visible too.
+		return formatInputFields(tool.Input)
 	default:
-		return spi.RenderGenericJSON(tool.Input)
+		if classifyQwenToolType(tool.Name) == "unknown" {
+			return spi.RenderGenericJSON(tool.Input)
+		}
+		return formatInputFields(tool.Input)
 	}
 }
 
@@ -118,17 +138,16 @@ func formatToolResultFromOutput(tool *ToolInfo) string {
 		return addResultPrefix(formatOutputText(errText))
 	}
 
-	switch tool.Name {
-	case "todo_write", "write_todos":
+	switch canonicalQwenToolName(tool.Name) {
+	case "todo_write":
 		// The body already shows the checklist
 		return ""
 	case "read_file":
 		return formatReadFileResultFromOutput(tool)
 	case "run_shell_command", "monitor":
 		return formatShellResultFromOutput(tool.Output)
-	case "edit", "replace", "smart_edit", "write_file":
-		// The body already shows the diff/content
-		return ""
+	case "edit", "write_file":
+		return formatDefaultResultFromOutput(tool.Output)
 	case "grep_search", "glob", "list_directory":
 		return formatSearchListResultFromOutput(tool.Output)
 	}
@@ -141,10 +160,10 @@ func formatToolResultFromOutput(tool *ToolInfo) string {
 func formatReadFileResultFromOutput(tool *ToolInfo) string {
 	output := outputAsString(tool.Output)
 	if output == "" {
-		return ""
+		return spi.RenderGenericJSON(tool.Output)
 	}
 
-	filePath := inputAsString(tool.Input, "file_path")
+	filePath := spi.StringValue(tool.Input, "file_path")
 	lang := spi.LanguageFromPath(filePath)
 	return spi.CodeFence(lang, output)
 }
@@ -152,36 +171,36 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
 // formatShellResultFromOutput shows shell output. The resultDisplay carries the
 // raw stdout/stderr, which reads better than the functionResponse's structured
 // "Command:/Directory:/Output:" envelope; prefer it when present.
-func formatShellResultFromOutput(output map[string]interface{}) string {
+func formatShellResultFromOutput(output map[string]any) string {
 	content := ""
 	if output != nil {
 		if display, ok := output["resultDisplay"].(string); ok && strings.TrimSpace(display) != "" {
-			content = strings.TrimSpace(display)
+			content = strings.TrimRight(display, "\r\n")
 		}
 	}
 	if content == "" {
 		content = outputAsString(output)
 	}
 	if content == "" {
-		return ""
+		return spi.RenderGenericJSON(output)
 	}
 	return fmt.Sprintf("Result:\n%s", spi.CodeFence("text", content))
 }
 
-// formatSearchListResultFromOutput shows raw output without code fence
-func formatSearchListResultFromOutput(output map[string]interface{}) string {
+// formatSearchListResultFromOutput fences arbitrary file content safely.
+func formatSearchListResultFromOutput(output map[string]any) string {
 	content := outputAsString(output)
 	if content == "" {
-		return ""
+		return spi.RenderGenericJSON(output)
 	}
-	return content
+	return spi.CodeFence("text", content)
 }
 
 // formatDefaultResultFromOutput builds result with "Result:" prefix
-func formatDefaultResultFromOutput(output map[string]interface{}) string {
+func formatDefaultResultFromOutput(output map[string]any) string {
 	content := outputAsString(output)
 	if content == "" {
-		return ""
+		return spi.RenderGenericJSON(output)
 	}
 
 	// Wrap multi-line output in code fence
@@ -207,9 +226,9 @@ func addResultPrefix(content string) string {
 	return fmt.Sprintf("Result: %s", content)
 }
 
-func formatShellBodyFromInput(input map[string]interface{}) string {
-	command := inputAsString(input, "command")
-	description := inputAsString(input, "description")
+func formatShellBodyFromInput(input map[string]any) string {
+	command := spi.StringValue(input, "command")
+	description := spi.StringValue(input, "description")
 
 	if command == "" && description == "" {
 		return ""
@@ -227,9 +246,9 @@ func formatShellBodyFromInput(input map[string]interface{}) string {
 	return builder.String()
 }
 
-func formatWriteFileBodyFromInput(input map[string]interface{}) string {
-	path := inputAsString(input, "file_path")
-	content := inputAsString(input, "content")
+func formatWriteFileBodyFromInput(input map[string]any) string {
+	path := spi.StringValue(input, "file_path")
+	content := spi.StringValue(input, "content")
 	if path == "" && content == "" {
 		return ""
 	}
@@ -248,7 +267,7 @@ func formatWriteFileBodyFromInput(input map[string]interface{}) string {
 // outcome carries one (resultDisplay.fileDiff), falling back to the new_string
 // input when it doesn't (e.g. the edit was denied or errored).
 func formatEditBodyFromInput(tool *ToolInfo) string {
-	path := inputAsString(tool.Input, "file_path")
+	path := spi.StringValue(tool.Input, "file_path")
 
 	var builder strings.Builder
 	if path != "" {
@@ -257,13 +276,15 @@ func formatEditBodyFromInput(tool *ToolInfo) string {
 
 	if tool.Output != nil {
 		if diff, ok := tool.Output["resultDisplay"].(string); ok && strings.Contains(diff, "@@") {
-			builder.WriteString(spi.CodeFence("diff", truncate(strings.TrimSpace(diff), 2000)))
+			builder.WriteString(spi.CodeFence("diff", strings.TrimSpace(diff)))
 			return builder.String()
 		}
 	}
 
-	if newString := inputAsString(tool.Input, "new_string"); newString != "" {
-		builder.WriteString(spi.CodeFence("diff", truncate(newString, 2000)))
+	oldString := spi.StringValue(tool.Input, "old_string")
+	newString := spi.StringValue(tool.Input, "new_string")
+	if oldString != "" || newString != "" {
+		builder.WriteString(spi.FormatDiffBlock(oldString, newString))
 	}
 
 	if builder.Len() == 0 {
@@ -272,9 +293,9 @@ func formatEditBodyFromInput(tool *ToolInfo) string {
 	return builder.String()
 }
 
-func formatWebFetchBodyFromInput(input map[string]interface{}) string {
-	url := inputAsString(input, "url")
-	prompt := inputAsString(input, "prompt")
+func formatWebFetchBodyFromInput(input map[string]any) string {
+	url := spi.StringValue(input, "url")
+	prompt := spi.StringValue(input, "prompt")
 	if url == "" && prompt == "" {
 		return ""
 	}
@@ -296,9 +317,9 @@ func formatWebFetchBodyFromInput(input map[string]interface{}) string {
 // transcripts are inline in the parent session (the delegation is an ordinary
 // functionCall/tool_result pair), so the prompt plus the folded-in result is
 // the complete record of the sub-task.
-func formatAgentBodyFromInput(input map[string]interface{}) string {
-	prompt := inputAsString(input, "prompt")
-	subagent := inputAsString(input, "subagent_type")
+func formatAgentBodyFromInput(input map[string]any) string {
+	prompt := spi.StringValue(input, "prompt")
+	subagent := spi.StringValue(input, "subagent_type")
 
 	var builder strings.Builder
 	if subagent != "" {
@@ -310,8 +331,8 @@ func formatAgentBodyFromInput(input map[string]interface{}) string {
 	return builder.String()
 }
 
-func formatTodoBodyFromInput(input map[string]interface{}) string {
-	todos, ok := input["todos"].([]interface{})
+func formatTodoBodyFromInput(input map[string]any) string {
+	todos, ok := input["todos"].([]any)
 	if !ok || len(todos) == 0 {
 		return ""
 	}
@@ -319,7 +340,7 @@ func formatTodoBodyFromInput(input map[string]interface{}) string {
 	var builder strings.Builder
 	builder.WriteString("Todo List:\n")
 	for _, raw := range todos {
-		if todo, ok := raw.(map[string]interface{}); ok {
+		if todo, ok := raw.(map[string]any); ok {
 			// Qwen todos use "content"; keep "description" as a fallback for
 			// forks/versions that use the Gemini field name.
 			desc, _ := todo["content"].(string)
@@ -327,67 +348,31 @@ func formatTodoBodyFromInput(input map[string]interface{}) string {
 				desc, _ = todo["description"].(string)
 			}
 			status, _ := todo["status"].(string)
-			fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), strings.TrimSpace(desc))
+			fmt.Fprintf(&builder, "- [%s] %s\n", spi.TodoSymbol(status), strings.TrimSpace(desc))
 		}
 	}
 	return builder.String()
 }
 
-func todoStatusSymbol(status string) string {
-	switch status {
-	case "completed":
-		return "x"
-	case "in_progress":
-		return "⚡"
-	default:
-		return " "
-	}
-}
-
-// inputAsString extracts a string value from tool input
-func inputAsString(input map[string]interface{}, key string) string {
-	if input == nil {
-		return ""
-	}
-	val, ok := input[key]
-	if !ok {
-		return ""
-	}
-	switch v := val.(type) {
-	case string:
-		return v
-	case fmt.Stringer:
-		return v.String()
-	case []byte:
-		return string(v)
-	default:
-		bytes, err := json.Marshal(v)
-		if err != nil {
-			return fmt.Sprint(v)
-		}
-		return string(bytes)
-	}
-}
-
 // outputAsString extracts the primary output string from tool output
-func outputAsString(output map[string]interface{}) string {
+func outputAsString(output map[string]any) string {
 	if output == nil {
 		return ""
 	}
 
 	// Try "output" field first (Qwen's functionResponse success payload)
 	if out, ok := output["output"].(string); ok && strings.TrimSpace(out) != "" {
-		return strings.TrimSpace(out)
+		return strings.TrimRight(out, "\r\n")
 	}
 
 	// Try "content" field
 	if content, ok := output["content"].(string); ok && strings.TrimSpace(content) != "" {
-		return strings.TrimSpace(content)
+		return strings.TrimRight(content, "\r\n")
 	}
 
 	// Try "resultDisplay" (envelope display form)
 	if display, ok := output["resultDisplay"].(string); ok && strings.TrimSpace(display) != "" {
-		return strings.TrimSpace(display)
+		return strings.TrimRight(display, "\r\n")
 	}
 
 	// Try "error" field
@@ -399,7 +384,7 @@ func outputAsString(output map[string]interface{}) string {
 }
 
 // outputErrorString returns the error text when the tool outcome failed, empty otherwise.
-func outputErrorString(output map[string]interface{}) string {
+func outputErrorString(output map[string]any) string {
 	if output == nil {
 		return ""
 	}
@@ -407,21 +392,69 @@ func outputErrorString(output map[string]interface{}) string {
 		return strings.TrimSpace(errStr)
 	}
 	// Status "error" without an error string: fall back to the display form.
-	if status, ok := output["status"].(string); ok && status == "error" {
+	if status, ok := output["status"].(string); ok && (status == "error" || status == "cancelled") {
 		if display, ok := output["resultDisplay"].(string); ok && strings.TrimSpace(display) != "" {
-			return strings.TrimSpace(display)
+			return strings.TrimRight(display, "\r\n")
 		}
+		if text := spi.StringValue(output, "errorType"); text != "" {
+			return text
+		}
+		return "Tool call " + status
 	}
 	return ""
 }
 
-func truncate(text string, limit int) string {
-	if limit <= 0 {
-		return text
+// formatInputFields gives known tools readable scalar arguments while keeping
+// structured arguments intact, with deterministic ordering for stable syncs.
+func formatInputFields(input map[string]any) string {
+	var b strings.Builder
+	for _, key := range slices.Sorted(maps.Keys(input)) {
+		value := input[key]
+		switch value.(type) {
+		case map[string]any, []any:
+			data, err := json.MarshalIndent(value, "", "  ")
+			if err == nil {
+				fmt.Fprintf(&b, "%s:\n%s\n", key, spi.CodeFence("json", string(data)))
+			}
+		default:
+			if text := spi.StringValue(input, key); text != "" {
+				fmt.Fprintf(&b, "%s: %s\n", key, text)
+			}
+		}
 	}
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return text
+	return strings.TrimSpace(b.String())
+}
+
+// formatQuestions renders the native question/option objects as a readable
+// questionnaire; malformed elements are skipped without losing other rows.
+func formatQuestions(input map[string]any) string {
+	questions, _ := input["questions"].([]any)
+	var b strings.Builder
+	for _, raw := range questions {
+		question, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		if text := spi.StringValue(question, "question"); text != "" {
+			fmt.Fprintf(&b, "%s\n\n", text)
+		}
+		options, _ := question["options"].([]any)
+		for _, raw := range options {
+			option, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			label := spi.StringValue(option, "label")
+			if label == "" {
+				continue
+			}
+			fmt.Fprintf(&b, "- %s", label)
+			if desc := spi.StringValue(option, "description"); desc != "" {
+				fmt.Fprintf(&b, ": %s", desc)
+			}
+			b.WriteByte('\n')
+		}
+		b.WriteByte('\n')
 	}
-	return string(runes[:limit]) + "\n... (truncated)"
+	return strings.TrimSpace(b.String())
 }

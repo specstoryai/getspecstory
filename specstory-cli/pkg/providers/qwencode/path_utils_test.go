@@ -4,7 +4,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestSanitizeQwenCwd(t *testing.T) {
@@ -18,11 +22,16 @@ func TestSanitizeQwenCwd(t *testing.T) {
 		{name: "underscores", path: "/home/dev/my_project", want: "-home-dev-my-project"},
 		{name: "empty", path: "", want: ""},
 		{name: "alphanumeric preserved", path: "abc123XYZ", want: "abc123XYZ"},
+		{name: "astral uses two replacements", path: "/tmp/😀", want: "-tmp---"},
+		{name: "Windows", path: `C:\Users\Dev\project`, want: "C--Users-Dev-project"},
 		{name: "unicode replaced", path: "/tmp/héllo", want: "-tmp-h-llo"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				tt.want = strings.ToLower(tt.want)
+			}
 			if got := SanitizeQwenCwd(tt.path); got != tt.want {
 				t.Errorf("SanitizeQwenCwd(%q) = %q, want %q", tt.path, got, tt.want)
 			}
@@ -34,6 +43,8 @@ func TestSanitizeQwenCwd(t *testing.T) {
 func withFakeHome(t *testing.T) string {
 	t.Helper()
 	home := t.TempDir()
+	t.Setenv("QWEN_HOME", "")
+	t.Setenv("QWEN_RUNTIME_DIR", "")
 	origHome := osUserHomeDir
 	osUserHomeDir = func() (string, error) { return home, nil }
 	t.Cleanup(func() { osUserHomeDir = origHome })
@@ -94,5 +105,56 @@ func TestResolveQwenProjectDir_ProjectMissing(t *testing.T) {
 	}
 	if len(pathErr.KnownDirs) != 1 || pathErr.KnownDirs[0] != "-some-other-project" {
 		t.Errorf("known dirs = %v", pathErr.KnownDirs)
+	}
+}
+
+func TestStorageOverrides(t *testing.T) {
+	home := withFakeHome(t)
+	for _, tt := range []struct{ name, qwenHome, runtimeDir, want string }{
+		{"default", "", "", filepath.Join(home, ".qwen", "projects")},
+		{"home", filepath.Join(home, "custom"), "", filepath.Join(home, "custom", "projects")},
+		{"runtime wins", filepath.Join(home, "custom"), filepath.Join(home, "runtime"), filepath.Join(home, "runtime", "projects")},
+		{"tilde", "~/qwen-data", "", filepath.Join(home, "qwen-data", "projects")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("QWEN_HOME", tt.qwenHome)
+			t.Setenv("QWEN_RUNTIME_DIR", tt.runtimeDir)
+			got, err := GetQwenProjectsDir()
+			if err != nil || got != tt.want {
+				t.Fatalf("got %q, %v; want %q", got, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestNativeSessionPathCanonicalProject(t *testing.T) {
+	home := withFakeHome(t)
+	root := t.TempDir()
+	project := filepath.Join(root, "project space_😀")
+	if err := os.Mkdir(project, 0755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "link")
+	if err := os.Symlink(project, link); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skip("symlinks require Windows developer mode")
+		}
+		t.Fatal(err)
+	}
+	p := NewProvider()
+	realPath, err := p.NativeSessionPath(project, "s.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	linkPath, err := p.NativeSessionPath(link, "s.jsonl")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(home, ".qwen", "projects", SanitizeQwenCwd(spi.CanonicalizePathOrClean(project)), "chats", "s.jsonl")
+	if realPath != want || linkPath != want {
+		t.Fatalf("real=%q link=%q want=%q", realPath, linkPath, want)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".qwen")); !os.IsNotExist(err) {
+		t.Fatal("resolver wrote to store")
 	}
 }

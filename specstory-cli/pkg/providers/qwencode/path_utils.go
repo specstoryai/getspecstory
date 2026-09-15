@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -15,17 +17,14 @@ import (
 // Package-level variables for mocking in tests
 var (
 	osUserHomeDir = os.UserHomeDir
-	osStat        = os.Stat
-	osGetwd       = os.Getwd
 )
 
 // QwenPathError describes actionable filesystem failures when locating Qwen Code data.
 type QwenPathError struct {
-	Kind       string   // projects_missing, project_missing
-	Path       string   // offending path
-	ProjectDir string   // sanitized directory name when relevant
-	KnownDirs  []string // project directories discovered on disk (optional)
-	Message    string   // user-facing explanation
+	Kind      string   // projects_missing, project_missing
+	Path      string   // offending path
+	KnownDirs []string // project directories discovered on disk (optional)
+	Message   string   // user-facing explanation
 }
 
 func (e *QwenPathError) Error() string {
@@ -42,26 +41,31 @@ func (e *QwenPathError) Error() string {
 // schema validation and break path hint normalization).
 func defaultProjectPath(projectPath string) (string, error) {
 	if projectPath != "" {
-		return projectPath, nil
+		return spi.CanonicalizePathOrClean(projectPath), nil
 	}
-	cwd, err := osGetwd()
+	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("failed to get current working directory: %v", err)
+		return "", fmt.Errorf("failed to get current working directory: %w", err)
 	}
-	return cwd, nil
+	return spi.CanonicalizePathOrClean(cwd), nil
 }
 
 // SanitizeQwenCwd converts a working directory path into Qwen Code's project
 // directory name: every character outside [a-zA-Z0-9] becomes '-'.
 // Example: /Users/alice/my app -> -Users-alice-my-app
-// This mirrors Qwen Code's own sanitizeCwd, which applies the replacement to
-// the process cwd verbatim (no symlink resolution).
+// This mirrors Qwen Code's sanitizeCwd: Windows lowercases first, then the
+// JavaScript regexp replaces each non-alphanumeric UTF-16 code unit.
 func SanitizeQwenCwd(path string) string {
+	if runtime.GOOS == "windows" {
+		path = strings.ToLower(path)
+	}
 	var b strings.Builder
 	b.Grow(len(path))
-	for _, r := range path {
+	// JavaScript's non-Unicode regexp replaces UTF-16 code units, including
+	// both halves of an astral character such as an emoji.
+	for _, r := range utf16.Encode([]rune(path)) {
 		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
+			b.WriteByte(byte(r))
 		} else {
 			b.WriteRune('-')
 		}
@@ -71,33 +75,39 @@ func SanitizeQwenCwd(path string) string {
 
 // GetQwenProjectsDir returns the path to the Qwen Code projects directory (~/.qwen/projects)
 func GetQwenProjectsDir() (string, error) {
-	homeDir, err := osUserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
+	base := os.Getenv("QWEN_RUNTIME_DIR")
+	if base == "" {
+		base = os.Getenv("QWEN_HOME")
 	}
-	return filepath.Join(homeDir, ".qwen", "projects"), nil
+	if base == "" {
+		base = "~/.qwen"
+	}
+	base, err := resolveQwenStoragePath(base)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, "projects"), nil
 }
 
-// candidateProjectDirNames returns the sanitized directory names to try for a
-// project path, most likely first. Qwen sanitizes the process cwd verbatim, so
-// the canonical path (correct case, symlinks resolved) is the usual match; the
-// raw absolute path is kept as a fallback in case the session was started from
-// a differently-spelled path to the same directory.
-func candidateProjectDirNames(projectPath string) []string {
-	absPath, err := filepath.Abs(projectPath)
+// resolveQwenStoragePath mirrors the vendor's tilde and relative-path
+// expansion. Freeze overrides before cmd.Dir changes the child's cwd.
+func resolveQwenStoragePath(base string) (string, error) {
+	if base == "~" || strings.HasPrefix(base, "~/") || strings.HasPrefix(base, `~\`) {
+		home, err := osUserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("get Qwen home: %w", err)
+		}
+		if base == "~" {
+			base = home
+		} else {
+			base = filepath.Join(home, filepath.FromSlash(strings.ReplaceAll(base[2:], `\`, "/")))
+		}
+	}
+	path, err := filepath.Abs(base)
 	if err != nil {
-		absPath = projectPath
+		return "", fmt.Errorf("resolve Qwen storage root: %w", err)
 	}
-
-	var names []string
-	if canonical, err := spi.GetCanonicalPath(absPath); err == nil {
-		names = append(names, SanitizeQwenCwd(canonical))
-	}
-	sanitizedAbs := SanitizeQwenCwd(absPath)
-	if len(names) == 0 || names[0] != sanitizedAbs {
-		names = append(names, sanitizedAbs)
-	}
-	return names
+	return path, nil
 }
 
 // ResolveQwenProjectDir locates the Qwen Code project directory
@@ -113,9 +123,9 @@ func ResolveQwenProjectDir(projectPath string) (string, error) {
 		return "", err
 	}
 
-	if _, err := osStat(projectsDir); err != nil {
+	if _, err := os.Stat(projectsDir); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			slog.Warn("ResolveQwenProjectDir: Qwen projects directory not found", "projectsDir", projectsDir)
+			slog.Debug("ResolveQwenProjectDir: Qwen projects directory not found", "projectsDir", projectsDir)
 			return "", &QwenPathError{
 				Kind:    "projects_missing",
 				Path:    projectsDir,
@@ -125,14 +135,13 @@ func ResolveQwenProjectDir(projectPath string) (string, error) {
 		return "", fmt.Errorf("failed to read Qwen projects directory %q: %w", projectsDir, err)
 	}
 
-	candidates := candidateProjectDirNames(projectPath)
-	for _, name := range candidates {
-		dir := filepath.Join(projectsDir, name)
-		if info, err := osStat(dir); err == nil && info.IsDir() {
-			slog.Debug("ResolveQwenProjectDir: Resolved Qwen project directory",
-				"projectPath", projectPath, "dir", dir)
-			return dir, nil
-		}
+	name := SanitizeQwenCwd(projectPath)
+	dir := filepath.Join(projectsDir, name)
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		slog.Debug("ResolveQwenProjectDir: Resolved Qwen project directory", "projectPath", projectPath, "dir", dir)
+		return dir, nil
+	} else if err != nil && !os.IsNotExist(err) {
+		return "", fmt.Errorf("read Qwen project directory %q: %w", dir, err)
 	}
 
 	knownDirs, listErr := ListQwenProjectDirs()
@@ -147,15 +156,14 @@ func ResolveQwenProjectDir(projectPath string) (string, error) {
 		known = "(none discovered)"
 	}
 
-	expected := filepath.Join(projectsDir, candidates[0])
-	slog.Warn("ResolveQwenProjectDir: Qwen project directory not found",
+	expected := dir
+	slog.Debug("ResolveQwenProjectDir: Qwen project directory not found",
 		"expected", expected, "knownDirs", known)
 
 	return "", &QwenPathError{
-		Kind:       "project_missing",
-		Path:       expected,
-		ProjectDir: candidates[0],
-		KnownDirs:  knownDirs,
+		Kind:      "project_missing",
+		Path:      expected,
+		KnownDirs: knownDirs,
 		Message: fmt.Sprintf("No Qwen Code data found for this project (expected %q). Known project directories: %s. Start a Qwen Code session in your repo to create it.",
 			expected, known),
 	}
@@ -182,4 +190,43 @@ func ListQwenProjectDirs() ([]string, error) {
 
 	sort.Strings(dirs)
 	return dirs, nil
+}
+
+// sessionBelongsToProject checks the recorded cwd because the sanitized store
+// key is lossy (/a-b and /a_b share a directory). Unknown origins remain
+// readable in their project directory; never infer an origin from tool paths.
+func sessionBelongsToProject(session *QwenSession, projectPath string) bool {
+	if session.Cwd == "" {
+		return true
+	}
+	cwd := session.Cwd
+	// Qwen explicitly keeps worktree sessions associated with their parent
+	// project. Match only its reserved .qwen/worktrees layout, not any subdir.
+	normalized := strings.ReplaceAll(cwd, `\`, "/")
+	if i := strings.LastIndex(normalized, "/.qwen/worktrees/"); i >= 0 {
+		cwd = cwd[:i]
+	}
+	if filepath.Clean(cwd) == filepath.Clean(projectPath) {
+		return true
+	}
+	// SameFile handles local symlinks and case aliases without rewriting a
+	// recorded cwd, which may instead refer to a case-sensitive remote system.
+	recorded, err := os.Stat(cwd)
+	if err != nil {
+		return false
+	}
+	project, err := os.Stat(projectPath)
+	return err == nil && os.SameFile(recorded, project)
+}
+
+// validSessionFilename rejects separators from either OS before joining a
+// caller-supplied id or reconstructed filename to the native store.
+func validSessionFilename(name string) bool {
+	return name != "" && name != "." && name != ".." && !strings.ContainsAny(name, `/\:`) && !strings.ContainsRune(name, 0)
+}
+
+// isSessionFile excludes ledger sidecars that also end in .jsonl. Native
+// transcripts have a single extension: <session-id>.jsonl.
+func isSessionFile(name string) bool {
+	return strings.HasSuffix(name, ".jsonl") && !strings.Contains(strings.TrimSuffix(name, ".jsonl"), ".")
 }

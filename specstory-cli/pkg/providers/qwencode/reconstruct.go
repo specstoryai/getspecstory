@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/google/uuid"
-
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -29,6 +27,11 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		return nil, err
 	}
 	cwd := spi.ResolveWorkspaceRoot(opts, data)
+	// Qwen validates the recorded cwd's hash, not just the directory containing
+	// the transcript. Canonicalize the local destination supplied by resume.
+	if opts.WorkspaceRoot != "" {
+		cwd = spi.CanonicalizePathOrClean(opts.WorkspaceRoot)
+	}
 
 	newID := uuid.NewString()
 	base := time.Now().UTC()
@@ -80,35 +83,21 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	}, nil
 }
 
-// NativeSessionPath returns where a reconstructed transcript belongs in Qwen's
-// store and prepares the project directory: Qwen keys a project by its
-// sanitized cwd, so for a project Qwen has never seen we create
-// `~/.qwen/projects/<sanitized-cwd>/chats/`. Returns `<chats>/<filename>`.
+// NativeSessionPath resolves the location Qwen will use when launched in the
+// canonical project cwd. Directory creation belongs to the resume command.
 func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
-	if projectPath == "" {
-		var err error
-		projectPath, err = osGetwd()
-		if err != nil {
-			return "", fmt.Errorf("failed to get current working directory: %w", err)
-		}
+	if !validSessionFilename(filename) {
+		return "", fmt.Errorf("invalid Qwen session filename %q", filename)
 	}
-
-	// Reuse the project dir Qwen already associates with this project, if any.
-	dir, err := ResolveQwenProjectDir(projectPath)
+	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
-		projectsDir, dirErr := GetQwenProjectsDir()
-		if dirErr != nil {
-			return "", dirErr
-		}
-		dir = filepath.Join(projectsDir, candidateProjectDirNames(projectPath)[0])
+		return "", err
 	}
-
-	chatsDir := filepath.Join(dir, "chats")
-	if err := os.MkdirAll(chatsDir, 0o755); err != nil {
-		return "", fmt.Errorf("failed to create qwen chats dir: %w", err)
+	projectsDir, err := GetQwenProjectsDir()
+	if err != nil {
+		return "", err
 	}
-
-	return filepath.Join(chatsDir, filename), nil
+	return filepath.Join(projectsDir, SanitizeQwenCwd(projectPath), "chats", filename), nil
 }
 
 // SupportsReconstruction reports true: this provider has a native serializer

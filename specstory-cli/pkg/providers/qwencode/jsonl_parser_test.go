@@ -1,8 +1,10 @@
 package qwencode
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -166,5 +168,40 @@ func TestResultDisplayString(t *testing.T) {
 				t.Errorf("resultDisplayString(%q) = %q, want %q", tt.raw, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestParseSessionFileSkipsOversizedRecordAndKeepsFollowingTurns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "large.jsonl")
+	raw := `{"type":"user","sessionId":"large","message":{"role":"user","parts":[{"text":"kept"}]}}`
+	if err := os.WriteFile(path, []byte(raw+"\n"+`{"type":"user","message":{"parts":[{"text":"`+strings.Repeat("x", 16*1024*1024)+`"}]}}`+"\n"+raw), 0644); err != nil {
+		t.Fatal(err)
+	}
+	s, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.Records) != 2 {
+		t.Fatalf("got %d records, want valid records before and after oversized line", len(s.Records))
+	}
+}
+
+func TestAttachmentOnlyUserTurnIsVisible(t *testing.T) {
+	var record QwenRecord
+	raw := `{"type":"user","provenance":"real_user","message":{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"dGVzdA=="}},{"fileData":{"mimeType":"image/jpeg","fileUri":"photo.jpg"}}]}}`
+	if err := json.Unmarshal([]byte(raw), &record); err != nil {
+		t.Fatal(err)
+	}
+	session := &QwenSession{ID: "image", StartTime: "2026-09-15T00:00:00Z", LastUpdated: "2026-09-15T00:00:00Z", Records: []QwenRecord{record}}
+	data, err := GenerateAgentSession(session, "/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Exchanges) != 1 {
+		t.Fatal("image-only user turn dropped")
+	}
+	text := data.Exchanges[0].Messages[0].Content[0].Text
+	if !strings.Contains(text, "image/png") || !strings.Contains(text, "photo.jpg") || strings.Contains(text, "dGVzdA==") {
+		t.Fatalf("unexpected attachment rendering: %s", text)
 	}
 }

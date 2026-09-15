@@ -1,18 +1,14 @@
 package qwencode
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-)
 
-func TestProviderName(t *testing.T) {
-	p := NewProvider()
-	if p.Name() != "Qwen Code" {
-		t.Errorf("Name() = %q, want Qwen Code", p.Name())
-	}
-}
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
 
 func TestCheck_InvalidCommand(t *testing.T) {
 	p := NewProvider()
@@ -52,6 +48,8 @@ func seedFakeSession(t *testing.T, home, projectPath, fixture, sessionID string)
 	if err != nil {
 		t.Fatal(err)
 	}
+	cwdJSON, _ := json.Marshal(canonical)
+	data = []byte(strings.ReplaceAll(string(data), `"/Users/dev/project"`, string(cwdJSON)))
 	dest := filepath.Join(chatsDir, sessionID+".jsonl")
 	if err := os.WriteFile(dest, data, 0o644); err != nil {
 		t.Fatal(err)
@@ -98,11 +96,7 @@ func TestGetAgentChatSessions_EmptyProjectPathUsesCwd(t *testing.T) {
 	projectPath := t.TempDir()
 	seedFakeSession(t, home, projectPath, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
 
-	// Point the package's cwd lookup at the project so an empty projectPath
-	// resolves there.
-	origGetwd := osGetwd
-	osGetwd = func() (string, error) { return projectPath, nil }
-	t.Cleanup(func() { osGetwd = origGetwd })
+	t.Chdir(projectPath)
 
 	p := NewProvider()
 	sessions, err := p.GetAgentChatSessions("", false, nil)
@@ -112,7 +106,7 @@ func TestGetAgentChatSessions_EmptyProjectPathUsesCwd(t *testing.T) {
 	if len(sessions) != 1 {
 		t.Fatalf("session count = %d, want 1", len(sessions))
 	}
-	if got := sessions[0].SessionData.WorkspaceRoot; got != projectPath {
+	if got := sessions[0].SessionData.WorkspaceRoot; got != spi.CanonicalizePathOrClean(projectPath) {
 		t.Errorf("WorkspaceRoot = %q, want the defaulted cwd %q (never empty)", got, projectPath)
 	}
 }
@@ -203,7 +197,7 @@ func TestListAllAgentChatSessions(t *testing.T) {
 		t.Errorf("NativePath = %q, want %q", ref.NativePath, path)
 	}
 	// OriginCwd comes from inside the transcript, not the directory name
-	if ref.OriginCwd != "/Users/dev/project" {
+	if ref.OriginCwd != spi.CanonicalizePathOrClean(projectPath) {
 		t.Errorf("OriginCwd = %q, want /Users/dev/project", ref.OriginCwd)
 	}
 }
@@ -217,5 +211,163 @@ func TestListAllAgentChatSessions_NoStore(t *testing.T) {
 	}
 	if len(refs) != 0 {
 		t.Errorf("ref count = %d, want 0", len(refs))
+	}
+}
+
+func TestSessionProjectBoundary(t *testing.T) {
+	home := withFakeHome(t)
+	project := filepath.Join(t.TempDir(), "a-b")
+	other := strings.TrimSuffix(project, "a-b") + "a_b"
+	for _, dir := range []string{project, other} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	const id = "11111111-2222-3333-4444-555555555555"
+	path := seedFakeSession(t, home, other, "session-basic.jsonl", id)
+	p := NewProvider()
+	if session, err := p.GetAgentChatSession(project, id, false); err != nil || session != nil {
+		t.Fatalf("cross-project lookup: %v, %v", session, err)
+	}
+	if sessions, err := p.GetAgentChatSessions(project, false, nil); err != nil || len(sessions) != 0 {
+		t.Fatalf("cross-project sync: %d, %v", len(sessions), err)
+	}
+	if sessions, err := p.ListAgentChatSessions(project); err != nil || len(sessions) != 0 {
+		t.Fatalf("cross-project list: %d, %v", len(sessions), err)
+	}
+	if session, err := p.GetAgentChatSession(other, id, false); err != nil || session == nil {
+		t.Fatalf("legitimate lookup failed: %v", err)
+	}
+	external := filepath.Join(home, "external.jsonl")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(external, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	traversal, err := filepath.Rel(filepath.Dir(path), strings.TrimSuffix(external, ".jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session, _ := p.GetAgentChatSession(other, traversal, false); session != nil {
+		t.Fatal("traversal returned external transcript")
+	}
+	if session, _ := p.GetAgentChatSession(other, strings.ReplaceAll(traversal, "/", `\`), false); session != nil {
+		t.Fatal("Windows traversal returned transcript")
+	}
+}
+
+func TestSyncSkipsEmptyAndReportsEveryFile(t *testing.T) {
+	home := withFakeHome(t)
+	project := t.TempDir()
+	seedFakeSession(t, home, project, "session-system-only.jsonl", "empty")
+	path := seedFakeSession(t, home, project, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "broken.jsonl"), []byte("broken"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "session.ledger.jsonl"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	sessions, err := NewProvider().GetAgentChatSessions(project, false, func(current, total int) {
+		calls++
+		if current != calls || total != 3 {
+			t.Errorf("progress %d/%d, call %d", current, total, calls)
+		}
+	})
+	if err != nil || len(sessions) != 1 || calls != 3 {
+		t.Fatalf("sessions=%d progress=%d error=%v", len(sessions), calls, err)
+	}
+}
+
+func TestDebugRawPreservesUnknownFieldsAndClearsStaleRecords(t *testing.T) {
+	spi.SetDebugBaseDir(t.TempDir())
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	path := filepath.Join(t.TempDir(), "debug.jsonl")
+	raw := `{"sessionId":"debug","type":"user","timestamp":"2026-09-15T00:00:00Z","message":{"role":"user","parts":[{"text":"hello"}]},"unknown":{"preserve":true}}`
+	if err := os.WriteFile(path, []byte(raw+"\n"+raw+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDebugRawFiles(session); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(raw+"\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	session, err = ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDebugRawFiles(session); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(spi.GetDebugDir("debug"), "1.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"preserve": true`) {
+		t.Fatal("unknown native fields lost")
+	}
+	if _, err := os.Stat(filepath.Join(spi.GetDebugDir("debug"), "2.json")); !os.IsNotExist(err) {
+		t.Fatal("stale debug record remains")
+	}
+}
+
+func TestProjectOwnershipAllowsQwenWorktreeOnly(t *testing.T) {
+	project := spi.CanonicalizePathOrClean(t.TempDir())
+	worktree := filepath.Join(project, ".qwen", "worktrees", "feature")
+	if !sessionBelongsToProject(&QwenSession{Cwd: worktree}, project) {
+		t.Fatal("native worktree attribution rejected")
+	}
+	if sessionBelongsToProject(&QwenSession{Cwd: filepath.Join(project, "other-child")}, project) {
+		t.Fatal("arbitrary child attributed to project")
+	}
+}
+
+func TestEnumerationOmitsNestedStoresAndKeepsUnknownOrigin(t *testing.T) {
+	home := withFakeHome(t)
+	project := t.TempDir()
+	path := seedFakeSession(t, home, project, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lines []string
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatal(err)
+		}
+		delete(record, "cwd")
+		record["sessionId"] = "unknown-origin"
+		encoded, _ := json.Marshal(record)
+		lines = append(lines, string(encoded))
+	}
+	if err := os.WriteFile(filepath.Join(filepath.Dir(path), "unknown-origin.jsonl"), []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(filepath.Dir(path), "nested", "chats")
+	if err := os.MkdirAll(nested, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nested, "nested.jsonl"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	refs, err := NewProvider().ListAllAgentChatSessions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(refs) != 2 {
+		t.Fatalf("enumeration included nested sessions: %d", len(refs))
+	}
+	for _, ref := range refs {
+		if ref.SessionID == "unknown-origin" && ref.OriginCwd != "" {
+			t.Fatal("invented unknown origin")
+		}
 	}
 }

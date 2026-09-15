@@ -1,6 +1,6 @@
 # New Provider Guide
 
-This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
+This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few needed changes as possible.
 
 The provider interface is specified by the doc comments on `spi.Provider` in `pkg/spi/provider.go` and on the two optional interfaces in `pkg/spi/global.go`; read those first. The unified session format is `pkg/spi/schema/types.go`, explained in [docs/SPI-SESSION-DATA-SCHEMA.md](docs/SPI-SESSION-DATA-SCHEMA.md).
 
@@ -12,22 +12,22 @@ Maintainers review every provider submission with [docs/NEW-PROVIDER-REVIEW.md](
 
 Every provider is judged by parity with the established siblings. Choose the closest one and mirror its file layout, method shapes, and behaviors. No single provider is reference-grade for everything, so take each concern from the provider named for it:
 
-| Concern | Copy from |
-| --- | --- |
-| Parsing a JSONL store, per-record debug output, a watcher that reconciles on a bounded window | `pkg/providers/claudecode` |
-| Tool rendering keyed to the agent's real inventory, `Check` with shared analytics, lifecycle logging | `pkg/providers/musecode`, `pkg/providers/antigravitycli` |
-| Watch-only startup with adoption of late-arriving directories | `pkg/providers/musecode` |
-| Reporting the agent's exit status without losing the last save | `pkg/spi/exit.go` (its doc comment states the contract) |
-| Bounded line reading | `pkg/providers/musecode`, `pkg/providers/antigravitycli` |
-| IDE-backed agent: workspace discovery, minting, launching | `pkg/providers/cursoride`, `pkg/providers/copilotide`, and the shared `pkg/providers/vscode` package |
-| SQLite store | `pkg/spi/sqlite.go` and `pkg/providers/cursoride` |
-| Factory scripts | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory` |
+|                                                Concern                                                |                                              Copy from                                               |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Parsing a JSONL session store, per-record debug output, a watcher that reconciles on a bounded window | `pkg/providers/claudecode`                                                                           |
+| Tool rendering keyed to the agent's real inventory, `Check` with shared analytics, lifecycle logging  | `pkg/providers/musecode`, `pkg/providers/antigravitycli`                                             |
+| Watch-only startup with adoption of late-arriving directories                                         | `pkg/providers/musecode`                                                                             |
+| Reporting the agent's exit status without losing the last save                                        | `pkg/spi/exit.go` (its doc comment states the contract)                                              |
+| Bounded line reading                                                                                  | `pkg/providers/musecode`, `pkg/providers/antigravitycli`                                             |
+| An IDE-backed (likely VSC) agent: workspace discovery, minting, launching                             | `pkg/providers/cursoride`, `pkg/providers/copilotide`, and the shared `pkg/providers/vscode` package |
+| Dealing with a SQLite session store                                                                   | `pkg/spi/sqlite.go` and `pkg/providers/cursoride`                                                    |
+| The SpecStory CLI Software Factory's maintenance scripts                                              | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory`                           |
 
-Known drift in the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; unbounded line reading in the Claude Code parser; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
+There is some known drift in some of the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; unbounded line reading in the Claude Code parser; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
 
 ### Learn the agent's on-disk format from the current release
 
-Install the agent, run it, and read what it writes. Do not work from the agent's documentation alone; the files on disk are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
+Install the agent, run it, and read what it writes; the files on disk are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
 
 - Store layout, record envelope, and the shape of every tool call and result you observed.
 - The write lifecycle: which file is the durable record, which files are transient (checkpoints, rolling "latest" files, locks), when each is written and deleted, and whether a transient file is shared across concurrent sessions. A session that is still in flight is expected to be invisible until the agent commits it.
@@ -35,7 +35,7 @@ Install the agent, run it, and read what it writes. Do not work from the agent's
 - How native resume works and which file the agent actually reads on resume.
 - The baseline agent version the provider targets, stated as the exact string the binary prints for `--version`.
 
-Leave out notes about versions below your baseline; a brand new provider has no readers who need the migration story.
+Leave out any notes about versions below your baseline; a brand new provider has no backwards compatibility requirement.
 
 ### Enumerate the agent's real tools yourself
 
@@ -54,7 +54,7 @@ Keep `tools.txt`, a `versions.txt` with the agent's version banner and the CLI v
 - Where the agent declares its own tools (a stream init event in headless mode, an extension hook), that declaration is the inventory and the model's self-report is only a lower bound. Tools you see used in the session that the model did not list belong in `tools.txt` too.
 - Strip any namespace prefix the model adds (`functions.`, `<agent>.`); session data records bare names, and those are what your provider matches.
 
-The names in that file are the only tool names your provider may special-case. Renderers, classifier cases, argument-key aliases, and fallback branches must each trace to an observed record. A renderer for a tool that never fires is untestable code that reads as though it were verified behavior, and it will be deleted in review.
+The names in that file are the only tool names your provider may special-case. Renderers, classifier cases, argument-key aliases, and fallback branches must each trace to an observed record. A renderer for a tool that never fires is untestable code that reads as though it were verified behavior, and it will likely be deleted in review.
 
 ### Verify native resume with a spike before writing a serializer
 
@@ -64,24 +64,29 @@ Plant a fact in a session ("the magic passphrase is PURPLE-ELEPHANT-42"), resume
 
 ### Package and files
 
-The architecture is one-directional: `pkg/spi` defines the interfaces, the schema, and the shared helpers and imports no provider; every provider imports `pkg/spi`; `pkg/spi/factory/registry.go` imports every provider and is the only place that knows them all. Nothing else in the CLI imports a provider package directly.
+The architecture is one-directional: 
 
-The package is `pkg/providers/<agent><kind>`, where kind is `cli`, `ide`, `tui`, `code`, or `agent` (for example `deepseektui`, `cursoride`, `musecode`). The canonical file set is:
+- `pkg/spi` defines the interfaces, the schema, and the shared helpers and imports no provider
+- every provider imports `pkg/spi`
+- `pkg/spi/factory/registry.go` imports every provider and is the only place that knows them all. 
+- Nothing else in the CLI imports a provider package directly.
 
-| File | Purpose |
-| --- | --- |
-| `provider.go` | The `Provider` struct, `NewProvider()`, `Check`, `DetectAgent`, session listing and lookup |
-| `agent_session.go` | Conversion from the native format to `schema.SessionData` |
-| `jsonl_parser.go` (or `json_parser.go`, `transcript_parser.go`, `database.go`) | Native format decoding |
-| `markdown_tools.go` | Per-tool `Summary` and `FormattedMarkdown` rendering |
-| `watcher.go` | fsnotify watcher used by `run` and `watch` |
-| `<agent>_exec.go` | Command line parsing, resume arguments, process launch, exit handling |
-| `path_utils.go` | Native store discovery and working directory encoding |
-| `reconstruct.go` | `ReconstructSession`, `NativeSessionPath`, `SupportsReconstruction` |
-| `*_test.go` | Tests alongside each source file, plus `testdata/` fixtures captured from real sessions |
-| `factory/` | Software factory scripts (see below) |
+The package is `pkg/providers/<agent>`, for example `claudecode`, `codexcli`, `cursoride`, `musecode`). The typical file set is:
 
-Do not split helpers into small utility files (`text_utils.go`, `reader_utils.go`, and the like). Helpers live in the file whose concern they serve, matching where the other providers keep theirs.
+|                                      File                                      |                                          Purpose                                           |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `provider.go`                                                                  | The `Provider` struct, `NewProvider()`, `Check`, `DetectAgent`, session listing and lookup |
+| `agent_session.go`                                                             | Conversion from the native format to `schema.SessionData`                                  |
+| `jsonl_parser.go` (or `json_parser.go`, `transcript_parser.go`, `database.go`) | Native format decoding                                                                     |
+| `markdown_tools.go`                                                            | Per-tool `Summary` and `FormattedMarkdown` rendering                                       |
+| `watcher.go`                                                                   | fsnotify watcher used by `run` and `watch`                                                 |
+| `<agent>_exec.go`                                                              | Command line parsing, resume arguments, process launch, exit handling                      |
+| `path_utils.go`                                                                | Native store discovery and working directory encoding                                      |
+| `reconstruct.go`                                                               | `ReconstructSession`, `NativeSessionPath`, `SupportsReconstruction`                        |
+| `*_test.go`                                                                    | Tests alongside each source file, plus `testdata/` fixtures captured from real sessions    |
+| `factory/`                                                                     | Software factory scripts (see below)                                                       |
+
+Do not create tons of small files by splitting helpers into small utility files (`text_utils.go`, `reader_utils.go`, and the like). Helpers live in the file whose concern they serve, matching where the other providers keep theirs.
 
 Add `var _ spi.Provider = (*Provider)(nil)` so the compiler enforces the interface, and the same assertion for any optional interface you implement.
 
@@ -110,13 +115,13 @@ Implement every method on `spi.Provider` in `pkg/spi/provider.go` (twelve today;
 
 Five identifiers exist and they are not the same string:
 
-| Identifier | Convention | Example |
-| --- | --- | --- |
-| Package name | `<agent><kind>` | `deepseektui` |
-| Registry id (CLI argument, `<id>_cmd`, statistics, index, check-event `provider` property) | short lowercase agent name | `deepseek` |
-| `ProviderInfo.ID` in session data | the registry id, for every provider from Muse Code onward | `muse` |
-| `Name()` and `ProviderInfo.Name` | the product's own name and casing; also the `agent_provider` analytics property and the telemetry agent attribute | `DeepSeek TUI` |
-| Skills registry `Name` in `pkg/skills/agents.go` | the public `npx skills` canonical id | `claude-code` |
+|                                         Identifier                                         |                                                    Convention                                                     |     Example      |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- | ---------------- |
+| Package name                                                                               | `<agent>`                                                                                                         | `antigravitycli` |
+| Registry id (CLI argument, `<id>_cmd`, statistics, index, check-event `provider` property) | short lowercase agent name                                                                                        | `deepseek`       |
+| `ProviderInfo.ID` in session data                                                          | the registry id, for every provider from Muse Code onward                                                         | `muse`           |
+| `Name()` and `ProviderInfo.Name`                                                           | the product's own name and casing; also the `agent_provider` analytics property and the telemetry agent attribute | `DeepSeek TUI`   |
+| Skills registry `Name` in `pkg/skills/agents.go`                                           | the public `npx skills` canonical id                                                                              | `claude-code`    |
 
 Go identifiers follow the brand's casing (`DeepSeekCmd`, not `DeepseekCmd`).
 
@@ -267,17 +272,17 @@ The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs th
 
 Reviewers exercise every command against the real agent, at the version shipping that week, from a scratch project, invoking the freshly built `./specstory`. Test these yourself before submitting and say in the PR which you ran and on which operating systems.
 
-| Command | What must be true |
-| --- | --- |
-| `./specstory check <id>` | Version and location reported; `-c` with a bad path fails with guidance naming that path; the success hint advertises a command that works |
-| `./specstory sync`, `sync <id>`, `sync -s <session-id>`, `sync -s <session-id> --print` | One markdown file per non-empty session; a second sync with no agent activity reports every session as up to date and changes no bytes; from a directory with no sessions, `sync <id>` prints your provider's own guidance and exits 0 |
-| `./specstory sync --debug-raw --log --debug` | `.specstory/debug/<session-id>/` holds pretty-printed per-record `N.json` files (JSONL agents) or one raw file, plus `session-data.json`; `debug.log` reconstructs every decision and contains no `schema validation:` warnings |
-| `./specstory run <id>` | The agent takes the terminal with no interleaved output; markdown appears after the first turn and grows; the CLI exits with the agent's status and the last turn is saved even on a non-zero exit; this also works from a project the agent has never seen, and with `--debug-raw` |
-| `./specstory watch <id>` | Existing sessions are left alone; the first new update prints and is saved; works when started in a project the agent has never seen |
-| `./specstory resume <id>` (same agent) | The agent opens with prior turns visible and answers a question about them; the same native file grows; the same markdown file updates |
-| `./specstory resume claude` from your agent's session | The reconstructed session opens in Claude Code with the migration note first and every user prompt present; no command or system scaffolding is replayed. Use a source session with plain turns, thinking, at least one tool call, and a slash command |
-| `./specstory resume <id>` from a Claude Code session | Your agent opens the reconstructed session with the prior conversation, answers a question about it, shows no warning about the session file, and appends to that same file rather than starting a fresh session |
-| `./specstory list <id>`, `search`, `reindex` | Every synced session is listed with the same slug as its filename; reindex counts your sessions across all projects and attributes them to the right project |
+|                                         Command                                         |                                                                                                                                  What must be true                                                                                                                                  |
+| --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `./specstory check <id>`                                                                | Version and location reported; `-c` with a bad path fails with guidance naming that path; the success hint advertises a command that works                                                                                                                                          |
+| `./specstory sync`, `sync <id>`, `sync -s <session-id>`, `sync -s <session-id> --print` | One markdown file per non-empty session; a second sync with no agent activity reports every session as up to date and changes no bytes; from a directory with no sessions, `sync <id>` prints your provider's own guidance and exits 0                                              |
+| `./specstory sync --debug-raw --log --debug`                                            | `.specstory/debug/<session-id>/` holds pretty-printed per-record `N.json` files (JSONL agents) or one raw file, plus `session-data.json`; `debug.log` reconstructs every decision and contains no `schema validation:` warnings                                                     |
+| `./specstory run <id>`                                                                  | The agent takes the terminal with no interleaved output; markdown appears after the first turn and grows; the CLI exits with the agent's status and the last turn is saved even on a non-zero exit; this also works from a project the agent has never seen, and with `--debug-raw` |
+| `./specstory watch <id>`                                                                | Existing sessions are left alone; the first new update prints and is saved; works when started in a project the agent has never seen                                                                                                                                                |
+| `./specstory resume <id>` (same agent)                                                  | The agent opens with prior turns visible and answers a question about them; the same native file grows; the same markdown file updates                                                                                                                                              |
+| `./specstory resume claude` from your agent's session                                   | The reconstructed session opens in Claude Code with the migration note first and every user prompt present; no command or system scaffolding is replayed. Use a source session with plain turns, thinking, at least one tool call, and a slash command                              |
+| `./specstory resume <id>` from a Claude Code session                                    | Your agent opens the reconstructed session with the prior conversation, answers a question about it, shows no warning about the session file, and appends to that same file rather than starting a fresh session                                                                    |
+| `./specstory list <id>`, `search`, `reindex`                                            | Every synced session is listed with the same slug as its filename; reindex counts your sessions across all projects and attributes them to the right project                                                                                                                        |
 
 Also run `sync`, `list`, and `watch` from the scratch project reached through a symlink and from a path containing a space and an underscore; each must find the same sessions as the canonical path.
 
@@ -308,7 +313,7 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - Open the pull request against `dev`, never `main`. If you are contributing from a fork, enable "Allow edits by maintainers".
 - Merge `dev` into your branch first and resolve conflicts, so the diff contains only your provider.
 - In the description state: the agent version you built against and tested on, the operating systems you tested on, which rows of the test table you ran, the attached enumeration artifacts and audit, any SPI or shared-code changes and why, and known limitations (for example, resume into the agent unsupported and why).
-- Expect the GitHub Copilot reviewer to comment. Its findings are triaged, not obeyed; fix the real ones and explain the rest.
+- Expect the GitHub Copilot reviewer to comment. Its findings are triaged, not obeyed; fix the real ones and comment on and resolve the rest.
 - Expect the maintainer to review by pushing commits directly onto your branch rather than requesting changes, and to cut the release.
 
 ## Self-review checklist

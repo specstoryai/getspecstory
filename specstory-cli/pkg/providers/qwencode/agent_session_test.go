@@ -1,6 +1,8 @@
 package qwencode
 
 import (
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -231,7 +233,7 @@ func TestClassifyQwenToolType(t *testing.T) {
 		{"grep_search", "search"},
 		{"glob", "search"},
 		{"run_shell_command", "shell"},
-		{"list_directory", "shell"},
+		{"list_directory", "search"},
 		{"monitor", "shell"},
 		{"todo_write", "task"},
 		{"task", "task"},
@@ -246,5 +248,78 @@ func TestClassifyQwenToolType(t *testing.T) {
 				t.Errorf("classifyQwenToolType(%q) = %q, want %q", tt.tool, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestAssistantPartOrderAndUniqueIDs(t *testing.T) {
+	record := QwenRecord{UUID: "a", Type: "assistant", Timestamp: "2026-09-15T00:00:00Z", Message: &QwenMessage{Parts: []QwenPart{
+		{Text: "before"}, {FunctionCall: &QwenFunctionCall{ID: "call", Name: "read_file"}}, {Text: "thinking", Thought: true}, {Text: "after"},
+	}}, UsageMetadata: &QwenUsageMetadata{PromptTokenCount: 12}}
+	msgs := buildAgentMessages(&record, nil, "/project")
+	if len(msgs) != 4 {
+		t.Fatalf("got %d messages, want each part in order", len(msgs))
+	}
+	if msgs[0].Content[0].Text != "before" || msgs[1].Tool == nil || msgs[2].Content[0].Type != "thinking" || msgs[3].Content[0].Text != "after" {
+		t.Fatal("native part order lost")
+	}
+	ids := map[string]bool{}
+	for i, msg := range msgs {
+		if ids[msg.ID] {
+			t.Fatal("duplicate message id")
+		}
+		ids[msg.ID] = true
+		if i < 3 && msg.Usage != nil {
+			t.Fatal("usage duplicated")
+		}
+	}
+	if msgs[3].Usage == nil {
+		t.Fatal("usage dropped")
+	}
+}
+
+// Expectations come from the vendor declaration, not the classifier under test.
+func TestDeclaredToolInventory(t *testing.T) {
+	data, err := os.ReadFile("testdata/tools.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inventory struct{ Tools []struct{ Name, Type string } }
+	if err := json.Unmarshal(data, &inventory); err != nil {
+		t.Fatal(err)
+	}
+	if len(inventory.Tools) == 0 {
+		t.Fatal("empty tool inventory")
+	}
+	for _, tool := range inventory.Tools {
+		t.Run(tool.Name, func(t *testing.T) {
+			if got := classifyQwenToolType(tool.Name); got != tool.Type {
+				t.Errorf("got %s, want %s", got, tool.Type)
+			}
+		})
+	}
+}
+
+func TestCurrentQwenRecorderFixture(t *testing.T) {
+	session := loadSession(t, "session-current.jsonl")
+	data, err := GenerateAgentSession(session, "/Users/dev/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data.Provider.Version != "0.23.4" || !data.Validate() {
+		t.Fatal("current recorder fixture failed conversion")
+	}
+	tools := 0
+	for _, exchange := range data.Exchanges {
+		for _, msg := range exchange.Messages {
+			if msg.Tool != nil {
+				tools++
+				if msg.Tool.Name != "run_shell_command" || msg.Tool.FormattedMarkdown == nil || !strings.Contains(*msg.Tool.FormattedMarkdown, "tool-review-ok") {
+					t.Fatalf("native shell result lost: %+v", msg.Tool)
+				}
+			}
+		}
+	}
+	if tools != 1 {
+		t.Fatalf("got %d tools, want native shell call exactly once", tools)
 	}
 }

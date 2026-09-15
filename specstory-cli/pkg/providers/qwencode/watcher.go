@@ -6,31 +6,38 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 var (
-	watcherCtx           context.Context
-	watcherCancel        context.CancelFunc
-	watcherWg            sync.WaitGroup
-	watcherCallback      func(*spi.AgentChatSession)
-	watcherMutex         sync.RWMutex
-	watcherDebugRaw      bool
-	watcherWorkspaceRoot string
+	// Starting and stopping share a lock so Wait cannot race a new Go call.
+	watcherLifecycle sync.Mutex
+	activeWatcher    *qwenWatcher
+	watcherMutex     sync.RWMutex
+	watcherDebugRaw  bool
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
+type fileStamp struct {
+	size  int64
+	mtime time.Time
 }
 
-func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
-	watcherMutex.Lock()
-	defer watcherMutex.Unlock()
-	watcherCallback = callback
+// qwenWatcher owns one start's state. Only its worker reads or writes stamps
+// and watches; callbacks run in that worker, in order, and Stop joins it.
+type qwenWatcher struct {
+	watcher     *fsnotify.Watcher
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+	projectPath string
+	chatsDir    string
+	ancestor    string
+	stamps      map[string]fileStamp
+	callback    func(*spi.AgentChatSession)
+	debugRaw    bool
 }
 
 func SetWatcherDebugRaw(debugRaw bool) {
@@ -39,282 +46,196 @@ func SetWatcherDebugRaw(debugRaw bool) {
 	watcherDebugRaw = debugRaw
 }
 
-func SetWatcherWorkspaceRoot(workspaceRoot string) {
-	watcherMutex.Lock()
-	defer watcherMutex.Unlock()
-	watcherWorkspaceRoot = workspaceRoot
-}
-
-func getWatcherWorkspaceRoot() string {
-	watcherMutex.RLock()
-	defer watcherMutex.RUnlock()
-	return watcherWorkspaceRoot
-}
-
-func getWatcherDebugRaw() bool {
-	watcherMutex.RLock()
-	defer watcherMutex.RUnlock()
-	return watcherDebugRaw
-}
-
+// StopWatcher performs a final disk reconciliation before returning. A child
+// can write and exit before fsnotify delivers its last event, so draining only
+// the event queue is insufficient. Synchronous delivery also joins every save.
 func StopWatcher() {
-	watcherCancel()
-	watcherWg.Wait()
+	watcherLifecycle.Lock()
+	defer watcherLifecycle.Unlock()
+	if activeWatcher == nil {
+		return
+	}
+	activeWatcher.cancel()
+	activeWatcher.wg.Wait()
+	activeWatcher = nil
+	slog.Info("StopWatcher: Qwen watcher stopped; saves drained")
 }
 
-// WatchQwenProject watches ~/.qwen/projects/<sanitized-cwd>/chats for session
-// transcript changes. Directories that don't exist yet (fresh install, first
-// session in a project) are awaited via fsnotify on their parent, stepping
-// down the chain: ~/.qwen → projects → <sanitized-cwd> → chats.
+// WatchQwenProject arms watches before returning. Existing files establish a
+// silent baseline; files appearing during bootstrap are adopted by reconcile.
 func WatchQwenProject(projectPath string, callback func(*spi.AgentChatSession)) error {
-	// Default the path before recording it as the workspace root, so sessions
-	// converted by the watcher never carry an empty root.
+	watcherLifecycle.Lock()
+	defer watcherLifecycle.Unlock()
+	if activeWatcher != nil {
+		return fmt.Errorf("qwen watcher is already running")
+	}
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
 		return err
 	}
-
-	SetWatcherCallback(callback)
-	SetWatcherWorkspaceRoot(projectPath)
-
 	projectsDir, err := GetQwenProjectsDir()
-	if err != nil {
-		return fmt.Errorf("failed to get qwen projects dir: %w", err)
-	}
-	qwenDir := filepath.Dir(projectsDir) // ~/.qwen
-
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-
-		if err := waitForDirectoryFsnotify(watcherCtx, qwenDir, "Qwen root directory"); err != nil {
-			slog.Debug("Stopped Qwen watcher while waiting for root directory", "error", err)
-			return
-		}
-
-		if err := waitForDirectoryFsnotify(watcherCtx, projectsDir, "Qwen projects directory"); err != nil {
-			slog.Debug("Stopped Qwen watcher while waiting for projects directory", "error", err)
-			return
-		}
-
-		projectDir, err := waitForProjectDir(watcherCtx, projectsDir, projectPath)
-		if err != nil {
-			slog.Debug("Stopped Qwen watcher while waiting for project directory", "error", err)
-			return
-		}
-
-		chatsDir := filepath.Join(projectDir, "chats")
-		if err := waitForDirectoryFsnotify(watcherCtx, chatsDir, "Qwen chats directory"); err != nil {
-			slog.Debug("Stopped Qwen watcher while waiting for chats directory", "error", err)
-			return
-		}
-
-		if err := startChatsWatcher(chatsDir); err != nil {
-			slog.Error("Failed to start Qwen chats watcher", "error", err)
-		}
-	}()
-
-	return nil
-}
-
-// waitForProjectDir waits for the project's sanitized directory to appear
-// under projectsDir. Both candidate names (canonical and absolute path
-// sanitizations) are accepted.
-func waitForProjectDir(ctx context.Context, projectsDir, projectPath string) (string, error) {
-	candidates := candidateProjectDirNames(projectPath)
-
-	checkAll := func() string {
-		for _, name := range candidates {
-			dir := filepath.Join(projectsDir, name)
-			if info, err := os.Stat(dir); err == nil && info.IsDir() {
-				return dir
-			}
-		}
-		return ""
-	}
-
-	if dir := checkAll(); dir != "" {
-		return dir, nil
-	}
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return "", fmt.Errorf("failed to create fsnotify watcher for project dir: %w", err)
-	}
-	defer func() { _ = watcher.Close() }()
-
-	if err := watcher.Add(projectsDir); err != nil {
-		return "", fmt.Errorf("failed to watch projects directory %q: %w", projectsDir, err)
-	}
-
-	slog.Debug("Qwen watcher: watching for project directory creation",
-		"projectsDir", projectsDir, "candidates", candidates)
-
-	// Re-check after adding watcher to close the race window
-	if dir := checkAll(); dir != "" {
-		return dir, nil
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return "", fmt.Errorf("fsnotify events channel closed for project dir watcher")
-			}
-			if !event.Has(fsnotify.Create) {
-				continue
-			}
-			if dir := checkAll(); dir != "" {
-				return dir, nil
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return "", fmt.Errorf("fsnotify errors channel closed for project dir watcher")
-			}
-			return "", fmt.Errorf("fsnotify watcher error for project dir: %w", err)
-		}
-	}
-}
-
-func startChatsWatcher(chatsDir string) error {
-	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
-
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-		defer func() {
-			_ = watcher.Close()
-		}()
-
-		if err := watcher.Add(chatsDir); err != nil {
-			slog.Error("Failed to add chats dir to watcher", "error", err)
-			return
+	dir := filepath.Join(projectsDir, SanitizeQwenCwd(projectPath), "chats")
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("create Qwen watcher: %w", err)
+	}
+	watcherMutex.RLock()
+	debugRaw := watcherDebugRaw
+	watcherMutex.RUnlock()
+	ctx, cancel := context.WithCancel(context.Background())
+	w := &qwenWatcher{watcher: watcher, cancel: cancel, projectPath: projectPath, chatsDir: dir, stamps: make(map[string]fileStamp), callback: callback, debugRaw: debugRaw}
+	if err := w.reconcile(true); err != nil {
+		cancel()
+		_ = watcher.Close()
+		return err
+	}
+	activeWatcher = w
+	w.wg.Go(func() {
+		defer func() { _ = watcher.Close() }()
+		// New files in this flat store are found by the safety-net scan. Watching
+		// chats itself would hold one kqueue descriptor per historical file on macOS.
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		reconcile := func() {
+			if err := w.reconcile(false); err != nil {
+				slog.Warn("Qwen watcher: Reconcile failed", "path", dir, "error", err)
+			}
 		}
-
+		reconcile()
 		for {
 			select {
-			case <-watcherCtx.Done():
+			case <-ctx.Done():
+				reconcile()
 				return
+			case <-ticker.C:
+				reconcile()
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
-				// Only .jsonl transcripts matter; the chats dir also holds
-				// <session-id>.runtime.json files that churn during a session.
-				if strings.HasSuffix(event.Name, ".jsonl") && (event.Has(fsnotify.Write) || event.Has(fsnotify.Create)) {
-					processSessionChange(event.Name)
+				if filepath.Dir(event.Name) == dir && isSessionFile(filepath.Base(event.Name)) && (event.Has(fsnotify.Write) || event.Has(fsnotify.Create)) {
+					// Always deliver relevant events, even if the filesystem's timestamp
+					// resolution hides a same-size rewrite. Content dedup belongs to cmd.
+					w.emit(event.Name)
+				}
+				if event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+					reconcile()
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				slog.Error("Qwen watcher error", "error", err)
+				slog.Warn("Qwen watcher: Filesystem event error", "error", err)
+				reconcile()
 			}
 		}
-	}()
-
+	})
+	slog.Info("WatchQwenProject: Qwen watcher armed", "projectPath", projectPath, "path", dir)
 	return nil
 }
 
-func processSessionChange(filePath string) {
-	slog.Debug("processSessionChange: Detected Qwen session file change", "file", filePath)
-
-	session, err := ParseSessionFile(filePath)
-	if err != nil {
-		slog.Error("processSessionChange: Failed to parse session file", "file", filePath, "error", err)
-		return
+// reconcile maintains watches only on this project's recent transcript files
+// and one ancestor directory. Metadata scans stop at chats/*.jsonl. Old files
+// acquire a watch again when their mtime advances after an external resume.
+func (w *qwenWatcher) reconcile(baseline bool) error {
+	ancestor := filepath.Dir(w.chatsDir)
+	for {
+		info, err := os.Stat(ancestor)
+		if err == nil && info.IsDir() {
+			break
+		}
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("stat Qwen ancestor: %w", err)
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return fmt.Errorf("no directory to watch for %s", w.chatsDir)
+		}
+		ancestor = parent
 	}
-	if len(session.Records) == 0 {
-		slog.Debug("processSessionChange: Session file has no records yet", "file", filePath)
-		return
+	if ancestor != w.ancestor {
+		if err := w.watcher.Add(ancestor); err != nil {
+			return fmt.Errorf("watch Qwen ancestor %q: %w", ancestor, err)
+		}
+		if w.ancestor != "" {
+			_ = w.watcher.Remove(w.ancestor)
+		}
+		w.ancestor = ancestor
 	}
-
-	agentSession := convertToAgentChatSession(session, getWatcherWorkspaceRoot(), getWatcherDebugRaw())
-	triggerCallback(agentSession)
+	entries, err := os.ReadDir(w.chatsDir)
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("read Qwen chats: %w", err)
+	}
+	cutoff := spi.WatchWindowCutoff(time.Now())
+	live := make(map[string]bool)
+	watches := make(map[string]bool)
+	for _, path := range w.watcher.WatchList() {
+		watches[path] = true
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() || !isSessionFile(entry.Name()) {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			continue
+		}
+		path := filepath.Join(w.chatsDir, entry.Name())
+		live[path] = true
+		stamp := fileStamp{info.Size(), info.ModTime()}
+		previous, seen := w.stamps[path]
+		if !watches[path] {
+			if err := w.watcher.Add(path); err != nil {
+				slog.Debug("Qwen watcher: File unavailable for watch", "path", path, "error", err)
+			}
+		}
+		if baseline {
+			w.stamps[path] = stamp
+		} else if !seen || previous != stamp {
+			w.emit(path)
+		}
+	}
+	for path := range w.stamps {
+		if !live[path] {
+			delete(w.stamps, path)
+			_ = w.watcher.Remove(path)
+		}
+	}
+	return nil
 }
 
-// triggerCallback is a helper to call the watcher callback with proper locking.
-//
-// Delivery is synchronous so transcript changes reach the consumer in the order
-// fsnotify reported them, but a panic in the consumer is contained here: it
-// would otherwise unwind the fsnotify event goroutine and take down the whole
-// process over one malformed session.
-func triggerCallback(agentSession *spi.AgentChatSession) {
-	watcherMutex.RLock()
-	cb := watcherCallback
-	watcherMutex.RUnlock()
-
-	if cb == nil || agentSession == nil {
+func (w *qwenWatcher) emit(path string) {
+	info, err := os.Lstat(path)
+	if err != nil || !info.Mode().IsRegular() {
 		return
 	}
+	// Stamp before parsing: a write during parsing is still detected next time.
+	w.stamps[path] = fileStamp{info.Size(), info.ModTime()}
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		slog.Debug("Qwen watcher: Session unavailable", "path", path, "error", err)
+		return
+	}
+	if !sessionBelongsToProject(session, w.projectPath) {
+		return
+	}
+	deliverSession(w.callback, convertToAgentChatSession(session, w.projectPath, w.debugRaw))
+}
 
+func deliverSession(callback func(*spi.AgentChatSession), session *spi.AgentChatSession) {
+	if callback == nil || session == nil {
+		return
+	}
 	defer func() {
 		if r := recover(); r != nil {
-			slog.Error("qwen: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
+			slog.Error("Qwen watcher: Session callback panicked", "sessionId", session.SessionID, "panic", r)
 		}
 	}()
-	cb(agentSession)
-}
-
-// waitForDirectoryFsnotify waits for a directory to exist using fsnotify on its parent.
-// The parent directory must already exist; if it doesn't, the function returns an error.
-// label is a human-readable name used in log messages (e.g., "Qwen projects directory").
-func waitForDirectoryFsnotify(ctx context.Context, dir string, label string) error {
-	info, err := os.Stat(dir)
-	if err == nil && info.IsDir() {
-		slog.Debug("Qwen watcher: directory ready", "label", label, "path", dir)
-		return nil
-	}
-
-	parentDir := filepath.Dir(dir)
-	childName := filepath.Base(dir)
-
-	// Parent must exist — caller guarantees this via the sequential wait chain
-	if _, err := os.Stat(parentDir); err != nil {
-		return fmt.Errorf("parent directory %q does not exist for %s: %w", parentDir, label, err)
-	}
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("failed to create fsnotify watcher for %s: %w", label, err)
-	}
-	defer func() { _ = watcher.Close() }()
-
-	if err := watcher.Add(parentDir); err != nil {
-		return fmt.Errorf("failed to watch parent directory %q for %s: %w", parentDir, label, err)
-	}
-
-	slog.Debug("Qwen watcher: watching for directory creation", "label", label, "parent", parentDir, "child", childName)
-
-	// Re-check after adding watcher to close the race window
-	info, err = os.Stat(dir)
-	if err == nil && info.IsDir() {
-		slog.Debug("Qwen watcher: directory ready", "label", label, "path", dir)
-		return nil
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return fmt.Errorf("fsnotify events channel closed for %s", label)
-			}
-			if event.Has(fsnotify.Create) && filepath.Base(event.Name) == childName {
-				slog.Debug("Qwen watcher: directory ready", "label", label, "path", dir)
-				return nil
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return fmt.Errorf("fsnotify errors channel closed for %s", label)
-			}
-			return fmt.Errorf("fsnotify watcher error for %s: %w", label, err)
-		}
-	}
+	callback(session)
 }

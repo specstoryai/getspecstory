@@ -46,7 +46,7 @@ func convertUsage(usage *QwenUsageMetadata) *Usage {
 
 // GenerateAgentSession creates a SessionData from a parsed QwenSession.
 func GenerateAgentSession(session *QwenSession, workspaceRoot string) (*SessionData, error) {
-	slog.Info("GenerateAgentSession: Starting", "sessionID", session.ID, "recordCount", len(session.Records))
+	slog.Debug("GenerateAgentSession: Starting", "sessionID", session.ID, "recordCount", len(session.Records))
 
 	if len(session.Records) == 0 {
 		return nil, fmt.Errorf("session has no records")
@@ -64,7 +64,7 @@ func GenerateAgentSession(session *QwenSession, workspaceRoot string) (*SessionD
 		exchanges[i].ExchangeID = fmt.Sprintf("%s:%d", session.ID, i)
 	}
 
-	slog.Info("GenerateAgentSession: Built exchanges", "count", len(exchanges))
+	slog.Debug("GenerateAgentSession: Built exchanges", "count", len(exchanges))
 
 	// Populate FormattedMarkdown for all tools
 	for i := range exchanges {
@@ -198,33 +198,26 @@ func buildExchangesFromRecords(records []QwenRecord, workspaceRoot string) []Exc
 func buildAgentMessages(record *QwenRecord, outcomes map[string]toolOutcome, workspaceRoot string) []Message {
 	var messages []Message
 
-	if thinking := strings.TrimSpace(record.ThoughtContent()); thinking != "" {
-		messages = append(messages, Message{
-			ID:        record.UUID,
-			Timestamp: record.Timestamp,
-			Role:      schema.RoleAgent,
-			Model:     record.Model,
-			Content:   []ContentPart{{Type: "thinking", Text: thinking}},
-		})
-	}
-
 	if record.Message != nil {
-		for _, part := range record.Message.Parts {
-			if part.FunctionCall == nil {
-				continue
+		for i, part := range record.Message.Parts {
+			var msg Message
+			if part.FunctionCall != nil {
+				msg = buildToolMessage(record, part.FunctionCall, outcomes, workspaceRoot)
+			} else {
+				text := part.displayText()
+				if strings.TrimSpace(text) == "" {
+					continue
+				}
+				kind := "text"
+				if part.Thought {
+					kind = "thinking"
+				}
+				msg = Message{Timestamp: record.Timestamp, Role: schema.RoleAgent, Model: record.Model, Content: []ContentPart{{Type: kind, Text: text}}}
 			}
-			messages = append(messages, buildToolMessage(record, part.FunctionCall, outcomes, workspaceRoot))
+			// One native record can hold several distinct messages and parallel calls.
+			msg.ID = fmt.Sprintf("%s:%d", record.UUID, i)
+			messages = append(messages, msg)
 		}
-	}
-
-	if text := strings.TrimSpace(record.TextContent()); text != "" {
-		messages = append(messages, Message{
-			ID:        record.UUID,
-			Timestamp: record.Timestamp,
-			Role:      schema.RoleAgent,
-			Model:     record.Model,
-			Content:   []ContentPart{{Type: "text", Text: text}},
-		})
 	}
 
 	if usage := convertUsage(record.UsageMetadata); usage != nil && len(messages) > 0 {
@@ -290,24 +283,23 @@ func buildToolOutput(outcome toolOutcome) map[string]any {
 // classifyQwenToolType maps Qwen Code tool names to standard tool types.
 // Valid types: write, read, search, shell, task, generic, unknown
 func classifyQwenToolType(toolName string) string {
-	// Computer-use tools arrive as computer_use__<action>; classify the family.
-	if strings.HasPrefix(toolName, "computer_use") {
+	if strings.HasPrefix(toolName, "computer_use__") {
 		return "generic"
 	}
-
+	toolName = canonicalQwenToolName(toolName)
+	// Inventory: Qwen 0.23.4 ToolNames declaration, captured in testdata/tools.json.
 	switch toolName {
-	case "read_file", "read_many_files", "web_fetch":
+	case "read_file", "zoom_image", "web_fetch", "read_mcp_resource", "display_image":
 		return "read"
-	case "write_file", "edit", "replace", "smart_edit", "notebook_edit":
+	case "write_file", "edit", "notebook_edit", "image_gen":
 		return "write"
-	case "grep_search", "search_file_content", "glob", "google_web_search", "web_search", "tool_search":
+	case "grep_search", "glob", "web_search", "tool_search", "lsp", "list_directory":
 		return "search"
-	case "run_shell_command", "list_directory", "monitor":
+	case "run_shell_command", "monitor":
 		return "shell"
-	case "todo_write", "write_todos", "task", "agent", "delegate_to_agent":
+	case "todo_write", "agent", "create_sub_session", "list_agents", "task_stop", "task_create", "task_update", "task_list", "team_create", "team_delete", "team_plan_approval", "request_shutdown", "send_message", "workflow":
 		return "task"
-	case "skill", "ask_user_question", "save_memory", "record_artifact",
-		"list_agents", "cron_list", "get_goal", "send_message", "exit_plan_mode":
+	case "exec", "skill", "save_memory", "exit_plan_mode", "enter_plan_mode", "ask_user_question", "cron_create", "cron_list", "cron_delete", "loop_wakeup", "structured_output", "enter_worktree", "exit_worktree", "artifact", "record_artifact", "record_source", "report_findings", "get_goal", "update_goal", "propose_goal":
 		return "generic"
 	default:
 		return "unknown"
@@ -320,10 +312,10 @@ func extractPathHints(call *QwenFunctionCall, workspaceRoot string) []string {
 
 	// Common path field names for Qwen tools (read_file/write_file/edit use
 	// file_path; glob/grep_search/list_directory use path).
-	pathFields := []string{"file_path", "path", "dir_path"}
+	pathFields := []string{"file_path", "path", "dir_path", "notebook_path"}
 
 	for _, field := range pathFields {
-		if value := inputAsString(call.Args, field); value != "" {
+		if value := spi.StringValue(call.Args, field); value != "" {
 			normalizedPath := spi.NormalizePath(value, workspaceRoot)
 			if !slices.Contains(paths, normalizedPath) {
 				paths = append(paths, normalizedPath)
@@ -332,8 +324,8 @@ func extractPathHints(call *QwenFunctionCall, workspaceRoot string) []string {
 	}
 
 	// Extract paths from shell commands (redirect targets, file-creating commands)
-	if command := inputAsString(call.Args, "command"); command != "" {
-		cwd := inputAsString(call.Args, "directory")
+	if command := spi.StringValue(call.Args, "command"); command != "" {
+		cwd := spi.StringValue(call.Args, "directory")
 		if cwd == "" {
 			cwd = workspaceRoot
 		}
@@ -346,4 +338,19 @@ func extractPathHints(call *QwenFunctionCall, workspaceRoot string) []string {
 	}
 
 	return paths
+}
+
+// Qwen's ToolNamesMigration declares these aliases; keep their native names
+// in session data while using the canonical tool's classifier and renderer.
+func canonicalQwenToolName(name string) string {
+	switch name {
+	case "replace":
+		return "edit"
+	case "search_file_content":
+		return "grep_search"
+	case "task":
+		return "agent"
+	default:
+		return name
+	}
 }
