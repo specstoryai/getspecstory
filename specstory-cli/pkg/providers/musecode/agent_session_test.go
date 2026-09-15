@@ -263,7 +263,7 @@ func TestGenerateAgentSession_NoEvents(t *testing.T) {
 }
 
 // museToolInventory is every tool Muse Code 0.1.0 exposes, as the agent
-// enumerated them in a live all-tools session (see docs/MUSE-FORMAT.md). When
+// enumerated them in a live all-tools session (see MUSE-FORMAT.md). When
 // Muse ships new tools, add them here and to classifyMuseToolType.
 var museToolInventory = []string{
 	"read_file", "search", "write_file", "edit_file",

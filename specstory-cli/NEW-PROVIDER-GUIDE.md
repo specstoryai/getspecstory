@@ -23,11 +23,11 @@ Every provider is judged by parity with the established siblings. Choose the clo
 | SQLite store | `pkg/spi/sqlite.go` and `pkg/providers/cursoride` |
 | Factory scripts | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory` |
 
-Known drift in the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; unbounded line reading in the Claude Code parser; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions. `docs/PROVIDER-REFACTOR.md` and `docs/PROVIDER-FIXES.md` record which patterns were deliberately standardized and why.
+Known drift in the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; unbounded line reading in the Claude Code parser; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
 
 ### Learn the agent's on-disk format from the current release
 
-Install the agent, run it, and read what it writes. Do not work from the agent's documentation alone; the files on disk are the contract. Capture what you learn in `docs/<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-FORMAT.md`) in the style of [docs/MUSE-FORMAT.md](docs/MUSE-FORMAT.md) and [docs/ANTIGRAVITY-FORMAT.md](docs/ANTIGRAVITY-FORMAT.md):
+Install the agent, run it, and read what it writes. Do not work from the agent's documentation alone; the files on disk are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
 
 - Store layout, record envelope, and the shape of every tool call and result you observed.
 - The write lifecycle: which file is the durable record, which files are transient (checkpoints, rolling "latest" files, locks), when each is written and deleted, and whether a transient file is shared across concurrent sessions. A session that is still in flight is expected to be invisible until the agent commits it.

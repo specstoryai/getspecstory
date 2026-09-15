@@ -81,7 +81,7 @@ Establish the facts before reading code.
 1. Confirm the local checkout is exactly the PR head before anything moves: `gh pr view <n> --json headRefOid` against `git rev-parse HEAD`.
 2. Have the maintainer merge `dev` into the PR branch (or do it if explicitly told). Explain each textual conflict: cause, and what to do. Number them.
 3. Find the semantic gaps the merge does not surface: new SPI methods (`SupportsReconstruction`, `ListAllAgentChatSessions`, `progress` callbacks) that every other provider gained while this branch sat. Wire them, each with a test built on the package's existing fixture helpers: `ListAllAgentChatSessions` against a scoped and an unscoped session asserting `SessionID`, `NativePath`, `Slug`, and `OriginCwd`; the three reconstruction methods asserted consistent; the registry-level `TestSupportsReconstruction` in `pkg/cmd` updated.
-4. After the merge, list `docs/` and confirm no plan or gap-analysis document has returned (one deleted at release has already come back through a later merge), and re-read `docs/PROVIDER-REFACTOR.md` and the review ledger for claims the merge has made false, such as "still open" above the section that closed it.
+4. After the merge, list `docs/` and confirm no plan or gap-analysis document has returned (one deleted at release has already come back through a later merge), and re-read this document's ledger for claims the merge has made false, such as "still open" above the section that closed it.
 5. Build, lint, test, Windows vet. Note any pre-existing failures separately from the PR's.
 
 A noisy diff wastes a review. If the PR still carries CI, toolchain, or history files from a stale branch point, get it merged with `dev` and re-run the review on the clean diff.
@@ -126,7 +126,7 @@ The `pr-review` checklist covers naming, idiomatic Go, simplicity, why-comments,
 
 ### 4.1 SPI conformance and symmetry
 
-Build a matrix of this provider against `pkg/spi/provider.go` and against the exemplar, one row per method, and against the shared behaviors in `docs/PROVIDER-FIXES.md`.
+Build a matrix of this provider against `pkg/spi/provider.go` and against the exemplar, one row per method, and against the shared behaviors recorded in §4.6 (watcher) and §4.2 (shared helpers).
 
 - Every method on `spi.Provider` present (twelve today; count them against the file); a compile-time `_ spi.Provider = (*Provider)(nil)` assertion present, in a `var` line or a grouped block.
 - `GetAgentChatSession` returns `nil, nil` for not found and errors only for real failures.
@@ -138,7 +138,7 @@ Build a matrix of this provider against `pkg/spi/provider.go` and against the ex
 
 ### 4.2 Shared-code reuse audit
 
-Produce a table: local helper, shared equivalent, behavioral delta if swapped. This is the audit the maintainer asked for on every provider branch in flight ("Review the new provider and see if it needs any of the same or similar adjustments", "OK, same exact thing."). The shared inventory and the drift each one fixed are in `docs/PROVIDER-REFACTOR.md`.
+Produce a table: local helper, shared equivalent, behavioral delta if swapped. This is the audit the maintainer asked for on every provider branch in flight ("Review the new provider and see if it needs any of the same or similar adjustments", "OK, same exact thing."). The shared inventory is the exported surface of `pkg/spi` (`CodeFence`, `LanguageFromPath`, `TodoSymbol`, `RenderGenericJSON`, `StringValue`, `ClassifyCheckError`, `DispatchSession`, `CapRunes`, watch-window and shell-path helpers) plus `analytics.TrackCheckSuccess`/`TrackCheckFailure`; each helper's doc comment records the behavior it standardized.
 
 Check specifically:
 
@@ -197,7 +197,7 @@ The maintainer removes rather than restructures. Look for:
 The maintainer reads watchers for real races and startup behavior, and has rewritten several.
 
 - fsnotify, never a poll ("Why aren't we using fsnotify for Droid? It's the general preferred pattern for our providers."). A bounded reconcile tick on top of fsnotify, to catch writes to unwatched files and prune idle watches, is the reference shape.
-- Startup policy from `docs/PROVIDER-FIXES.md`: emit nothing that exists at startup; adopt what appears after the watch is armed, including walking a newly created directory once, because those writes happened unobserved. Never re-publish history. Each side of that rule gets its own regression test.
+- Startup policy, uniform across every watching provider: emit nothing that exists at startup; adopt what appears after the watch is armed, including walking a newly created directory once, because those writes happened unobserved. Never re-publish history. Each side of that rule gets its own regression test.
 - The watcher must never permanently disable itself. Missing directory: watch the nearest existing ancestor and wait ("With `watch` it's worse. Just doesn't work at all. SpecStory never seems to see the session at all.").
 - When the store is keyed by project, watch only this project's subtree, never every project's directory. Walks and watches stop at the store layout's session depth: a session's own subdirectories (tool outputs, subagent logs) are neither watched nor walked, with a test on the boundary.
 - Every path the agent writes to is watched, including asynchronous sidecars (task logs). Change detection uses an on-disk signature (size and modification time) of every file the session spans, not a parsed field that a title-only rename would not touch, so a sidecar-only write re-emits.
@@ -563,7 +563,7 @@ The ASCII diagram line, the Installation table row with Min Version equal to the
 
 ### Code-adjacent artifacts
 
-`pkg/config/config.go` (template, struct field, `GetProviderCmd` case and its doc comment, test rows); `pkg/spi/factory/registry.go`; the accent color in `pkg/cmd/session_tui_browser.go` chosen by the maintainer and legible on light and dark themes; `pkg/skills/agents.go` row when the agent supports agent skills (a project or global skills directory), with the `Name` taken from the public `npx skills` registry, and a ledger note when it does not; `docs/<AGENT>-FORMAT.md` (the agent's short name in capitals) renamed to that convention with its baseline version line matching the floor and every code comment that cites it updated; `docs/PROVIDER-REFACTOR.md` ledger section for the dedup audit; `docs/POSTHOG.md` if an event or property key is new. Shared strings in `pkg/cmd` that list providers by name must be generic or derived from the registry (an earlier resume error naming "Claude Code or Codex CLI" went wrong once a third target existed).
+`pkg/config/config.go` (template, struct field, `GetProviderCmd` case and its doc comment, test rows); `pkg/spi/factory/registry.go`; the accent color in `pkg/cmd/session_tui_browser.go` chosen by the maintainer and legible on light and dark themes; `pkg/skills/agents.go` row when the agent supports agent skills (a project or global skills directory), with the `Name` taken from the public `npx skills` registry, and a ledger note when it does not; `<AGENT>-FORMAT.md` (the agent's short name in capitals) inside the provider package, with its baseline version line matching the floor and every code comment that cites it updated; `docs/POSTHOG.md` if an event or property key is new. Shared strings in `pkg/cmd` that list providers by name must be generic or derived from the registry (an earlier resume error naming "Claude Code or Codex CLI" went wrong once a third target existed).
 
 ### Outside the repository
 
@@ -630,8 +630,8 @@ Use these as the baseline for each concern. Where an older provider disagrees, i
 | IDE workspace discovery, minting, launching, restart notes | `pkg/providers/cursoride`, `pkg/providers/copilotide`, `pkg/providers/vscode` |
 | SQLite access | `pkg/spi/sqlite.go`, `pkg/providers/cursoride` |
 | Factory scripts | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory` |
-| Format spec | `docs/MUSE-FORMAT.md`, `docs/ANTIGRAVITY-FORMAT.md` |
-| Dedup ledger and standardized behaviors | `docs/PROVIDER-REFACTOR.md`, `docs/PROVIDER-FIXES.md` |
+| Format spec | `pkg/providers/musecode/MUSE-FORMAT.md`, `pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md` |
+| Shared helpers and standardized behaviors | `pkg/spi` (helper doc comments), `pkg/analytics/check_events.go` |
 
 Known drift in shipped providers that a reviewer must not treat as a baseline: `os.Exit` in the Claude Code, Gemini CLI, Muse Code, and Cursor CLI exec helpers; exec helpers that return the plain process error (Droid CLI, DeepSeek TUI, Antigravity CLI), which the CLI collapses to exit 1 with an error box; flag-style resume helpers that let a pinned id win and append to the caller's slice (Antigravity CLI, DeepSeek TUI, Droid CLI, Gemini CLI); watcher contexts created in `init()`; literal fences in some tool-result renderers (Claude Code, Codex CLI, DeepSeek TUI, Droid CLI); unbounded line reading in the Claude Code parser; the Claude Code provider's inline `analytics.TrackEvent`, its `claude-code` `ProviderInfo.ID`, and its unhonored `progress` callback, plus inline `TrackEvent` with drifting keys in the other pre-refactor providers; the IDE providers' store-shaped check events, which are correct for them and not a baseline for a CLI provider; `generic` as the default tool type in Antigravity CLI, DeepSeek TUI, Droid CLI, and VS Code Copilot, and Antigravity's URL fetch typed `search`; a verbatim JSONL copy as Antigravity's debug-raw output; the Cursor CLI provider's polling watcher and its `run` that still emits existing sessions at startup; bare-path `?mode=ro` SQLite DSNs in Cursor CLI, Cursor IDE, and Antigravity CLI. When the submission copied one of these, fix the submission and note the sibling as a follow-up.
 

@@ -19,7 +19,7 @@ var metaArgKeys = []string{"toolAction", "toolSummary"}
 // classifyToolType maps an Antigravity tool name to a SpecStory tool type. The
 // cases below are Antigravity's complete tool set as of agy 1.1.x, captured by
 // asking the agent to enumerate its own tools (see
-// docs/ANTIGRAVITY-FORMAT.md §3.5). Everything else — the tools that carry
+// ANTIGRAVITY-FORMAT.md §3.5). Everything else — the tools that carry
 // no useful type (ask_permission, ask_question, define_subagent,
 // generate_image, invoke_subagent, list_permissions, manage_subagents,
 // send_message), MCP tools, and anything a later release adds — falls back to

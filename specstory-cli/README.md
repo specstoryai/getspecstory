@@ -12,7 +12,7 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 ## Features
 
-- Cross-platform support (Linux, macOS)
+- Cross-platform support (macOS, Linux including WSL, and native Windows)
 - Seamless integration with terminal coding agents
 - Command-line wrapper for terminal coding agents with markdown auto-save
 - Sync all your prior conversations to local markdown files
@@ -370,18 +370,18 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `antigravity_cmd` | `"agy"`              | Antigravity CLI command                    |
 | `[providers]`     | `muse_cmd`        | `"muse"`             | Muse Code command                          |
 | `[providers]`     | `qwen_cmd`        | `"qwen"`             | Qwen Code command                          |
+| `[resume]`†       | `view_mode`       | `"dense"`            | Picker layout: `dense` (more sessions) or `sparse` (more detail) |
+| `[resume]`†       | `last_agent`      | none                 | Provider id of the agent you last resumed into — the default target |
+| `[skills]`†       | `view_mode`       | `"dense"`            | Skills browser layout: `dense` or `sparse` |
+| `[skills]`†       | `default_location`| `"global"`           | Last-used install location: `global` or `project` |
 
 \* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
 
+† The `[resume]` and `[skills]` keys are written automatically as you use those commands, so they remember your last choice. They are editable by hand, but unlike the other sections they don't need to be set up front — and they're omitted from the generated config template for that reason.
+
 ## Analytics
 
-SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The following events are tracked:
-
-- Extension activation (in interacive mode) - ext_activated
-- Successful markdown sync operations - ext_sync_markdown_success
-- Failed markdown sync operations - ext_sync_markdown_error
-- First-time autosave of new sessions - ext_autosave_success
-- Failed first-time autosave of new sessions - ext_autosave_error
+SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The full list of events, the properties sent with every event, and how the anonymous analytics ID is derived are documented in [docs/POSTHOG.md](docs/POSTHOG.md).
 
 All analytics are processed through PostHog with GeoIP enabled for general location data.
 
@@ -540,12 +540,12 @@ Each exchange is recorded as a child span with these attributes:
 
 ### Development Prerequisites
 
-- macOS development environment
+- macOS, Linux (including WSL), or Windows
 - Go 1.27.1 or later
 - golangci-lint, latest version
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 
-You'll want [Homebrew](https://brew.sh/) installed on your macOS system. Then:
+On macOS, you'll want [Homebrew](https://brew.sh/) installed. Then:
 
 ```zsh
 brew install go golangci-lint
@@ -561,10 +561,10 @@ go install gotest.tools/gotestsum@latest
 
 ```zsh
 # Clone the repository
-git clone https://github.com/specstoryai/specstory-cli.git
+git clone https://github.com/specstoryai/getspecstory.git
 
-# Navigate to the project directory
-cd specstory-cli
+# Navigate to the CLI directory
+cd getspecstory/specstory-cli
 
 # Build the project
 go build -o specstory
@@ -580,7 +580,7 @@ go list -m -u all
 
 ### Debug Raw Mode
 
-The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers (Claude Code, Cursor CLI, Cursor IDE, VS Code Copilot, Codex CLI, Gemini CLI, Droid CLI).
+The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers.
 
 When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
 
