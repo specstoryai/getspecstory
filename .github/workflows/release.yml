@@ -24,6 +24,18 @@ jobs:
         id: version
         run: echo "version=${GITHUB_REF_NAME#specstory-cli/}" >> $GITHUB_OUTPUT
 
+      # goreleaser cannot parse a version out of the namespaced
+      # specstory-cli/vX.Y.Z tag (tag prefixes are a goreleaser Pro feature),
+      # so it is told the current tag is the plain vX.Y.Z instead. Since
+      # goreleaser 2.18 that tag must actually exist in the checkout: it reads
+      # the tag's contents during git-state setup, before publishing, and fails
+      # on an empty result. Create it here at the same commit; -f keeps a re-run
+      # of a failed release from tripping on a tag that already exists. GitHub
+      # records the plain tag on the remote when the release is published, as
+      # it always has for every release.
+      - name: Create the plain version tag goreleaser expects
+        run: git tag -f "${{ steps.version.outputs.version }}" "$GITHUB_SHA"
+
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           version: "~> v2"

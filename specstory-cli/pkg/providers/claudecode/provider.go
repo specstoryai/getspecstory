@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -667,17 +668,30 @@ func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
 	scan := &claudeSessionScan{}
 
 	// Read records until we find everything we need.
-	// Why: ReadString can return data AND io.EOF on the last line (no trailing newline),
-	// so we always process the line first, then check for EOF once at the bottom.
+	// Why: a record can arrive together with io.EOF on the last line (no trailing
+	// newline), so we always process the line first, then check for EOF once at
+	// the bottom.
 	lineNum := 0
 	for {
-		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		rawLine, oversized, readErr := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
 		lineNum++
-		line = strings.TrimSpace(line)
+		// A pathological record cannot hold the small metadata this scan wants,
+		// and skipping it keeps the rest of the session indexable.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNum,
+				"limit", spi.MaxRecordLineSize)
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			continue
+		}
+		line := strings.TrimSpace(string(rawLine))
 
 		if line != "" {
 			// Parse JSON record
@@ -745,7 +759,7 @@ func scanClaudeSession(filePath string) (*claudeSessionScan, error) {
 		}
 
 		// Single exit: found everything we need, or reached end of file
-		if (scan.sessionID != "" && scan.timestamp != "" && scan.firstUserMessage != "" && scan.cwd != "") || readErr == io.EOF {
+		if (scan.sessionID != "" && scan.timestamp != "" && scan.firstUserMessage != "" && scan.cwd != "") || errors.Is(readErr, io.EOF) {
 			break
 		}
 	}

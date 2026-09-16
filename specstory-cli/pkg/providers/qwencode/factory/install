@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Install an exact Qwen Code release for factory audits.
+#
+# Channel: @qwen-code/qwen-code on https://registry.npmjs.org, matching the
+# latest-version sensor. Use a pinned npm package, not the moving standalone
+# installer or Homebrew release. Requires Node 22+; engine mismatch must fail.
+#
+# Factory SPI contract: install <version> installs under $HOME, prints the
+# version read from $HOME/.local/bin/qwen as its only stdout line, and exits 0.
+# Non-zero exit means installation failed or the read-back did not match.
+set -euo pipefail
+version=${1:?usage: install <version>}
+# Reject npm tags/ranges: an audit must run exactly the requested version.
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+  echo "install: expected an exact Qwen version, got $version" >&2
+  exit 1
+fi
+mkdir -p "$HOME/.local"
+timeout 240 npm install --global --prefix "$HOME/.local" --cache "$HOME/.npm" \
+  --registry https://registry.npmjs.org --engine-strict --no-audit --no-fund \
+  "@qwen-code/qwen-code@$version" >&2
+installed=$("$HOME/.local/bin/qwen" --version)
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+printf '%s\n' "$installed"

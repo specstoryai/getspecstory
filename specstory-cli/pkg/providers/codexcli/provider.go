@@ -18,11 +18,9 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-const (
-	KB                    = 1024
-	MB                    = 1024 * 1024
-	maxReasonableLineSize = 250 * MB // 250MB sanity limit to prevent OOM from malformed or malicious files
-)
+// MB labels the large-line debug log below; the record cap itself is
+// spi.MaxRecordLineSize.
+const MB = 1024 * 1024
 
 // codexSessionMetaPayload captures the payload embedded in the Codex CLI session metadata record.
 type codexSessionMetaPayload struct {
@@ -646,28 +644,37 @@ func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface
 	var records []map[string]interface{}
 	var rawBuilder strings.Builder
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
-	// Scanner has a token size limit (even with custom buffer), but Reader does not
 	reader := bufio.NewReader(file)
 
 	lineNumber := 0
 	for {
-		// Read line using ReadString which has no size limit
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
+		rawLine, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		line := strings.TrimSuffix(string(rawLine), "\n")
 
 		// EOF is expected at end of file, other errors are genuine failures
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, "", fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 		}
 
 		// Determine if we're at end of file and if we have content to process
-		atEOF := err == io.EOF
+		atEOF := errors.Is(err, io.EOF)
 		hasContent := len(line) > 0
 
 		// Increment line number for every line read (including empty lines) to match text editor line numbers
-		if hasContent || !atEOF {
+		if hasContent || oversized || !atEOF {
 			lineNumber++
+		}
+
+		// One pathological record costs that record, not the rest of the session.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(sessionPath),
+				"line", lineNumber,
+				"limit", spi.MaxRecordLineSize)
+			if atEOF {
+				break
+			}
+			continue
 		}
 
 		// If no content, either skip empty line or exit at EOF
@@ -676,17 +683,6 @@ func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface
 				break // Reached end of file with no content
 			}
 			continue // Empty line in middle of file, skip it
-		}
-
-		// Sanity check to prevent OOM from pathological files
-		if len(line) > maxReasonableLineSize {
-			slog.Warn("line exceeds reasonable size limit",
-				"lineNumber", lineNumber,
-				"sizeMB", len(line)/MB,
-				"limitMB", maxReasonableLineSize/MB,
-				"file", filepath.Base(sessionPath))
-			return nil, "", fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/MB)
 		}
 
 		// Log when processing unusually large lines (helps debug performance issues)
@@ -973,7 +969,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 	// so we always process the line first, then check for EOF once at the bottom.
 	for {
 		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
@@ -1004,7 +1000,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 		}
 
 		// Single exit: found what we need, or reached end of file
-		if firstUserMessage != "" || readErr == io.EOF {
+		if firstUserMessage != "" || errors.Is(readErr, io.EOF) {
 			break
 		}
 	}
@@ -1066,17 +1062,18 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 	h := &codexSessionHeader{}
 	lineNum := 0
 	for {
-		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		rawLine, oversized, readErr := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
+		line := string(rawLine)
 		lineNum++
 
-		// Skip a pathological/oversized line, for parity with readCodexJSONL's
-		// maxReasonableLineSize cap (this parallel scan must not be the weaker path). Such a
-		// line cannot be the small user_message we seek; line 1 has its own tighter limit below.
-		if len(line) > maxReasonableLineSize {
-			if readErr == io.EOF {
+		// Skip a pathological record, for parity with readCodexJSONL (this parallel
+		// scan must not be the weaker path). Such a record cannot be the small
+		// user_message we seek; line 1 has its own tighter limit below.
+		if oversized {
+			if errors.Is(readErr, io.EOF) {
 				break
 			}
 			continue
@@ -1112,7 +1109,7 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 			}
 		}
 
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
 	}

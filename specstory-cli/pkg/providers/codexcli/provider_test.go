@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestLoadCodexSessionMeta(t *testing.T) {
@@ -183,32 +184,6 @@ func TestReadSessionRawData(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestReadSessionRawData_ExceedsMaxSize(t *testing.T) {
-	// Create a line that exceeds maxReasonableLineSize
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "huge.jsonl")
-
-	// Create a very large line (just over the 250MB limit)
-	// Note: We can't actually test this fully in a unit test as it would consume too much memory
-	// Instead, we'll verify the size check logic exists by testing with a smaller mock
-
-	t.Run("line size check exists", func(t *testing.T) {
-		// Create a valid file that won't trigger the size limit
-		content := `{"type":"session_meta","payload":{"id":"test"}}` + "\n"
-		if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
-			t.Fatalf("Failed to create test file: %v", err)
-		}
-
-		records, _, err := readSessionRawData(tmpFile)
-		if err != nil {
-			t.Errorf("readSessionRawData() unexpected error for normal file: %v", err)
-		}
-		if len(records) != 1 {
-			t.Errorf("readSessionRawData() should parse normal file, got %d records", len(records))
-		}
-	})
 }
 
 func TestNormalizeCodexPath(t *testing.T) {
@@ -1001,5 +976,47 @@ func TestExecuteCodex(t *testing.T) {
 				t.Errorf("ExecuteCodex() unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+// An oversized record costs that record and nothing else. Failing the file
+// instead would mean one poisoned line loses the user the whole session. The
+// header scan walks the same file and must reach the same verdict about it,
+// since a session the full read accepts has to stay indexable.
+func TestReadCodexJSONLKeepsRecordsAroundAnOversizedOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oversized.jsonl")
+	lines := []string{
+		`{"type":"session_meta","payload":{"id":"sess-1","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp/project"}}`,
+		`{"type":"event_msg","payload":{"type":"agent_message","message":"` + strings.Repeat("x", spi.MaxRecordLineSize) + `"}}`,
+		`{"type":"event_msg","payload":{"type":"user_message","message":"survived the oversized record"}}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	records, raw, err := readCodexJSONL(path, true)
+	if err != nil {
+		t.Fatalf("an oversized record must not fail the file: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("got %d records, want the records before and after the oversized one", len(records))
+	}
+	if records[0]["type"] != "session_meta" {
+		t.Errorf("first record = %v, want the session_meta before the oversized record", records[0]["type"])
+	}
+	if !strings.Contains(raw, "survived the oversized record") {
+		t.Error("the record after the oversized one was lost")
+	}
+	if strings.Contains(raw, strings.Repeat("x", 1024)) {
+		t.Error("the oversized record leaked into the raw transcript")
+	}
+
+	// The header scan walks the same file and must agree about what is readable.
+	header, err := scanCodexSessionHeader(path)
+	if err != nil {
+		t.Fatalf("header scan failed on the same file: %v", err)
+	}
+	if header == nil || header.sessionID != "sess-1" {
+		t.Errorf("header = %+v, want the session still indexable", header)
 	}
 }

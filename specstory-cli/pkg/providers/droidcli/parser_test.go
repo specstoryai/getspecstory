@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestParseFactorySession(t *testing.T) {
@@ -146,5 +148,33 @@ func TestParseFactorySession(t *testing.T) {
 				tt.validate(t, session)
 			}
 		})
+	}
+}
+
+// An oversized record costs that record and nothing else. Failing the file
+// instead would mean one poisoned line loses the user the whole session.
+func TestParseFactorySessionKeepsRecordsAroundAnOversizedOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oversized.jsonl")
+	lines := []string{
+		`{"type":"session_start","id":"sess-1","timestamp":"2026-01-01T00:00:00Z","cwd":"/tmp/project"}`,
+		`{"type":"message","id":"huge","timestamp":"2026-01-01T00:00:01Z","message":{"role":"user","content":[{"type":"text","text":"` + strings.Repeat("x", spi.MaxRecordLineSize) + `"}]}}`,
+		`{"type":"message","id":"kept","timestamp":"2026-01-01T00:00:02Z","message":{"role":"user","content":[{"type":"text","text":"survived the oversized record"}]}}`,
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	session, err := parseFactorySession(path)
+	if err != nil {
+		t.Fatalf("an oversized record must not fail the file: %v", err)
+	}
+	if session.ID != "sess-1" {
+		t.Errorf("session id = %q, want the record before the oversized one to still apply", session.ID)
+	}
+	if !strings.Contains(session.RawData, "survived the oversized record") {
+		t.Error("the record after the oversized one was lost")
+	}
+	if strings.Contains(session.RawData, strings.Repeat("x", 1024)) {
+		t.Error("the oversized record leaked into the raw transcript")
 	}
 }

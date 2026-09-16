@@ -1,58 +1,123 @@
 # Project Identity
 
-On extension activation, if Auto-save is enabled, AFTER we create the `.specstory` directory (if it didn't already exist) create a `.specstory/.project.json` file to capture project identity ONLY if the file doesn't already exist.
+Every project the CLI touches gets a stable identity, written to
+`.specstory/.project.json`. It is what the cloud groups sessions by, what
+`sessions.db` stores in `project_id`, and what lets a project survive being
+moved, renamed, or re-cloned.
 
-The file will always have a `workspace_id` key, and will sometimes have a `git_id` key. If the file already exists, do check it for the presence of a `git_id` and ONLY if there isn't one, see if we can now give it one.
+The file is created alongside the `.specstory` directory and is only filled in
+where values are missing — an existing file is never rewritten wholesale. In
+particular, if the file exists but has no `git_id`, each run re-checks whether
+one can be derived now (a project that gained a git remote after its first
+session picks one up).
+
+Implementation: `pkg/utils/project_identity.go`.
+
+## The file
 
 ```json
 {
-  "workspace_id": "hash",
-  "workspace_id_at": ISO-8601-timestamp,
-  "git_id": "hash",
-  "git_id_at": ISO-8601-timestamp,
+  "workspace_id": "a1b2-c3d4-e5f6-7890",
+  "workspace_id_at": "2026-09-15T10:57:00Z",
+  "git_id": "1234-5678-9abc-def0",
+  "git_id_at": "2026-09-15T10:57:00Z",
+  "project_name": "langchainrb"
 }
 ```
 
-`git_id` is a repeatable hash from the url for the remote called "origin" from the .git/config (if present). If it's not present, there is no `git_id` key. The same remote "origin" will has the same `git_id`.
+| Key               | Always present | Meaning                                                      |
+| ----------------- | -------------- | ------------------------------------------------------------ |
+| `workspace_id`    | yes            | Path-derived identity                                        |
+| `workspace_id_at` | yes            | ISO 8601 timestamp it was assigned                           |
+| `git_id`          | no             | Remote-derived identity; absent when there is no git origin   |
+| `git_id_at`       | no             | ISO 8601 timestamp it was assigned                           |
+| `project_name`    | no             | Human-readable name — the repo name from the origin URL, else the directory basename |
 
-GitHub HTTPS clone:
+Both IDs are the **first 16 hex characters of a SHA-256**, dash-grouped into
+`xxxx-xxxx-xxxx-xxxx` (`createHash`). The format matches the TypeScript
+implementation the extension used, so IDs are interchangeable between them.
 
-```
-[remote "origin"]
-	url = https://github.com/patterns-ai-core/langchainrb.git
-```
+`GetProjectID()` returns the `git_id` when there is one and falls back to
+`workspace_id`.
 
-GitHub SSH clone:
+## `git_id` — derived from the origin remote
 
-```
-[remote "origin"]
-	url = git@github.com:patterns-ai-core/langchainrb.git
-```
+Read from the `origin` remote in `.git/config`, normalized, then hashed. Identity
+resolution **walks up** from the project directory to the enclosing git root
+(`findGitRoot`), so running an agent from a subdirectory of a repo still resolves
+to the repo's identity rather than minting a new one per subdirectory.
 
-Other service clone (made up example):
+Normalization (`normalizeGitURL`) is **host-agnostic** — it is not a GitHub
+special case. It strips a trailing `.git`, rewrites any `user@host:path` into
+`host/path`, and strips any `scheme://` prefix. So every one of these hashes
+identically:
 
-```
-[remote "origin"]
-	url = git@gitlab.com:patterns-ai-core/langchainrb.git
-```
+| Origin URL                                             | Normalizes to                            |
+| ------------------------------------------------------ | ---------------------------------------- |
+| `https://github.com/patterns-ai-core/langchainrb.git`   | `github.com/patterns-ai-core/langchainrb` |
+| `git@github.com:patterns-ai-core/langchainrb.git`       | `github.com/patterns-ai-core/langchainrb` |
+| `github.com/patterns-ai-core/langchainrb`               | `github.com/patterns-ai-core/langchainrb` |
 
-We want these first 2 GitHub cases to give us the same hash, no matter if the user happens to clone via HTTPS or SSH, so look for and remove `https://github.com/` and `git@github.com:` if they are present in the URL before using it as a hash. If neither of those strings is present, like in the 3rd example, just use the whole URL as the hash that creates the `git_id`.
+and the same collapsing applies to any other host — `git@gitlab.com:owner/repo`
+and `https://gitlab.com/owner/repo` both normalize to `gitlab.com/owner/repo`.
+Because the host is retained, two different forges with the same owner/repo path
+do *not* collide.
 
-`workspace_id` is a repeatable hash from the full path of the cwd that the SpecStory CLI was run from. The same cwd will hash to the same `worskpace_id`.
+The practical consequence: **`git_id` is stable across clones, machines, and
+users**, so it is the join key for cross-project and cross-machine resume.
 
-## Reason for these IDs
+## `workspace_id` — derived from the path
 
-We are looking for "project persistence" that's resiliant.
+A hash of the project's absolute path. On **case-insensitive filesystems**
+(macOS, Windows) the path is lowercased first (`canonicalizeWorkspacePath`), so
+`/Users/me/Repo` and `/Users/me/repo` — one physical directory — produce one ID.
+On case-sensitive filesystems the path is hashed byte-exact, because there those
+genuinely are two directories.
 
-ID saves us from user moving/renaming the project directory. That's OK cause the `workspace_id` stays the same, it's been persisted to the `.specstory/.project.json` file.
+## Overrides
 
-The git ID provides a potentially even more resiliant ID, in the case of:
-- User remove .specstory/
-- With Git User can move/rename the workspace and then remove .specstory (with the same git origin)
-- User has the same project in multiple devices, or places on the same device
-- Multiple users have the same project on their devices
+Two hidden root-level flags let a caller (in practice the VS Code extension,
+driving a remote workspace) supply identity inputs the CLI cannot read for
+itself. See [EXTENSION-ARCHITECTURE.md](EXTENSION-ARCHITECTURE.md).
 
-Despite our attempts here, the user is still SOL in the case of:
-- Without Git User can move/rename/modify the workspace and then remove .specstory
-- With Git User can move/rename/modify the workspace and then change the git origin and remove .specstory
-(in the future for these SOL cases, we can use interaction with the user to reidentity the project)
+| Flag                   | Effect                                                                 |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `--project-path <path>` | Identity describes *this* project rather than the process cwd. Detection walks up from here, and `project_name` becomes its basename. |
+| `--git-origin <url>`    | Use this origin URL instead of reading `.git/config`. Applied even when a `git_id` already exists. |
+
+When `--project-path` names a path that is not present on this machine (an SSH
+remote path), it is hashed exactly as given: no walk-up (the local ancestors
+could hold an unrelated repo's `.git`), no `filepath.Abs` (it would staple on the
+current drive letter), and no case-folding (the remote filesystem is likely
+case-sensitive even if the host is not). Git identity for such targets has to
+come from `--git-origin`.
+
+## Why two IDs
+
+The goal is project persistence that survives ordinary user behavior.
+
+`workspace_id` alone survives the project directory being moved or renamed,
+because it was persisted into `.specstory/.project.json` and is read back rather
+than recomputed.
+
+`git_id` is more resilient still, and covers cases `workspace_id` cannot:
+
+- the user deletes `.specstory/`
+- the user moves or renames the workspace *and* deletes `.specstory/`
+- the same project exists on several machines, or several places on one machine
+- several users have the same project on their own machines
+
+Both are defeated by:
+
+- no git, and the user moves/renames the workspace and deletes `.specstory/`
+- git, but the user changes the origin remote and deletes `.specstory/`
+
+In those cases the project is genuinely unrecoverable from data alone; re-identifying
+it would need to involve the user.
+
+## Related
+
+- [SESSIONS-DB.md](SESSIONS-DB.md) — how `project_id` is used by the session index,
+  including `ComputeProjectID`, which resolves identity without writing a
+  `.project.json`.
+- [EXTENSION-ARCHITECTURE.md](EXTENSION-ARCHITECTURE.md) — why the overrides exist.

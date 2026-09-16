@@ -1,0 +1,222 @@
+{
+  "version": "0.23.4",
+  "source": "Qwen 0.23.4 ToolNames and ToolNamesMigration exports; factory/list-tools",
+  "tools": [
+    {
+      "name": "agent",
+      "type": "task"
+    },
+    {
+      "name": "artifact",
+      "type": "generic"
+    },
+    {
+      "name": "ask_user_question",
+      "type": "generic"
+    },
+    {
+      "name": "create_sub_session",
+      "type": "task"
+    },
+    {
+      "name": "cron_create",
+      "type": "generic"
+    },
+    {
+      "name": "cron_delete",
+      "type": "generic"
+    },
+    {
+      "name": "cron_list",
+      "type": "generic"
+    },
+    {
+      "name": "display_image",
+      "type": "read"
+    },
+    {
+      "name": "edit",
+      "type": "write"
+    },
+    {
+      "name": "enter_plan_mode",
+      "type": "generic"
+    },
+    {
+      "name": "enter_worktree",
+      "type": "generic"
+    },
+    {
+      "name": "exec",
+      "type": "generic"
+    },
+    {
+      "name": "exit_plan_mode",
+      "type": "generic"
+    },
+    {
+      "name": "exit_worktree",
+      "type": "generic"
+    },
+    {
+      "name": "get_goal",
+      "type": "generic"
+    },
+    {
+      "name": "glob",
+      "type": "search"
+    },
+    {
+      "name": "grep_search",
+      "type": "search"
+    },
+    {
+      "name": "image_gen",
+      "type": "write"
+    },
+    {
+      "name": "list_agents",
+      "type": "task"
+    },
+    {
+      "name": "list_directory",
+      "type": "search"
+    },
+    {
+      "name": "loop_wakeup",
+      "type": "generic"
+    },
+    {
+      "name": "lsp",
+      "type": "search"
+    },
+    {
+      "name": "monitor",
+      "type": "shell"
+    },
+    {
+      "name": "notebook_edit",
+      "type": "write"
+    },
+    {
+      "name": "propose_goal",
+      "type": "generic"
+    },
+    {
+      "name": "read_file",
+      "type": "read"
+    },
+    {
+      "name": "read_mcp_resource",
+      "type": "read"
+    },
+    {
+      "name": "record_artifact",
+      "type": "generic"
+    },
+    {
+      "name": "record_source",
+      "type": "generic"
+    },
+    {
+      "name": "replace",
+      "type": "write"
+    },
+    {
+      "name": "report_findings",
+      "type": "generic"
+    },
+    {
+      "name": "request_shutdown",
+      "type": "task"
+    },
+    {
+      "name": "run_shell_command",
+      "type": "shell"
+    },
+    {
+      "name": "save_memory",
+      "type": "generic"
+    },
+    {
+      "name": "search_file_content",
+      "type": "search"
+    },
+    {
+      "name": "send_message",
+      "type": "task"
+    },
+    {
+      "name": "skill",
+      "type": "generic"
+    },
+    {
+      "name": "structured_output",
+      "type": "generic"
+    },
+    {
+      "name": "task",
+      "type": "task"
+    },
+    {
+      "name": "task_create",
+      "type": "task"
+    },
+    {
+      "name": "task_list",
+      "type": "task"
+    },
+    {
+      "name": "task_stop",
+      "type": "task"
+    },
+    {
+      "name": "task_update",
+      "type": "task"
+    },
+    {
+      "name": "team_create",
+      "type": "task"
+    },
+    {
+      "name": "team_delete",
+      "type": "task"
+    },
+    {
+      "name": "team_plan_approval",
+      "type": "task"
+    },
+    {
+      "name": "todo_write",
+      "type": "task"
+    },
+    {
+      "name": "tool_search",
+      "type": "search"
+    },
+    {
+      "name": "update_goal",
+      "type": "generic"
+    },
+    {
+      "name": "web_fetch",
+      "type": "read"
+    },
+    {
+      "name": "web_search",
+      "type": "search"
+    },
+    {
+      "name": "workflow",
+      "type": "task"
+    },
+    {
+      "name": "write_file",
+      "type": "write"
+    },
+    {
+      "name": "zoom_image",
+      "type": "read"
+    }
+  ]
+}
