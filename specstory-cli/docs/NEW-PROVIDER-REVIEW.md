@@ -467,7 +467,7 @@ Per category:
 
 Native Windows is a release target and the CI workflow runs the full test suite on `windows-latest`; nothing in branch protection enforces it, so the reviewer confirms the job passed. The rules are in `CLAUDE.md` and the shared helpers; the recurring failures are in the Windows fixes of PR #191 (Appendix C).
 
-Static checks to run on the provider package. The first five must be empty; read every hit of the last one and confirm each joins a local path:
+Static checks to run on the provider package. The first five must be empty. Read every hit of the last two: for the `filepath` helpers confirm each joins a local path, and that no `EvalSymlinks` is standing in for case correction; for the case-insensitive comparisons confirm each compares something that is not a path, since a data value like a message role is a fair use and a path is not:
 
 ```zsh
 grep -rn 't.Setenv("HOME"' --include='*_test.go' pkg internal
@@ -476,12 +476,15 @@ grep -rn 'Getenv("HOME")\|Getenv("USER")' pkg/providers/<p>
 grep -rn 'pgrep\|"sh"\|"/bin/' pkg/providers/<p>
 grep -rn 'HasPrefix(.*, "/")\|strings.Split(.*"/")' pkg/providers/<p>
 grep -rnE 'filepath\.(IsAbs|Join|Abs|Rel|Clean|Dir|Base|EvalSymlinks)' pkg/providers/<p>
+grep -rniE 'EqualFold|ToLower\(.*[Pp]ath|[Pp]ath.*ToLower' pkg/providers/<p>
 GOOS=windows GOARCH=amd64 go build ./... && GOOS=windows GOARCH=amd64 go vet ./...
 ```
 
 Review rules:
 
 - Paths from session data are handled by shape (`spi.NormalizePath`, `spi.FileURIToPath`, `filepath.ToSlash` plus substring checks); local paths use `os.UserHomeDir()` and `filepath.Join`; IDE-style providers branch on `runtime.GOOS` and honor `--user-data-dir`; WSL reads the Windows side via `spi.IsWSL` where the tool stores data there. An absolute-path check accepts both shapes, `strings.HasPrefix(p, "/") || filepath.IsAbs(p)`; a `/`-only check rejects every native Windows path (provenance was silently disabled on Windows by one).
+- Case-insensitive filesystems (macOS, Windows) are the single cause behind four symptoms that arrive looking unrelated: file-change attribution that silently never matches, recorded paths rendering absolute in markdown because relativization failed, an IDE store growing two workspace entries for one folder and splitting sessions between them, and a project id that changes with the spelling used to reach it. All four start the same way, a user who reached the directory by a spelling that is not the on-disk one, most often `cd ~/source` into a directory named `Source`, after which local paths carry that spelling and agent-recorded paths carry the real one. Ask on any path-matching finding whether both sides were spelled by the same source; if not, this is the cause.
+- The remedy is `spi.GetCanonicalPath` on the local path at its boundary, then exact comparison. Two wrong remedies to reject: `filepath.EvalSymlinks`, which resolves symlinks, leaves case untouched, and returns a nil error (a review in the record names it a hallucination, and a same-spelling fixture will not fail on it); and any case-insensitive comparison, which merges two genuinely different directories on a case-sensitive machine, and which was removed from the Claude Code renderer once because it keyed off the rendering host's OS and corrupted sessions recorded elsewhere. Folding case is correct only when hashing a path into an identity, gated on the host filesystem.
 - The provider's cwd-to-store-directory encoder reproduces the agent's own algorithm, including its symlink resolution; the local project path (cwd, `--project-path`, `--output-dir`) is canonicalized once at the boundary to its on-disk spelling; a recorded path from session data or a remote (SSH, WSL) path is never case-folded, `Abs`ed, or canonicalized, because remote filesystems are case-sensitive and folding collides distinct directories.
 - Build tags only where the syscall type differs; `runtime.GOOS` switches for layout; shape checks for data.
 - Raw JSONL scans for a path also match the backslash-escaped form.
@@ -620,6 +623,7 @@ Rulings from the record, in the maintainer's words, for when a decision is not c
 - "We shouldn't just assume it's there for specstory run cursoride... shouldn't we check and/or catch it failing to run and tell them".
 - "Let's ship w/ ErrReconstructionUnsupported" (honest capability over forced convention, after the experiment).
 - "palette rebrand is fine" (harmless scope creep is accepted when its one real defect is fixed).
+- A change to how a path is canonicalized, case-folded, or hashed states what persisted state it invalidates. Reaching a stored id by a new spelling produces a new id, so the workspace-id case fold came with a `reindexVersion` bump; a change to the local project path can likewise move every generated markdown path. Landing one without saying what it rewrites is the finding, not the change itself.
 - "Ignore their patches... it's more about issue identification".
 - "Let's rework their test scenarios to be compatible with the current code here on dev" (salvage tests from a superseded PR, not the code).
 - "run and other commands don't need --providers" (provider filters belong on sync, list, check, watch).
