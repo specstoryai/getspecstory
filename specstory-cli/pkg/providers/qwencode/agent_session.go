@@ -35,9 +35,10 @@ type toolOutcome struct {
 // Qwen XML-escapes task notification fields. Decode the fields rather than
 // treating these system-injected records as human prompts or agent prose.
 type notificationElement struct {
-	XMLName  xml.Name
-	Text     string                `xml:",chardata"`
-	Children []notificationElement `xml:",any"`
+	XMLName    xml.Name
+	Text       string                `xml:",chardata"`
+	Children   []notificationElement `xml:",any"`
+	Attributes []xml.Attr            `xml:",any,attr"`
 }
 
 var taskNotificationPattern = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)
@@ -46,12 +47,21 @@ func notificationFields(elements []notificationElement) map[string]any {
 	fields := make(map[string]any, len(elements))
 	for _, element := range elements {
 		var value any = strings.TrimSpace(element.Text)
-		if element.XMLName.Local == "result" {
+		if element.XMLName.Local == "result" || element.XMLName.Local == "output-tail" {
 			// Monitor output and agent answers can contain significant indentation.
 			value = element.Text
 		}
 		if len(element.Children) > 0 {
 			value = notificationFields(element.Children)
+		}
+		// Background shells annotate output tails as truncated or unreadable.
+		// Preserve those attributes so a partial/absent tail is not misleading.
+		if len(element.Attributes) > 0 {
+			attributes := make(map[string]any, len(element.Attributes))
+			for _, attribute := range element.Attributes {
+				attributes[attribute.Name.Local] = attribute.Value
+			}
+			value = map[string]any{"text": value, "attributes": attributes}
 		}
 		key := element.XMLName.Local
 		// A notification can carry both a result and an error in separate
@@ -163,6 +173,33 @@ func collectToolOutcomes(records []QwenRecord) map[string]toolOutcome {
 			}
 		}
 	}
+	// Shell notifications have a task ID but no tool-use-id. Only associate
+	// IDs from a shell tool's native launch acknowledgment, never from a
+	// command's stdout or the task_stop invocation targeting that shell.
+	shellCalls := make(map[string]string)
+	for _, record := range records {
+		if record.Type != "assistant" || record.Message == nil {
+			continue
+		}
+		for _, part := range record.Message.Parts {
+			call := part.FunctionCall
+			if call == nil || call.Name != "run_shell_command" {
+				continue
+			}
+			response := outcomes[call.ID].Response
+			if response == nil {
+				continue
+			}
+			if taskID := backgroundShellTaskID(spi.StringValue(response.Response, "output")); taskID != "" {
+				if previous, exists := shellCalls[taskID]; exists && previous != call.ID {
+					// Ambiguous IDs cannot safely identify one originating call.
+					shellCalls[taskID] = ""
+				} else {
+					shellCalls[taskID] = call.ID
+				}
+			}
+		}
+	}
 	// Background results arrive later, sometimes bundled into one notification
 	// record. Retain each event in append order without replacing the launch
 	// response or collapsing a completed-then-cancelled sequence into one status.
@@ -179,6 +216,9 @@ func collectToolOutcomes(records []QwenRecord) map[string]toolOutcome {
 				}
 				fields := notificationFields(notification.Children)
 				callID, _ := fields["tool-use-id"].(string)
+				if callID == "" && fields["kind"] == "shell" {
+					callID = shellCalls[spi.StringValue(fields, "task-id")]
+				}
 				if callID == "" {
 					continue
 				}
@@ -192,6 +232,18 @@ func collectToolOutcomes(records []QwenRecord) map[string]toolOutcome {
 		}
 	}
 	return outcomes
+}
+
+// backgroundShellTaskID recognizes Qwen's launch envelope, not arbitrary shell
+// output (foreground responses start with "Command:"). It is also used to
+// retain the full launch response instead of its shorter display toast.
+func backgroundShellTaskID(output string) string {
+	rest, found := strings.CutPrefix(strings.ReplaceAll(output, "\r\n", "\n"), "Background shell started.\nid: ")
+	if !found {
+		return ""
+	}
+	id, _, _ := strings.Cut(rest, "\n")
+	return strings.TrimSpace(id)
 }
 
 // buildExchangesFromRecords groups Qwen records into exchanges. An exchange

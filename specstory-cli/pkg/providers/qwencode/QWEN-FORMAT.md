@@ -83,7 +83,7 @@ Qwen's responsibility. RawData preserves the entire original transcript.
 | Record | Conversion |
 | --- | --- |
 | Real `user` | Starts an exchange; includes mid-turn user interjections |
-| System-provenance `user` | Task notifications are folded into their original tool calls by `tool-use-id`; other injected context is skipped |
+| System-provenance `user` | Task notifications are folded into their original tool calls by `tool-use-id`, or by a background shell's launch task ID; other injected context is skipped |
 | `assistant` | Text, thinking and tool calls stay in native part order |
 | `tool_result` | Matched by exact call ID and folded into its invocation |
 | `system` | Native control/metadata records; retained in raw/debug output |
@@ -121,6 +121,12 @@ shows JavaScript. Writes retain explicit `record_as_artifact` options. JSON
 result strings are indented without converting numeric values. Shell results
 show compact stdout/stderr plus recorded directory, exit code and error/signal
 details; monitor results retain the complete startup response and limits.
+Background shells retain `is_background`, the full launch acknowledgment and
+output-file path, plus later status, exit code and output tail. Shell completion
+notifications omit `tool-use-id`, so their `task-id` is matched to the ID in the
+original shell launch response. Unmatched or ambiguous task IDs are not guessed.
+Output-tail indentation and XML attributes marking truncation or unreadable
+files are preserved; referenced output files are not read during export.
 Known tools get scalar argument labels with structured data retained as JSON.
 Unknown tools retain generic JSON input/output. Nothing is silently dropped
 because the provider does not recognize an output object.

@@ -393,3 +393,71 @@ func TestGenerateAgentSession_BackgroundNotifications(t *testing.T) {
 		t.Errorf("human text treated as system notifications: %v", got)
 	}
 }
+
+func TestGenerateAgentSession_BackgroundShellNotifications(t *testing.T) {
+	for _, tt := range []struct {
+		name, taskID, extra, status, tail string
+		want                              []string
+		attached                          bool
+	}{
+		{"completed", "shell-a", "<exit-code>0</exit-code>", "completed", "<output-tail truncated=\"false\">  hello &amp; &lt;world&gt;\n```\n</output-tail>", []string{"exit-code: 0", "truncated: false", "````text\n  hello & <world>\n```\n"}, true},
+		{"failed", "shell-a", "<exit-code>7</exit-code><result>Command failed</result>", "failed", "<output-tail truncated=\"true\">last output</output-tail>", []string{"exit-code: 7", "Command failed", "truncated: true", "last output"}, true},
+		{"cancelled unreadable tail", "shell-a", "", "cancelled", "<output-tail error=\"unreadable\" />", []string{"error: unreadable"}, true},
+		{"unmatched task", "unknown-shell", "", "completed", "", nil, false},
+		{"non-shell response cannot establish ownership", "shell-fake", "", "completed", "", nil, false},
+		{"explicit unknown call is not reassigned", "shell-a", "<tool-use-id>unknown-call</tool-use-id>", "completed", "", nil, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			launch := func(callID, taskID string) QwenRecord {
+				return QwenRecord{Type: "tool_result", Message: &QwenMessage{Parts: []QwenPart{{FunctionResponse: &QwenFunctionResponse{
+					ID: callID, Response: map[string]any{"output": "Background shell started.\nid: " + taskID + "\npid: 123\noutput file: /tmp/" + taskID + ".output"},
+				}}}}, ToolCallResult: &QwenToolCallResult{Status: "success", ResultDisplay: json.RawMessage(`"Background shell started"`)}}
+			}
+			notification := "<task-notification><task-id>" + tt.taskID + "</task-id><kind>shell</kind><status>" + tt.status + "</status>" + tt.extra + tt.tail + "<output-file>/tmp/shell-a.output</output-file></task-notification>"
+			session := &QwenSession{ID: "background-shell", Records: []QwenRecord{
+				{Type: "user", Provenance: "real_user", Message: &QwenMessage{Parts: []QwenPart{{Text: "Run background checks"}}}},
+				{Type: "assistant", Message: &QwenMessage{Parts: []QwenPart{
+					{FunctionCall: &QwenFunctionCall{ID: "call-a", Name: "run_shell_command", Args: map[string]any{"command": "check a", "is_background": true}}},
+					{FunctionCall: &QwenFunctionCall{ID: "call-b", Name: "run_shell_command", Args: map[string]any{"command": "check b", "is_background": true}}},
+					{FunctionCall: &QwenFunctionCall{ID: "call-stop", Name: "task_stop", Args: map[string]any{"task_id": "shell-a"}}},
+					{FunctionCall: &QwenFunctionCall{ID: "call-fake", Name: "read_file"}},
+				}}},
+				// Results can arrive in a different order from the parallel calls.
+				launch("call-b", "shell-b"), launch("call-a", "shell-a"), launch("call-fake", "shell-fake"),
+				{Type: "user", Provenance: "system", Subtype: "notification", Timestamp: "2026-09-16T01:30:00Z", Message: &QwenMessage{Parts: []QwenPart{{Text: notification}}}},
+			}}
+			data, err := GenerateAgentSession(session, "/project")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(data.Exchanges) != 1 || len(data.Exchanges[0].Messages) != 5 {
+				t.Fatalf("notification created extra messages: %+v", data.Exchanges)
+			}
+			shell := data.Exchanges[0].Messages[1].Tool
+			md := *shell.FormattedMarkdown
+			for _, want := range []string{"is_background: true", "id: shell-a", "pid: 123", "output file: /tmp/shell-a.output"} {
+				if !strings.Contains(md, want) {
+					t.Errorf("launch information missing %q: %s", want, md)
+				}
+			}
+			if strings.Contains(md, "Background events:") != tt.attached {
+				t.Fatalf("notification association mismatch: %s", md)
+			}
+			if tt.attached {
+				for _, want := range append(tt.want, "status: "+tt.status, "2026-09-16T01:30:00Z") {
+					if !strings.Contains(md, want) {
+						t.Errorf("background result missing %q: %s", want, md)
+					}
+				}
+				if shell.Output["status"] != "success" {
+					t.Error("completion must not replace the immediate launch status")
+				}
+			}
+			for _, message := range data.Exchanges[0].Messages[2:] {
+				if strings.Contains(*message.Tool.FormattedMarkdown, "Background events:") {
+					t.Errorf("notification attached to unrelated call %s", message.Tool.UseID)
+				}
+			}
+		})
+	}
+}

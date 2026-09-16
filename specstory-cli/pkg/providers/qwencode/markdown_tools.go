@@ -188,6 +188,9 @@ func formatReadFileResultFromOutput(tool *ToolInfo) string {
 // raw stdout/stderr, which reads better than the functionResponse's structured
 // "Command:/Directory:/Output:" envelope; prefer it when present.
 func formatShellResultFromOutput(output map[string]any) string {
+	if backgroundShellTaskID(spi.StringValue(output, "output")) != "" {
+		return formatDefaultResultFromOutput(output)
+	}
 	content := ""
 	if output != nil {
 		if display, ok := output["resultDisplay"].(string); ok && strings.TrimSpace(display) != "" {
@@ -293,6 +296,9 @@ func formatShellBodyFromInput(input map[string]any) string {
 	}
 	if directory != "" {
 		fmt.Fprintf(&builder, "Directory: `%s`\n\n", directory)
+	}
+	if value, supplied := input["is_background"]; supplied {
+		fmt.Fprintf(&builder, "is_background: %v\n\n", value)
 	}
 
 	if command != "" {
@@ -506,12 +512,24 @@ func formatTaskNotifications(output map[string]any) string {
 		fmt.Fprintf(&b, "**Event %d — %s**\n\n", i+1, spi.StringValue(notification, "timestamp"))
 		metadata := maps.Clone(fields)
 		delete(metadata, "result")
+		delete(metadata, "output-tail")
 		b.WriteString(formatInputFields(metadata))
 		if result, exists := fields["result"]; exists {
 			if text, ok := result.(string); ok {
 				fmt.Fprintf(&b, "\n\nResult:\n%s", spi.CodeFence("text", text))
 			} else {
 				b.WriteString("\n\n" + formatInputFields(map[string]any{"result": result}))
+			}
+		}
+		if tail, exists := fields["output-tail"]; exists {
+			b.WriteString("\n\nOutput tail:\n")
+			if annotated, ok := tail.(map[string]any); ok {
+				attributes, _ := annotated["attributes"].(map[string]any)
+				b.WriteString("\n" + formatInputFields(attributes) + "\n\n")
+				tail = annotated["text"]
+			}
+			if text, ok := tail.(string); ok && text != "" {
+				b.WriteString(spi.CodeFence("text", text))
 			}
 		}
 		b.WriteString("\n\n")

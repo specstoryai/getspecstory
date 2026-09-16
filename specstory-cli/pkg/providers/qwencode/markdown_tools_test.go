@@ -407,3 +407,20 @@ func TestToolRenderingOptionalDetails(t *testing.T) {
 		})
 	}
 }
+
+func TestBackgroundShellLaunchRecognition(t *testing.T) {
+	for _, tt := range []struct{ output, want string }{
+		{"Background shell started.\nid: shell-a\noutput file: /tmp/a", "shell-a"},
+		{"Background shell started.\r\nid: shell-b\r\noutput file: /tmp/b", "shell-b"},
+		{"Command: cat file\nDirectory: (root)\nOutput: Background shell started.\nid: shell-fake\nExit Code: 0", ""},
+		{"Background shell started.\nid: \noutput file: /tmp/a", ""},
+	} {
+		if got := backgroundShellTaskID(tt.output); got != tt.want {
+			t.Errorf("backgroundShellTaskID(%q) = %q, want %q", tt.output, got, tt.want)
+		}
+	}
+	md := renderToolMarkdown(&ToolInfo{Name: "run_shell_command", Input: map[string]any{"command": "echo hi", "is_background": false}, Output: map[string]any{"output": "Command: echo hi\nDirectory: (root)\nOutput: hi\nExit Code: 0", "resultDisplay": "hi"}})
+	if !strings.Contains(md, "is_background: false") || !strings.Contains(md, "Result:\n```text\nhi\n```") {
+		t.Errorf("foreground flag/output lost: %s", md)
+	}
+}
