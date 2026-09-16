@@ -2,7 +2,7 @@
 
 This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few needed changes as possible.
 
-The provider interface is specified by the provider service provider interface (SPI). This interface is documented via doc comments on `spi.Provider` in [pkg/spi/provider.go](pkg/spi/provider.go) and on the two optional interfaces in [pkg/spi/global.go](pkg/spi/global.go); read those first!
+The service provider interface (SPI) is documented in [pkg/spi/provider.go](pkg/spi/provider.go). Read the doc comments on `spi.Provider` and the optional capabilities below it first. A provider must implement `spi.Provider`; it may also implement either or both optional interfaces.
 
 The unified session data format is [pkg/spi/schema/types.go](pkg/spi/schema/types.go), explained in [docs/SPI-SESSION-DATA-SCHEMA.md](docs/SPI-SESSION-DATA-SCHEMA.md).
 
@@ -125,7 +125,7 @@ Implement every method on `spi.Provider` in `pkg/spi/provider.go` (count them ag
 - `ListAllAgentChatSessions` enumerates every session in the native store across all projects, reading the originating working directory from inside each session. This powers `specstory reindex`, `search`, and `resume`.
 - `ReconstructSession`, `NativeSessionPath`, and `SupportsReconstruction` implement cross-agent resume into your agent. `SupportsReconstruction` is a pure constant answer and must agree with the other two. `NativeSessionPath` only resolves the path; the CLI creates the directory and writes the file.
 - The `progress` callback on `GetAgentChatSessions` is invoked once per session file, including skipped and failed ones, so the progress bar reaches its total.
-- The two optional interfaces in `pkg/spi/global.go`: implement `spi.PathSessionReader` (`GetAgentChatSessionByPath`) so reindex can open a session by its known path instead of a by-id walk, and `spi.ProgressEnumerator` (`ListAllAgentChatSessionsProgress`) so reindex can show live counts. A JSONL store implements both, using `spi.ScanSessionsInParallel` for the enumeration (it walks `*.jsonl` files only; other store kinds implement the enumeration themselves).
+- The optional capabilities are also defined in [pkg/spi/provider.go](pkg/spi/provider.go). `spi.PathSessionReader` (`GetAgentChatSessionByPath`) lets reindex open a session by its known path instead of searching by id. `spi.ProgressEnumerator` (`ListAllAgentChatSessionsProgress`) adds live scan counts. Implement either, both, or neither; reindex falls back to the required methods when they are absent. Both are recommended for JSONL stores, which can use `spi.ScanSessionsInParallel` for enumeration (it walks `*.jsonl` files only; other store kinds implement enumeration themselves).
 
 ### Wiring outside the package
 
