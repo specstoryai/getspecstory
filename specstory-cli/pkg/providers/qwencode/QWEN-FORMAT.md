@@ -91,7 +91,7 @@ Qwen's responsibility. RawData preserves the entire original transcript.
 Slash commands are system records, not user prompts. Empty/system-only sessions
 are skipped by sync, list, reindex and watch. Unknown fields survive in debug
 records. Malformed records are logged and skipped; a trailing partial write is
-retried on the next activity. Each record is bounded to 16 MiB while reading.
+retried on the next activity. Each record is bounded to 64 MiB while reading.
 An oversized record is drained through its newline, allowing later turns to
 survive. Metadata-only enumeration retains envelope metadata and the first
 real user prompt rather than accumulating transcript bodies.
