@@ -13,7 +13,6 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
   <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3Dinstalls&style=flat-square" alt="Installs" style="vertical-align: middle;"></a>
   <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DactiveUsers&style=flat-square" alt="Active Users" style="vertical-align: middle;"></a>
   <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square" alt="Sessions Saved" style="vertical-align: middle;"></a>
-  <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square" alt="Rules Generated" style="vertical-align: middle;"></a>
 </p>
 
 <p align="left">
@@ -30,8 +29,6 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
   <a href="https://discord.gg/E47yQyEUd3"><img src="https://img.shields.io/badge/Discord-5865F2?style=flat-square&logo=discord&logoColor=white" alt="Discord" style="vertical-align: middle;"></a>
   <a href="https://www.youtube.com/@specstory"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube" style="vertical-align: middle;"></a>
 </p>
-
-> 📜 **[Lore](./lore)** - Mine your saved sessions into evidence-backed agent skills, forged from how you actually work. Your sessions are your lore.
 
 ## How It Works
 ```
