@@ -20,6 +20,9 @@ import (
 // JSONL event, which is normally the tool_result itself. Only shell tools are
 // gated: other tools do not trigger the diff, and gating them would only delay
 // the transcript.
+//
+// See https://github.com/specstoryai/getspecstory/issues/317 for the full
+// analysis and the reproduction.
 
 // shellGateMaxWait bounds how long a session save can stay deferred. Claude
 // Code always closes a tool call with a tool_result, even when interrupted, so
