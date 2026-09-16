@@ -323,3 +323,73 @@ func TestCurrentQwenRecorderFixture(t *testing.T) {
 		t.Fatalf("got %d tools, want native shell call exactly once", tools)
 	}
 }
+
+func TestGenerateAgentSession_BackgroundNotifications(t *testing.T) {
+	callRecord := QwenRecord{Type: "assistant", UUID: "calls", Message: &QwenMessage{Parts: []QwenPart{
+		{FunctionCall: &QwenFunctionCall{ID: "agent-call", Name: "agent"}},
+		{FunctionCall: &QwenFunctionCall{ID: "monitor-call", Name: "monitor"}},
+		{FunctionCall: &QwenFunctionCall{ID: "other-call", Name: "read_file"}},
+	}}}
+	notifications := `<task-notification><tool-use-id>agent-call</tool-use-id><task-id>agent-task</task-id><status>completed</status><result>PONG &amp; &lt;done&gt;</result><usage><total_tokens>42</total_tokens></usage></task-notification>
+<task-notification><tool-use-id>monitor-call</tool-use-id><status>running</status><event-count>1</event-count><result>tick 1</result></task-notification>
+<task-notification><tool-use-id>agent-call</tool-use-id><status>cancelled</status><result>Request was aborted.</result><result>Error: stopped</result></task-notification>
+<task-notification><tool-use-id>monitor-call</tool-use-id><status>running</status><event-count>2</event-count><result>tick 2</result></task-notification>
+<task-notification><tool-use-id>monitor-call</tool-use-id><status>completed</status><result>Exited with code 0</result></task-notification>
+<task-notification><tool-use-id>unknown-call</tool-use-id><result>orphan</result></task-notification>
+<task-notification><result>no call id</result></task-notification>
+<task-notification><tool-use-id>agent-call</tool-use-id><result>malformed</task-notification>`
+	notice := QwenRecord{Type: "user", Provenance: "system", Subtype: "notification", Timestamp: "2026-09-15T21:30:30Z", Message: &QwenMessage{Parts: []QwenPart{{Text: notifications}}}}
+	session := &QwenSession{ID: "background", Records: []QwenRecord{
+		{Type: "user", Provenance: "real_user", Message: &QwenMessage{Parts: []QwenPart{{Text: "Try the tools"}}}},
+		callRecord,
+		notice,
+		// Collecting later response records must not replace notifications.
+		{Type: "tool_result", Message: &QwenMessage{Parts: []QwenPart{{FunctionResponse: &QwenFunctionResponse{ID: "agent-call", Response: map[string]any{"output": "Background agent launched."}}}}}, ToolCallResult: &QwenToolCallResult{Status: "success"}},
+		{Type: "tool_result", Message: &QwenMessage{Parts: []QwenPart{{FunctionResponse: &QwenFunctionResponse{ID: "monitor-call", Response: map[string]any{"output": "Monitor started."}}}}}},
+	}}
+	data, err := GenerateAgentSession(session, "/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Exchanges) != 1 || len(data.Exchanges[0].Messages) != 4 {
+		t.Fatalf("notifications must not create exchanges or phantom tools: %+v", data.Exchanges)
+	}
+	agent := data.Exchanges[0].Messages[1].Tool
+	monitor := data.Exchanges[0].Messages[2].Tool
+	other := data.Exchanges[0].Messages[3].Tool
+	for _, tt := range []struct {
+		tool *ToolInfo
+		want []string
+	}{
+		{agent, []string{"Background agent launched.", "status: completed", "PONG & <done>", `"total_tokens": "42"`, "status: cancelled", "Request was aborted.", "Error: stopped"}},
+		{monitor, []string{"Monitor started.", "event-count: 1", "tick 1", "event-count: 2", "tick 2", "Exited with code 0"}},
+	} {
+		md := *tt.tool.FormattedMarkdown
+		for _, want := range tt.want {
+			index := strings.Index(md, want)
+			if index < 0 {
+				t.Errorf("%s missing %q in %s", tt.tool.Name, want, md)
+			}
+		}
+		if strings.Contains(md, "orphan") || strings.Contains(md, "malformed") {
+			t.Errorf("unmatched/malformed notification attached to %s", tt.tool.Name)
+		}
+	}
+	if strings.Index(*agent.FormattedMarkdown, "status: completed") >= strings.Index(*agent.FormattedMarkdown, "status: cancelled") {
+		t.Error("agent lifecycle events reordered")
+	}
+	if strings.Index(*monitor.FormattedMarkdown, "tick 1") >= strings.Index(*monitor.FormattedMarkdown, "tick 2") {
+		t.Error("monitor events reordered")
+	}
+	if agent.Output["status"] != "success" || len(agent.Output["notifications"].([]any)) != 2 || len(monitor.Output["notifications"].([]any)) != 3 {
+		t.Error("launch status or individual background events were lost")
+	}
+	if strings.Contains(*other.FormattedMarkdown, "Background events") {
+		t.Error("unrelated tool received notifications")
+	}
+	// A quoted notification in a human prompt must never become a tool result.
+	session.Records[2].Provenance = "real_user"
+	if got := collectToolOutcomes(session.Records)["agent-call"].Notifications; len(got) != 0 {
+		t.Errorf("human text treated as system notifications: %v", got)
+	}
+}

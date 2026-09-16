@@ -71,7 +71,7 @@ The architecture is one-directional:
 - `pkg/spi/factory/registry.go` imports every provider and is the only place that knows them all. 
 - Nothing else in the CLI imports a provider package directly.
 
-The package is `pkg/providers/<agent>`, for example `claudecode`, `codexcli`, `cursoride`, `musecode`). The typical file set is:
+The package is `pkg/providers/<agent>`: the product's own name, lowercased, with the spaces removed. That is the whole rule for ten of the twelve, including `cursoride`, because Code, CLI, TUI and IDE are part of what those products call themselves. The IDE-backed providers end in `ide`, which Cursor IDE's own name already supplies and VS Code Copilot does not, so it becomes `copilotide`. Pi is `piagent`, the one place a bare product name was too slight to stand on its own. The typical file set is:
 
 |                                      File                                      |                                          Purpose                                           |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
@@ -137,6 +137,7 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 - `spi.CodeFence` for every fenced block, sized past any backtick run in the content. Never write a literal triple backtick, and never backslash-escape backticks.
 - `spi.ReadRecordLine` with `spi.MaxRecordLineSize` for every JSONL session file. It is the only correct way to cap a record: a cap applied after `bufio.Reader.ReadString` returns has already allocated the oversized record it exists to prevent. A capped `bufio.Scanner` is still right for sidecar and index files, where losing the remainder of the file is acceptable.
 - `spi.CapRunes` for truncation. Never slice a string by bytes.
+- Compare a sentinel error with `errors.Is` and match an error type with `errors.As`. Never `err == io.EOF` or `err.(*exec.ExitError)`: a wrapped error fails both, and wrapping gets added later by someone who has no reason to look for a bare comparison.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName` for tool rendering.
 - `spi.ClassifyCheckError` and the `spi.CheckErrorNotFound`, `spi.CheckErrorPermissionDenied`, `spi.CheckErrorUnknown` constants for `Check` failures. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
 - `analytics.CheckAttempt` populated once per `Check`, with the event emitted by `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`. No inline `analytics.TrackEvent` calls in a provider.
@@ -239,6 +240,18 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 - Structured keys are camelCase (`error`, `path`, `sessionId`, `projectPath`, `command`, `exitCode`); messages are prefixed with the method name (`Check:`, `WatchAgent:`) for SPI entry points.
 - Never swallow an error with `_ :=` when the failure would otherwise be silent to the user.
 
+### What counts as a security concern
+
+The CLI reads files the user's own agents wrote, on the user's own machine, as the user. Data already on the local disk is not a threat to that machine, and anything able to place a file or a symlink inside the agent's store already has the access it would be trying to obtain. So a symlink under the agent's store is read as the user pointing at their own files, a relocated project or sessions shared between checkouts, not as an escape to defend against.
+
+The boundary worth defending runs between this machine and everything outside it:
+
+- What leaves: SpecStory Cloud stores `RawData` and generated markdown. Redaction is central in `pkg/redact`, applied by `pkg/session` and `pkg/cloud`; providers do not touch it. A secret reaching the cloud is worse than a rare local rendering break.
+- What arrives: session content is untrusted input. It is parsed defensively, never executed, never interpolated into a shell command, and never followed off the machine, and a malformed or hostile record degrades to a skipped record rather than an aborted file or an unbounded allocation.
+- User-identifying data (account labels, auth metadata) stays out of generated artifacts and reconstructed files.
+
+Local-only symlink and path checks in the providers exist to keep enumeration inside the store it is scanning, so one project's sessions never land in another's history. They are correctness controls, not security controls, and a bot review that rates one as a vulnerability is rating it too high.
+
 ### Cross-platform
 
 The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs the full test suite on Windows.
@@ -253,6 +266,7 @@ The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs th
 ### Tests
 
 - Test complicated logic and combinatorial scenarios, not constants. A test that asserts `Name()` returns its own literal will be deleted.
+- A test must actually create the condition it is named for. One that cannot, and settles for exercising the ordinary path instead, is deleted or made real: it reads as coverage of the hard case while proving nothing about it, which is worse than its absence because it stops anyone else writing the real one. If the condition is too expensive to build, that is a reason to lower the threshold until it is affordable, not to keep the test.
 - Table-driven with `t.Run(tt.name, ...)` where there is a matrix of cases; a single integration test may stay standalone.
 - Fixtures are raw shapes captured from real sessions, so the tests encode what the agent actually writes.
 - A regression test must fail when the fix is backed out. Prove it before you commit it. When a fix adds a guard, the test also proves the guarded path still works for the legitimate case.
@@ -292,7 +306,7 @@ Then run the tool enumeration session described above through `./specstory sync 
 
 ## Software factory affordances
 
-The SpecStory provider factory watches each agent's release channel and audits new versions. A provider enrolls by shipping executable bash scripts under `pkg/providers/<agent><kind>/factory/` (the package directory, not the registry id). Model them on `pkg/providers/claudecode/factory/` and `pkg/providers/antigravitycli/factory/`, including the header comment that records the channel decision, what was rejected and why, and the contract paragraph. These scripts run unattended in CI on every merge, so they are read as untrusted code: nothing is piped to a shell except the vendor's own pinned installer, and nothing reads outside the named credential.
+The SpecStory provider factory watches each agent's release channel and audits new versions. A provider enrolls by shipping executable bash scripts under `pkg/providers/<agent>/factory/` (the package directory, not the registry id). Model them on `pkg/providers/claudecode/factory/` and `pkg/providers/antigravitycli/factory/`, including the header comment that records the channel decision, what was rejected and why, and the contract paragraph. These scripts run unattended in CI on every merge, so they are read as untrusted code: nothing is piped to a shell except the vendor's own pinned installer, and nothing reads outside the named credential.
 
 - `latest-version` (required): prints the current released version to stdout and exits 0. A non-zero exit means sensor failure, never "no change"; an empty extraction becomes a non-zero exit with a diagnosis on stderr. Output is opaque, byte-compared day to day, so it carries no build counters, shas, or dates unless they are part of the string the binary prints for `--version`, and the header states which dist-tag or release train is tracked. Accepted channels are an npm `latest` dist-tag, a GitHub `releases/latest` redirect, or the vendor's installer script read as a manifest; never the GitHub API or any tool needing auth. Every curl carries `--connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2`. Runs with no credentials.
 - `install <version>` (required when the agent has a headless mode): takes the first line of `latest-version`'s output verbatim, installs exactly that version under `$HOME` at `$HOME/.local/bin/<binary>`, disables the agent's self-update where it has one, prints the version read back from the binary as the only stdout line (installer chatter goes to stderr), and exits non-zero on any mismatch.
@@ -320,7 +334,7 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 
 ## Self-review checklist
 
-- [ ] Package named `<agent><kind>`; canonical files only; `var _ spi.Provider` assertion present
+- [ ] Package named for the product, lowercased and unspaced; canonical files only; `var _ spi.Provider` assertion present
 - [ ] Every SPI method implemented, including `ListAllAgentChatSessions` and the three reconstruction methods, each with a test
 - [ ] Registry, config (`<id>_cmd` in template, struct, switch, doc comment, and test rows — the two wiring tests must pass), TUI color, both READMEs, changelog
 - [ ] `<AGENT>-FORMAT.md`, in the provider package, written from the current release with the write lifecycle and baseline version, no legacy notes
@@ -334,3 +348,4 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go build ./...` and `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 - [ ] Every command in the test table exercised against the real agent; resume verified in both directions; symlinked and special-character project paths tried
 - [ ] `factory/latest-version` present and tested under an isolated home with its negative case; `install` and `list-tools` present if the agent runs headless
+- [ ] Ran this repository's own review pass over your work and acted on it: `/code-review` before the pull request exists, `/pr-review <number>` once it does. Say in the pull request that you ran it and what you changed as a result; findings you decided against get a one-line reason, not silence

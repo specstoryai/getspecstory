@@ -1,9 +1,11 @@
 package qwencode
 
 import (
+	"encoding/xml"
 	"fmt"
 	"log/slog"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -22,12 +24,49 @@ type (
 	Usage        = schema.Usage
 )
 
-// toolOutcome pairs the two places a tool call's result lives on a tool_result
-// record: the functionResponse payload (what the model saw) and the envelope's
-// toolCallResult (status plus display-oriented output like fileDiff).
+// toolOutcome combines the functionResponse payload (what the model saw),
+// envelope status/display data, and any later background task notifications.
 type toolOutcome struct {
-	Response *QwenFunctionResponse
-	Result   *QwenToolCallResult
+	Response      *QwenFunctionResponse
+	Result        *QwenToolCallResult
+	Notifications []any
+}
+
+// Qwen XML-escapes task notification fields. Decode the fields rather than
+// treating these system-injected records as human prompts or agent prose.
+type notificationElement struct {
+	XMLName  xml.Name
+	Text     string                `xml:",chardata"`
+	Children []notificationElement `xml:",any"`
+}
+
+var taskNotificationPattern = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)
+
+func notificationFields(elements []notificationElement) map[string]any {
+	fields := make(map[string]any, len(elements))
+	for _, element := range elements {
+		var value any = strings.TrimSpace(element.Text)
+		if element.XMLName.Local == "result" {
+			// Monitor output and agent answers can contain significant indentation.
+			value = element.Text
+		}
+		if len(element.Children) > 0 {
+			value = notificationFields(element.Children)
+		}
+		key := element.XMLName.Local
+		// A notification can carry both a result and an error in separate
+		// <result> elements; keep both rather than replacing the first.
+		if previous, exists := fields[key]; exists {
+			if values, ok := previous.([]any); ok {
+				fields[key] = append(values, value)
+			} else {
+				fields[key] = []any{previous, value}
+			}
+		} else {
+			fields[key] = value
+		}
+	}
+	return fields
 }
 
 // convertUsage converts Qwen's Gemini-style usage metadata to the shared Usage type.
@@ -124,14 +163,43 @@ func collectToolOutcomes(records []QwenRecord) map[string]toolOutcome {
 			}
 		}
 	}
+	// Background results arrive later, sometimes bundled into one notification
+	// record. Retain each event in append order without replacing the launch
+	// response or collapsing a completed-then-cancelled sequence into one status.
+	for _, record := range records {
+		if record.Type != "user" || record.Provenance != "system" || record.Subtype != "notification" || record.Message == nil {
+			continue
+		}
+		for _, part := range record.Message.Parts {
+			for _, block := range taskNotificationPattern.FindAllString(part.Text, -1) {
+				var notification notificationElement
+				if err := xml.Unmarshal([]byte(block), &notification); err != nil {
+					slog.Debug("Skipping malformed Qwen task notification", "recordID", record.UUID, "error", err)
+					continue
+				}
+				fields := notificationFields(notification.Children)
+				callID, _ := fields["tool-use-id"].(string)
+				if callID == "" {
+					continue
+				}
+				outcome := outcomes[callID]
+				outcome.Notifications = append(outcome.Notifications, map[string]any{
+					"timestamp": record.Timestamp,
+					"fields":    fields,
+				})
+				outcomes[callID] = outcome
+			}
+		}
+	}
 	return outcomes
 }
 
 // buildExchangesFromRecords groups Qwen records into exchanges. An exchange
 // starts with a real user turn and includes all subsequent agent activity
-// until the next user turn. System records and system-injected user records
-// (task notifications) are skipped; tool_result records only contribute their
-// end-time since their payloads are folded into the tool messages.
+// until the next user turn. Task notifications are folded into the original
+// tool calls; other injected context and system records are skipped.
+// tool_result records only contribute their end-time since their payloads
+// are folded into the tool messages.
 func buildExchangesFromRecords(records []QwenRecord, workspaceRoot string) []Exchange {
 	outcomes := collectToolOutcomes(records)
 
@@ -276,6 +344,12 @@ func buildToolOutput(outcome toolOutcome) map[string]any {
 		if display := resultDisplayString(outcome.Result.ResultDisplay); display != "" {
 			output["resultDisplay"] = display
 		}
+	}
+	if len(outcome.Notifications) > 0 {
+		if output == nil {
+			output = make(map[string]any)
+		}
+		output["notifications"] = outcome.Notifications
 	}
 
 	return output

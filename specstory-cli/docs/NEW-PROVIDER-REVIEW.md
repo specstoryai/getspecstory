@@ -74,7 +74,8 @@ Establish the facts before reading code.
 6. Whether a tool enumeration session exists (see section 7), at what agent version, and whether the agent declares its own tools (a stream init event, an extension hook) or only the model's self-report is available.
 7. Test files and functions versus the exemplar. A fraction of the peers' count is a High ledger item, resolved by tests for the parser, watcher, and reconstruction logic that warrant them, not by coverage padding.
 8. Whether the branch compiles against the current SPI. A contribution that predates an SPI change fails at the registry with "does not implement spi.Provider (missing method ...)". Those gaps are yours to close.
-9. Read the PR body's open questions. Answer them with code, not comments. When the Copilot IDE PR asked whether the two IDE providers should share workspace code, the answer was a shared `pkg/providers/vscode` package.
+9. Whether the contributor ran this repository's own review pass (`/code-review`, or `/pr-review <number>` once the PR exists) and what they changed as a result. The PR body should say. If it is absent, run it yourself before reading further: it is the same standard this document applies, and a submission that has not been through it will spend its first round on findings the contributor could have taken themselves.
+10. Read the PR body's open questions. Answer them with code, not comments. When the Copilot IDE PR asked whether the two IDE providers should share workspace code, the answer was a shared `pkg/providers/vscode` package.
 
 ## 2. Bring the branch current
 
@@ -133,7 +134,7 @@ Build a matrix of this provider against `pkg/spi/provider.go` and against the ex
 - `GetAgentChatSessions` calls `progress` once per file, including skips and failures, so the bar reaches the total.
 - `ListAllAgentChatSessions` reads the originating cwd from inside the session; `spi.PathSessionReader` implemented if by-id lookup walks the store; `spi.ProgressEnumerator` via `spi.ScanSessionsInParallel` for a JSONL store (it walks `*.jsonl` only; other stores implement the enumeration themselves).
 - `SupportsReconstruction` is a constant that agrees with `ReconstructSession` and `NativeSessionPath`, and neither of those touches the filesystem.
-- The registry id equals the `ProviderInfo.ID` stamped in session data; that has held for every provider from Muse Code onward (older providers stamp `<agent>-<kind>` forms such as `deepseek-tui` and `antigravity-cli`, which are legacy, not a second convention).
+- The registry id equals the `ProviderInfo.ID` stamped in session data; that has held for every provider from Muse Code onward (older providers stamp hyphenated forms such as `deepseek-tui` and `antigravity-cli`, which are legacy, not a second convention).
 - The comparison baseline for a terminal agent is Claude Code ("That's not the best comparison, try Claude Code as the definitive provider."), refined by the newest accepted providers for `Check` shape, watcher startup policy, and exit handling. For an IDE agent the baseline is Cursor IDE plus `pkg/providers/vscode`. Appendix B names which provider is the reference for each concern and which are drift.
 
 ### 4.2 Shared-code reuse audit
@@ -145,6 +146,7 @@ Check specifically:
 - `SessionData` construction uses `schema.CurrentSchemaVersion` and `schema.ContentTypeText` / `schema.ContentTypeThinking`, not duplicated string values. Do not apply these constants to native record fields or code-fence language labels.
 - Fences: the reliable check is which call sites do not go through `spi.CodeFence`, not which lines contain backticks. Fences assembled across `WriteString` calls hide from grep. Backslash-escaped backticks are a bug.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName`, `spi.CapRunes` (no `s[:N]`).
+- `errors.Is` for a sentinel and `errors.As` for an error type. `grep -rnE '(==|!=) *(io\.EOF|sql\.ErrNoRows)'` and `grep -rnE '\.\(\*[a-z]+\.[A-Za-z]+Error\)'` over the provider; both forms miss a wrapped error, and wrapping tends to be added later by someone with no reason to look for a bare comparison.
 - `spi.ClassifyCheckError` with the `spi.CheckError*` constants; an `analytics.CheckAttempt` emitted through `TrackCheckSuccess` and `TrackCheckFailure`; a `versionFlag` constant that is what actually runs.
 - `spi.SplitCommandLine`; `spi.EnsureResumeArgs` for subcommand-style resume; for flag-style resume a helper that replaces a pinned id, inserts after a bare flag even when the next token is another flag, repairs `--flag=`, and never appends to the caller's slice. No shared flag-style helper exists yet, and every existing flag-style copy lets a pinned id win, so this is a new helper to write, not one to copy.
 - `spi.CanonicalizePathOrClean` for local comparisons; `spi.FileURIToPath` and `spi.ParseVSCodeRemoteURI` for URIs; `spi.NormalizePath` and `spi.ExtractShellPathHints` for hints.
@@ -263,17 +265,21 @@ Taken when the fix is also a simplification or the cost is on a hot path; skippe
 
 ### 4.12 Security and robustness
 
+Rate findings against the boundary the CLI actually defends. It reads files the user's own agents wrote, on their own machine, as them. Data already on the local disk is not a threat to that machine, and anything able to place a file or a symlink inside the agent's store already holds the access it would be trying to gain, so a symlink under the store is the user pointing at their own files, not an escape. The boundary runs between this machine and everything outside it: what leaves for SpecStory Cloud, and untrusted session content arriving from anywhere. A finding that assumes a local attacker is re-rated down to robustness, with that reason written in the ledger; a finding about what reaches the cloud, about content executed or interpolated rather than parsed, or about an unbounded allocation from a hostile record keeps its severity.
+
 - The provider is read-only against the agent's store on the read paths. A SQLite handle is read-only only when the DSN is `file:<path>?mode=ro&` plus `spi.BusyTimeoutPragma`; the driver ignores `mode=` on a bare path and opens read-write-create (the Cursor CLI review found this when a test opened a nonexistent path and got an empty database). The one sanctioned write on the read side is `spi.EnsureWALMode`, once per database at watcher startup. Where the provider must write (IDE resume), it uses busy timeouts, transactions, idempotent inserts, and checkpoints, and it never writes while the app is running.
 - Redaction is central in `pkg/redact`, applied by `pkg/session` and `pkg/cloud`; providers do not touch it. The maintainer's risk asymmetry: a secret in the cloud is worse than a rare local rendering break.
 - A capped scanner belongs on sidecar and index files where a bad line can be skipped; the primary session file goes through `spi.ReadRecordLine` so that one oversized record degrades to one bad record, never an aborted file, because `ErrTooLong` stops the scan and loses everything after it (a streaming-parse suggestion was rejected on that ground; the right response was a rename and an honest comment). Each provider carries a test proving the records on both sides of an oversized one survive. When a record holds `json.RawMessage`, unmarshal from a copy of the line (`scanner.Text()`, never `scanner.Bytes()`); the scanner reuses its buffer and records outlive the loop.
 - No user-identifying data in generated artifacts.
 - A discovery heuristic that scans other users' profiles (the WSL `/mnt/c/Users` first-match scan) is raised as a ledger item: refuse when ambiguous, or document the trade-off at the decision site; the maintainer decides.
+- The providers' symlink and path checks keep enumeration inside the store being scanned, so one project's sessions never land in another's history. They are correctness controls; do not accept or file them as security controls.
 
 ### 4.13 Tests
 
 The five criteria from `pr-review.md` apply: not trivial, not tautological, well-designed, reliable, not repetitive. The maintainer's refinements:
 
 - Delete tests that cannot disagree with the code, including ones a reviewer wrote. The DeepSeek instruction, adopted from the review's own MIP wording: "Delete tautological tests (T1, T2, T3, possibly T4) — they assert literal constants and dilute the signal of the rest of the suite."
+- The same treatment for a test that never creates the condition it is named for and exercises the ordinary path instead. It is harder to spot than a constant assertion, because the name and the setup read as though the hard case were covered, and it deters anyone from writing the real one. The tell is a comment conceding the limitation, as in a size-limit test whose body explains that the limit cannot be reached in a unit test and then parses a normal file. Delete it, or lower the threshold until the condition is affordable to build and assert the real behavior.
 - A non-assertion (`t.Logf("accepted")`) becomes a real assertion.
 - Table-driven "where needed and would benefit from them", not blanket; an integration test may stay standalone.
 - Fixtures are raw shapes captured from the real session; tests assert what must not leak (`[topic]`, `diffLines`, `systemPrompt`, a raw json fence).
@@ -289,7 +295,7 @@ The five criteria from `pr-review.md` apply: not trivial, not tautological, well
 
 ### 4.14 Naming and layout
 
-- Package `<agent><kind>` ("it should be pkg/providers/deepseektui, update everywhere"); registry id short; user-facing ids, TOML keys, and display names unchanged by a rename.
+- Package named for the product, lowercased and unspaced ("it should be pkg/providers/deepseektui, update everywhere"); registry id short; user-facing ids, TOML keys, and display names unchanged by a rename.
 - Brand casing in Go identifiers ("Let's use DeepSeekCmd for (3)").
 - Names telegraph the difference between two similar helpers (a strict store-layout parser versus a take-anything fallback).
 - Field names read well ("InvocationAt ... could be InvokedAt for better grammar").
@@ -490,16 +496,18 @@ Process: CI runs only on `pull_request` (path-filtered; docs-only changes run no
 
 ## 9. Bot review triage
 
-GitHub Copilot reviews every PR, often across dozens of rounds. Its comments are inputs for issue identification, never patches to apply ("Ignore their patches... it's more about issue identification").
+GitHub Copilot reviews every PR, often across dozens of rounds. Its comments are inputs for issue identification, never patches to apply ("Ignore their patches... it's more about issue identification"). Nothing it says is taken as correct because it said it; every finding is confirmed, re-rated, and then either fixed or rejected on the record.
 
-1. Pull every review comment with `gh api --paginate repos/specstoryai/getspecstory/pulls/<n>/comments` (the REST endpoint carries no resolved flag; thread resolution is visible in the PR UI or through the GraphQL `reviewThreads` query) and present them as one numbered list in order, each with: already resolved, or real issue, or not an issue; and if real, what to do.
+1. Pull every review comment with `gh api --paginate repos/specstoryai/getspecstory/pulls/<n>/comments` (the REST endpoint carries no resolved flag; thread resolution and thread ids come from the GraphQL `reviewThreads` query) and present them as one numbered list in order, each with: already resolved, or real issue, or not an issue; and if real, what to do.
 2. Do nothing until told which numbers to act on ("Don't DO anything with them yet.").
-3. Verify each claim against the code and real data before rating it; re-rate the bot's severity with a reason (a prior review wrote that a High rating overstated a robustness concern that was not a security boundary).
-4. Reject wrong ones with a one-line technical reason (a prior review rejected a nil-map guard because `delete` on a nil map is defined as a no-op in Go); leave a documented trade-off where the concern is real but out of scope.
-5. Act by number; write your own fix; mirror into the sibling.
-6. Keep re-pulling ("Check the latest Copilot feedback too. It's got some new stuff.") and expect the maintainer to paste individual comments with a confidence flag ("may or may not be right").
-7. Accept trivial suggested edits (a stale doc path in a comment) as-is; they arrive as co-authored commits.
-8. Old comments the contributor deferred are still fair game if the finding was real (the `isEmptyCapabilityBubble` extraction landed six months after the comment).
+3. Check what the bot was looking at before triaging anything. A review is pinned to the commit it ran against, and later commits routinely fix what it flagged, so compare its findings against the branch as it stands now and mark the ones already handled. Skipping this costs a round re-fixing solved problems and, worse, invites a fix that reintroduces something.
+4. Every thread ends resolved, with a reply saying which way it went. Agreed: fix it, then reply naming what changed, then resolve. Disagreed: reply with the technical reason, then resolve. A thread resolved silently leaves the next reviewer, and the next bot round, no way to tell a considered rejection from an oversight. Where the finding described real behavior but the behavior is intended, say both: that the report is accurate and why it stands.
+5. Verify each claim against the code and real data before rating it, rather than reasoning from the comment. A throwaway test inside the package that plants the condition and reports what happens settles most of them in one run and is deleted afterwards; it also catches the finding that is real but scoped differently than described. Re-rate the bot's severity with a reason (a prior review wrote that a High rating overstated a robustness concern that was not a security boundary; see 4.12 for which concerns are security concerns at all).
+6. Reject wrong ones with a one-line technical reason (a prior review rejected a nil-map guard because `delete` on a nil map is defined as a no-op in Go); leave a documented trade-off where the concern is real but out of scope. Check the remedy as well as the diagnosis: a comment can identify a real defect and propose a fix that does not address it.
+7. Act by number; write your own fix; mirror into the sibling.
+8. Keep re-pulling ("Check the latest Copilot feedback too. It's got some new stuff.") and expect the maintainer to paste individual comments with a confidence flag ("may or may not be right").
+9. Accept trivial suggested edits (a stale doc path in a comment) as-is; they arrive as co-authored commits.
+10. Old comments the contributor deferred are still fair game if the finding was real (the `isEmptyCapabilityBubble` extraction landed six months after the comment).
 
 ## 10. Factory affordances
 

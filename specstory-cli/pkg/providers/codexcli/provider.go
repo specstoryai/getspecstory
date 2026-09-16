@@ -969,7 +969,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 	// so we always process the line first, then check for EOF once at the bottom.
 	for {
 		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
@@ -1000,7 +1000,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 		}
 
 		// Single exit: found what we need, or reached end of file
-		if firstUserMessage != "" || readErr == io.EOF {
+		if firstUserMessage != "" || errors.Is(readErr, io.EOF) {
 			break
 		}
 	}

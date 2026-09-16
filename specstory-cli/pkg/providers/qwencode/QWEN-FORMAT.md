@@ -83,7 +83,7 @@ Qwen's responsibility. RawData preserves the entire original transcript.
 | Record | Conversion |
 | --- | --- |
 | Real `user` | Starts an exchange; includes mid-turn user interjections |
-| System-provenance `user` | Skipped as injected notification/context |
+| System-provenance `user` | Task notifications are folded into their original tool calls by `tool-use-id`; other injected context is skipped |
 | `assistant` | Text, thinking and tool calls stay in native part order |
 | `tool_result` | Matched by exact call ID and folded into its invocation |
 | `system` | Native control/metadata records; retained in raw/debug output |
@@ -116,7 +116,11 @@ wins over success formatting, including status-only error/cancellation cases.
 Rendering uses shared fence, language, diff, string and todo helpers. Reads
 preserve indentation; search results are fenced; writes retain full content and
 results; edits retain complete native diffs or a before/after fallback.
-Questions show choices, notebook edits show source, and `exec` shows JavaScript.
+Questions show choices, notebook edits show source and native diffs, and `exec`
+shows JavaScript. Writes retain explicit `record_as_artifact` options. JSON
+result strings are indented without converting numeric values. Shell results
+show compact stdout/stderr plus recorded directory, exit code and error/signal
+details; monitor results retain the complete startup response and limits.
 Known tools get scalar argument labels with structured data retained as JSON.
 Unknown tools retain generic JSON input/output. Nothing is silently dropped
 because the provider does not recognize an output object.
@@ -125,9 +129,13 @@ because the provider does not recognize an output object.
 `edit`, `grep_search`, and `agent`. Dynamic `computer_use__*` tools are generic;
 MCP tools remain unknown/generic-rendered. They are external inventories, so the
 factory's built-in declaration reading does not pretend to enumerate them.
-Subagent calls and their returned output are represented in the parent's tool
-blocks; separate child-session files are discovered according to the same
-store layout rather than inferred from tool names.
+Subagent launches and asynchronous results are represented in the parent's
+tool blocks. XML-escaped task notifications are decoded and retained in delivery
+order, including monitor events and completion/cancellation sequences. These
+notifications never become human prompts or replace the immediate tool response.
+Separate child transcripts live under `subagents/<session-id>/`, outside the
+`chats/` files enumerated as top-level sessions; the parent export includes the
+reported result, not the child's complete internal transcript.
 
 ## Watch and execution contract
 

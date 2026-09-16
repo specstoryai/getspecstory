@@ -363,3 +363,47 @@ func TestQuestionAndExecRendering(t *testing.T) {
 		t.Fatalf("exec source not fenced: %s", md)
 	}
 }
+
+func TestToolResultJSONFormatting(t *testing.T) {
+	for _, tt := range []struct{ name, output, want string }{
+		{"object", `{"active":true,"id":9007199254740993,"text":"<tag>\nline"}`, "```json\n{\n  \"active\": true,\n  \"id\": 9007199254740993,"},
+		{"array", `[{"name":"first"},false]`, "```json\n[\n  {\n    \"name\": \"first\""},
+		{"invalid", `{not json}`, "Result: {not json}"},
+		{"text", "Nothing found", "Result: Nothing found"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			md := renderToolMarkdown(&ToolInfo{Name: "get_goal", Output: map[string]any{"output": tt.output}})
+			if !strings.Contains(md, tt.want) {
+				t.Errorf("result not preserved/formatted: %s", md)
+			}
+		})
+	}
+	// Reading a JSON file must retain its original whitespace/content.
+	md := renderToolMarkdown(&ToolInfo{Name: "read_file", Input: map[string]any{"file_path": "a.json"}, Output: map[string]any{"output": `{"a":1}`}})
+	if !strings.Contains(md, "```json\n{\"a\":1}\n```") {
+		t.Fatalf("JSON file content was reformatted: %s", md)
+	}
+}
+
+func TestToolRenderingOptionalDetails(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		tool ToolInfo
+		want []string
+	}{
+		{"write option false", ToolInfo{Name: "write_file", Input: map[string]any{"file_path": "a.md", "content": "hello", "record_as_artifact": false}}, []string{"record_as_artifact: false", "hello"}},
+		{"write option true", ToolInfo{Name: "write_file", Input: map[string]any{"file_path": "a.md", "content": "hello", "record_as_artifact": true}}, []string{"record_as_artifact: true"}},
+		{"notebook diff", ToolInfo{Name: "notebook_edit", Input: map[string]any{"notebook_path": "a.ipynb", "cell_id": "cell-0", "edit_mode": "insert", "cell_type": "markdown", "new_source": "# Heading"}, Output: map[string]any{"output": "Inserted cell-1", "resultDisplay": "@@ -1 +1 @@\n-old\n+new"}}, []string{"Cell: cell-0 (insert)", "```markdown\n# Heading", "```diff\n@@", "Inserted cell-1"}},
+		{"monitor limits", ToolInfo{Name: "monitor", Input: map[string]any{"command": "echo tick"}, Output: map[string]any{"output": "Monitor started.\nmax_events: 1000\nidle_timeout: 300000ms", "resultDisplay": "Monitor started"}}, []string{"max_events: 1000", "idle_timeout: 300000ms"}},
+		{"shell failed exit", ToolInfo{Name: "run_shell_command", Output: map[string]any{"output": "Command: check\nDirectory: (root)\nOutput: Exit Code: 0\nError: check failed\nExit Code: 2\nSignal: SIGTERM\nProcess Group PGID: 42", "resultDisplay": "Exit Code: 0"}}, []string{"Result:\n```text\nExit Code: 0", "Directory: (root)", "check failed", "Exit Code: 2", "Signal: SIGTERM"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			md := renderToolMarkdown(&tt.tool)
+			for _, want := range tt.want {
+				if !strings.Contains(md, want) {
+					t.Errorf("missing %q in %s", want, md)
+				}
+			}
+		})
+	}
+}

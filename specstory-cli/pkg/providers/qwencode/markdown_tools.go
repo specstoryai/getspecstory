@@ -1,6 +1,7 @@
 package qwencode
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -77,6 +78,10 @@ func renderToolMarkdown(tool *ToolInfo) string {
 		builder.WriteString("\n\n")
 		builder.WriteString(result)
 	}
+	if notifications := formatTaskNotifications(tool.Output); notifications != "" {
+		builder.WriteString("\n\n")
+		builder.WriteString(notifications)
+	}
 	if builder.Len() > 0 {
 		builder.WriteString("\n")
 	}
@@ -104,6 +109,9 @@ func formatToolBodyFromInput(tool *ToolInfo) string {
 		}
 		if source := spi.StringValue(tool.Input, "new_source"); source != "" {
 			b.WriteString(spi.CodeFence(lang, source))
+		}
+		if diff := spi.StringValue(tool.Output, "resultDisplay"); strings.Contains(diff, "@@") {
+			fmt.Fprintf(&b, "\n\nChanges:\n%s", spi.CodeFence("diff", strings.TrimSpace(diff)))
 		}
 		return b.String()
 	case "exec":
@@ -148,8 +156,12 @@ func formatToolResultFromOutput(tool *ToolInfo) string {
 		return ""
 	case "read_file":
 		return formatReadFileResultFromOutput(tool)
-	case "run_shell_command", "monitor":
+	case "run_shell_command":
 		return formatShellResultFromOutput(tool.Output)
+	case "monitor":
+		// The monitor display is only a startup toast. Its model-facing output
+		// also records event limits and lifecycle details worth retaining.
+		return formatDefaultResultFromOutput(tool.Output)
 	case "edit", "write_file":
 		return formatDefaultResultFromOutput(tool.Output)
 	case "grep_search", "glob", "list_directory":
@@ -188,7 +200,32 @@ func formatShellResultFromOutput(output map[string]any) string {
 	if content == "" {
 		return spi.RenderGenericJSON(output)
 	}
-	return fmt.Sprintf("Result:\n%s", spi.CodeFence("text", content))
+	result := fmt.Sprintf("Result:\n%s", spi.CodeFence("text", content))
+	if display := spi.StringValue(output, "resultDisplay"); strings.TrimSpace(display) != "" {
+		// Use the last envelope markers: stdout itself can contain lines that
+		// look like status fields. Never infer an exit code from arbitrary text.
+		envelope := spi.StringValue(output, "output")
+		if strings.HasPrefix(envelope, "Command: ") {
+			if _, directory, found := strings.Cut(envelope, "\nDirectory: "); found {
+				if value, _, found := strings.Cut(directory, "\nOutput: "); found {
+					result += "\n\nDirectory: " + value
+				}
+			}
+			if start := strings.LastIndex(envelope, "\nExit Code: "); start >= 0 {
+				if errorStart := strings.LastIndex(envelope[:start], "\nError: "); errorStart >= 0 {
+					if detail := envelope[errorStart+len("\nError: ") : start]; detail != "(none)" && detail != "" {
+						result += "\n\nError:\n" + spi.CodeFence("text", detail)
+					}
+				}
+				for _, line := range strings.Split(envelope[start+1:], "\n") {
+					if strings.HasPrefix(line, "Exit Code: ") || (strings.HasPrefix(line, "Signal: ") && line != "Signal: (none)") {
+						result += "\n\n" + line
+					}
+				}
+			}
+		}
+	}
+	return result
 }
 
 // formatSearchListResultFromOutput fences arbitrary file content safely.
@@ -204,7 +241,9 @@ func formatSearchListResultFromOutput(output map[string]any) string {
 func formatDefaultResultFromOutput(output map[string]any) string {
 	content := outputAsString(output)
 	if content == "" {
-		return spi.RenderGenericJSON(output)
+		// Notifications have their own section, including when the immediate
+		// response is absent from an interrupted/incomplete transcript.
+		return spi.RenderGenericJSON(output, "notifications")
 	}
 
 	// Wrap multi-line output in code fence
@@ -216,6 +255,15 @@ func formatDefaultResultFromOutput(output map[string]any) string {
 
 // formatOutputText wraps multi-line output in code fence, leaves single-line as-is
 func formatOutputText(output string) string {
+	// Indent the original JSON bytes rather than decoding through float64:
+	// large integer IDs and counters must retain their exact values.
+	trimmed := strings.TrimSpace(output)
+	if strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[") {
+		var pretty bytes.Buffer
+		if err := json.Indent(&pretty, []byte(trimmed), "", "  "); err == nil {
+			return spi.CodeFence("json", pretty.String())
+		}
+	}
 	if strings.Contains(output, "\n") {
 		return spi.CodeFence("text", output)
 	}
@@ -264,6 +312,9 @@ func formatWriteFileBodyFromInput(input map[string]any) string {
 	var builder strings.Builder
 	if path != "" {
 		fmt.Fprintf(&builder, "Path: `%s`\n\n", path)
+	}
+	if value, supplied := input["record_as_artifact"]; supplied {
+		fmt.Fprintf(&builder, "record_as_artifact: %v\n\n", value)
 	}
 	if content != "" {
 		builder.WriteString(spi.CodeFence(spi.LanguageFromPath(path), content))
@@ -324,10 +375,9 @@ func formatWebFetchBodyFromInput(input map[string]any) string {
 	return builder.String()
 }
 
-// formatAgentBodyFromInput shows a subagent delegation as its prompt. Subagent
-// transcripts are inline in the parent session (the delegation is an ordinary
-// functionCall/tool_result pair), so the prompt plus the folded-in result is
-// the complete record of the sub-task.
+// formatAgentBodyFromInput shows the delegation prompt. Immediate responses
+// and later task notifications are rendered separately in the same tool block;
+// the child's complete transcript remains in Qwen's separate subagent file.
 func formatAgentBodyFromInput(input map[string]any) string {
 	prompt := spi.StringValue(input, "prompt")
 	subagent := spi.StringValue(input, "subagent_type")
@@ -429,9 +479,42 @@ func formatInputFields(input map[string]any) string {
 			}
 		default:
 			if text := spi.StringValue(input, key); text != "" {
-				fmt.Fprintf(&b, "%s: %s\n", key, text)
+				fmt.Fprintf(&b, "%s: %s\n\n", key, text)
 			}
 		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// formatTaskNotifications keeps lifecycle events distinct from the immediate
+// tool response. Their timestamps are delivery times in the parent transcript.
+func formatTaskNotifications(output map[string]any) string {
+	notifications, _ := output["notifications"].([]any)
+	var b strings.Builder
+	for i, raw := range notifications {
+		notification, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		fields, ok := notification["fields"].(map[string]any)
+		if !ok {
+			continue
+		}
+		if b.Len() == 0 {
+			b.WriteString("Background events:\n\n")
+		}
+		fmt.Fprintf(&b, "**Event %d — %s**\n\n", i+1, spi.StringValue(notification, "timestamp"))
+		metadata := maps.Clone(fields)
+		delete(metadata, "result")
+		b.WriteString(formatInputFields(metadata))
+		if result, exists := fields["result"]; exists {
+			if text, ok := result.(string); ok {
+				fmt.Fprintf(&b, "\n\nResult:\n%s", spi.CodeFence("text", text))
+			} else {
+				b.WriteString("\n\n" + formatInputFields(map[string]any{"result": result}))
+			}
+		}
+		b.WriteString("\n\n")
 	}
 	return strings.TrimSpace(b.String())
 }
