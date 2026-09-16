@@ -420,3 +420,49 @@ func TestEnumerationOmitsNestedStoresAndKeepsUnknownOrigin(t *testing.T) {
 		}
 	}
 }
+
+// A session is converted while the agent is still appending to it. RawData and
+// SessionData must describe the same turns, which a second read of the file
+// cannot guarantee: the turns written between the parse and that read would
+// appear in the raw transcript and nowhere else.
+func TestRawDataMatchesConvertedSessionWhileFileGrows(t *testing.T) {
+	home := withFakeHome(t)
+	project := t.TempDir()
+	const id = "11111111-2222-3333-4444-555555555555"
+	path := seedFakeSession(t, home, project, "session-basic.jsonl", id)
+
+	session, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The agent writes another turn after the parse and before conversion.
+	appended := `{"uuid":"late","sessionId":"` + id + `","type":"user","provenance":"real_user","timestamp":"2026-08-07T17:00:00.000Z","message":{"role":"user","parts":[{"text":"turn written after the parse"}]}}`
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteString(appended + "\n"); err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	chat := convertToAgentChatSession(session, project, false)
+	if chat == nil {
+		t.Fatal("conversion returned nil")
+	}
+	if strings.Contains(chat.RawData, "turn written after the parse") {
+		t.Error("RawData carries a turn the converted session never saw")
+	}
+	if got, want := strings.Count(strings.TrimSpace(chat.RawData), "\n")+1, len(session.Records); got != want {
+		t.Errorf("RawData has %d records, want the %d the conversion used", got, want)
+	}
+	// The turns that were parsed must all still be present, byte for byte.
+	for _, record := range session.Records {
+		if !strings.Contains(chat.RawData, strings.TrimSpace(string(record.Raw))) {
+			t.Fatalf("RawData dropped a parsed record: %s", record.Raw)
+		}
+	}
+}

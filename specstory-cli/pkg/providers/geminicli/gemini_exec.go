@@ -1,6 +1,7 @@
 package geminicli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -86,7 +87,8 @@ func ExecuteGemini(customCommand string, resumeSessionID string) error {
 	// Wait for the command to complete
 	slog.Info("ExecuteGemini: Waiting for Gemini CLI to exit")
 	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteGemini: Gemini CLI exited", "exitCode", exitCode)
 			os.Exit(exitCode)

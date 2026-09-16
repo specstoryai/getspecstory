@@ -4,9 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // TestBuildDAGs_WithIsMetaRoot tests that sessions with isMeta root records are properly built into DAGs
@@ -1043,50 +1046,59 @@ func verifyDAGIntegrity(dag []JSONLRecord) bool {
 	return true
 }
 
-// TestParseLargeJSONLLines tests that the parser can handle JSONL lines of various sizes
+// TestParseLargeJSONLLines tests that the parser handles JSONL records of
+// various sizes: everything up to spi.MaxRecordLineSize parses, and a record
+// past it is skipped with a Warn rather than failing the file, so the records
+// around it still reach the user.
 // Regression test for https://github.com/specstoryai/getspecstory/issues/108
 func TestParseLargeJSONLLines(t *testing.T) {
 	tests := []struct {
 		name        string
 		lineSizeKB  int
-		shouldPass  bool
+		wantRecords int
 		description string
 		omitNewline bool
 	}{
 		{
 			name:        "10KB line",
 			lineSizeKB:  10,
-			shouldPass:  true,
+			wantRecords: 1,
 			description: "Should handle 10KB lines easily",
 		},
 		{
 			name:        "100KB line",
 			lineSizeKB:  100,
-			shouldPass:  true,
+			wantRecords: 1,
 			description: "Should handle 100KB lines",
 		},
 		{
 			name:        "1MB line",
 			lineSizeKB:  1024,
-			shouldPass:  true,
+			wantRecords: 1,
 			description: "Should handle 1MB lines",
 		},
 		{
 			name:        "10MB line",
 			lineSizeKB:  10240,
-			shouldPass:  true,
-			description: "Should handle 10MB lines (current buffer limit)",
+			wantRecords: 1,
+			description: "Should handle 10MB lines",
 		},
 		{
-			name:        "50MB line",
+			name:        "line just under the record cap",
+			lineSizeKB:  spi.MaxRecordLineSize/KB - 1,
+			wantRecords: 1,
+			description: "The largest record the parser accepts must still parse",
+		},
+		{
+			name:        "50MB line past the record cap",
 			lineSizeKB:  51200,
-			shouldPass:  true, // Should handle arbitrarily large lines
-			description: "Very large 50MB line - should handle without limits",
+			wantRecords: 0,
+			description: "A record past the cap is skipped, not an error that fails the file",
 		},
 		{
 			name:        "line without trailing newline",
 			lineSizeKB:  10,
-			shouldPass:  true,
+			wantRecords: 1,
 			description: "Should handle final line without newline at EOF",
 			omitNewline: true,
 		},
@@ -1148,37 +1160,22 @@ func TestParseLargeJSONLLines(t *testing.T) {
 			parser := NewJSONLParser()
 			records, err := parser.parseSessionFile(tmpFile.Name())
 
+			// An oversized record is dropped, never an error: the file stays readable.
 			if err != nil {
-				if tt.shouldPass {
-					t.Errorf("%s: Expected to parse successfully but got error: %v", tt.description, err)
-					// Check if it's the specific bufio.Scanner error
-					if strings.Contains(err.Error(), "token too long") {
-						t.Errorf("  → Hit 'bufio.Scanner: token too long' error at %d KB", actualSizeKB)
+				t.Fatalf("%s: expected to parse without error at %d KB, got: %v", tt.description, actualSizeKB, err)
+			}
+			if len(records) != tt.wantRecords {
+				t.Fatalf("%s: parsed %d records at %d KB, want %d", tt.description, len(records), actualSizeKB, tt.wantRecords)
+			}
+
+			// Verify an accepted record kept its payload whole.
+			if tt.wantRecords > 0 {
+				if largeField, ok := records[0].Data["largeField"].(string); ok {
+					if len(largeField) != len(largeContent) {
+						t.Errorf("Large field size mismatch: expected %d, got %d", len(largeContent), len(largeField))
 					}
 				} else {
-					t.Logf("%s: Failed as expected with error: %v", tt.description, err)
-				}
-			} else {
-				if !tt.shouldPass {
-					t.Logf("%s: Unexpectedly succeeded (parsed %d records)", tt.description, len(records))
-				} else {
-					t.Logf("%s: Successfully parsed %d records", tt.description, len(records))
-				}
-
-				// Verify we got the record
-				if len(records) != 1 {
-					t.Errorf("Expected 1 record, got %d", len(records))
-				}
-
-				// Verify the large field was preserved
-				if len(records) > 0 {
-					if largeField, ok := records[0].Data["largeField"].(string); ok {
-						if len(largeField) != len(largeContent) {
-							t.Errorf("Large field size mismatch: expected %d, got %d", len(largeContent), len(largeField))
-						}
-					} else {
-						t.Errorf("Large field missing or wrong type")
-					}
+					t.Errorf("Large field missing or wrong type")
 				}
 			}
 		})
@@ -1451,5 +1448,44 @@ func TestParseJSONLLineWithEmbeddedNewlines(t *testing.T) {
 				t.Errorf("%s: Content field missing or wrong type", tt.description)
 			}
 		})
+	}
+}
+
+// oversizedJSONLFile writes a transcript whose middle record exceeds the record
+// cap, framed by two ordinary records.
+func oversizedJSONLFile(t *testing.T, before, after string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "oversized.jsonl")
+	huge, err := json.Marshal(map[string]any{
+		"type": "user", "uuid": "huge", "sessionId": "test-session",
+		"timestamp": "2024-01-01T12:00:01.000Z", "parentUuid": nil,
+		"blob": strings.Repeat("x", spi.MaxRecordLineSize),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := before + "\n" + string(huge) + "\n" + after + "\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// An oversized record costs that record and nothing else. Failing the file
+// instead would mean one poisoned line loses the user every turn in the
+// session, which is the outcome the cap exists to avoid, not to cause.
+func TestParseSessionFileKeepsRecordsAroundAnOversizedOne(t *testing.T) {
+	before := `{"type":"user","uuid":"a","sessionId":"test-session","timestamp":"2024-01-01T12:00:00.000Z","parentUuid":null,"message":{"role":"user","content":"first"}}`
+	after := `{"type":"user","uuid":"b","sessionId":"test-session","timestamp":"2024-01-01T12:00:02.000Z","parentUuid":"a","message":{"role":"user","content":"last"}}`
+
+	records, err := NewJSONLParser().parseSessionFile(oversizedJSONLFile(t, before, after))
+	if err != nil {
+		t.Fatalf("an oversized record must not fail the file: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("got %d records, want the records before and after the oversized one", len(records))
+	}
+	if records[0].Data["uuid"] != "a" || records[1].Data["uuid"] != "b" {
+		t.Errorf("got records %v and %v, want a and b in file order", records[0].Data["uuid"], records[1].Data["uuid"])
 	}
 }

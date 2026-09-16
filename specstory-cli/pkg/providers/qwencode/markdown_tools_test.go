@@ -13,7 +13,7 @@ func TestFormatToolAsMarkdown_ReadFile(t *testing.T) {
 		Output: map[string]any{"output": "package main\n\nfunc main() {}"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`/Users/dev/project/main.go`") {
 		t.Errorf("read_file summary missing path: %v", tool.Summary)
@@ -39,7 +39,7 @@ func TestFormatToolAsMarkdown_ShellPrefersResultDisplay(t *testing.T) {
 		},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "```bash\nls -la\n```") {
 		t.Errorf("shell command not fenced:\n%s", md)
@@ -75,7 +75,7 @@ func TestFormatToolAsMarkdown_EditShowsDiff(t *testing.T) {
 		},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "Path: `/Users/dev/project/calc.py`") {
 		t.Errorf("edit path missing:\n%s", md)
@@ -95,7 +95,7 @@ func TestFormatToolAsMarkdown_EditFallsBackToNewString(t *testing.T) {
 		},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "def div(a, b):") {
 		t.Errorf("edit fallback to new_string missing:\n%s", md)
@@ -114,7 +114,7 @@ func TestFormatToolAsMarkdown_ErrorTakesPriority(t *testing.T) {
 		},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "Result: File not found: /missing.txt") {
 		t.Errorf("error result missing:\n%s", md)
@@ -138,7 +138,7 @@ func TestFormatToolAsMarkdown_TodoChecklist(t *testing.T) {
 		Output: map[string]any{"output": "Todos updated.", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "- [x] First step") {
 		t.Errorf("completed todo missing:\n%s", md)
@@ -165,7 +165,7 @@ func TestFormatToolAsMarkdown_WebFetch(t *testing.T) {
 		Output: map[string]any{"output": "Example Domain is a placeholder site.", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "URL: https://example.com") {
 		t.Errorf("web_fetch url missing:\n%s", md)
@@ -186,7 +186,7 @@ func TestFormatToolAsMarkdown_KnownToolShowsScalarInput(t *testing.T) {
 		Output: map[string]any{"output": "Recorded.", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if strings.Contains(md, "```json") || !strings.Contains(md, "title: Demo") {
 		t.Errorf("known tool scalar input missing:\n%s", md)
@@ -204,7 +204,7 @@ func TestFormatToolAsMarkdown_GrepSummary(t *testing.T) {
 		Output: map[string]any{"output": "Found 1 match", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`func main` in `/Users/dev/project`") {
 		t.Errorf("grep summary = %v", tool.Summary)
@@ -226,7 +226,7 @@ func TestFormatToolAsMarkdown_AgentDelegation(t *testing.T) {
 		Output: map[string]any{"output": "Total count: 3 files.", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if tool.Summary == nil || !strings.Contains(*tool.Summary, "Count files in directory") {
 		t.Errorf("agent summary should carry the description: %v", tool.Summary)
@@ -253,7 +253,7 @@ func TestFormatToolAsMarkdown_MonitorRendersLikeShell(t *testing.T) {
 		Output: map[string]any{"output": "line one\nline two", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if !strings.Contains(md, "```bash\ntail -f build.log\n```") {
 		t.Errorf("monitor command not fenced like shell:\n%s", md)
@@ -274,7 +274,7 @@ func TestFormatToolAsMarkdown_SkillShowsArgs(t *testing.T) {
 		Output: map[string]any{"output": "Skill loaded.", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`review`") {
 		t.Errorf("skill summary = %v", tool.Summary)
@@ -292,7 +292,7 @@ func TestFormatToolAsMarkdown_ToolSearchSummary(t *testing.T) {
 		Output: map[string]any{"output": "Found 2 tools.", "status": "success"},
 	}
 
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 
 	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`deferred tools`") {
 		t.Errorf("tool_search summary = %v", tool.Summary)
@@ -306,12 +306,12 @@ func TestFormatToolAsMarkdown_ToolSearchSummary(t *testing.T) {
 }
 
 func TestFormatToolAsMarkdown_NilAndEmpty(t *testing.T) {
-	if got := formatToolAsMarkdown(nil); got != "" {
+	if got := renderToolMarkdown(nil); got != "" {
 		t.Errorf("nil tool should render empty, got %q", got)
 	}
 
 	tool := &ToolInfo{Name: "glob", Type: "search", Input: map[string]any{"pattern": "**/*.go"}}
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 	if tool.Summary == nil || !strings.Contains(*tool.Summary, "`**/*.go`") {
 		t.Errorf("glob summary = %v", tool.Summary)
 	}
@@ -335,7 +335,7 @@ func TestToolRenderingRetainsContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			md := formatToolAsMarkdown(&tt.tool)
+			md := renderToolMarkdown(&tt.tool)
 			for _, want := range tt.want {
 				if !strings.Contains(md, want) {
 					t.Errorf("missing %q", want)
@@ -347,19 +347,19 @@ func TestToolRenderingRetainsContent(t *testing.T) {
 
 func TestReadToolKeepsLeadingIndentation(t *testing.T) {
 	tool := &ToolInfo{Name: "read_file", Input: map[string]any{"file_path": "fragment.py"}, Output: map[string]any{"output": "    print('indented')\n"}}
-	if md := formatToolAsMarkdown(tool); !strings.Contains(md, "```python\n    print('indented')") {
+	if md := renderToolMarkdown(tool); !strings.Contains(md, "```python\n    print('indented')") {
 		t.Fatalf("indentation lost: %s", md)
 	}
 }
 
 func TestQuestionAndExecRendering(t *testing.T) {
 	tool := &ToolInfo{Name: "ask_user_question", Input: map[string]any{"questions": []any{nil, map[string]any{"question": "Which color?", "options": []any{false, map[string]any{"label": "Blue", "description": "Ocean blue"}}}}}}
-	md := formatToolAsMarkdown(tool)
+	md := renderToolMarkdown(tool)
 	if !strings.Contains(md, "Which color?") || !strings.Contains(md, "- Blue: Ocean blue") || strings.Contains(md, "```json") {
 		t.Fatalf("question lost or rendered as JSON: %s", md)
 	}
 	tool = &ToolInfo{Name: "exec", Input: map[string]any{"source": "const x = 1;\nconsole.log(x);"}}
-	if md := formatToolAsMarkdown(tool); !strings.Contains(md, "```javascript\nconst x = 1;") {
+	if md := renderToolMarkdown(tool); !strings.Contains(md, "```javascript\nconst x = 1;") {
 		t.Fatalf("exec source not fenced: %s", md)
 	}
 }

@@ -3,6 +3,7 @@ package qwencode
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -10,11 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-)
 
-const (
-	mb                    = 1024 * 1024
-	maxReasonableLineSize = 16 * mb // Bound allocation per record; discard oversized lines and continue.
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // QwenRecord is one line of a Qwen Code session transcript: a self-describing
@@ -148,12 +146,12 @@ func parseSessionFile(filePath string, metadataOnly bool) (*QwenSession, error) 
 	reader := bufio.NewReader(file)
 	session := &QwenSession{FilePath: filePath}
 	for lineNumber := 1; ; lineNumber++ {
-		line, oversized, err := readRecordLine(reader)
-		if err != nil && err != io.EOF {
+		line, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("error reading line %d: %w", lineNumber, err)
 		}
 		if oversized {
-			slog.Warn("ParseSessionFile: Skipping oversized JSONL line", "path", filePath, "line", lineNumber, "limit", maxReasonableLineSize)
+			slog.Warn("ParseSessionFile: Skipping oversized JSONL line", "path", filePath, "line", lineNumber, "limit", spi.MaxRecordLineSize)
 		} else if len(strings.TrimSpace(string(line))) > 0 {
 			var record QwenRecord
 			if parseErr := json.Unmarshal(line, &record); parseErr != nil {
@@ -162,13 +160,10 @@ func parseSessionFile(filePath string, metadataOnly bool) (*QwenSession, error) 
 				if !metadataOnly {
 					record.Raw = line
 				}
-				accumulateRecord(session, record)
-				if metadataOnly {
-					session.Records = nil
-				}
+				accumulateRecord(session, record, metadataOnly)
 			}
 		}
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 	}
@@ -186,30 +181,14 @@ func parseSessionFile(filePath string, metadataOnly bool) (*QwenSession, error) 
 	return session, nil
 }
 
-// readRecordLine bounds allocation before appending each buffer fragment. An
-// oversized record is drained through its newline so subsequent turns survive.
-func readRecordLine(reader *bufio.Reader) ([]byte, bool, error) {
-	var line []byte
-	oversized := false
-	for {
-		fragment, err := reader.ReadSlice('\n')
-		if !oversized {
-			if len(line)+len(fragment) > maxReasonableLineSize {
-				oversized = true
-				line = nil
-			} else {
-				line = append(line, fragment...)
-			}
-		}
-		if err != bufio.ErrBufferFull {
-			return line, oversized, err
-		}
+// accumulateRecord folds a record's envelope metadata into the session, and
+// retains the record itself unless the caller only wants metadata. A
+// metadata-only scan covers every session in the store during reindex, so it
+// must not allocate a slice per record only to drop it.
+func accumulateRecord(session *QwenSession, record QwenRecord, metadataOnly bool) {
+	if !metadataOnly {
+		session.Records = append(session.Records, record)
 	}
-}
-
-// accumulateRecord appends a record and folds its envelope metadata into the session.
-func accumulateRecord(session *QwenSession, record QwenRecord) {
-	session.Records = append(session.Records, record)
 	if session.FirstUserText == "" && record.IsRealUserTurn() {
 		session.FirstUserText = strings.TrimSpace(record.TextContent())
 	}
@@ -220,6 +199,9 @@ func accumulateRecord(session *QwenSession, record QwenRecord) {
 	if session.StartTime == "" && record.Timestamp != "" {
 		session.StartTime = record.Timestamp
 	}
+	// Qwen stamps every record with the same fixed-width UTC layout, so
+	// lexical order is chronological order and no parse is needed. A format
+	// change would break this silently.
 	if record.Timestamp > session.LastUpdated {
 		session.LastUpdated = record.Timestamp
 	}
@@ -300,6 +282,30 @@ func findSessions(projectDir string, metadataOnly bool, progress func(int, int))
 		"parseFailures", parseFailures)
 
 	return sessions, nil
+}
+
+// RawTranscript reassembles the native JSONL from the records already parsed.
+//
+// Re-reading the file here instead would take the raw bytes from a second,
+// later read: a session being written grows between the two, so the raw
+// transcript would describe more turns than the converted session does, and
+// during `run` that happens on nearly every save. Records dropped as corrupt or
+// oversized are absent for the same reason the conversion cannot show them.
+//
+// Only a full parse retains the record bytes; a metadata-only scan returns "".
+func (s *QwenSession) RawTranscript() string {
+	var b strings.Builder
+	for _, record := range s.Records {
+		if len(record.Raw) == 0 {
+			continue
+		}
+		b.Write(record.Raw)
+		// A file whose last line has no newline still yields one record per line.
+		if record.Raw[len(record.Raw)-1] != '\n' {
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 // FirstRealUserText returns the text of the first real user turn, used for

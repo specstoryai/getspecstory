@@ -156,16 +156,15 @@ func ResolveQwenProjectDir(projectPath string) (string, error) {
 		known = "(none discovered)"
 	}
 
-	expected := dir
 	slog.Debug("ResolveQwenProjectDir: Qwen project directory not found",
-		"expected", expected, "knownDirs", known)
+		"expected", dir, "knownDirs", known)
 
 	return "", &QwenPathError{
 		Kind:      "project_missing",
-		Path:      expected,
+		Path:      dir,
 		KnownDirs: knownDirs,
 		Message: fmt.Sprintf("No Qwen Code data found for this project (expected %q). Known project directories: %s. Start a Qwen Code session in your repo to create it.",
-			expected, known),
+			dir, known),
 	}
 }
 
@@ -229,4 +228,17 @@ func validSessionFilename(name string) bool {
 // transcripts have a single extension: <session-id>.jsonl.
 func isSessionFile(name string) bool {
 	return strings.HasSuffix(name, ".jsonl") && !strings.Contains(strings.TrimSuffix(name, ".jsonl"), ".")
+}
+
+// isProjectTranscriptPath reports whether path is a transcript at the one depth
+// Qwen writes them, <projectsDir>/<sanitized-cwd>/chats/<session-id>.jsonl.
+// Enforcing the exact shape keeps a store nested inside a project directory,
+// such as a checked-out copy of someone else's ~/.qwen, out of enumeration.
+func isProjectTranscriptPath(path string, projectsDir string) bool {
+	if !isSessionFile(filepath.Base(path)) {
+		return false
+	}
+	chatsDir := filepath.Dir(path)
+	projectDir := filepath.Dir(chatsDir)
+	return filepath.Base(chatsDir) == "chats" && filepath.Dir(projectDir) == projectsDir
 }

@@ -18,12 +18,12 @@ Every provider is judged by parity with the established siblings. Choose the clo
 | Tool rendering keyed to the agent's real inventory, `Check` with shared analytics, lifecycle logging  | `pkg/providers/musecode`, `pkg/providers/antigravitycli`                                             |
 | Watch-only startup with adoption of late-arriving directories                                         | `pkg/providers/musecode`                                                                             |
 | Reporting the agent's exit status without losing the last save                                        | `pkg/spi/exit.go` (its doc comment states the contract)                                              |
-| Bounded line reading                                                                                  | `pkg/providers/musecode`, `pkg/providers/antigravitycli`                                             |
+| Bounded line reading                                                                                  | `pkg/spi/jsonl.go` (`spi.ReadRecordLine`); capped `bufio.Scanner` for sidecars: `pkg/providers/musecode` |
 | An IDE-backed (likely VSC) agent: workspace discovery, minting, launching                             | `pkg/providers/cursoride`, `pkg/providers/copilotide`, and the shared `pkg/providers/vscode` package |
 | Dealing with a SQLite session store                                                                   | `pkg/spi/sqlite.go` and `pkg/providers/cursoride`                                                    |
 | The SpecStory CLI Software Factory's maintenance scripts                                              | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory`                           |
 
-There is some known drift in some of the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; unbounded line reading in the Claude Code parser; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
+There is some known drift in some of the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
 
 ### Learn the agent's on-disk format from the current release
 
@@ -135,6 +135,7 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 
 - Use `schema.CurrentSchemaVersion` and the shared `schema.ContentTypeText` / `schema.ContentTypeThinking` constants when constructing `SessionData`, rather than repeating their string values. Native record fields and code-fence language labels follow their own formats.
 - `spi.CodeFence` for every fenced block, sized past any backtick run in the content. Never write a literal triple backtick, and never backslash-escape backticks.
+- `spi.ReadRecordLine` with `spi.MaxRecordLineSize` for every JSONL session file. It is the only correct way to cap a record: a cap applied after `bufio.Reader.ReadString` returns has already allocated the oversized record it exists to prevent. A capped `bufio.Scanner` is still right for sidecar and index files, where losing the remainder of the file is acceptable.
 - `spi.CapRunes` for truncation. Never slice a string by bytes.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName` for tool rendering.
 - `spi.ClassifyCheckError` and the `spi.CheckErrorNotFound`, `spi.CheckErrorPermissionDenied`, `spi.CheckErrorUnknown` constants for `Check` failures. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
@@ -160,7 +161,7 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 - `GetAgentChatSession` returns `nil, nil` for not found. Errors are for real failures.
 - A by-id lookup on a global store must still check that the session belongs to the requested project, or one project's conversation will be written into another's history.
 - On an IDE store the same session can appear under several matching workspace entries, and an empty copy can come first; mark an id as seen only after the content check, and keep an empty copy only as a fallback.
-- `AgentChatSession.RawData` carries the native transcript on every session you return, whether or not debug output is enabled; SpecStory Cloud stores it.
+- `AgentChatSession.RawData` carries the native transcript on every session you return, whether or not debug output is enabled; SpecStory Cloud stores it. Build it from the records you already parsed, never by reading the file a second time: a session being written grows between the two reads, so the raw transcript would describe turns the converted session never saw, and during `run` that happens on nearly every save.
 - `Usage` carries only the token fields the native data distinguishes; a session total is not an input count, so leave it nil with a why-comment rather than guess. A token kind not already in `schema.Usage` is a shared change to ask for.
 - Timestamps come from the record, never from `time.Now()` in a parse or render path, are consistent across every code path, and are RFC 3339 parseable.
 
@@ -174,7 +175,7 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 
 ### Parsing
 
-- Read JSONL with a `bufio.Scanner` whose buffer is capped at 16MB (the value the newest providers use) for sidecar and index files, mapping `ErrTooLong` to a clear error. Read the primary session file so that one oversized record degrades to one bad record, never an aborted file.
+- Read the primary session file with `spi.ReadRecordLine(reader, spi.MaxRecordLineSize)`. It bounds allocation as the record is read and reports an oversized record instead of returning it, so one bad record degrades to one bad record rather than an aborted file. Log the skip at Warn with the file and line and carry on. Sidecar and index files may use a `bufio.Scanner` capped at `spi.MaxRecordLineSize`, mapping `ErrTooLong` to a clear error.
 - When a record holds `json.RawMessage`, unmarshal from a copy of the line (`scanner.Text()`, never `scanner.Bytes()`); the scanner reuses its buffer.
 - A record that fails to parse is skipped, never silently: log at Warn with the file and line ("Skipping corrupted JSONL line" is the established message shape).
 - Order records by the agent's own sequence field, not file order; agents flush asynchronous results ahead of the call that owns them. Identify result records by excluding the known structural types, not by an allow-list, so a new result type degrades to a generic result instead of vanishing. Pair results to pending calls by tool type or id, with first-in-first-out only as the fallback for several in-flight calls, and ship a scrambled-order regression test.
@@ -326,9 +327,9 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - [ ] `tools.txt` from the agent itself, prefixes stripped, declaration preferred over self-report; renderers and type tables list exactly those names; an inventory sweep test exists
 - [ ] No literal fences, no byte slicing, no local copies of `pkg/spi` helpers, no inline `analytics.TrackEvent`
 - [ ] No `os.Exit`, no polling watcher, no emit at startup, panic recovery around the callback, `wg.Go` only, context created per start
-- [ ] Bounded line reading; malformed records skipped with a Warn; results paired by the agent's sequence index
+- [ ] Session files read through `spi.ReadRecordLine`; oversized and malformed records skipped with a Warn, never failing the file; results paired by the agent's sequence index
 - [ ] Every comment says why; none reference other providers or history; magic values carry provenance; exported identifiers documented
-- [ ] `Check` lifecycle logging present; no `fmt.Print` outside detection help; `RawData` set on every session
+- [ ] `Check` lifecycle logging present; no `fmt.Print` outside detection help; `RawData` set on every session and built from the parsed records, not a second read
 - [ ] Tests table-driven where useful, no tautological tests, fixtures from real data, Windows-safe helpers used, `spi.SetDebugBaseDir` in debug tests
 - [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go build ./...` and `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 - [ ] Every command in the test table exercised against the real agent; resume verified in both directions; symlinked and special-character project paths tried

@@ -26,11 +26,15 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	if err != nil {
 		return nil, err
 	}
-	cwd := spi.ResolveWorkspaceRoot(opts, data)
 	// Qwen validates the recorded cwd's hash, not just the directory containing
-	// the transcript. Canonicalize the local destination supplied by resume.
+	// the transcript, so the destination resume hands us is canonicalized to the
+	// spelling Qwen will hash. A workspace root carried in the source session
+	// data is left verbatim: it may have been written on another machine, and
+	// canonicalizing a foreign absolute path against this filesystem would
+	// rewrite it into something that never existed.
+	cwd := spi.ResolveWorkspaceRoot(opts, data)
 	if opts.WorkspaceRoot != "" {
-		cwd = spi.CanonicalizePathOrClean(opts.WorkspaceRoot)
+		cwd = spi.CanonicalizePathOrClean(cwd)
 	}
 
 	newID := uuid.NewString()

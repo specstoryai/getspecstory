@@ -1,6 +1,7 @@
 package qwencode
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -39,6 +40,7 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 			} else {
 				result = slices.Insert(result, i+1, resumeSessionID)
 			}
+			// Step over the id just written so it is never mistaken for a flag.
 			i++
 		} else if strings.HasPrefix(arg, "--resume=") || strings.HasPrefix(arg, "-r=") {
 			found = true
@@ -66,6 +68,8 @@ func ExecuteQwen(projectPath string, customCommand string, resumeSessionID strin
 	cmd.Dir = projectPath
 	// Relative storage paths must keep the same meaning for discovery and the
 	// child even when --project-path launches Qwen in a different directory.
+	// os/exec keeps the last occurrence of a duplicated key, so appending the
+	// resolved value overrides the inherited one without rebuilding the slice.
 	cmd.Env = cmd.Environ()
 	for _, key := range []string{"QWEN_HOME", "QWEN_RUNTIME_DIR"} {
 		if value := os.Getenv(key); value != "" {
@@ -91,7 +95,8 @@ func ExecuteQwen(projectPath string, customCommand string, resumeSessionID strin
 	// Wait for the command to complete
 	slog.Info("ExecuteQwen: Waiting for Qwen Code to exit")
 	if err := cmd.Wait(); err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteQwen: Qwen Code exited", "exitCode", exitCode)
 			return &spi.AgentExitError{Agent: "Qwen Code", Code: exitCode}

@@ -10,10 +10,12 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// formatToolAsMarkdown generates formatted markdown for a ToolInfo (input + output).
-// Returns the inner content only (no <tool-use> tags - those are added by pkg/session).
-// Also sets tool.Summary if a custom summary is needed.
-func formatToolAsMarkdown(tool *ToolInfo) string {
+// renderToolMarkdown fills in a tool's two rendering fields: Summary, when the
+// tool has key arguments worth showing in the collapsed heading, and
+// FormattedMarkdown, the inner content only (the <tool-use> tags are added by
+// pkg/session). The rendered body is also returned, for callers that want it
+// without reading it back off the tool.
+func renderToolMarkdown(tool *ToolInfo) string {
 	if tool == nil {
 		return ""
 	}
@@ -79,7 +81,9 @@ func formatToolAsMarkdown(tool *ToolInfo) string {
 		builder.WriteString("\n")
 	}
 
-	return builder.String()
+	rendered := builder.String()
+	tool.FormattedMarkdown = &rendered
+	return rendered
 }
 
 // formatToolBodyFromInput formats the tool input/body section
@@ -279,6 +283,9 @@ func formatEditBodyFromInput(tool *ToolInfo) string {
 	}
 
 	if tool.Output != nil {
+		// resultDisplay on an edit is the tool's own fileDiff. The hunk marker
+		// distinguishes it from the other shapes that field can hold, such as a
+		// plain confirmation string; it is not a sniff of the edited file.
 		if diff, ok := tool.Output["resultDisplay"].(string); ok && strings.Contains(diff, "@@") {
 			builder.WriteString(spi.CodeFence("diff", strings.TrimSpace(diff)))
 			return builder.String()

@@ -86,7 +86,15 @@ func WatchQwenProject(projectPath string, callback func(*spi.AgentChatSession)) 
 	debugRaw := watcherDebugRaw
 	watcherMutex.RUnlock()
 	ctx, cancel := context.WithCancel(context.Background())
-	w := &qwenWatcher{watcher: watcher, cancel: cancel, projectPath: projectPath, chatsDir: dir, stamps: make(map[string]fileStamp), callback: callback, debugRaw: debugRaw}
+	w := &qwenWatcher{
+		watcher:     watcher,
+		cancel:      cancel,
+		projectPath: projectPath,
+		chatsDir:    dir,
+		stamps:      make(map[string]fileStamp),
+		callback:    callback,
+		debugRaw:    debugRaw,
+	}
 	if err := w.reconcile(true); err != nil {
 		cancel()
 		_ = watcher.Close()

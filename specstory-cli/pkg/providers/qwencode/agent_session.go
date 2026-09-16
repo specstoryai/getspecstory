@@ -66,13 +66,10 @@ func GenerateAgentSession(session *QwenSession, workspaceRoot string) (*SessionD
 
 	slog.Debug("GenerateAgentSession: Built exchanges", "count", len(exchanges))
 
-	// Populate FormattedMarkdown for all tools
 	for i := range exchanges {
 		for j := range exchanges[i].Messages {
-			msg := &exchanges[i].Messages[j]
-			if msg.Tool != nil {
-				formattedMd := formatToolAsMarkdown(msg.Tool)
-				msg.Tool.FormattedMarkdown = &formattedMd
+			if tool := exchanges[i].Messages[j].Tool; tool != nil {
+				renderToolMarkdown(tool)
 			}
 		}
 	}
@@ -240,8 +237,9 @@ func buildToolMessage(record *QwenRecord, call *QwenFunctionCall, outcomes map[s
 		Output: buildToolOutput(outcome),
 	}
 
+	// ID is left for buildAgentMessages, which stamps every message it builds
+	// with the record UUID and the part index.
 	return Message{
-		ID:        record.UUID,
 		Timestamp: record.Timestamp,
 		Role:      schema.RoleAgent,
 		Model:     record.Model,
@@ -255,16 +253,19 @@ func buildToolMessage(record *QwenRecord, call *QwenFunctionCall, outcomes map[s
 // the envelope's status/errorType and display form (fileDiff for edits, raw
 // stdout for shell) are layered in for rendering.
 func buildToolOutput(outcome toolOutcome) map[string]any {
+	// Room for the three envelope keys this function may add below.
+	const envelopeKeys = 3
+
 	var output map[string]any
 
 	if outcome.Response != nil && len(outcome.Response.Response) > 0 {
-		output = make(map[string]any, len(outcome.Response.Response)+3)
+		output = make(map[string]any, len(outcome.Response.Response)+envelopeKeys)
 		maps.Copy(output, outcome.Response.Response)
 	}
 
 	if outcome.Result != nil {
 		if output == nil {
-			output = make(map[string]any, 3)
+			output = make(map[string]any, envelopeKeys)
 		}
 		if outcome.Result.Status != "" {
 			output["status"] = outcome.Result.Status
@@ -297,9 +298,17 @@ func classifyQwenToolType(toolName string) string {
 		return "search"
 	case "run_shell_command", "monitor":
 		return "shell"
-	case "todo_write", "agent", "create_sub_session", "list_agents", "task_stop", "task_create", "task_update", "task_list", "team_create", "team_delete", "team_plan_approval", "request_shutdown", "send_message", "workflow":
+	case "todo_write", "agent", "create_sub_session", "list_agents",
+		"task_stop", "task_create", "task_update", "task_list",
+		"team_create", "team_delete", "team_plan_approval",
+		"request_shutdown", "send_message", "workflow":
 		return "task"
-	case "exec", "skill", "save_memory", "exit_plan_mode", "enter_plan_mode", "ask_user_question", "cron_create", "cron_list", "cron_delete", "loop_wakeup", "structured_output", "enter_worktree", "exit_worktree", "artifact", "record_artifact", "record_source", "report_findings", "get_goal", "update_goal", "propose_goal":
+	case "exec", "skill", "save_memory",
+		"enter_plan_mode", "exit_plan_mode", "enter_worktree", "exit_worktree",
+		"ask_user_question", "structured_output", "report_findings",
+		"cron_create", "cron_list", "cron_delete", "loop_wakeup",
+		"artifact", "record_artifact", "record_source",
+		"get_goal", "update_goal", "propose_goal":
 		return "generic"
 	default:
 		return "unknown"

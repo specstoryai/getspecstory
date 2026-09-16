@@ -153,11 +153,16 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 		if chatSession != nil {
 			result = append(result, *chatSession)
 		}
-
 	}
 	return result, nil
 }
 
+// GetAgentChatSession loads one session by id. Every nil, nil return below
+// means the same thing to the caller: this project has no such session, whether
+// because the store, the project directory or the file is absent, the id is not
+// one we will join to a path, or the transcript on disk belongs elsewhere. Only
+// a genuine failure to read a file the caller should have been able to read is
+// an error.
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
@@ -366,14 +371,6 @@ func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debug
 	}
 	sessionData.Slug = slug
 
-	// Raw data: the original JSONL transcript
-	rawData, err := os.ReadFile(session.FilePath)
-	if err != nil {
-		slog.Debug("convertToAgentChatSession: failed to read raw transcript",
-			"path", session.FilePath, "error", err)
-		return nil
-	}
-
 	if debugRaw {
 		if err := writeDebugRawFiles(session); err != nil {
 			slog.Debug("convertToAgentChatSession: failed to write debug files",
@@ -387,7 +384,9 @@ func convertToAgentChatSession(session *QwenSession, workspaceRoot string, debug
 		CreatedAt:   session.StartTime,
 		Slug:        slug,
 		SessionData: sessionData,
-		RawData:     string(rawData),
+		// Rebuilt from the same records the conversion saw, so the two always
+		// agree even while the agent is still appending to the file.
+		RawData: session.RawTranscript(),
 	}
 }
 
@@ -508,8 +507,7 @@ func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.
 	}
 
 	return spi.ScanSessionsInParallel(projectsDir, "qwen", r, func(path string) (*spi.GlobalSessionRef, error) {
-		// Only chats/*.jsonl files are transcripts.
-		if !isSessionFile(filepath.Base(path)) || filepath.Base(filepath.Dir(path)) != "chats" || filepath.Dir(filepath.Dir(filepath.Dir(path))) != projectsDir {
+		if !isProjectTranscriptPath(path, projectsDir) {
 			return nil, nil
 		}
 		// The shared walker includes symlink entries; do not follow them into other stores.
