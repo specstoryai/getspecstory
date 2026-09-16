@@ -1,6 +1,7 @@
 package claudecode
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -127,7 +128,8 @@ func ExecuteClaude(customCommand string, resumeSessionId string) error {
 	if err := cmd.Wait(); err != nil {
 		// Don't return error if the command exited with a non-zero status
 		// This is normal for many CLI applications
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteClaude: Claude Code exited", "exitCode", exitCode)
 			os.Exit(exitCode)

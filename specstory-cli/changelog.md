@@ -1,5 +1,15 @@
 # Specstory CLI Changelog
 
+## v2.12.0 2026-09-16
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Qwen Code](https://github.com/QwenLM/qwen-code) (i.e. `qwen`) for sessions created from Qwen Code version `0.23.4` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [Muse Code](https://developer.meta.com/ai/products/muse-code/) and [Pi](https://pi.dev). Qwen Code sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Qwen Code. Thanks to [JinYang88](https://github.com/JinYang88) for the alternative Qwen Code provider in [PR 267](https://github.com/specstoryai/getspecstory/pull/267), which informed clearer shell command transcripts that show the working directory and more consistent use of the shared session schema.
+
+### 🐛 Bug Fixes
+
+- `pi_cmd` now works in your configuration file. Pi accepted a custom command from the `-c` flag, but the `pi_cmd` config key was silently ignored, so a custom Pi command or extra flags set there had no effect. Every agent that `specstory run` can launch now honors its `<agent>_cmd` key.
+
 ## v2.11.0 2026-09-14
 
 ### 📢 Announcements
@@ -46,10 +56,6 @@
 - Session statistics (`./.specstory/statistics.json`) now stay current during `run`, `watch`, `resume` and `sync -s` as each session saves, instead of updating only during a full `sync`. Use the new `--no-stats` flag if you don't want this.
 
 ## v2.8.0 2026-08-10
-
-### 📢 Announcements
-
-- The SpecStory CLI now supports Meta's [Muse Code](https://github.com/facebook/muse-code) (i.e. `muse`) for sessions created from Muse Code version `0.1.0` or higher. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for the other supported coding agents, including resuming Muse Code sessions in other agents and other agents' sessions in Muse Code with `specstory resume`. See [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) for the session format details.
 
 ### 🐛 Bug Fixes
 

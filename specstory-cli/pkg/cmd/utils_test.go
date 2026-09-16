@@ -1,11 +1,43 @@
 package cmd
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
+
+// TestEveryRegisteredProviderHasACommandOverride is the registry-side half of
+// config.TestProvidersConfigIsFullyWired. That test proves every ProvidersConfig field
+// reaches a provider; this one proves every registered provider has a field at all —
+// the direction the Pi provider failed, shipping run and watch support while
+// GetProviderCmd had no "pi" case, so pi_cmd in config.toml was silently ignored.
+//
+// It lives here rather than in pkg/config because only this package already depends on
+// the registry; pkg/config must not, or building a config would drag in every provider.
+func TestEveryRegisteredProviderHasACommandOverride(t *testing.T) {
+	// Fill every field so a wired provider yields its sentinel and an unwired one still
+	// falls through GetProviderCmd's default arm to "".
+	filled := config.ProvidersConfig{}
+	val := reflect.ValueOf(&filled).Elem()
+	for i := range val.NumField() {
+		if val.Field(i).Kind() == reflect.String {
+			val.Field(i).SetString("sentinel")
+		}
+	}
+	cfg := &config.Config{Providers: filled}
+
+	for _, id := range factory.GetRegistry().ListIDs() {
+		t.Run(id, func(t *testing.T) {
+			if cfg.GetProviderCmd(id) == "" {
+				t.Errorf("GetProviderCmd(%q) is empty with every ProvidersConfig field set: %q has no command override, so %s_cmd in config.toml would be silently ignored",
+					id, id, strings.ReplaceAll(id, "-", "_"))
+			}
+		})
+	}
+}
 
 func TestResolveProviderIDs(t *testing.T) {
 	registry := factory.GetRegistry()

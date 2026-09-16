@@ -13,7 +13,6 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
   <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3Dinstalls&style=flat-square" alt="Installs" style="vertical-align: middle;"></a>
   <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DactiveUsers&style=flat-square" alt="Active Users" style="vertical-align: middle;"></a>
   <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DsessionsSaved&style=flat-square" alt="Sessions Saved" style="vertical-align: middle;"></a>
-  <a href="https://specstory.com"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fspecstory.com%2Fapi%2Fbadge%3Fstat%3DrulesGenerated&style=flat-square" alt="Rules Generated" style="vertical-align: middle;"></a>
 </p>
 
 <p align="left">
@@ -31,8 +30,6 @@ Never lose a brilliant solution, code snippet, or architectural decision again. 
   <a href="https://www.youtube.com/@specstory"><img src="https://img.shields.io/badge/YouTube-FF0000?style=flat-square&logo=youtube&logoColor=white" alt="YouTube" style="vertical-align: middle;"></a>
 </p>
 
-> 📜 **[Lore](./lore)** - Mine your saved sessions into evidence-backed agent skills, forged from how you actually work. Your sessions are your lore.
-
 ## How It Works
 ```
 AI Coding Tools              Local First                  Cloud Platform
@@ -48,7 +45,8 @@ Gemini CLI         │
 DeepSeek TUI       │
 Antigravity CLI    │
 Muse Code          │
-Pi                 ┘
+Pi                 │
+Qwen Code          ┘
 ```
 
 ## Workflow
@@ -76,7 +74,8 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/geminicli)   | [Gemini CLI](https://docs.cloud.google.com/gemini/docs/codeassist/gemini-cli) | 0.15.1+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/deepseektui) | [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI)                        | 0.8.39+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/antigravitycli) | [Antigravity CLI](https://antigravity.google/)                             | v1.1.5+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
-| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/musecode) | [Muse Code](https://github.com/facebook/muse-code)                              | 0.1.0+       | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/musecode) | [Muse Code](https://developer.meta.com/ai/products/muse-code/)                              | 0.1.0+       | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
+| **[SpecStory CLI](https://specstory.com/specstory-cli)**         | CLI  | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/qwencode) | [Qwen Code](https://github.com/QwenLM/qwen-code)                                | 0.23.4+      | `brew tap specstoryai/tap`<br/>`brew install specstory`       | [📋 View](https://github.com/specstoryai/getspecstory/releases)                            |
 | **[Lore](./lore)** 📜                                            | Skill | [Open](./lore)                                                                                       | Any [Agent Skills](https://agentskills.io) | Node 22.5+   | `npx skills add specstoryai/getspecstory --skill lore`        | [📋 View](./lore/CHANGELOG.md)                                                             |
 
 > [!NOTE]
@@ -84,7 +83,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 
 ### CLI Tools
 
-**One installation works with all CLI tools** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, and Antigravity:
+**One installation works with all CLI tools** - Claude Code, Cursor CLI, Codex, Droid, DeepSeek, Antigravity, and Qwen Code:
 
 ```bash
 # Check which agents are installed
@@ -99,6 +98,7 @@ specstory run gemini       # Launch Gemini CLI
 specstory run deepseek     # Launch DeepSeek TUI
 specstory run antigravity  # Launch Antigravity CLI
 specstory run muse         # Launch Muse Code
+specstory run qwen         # Launch Qwen Code
 specstory run           # Launch default agent
 ```
 

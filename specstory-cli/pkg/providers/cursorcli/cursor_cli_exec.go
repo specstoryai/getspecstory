@@ -1,6 +1,7 @@
 package cursorcli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -132,7 +133,8 @@ func ExecuteCursorCLI(customCommand string, resumeSessionId string) error {
 		if err != nil {
 			// Don't return error if the command exited with a non-zero status
 			// This is normal for many CLI applications
-			if exitErr, ok := err.(*exec.ExitError); ok {
+			var exitErr *exec.ExitError
+			if errors.As(err, &exitErr) {
 				exitCode := exitErr.ExitCode()
 				slog.Info("ExecuteCursorCLI: Cursor CLI exited", "exitCode", exitCode)
 				os.Exit(exitCode)

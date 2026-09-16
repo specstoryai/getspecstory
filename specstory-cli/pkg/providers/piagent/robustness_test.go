@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -83,12 +84,14 @@ func TestFormatEdge_ExchangeEndTimeReflectsFinalToolResult(t *testing.T) {
 	}
 }
 
-// TestParse_LargeLineOverScannerCap proves the reader handles lines larger than
-// bufio.Scanner's 16MB cap (bufio.Reader.ReadString has no line-size limit).
-func TestParse_LargeLineOverScannerCap(t *testing.T) {
+// TestParse_RecordOverTheCapIsSkippedNotFatal proves a record past the shared
+// per-record cap costs that record alone: the session still parses and the
+// records around it survive. Failing the file instead would mean one poisoned
+// record loses the user the whole session.
+func TestParse_RecordOverTheCapIsSkippedNotFatal(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "largeline.jsonl")
-	big := strings.Repeat("x", 17*1024*1024) // 17MB > 16MB Scanner cap
+	big := strings.Repeat("x", spi.MaxRecordLineSize+1) // one byte past the cap
 	session := `{"type":"session","version":3,"id":"large-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
 ` +
 		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"go","timestamp":1783600001000}}
@@ -102,38 +105,55 @@ func TestParse_LargeLineOverScannerCap(t *testing.T) {
 	}
 	data, err := ParseSession(path)
 	if err != nil {
-		t.Fatalf("ParseSession returned error for a >16MB line: %v", err)
+		t.Fatalf("an oversized record must not fail the file: %v", err)
 	}
-	var found bool
+	// The user turn and the tool call before the oversized result are intact.
+	var sawUserTurn, sawToolCall, sawToolResult bool
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
-			if msg.Tool != nil && msg.Tool.UseID == "call-1" && msg.Tool.Output != nil {
-				found = true
+			if msg.Role == schema.RoleUser {
+				sawUserTurn = true
+			}
+			if msg.Tool != nil && msg.Tool.UseID == "call-1" {
+				sawToolCall = true
+				if msg.Tool.Output != nil {
+					sawToolResult = true
+				}
 			}
 		}
 	}
-	if !found {
-		t.Fatal("tool result with >16MB content was not parsed")
+	if !sawUserTurn || !sawToolCall {
+		t.Fatalf("records around the oversized one were lost: user=%v call=%v", sawUserTurn, sawToolCall)
+	}
+	if sawToolResult {
+		t.Error("the oversized tool result was parsed despite exceeding the cap")
 	}
 }
 
-// TestParse_OversizeLineWithoutTrailingNewlineRejected asserts readLines rejects
-// oversized final lines even when the file does not end with '\n'.
-func TestParse_OversizeLineWithoutTrailingNewlineRejected(t *testing.T) {
-	origLineLimit := maxReasonableLineSize
-	maxReasonableLineSize = 64
+// TestParse_OversizeFinalLineWithoutTrailingNewlineIsSkipped asserts readLines
+// applies the cap to a final record that has no trailing '\n', where the reader
+// returns data and io.EOF together, and still returns the session before it.
+func TestParse_OversizeFinalLineWithoutTrailingNewlineIsSkipped(t *testing.T) {
+	// Above the ~95-byte session header, below the oversized final record.
+	origLineLimit := maxRecordLineSize
+	maxRecordLineSize = 200
 	t.Cleanup(func() {
-		maxReasonableLineSize = origLineLimit
+		maxRecordLineSize = origLineLimit
 	})
 
 	path := filepath.Join(t.TempDir(), "no-newline-oversize.jsonl")
 	payload := `{"type":"session","version":3,"id":"x","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}` + "\n" +
-		strings.Repeat("x", 80) // no trailing newline on purpose
+		`{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"kept","timestamp":1783600001000}}` + "\n" +
+		strings.Repeat("x", 400) // no trailing newline on purpose
 	if err := os.WriteFile(path, []byte(payload), 0o644); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}
-	if _, err := ParseSession(path); err == nil {
-		t.Fatal("ParseSession returned nil error for oversized final line without newline")
+	data, err := ParseSession(path)
+	if err != nil {
+		t.Fatalf("an oversized final record must not fail the file: %v", err)
+	}
+	if data == nil || data.SessionID != "x" || len(data.Exchanges) != 1 {
+		t.Fatalf("records before the oversized final one were lost: %+v", data)
 	}
 }
 
