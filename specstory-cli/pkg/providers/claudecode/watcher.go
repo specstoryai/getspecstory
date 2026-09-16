@@ -25,10 +25,6 @@ var (
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 // watchReconcileInterval is how often the project directory is re-listed to
 // detect newly created session files, re-watch dormant sessions that have woken
 // (a write to an unwatched file produces no fsnotify event, so polling is the
@@ -98,7 +94,9 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 // StopWatcher gracefully stops the watcher goroutine
 func StopWatcher() {
 	slog.Info("StopWatcher: Signaling watcher to stop")
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
 	watcherWg.Wait()
 	slog.Info("StopWatcher: Watcher stopped")
@@ -106,6 +104,7 @@ func StopWatcher() {
 
 // WatchForProjectDir watches for a project directory that matches the current working directory
 func WatchForProjectDir() error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	slog.Info("WatchForProjectDir: Determining project directory to monitor")
 	claudeProjectDir, err := GetClaudeCodeProjectDir("")
 	if err != nil {
@@ -436,8 +435,8 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
 		if agentSession != nil {
 			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
-			// Call the callback in a goroutine to avoid blocking
-			go func(s *spi.AgentChatSession) {
+			// Deliver synchronously so Stop joins every save in order.
+			func(s *spi.AgentChatSession) {
 				defer func() {
 					if r := recover(); r != nil {
 						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
@@ -504,11 +503,13 @@ func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Successfully started watching", "directory", watchDir)
 
 	// Start watching in a goroutine
-	go func() {
+	watcherWg.Go(func() {
 		defer func() { _ = watcher.Close() }() // Cleanup on exit; errors not recoverable
 
 		for {
 			select {
+			case <-watcherCtx.Done():
+				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -583,7 +584,7 @@ func WatchForClaudeSetup() error {
 				slog.Error("WatchForClaudeSetup: Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

@@ -75,10 +75,6 @@ var callbackWaitDone <-chan struct{}
 // started can carry an mtime that reads as slightly before it.
 const sweepStartGrace = 2 * time.Second
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 // SetWatcherCallback sets the callback invoked for each session update.
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
@@ -147,7 +143,9 @@ func takeWatcherTarget() *watchTarget {
 // from the sweep on this goroutine.
 func StopWatcher() {
 	slog.Info("pi: signaling watcher to stop")
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	watcherWg.Wait()
 	if target := takeWatcherTarget(); target != nil {
 		rescanWatchedDir(target)

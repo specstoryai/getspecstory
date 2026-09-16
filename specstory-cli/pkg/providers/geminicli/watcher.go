@@ -23,10 +23,6 @@ var (
 	watcherWorkspaceRoot string
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
 	defer watcherMutex.Unlock()
@@ -58,11 +54,14 @@ func getWatcherDebugRaw() bool {
 }
 
 func StopWatcher() {
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	watcherWg.Wait()
 }
 
 func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
 

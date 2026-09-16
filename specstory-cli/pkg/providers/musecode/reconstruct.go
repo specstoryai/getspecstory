@@ -36,7 +36,7 @@ const (
 // already flattened into agent text by FlattenSessionData, so reconstruction
 // emits only the three events a conversation needs — `started` for a user turn,
 // `assistant_message_committed` for an agent turn, and `terminal` to close each
-// run. See docs/SESSION-PORTABILITY.md and MUSE-FORMAT.md.
+// run. See docs/SESSION-PORTABILITY.md and MUSE-CODE-FORMAT.md.
 func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.ReconstructOptions) (*spi.ReconstructedSession, error) {
 	turns, err := spi.PrepareTurns(data, opts)
 	if err != nil {

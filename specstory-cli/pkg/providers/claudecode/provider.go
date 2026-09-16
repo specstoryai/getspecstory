@@ -177,6 +177,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Run claude -v to check version (ignore custom args for version check)
+	attempt := analytics.CheckAttempt{Provider: "claude", CustomCommand: isCustomCommand, CommandPath: claudeCmd, ResolvedPath: resolvedPath, VersionFlag: "-v"}
 	cmd := exec.Command(claudeCmd, "-v")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
@@ -188,13 +189,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		errorType := spi.ClassifyCheckError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "claude",
-			"custom_command": isCustomCommand,
-			"command_path":   claudeCmd,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(errorType, claudeCmd, isCustomCommand, stderrOutput)
 
@@ -210,13 +205,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	output := out.String()
 	if !strings.Contains(output, "(Claude Code)") {
 		// Track unexpected output error
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "claude",
-			"custom_command": isCustomCommand,
-			"command_path":   claudeCmd,
-			"error_type":     "unexpected_output",
-			"output":         strings.TrimSpace(output),
-		})
+		analytics.TrackCheckFailure(attempt, "unexpected_output", strings.TrimSpace(output), strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage("unexpected_output", claudeCmd, isCustomCommand, output)
 
@@ -229,12 +218,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "claude",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        strings.TrimSpace(output),
-	})
+	analytics.TrackCheckSuccess(attempt, strings.TrimSpace(output))
 
 	return spi.CheckResult{
 		Success:      true,
@@ -391,6 +375,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Error("Failed to start project directory watcher", "error", err)
 	}
 
+	projectDir, _ := resolveClaudeProjectDir(projectPath)
+	finalChanges := spi.SessionFileChanges(projectDir, "*.jsonl")
+
 	// Execute Claude Code - this blocks until Claude exits
 	slog.Info("Executing Claude Code", "command", customCommand)
 	err := ExecuteClaude(customCommand, resumeSessionID)
@@ -398,6 +385,11 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Stop the watcher goroutine before returning
 	slog.Info("Claude Code has exited, stopping watcher")
 	StopWatcher()
+	if projectDir != "" {
+		for _, path := range finalChanges() {
+			scanJSONLFiles(projectDir, path)
+		}
+	}
 
 	// Return any execution error
 	if err != nil {
@@ -443,6 +435,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 
 	slog.Info("WatchAgent: Project directory found", "directory", claudeProjectDir)
 
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	if err := startProjectWatcher(claudeProjectDir); err != nil {
 		slog.Error("WatchAgent: Failed to start project watcher", "error", err)
 		return fmt.Errorf("failed to start watcher: %w", err)

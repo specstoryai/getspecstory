@@ -2,13 +2,28 @@
 
 This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few needed changes as possible.
 
-The provider interface is specified by the doc comments on `spi.Provider` in `pkg/spi/provider.go` and on the two optional interfaces in `pkg/spi/global.go`; read those first. The unified session format is `pkg/spi/schema/types.go`, explained in [docs/SPI-SESSION-DATA-SCHEMA.md](docs/SPI-SESSION-DATA-SCHEMA.md).
+The provider interface is specified by the provider service provider interface (SPI). This interface is documented via doc comments on `spi.Provider` in [pkg/spi/provider.go](pkg/spi/provider.go) and on the two optional interfaces in [pkg/spi/global.go](pkg/spi/global.go); read those first!
 
-Maintainers review every provider submission with [docs/NEW-PROVIDER-REVIEW.md](docs/NEW-PROVIDER-REVIEW.md). Reading it is the fastest way to see exactly what will be checked, and in what order.
+The unified session data format is [pkg/spi/schema/types.go](pkg/spi/schema/types.go), explained in [docs/SPI-SESSION-DATA-SCHEMA.md](docs/SPI-SESSION-DATA-SCHEMA.md).
 
-## Before you write code
+Once you've followed this guide and developed a provider, you can submit it for inclusion in the SpecStory CLI. Contributions of providers are welcomed! The SpecStory CLI maintainers review every provider submission with [docs/NEW-PROVIDER-REVIEW.md](docs/NEW-PROVIDER-REVIEW.md). Reading it is the fastest way to see exactly what will be checked, and in what order.
 
-### Pick an exemplar and copy its shape, not its code
+## Before you write any provider code
+
+### Understand a provider's responsibilities and how a provider works
+
+A provider is the part of the SpecStory CLI that knows how to work with one specific coding agent. Each agent stores conversations (sessions) in its own location and format. The provider finds those sessions and translates them into SpecStory's shared session format, preserving the conversation, tool calls and results, and available metadata.
+
+A provider has four main responsibilities:
+
+- **Find the agent and its sessions.** Check the installation, discover sessions, and identify which project each session belongs to.
+- **Read and translate sessions.** Parse the agent's stored data, retain the raw transcript, and format its tool activity for readable output.
+- **Follow an active session.** Launch the agent for `run`, or observe it for `watch`, and report new or updated sessions as the agent writes them. Finish delivering updates before shutting down.
+- **Support resuming conversations.** Launch the agent with a selected local session and, where supported, convert SpecStory's shared format back into a native session the agent can resume.
+
+The provider hands session data back to the CLI through the provider SPI. The CLI, not the providers, handles writing Markdown history, redaction, indexing, and SpecStory Cloud sync. For example, during `specstory run`, the specific coding agent writes its session, the provider detects and reads the session change, and the CLI renders and saves the updated markdown file.
+
+### Pick an exemplar provider and copy its shape (not its code)
 
 Every provider is judged by parity with the established siblings. Choose the closest one and mirror its file layout, method shapes, and behaviors. No single provider is reference-grade for everything, so take each concern from the provider named for it:
 
@@ -23,11 +38,9 @@ Every provider is judged by parity with the established siblings. Choose the clo
 | Dealing with a SQLite session store                                                                   | `pkg/spi/sqlite.go` and `pkg/providers/cursoride`                                                    |
 | The SpecStory CLI Software Factory's maintenance scripts                                              | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory`                           |
 
-There is some known drift in some of the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
+### Learn the agent's on-disk session format
 
-### Learn the agent's on-disk format from the current release
-
-Install the agent, run it, and read what it writes; the files on disk are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
+Install the agent, run it, and read what it writes as its sessions to disk (or to a database); the stored sessions are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-CODE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-CODE-FORMAT.md](pkg/providers/musecode/MUSE-CODE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
 
 - Store layout, record envelope, and the shape of every tool call and result you observed.
 - The write lifecycle: which file is the durable record, which files are transient (checkpoints, rolling "latest" files, locks), when each is written and deleted, and whether a transient file is shared across concurrent sessions. A session that is still in flight is expected to be invisible until the agent commits it.
@@ -43,22 +56,36 @@ Run the agent directly (not through `specstory run`) in a scratch directory and 
 
 ```text
 Hello <agent>, tell me all the tools you have access to. Write all the tool names to the file ./tools.txt.
+```
 
+Then, prompt it to use every tool.
+
+```text
 Please use each of your <number> tools one-by-one to show me how they work and how you use them.
 ```
 
-If the agent has a tool-search tool, add to the first prompt: including any deferred tools you can load or discover through a tool search.
+Some agents have a tool that discovers and loads other tools that aren't available at startup. For example, the agent might search for "web search" to find and load a web-search tool. If your agent supports this, add to the first prompt: "Include any tools you can discover or load through tool search."
 
-Keep `tools.txt`, a `versions.txt` with the agent's version banner and the CLI version, and the session. Two rules about that list:
+Keep `tools.txt` and a `versions.txt` containing the agent's version banner and the SpecStory CLI version in a scratch directory. After the session ends, save a copy of its native session files for that session there too, leaving the originals in the agent's store so `specstory sync` can read them. These artifacts document what the agent actually did: use them to build test fixtures, verify tool rendering, and prepare the audit and PR attachments described in [How your provider will be tested](#how-your-provider-will-be-tested).
 
-- Where the agent declares its own tools (a stream init event in headless mode, an extension hook), that declaration is the inventory and the model's self-report is only a lower bound. Tools you see used in the session that the model did not list belong in `tools.txt` too.
+Two rules about the tool list:
+
+- The model may leave tools out of its answer. If the agent software provides a tool list—for example, in its startup output—use that list to check and complete `tools.txt`. Also add any tools you see used in the session that are missing from the file.
 - Strip any namespace prefix the model adds (`functions.`, `<agent>.`); session data records bare names, and those are what your provider matches.
 
-The names in that file are the only tool names your provider may special-case. Renderers, classifier cases, argument-key aliases, and fallback branches must each trace to an observed record. A renderer for a tool that never fires is untestable code that reads as though it were verified behavior, and it will likely be deleted in review.
+The tool names in that file are the only tool renderings your provider should special-case. Renderers, classifier cases, argument-key aliases, and fallback branches must each trace to an observed tool record. A renderer for a tool that never fires is untestable code that reads as though it were verified behavior, and it may be deleted in review.
 
-### Verify native resume with a spike before writing a serializer
+### Find out what the agent needs to resume a session
 
-Plant a fact in a session ("the magic passphrase is PURPLE-ELEPHANT-42"), resume the session with the agent's own resume command, and ask for the fact. Then move one of the agent's store files aside at a time and repeat, so you know which file the agent actually reads on resume. If the agent cannot resume from anything you can reconstruct, ship `spi.ErrReconstructionUnsupported` honestly rather than a serializer that produces files the agent never loads.
+To resume another agent's conversation in your agent, SpecStory must create session files that your agent can load. Before writing that conversion code, find out which files the agent needs and whether you can recreate them from SpecStory's shared session data.
+
+Use a disposable session in your scratch project:
+
+1. Tell the agent "the magic passphrase is PURPLE-ELEPHANT-42", then exit the agent.
+2. Reopen that session using the agent's own resume command and ask "What is the magic passphrase?" Check that it recalls the fact without you supplying it again.
+3. Back up the session's stored files. With the agent stopped, temporarily move one file aside, then repeat the resume test. Restore the backup before testing the next file. This helps identify which files are needed to recover the conversation.
+
+Your conversion code must produce the data those required files contain. If that data cannot be recreated from SpecStory's shared session format, return `spi.ErrReconstructionUnsupported` from `ReconstructSession` and `false` from `SupportsReconstruction`, and document that resuming other agents' conversations in this agent is unsupported.
 
 ## What a complete provider contains
 
@@ -92,7 +119,7 @@ Add `var _ spi.Provider = (*Provider)(nil)` so the compiler enforces the interfa
 
 ### Every SPI method, including the ones that are easy to miss
 
-Implement every method on `spi.Provider` in `pkg/spi/provider.go` (twelve today; count them against the file). Beyond the obvious ones, review these carefully:
+Implement every method on `spi.Provider` in `pkg/spi/provider.go` (count them against the most recent version of the file). Beyond the obvious ones, review these carefully:
 
 - `ListAgentChatSessions` returns lightweight metadata without a full parse.
 - `ListAllAgentChatSessions` enumerates every session in the native store across all projects, reading the originating working directory from inside each session. This powers `specstory reindex`, `search`, and `resume`.
@@ -104,7 +131,7 @@ Implement every method on `spi.Provider` in `pkg/spi/provider.go` (twelve today;
 
 - `pkg/spi/factory/registry.go`: register under a short lowercase id (`muse`, `antigravity`, `droid`).
 - `pkg/config/config.go`: a `<id>_cmd` entry in the default config template, a `ProvidersConfig` field, a `GetProviderCmd` case with its doc comment updated, and rows in the config tests. `specstory run <id>` must honor it; `specstory check <id> -c` honors the flag only. **All three parts are required and none of them fails loudly on its own** — TOML accepts a key with no struct field, and `GetProviderCmd` returns `""` for an unknown id — so a partial wiring ships a config key that silently does nothing. Two tests enforce it: `config.TestProvidersConfigIsFullyWired` checks each `ProvidersConfig` field reaches both the template and a `GetProviderCmd` case, and `cmd.TestEveryRegisteredProviderHasACommandOverride` checks every registered provider id resolves to one.
-- `pkg/cmd/session_tui_browser.go`: propose an accent color in `colorForAgent`, the agent's brand color if it is legible on both light and dark terminals. The maintainer may replace it.
+- `pkg/cmd/session_tui_browser.go`: add an accent color in `colorForAgent` as a hex code (`#RRGGBB`), based on a color associated with the agent's own brand. Check it on both dark and light terminal backgrounds and adjust the shade if needed for legibility. The maintainer may replace it.
 - `pkg/skills/agents.go`: a row when the agent supports agent skills (it has a project or global skills directory). Its `Name` is the public `npx skills` canonical id, not the provider id.
 - `README.md` in this directory: the intro sentence, the Agent Support table row, the `[providers]` example block, the Configuration Options row, and the Debug Raw Mode provider list. Write a prose paragraph only if the provider behaves differently from wrapping a terminal process.
 - `../README.md` at the monorepo root: the ASCII diagram line, the Installation table row (leave the Min Version to the maintainer), the lead-in sentence, and a `specstory run <id>` example.
@@ -141,14 +168,14 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName` for tool rendering.
 - `spi.ClassifyCheckError` and the `spi.CheckErrorNotFound`, `spi.CheckErrorPermissionDenied`, `spi.CheckErrorUnknown` constants for `Check` failures. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
 - `analytics.CheckAttempt` populated once per `Check`, with the event emitted by `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`. No inline `analytics.TrackEvent` calls in a provider.
-- `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand.
+- `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand, or `spi.EnsureResumeFlagArgs` when it uses a flag.
 - `spi.AgentExitError` to report a non-zero agent exit. Never call `os.Exit` inside a provider; it skips the final session save (the reason is in `pkg/spi/exit.go`).
 - `spi.GetDebugDir` for debug output paths. Write only provider-specific raw files there; the CLI writes `session-data.json` itself.
 - `spi.NormalizePath` and `spi.ExtractShellPathHints` for path hints; `spi.CanonicalizePathOrClean` for local path comparison; `spi.FileURIToPath` for any `file://` URI.
 - `spi.GenerateFilenameFromUserMessage`, `spi.GenerateReadableName`, and `spi.ReadableTitleFromSessionData` for slugs, names, and titles. If the agent records its own title or summary for a session, prefer it for `Name` and fall back to the shared generator.
 - `spi.PrepareTurns`, `spi.ResolveWorkspaceRoot`, `spi.ReconstructRole`, `spi.RFC3339Millis`, `spi.ResumedSessionTitle` in `ReconstructSession`.
 - `spi.WatchWindowDays`, `spi.WatchWindowCutoff`, `spi.DateDirWithinWatchWindow` to bound watches on a store that grows without limit.
-- `spi.DispatchSession` for asynchronous callback delivery, or a local `defer recover()` around a synchronous callback.
+- `spi.DeliverSession` for synchronous callback delivery with panic recovery. If using `spi.DispatchSession` for asynchronous delivery, track and join every callback before shutdown.
 - SQLite stores: open every read handle as `file:<path>?mode=ro&` plus `spi.BusyTimeoutPragma`. The `file:` scheme is required; the driver ignores `mode=` on a bare path and opens read-write-create. Call `spi.EnsureWALMode` once at watcher startup, never on a read path.
 
 Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the import graph cycles through the registry), nor `pkg/telemetry` (layering).
@@ -199,7 +226,7 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 ### Run and exec
 
 - Honor the custom command from `-c` and `<id>_cmd`; parse it with `spi.SplitCommandLine`.
-- When a resume id is requested it wins over any id pinned in the configured command. For a flag-style resume (`--resume <id>`) there is no shared helper yet; write one that replaces a pinned id, inserts after a bare flag even when the next token is another flag, repairs `--flag=`, and never appends to the caller's slice. The DeepSeek TUI helper is the closest model for the bare-flag and `--flag=` handling, but it lets a pinned id win, which is wrong.
+- When a resume id is requested it wins over any id pinned in the configured command. Use `spi.EnsureResumeFlagArgs` for flag-style resume (`--resume <id>`), passing the agent's supported flag names. It replaces pinned ids, fills bare or empty flags, and preserves the caller's slice.
 - Stop the watcher and join in-flight saves before returning the agent's exit status.
 - For an IDE provider, `run` opens the project directory with the IDE's own CLI, canonicalizing the path first, prints install guidance if that CLI is missing, waits for the IDE to create the workspace, and then watches until Ctrl-C. No silent fallback to opening the app on its home screen.
 

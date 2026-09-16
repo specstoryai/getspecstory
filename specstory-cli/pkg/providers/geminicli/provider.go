@@ -31,16 +31,12 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseGeminiCommand(customCommand)
 	isCustom := customCommand != ""
 
+	attempt := analytics.CheckAttempt{Provider: "gemini", CustomCommand: isCustom, CommandPath: cmdName, VersionFlag: "--version"}
 	resolvedPath, err := exec.LookPath(cmdName)
+	attempt.ResolvedPath = resolvedPath
 	if err != nil {
 		errorMessage := buildGeminiCheckErrorMessage("not_found", cmdName, isCustom, "")
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "gemini",
-			"custom_command": isCustom,
-			"command_path":   cmdName,
-			"error_type":     "not_found",
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, "not_found", err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
 			Location:     "",
@@ -57,13 +53,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if err := cmd.Run(); err != nil {
 		errorType := spi.ClassifyCheckError(err)
 		errorMessage := buildGeminiCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "gemini",
-			"custom_command": isCustom,
-			"command_path":   resolvedPath,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(stderr.String()))
 
 		return spi.CheckResult{
 			Success:      false,
@@ -73,12 +63,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	version := strings.TrimSpace(stdout.String())
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "gemini",
-		"custom_command": isCustom,
-		"command_path":   resolvedPath,
-		"version":        version,
-	})
+	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
 		Success:  true,
@@ -165,7 +150,23 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	if err := WatchGeminiProject(projectPath, sessionCallback); err != nil {
 		slog.Error("Failed to start watcher", "error", err)
 	}
-	defer StopWatcher()
+	// Include both hashed and named project stores, since a first run may
+	// choose its directory after the watcher starts. The final sweep selects
+	// only files in the resolved project directory.
+	hashDir, _ := GetGeminiProjectDir(projectPath)
+	finalChanges := spi.SessionFileChanges(filepath.Dir(hashDir), "*/chats/*.json")
+	defer func() {
+		StopWatcher()
+		resolved, err := ResolveGeminiProjectDir(projectPath)
+		if err != nil {
+			return
+		}
+		for _, path := range finalChanges() {
+			if filepath.Dir(path) == filepath.Join(resolved, "chats") {
+				processSessionChange(path)
+			}
+		}
+	}()
 
 	if resumeSessionID != "" {
 		slog.Info("Attempting to resume Gemini CLI session", "sessionId", resumeSessionID)

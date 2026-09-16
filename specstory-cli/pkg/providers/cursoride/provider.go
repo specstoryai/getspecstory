@@ -35,16 +35,13 @@ func (p *Provider) Name() string {
 
 // Check verifies Cursor IDE database exists and returns info
 func (p *Provider) Check(customCommand string) spi.CheckResult {
+	attempt := analytics.CheckAttempt{Provider: ProviderID}
 	slog.Debug("Check: Checking Cursor IDE installation")
 
 	// Check for global database
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":      "cursoride",
-			"error_type":    "database_not_found",
-			"error_message": err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, "database_not_found", err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
 			Version:      "",
@@ -56,11 +53,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Try to open the database
 	db, err := OpenDatabase(globalDbPath)
 	if err != nil {
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":      "cursoride",
-			"error_type":    "database_open_failed",
-			"error_message": err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, "database_open_failed", err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
 			Version:      "",
@@ -76,10 +69,8 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	slog.Debug("Cursor IDE check successful", "dbPath", globalDbPath)
 
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider": "cursoride",
-		"location": globalDbPath,
-	})
+	attempt.Location = globalDbPath
+	analytics.TrackCheckSuccess(attempt, "")
 
 	return spi.CheckResult{
 		Success: true,

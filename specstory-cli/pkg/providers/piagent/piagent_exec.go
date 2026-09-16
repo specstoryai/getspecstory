@@ -13,9 +13,8 @@ import (
 )
 
 // resumeFlag is how pi continues an existing session on the command line:
-// `pi --session-id <id>`. This is a flag append (like Claude Code's --resume),
-// not a subcommand (like Codex's `codex resume <id>`), so spi.EnsureResumeArgs
-// is not used here.
+// `pi --session-id <id>`. The shared flag helper replaces a configured id
+// with the session requested for this run.
 //
 // Verified empirically against pi 0.85.1, the current npm package
 // @earendil-works/pi-coding-agent, on 2026-09-05 (the older
@@ -33,14 +32,14 @@ const resumeFlag = "--session-id"
 
 // parsePiRunCommand splits a custom run command into the pi binary and its base
 // args (reusing parsePiCommand for the SplitCommandLine quoting + tilde
-// expansion), then appends pi's resume flag when a session id is provided. An
+// expansion), then sets pi's resume flag when a session id is provided. An
 // empty custom command falls back to the default `pi` binary. resumeSessionID is
 // expected pre-trimmed by ExecAgentAndWatch; the guard here means a direct
 // caller cannot append an empty `--session-id`.
 func parsePiRunCommand(customCommand string, resumeSessionID string) (string, []string) {
 	cmd, args := parsePiCommand(customCommand)
 	if id := strings.TrimSpace(resumeSessionID); id != "" {
-		args = append(args, resumeFlag, id)
+		args = spi.EnsureResumeFlagArgs(args, id, resumeFlag)
 	}
 	return cmd, args
 }
@@ -53,16 +52,8 @@ func getDefaultPiCommand() string {
 	return defaultCmd
 }
 
-// ExecutePi runs the pi CLI with interactive TTY passthrough: stdin/stdout/stderr
-// are inherited from the parent so pi shares the terminal and Ctrl-C reaches it
-// (no explicit os/signal handling, same as the sibling providers). On a non-zero
-// child exit it returns a *spi.AgentExitError carrying pi's exit code rather
-// than calling os.Exit here: pi writes its session file in the same instant it
-// exits, and an os.Exit in this helper (the claudecode shape) leaves the process
-// before ExecAgentAndWatch can stop the watcher and join that save, so the
-// session pi wrote just before failing was lost. The CLI applies the code as
-// the process exit status after the watcher has stopped. Other wait errors are
-// wrapped and returned.
+// ExecutePi runs pi with terminal passthrough and returns its exit status so
+// the watcher can finish saving the last session update before the CLI exits.
 func ExecutePi(customCommand string, resumeSessionID string) error {
 	piCmd, args := parsePiRunCommand(customCommand, resumeSessionID)
 

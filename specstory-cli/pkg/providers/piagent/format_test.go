@@ -587,3 +587,13 @@ func TestFormatTree_UserOnlyExchangeHasEndTime(t *testing.T) {
 		t.Errorf("user-only exchange EndTime = %q, want the user message timestamp", ex.EndTime)
 	}
 }
+
+func TestToolMarkdownPreservesNestedFences(t *testing.T) {
+	content := "before\n````markdown\n```text\ninner\n```\n````\nafter"
+	for _, name := range []string{"bash", "write"} {
+		_, got := formatToolMarkdown(&schema.ToolInfo{Name: name, Input: map[string]interface{}{"path": "notes.md", "command": content, "content": content}, Output: map[string]interface{}{"content": content}})
+		if !strings.Contains(got, content) || !strings.Contains(got, "`````\n") {
+			t.Fatalf("unsafe fence: %s", got)
+		}
+	}
+}

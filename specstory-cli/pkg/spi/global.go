@@ -149,14 +149,22 @@ func DispatchSession(label string, cb func(*AgentChatSession), session *AgentCha
 	if cb == nil || session == nil {
 		return
 	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error(label+": session callback panicked", "panic", r)
-			}
-		}()
-		cb(session)
+	go DeliverSession(label, cb, session)
+}
+
+// DeliverSession invokes a callback synchronously and contains consumer panics.
+// Watchers with one worker use it to preserve ordering and join all saves before
+// returning an agent's exit status.
+func DeliverSession(label string, cb func(*AgentChatSession), session *AgentChatSession) {
+	if cb == nil || session == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error(label+": session callback panicked", "panic", r)
+		}
 	}()
+	cb(session)
 }
 
 // safeScan runs scan(path), converting a panic into an error so one malformed session file is

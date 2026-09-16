@@ -3,6 +3,7 @@ package qwencode
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +13,9 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+// The child test binary accepts the agent resume flag before the -- separator.
+var _ = flag.String("resume", "", "session for exec test helper")
 
 func TestEnsureResumeArgs(t *testing.T) {
 	tests := []struct {
@@ -150,7 +154,7 @@ func TestExecAgentAndWatchDrainsNonzeroExitInSelectedProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The command parser consumes backslash escapes, including in quoted Windows paths.
-	command := fmt.Sprintf(`%q -test.run=^TestQwenExecChild$ -- --resume old`, exe)
+	command := fmt.Sprintf(`%q -test.run=^TestQwenExecChild$ --resume old`, exe)
 	var saved *spi.AgentChatSession
 	err = NewProvider().ExecAgentAndWatch(project, command, "requested", false, func(s *spi.AgentChatSession) { saved = s })
 	var exit *spi.AgentExitError

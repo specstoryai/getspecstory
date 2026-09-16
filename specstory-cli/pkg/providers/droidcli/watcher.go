@@ -195,7 +195,7 @@ func processSessionFile(filePath string, projectPath string, debugRaw bool, sess
 	}
 
 	state.lastProcessed[filePath] = modTime
-	spi.DispatchSession("droidcli", sessionCallback, chat)
+	spi.DeliverSession("droidcli", sessionCallback, chat)
 }
 
 // seedProcessedSessions marks every session already on disk as seen, without
@@ -244,7 +244,7 @@ func scanAndProcessSessions(projectPath string, debugRaw bool, sessionCallback f
 			continue
 		}
 		state.lastProcessed[file.Path] = file.ModTime
-		spi.DispatchSession("droidcli", sessionCallback, chat)
+		spi.DeliverSession("droidcli", sessionCallback, chat)
 	}
 	return nil
 }

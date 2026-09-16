@@ -183,7 +183,7 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 
 	// Open read-only with a busy timeout so a transient lock held by
 	// cursor-agent's writer doesn't fail the read
-	db, err := sql.Open("sqlite", dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro&"+spi.BusyTimeoutPragma)
 	if err != nil {
 		return "", "", nil, nil, fmt.Errorf("failed to open database: %w", err)
 	}

@@ -101,7 +101,8 @@ type Provider interface {
 	// resumeSessionID: empty string = start new session, non-empty = resume this specific session ID
 	// debugRaw: if true, provider should write provider-specific raw debug files to .specstory/debug/<sessionID>/
 	//           (e.g., numbered JSON files). The unified session-data.json is written centrally by the CLI.
-	// sessionCallback is called with each session update (provider should not block on callback)
+	// sessionCallback is called with each session update. Deliver updates in order,
+	// contain callback panics, and finish all callbacks before returning.
 	// The implementation should handle its own file watching and session tracking
 	ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*AgentChatSession)) error
 
@@ -112,7 +113,8 @@ type Provider interface {
 	// projectPath: Agent's working directory
 	// debugRaw: if true, provider should write provider-specific raw debug files to .specstory/debug/<sessionID>/
 	//           (e.g., numbered JSON files). The unified session-data.json is written centrally by the CLI.
-	// sessionCallback: called with AgentChatSession on each update (provider should not block on callback)
+	// sessionCallback: called with AgentChatSession on each update. Deliver updates
+	// in order, contain callback panics, and finish all callbacks before returning.
 	// The implementation should handle its own file watching and session tracking
 	WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*AgentChatSession)) error
 

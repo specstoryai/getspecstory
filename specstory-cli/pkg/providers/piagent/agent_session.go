@@ -242,7 +242,7 @@ func formatToolMarkdown(tool *schema.ToolInfo) (string, string) {
 			return "", ""
 		}
 		if strings.Contains(cmd, "\n") {
-			fmt.Fprintf(&b, "```bash\n%s\n```", strings.ReplaceAll(cmd, "```", "\\```"))
+			b.WriteString(spi.CodeFence("bash", cmd))
 		} else {
 			summary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, cmd)
 		}
@@ -259,7 +259,7 @@ func formatToolMarkdown(tool *schema.ToolInfo) (string, string) {
 		}
 		fmt.Fprintf(&b, "`%s`\n", p)
 		if content, _ := in["content"].(string); content != "" {
-			fmt.Fprintf(&b, "\n```\n%s\n```", strings.ReplaceAll(content, "```", "\\```"))
+			b.WriteString("\n" + spi.CodeFence("", content))
 		}
 	case "grep", "find":
 		pattern, _ := in["pattern"].(string)
@@ -285,16 +285,14 @@ func appendToolOutput(b *strings.Builder, tool *schema.ToolInfo) {
 	if content == "" {
 		return
 	}
-	if len(content) > 5000 {
-		content = content[:5000] + "\n... (truncated)"
-	}
+	content = spi.CapRunes(content, 5000)
 	if b.Len() > 0 {
 		b.WriteString("\n\n")
 	}
 	if isErr, _ := tool.Output["is_error"].(bool); isErr {
 		b.WriteString("Error:\n")
 	}
-	b.WriteString("```\n" + content + "\n```")
+	b.WriteString(spi.CodeFence("", content))
 }
 
 // buildExchanges groups ordered entries into schema exchanges. A new user

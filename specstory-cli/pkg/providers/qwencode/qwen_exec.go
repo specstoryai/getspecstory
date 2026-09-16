@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"slices"
-	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
@@ -26,31 +24,7 @@ func parseQwenCommand(customCommand string) (string, []string) {
 // ensureResumeArgs gives the requested id precedence over configured resume
 // flags, repairs bare flags, and never changes the caller's backing array.
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
-	if resumeSessionID == "" {
-		return args
-	}
-	result := slices.Clone(args)
-	found := false
-	for i := 0; i < len(result); i++ {
-		arg := result[i]
-		if arg == "--resume" || arg == "-r" {
-			found = true
-			if i+1 < len(result) && !strings.HasPrefix(result[i+1], "-") {
-				result[i+1] = resumeSessionID
-			} else {
-				result = slices.Insert(result, i+1, resumeSessionID)
-			}
-			// Step over the id just written so it is never mistaken for a flag.
-			i++
-		} else if strings.HasPrefix(arg, "--resume=") || strings.HasPrefix(arg, "-r=") {
-			found = true
-			result[i] = strings.SplitN(arg, "=", 2)[0] + "=" + resumeSessionID
-		}
-	}
-	if !found {
-		result = append(result, "--resume", resumeSessionID)
-	}
-	return result
+	return spi.EnsureResumeFlagArgs(args, resumeSessionID, "--resume", "-r")
 }
 
 // ExecuteQwen runs the Qwen Code CLI with the given arguments

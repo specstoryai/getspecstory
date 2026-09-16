@@ -109,11 +109,13 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if displayCmd == "" {
 		displayCmd = cmdName
 	}
+	attempt := analytics.CheckAttempt{Provider: providerID, CustomCommand: isCustom, CommandPath: displayCmd, VersionFlag: versionFlag}
 	resolved, err := exec.LookPath(cmdName)
+	attempt.ResolvedPath = resolved
 	if err != nil {
 		errorType := classifyCheckError(err)
 		slog.Info("pi: Check binary not found", "command", cmdName, "error", err)
-		trackCheckFailure(isCustom, displayCmd, "", "", errorType, err.Error())
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
 			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, ""),
@@ -128,7 +130,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		errorType := classifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		slog.Info("pi: Check version probe failed", "resolved", resolved, "error", err, "stderr", stderrOutput)
-		trackCheckFailure(isCustom, displayCmd, resolved, stderrOutput, errorType, err.Error())
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{
 			Success:  false,
 			Location: resolved,
@@ -143,7 +145,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	if version == "" {
 		version = "unknown"
 	}
-	trackCheckSuccess(isCustom, displayCmd, resolved, version)
+	analytics.TrackCheckSuccess(attempt, version)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
@@ -231,37 +233,6 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	<-ctx.Done()
 	StopWatcher()
 	return ctx.Err()
-}
-
-// trackCheckSuccess emits the standard install-check success analytics event,
-// matching the shape other providers use.
-func trackCheckSuccess(custom bool, commandPath, resolvedPath, version string) {
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       providerID,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version":        version,
-		"version_flag":   versionFlag,
-	})
-}
-
-// trackCheckFailure emits the standard install-check failure analytics event,
-// including the version probe's stderr when available (matching droidcli).
-func trackCheckFailure(custom bool, commandPath, resolvedPath, stderrOutput, errorType, message string) {
-	props := analytics.Properties{
-		"provider":       providerID,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version_flag":   versionFlag,
-		"error_type":     errorType,
-		"error_message":  message,
-	}
-	if stderrOutput != "" {
-		props["stderr"] = stderrOutput
-	}
-	analytics.TrackEvent(analytics.EventCheckInstallFailed, props)
 }
 
 // sessionFile pairs a discovered pi session file with its header metadata.

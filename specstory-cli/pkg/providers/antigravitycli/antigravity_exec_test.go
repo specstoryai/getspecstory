@@ -24,7 +24,7 @@ func TestEnsureResumeArgs(t *testing.T) {
 		{name: "empty resume leaves args unchanged", args: []string{"--sandbox"}, resume: "", want: []string{"--sandbox"}},
 		{name: "appends conversation flag", args: nil, resume: "conv-1", want: []string{"--conversation", "conv-1"}},
 		{name: "fills empty existing flag", args: []string{"--conversation"}, resume: "conv-1", want: []string{"--conversation", "conv-1"}},
-		{name: "respects existing flag value", args: []string{"--conversation", "other"}, resume: "conv-1", want: []string{"--conversation", "other"}},
+		{name: "overrides existing flag value", args: []string{"--conversation", "other"}, resume: "conv-1", want: []string{"--conversation", "conv-1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

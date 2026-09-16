@@ -85,7 +85,7 @@ func formatToolOutput(tool *fdToolCall) string {
 		label = "Output (error)"
 	}
 	if strings.Contains(content, "\n") {
-		return fmt.Sprintf("%s:\n```text\n%s\n```", label, content)
+		return label + ":\n" + spi.CodeFence("text", content)
 	}
 	return fmt.Sprintf("%s: %s", label, content)
 }
