@@ -3,6 +3,7 @@ package claudecode
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,9 +18,9 @@ import (
 )
 
 const (
-	KB                    = 1024
-	MB                    = 1024 * 1024
-	maxReasonableLineSize = 250 * MB // 250MB sanity limit to prevent OOM from malformed or malicious files
+	KB = 1024
+	// MB labels the large-line debug log; the record cap is spi.MaxRecordLineSize.
+	MB = 1024 * 1024
 )
 
 // sessionIDRegex extracts sessionId from JSONL without full JSON parsing.
@@ -246,17 +247,19 @@ func extractSessionIDFromFile(filePath string) (string, error) {
 	reader := bufio.NewReader(file)
 
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil && err != io.EOF {
+		// An oversized record comes back empty, so the regex simply does not
+		// match it and the scan moves on to the next record.
+		line, _, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if err != nil && !errors.Is(err, io.EOF) {
 			return "", fmt.Errorf("error reading file: %w", err)
 		}
 
 		// Try to find sessionId via regex (faster than JSON parsing)
-		if matches := sessionIDRegex.FindStringSubmatch(line); len(matches) > 1 {
+		if matches := sessionIDRegex.FindStringSubmatch(string(line)); len(matches) > 1 {
 			return matches[1], nil
 		}
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 	}
@@ -306,8 +309,6 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 	}
 	defer func() { _ = file.Close() }() // Read-only file; close errors not actionable
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
-	// Scanner has a token size limit (even with custom buffer), but Reader does not
 	reader := bufio.NewReader(file)
 
 	lineNumber := 0
@@ -319,22 +320,33 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 	var pendingSummary string
 
 	for {
-		// Read line using ReadString which has no size limit
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
+		rawLine, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		line := strings.TrimSuffix(string(rawLine), "\n")
 
 		// EOF is expected at end of file, other errors are genuine failures
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 		}
 
 		// Determine if we're at end of file and if we have content to process
-		atEOF := err == io.EOF
+		atEOF := errors.Is(err, io.EOF)
 		hasContent := len(line) > 0
 
 		// Increment line number for every line read (including empty lines) to match text editor line numbers
-		if hasContent || !atEOF {
+		if hasContent || oversized || !atEOF {
 			lineNumber++
+		}
+
+		// One pathological record costs that record, not the rest of the session.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(filePath),
+				"line", lineNumber,
+				"limit", spi.MaxRecordLineSize)
+			if atEOF {
+				break
+			}
+			continue
 		}
 
 		// If no content, either skip empty line or exit at EOF
@@ -343,17 +355,6 @@ func (p *JSONLParser) parseSessionFile(filePath string) ([]JSONLRecord, error) {
 				break // Reached end of file with no content
 			}
 			continue // Empty line in middle of file, skip it
-		}
-
-		// Sanity check to prevent OOM from pathological files
-		if len(line) > maxReasonableLineSize {
-			slog.Warn("line exceeds reasonable size limit",
-				"lineNumber", lineNumber,
-				"sizeMB", len(line)/MB,
-				"limitMB", maxReasonableLineSize/MB,
-				"file", filepath.Base(filePath))
-			return nil, fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/MB)
 		}
 
 		// Log when processing unusually large lines (helps debug performance issues)

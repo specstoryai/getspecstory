@@ -41,8 +41,8 @@ func writeNumberedEntries(dir string, entries []json.RawMessage) error {
 }
 
 // readRawEntries returns each non-header line of a session file as a raw JSON
-// value, for debug-raw burst output. Uses bufio.Reader (via readLines) so
-// arbitrarily large lines are captured without the 16MB bufio.Scanner cap.
+// value, for debug-raw burst output. It goes through readLines, so debug output
+// shows exactly the records the parser accepted.
 func readRawEntries(path string) ([]json.RawMessage, error) {
 	var out []json.RawMessage
 	first := true

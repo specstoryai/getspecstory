@@ -2,38 +2,36 @@ package piagent
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// Line-size sanity limits, mirroring claudecode/codex. bufio.Reader.ReadString
-// has no line-size limit, so a 250MB cap guards against OOM from pathological or
-// malicious files (a legitimate pi session line — a big tool result or base64
-// image — can exceed the 16MB bufio.Scanner cap, so we do NOT use Scanner).
 const (
 	KB = 1024
 	MB = 1024 * 1024
 )
 
-// maxReasonableLineSize is the only sanity limit the pi parser applies.
-// Aggregate session-wide byte/entry caps were considered and rejected: the
-// full parse must retain the whole tree to reconstruct the transcript, and
-// this is no worse than the Claude Code/Codex providers, which also cap only
-// a single line's size. The metadata-only scan path (readScanEntries below)
-// instead avoids the memory cost by never retaining message payloads it
-// doesn't need, rather than by refusing large-but-valid sessions outright.
-var maxReasonableLineSize = 250 * MB
+// maxRecordLineSize is the per-record cap, shared with every other provider. A
+// var only so a test can shrink it; treat it as spi.MaxRecordLineSize.
+//
+// Aggregate session-wide byte or entry caps were considered and rejected: the
+// full parse must retain the whole tree to reconstruct the transcript. The
+// metadata-only scan path (readScanEntries below) instead avoids the memory
+// cost by never retaining message payloads it doesn't need, rather than by
+// refusing large-but-valid sessions outright.
+var maxRecordLineSize = spi.MaxRecordLineSize
 
-// readLines reads a pi session file line-by-line via bufio.Reader (unbounded
-// line size, unlike bufio.Scanner) and calls visit for each non-empty trimmed
-// line. Lines exceeding maxReasonableLineSize are refused with an error to
-// prevent OOM.
+// readLines calls visit for each non-empty trimmed record of a pi session file.
+// A record past maxRecordLineSize is skipped with a Warn rather than failing the
+// file, so one pathological record costs that record and not the session.
 func readLines(path string, visit func(line string) error) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -42,63 +40,21 @@ func readLines(path string, visit func(line string) error) error {
 	defer func() { _ = f.Close() }()
 
 	reader := bufio.NewReader(f)
-	lineNum := 0
-	var longLine bytes.Buffer
-	for {
-		part, isPrefix, readErr := reader.ReadLine()
-		if readErr != nil && readErr != io.EOF {
-			return fmt.Errorf("pi: reading line %d of %s: %w", lineNum+1, path, readErr)
+	for lineNum := 1; ; lineNum++ {
+		line, oversized, readErr := spi.ReadRecordLine(reader, maxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return fmt.Errorf("pi: reading line %d of %s: %w", lineNum, path, readErr)
 		}
-		if len(part) > 0 {
-			if longLine.Len()+len(part) > maxReasonableLineSize {
-				slog.Warn("pi: line exceeds reasonable size limit",
-					"lineNumber", lineNum+1, "sizeMB", (longLine.Len()+len(part))/MB,
-					"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
-				return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
-					lineNum+1, path, maxReasonableLineSize/MB)
-			}
-			if _, wErr := longLine.Write(part); wErr != nil {
-				return fmt.Errorf("pi: buffering line %d of %s: %w", lineNum+1, path, wErr)
-			}
-		}
-		if readErr == io.EOF {
-			if longLine.Len() == 0 {
-				return nil
-			}
-			lineNum++
-			trimmed := strings.TrimSpace(longLine.String())
-			longLine.Reset()
-			if trimmed != "" {
-				if len(trimmed) > maxReasonableLineSize {
-					slog.Warn("pi: line exceeds reasonable size limit",
-						"lineNumber", lineNum, "sizeMB", len(trimmed)/MB,
-						"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
-					return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
-						lineNum, path, maxReasonableLineSize/MB)
-				}
-				if vErr := visit(trimmed); vErr != nil {
-					return vErr
-				}
-			}
-			return nil
-		}
-		if isPrefix {
-			continue
-		}
-		lineNum++
-		trimmed := strings.TrimSpace(longLine.String())
-		longLine.Reset()
-		if trimmed != "" {
-			if len(trimmed) > maxReasonableLineSize {
-				slog.Warn("pi: line exceeds reasonable size limit",
-					"lineNumber", lineNum, "sizeMB", len(trimmed)/MB,
-					"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
-				return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
-					lineNum, path, maxReasonableLineSize/MB)
-			}
+		if oversized {
+			slog.Warn("pi: skipping oversized JSONL line",
+				"lineNumber", lineNum, "limit", maxRecordLineSize, "file", filepath.Base(path))
+		} else if trimmed := strings.TrimSpace(string(line)); trimmed != "" {
 			if vErr := visit(trimmed); vErr != nil {
 				return vErr
 			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return nil
 		}
 	}
 }

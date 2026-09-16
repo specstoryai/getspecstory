@@ -41,10 +41,8 @@ func reconstructSampleData() *schema.SessionData {
 	}
 }
 
-// parsePiJSONL splits reconstructed content into per-line maps. It uses a
-// bufio.Reader (not bufio.Scanner) with unbounded line size because pi session
-// lines can legitimately exceed the 16 MB Scanner cap; reconstructed lines are
-// small, but mirroring the read side's reader keeps the helper honest.
+// parsePiJSONL splits reconstructed content into per-line maps. Reconstructed
+// lines are small; using a bufio.Reader mirrors the read side of the provider.
 func parsePiJSONL(t *testing.T, content []byte) []map[string]any {
 	t.Helper()
 	var records []map[string]any
