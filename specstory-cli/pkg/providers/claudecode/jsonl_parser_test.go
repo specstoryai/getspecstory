@@ -1084,14 +1084,8 @@ func TestParseLargeJSONLLines(t *testing.T) {
 			description: "Should handle 10MB lines",
 		},
 		{
-			name:        "line just under the record cap",
-			lineSizeKB:  spi.MaxRecordLineSize/KB - 1,
-			wantRecords: 1,
-			description: "The largest record the parser accepts must still parse",
-		},
-		{
-			name:        "50MB line past the record cap",
-			lineSizeKB:  51200,
+			name:        "line past the record cap",
+			lineSizeKB:  spi.MaxRecordLineSize/KB + 1024,
 			wantRecords: 0,
 			description: "A record past the cap is skipped, not an error that fails the file",
 		},

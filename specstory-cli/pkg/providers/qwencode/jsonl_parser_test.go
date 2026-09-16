@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestParseSessionFile_Basic(t *testing.T) {
@@ -174,7 +176,7 @@ func TestResultDisplayString(t *testing.T) {
 func TestParseSessionFileSkipsOversizedRecordAndKeepsFollowingTurns(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "large.jsonl")
 	raw := `{"type":"user","sessionId":"large","message":{"role":"user","parts":[{"text":"kept"}]}}`
-	if err := os.WriteFile(path, []byte(raw+"\n"+`{"type":"user","message":{"parts":[{"text":"`+strings.Repeat("x", 16*1024*1024)+`"}]}}`+"\n"+raw), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(raw+"\n"+`{"type":"user","message":{"parts":[{"text":"`+strings.Repeat("x", spi.MaxRecordLineSize)+`"}]}}`+"\n"+raw), 0644); err != nil {
 		t.Fatal(err)
 	}
 	s, err := ParseSessionFile(path)

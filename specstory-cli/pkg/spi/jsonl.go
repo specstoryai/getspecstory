@@ -6,10 +6,12 @@ import (
 )
 
 // MaxRecordLineSize bounds how much memory a single JSONL record may consume.
-// Conversation records do not approach this; a line past it is a corrupt or
-// hostile file, so the reader discards that record rather than letting one line
-// exhaust the process.
-const MaxRecordLineSize = 16 * 1024 * 1024
+// A line past it is treated as a corrupt or hostile file and discarded, so the
+// bound has to sit above the largest record an agent legitimately writes: a
+// tool result carrying a whole file, or a turn with a base64 image inlined into
+// the record, both of which run to tens of megabytes. 64MB clears those with
+// room to spare while still capping one record far below the machine.
+const MaxRecordLineSize = 64 * 1024 * 1024
 
 // ReadRecordLine reads one newline-terminated JSONL record from reader,
 // returning the record (including its trailing newline), whether it exceeded

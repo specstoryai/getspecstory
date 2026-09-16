@@ -466,3 +466,52 @@ func TestRawDataMatchesConvertedSessionWhileFileGrows(t *testing.T) {
 		}
 	}
 }
+
+// Detection must answer the same question the listing paths answer. The
+// sanitized store key is lossy, so /a-b and /a_b share one chats directory: a
+// project whose neighbour owns every transcript there has no Qwen activity of
+// its own, and saying otherwise announces sessions that then fail to appear.
+func TestDetectAgentAgreesWithTheListingPaths(t *testing.T) {
+	home := withFakeHome(t)
+	base := t.TempDir()
+	mine := filepath.Join(base, "a-b")
+	neighbour := filepath.Join(base, "a_b")
+	for _, dir := range []string{mine, neighbour} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p := NewProvider()
+
+	// The colliding neighbour owns the only transcript in the shared directory.
+	seedFakeSession(t, home, neighbour, "session-basic.jsonl", "11111111-2222-3333-4444-555555555555")
+	if p.DetectAgent(mine, false) {
+		t.Error("detected activity for a project whose neighbour owns every transcript")
+	}
+	if !p.DetectAgent(neighbour, false) {
+		t.Error("the project that does own the transcript was not detected")
+	}
+
+	// A transcript with no real user turn is skipped by every listing path too.
+	solo := filepath.Join(base, "solo")
+	if err := os.MkdirAll(solo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	seedFakeSession(t, home, solo, "session-system-only.jsonl", "00000000-1111-2222-3333-444444444444")
+	if p.DetectAgent(solo, false) {
+		t.Error("detected activity from a session with no real user turn")
+	}
+
+	// Whatever detection reports, the listing paths must agree.
+	for _, project := range []string{mine, neighbour, solo} {
+		detected := p.DetectAgent(project, false)
+		sessions, err := p.GetAgentChatSessions(project, false, nil)
+		if err != nil {
+			t.Fatalf("GetAgentChatSessions(%s): %v", project, err)
+		}
+		if detected != (len(sessions) > 0) {
+			t.Errorf("%s: DetectAgent=%v but %d sessions returned", filepath.Base(project), detected, len(sessions))
+		}
+	}
+}

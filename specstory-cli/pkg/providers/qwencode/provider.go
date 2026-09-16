@@ -101,6 +101,12 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 }
 
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
+	projectPath, err := defaultProjectPath(projectPath)
+	if err != nil {
+		slog.Debug("DetectAgent: No workspace", "error", err)
+		return false
+	}
+
 	projectDir, err := ResolveQwenProjectDir(projectPath)
 	if err != nil {
 		if helpOutput {
@@ -113,12 +119,25 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	entries, readErr := os.ReadDir(chatsDir)
 	if readErr == nil {
 		for _, entry := range entries {
-			if entry.Type().IsRegular() && isSessionFile(entry.Name()) {
+			if !entry.Type().IsRegular() || !isSessionFile(entry.Name()) {
+				continue
+			}
+			// Detection must agree with the paths that actually return sessions,
+			// which reject a transcript whose recorded cwd is another project's
+			// and one with no real user turn. The sanitized store key is lossy, so
+			// this directory legitimately holds a colliding project's transcripts;
+			// counting those would announce Qwen activity and then list nothing.
+			// The scan is metadata-only and stops at the first owned transcript.
+			session, parseErr := parseSessionFile(filepath.Join(chatsDir, entry.Name()), true)
+			if parseErr != nil {
+				continue
+			}
+			if session.FirstRealUserText() != "" && sessionBelongsToProject(session, projectPath) {
 				return true
 			}
 		}
 	}
-	slog.Debug("DetectAgent: No Qwen transcripts", "path", chatsDir, "error", readErr)
+	slog.Debug("DetectAgent: No Qwen transcripts for this project", "path", chatsDir, "error", readErr)
 
 	if helpOutput {
 		log.UserMessage("Qwen Code data found at %s but no chats/*.jsonl files exist yet.\n", projectDir)

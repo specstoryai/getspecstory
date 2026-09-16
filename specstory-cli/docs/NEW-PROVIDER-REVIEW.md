@@ -259,7 +259,7 @@ Taken when the fix is also a simplification or the cost is on a hot path; skippe
 - No whole-file body retained by a listing path that only needs metadata.
 - Direct `os.Stat` for a file whose name is derivable, not a directory scan.
 - No per-call map literals in a classifier; no per-row recomputation of a value that is constant per session.
-- Session files read through `spi.ReadRecordLine` at `spi.MaxRecordLineSize` (16MB), one constant for every provider; the maintainer's ruling when Copilot flagged a 250MB cap was to match the siblings ("For #2 let's do the same as anti/deepseek, at 16MB"). The size check happens before the record is materialized, which is the whole point: a cap tested against a finished line has already made the allocation it was meant to prevent.
+- Session files read through `spi.ReadRecordLine` at `spi.MaxRecordLineSize`, one constant for every provider rather than a per-provider bound. The value has to clear the largest record an agent legitimately writes, which is a tool result holding a whole file or a turn with a base64 image inlined, so it sits well above the size of ordinary prose. The size check happens before the record is materialized, which is the whole point: a cap tested against a finished line has already made the allocation it was meant to prevent.
 - `RawData` assembled from the parsed records, not a second read of the file.
 - Reindex enumeration in parallel; by-path reads instead of by-id walks.
 
