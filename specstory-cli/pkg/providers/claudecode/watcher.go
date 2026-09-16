@@ -97,6 +97,9 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 
 // StopWatcher gracefully stops the watcher goroutine
 func StopWatcher() {
+	// Save any session the shell gate is holding back before the callback is
+	// cleared by the caller's deferred ClearWatcherCallback
+	flushDeferredScans()
 	slog.Info("StopWatcher: Signaling watcher to stop")
 	watcherCancel()
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
@@ -350,6 +353,17 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 // scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file
 func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
+	var targetFile string
+	if len(changedFile) > 0 {
+		targetFile = changedFile[0]
+	}
+	scanJSONLFilesWithOptions(claudeProjectDir, targetFile, false)
+}
+
+// scanJSONLFilesWithOptions is scanJSONLFiles with the shell gate made explicit:
+// force saves the targeted session even while a shell tool call is open. The
+// gate's fallback timer and the shutdown flush use it; event-driven scans do not.
+func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force bool) {
 	// Ensure logs are flushed even if we panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -359,9 +373,7 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 	}()
 
 	slog.Info("ScanJSONLFiles: === START SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
-	var targetFile string
-	if len(changedFile) > 0 && changedFile[0] != "" {
-		targetFile = changedFile[0]
+	if targetFile != "" {
 		slog.Info("ScanJSONLFiles: Scanning JSONL files with changed file",
 			"directory", claudeProjectDir,
 			"changedFile", targetFile)
@@ -430,6 +442,21 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 		// Skip if we're targeting a specific session and this isn't it
 		if targetSessionUuid != "" && session.SessionUuid != targetSessionUuid {
 			continue
+		}
+
+		// Shell gate: while a Bash call is open, saving would land inside
+		// Claude Code's before/after diff of that command and surface our
+		// files as its edits. Wait for the tool_result event instead. This
+		// runs before convertToAgentChatSession because the debug-raw files
+		// are written in there too.
+		if targetFile != "" && !force {
+			if open := openShellToolUses(session.Records); len(open) > 0 {
+				deferScan(claudeProjectDir, targetFile, open)
+				continue
+			}
+		}
+		if targetFile != "" {
+			clearDeferredScan(targetFile)
 		}
 
 		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
