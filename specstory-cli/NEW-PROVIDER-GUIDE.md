@@ -367,7 +367,7 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 
 - [ ] Package named for the product, lowercased and unspaced; canonical files only; `var _ spi.Provider` assertion present
 - [ ] Every SPI method implemented, including `ListAllAgentChatSessions` and the three reconstruction methods, each with a test
-- [ ] Registry, config (`<id>_cmd` in template, struct, switch, doc comment, and test rows — the two wiring tests must pass), TUI color, both READMEs, changelog
+- [ ] Registry, config (`<id>_cmd` in template, struct, switch, doc comment, and test rows — the two wiring tests must pass), a brand specific TUI color, both READMEs, changelog
 - [ ] `<AGENT>-FORMAT.md`, in the provider package, written from the current release with the write lifecycle and baseline version, no legacy notes
 - [ ] `tools.txt` from the agent itself, prefixes stripped, declaration preferred over self-report; renderers and type tables list exactly those names; an inventory sweep test exists
 - [ ] No literal fences, no byte slicing, no local copies of `pkg/spi` helpers, no inline `analytics.TrackEvent`
@@ -379,4 +379,4 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go build ./...` and `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 - [ ] Every command in the test table exercised against the real agent; resume verified in both directions; symlinked and special-character project paths tried
 - [ ] `factory/latest-version` present and tested under an isolated home with its negative case; `install` and `list-tools` present if the agent runs headless
-- [ ] Ran this repository's own review pass over your work and acted on it: `/code-review` before the pull request exists, `/pr-review <number>` once it does. Say in the pull request that you ran it and what you changed as a result; findings you decided against get a one-line reason, not silence
+- [ ] Ran this repository's own review pass over your work and acted on it: either a `/code-review` before the pull request exists, or a `/pr-review <number>` once it does. Say in the pull request that you ran it and that you made informed decisions about which findings to act on, not silence
