@@ -213,11 +213,14 @@ func (r *Registry) ListIDs() []string {
 	return ids
 }
 
+// DefaultProviderID is the default agent for commands that launch one provider.
+const DefaultProviderID = "claude"
+
 // GetDefault returns the default provider (Claude)
 func (r *Registry) GetDefault() (spi.Provider, error) {
 	r.ensureInitialized()
 	slog.Debug("Getting default provider (claude)")
-	return r.Get("claude")
+	return r.Get(DefaultProviderID)
 }
 
 // GetProviderList returns a formatted string listing all providers.
