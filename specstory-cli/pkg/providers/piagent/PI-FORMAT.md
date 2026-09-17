@@ -41,7 +41,7 @@ Unknown kinds and roles warn with file and physical line number. Valid envelopes
 - `user`: `content` is a string or an array of content blocks. Text is rendered; images remain in raw records.
 - `assistant`: `content` interleaves `text`, `thinking` and `toolCall` blocks. Tool calls have `id`, `name` and `arguments`. Normalization preserves this ordering, assigning distinct message IDs and carrying usage once per native assistant entry.
 - `toolResult`: `toolCallId`, `toolName`, `content`, optional `details`, and `isError`. Results merge into the matching call within the exchange. Text results and structured details remain available in normalized tool output.
-- `bashExecution`: user-invoked shell activity, without an assistant call to pair with; currently omitted from normalized conversation.
+- `bashExecution`: rendered as a user message labeled "User ran a shell command", with the command, output, recorded exit code, and cancellation/truncation markers. It starts a user exchange without inventing an assistant tool call. Shell output is sanitized and capped like shell-tool output; accepted raw records retain the original data. `excludeFromContext` does not suppress the message from either the archive or reconstructed conversation text.
 - `custom`, `branchSummary`, `compactionSummary`: context-only message roles, omitted from normalized conversation. Durable `compaction` entries are handled separately.
 
 Assistant `model` is the actual model label when recorded. `usage.input`, `output`, `reasoning`, `cacheRead` and `cacheWrite` map to their distinct schema fields. `totalTokens` is not relabeled as input tokens. Provider/API identities and unsupported content remain in raw data.

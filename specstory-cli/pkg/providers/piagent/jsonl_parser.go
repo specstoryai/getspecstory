@@ -107,7 +107,7 @@ func diagnoseEntry(e rawEntry) {
 		case roleUser, roleAssistant, roleToolResult:
 			// Conversation messages are rendered or merged into their matching call.
 		case roleBashExecution:
-			// User-invoked shell executions have no assistant tool call to pair with.
+			// User-invoked shell executions become labeled user text with results.
 		case roleCustom:
 			// Extension context has no unified conversation role.
 		case roleBranchSummary, roleCompaction:

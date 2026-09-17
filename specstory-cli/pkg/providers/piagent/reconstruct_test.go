@@ -108,6 +108,32 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestReconstructSession_UserShellExecution(t *testing.T) {
+	data, err := ParseSession(loadFixture(t, "real_world.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := NewProvider().ReconstructSession(data, spi.ReconstructOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range parsePiJSONL(t, out.Content) {
+		message, ok := record["message"].(map[string]any)
+		if !ok {
+			continue
+		}
+		content, _ := message["content"].(string)
+		if !strings.Contains(content, "User ran a shell command") {
+			continue
+		}
+		if message["role"] != "user" || !strings.Contains(content, "ls -la") || !strings.Contains(content, "total 24") || !strings.Contains(content, "Exit code: 0") {
+			t.Fatalf("reconstructed shell activity missing user attribution or results: %+v", message)
+		}
+		return
+	}
+	t.Fatal("native excludeFromContext flag caused shell activity to disappear from reconstruction")
+}
+
 // TestReconstructSession_Chain asserts the header + strictly-linear parentId
 // chain, and that feeding the message entries through the provider tree walker
 // terminates and yields every turn in order (no accidental cycle).
