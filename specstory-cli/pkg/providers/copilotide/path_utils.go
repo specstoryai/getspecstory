@@ -126,8 +126,17 @@ func checkWorkspaceStorage(variant Variant) (string, error) {
 			slog.Warn("Failed to close workspace storage during check", "path", path, "error", err)
 		}
 	}()
-	// Reading one entry also detects a file in place of the directory, without
-	// loading the entire workspace listing. An empty directory is valid.
+	// Windows can report "path not found" when ReadDir is called on a regular
+	// file. Check the type first so invalid storage is not classified as absent.
+	info, err := dir.Stat()
+	if err != nil {
+		return path, err
+	}
+	if !info.IsDir() {
+		return path, fmt.Errorf("workspace storage path is not a directory: %s", path)
+	}
+	// Read one entry to verify access without loading the entire workspace
+	// listing. An empty directory is valid.
 	if _, err := dir.ReadDir(1); err != nil && !errors.Is(err, io.EOF) {
 		return path, err
 	}
