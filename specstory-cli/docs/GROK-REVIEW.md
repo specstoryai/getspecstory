@@ -4,7 +4,7 @@ This is an implementation and QA review, with fixes made directly on `grok-build
 
 The review follows [NEW-PROVIDER-REVIEW.md](NEW-PROVIDER-REVIEW.md), the [provider guide](../NEW-PROVIDER-GUIDE.md), the [SPI contract](../pkg/spi/provider.go), and the repository [PR review checklist](../.claude/commands/pr-review.md). The table records the source of each decision, rather than treating a sibling implementation or bot recommendation as sufficient proof.
 
-**Implementation review complete: 35 numbered fixes, with local QA passing.** Merge recommendation: proceed when the [latest PR checks](https://github.com/specstoryai/getspecstory/pull/270/checks) are green and no new review finding remains unresolved. The scope runs from initial revision `56d95b4` through the committed tree containing this report; subsequent implementation changes require fresh verification. Native media and scheduler mutation success paths are unverified because the approved run exhausted the Grok account allowance before those calls. The remaining native-success coverage limits are listed below.
+**Implementation review complete: 35 numbered fixes, with local QA passing.** Merge recommendation: proceed when the [latest PR checks](https://github.com/specstoryai/getspecstory/pull/270/checks) are green and no new review finding remains unresolved. The reviewed code runs from initial revision `56d95b4` through `45d980e`; subsequent implementation changes require fresh verification. Native media and scheduler mutation success paths are unverified because the approved run exhausted the Grok account allowance before those calls. The remaining native-success coverage limits are listed below.
 
 “Wrong” below means a demonstrated mismatch with an explicit user requirement, repository contract, observed native record, or acceptance test—not a preference for a different coding style. Copilot identified candidate defects; the contract or native evidence established whether they were defects. Rows 14 and 28 distinguish a regression introduced during this review and an existing shared CLI defect, respectively. The inventory includes changes made after the initial reviewed revision; it does not claim authorship of the original provider.
 
@@ -81,7 +81,7 @@ The earlier Windows CI failure on `26309c6` was caused by a fix introduced in th
 | [`82e0e63`](https://github.com/specstoryai/getspecstory/commit/82e0e63) | Remove unsupported reasoning/backend model attribution. |
 | [`c2ebf9a`](https://github.com/specstoryai/getspecstory/commit/c2ebf9a) | Effective child cwd, direct-lookup error propagation, child-session watch exclusion and their regressions. |
 | [`abe2d6c`](https://github.com/specstoryai/getspecstory/commit/abe2d6c) | Common-parser regular-file guard and five-path symlink regression (fix 33). |
-| This report’s revision | Factory credential environment cleanup and validated summary IDs (fixes 34–35). |
+| [`45d980e`](https://github.com/specstoryai/getspecstory/commit/45d980e) | Factory credential environment cleanup and validated summary IDs (fixes 34–35). |
 
 The six initial Copilot findings and twelve later findings were each answered and resolved. Seventeen led to fixes (including removal of an unobserved alias); the remaining coverage-count finding referred to an older PR description, which had already been corrected to 27 declared tools, 18 distinct invoked tools and 26 audited blocks. Only finding-resolution replies were posted; the PR description was updated separately with evidence and limits.
 
