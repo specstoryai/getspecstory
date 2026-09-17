@@ -2,6 +2,7 @@ package grokbuild
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -129,6 +130,7 @@ func WatchGrokProject(projectPath string, callback func(*spi.AgentChatSession)) 
 	watcherWg.Go(func() {
 		defer func() { _ = watcher.Close() }()
 		if err := state.run(ctx); err != nil {
+			slog.Error("Grok watcher stopped after an error", "project", projectPath, "error", err)
 			failures <- err
 		}
 	})
@@ -142,15 +144,31 @@ type nativeFileSignature struct {
 	modified time.Time
 	exists   bool
 }
-type sessionSignature [4]nativeFileSignature
+type sessionSignature struct {
+	records          [4]nativeFileSignature
+	subagentMetadata [32]byte
+}
 
 func signatureFor(dir string) sessionSignature {
 	var result sessionSignature
 	for i, name := range []string{chatHistoryFile, updatesFile, eventsFile, summaryFile} {
 		if info, err := os.Stat(filepath.Join(dir, name)); err == nil {
-			result[i] = nativeFileSignature{info.Size(), info.ModTime(), true}
+			result.records[i] = nativeFileSignature{info.Size(), info.ModTime(), true}
 		}
 	}
+	// Only the named metadata sidecars affect conversion. Never recurse into
+	// child transcripts, terminal logs, or arbitrary subagent directories.
+	hash := sha256.New()
+	entries, _ := os.ReadDir(filepath.Join(dir, subagentsDir))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if info, err := os.Stat(filepath.Join(dir, subagentsDir, entry.Name(), "meta.json")); err == nil {
+			_, _ = fmt.Fprintf(hash, "%s:%d:%d\n", entry.Name(), info.Size(), info.ModTime().UnixNano())
+		}
+	}
+	copy(result.subagentMetadata[:], hash.Sum(nil))
 	return result
 }
 

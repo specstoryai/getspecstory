@@ -1,199 +1,79 @@
-# Grok Build Session Format
+# Grok Build session format
 
-Grok Build (`grok`, SpaceXAI's terminal coding agent) records each session as a directory of JSONL and JSON files. Everything below was verified empirically against Grok Build 1.0.3 (1a29d5bc12d4) by driving the binary and inspecting the files it wrote.
+The supported baseline is **`grok 1.0.34 (3736acbc8658) [stable]`**, verified on macOS arm64. The provider ID is `grok`. The CLI version is not recorded in the session summary or transcript, so normalized `ProviderInfo.Version` is `unknown`; `current_model_id` and assistant `model_id` identify the model, not the application.
 
-## Store layout
+## Native store and write lifecycle
 
-```
-~/.grok/sessions/
-├── session_search.sqlite                  # global search index (not a transcript)
-└── <percent-encoded-cwd>/                 # one dir per project, e.g. %2FUsers%2Fgdc%2Fpainpoints
-    ├── prompt_history.jsonl               # the user's prompt line history for this project
-    └── <session-uuid>/
-        ├── chat_history.jsonl             # THE TRANSCRIPT
-        ├── events.jsonl                   # timestamps, tool outcomes, turn boundaries
-        ├── summary.json                   # session metadata (id, cwd, times, title, model)
-        ├── updates.jsonl                  # ACP event stream: timestamps, tool kinds, usage
-        ├── rewind_points.jsonl            # rewind/branch markers
-        ├── hunk_records.jsonl             # file edit hunks
-        ├── system_prompt.txt              # the system prompt for this session
-        ├── prompt_context.json            # context assembly bookkeeping
-        ├── subagents/<subagent-id>/       # meta.json + output.json only (NOT a transcript)
-        ├── images/<n>.jpg                 # images produced or attached in the session
-        ├── terminal/call-<id>-<n>.log     # per-command terminal output
-        └── recap_requests/<uuid>.json     # context recap payloads
+Grok uses `$GROK_HOME`, defaulting to `~/.grok`. Sessions live under:
+
+```text
+sessions/<percent-encoded-canonical-cwd>/<session-uuid>/
+    chat_history.jsonl
+    summary.json
+    updates.jsonl
+    events.jsonl
+    subagents/<child-id>/meta.json
 ```
 
-- The store is project-scoped. The project directory name is the session's working directory, percent-encoded, so `/Users/gdc/painpoints` becomes `%2FUsers%2Fgdc%2Fpainpoints`. Decoding the directory name recovers the absolute path, which is the project association (and reindex's OriginCwd).
-- Session ids are UUIDv7, so they sort by creation time.
-- Multi-turn sessions append to the same `chat_history.jsonl`. `grok -r <session-id>` resumes, `grok -c` continues the most recent session for the cwd, and `grok -p "<prompt>"` runs one headless turn and creates a normal session directory.
+The project name percent-encodes UTF-8 bytes outside the RFC 3986 unreserved set; spaces become `%20`, not `+`. Discovery decodes project names and canonicalizes local paths for comparison. A `.cwd` sidecar is also recognized for non-path group names. Global enumeration prefers `summary.json.info.cwd`; project matching never derives ownership from a file touched by a tool.
 
-## Subagent sessions
+`chat_history.jsonl` is the durable conversation. The native agent appends turns and can rewrite the transcript; readers therefore parse its current full contents instead of retaining a byte offset. Summary and event/update sidecars change independently during a turn. File locks, `rewind_points.jsonl`, `system_prompt.txt`, `prompt_context.json`, `announcement_state.json`, `signals.json`, `usage.json`, and `terminal/` output files are not alternative conversation sources. A directory can exist before its first usable conversation/summary; the watcher waits for metadata before publishing it. No scratch/checkpoint file is used as a fallback transcript.
 
-A spawned subagent gets its own **top-level session directory**, a sibling of its parent, with a full `chat_history.jsonl`. Under the parent, `subagents/<subagent-id>/` holds only `meta.json` and `output.json`, which link the two:
+The watcher establishes an unchanged baseline before launching the agent, uses fsnotify on the project and at most 20 session directories, and reconciles signatures every 30 seconds. Signatures cover the transcript, summary, updates, events, and named subagent metadata. Missing directory ancestors are adopted as they arrive. Shutdown reconciles disk state and joins synchronous callbacks, including when the agent returns a nonzero status. It never recursively watches child transcripts or terminal logs.
 
-```json
-{
-  "subagent_id": "019ff762-5563-7b12-a5f1-3a3e45bfb8b3",
-  "parent_session_id": "019ff760-692d-7bf3-9004-67fba7cb95e9",
-  "subagent_type": "general-purpose",
-  "description": "Write demo output file",
-  "prompt": "...",
-  "status": "completed",
-  "started_at": "2026-08-12T19:10:44.594884Z",
-  "duration_ms": 4823,
-  "tool_calls": 2,
-  "turns": 1
-}
-```
+## Transcript records
 
-Because subagent sessions sit at the top level, a naive scan would sync each one as its own session. Two independent signals exclude them:
+Records have a `type` discriminator and no timestamp. All accepted native JSON, including unfamiliar fields and unsupported content, is retained in `RawData`. Malformed or oversized JSONL records are warned about and skipped, with subsequent records retained; the shared limit is 64 MiB per record.
 
-1. `summary.json` carries `"session_kind": "subagent"`. The field is absent on real sessions.
-2. A subagent transcript contains no `<user_query>` record, so it yields zero exchanges under the parsing rule below.
-
-The provider filters on `session_kind` and the zero-exchange rule catches anything the field misses.
-
-## chat_history.jsonl
-
-Each line is one record. There is **no timestamp on any record**, which is why `updates.jsonl` and `events.jsonl` matter (see below).
-
-| `type` | Role |
+| Type | Stored content and interpretation |
 |---|---|
-| `system` | The system prompt. Skip. |
-| `user` | Either the real human turn or injected context. See the `<user_query>` rule below. |
-| `reasoning` | Model thinking. `summary` is an array of `{"type": "summary_text", "text": ...}` and is human-readable. `encrypted_content` is opaque and must never be rendered. `status` is e.g. `completed`. |
-| `assistant` | Model output. `content` is a plain string. `tool_calls` is an array (see below). Carries `model_id`, `model_fingerprint`, `reasoning_effort`. |
-| `tool_result` | The outcome of one tool call, linked by `tool_call_id`. `content` is a plain string. |
-| `backend_tool_call` | Server-side web and X tools. See below. |
+| `system` | A string containing runtime instructions; retained raw, omitted from conversation Markdown. |
+| `user` | An array of content parts. A real text prompt is wrapped in `<user_query>…</user_query>`. `prompt_index` joins its timestamp to updates. Synthetic records (`synthetic_reason`, such as `system_reminder` or `task_completed`) are scaffolding, not human prompts. Embedded tags inside a real prompt remain part of that prompt. |
+| `reasoning` | `summary` contains readable `{type:"summary_text",text:…}` parts. Opaque `encrypted_content` remains raw and is never rendered as thought text. |
+| `assistant` | String `content`, optional `model_id`, `model_fingerprint`, `reasoning_effort`, and `tool_calls`. Narration precedes tool calls from the same record. |
+| `tool_result` | `tool_call_id` correlates the result to its invocation. Native observed results are strings. Unfamiliar structured payloads are preserved generically instead of dropped. |
+| `backend_tool_call` | Server-side activity with a `kind` object. A 1.0.34 web-search record carried `tool_type:"web_search"`, an action/query/sources object, ID, and `status:"in_progress"`. That capture did not establish successful backend search output. |
 
-### The `<user_query>` rule
+`assistant.tool_calls` entries contain `id`, `name`, and **JSON encoded as a string** in `arguments`, requiring another decode. Malformed argument strings remain visible through generic rendering. The parser uses native call IDs, not textual matches in tool output, to pair calls and results.
 
-A `user` record is only a real human turn when its text contains a `<user_query>...</user_query>` block. Everything between those tags is the human's actual prompt.
+Images and other nontext user parts are retained in raw/debug exports. The shared content schema represents text and thinking; embedded image bytes are not rendered or reconstructed as images. Unknown record kinds remain raw and are logged. Grok's `/context` executed during the audit without adding a human prompt or command scaffolding to `chat_history.jsonl`.
 
-Every other `user` record is injected context that must be skipped:
+## Summary and sidecars
 
-- the first record, wrapping `<user_info>`, `<git_status>`, and `<rules>`
-- a large `<system-reminder>` listing available skills, observed at 29 KB
-- a `<system-reminder>` listing connected MCP servers
-- `<system-reminder>` notifications about background subagents finishing
+`summary.json` carries `info.id`, `info.cwd`, `created_at`, `updated_at`, `session_summary`, optional `generated_title`, message counts, `current_model_id`, and `chat_format_version`. `session_kind:"subagent"` distinguishes a child agent from a human session; ordinary headless sessions record `session_kind:"headless"`. Child sessions are excluded from project lists and exports. The parent's `subagents/<id>/meta.json` can enrich its invocation with child type/status/duration.
 
-In the reference session, 6 `user` records contained only 2 real prompts. Rendering them all would put a 29 KB skills dump into the markdown.
+Times normalize to RFC 3339 milliseconds. Missing summary timestamps fall back to the transcript's modification time. No parser path uses the current wall clock to invent historical message times.
 
-### Tool calls
+`updates.jsonl` contains `timestamp` (Unix seconds), `method`, and `params`:
 
-`assistant.tool_calls` entries look like this, and **`arguments` is a JSON string, not an object**, so it needs a second parse:
+- `params._meta.agentTimestampMs` is the preferred event time; `params._meta.promptId` links agent messages to turn usage.
+- `params.update.sessionUpdate` identifies `user_message_chunk`, `agent_message_chunk`, `agent_thought_chunk`, `tool_call`, `tool_call_update`, or `turn_completed`, among other UI events.
+- User chunks carry `params.update._meta.promptIndex`. The first chunk establishes the prompt time; absent indices are retained independently and cannot overwrite index zero.
+- Tool records identify `toolCallId` and may carry Grok's own tool taxonomy. SpecStory assigns its schema type from the known tool's purpose; unfamiliar tools remain `unknown`.
+- `turn_completed` carries `prompt_id` and `usage` with input/output/cached-read/reasoning token counts. Totals are attached once to the exchange linked by that prompt ID, not matched by positional turn counts.
 
-```json
-{
-  "id": "call-e2fe85f9-9b85-4d97-aad1-ba8dee688176-0",
-  "name": "read_file",
-  "arguments": "{\"target_file\":\"/path/to/file\"}"
-}
-```
+`tool_call_update.status` supplies completed/failed outcomes, including permission cancellation without a completion event. Result text alone is not proof of success. `events.jsonl` supplies additional outcomes from `tool_completed` / `mcp_tool_call_completed`, correlated by `tool_call_id`. A failed native tool result renders as an error; a pending backend call retains its pending status. Command process exit status also remains in native result text.
 
-The matching `tool_result` carries the same id in `tool_call_id` and its `content` is a plain string.
+Raw transcript and debug output come from the same accepted parsing snapshot. `--debug-raw` writes pretty-printed transcript records as `1.json`, `2.json`, etc., plus `native-sidecars.json` containing the summary, ordered update/event records, and subagent metadata used by conversion. Unknown fields survive. Refresh removes obsolete numbered records, preserves CLI-owned `session-data.json`, and respects `--debug-dir`.
 
-### Two indirect tool mechanisms
+## Tool inventory and rendering
 
-Some tools are not called by their own name, so a provider that only reads `tool_calls[].name` will render them poorly.
+The harness emits `available_commands.tools` in `--output-format streaming-json`; the baseline declares 27 tools. The checked-in [inventory and native fixture](testdata/session-1.0.34/README.md) are the source of regression cases. An isolated factory run produces the same inventory without workstation plugins/MCP configuration.
 
-**MCP tools go through `use_tool`.** The real tool name is nested in the arguments:
+Observed file reads preserve ranges; grep preserves options and fences its XML-like result; writes retain complete content; search/replace retains both complete edit halves; shell/monitor calls preserve command settings, Unicode, and nested fences while stripping terminal controls. Todo updates recover text from prior items. MCP discovery/dispatch retains the tool name and arguments; native errors take precedence over success formatting. Every specialized renderer retains unfamiliar input/result fields, and undeclared/unobserved payloads have generic rendering. Media payloads do not have speculative bespoke formatting.
 
-```json
-{"tool_name": "voice__list_voices", "tool_input": {}}
-```
+The [review report](../../../docs/GROK-REVIEW.md) separates declared, exercised, and unexercised tools, successful paths from captured failures, and current QA limits.
 
-`use_tool` was the most frequent call in the reference session (36 of 96). A companion `search_tool` (`{"query": "figma", "limit": 255}`) discovers available tools.
+## Native and cross-agent resume
 
-**Web and X tools are `backend_tool_call` records.** They never appear in `tool_calls`. The `kind` object holds the detail:
+`grok --resume <id>` resumes a conversation by ID; `--continue` selects the latest. `--session-id` creates a new conversation and does not resume it. SpecStory's selected resume ID overrides a configured `--resume` / `-r` value.
 
-- `kind.tool_type == "web_search"` with `kind.action.type` of `search`, `open_page`, or `find_in_page`
-- `kind.tool_type == "x_search"` with `kind.name` of `x_user_search`, `x_semantic_search`, `x_keyword_search`, or `x_thread_fetch`, and `kind.input` as a JSON string
+Cross-agent reconstruction uses `spi.PrepareTurns`: the migration note comes first, then the prepared user/agent text in order. Thinking and rendered tool activity become ordinary assistant text. Source system instructions, command scaffolding, native tool protocol, encrypted reasoning, historical models, usage, and account metadata are not replayed.
 
-## events.jsonl
+A newly reconstructed directory needs a transcript and usable summary. Once Grok has written update history, its native loader can also recover a missing transcript from that history: the file-removal probe still recalled the passphrase without `chat_history.jsonl`, but failed without `summary.json`. SpecStory deliberately exports the durable current transcript rather than replaying recovery data. The provider writes wrapped user text with consecutive prompt indices and ordinary assistant text. It omits a system record and assistant model IDs: 1.0.34 supplies its own current system prompt and resumed these records without warnings. `summary.json` requires `session_summary` and `current_model_id`; an empty `current_model_id` is accepted and avoids attributing imported history to an invented model. Source-session provenance is carried as `specstorySourceSessionId` on reconstructed user records. Files use private permissions and a fresh UUID.
 
-Every record carries a `ts` (RFC 3339). This is the only source of timing, and the only source of tool success or failure.
+Real baseline tests resumed the minimal conversation, recalled its passphrase, and appended to the same session. The CLI cross-agent tests also resumed Claude thinking/tool/slash-command content into Grok and Grok thinking/tool content into Claude, with successful recall in both directions. These are native loader tests, in addition to serializer tests.
 
-| `type` | Use |
-|---|---|
-| `turn_started` | Turn boundary. Carries `session_id`, `turn_number`, `model_id`, `session_relationship`. |
-| `turn_ended` | Turn boundary, with `outcome`. |
-| `tool_started` | Tool began. Carries `tool_name` but **no** `tool_call_id`. |
-| `tool_completed` | Carries `tool_call_id`, `tool_name`, `duration_ms`, and `outcome` of `success` or `error`. |
-| `mcp_tool_call_started` / `mcp_tool_call_completed` | Same for MCP calls. |
-| `mcp_server_failed` / `mcp_server_connected` | MCP server health. |
-| `phase_changed`, `first_token`, `loop_started` | UI phase telemetry. Skip. |
+## Factory
 
-Correlating `tool_completed.tool_call_id` back to `chat_history` gives each tool call a timestamp and a success or error outcome. In the reference session, 4 of 96 tool calls failed, and that failure is visible **only** in `events.jsonl`. The `tool_result.content` for a failed call holds the error text but nothing marks it as an error.
-
-`session_relationship` is `primary` on both real and subagent sessions, so it is not a subagent discriminator. Use `summary.json.session_kind`.
-
-## summary.json
-
-```json
-{
-  "info": { "id": "019ff760-...", "cwd": "/Users/gdc/painpoints" },
-  "session_summary": "List Tool Calls Then Generate Full Report",
-  "generated_title": "List Tool Calls Then Generate Full Report",
-  "created_at": "2026-08-12T19:08:38.667534Z",
-  "updated_at": "2026-08-13T00:02:02.455106Z",
-  "num_messages": 368,
-  "num_chat_messages": 164,
-  "current_model_id": "grok-4.6",
-  "chat_format_version": 1,
-  "head_branch": "main",
-  "agent_name": "grok-build-plan",
-  "session_kind": "subagent"
-}
-```
-
-- `info.id` and `info.cwd` give the session id and the project path without decoding the directory name.
-- `created_at` and `updated_at` are the session times. They are the fallback when a message has no correlated event.
-- `generated_title` is a readable title. It is absent on subagent sessions and on sessions that have not been titled yet, so fall back to `session_summary`, then to the first user query.
-- `session_kind` is present only on subagent sessions.
-
-## Auxiliary files
-
-| File | Verdict |
-|---|---|
-| `chat_history.jsonl` | Required. The content spine. Complete and untruncated. |
-| `updates.jsonl` | Required. Per-message timestamps, grok's own tool classification, and token usage. See below. |
-| `summary.json` | Required. Identity, times, title, subagent gate. |
-| `events.jsonl` | Useful. Tool success or failure outcome, correlated by `tool_call_id`. |
-| `subagents/*/meta.json` | Useful. Enriches the `spawn_subagent` tool rendering with the description, prompt, status, and duration. |
-| `terminal/*.log` | Optional. Per-command output, named `call-<tool-call-id>-<n>.log`. |
-| `rewind_points.jsonl`, `hunk_records.jsonl`, `prompt_context.json`, `resources_state.json`, `signals.json`, `announcement_state.json`, `system_prompt.txt`, `recap_requests/` | Ignore for markdown. |
-
-## updates.jsonl
-
-This is the Agent Client Protocol event stream, one JSON object per line. Every line carries `timestamp` (Unix seconds) and `_meta.agentTimestampMs` (milliseconds), which makes it the only source of per-message timing.
-
-| `params.update.sessionUpdate` | Carries |
-|---|---|
-| `user_message_chunk` | The user's prompt **without** the `<user_query>` wrapper, plus `_meta.promptIndex`. |
-| `agent_message_chunk` | Assistant text, plus `_meta.promptId`. |
-| `agent_thought_chunk` | Reasoning text. |
-| `tool_call` | `toolCallId`, `title`, `rawInput` as a **parsed object**, and `_meta["x.ai/tool"]` with grok's own `kind`, `label`, `namespace`, and `read_only`. |
-| `tool_call_update` | Progress and completion for a tool call. |
-| `turn_completed` | `stop_reason` and a `usage` object with `inputTokens`, `outputTokens`, `cachedReadTokens`, and `reasoningTokens`. |
-| `subagent_spawned` / `subagent_finished` | Subagent lifecycle, with parent and child ids. |
-| `plan`, `session_recap`, `task_backgrounded`, `task_completed`, `scheduled_task_created`, `scheduled_task_deleted` | UI state. |
-
-`_meta["x.ai/tool"].kind` is grok's own tool taxonomy, observed as `read`, `write`, `edit`, `execute`, `list`, `search`, `search_tool`, `task`, `plan`, `monitor`, `web_fetch`, `use_tool`, `image_gen`, `image_to_video`, `reference_to_video`, `workflow`, `background_task_action`, `kill_task_action`, and `other`.
-
-The provider classifies a tool by its name first, because `chat_history.jsonl` is always present and complete, and falls back to this `kind` when the name is unrecognized. That fallback is what keeps MCP and future tools from rendering as `unknown`.
-
-## CLI surface
-
-| Flag | Meaning |
-|---|---|
-| `-p, --single <PROMPT>` | Headless single turn, prints to stdout and exits. |
-| `-r, --resume [<ID_OR_TITLE>]` | Resume by session id or title, or the most recent when omitted. |
-| `-c, --continue` | Continue the most recent session for the cwd. |
-| `-s, --session-id <UUID>` | Use a specific UUID for a **new** session. |
-| `--fork-session` | On resume, create a new session id instead of reusing it. |
-| `--cwd <CWD>` | Working directory. |
-| `--permission-mode <MODE>` | One of default, acceptEdits, auto, dontAsk, bypassPermissions, plan. |
-| `--output-format <FMT>` | plain, json, streaming-json, streaming-messages-json. |
-| `--version` | Prints e.g. `grok 1.0.3 (1a29d5bc12d4) [stable]`. |
+The executable scripts under `factory/` track the public stable manifest named by the [official installer](https://x.ai/cli/install.sh), install an exact standalone binary under `$HOME/.local/bin/grok`, and enumerate the harness declaration in a bounded headless run. Self-update is disabled. `list-tools` accepts only the named `GROK_AUTH_JSON` credential (a dedicated factory account's native auth JSON) and removes its temporary private credential file on exit. It does not read workstation credentials. Factory secret provisioning remains an operational enrollment step; no credential is checked in.

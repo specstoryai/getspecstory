@@ -45,6 +45,7 @@ func (p *Provider) Name() string {
 	return "Grok Build"
 }
 
+// Check probes the executable and reports one analytics outcome.
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseGrokCommand(customCommand)
 	isCustom := customCommand != ""
@@ -101,6 +102,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 }
 
+// DetectAgent reports whether this project has a human Grok conversation.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	groupDir, err := ResolveGrokProjectDir(projectPath)
 	if err != nil {
@@ -122,6 +124,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	return true
 }
 
+// GetAgentChatSessions converts every session in this project.
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
@@ -151,7 +154,11 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 	return result, nil
 }
 
+// GetAgentChatSession resolves a project-scoped native session ID.
 func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	if !uuidLike.MatchString(sessionID) {
+		return nil, nil
+	}
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
 		return nil, err
@@ -159,13 +166,17 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 
 	groupDir, err := ResolveGrokProjectDir(projectPath)
 	if err != nil {
+		var missing *GrokPathError
+		if errors.As(err, &missing) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
 	// Sessions are directories named by their id, so resolve directly before
 	// falling back to a scan.
 	directDir := filepath.Join(groupDir, sessionID)
-	if info, err := os.Stat(directDir); err == nil && info.IsDir() {
+	if info, err := os.Lstat(directDir); err == nil && info.IsDir() {
 		session, parseErr := ParseSessionDir(directDir)
 		if parseErr == nil && len(session.Records) > 0 && !session.IsSubagent() {
 			return convertToAgentChatSession(session, projectPath, debugRaw), nil
@@ -205,6 +216,7 @@ func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string
 	return convertToAgentChatSession(session, originCwd, debugRaw), nil
 }
 
+// ExecAgentAndWatch launches Grok and drains live saves before returning.
 func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("ExecAgentAndWatch: starting Grok Build", "project", projectPath)
 
@@ -218,9 +230,22 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("ExecAgentAndWatch: resuming Grok Build session", "sessionId", resumeSessionID)
 	}
 
-	return ExecuteGrok(customCommand, resumeSessionID)
+	agentErr := ExecuteGrok(customCommand, resumeSessionID)
+	StopWatcher()
+	watcherLifecycle.Lock()
+	failures := watcherErrors
+	watcherLifecycle.Unlock()
+	select {
+	case watchErr := <-failures:
+		if agentErr == nil {
+			return watchErr
+		}
+	default:
+	}
+	return agentErr
 }
 
+// WatchAgent observes the project until cancellation or watcher failure.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("WatchAgent: starting Grok Build activity monitoring",
 		"projectPath", projectPath, "debugRaw", debugRaw)
@@ -244,6 +269,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	}
 }
 
+// ListAgentChatSessions reads only the metadata needed by the session picker.
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
@@ -446,6 +472,26 @@ func writeDebugRawFiles(session *GrokSession) error {
 			return err
 		}
 	}
+	sidecars := map[string]any{summaryFile: session.RawSummary}
+	if session.Index != nil {
+		sidecars[updatesFile] = session.Index.rawUpdates
+		sidecars[eventsFile] = session.Index.rawEvents
+	}
+	if len(session.Subagents) > 0 {
+		metas := map[string]json.RawMessage{}
+		for id, meta := range session.Subagents {
+			metas[id] = meta.Raw
+		}
+		sidecars["subagents"] = metas
+	}
+	data, err := json.MarshalIndent(sidecars, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(debugDir, "native-sidecars.json"), data, 0o644); err != nil {
+		return err
+	}
+
 	return nil
 }
 

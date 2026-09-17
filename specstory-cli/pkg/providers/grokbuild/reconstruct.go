@@ -3,6 +3,7 @@ package grokbuild
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,12 +22,10 @@ const grokTimeFormat = "2006-01-02T15:04:05.000000Z"
 // ReconstructSession rebuilds a Grok Build session from the neutral SessionData
 // so `grok --resume <id>` can carry the conversation on.
 //
-// Grok keys a session by directory, and a directory needs two files to load:
-// chat_history.jsonl for the conversation and summary.json for the identity.
-// Both were verified by hand: with only chat_history.jsonl grok reports the
-// session as not found locally, and with both it answers questions about the
-// synthesized conversation. This function produces the transcript;
-// NativeSessionPath writes the summary alongside it.
+// A new imported session needs chat_history.jsonl for its conversation and
+// summary.json for identity. Native sessions can also recover a missing
+// transcript from update history, which an imported session does not have.
+// This function produces the transcript; NativeSessionPath writes its summary.
 //
 // Only user and assistant text is emitted. Tool calls and thinking are already
 // flattened into agent text by FlattenSessionData, and a tool_call without its
@@ -45,16 +44,8 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 	encoder := json.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
 
-	// Grok's system prompt tells the model the request is inside <user_query>,
-	// and our own parser uses the same tag to tell a real turn from injected
-	// context, so the wrapper keeps the transcript readable in both directions.
-	system := map[string]any{
-		"type":    "system",
-		"content": "You are Grok 4.6 released by xAI. You are an interactive CLI tool that helps users with software engineering tasks.",
-	}
-	if err := encoder.Encode(system); err != nil {
-		return nil, fmt.Errorf("failed to encode the system record: %w", err)
-	}
+	// The native loader supplies its current system prompt and accepts imported
+	// assistant text without historical model metadata.
 
 	promptIndex := 0
 	for _, turn := range turns {
@@ -66,14 +57,14 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 					"type": "text",
 					"text": fmt.Sprintf("<user_query>\n%s\n</user_query>", turn.Text),
 				}},
-				"prompt_index": promptIndex,
+				"prompt_index":             promptIndex,
+				"specstorySourceSessionId": data.SessionID,
 			}
 			promptIndex++
 		} else {
 			record = map[string]any{
-				"type":     "assistant",
-				"content":  turn.Text,
-				"model_id": "grok-4.6",
+				"type":    "assistant",
+				"content": turn.Text,
 			}
 		}
 		if err := encoder.Encode(record); err != nil {
@@ -81,8 +72,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		}
 	}
 
-	// The filename carries the session directory because Grok keys a session by
-	// directory rather than by file, matching the musecode precedent.
+	// The filename carries the directory because Grok keys sessions by directory.
 	return &spi.ReconstructedSession{
 		SessionID: newID,
 		Filename:  filepath.Join(newID, chatHistoryFile),
@@ -93,20 +83,26 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 // NativeSessionPath resolves where a reconstructed transcript belongs and
 // prepares the session directory around it.
 //
-// Preparing means writing summary.json, without which grok does not recognize
-// the directory as a session at all. This mirrors the Gemini provider, whose
-// NativeSessionPath writes the .project_root marker that makes its target
-// directory usable. The summary is deliberately generic: the SPI hands this
+// Preparing means writing summary.json, without which Grok does not recognize
+// the directory as a session. The summary is deliberately generic: the SPI hands this
 // function only a filename, and grok accepts a summary with zero message counts
 // and no title, which was verified by resuming a session written this way.
 func (p *Provider) NativeSessionPath(projectPath string, filename string) (string, error) {
+	if filepath.Base(filename) != chatHistoryFile || !uuidLike.MatchString(filepath.Dir(filename)) {
+		return "", fmt.Errorf("invalid Grok reconstructed filename %q", filename)
+	}
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
 		return "", err
 	}
 
+	projectPath = spi.CanonicalizePathOrClean(projectPath)
 	groupDir, err := ResolveGrokProjectDir(projectPath)
 	if err != nil {
+		var missing *GrokPathError
+		if !errors.As(err, &missing) {
+			return "", err
+		}
 		// Grok has never run in this project, so name the group directory the
 		// way grok itself would.
 		sessionsDir, dirErr := GetGrokSessionsDir()
@@ -147,7 +143,7 @@ func writeSessionSummary(sessionDir, projectPath string) error {
 		"created_at":          now,
 		"updated_at":          now,
 		"num_messages":        0,
-		"current_model_id":    "grok-4.6",
+		"current_model_id":    "",
 		"chat_format_version": 1,
 	}
 
@@ -162,7 +158,7 @@ func writeSessionSummary(sessionDir, projectPath string) error {
 }
 
 // SupportsReconstruction reports true: a reconstructed session directory was
-// verified to resume in Grok Build 1.0.3.
+// verified to resume in Grok Build 1.0.34.
 func (p *Provider) SupportsReconstruction() bool {
 	return true
 }

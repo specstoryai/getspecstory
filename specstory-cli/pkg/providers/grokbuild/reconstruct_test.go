@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -122,15 +123,11 @@ func TestReconstructSession_OmitsToolAndReasoningRecords(t *testing.T) {
 	if !strings.Contains(content, "<user_query>") {
 		t.Error("user turns must be wrapped for Grok to read them as requests")
 	}
-	// Grok expects a system record first. Decode it rather than matching raw
-	// text, because Go writes map keys in alphabetical order.
-	firstLine := strings.SplitN(strings.TrimSpace(content), "\n", 2)[0]
-	var first GrokRecord
-	if err := json.Unmarshal([]byte(firstLine), &first); err != nil {
-		t.Fatalf("the first record did not parse: %v", err)
+	if strings.Contains(content, `"type":"system"`) || strings.Contains(content, "grok-4.6") {
+		t.Error("reconstruction must not fabricate a system prompt or model identity")
 	}
-	if first.Type != "system" {
-		t.Errorf("first record type = %q, want system", first.Type)
+	if strings.Contains(content, `"model_id"`) || !strings.Contains(content, `"specstorySourceSessionId":"source-session-id"`) {
+		t.Error("fabricated model fields or missing source provenance")
 	}
 }
 
@@ -164,7 +161,7 @@ func TestNativeSessionPath_PreparesSessionDirectory(t *testing.T) {
 	if summary.Info.ID != "019ffaaa-1111-7222-8333-444444444444" {
 		t.Errorf("summary id = %q", summary.Info.ID)
 	}
-	if summary.Info.Cwd != project {
+	if summary.Info.Cwd != spi.CanonicalizePathOrClean(project) {
 		t.Errorf("summary cwd = %q, want %q", summary.Info.Cwd, project)
 	}
 }
@@ -226,5 +223,86 @@ func TestEncodeCwdDirname_RoundTripsWithDecode(t *testing.T) {
 		if !ok || decoded != path {
 			t.Errorf("round trip of %q gave %q (ok=%v) via %q", path, decoded, ok, encoded)
 		}
+	}
+}
+
+func TestNativeSessionPathRejectsEscapingFilename(t *testing.T) {
+	withFakeGrokHome(t)
+	for _, name := range []string{filepath.Join("..", "outside", chatHistoryFile), filepath.Join("not-a-session", chatHistoryFile), "summary.json"} {
+		if path, err := NewProvider().NativeSessionPath(t.TempDir(), name); err == nil {
+			t.Errorf("accepted %q as %q", name, path)
+		}
+	}
+}
+
+func TestNativeSessionPathCanonicalFirstUse(t *testing.T) {
+	for _, mode := range []string{"symlink", "case"} {
+		t.Run(mode, func(t *testing.T) {
+			withFakeGrokHome(t)
+			root := t.TempDir()
+			project := filepath.Join(root, "Project space_under")
+			if err := os.Mkdir(project, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			alias := filepath.Join(root, "project SPACE_UNDER")
+			if mode == "symlink" {
+				alias = filepath.Join(root, "alias")
+				if err := os.Symlink(project, alias); err != nil {
+					t.Skipf("directory symlinks unavailable: %v", err)
+				}
+			} else if _, err := os.Stat(alias); err != nil {
+				t.Skip("filesystem is case sensitive")
+			}
+			id := "019ffaaa-1111-7222-8333-444444444444"
+			path, err := NewProvider().NativeSessionPath(alias, filepath.Join(id, chatHistoryFile))
+			if err != nil {
+				t.Fatal(err)
+			}
+			group, err := ResolveGrokProjectDir(project)
+			if err != nil || path != filepath.Join(group, id, chatHistoryFile) {
+				t.Fatalf("canonical discovery cannot find reconstruction: %q, %v", group, err)
+			}
+			summary, err := readSummary(filepath.Join(filepath.Dir(path), summaryFile))
+			if err != nil || summary.Info.Cwd != spi.CanonicalizePathOrClean(project) {
+				t.Fatalf("summary does not carry canonical project: %#v, %v", summary, err)
+			}
+		})
+	}
+}
+
+func TestReconstructionPreservesPreparedTurns(t *testing.T) {
+	data := sampleSessionData()
+	summary, markdown := "Read QA file", "Result: QA-TOOL-CONTENT"
+	data.Exchanges[0].Messages = append(data.Exchanges[0].Messages,
+		schema.Message{Role: schema.RoleAgent, Content: []schema.ContentPart{{Type: "thinking", Text: "QA-THINKING-CONTENT"}}},
+		schema.Message{Role: schema.RoleAgent, Tool: &schema.ToolInfo{Name: "read_file", Summary: &summary, FormattedMarkdown: &markdown}},
+		schema.Message{Role: schema.RoleUser, Content: []schema.ContentPart{{Type: "text", Text: "<command-name>/context</command-name>"}}},
+	)
+	opts := spi.ReconstructOptions{MigrationNote: "Imported QA conversation"}
+	want, err := spi.PrepareTurns(data, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	native, err := NewProvider().ReconstructSession(data, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []spi.Turn
+	for _, line := range strings.Split(strings.TrimSpace(string(native.Content)), "\n") {
+		var record GrokRecord
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatal(err)
+		}
+		if text, ok := record.UserQuery(); ok {
+			got = append(got, spi.Turn{Role: schema.RoleUser, Text: text})
+		} else if record.Type == "assistant" {
+			got = append(got, spi.Turn{Role: schema.RoleAgent, Text: record.TextContent()})
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("prepared conversation changed: %#v, want %#v", got, want)
+	}
+	if strings.Contains(string(native.Content), "command-name") {
+		t.Fatal("slash-command scaffolding replayed")
 	}
 }

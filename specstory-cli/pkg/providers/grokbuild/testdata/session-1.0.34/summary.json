@@ -1,0 +1,15 @@
+{
+  "info": {
+    "id": "01a0b14e-1cd4-7051-aa41-f25319cef01b",
+    "cwd": "/qa/project space_under"
+  },
+  "session_summary": "Bounded QA Tool Exercise for Exporters",
+  "created_at": "2026-09-17T21:38:01.565826Z",
+  "updated_at": "2026-09-17T21:39:01.511115Z",
+  "num_messages": 86,
+  "num_chat_messages": 52,
+  "current_model_id": "grok-4.6",
+  "chat_format_version": 1,
+  "session_kind": "headless",
+  "generated_title": "Bounded QA Tool Exercise for Exporters"
+}

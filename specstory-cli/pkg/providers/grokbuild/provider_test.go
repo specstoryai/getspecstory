@@ -2,6 +2,8 @@ package grokbuild
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +11,48 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestExecReportsWatcherFailureAfterChildExit(t *testing.T) {
+	if os.Getenv("GROK_QA_CHILD") != "" {
+		// The watcher starts before this child does. Replace its empty store
+		// with a file to cause a genuine reconciliation error during the run.
+		store := filepath.Join(os.Getenv("GROK_HOME"), "sessions")
+		if err := os.Remove(store); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(store, []byte("not a directory"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if os.Getenv("GROK_QA_CHILD") == "failure" {
+			os.Exit(7)
+		}
+		return
+	}
+	for _, outcome := range []string{"success", "failure"} {
+		t.Run(outcome, func(t *testing.T) {
+			home := withFakeGrokHome(t)
+			if err := os.Mkdir(filepath.Join(home, "sessions"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("GROK_QA_CHILD", outcome)
+			exe, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = NewProvider().ExecAgentAndWatch(t.TempDir(), fmt.Sprintf("%q -test.run=^TestExecReportsWatcherFailureAfterChildExit$", exe), "", false, nil)
+			if outcome == "success" {
+				if err == nil || !strings.Contains(err.Error(), "directory") {
+					t.Fatalf("watcher failure was swallowed: %v", err)
+				}
+			} else {
+				var child *spi.AgentExitError
+				if !errors.As(err, &child) || child.Code != 7 {
+					t.Fatalf("child exit code was lost: %v", err)
+				}
+			}
+		})
+	}
+}
 
 func TestProviderName(t *testing.T) {
 	if got := NewProvider().Name(); got != "Grok Build" {
@@ -290,5 +334,64 @@ func TestRawSnapshotAndDebugRefresh(t *testing.T) {
 	}
 	if data, err := os.ReadFile(cliFile); err != nil || string(data) != "CLI owned" {
 		t.Fatalf("CLI file changed: %s, %v", data, err)
+	}
+}
+
+func TestGetSessionNotFoundAndTraversal(t *testing.T) {
+	withFakeGrokHome(t)
+	for _, id := range []string{"11111111-2222-7333-8444-555555555555", "../other-project/session", ""} {
+		session, err := NewProvider().GetAgentChatSession(t.TempDir(), id, false)
+		if err != nil || session != nil {
+			t.Errorf("missing %q = %v, %v; want nil, nil", id, session, err)
+		}
+	}
+}
+
+func TestGetSessionDoesNotFollowCrossProjectSymlink(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project, other := t.TempDir(), t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	target := seedSession(t, home, other, "session-basic", id)
+	group := filepath.Join(home, "sessions", EncodeCwdDirname(spi.CanonicalizePathOrClean(project)))
+	if err := os.MkdirAll(group, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, filepath.Join(group, id)); err != nil {
+		t.Skipf("directory symlinks unavailable: %v", err)
+	}
+	got, err := NewProvider().GetAgentChatSession(project, id, false)
+	if err != nil || got != nil {
+		t.Fatalf("cross-project symlink returned %v, %v", got, err)
+	}
+}
+
+func TestDebugSidecarsPreserveTheParsingSnapshot(t *testing.T) {
+	spi.SetDebugBaseDir(t.TempDir())
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	dir := t.TempDir()
+	copyFixture(t, "session-basic", dir)
+	path := filepath.Join(dir, eventsFile)
+	event := `{"type":"future_event","future_field":"original-sidecar"}`
+	if err := os.WriteFile(path, []byte(event+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	session, err := ParseSessionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeDebugRawFiles(session); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(spi.GetDebugDir(session.ID), "native-sidecars.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"original-sidecar", summaryFile, updatesFile, eventsFile} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("sidecar debug missing %q", want)
+		}
 	}
 }

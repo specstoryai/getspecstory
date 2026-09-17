@@ -1,0 +1,4 @@
+Grok Build: grok 1.0.34 (3736acbc8658) [stable]
+SpecStory CLI: dev (PR #270, target release 2.14.0 / 2026-09-18)
+OS: macOS arm64
+Claude Code (cross-agent target/source): 2.1.273 (Claude Code)

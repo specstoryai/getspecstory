@@ -135,10 +135,10 @@ func TestToolCallArgs_DecodesJSONString(t *testing.T) {
 		t.Errorf("target_file = %v", args["target_file"])
 	}
 
-	// Malformed arguments should degrade to nil, not panic.
+	// Malformed arguments remain visible through generic rendering.
 	bad := GrokToolCall{Arguments: "{not json"}
-	if bad.Args() != nil {
-		t.Error("malformed arguments should decode to nil")
+	if bad.Args()["arguments"] != "{not json" {
+		t.Error("malformed arguments were lost")
 	}
 }
 
@@ -352,5 +352,32 @@ func TestMetadataScanStopsAtFirstQueryAndSkipsSidecars(t *testing.T) {
 	got, want := extractSessionMetadata(metadata), extractSessionMetadata(full)
 	if *got != *want {
 		t.Fatalf("metadata differs: %+v, want %+v", got, want)
+	}
+}
+
+func TestUserQueryPreservesQuotedTagsAndSkipsSyntheticContent(t *testing.T) {
+	text := "Please quote <user_query>embedded</user_query> and continue."
+	record := GrokRecord{Type: "user", Content: []byte(quote("<user_query>" + text + "</user_query>"))}
+	if got, ok := record.UserQuery(); !ok || got != text {
+		t.Fatalf("user text cut at embedded closing tag: %q", got)
+	}
+	synthetic := "system_reminder"
+	record.SyntheticReason = &synthetic
+	if _, ok := record.UserQuery(); ok {
+		t.Fatal("synthetic content became a user prompt")
+	}
+	record.SyntheticReason = nil
+	record.Content = []byte(quote("<system-reminder>Quoted transcript: <user_query>phantom</user_query></system-reminder>"))
+	if _, ok := record.UserQuery(); ok {
+		t.Fatal("quoted scaffold became a user prompt")
+	}
+}
+
+func TestUnfamiliarToolResultsRemainReadable(t *testing.T) {
+	for _, content := range []string{`{"future_result":{"text":"KEEP"}}`, `[{"unfamiliar":"KEEP"}]`} {
+		record := GrokRecord{Type: "tool_result", Content: []byte(content)}
+		if !strings.Contains(record.TextContent(), "KEEP") {
+			t.Fatalf("tool result dropped: %s", content)
+		}
 	}
 }

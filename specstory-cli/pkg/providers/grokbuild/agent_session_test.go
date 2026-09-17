@@ -253,17 +253,16 @@ func TestClassifyGrokTool(t *testing.T) {
 		{name: "write by name", tool: "write", want: "write"},
 		{name: "edit by name", tool: "search_replace", want: "write"},
 		{name: "shell by name", tool: "run_terminal_command", want: "shell"},
-		{name: "list is shell", tool: "list_dir", want: "shell"},
+		{name: "list reads workspace", tool: "list_dir", want: "read"},
 		{name: "grep is search", tool: "grep", want: "search"},
 		{name: "todo is task", tool: "todo_write", want: "task"},
-		{name: "subagent is task", tool: "spawn_subagent", want: "task"},
+		{name: "subagent is agent state", tool: "spawn_subagent", want: "generic"},
 		{name: "mcp envelope is generic", tool: "use_tool", want: "generic"},
 		{name: "web search is search", tool: "web_search", want: "search"},
-		{name: "x thread fetch is search", tool: "x_thread_fetch", want: "search"},
-		// An unknown tool falls back to Grok's own taxonomy, which is what keeps
-		// MCP and future tools out of the unknown bucket.
-		{name: "unknown name with kind", tool: "some_future_tool", grokKind: "execute", want: "shell"},
-		{name: "unknown name with edit kind", tool: "another_tool", grokKind: "edit", want: "write"},
+		{name: "unobserved x tool is unknown", tool: "x_thread_fetch", want: "unknown"},
+		// Unenumerated tools remain unknown even when Grok supplies a kind.
+		{name: "unknown name with kind", tool: "some_future_tool", grokKind: "execute", want: "unknown"},
+		{name: "unknown name with edit kind", tool: "another_tool", grokKind: "edit", want: "unknown"},
 		{name: "unknown everything", tool: "mystery", want: "unknown"},
 	}
 

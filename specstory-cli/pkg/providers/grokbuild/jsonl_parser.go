@@ -29,7 +29,7 @@ const (
 // in <user_query> tags; user records without the tags are injected context
 // (<user_info>, <git_status>, <rules>, and <system-reminder> blocks) and are not
 // conversation. One of those injected records is a ~29KB skills dump.
-var userQueryRe = regexp.MustCompile(`(?s)<user_query>(.*?)</user_query>`)
+var userQueryRe = regexp.MustCompile(`(?s)^\s*<user_query>(.*)</user_query>\s*$`)
 
 // GrokRecord is one line of chat_history.jsonl. The discriminator is Type; there
 // is no role field, and no record carries a timestamp.
@@ -111,6 +111,7 @@ type GrokBackendSource struct {
 
 // GrokSummary is summary.json: the session's identity and metadata.
 type GrokSummary struct {
+	Raw  json.RawMessage `json:"-"`
 	Info struct {
 		ID  string `json:"id"`
 		Cwd string `json:"cwd"`
@@ -140,11 +141,14 @@ type GrokUsage struct {
 // tool classification, tool outcomes, and per-turn usage. chat_history.jsonl has
 // none of this.
 type sessionIndex struct {
+	rawUpdates       []json.RawMessage
+	rawEvents        []json.RawMessage
 	userTimes        []string              // first timestamp of each prompt in arrival order
 	unindexedPrompts map[string]bool       // chunk deduplication when promptIndex is absent
 	toolTime         map[string]string     // tool_call_id -> ISO 8601
 	toolKind         map[string]string     // tool_call_id -> Grok's own tool kind
 	toolError        map[string]bool       // tool_call_id -> the call failed
+	toolStatus       map[string]string     // tool_call_id -> recorded completion or pending status
 	userTime         map[int]string        // prompt index -> ISO 8601
 	agentTime        []string              // assistant text, in order of appearance
 	agentPrompt      []string              // prompt id per assistant text, same order
@@ -154,31 +158,33 @@ type sessionIndex struct {
 
 // GrokSession is one parsed session directory.
 type GrokSession struct {
-	ID        string
-	Dir       string
-	Cwd       string
-	CreatedAt string
-	UpdatedAt string
-	Title     string
-	Model     string
-	Kind      string // "subagent" marks a spawned subagent session
-	Records   []GrokRecord
-	Index     *sessionIndex
-	Subagents map[string]*GrokSubagentMeta // by subagent id
+	RawSummary json.RawMessage
+	ID         string
+	Dir        string
+	Cwd        string
+	CreatedAt  string
+	UpdatedAt  string
+	Title      string
+	Model      string
+	Kind       string // "subagent" marks a spawned subagent session
+	Records    []GrokRecord
+	Index      *sessionIndex
+	Subagents  map[string]*GrokSubagentMeta // by subagent id
 }
 
 // GrokSubagentMeta is subagents/<id>/meta.json under the parent session. It
 // enriches the spawn_subagent rendering with what the subagent was asked to do.
 type GrokSubagentMeta struct {
-	SubagentID   string `json:"subagent_id"`
-	ChildID      string `json:"child_session_id"`
-	SubagentType string `json:"subagent_type"`
-	Description  string `json:"description"`
-	Prompt       string `json:"prompt"`
-	Status       string `json:"status"`
-	DurationMs   int    `json:"duration_ms"`
-	ToolCalls    int    `json:"tool_calls"`
-	Turns        int    `json:"turns"`
+	Raw          json.RawMessage `json:"-"`
+	SubagentID   string          `json:"subagent_id"`
+	ChildID      string          `json:"child_session_id"`
+	SubagentType string          `json:"subagent_type"`
+	Description  string          `json:"description"`
+	Prompt       string          `json:"prompt"`
+	Status       string          `json:"status"`
+	DurationMs   int             `json:"duration_ms"`
+	ToolCalls    int             `json:"tool_calls"`
+	Turns        int             `json:"turns"`
 }
 
 // IsSubagent reports whether this session is a spawned subagent rather than a
@@ -209,6 +215,7 @@ func parseSessionDir(dir string, metadataOnly bool) (*GrokSession, error) {
 		return nil, err
 	}
 	if summary != nil {
+		session.RawSummary = summary.Raw
 		if summary.Info.ID != "" {
 			session.ID = summary.Info.ID
 		}
@@ -282,6 +289,7 @@ func readSummary(path string) (*GrokSummary, error) {
 		slog.Warn("readSummary: failed to parse summary.json", "path", path, "error", err)
 		return nil, nil
 	}
+	summary.Raw = append(json.RawMessage(nil), data...)
 	return &summary, nil
 }
 
@@ -346,6 +354,7 @@ func newSessionIndex() *sessionIndex {
 		unindexedPrompts: map[string]bool{},
 		toolKind:         map[string]string{},
 		toolError:        map[string]bool{},
+		toolStatus:       map[string]string{},
 		userTime:         map[int]string{},
 		usage:            map[string]*GrokUsage{},
 	}
@@ -359,6 +368,7 @@ func buildSessionIndex(dir string) *sessionIndex {
 	idx := newSessionIndex()
 
 	forEachJSONLine(filepath.Join(dir, updatesFile), func(raw []byte) {
+		idx.rawUpdates = append(idx.rawUpdates, append(json.RawMessage(nil), raw...))
 		var envelope struct {
 			Timestamp int64 `json:"timestamp"`
 			Params    struct {
@@ -394,6 +404,19 @@ func buildSessionIndex(dir string) *sessionIndex {
 					if k, ok := tool["kind"].(string); ok && k != "" {
 						idx.toolKind[id] = k
 					}
+				}
+			}
+		case "tool_call_update":
+			id, _ := update["toolCallId"].(string)
+			status, _ := update["status"].(string)
+			if id != "" && status != "" {
+				switch status {
+				case "failed":
+					idx.toolStatus[id] = "error"
+				case "completed":
+					idx.toolStatus[id] = "success"
+				default:
+					idx.toolStatus[id] = status
 				}
 			}
 		case "user_message_chunk":
@@ -462,6 +485,7 @@ func buildSessionIndex(dir string) *sessionIndex {
 	})
 
 	forEachJSONLine(filepath.Join(dir, eventsFile), func(raw []byte) {
+		idx.rawEvents = append(idx.rawEvents, append(json.RawMessage(nil), raw...))
 		var event struct {
 			TS         string `json:"ts"`
 			Type       string `json:"type"`
@@ -476,6 +500,9 @@ func buildSessionIndex(dir string) *sessionIndex {
 		}
 		switch event.Type {
 		case "tool_completed", "mcp_tool_call_completed":
+			if event.Outcome != "" {
+				idx.toolStatus[event.ToolCallID] = event.Outcome
+			}
 			if event.Outcome == "error" {
 				idx.toolError[event.ToolCallID] = true
 			}
@@ -521,6 +548,7 @@ func readSubagentMeta(dir string) map[string]*GrokSubagentMeta {
 		if err := json.Unmarshal(data, &meta); err != nil {
 			continue
 		}
+		meta.Raw = append(json.RawMessage(nil), data...)
 		id := meta.SubagentID
 		if id == "" {
 			id = entry.Name()
@@ -575,7 +603,7 @@ func findSessions(groupDir string, metadataOnly bool) ([]*GrokSession, error) {
 // UserQuery returns the human's prompt from a user record, and whether the
 // record is a real user turn at all.
 func (r *GrokRecord) UserQuery() (string, bool) {
-	if r.Type != "user" {
+	if r.Type != "user" || r.SyntheticReason != nil {
 		return "", false
 	}
 	text := r.TextContent()
@@ -600,6 +628,14 @@ func (r *GrokRecord) TextContent() string {
 	var s string
 	if err := json.Unmarshal(r.Content, &s); err == nil {
 		return s
+	}
+
+	if r.Type == "tool_result" {
+		var value any
+		if json.Unmarshal(r.Content, &value) == nil {
+			encoded, _ := json.MarshalIndent(value, "", "  ")
+			return string(encoded)
+		}
 	}
 
 	// user holds an array of typed parts.
@@ -647,8 +683,8 @@ func (t *GrokToolCall) Args() map[string]any {
 	}
 	var args map[string]any
 	if err := json.Unmarshal([]byte(t.Arguments), &args); err != nil {
-		slog.Debug("GrokToolCall.Args: failed to decode arguments", "tool", t.Name, "error", err)
-		return nil
+		slog.Warn("GrokToolCall.Args: preserving invalid arguments", "tool", t.Name, "error", err)
+		return map[string]any{"arguments": t.Arguments}
 	}
 	return args
 }

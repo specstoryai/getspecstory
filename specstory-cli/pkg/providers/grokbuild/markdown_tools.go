@@ -3,18 +3,15 @@ package grokbuild
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
+	"unicode"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
-
-// maxDiffRunes caps a rendered edit diff, which is built from both halves of a
-// find and replace and can otherwise reach the size of two whole files.
-//
-// Only the diff is capped. Tool output and written file content are the record
-// the user came for, so they are kept whole, matching the sibling providers.
-const maxDiffRunes = 2000
 
 // formatToolAsMarkdown renders a tool call's body and result. It returns the
 // inner content only; pkg/session adds the surrounding <tool-use> tags.
@@ -77,7 +74,7 @@ func buildToolSummary(tool *ToolInfo) string {
 		if query := stringArg(tool.Input, "query"); query != "" {
 			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, query)
 		}
-	case "web_fetch", "open_page", "open_page_with_find":
+	case "web_fetch":
 		if url := stringArg(tool.Input, "url"); url != "" {
 			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, url)
 		}
@@ -90,15 +87,73 @@ func buildToolSummary(tool *ToolInfo) string {
 		if description := stringArg(tool.Input, "description"); description != "" {
 			return fmt.Sprintf("Tool use: **%s** — %s", tool.Name, description)
 		}
-	case "x_user_search", "x_semantic_search", "x_keyword_search":
-		if query := stringArg(tool.Input, "query"); query != "" {
-			return fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, query)
-		}
 	}
 	return ""
 }
 
+// formatToolBody preserves new arguments even when a specialized formatter
+// only understands the established fields. Native tools add options over time.
 func formatToolBody(tool *ToolInfo) string {
+	body := formatKnownToolBody(tool)
+	var consumed []string
+	switch tool.Name {
+	case "run_terminal_command", "monitor":
+		consumed = []string{"command", "description"}
+	case "write":
+		consumed = []string{"file_path", "content"}
+	case "search_replace":
+		consumed = []string{"file_path", "old_string", "new_string"}
+	case "todo_write":
+		consumed = []string{"todos", "merge"}
+	case "spawn_subagent":
+		consumed = []string{"subagent_type", "prompt"}
+	case "use_tool":
+		consumed = []string{"tool_name", "tool_input"}
+	case "ask_user_question":
+		consumed = []string{"questions"}
+	case "web_search":
+		consumed = []string{"sources"}
+	default:
+		return body
+	}
+	extra := map[string]any{}
+	for key, value := range tool.Input {
+		if !slices.Contains(consumed, key) {
+			extra[key] = value
+		}
+	}
+	if len(extra) > 0 {
+		body += "\n\n" + formatParameters(extra)
+	}
+	if strings.TrimSpace(body) == "" && len(tool.Input) > 0 {
+		return spi.RenderGenericJSON(tool.Input)
+	}
+	return body
+}
+
+func formatParameters(input map[string]any) string {
+	keys := make([]string, 0, len(input))
+	for key := range input {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for _, key := range keys {
+		value := stringArg(input, key)
+		label := map[string]string{"target_file": "Path", "target_directory": "Directory", "file_path": "Path", "offset": "Offset", "limit": "Limit", "pattern": "Pattern", "path": "Path", "glob": "Glob", "background": "Background", "timeout_ms": "Timeout (ms)", "persistent": "Persistent", "head_limit": "Result limit", "task_id": "Task ID", "task_ids": "Task IDs"}[key]
+		if label == "" {
+			label = key
+		}
+		if strings.ContainsAny(value, "\n`") {
+			fmt.Fprintf(&b, "%s:\n%s\n", label, spi.CodeFence("text", value))
+		} else {
+			fmt.Fprintf(&b, "%s: `%s`\n", label, value)
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+func formatKnownToolBody(tool *ToolInfo) string {
 	switch tool.Name {
 	case "run_terminal_command", "monitor":
 		return formatShellBody(tool.Input)
@@ -112,25 +167,42 @@ func formatToolBody(tool *ToolInfo) string {
 		return formatSubagentBody(tool.Input)
 	case "use_tool":
 		return formatUseToolBody(tool.Input)
-	case "image_gen", "image_edit", "image_to_video", "reference_to_video":
-		return formatPromptBody(tool.Input)
 	case "web_search":
 		return formatWebSearchBody(tool.Input)
-	case "x_user_search", "x_semantic_search", "x_keyword_search", "x_thread_fetch":
-		return formatXSearchBody(tool.Input)
-	case "open_page", "open_page_with_find":
-		return formatOpenPageBody(tool.Input)
-	case "web_fetch", "read_file", "list_dir", "grep", "search_tool":
-		// Everything identifying is already in the summary.
-		return ""
+	case "ask_user_question":
+		return formatQuestionBody(tool.Input)
+	case "workflow":
+		if source, ok := tool.Input["source"].(map[string]any); ok {
+			return "Workflow source:\n" + formatParameters(source) + "\n" + spi.RenderGenericJSON(tool.Input, "source")
+		}
+		return spi.RenderGenericJSON(tool.Input)
+	case "web_fetch", "read_file", "list_dir", "grep", "search_tool", "get_command_or_subagent_output", "kill_command_or_subagent":
+		return formatParameters(tool.Input)
 	default:
 		return spi.RenderGenericJSON(tool.Input)
 	}
 }
 
 func formatToolResult(tool *ToolInfo) string {
+	result := formatKnownToolResult(tool)
+	extra := map[string]any{}
+	for key, value := range tool.Output {
+		if key != "output" && key != "status" {
+			extra[key] = value
+		}
+	}
+	if status, _ := tool.Output["status"].(string); status != "" && status != "success" && status != "error" {
+		extra["Status"] = status
+	}
+	if len(extra) > 0 {
+		result += "\n\n" + formatParameters(extra)
+	}
+	return strings.TrimSpace(result)
+}
+
+func formatKnownToolResult(tool *ToolInfo) string {
 	// A failed call reads as an error first, whatever the tool was. Grok records
-	// the failure in events.jsonl rather than in the result text, so without this
+	// the outcome in sidecars rather than in the result text, so without this
 	// label a failed call would be indistinguishable from a successful one.
 	if isErrorOutput(tool.Output) {
 		text := outputText(tool.Output)
@@ -157,24 +229,65 @@ func formatToolResult(tool *ToolInfo) string {
 			return fmt.Sprintf("Result:\n%s", spi.CodeFence("text", text))
 		}
 		return ""
-	case "list_dir", "grep", "search_tool":
+	case "search_tool":
+		if rendered := formatToolCatalog(outputText(tool.Output)); rendered != "" {
+			return rendered
+		}
+		fallthrough
+	case "list_dir", "grep":
 		text := outputText(tool.Output)
 		if text == "" {
 			return ""
 		}
-		// These are usually line oriented, where a fence would only add noise.
-		// search_tool returns a JSON document though, which collapses into an
-		// unreadable run-on unless it is fenced.
+		// Fence native wrappers and catalogs so Markdown cannot interpret them
+		// as HTML or collapse their layout.
 		if looksLikeJSON(text) {
 			return fmt.Sprintf("Result:\n%s", spi.CodeFence("json", text))
 		}
-		return text
+		return spi.CodeFence("text", text)
 	}
 
 	if text := outputText(tool.Output); text != "" {
 		return addResultPrefix(fenceIfMultiline(text))
 	}
 	return ""
+}
+
+// formatToolCatalog gives the observed MCP discovery envelope a readable
+// hierarchy while retaining schemas and unfamiliar metadata without loss.
+func formatToolCatalog(text string) string {
+	var catalog map[string]any
+	if json.Unmarshal([]byte(text), &catalog) != nil {
+		return ""
+	}
+	groups, ok := catalog["results"].([]any)
+	if !ok {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("Discovered tools:\n")
+	for _, raw := range groups {
+		group, ok := raw.(map[string]any)
+		if !ok {
+			return ""
+		}
+		tools, ok := group["tools"].([]any)
+		if !ok {
+			return ""
+		}
+		fmt.Fprintf(&b, "\nServer: `%s`\n", stringArg(group, "server"))
+		for _, raw := range tools {
+			tool, ok := raw.(map[string]any)
+			if !ok {
+				return ""
+			}
+			fmt.Fprintf(&b, "\n**%s**\n\n%s\n\n", stringArg(tool, "tool_name"), stringArg(tool, "description"))
+			b.WriteString(spi.RenderGenericJSON(tool, "tool_name", "description") + "\n")
+		}
+		b.WriteString(spi.RenderGenericJSON(group, "server", "tools") + "\n")
+	}
+	b.WriteString("\n" + spi.RenderGenericJSON(catalog, "results"))
+	return strings.TrimSpace(b.String())
 }
 
 // formatWebSearchBody lists the pages a search returned. Grok records them in
@@ -190,47 +303,6 @@ func formatWebSearchBody(input map[string]any) string {
 	builder.WriteString("Sources:\n")
 	for _, url := range sources {
 		fmt.Fprintf(&builder, "- %s\n", url)
-	}
-	return builder.String()
-}
-
-// formatOpenPageBody names the page that was opened. Grok records no result for
-// these backend calls, so without a body the tool would render as nothing at all
-// and the shared renderer would fall back to an empty Result heading.
-func formatOpenPageBody(input map[string]any) string {
-	url := stringArg(input, "url")
-	if url == "" {
-		return ""
-	}
-
-	var builder strings.Builder
-	fmt.Fprintf(&builder, "- url: %s\n", url)
-	if pattern := stringArg(input, "pattern"); pattern != "" {
-		fmt.Fprintf(&builder, "- find: `%s`\n", pattern)
-	}
-	return builder.String()
-}
-
-// formatXSearchBody shows the arguments an X search ran with. They vary by tool
-// (query, post_id, count, mode), so render whatever is present.
-func formatXSearchBody(input map[string]any) string {
-	if len(input) == 0 {
-		return ""
-	}
-
-	keys := make([]string, 0, len(input))
-	for key := range input {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	var builder strings.Builder
-	for _, key := range keys {
-		value := stringArg(input, key)
-		if value == "" {
-			continue
-		}
-		fmt.Fprintf(&builder, "- %s: `%s`\n", key, value)
 	}
 	return builder.String()
 }
@@ -289,10 +361,10 @@ func formatSearchReplaceBody(input map[string]any) string {
 	}
 
 	var diff strings.Builder
-	for _, line := range strings.Split(truncate(oldString, maxDiffRunes), "\n") {
+	for _, line := range strings.Split(oldString, "\n") {
 		fmt.Fprintf(&diff, "-%s\n", line)
 	}
-	for _, line := range strings.Split(truncate(newString, maxDiffRunes), "\n") {
+	for _, line := range strings.Split(newString, "\n") {
 		fmt.Fprintf(&diff, "+%s\n", line)
 	}
 	builder.WriteString(spi.CodeFence("diff", strings.TrimRight(diff.String(), "\n")))
@@ -380,14 +452,6 @@ func formatUseToolBody(input map[string]any) string {
 	return builder.String()
 }
 
-func formatPromptBody(input map[string]any) string {
-	prompt := stringArg(input, "prompt")
-	if prompt == "" {
-		return spi.RenderGenericJSON(input)
-	}
-	return prompt
-}
-
 func fenceIfMultiline(text string) string {
 	if strings.Contains(text, "\n") {
 		return spi.CodeFence("text", text)
@@ -402,8 +466,7 @@ func addResultPrefix(content string) string {
 	return fmt.Sprintf("Result: %s", content)
 }
 
-// isErrorOutput reports whether the tool call failed. Grok records the failure in
-// events.jsonl rather than in the result text, and the parser folds it in here.
+// isErrorOutput reports whether the tool call failed according to its sidecars.
 func isErrorOutput(output map[string]any) bool {
 	if output == nil {
 		return false
@@ -418,7 +481,12 @@ func outputText(output map[string]any) string {
 		return ""
 	}
 	if text, ok := output["output"].(string); ok && strings.TrimSpace(text) != "" {
-		return strings.TrimSpace(text)
+		return strings.TrimSpace(strings.Map(func(r rune) rune {
+			if unicode.IsControl(r) && r != '\n' && r != '\t' {
+				return -1
+			}
+			return r
+		}, ansi.Strip(text)))
 	}
 	return ""
 }
@@ -447,22 +515,44 @@ func stringArg(args map[string]any, key string) string {
 	}
 }
 
-// truncate caps text at limit runes.
-func truncate(text string, limit int) string {
-	if limit <= 0 {
-		return text
-	}
-	runes := []rune(text)
-	if len(runes) <= limit {
-		return text
-	}
-	return string(runes[:limit]) + "\n... (truncated)"
-}
-
 // looksLikeJSON reports whether output should be fenced to stay readable. Some
 // Grok tools return a JSON document as their text result, which collapses into
 // an unreadable run-on if it is emitted bare.
 func looksLikeJSON(text string) bool {
 	trimmed := strings.TrimSpace(text)
 	return strings.HasPrefix(trimmed, "{") || strings.HasPrefix(trimmed, "[")
+}
+
+// formatQuestionBody preserves the question, choices and any future fields.
+func formatQuestionBody(input map[string]any) string {
+	questions, ok := input["questions"].([]any)
+	if !ok {
+		return spi.RenderGenericJSON(input)
+	}
+	var b strings.Builder
+	for i, raw := range questions {
+		question, ok := raw.(map[string]any)
+		if !ok {
+			return spi.RenderGenericJSON(input)
+		}
+		fmt.Fprintf(&b, "Question %d: %s\n", i+1, stringArg(question, "question"))
+		options, ok := question["options"].([]any)
+		if !ok {
+			return spi.RenderGenericJSON(input)
+		}
+		for _, raw := range options {
+			option, ok := raw.(map[string]any)
+			if !ok {
+				return spi.RenderGenericJSON(input)
+			}
+			fmt.Fprintf(&b, "- %s: %s\n", stringArg(option, "label"), stringArg(option, "description"))
+			if extra := spi.RenderGenericJSON(option, "label", "description"); extra != "" {
+				b.WriteString(extra + "\n")
+			}
+		}
+		if extra := spi.RenderGenericJSON(question, "question", "options"); extra != "" {
+			b.WriteString(extra + "\n")
+		}
+	}
+	return b.String()
 }

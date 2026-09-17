@@ -30,6 +30,16 @@ func GenerateAgentSession(session *GrokSession, workspaceRoot string) (*SessionD
 		return nil, fmt.Errorf("session has no records")
 	}
 
+	if session.Cwd != "" {
+		workspaceRoot = session.Cwd
+	}
+	if workspaceRoot == "" {
+		var err error
+		workspaceRoot, err = defaultProjectPath("")
+		if err != nil {
+			return nil, err
+		}
+	}
 	createdAt := session.CreatedAt
 	if createdAt == "" {
 		createdAt = session.UpdatedAt
@@ -170,7 +180,7 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 			for k := range record.ToolCalls {
 				call := &record.ToolCalls[k]
 				msg := buildToolMessage(session, record, call, results, workspaceRoot)
-				if msg.Tool != nil && (msg.Tool.Name == "todo_write" || msg.Tool.Name == "write_todos") {
+				if msg.Tool != nil && msg.Tool.Name == "todo_write" {
 					backfillTodoText(msg.Tool.Input, todoText)
 					formatted := formatToolAsMarkdown(msg.Tool)
 					msg.Tool.FormattedMarkdown = &formatted
@@ -191,6 +201,10 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 			if msg.Timestamp != "" {
 				current.EndTime = msg.Timestamp
 			}
+		case "system", "tool_result":
+			// System instructions are runtime scaffolding; results are paired above.
+		default:
+			slog.Debug("Grok transcript: unknown record kind", "type", record.Type, "sessionID", session.ID)
 		}
 	}
 
@@ -267,12 +281,12 @@ func buildToolMessage(session *GrokSession, record *GrokRecord, call *GrokToolCa
 	if result, ok := results[call.ID]; ok && result != "" {
 		output["output"] = result
 	}
-	// A failed call is only marked as failed in events.jsonl; the result text
-	// itself carries no error flag.
+	// Cancellations can have a failed update without a completion event. A
+	// result string alone is not evidence that the native call succeeded.
 	if session.Index.toolError[call.ID] {
 		output["status"] = "error"
-	} else if len(output) > 0 {
-		output["status"] = "success"
+	} else if status := session.Index.toolStatus[call.ID]; status != "" {
+		output["status"] = status
 	}
 
 	// spawn_subagent gets the sibling meta.json folded in, which is where the
@@ -440,42 +454,24 @@ func attachUsage(exchanges []Exchange, usageByPrompt map[string]*GrokUsage, prom
 
 // classifyGrokTool maps a Grok tool to a schema tool type.
 //
-// The name is checked first because chat_history.jsonl is always complete, while
-// updates.jsonl can be missing. Grok's own kind is the fallback, which is what
-// keeps MCP and future tools from all landing in "unknown".
-func classifyGrokTool(name, grokKind string) string {
+// Only observed native names are classified; future tools retain unknown
+// rather than guessing semantics from an unrelated agent taxonomy.
+func classifyGrokTool(name, _ string) string {
 	switch name {
-	case "read_file", "web_fetch", "open_page", "open_page_with_find":
+	case "read_file", "list_dir", "web_fetch":
 		return "read"
 	case "write", "search_replace":
 		return "write"
-	case "grep", "search_tool", "web_search",
-		"x_user_search", "x_semantic_search", "x_keyword_search", "x_thread_fetch", "x_search":
+	case "grep", "search_tool", "web_search":
 		return "search"
-	case "run_terminal_command", "list_dir", "monitor",
+	case "run_terminal_command", "monitor",
 		"get_command_or_subagent_output", "kill_command_or_subagent":
 		return "shell"
-	case "todo_write", "spawn_subagent", "workflow":
+	case "todo_write":
 		return "task"
-	case "use_tool", "image_gen", "image_edit", "image_to_video", "reference_to_video",
+	case "spawn_subagent", "workflow", "use_tool", "image_gen", "image_edit", "image_to_video", "reference_to_video",
 		"scheduler_create", "scheduler_list", "scheduler_delete",
 		"enter_plan_mode", "exit_plan_mode", "ask_user_question":
-		return "generic"
-	}
-
-	// Fall back to Grok's own taxonomy from updates.jsonl.
-	switch grokKind {
-	case "read", "web_fetch":
-		return "read"
-	case "write", "edit":
-		return "write"
-	case "search", "search_tool":
-		return "search"
-	case "execute", "list", "monitor", "background_task_action", "kill_task_action":
-		return "shell"
-	case "task", "plan", "workflow":
-		return "task"
-	case "use_tool", "image_gen", "image_to_video", "reference_to_video", "other":
 		return "generic"
 	}
 

@@ -379,3 +379,34 @@ func TestWatcherReconcilesStartupAndDormantSession(t *testing.T) {
 		t.Fatal("unwatched sidecar change was lost")
 	}
 }
+
+func TestWatcherSignatureIncludesSubagentMetadata(t *testing.T) {
+	dir := t.TempDir()
+	before := signatureFor(dir)
+	metaDir := filepath.Join(dir, subagentsDir, "child")
+	if err := os.MkdirAll(metaDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(metaDir, "meta.json")
+	if err := os.WriteFile(path, []byte(`{"status":"running"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	running := signatureFor(dir)
+	if running == before {
+		t.Fatal("new subagent metadata did not change signature")
+	}
+	if err := os.WriteFile(path, []byte(`{"status":"completed","duration_ms":1000}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if signatureFor(dir) == running {
+		t.Fatal("subagent completion did not change signature")
+	}
+	// Logs and child transcripts do not belong to the parent's renderable data.
+	complete := signatureFor(dir)
+	if err := os.WriteFile(filepath.Join(metaDir, chatHistoryFile), []byte("unrelated"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if signatureFor(dir) != complete {
+		t.Fatal("child transcript changed parent signature")
+	}
+}

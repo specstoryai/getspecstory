@@ -1,6 +1,9 @@
 package grokbuild
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -263,8 +266,8 @@ func TestFormatToolAsMarkdown_WebAndSearchSummaries(t *testing.T) {
 			want: "`grok release`",
 		},
 		{
-			name: "open_page",
-			tool: &ToolInfo{Name: "open_page", Type: "read", Input: map[string]any{"url": "https://x.ai/news"}},
+			name: "web_fetch",
+			tool: &ToolInfo{Name: "web_fetch", Type: "read", Input: map[string]any{"url": "https://x.ai/news"}},
 			want: "`https://x.ai/news`",
 		},
 		{
@@ -303,9 +306,8 @@ func TestFormatToolAsMarkdown_UnknownToolShowsJSON(t *testing.T) {
 }
 
 func TestFormatToolAsMarkdown_KeepsLargeOutputWhole(t *testing.T) {
-	// Tool output is the record the user came for, so it is not truncated. Only
-	// the synthesized edit diff is capped, which the next test covers.
-	huge := strings.Repeat("x", maxDiffRunes+500)
+	// Tool output is the record the user came for, so it is not truncated.
+	huge := strings.Repeat("x", 2500)
 	tool := &ToolInfo{
 		Name:   "read_file",
 		Type:   "read",
@@ -323,8 +325,8 @@ func TestFormatToolAsMarkdown_KeepsLargeOutputWhole(t *testing.T) {
 	}
 }
 
-func TestFormatToolAsMarkdown_CapsRunawayDiff(t *testing.T) {
-	huge := strings.Repeat("y", maxDiffRunes+500)
+func TestFormatToolAsMarkdown_PreservesFullEditInputs(t *testing.T) {
+	huge := strings.Repeat("y", 2500)
 	tool := &ToolInfo{
 		Name: "search_replace",
 		Type: "write",
@@ -337,15 +339,163 @@ func TestFormatToolAsMarkdown_CapsRunawayDiff(t *testing.T) {
 
 	md := formatToolAsMarkdown(tool)
 
-	// A diff is built from both halves of the replacement, so it can reach twice
-	// the size of the file.
-	if !strings.Contains(md, "(truncated)") {
-		t.Error("a runaway diff should be capped")
+	if strings.Contains(md, "(truncated)") || !strings.Contains(md, "-"+huge) || !strings.Contains(md, "+"+huge) {
+		t.Error("edit input was truncated")
 	}
 }
 
 func TestFormatToolAsMarkdown_Nil(t *testing.T) {
 	if got := formatToolAsMarkdown(nil); got != "" {
 		t.Errorf("nil tool should render empty, got %q", got)
+	}
+}
+
+func TestNative134ToolInputsAndOrder(t *testing.T) {
+	session := loadFixture(t, "session-1.0.34")
+	data, err := GenerateAgentSession(session, "/qa/project space_under")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nativeIDs []string
+	for _, record := range session.Records {
+		for _, call := range record.ToolCalls {
+			nativeIDs = append(nativeIDs, call.ID)
+		}
+		if record.Kind != nil {
+			nativeIDs = append(nativeIDs, record.Kind.ID)
+		}
+	}
+	var renderedIDs []string
+	for _, exchange := range data.Exchanges {
+		for _, msg := range exchange.Messages {
+			if msg.Tool == nil {
+				continue
+			}
+			renderedIDs = append(renderedIDs, msg.Tool.UseID)
+			md := *msg.Tool.FormattedMarkdown
+			switch msg.Tool.Name {
+			case "read_file":
+				if _, ok := msg.Tool.Input["offset"]; ok {
+					for _, want := range []string{"Offset: `1`", "Limit: `15`"} {
+						if !strings.Contains(md, want) {
+							t.Errorf("read omitted %q: %s", want, md)
+						}
+					}
+				}
+			case "grep":
+				for _, want := range []string{"Glob: `*.txt`", "-i: `true`", "-C: `1`", "Result limit: `20`", "<workspace_result"} {
+					if !strings.Contains(md, want) {
+						t.Errorf("grep omitted %q: %s", want, md)
+					}
+				}
+			case "run_terminal_command":
+				if msg.Tool.Input["background"] == true && !strings.Contains(md, "Background: `true`") {
+					t.Error("background setting omitted")
+				}
+			case "monitor":
+				if !strings.Contains(md, "Timeout (ms): `15000`") || !strings.Contains(md, "Persistent: `false`") {
+					t.Error("monitor options omitted")
+				}
+			}
+		}
+	}
+	if !reflect.DeepEqual(renderedIDs, nativeIDs) {
+		t.Fatalf("native order/identity mismatch: %v, want %v", renderedIDs, nativeIDs)
+	}
+}
+
+func TestSpecializedToolKeepsUnknownArguments(t *testing.T) {
+	for _, name := range []string{"read_file", "write", "search_replace", "run_terminal_command", "monitor", "todo_write", "spawn_subagent", "use_tool", "image_gen", "web_search"} {
+		t.Run(name, func(t *testing.T) {
+			tool := &ToolInfo{Name: name, Input: map[string]any{"new_option": "KEEP-THIS"}}
+			if md := formatToolAsMarkdown(tool); !strings.Contains(md, "KEEP-THIS") {
+				t.Fatalf("unknown input lost: %s", md)
+			}
+		})
+	}
+}
+
+func TestDeclaredToolInventoryAlwaysRenders(t *testing.T) {
+	inventory, err := os.ReadFile(filepath.Join("testdata", "session-1.0.34", "tools.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range strings.Fields(string(inventory)) {
+		t.Run(name, func(t *testing.T) {
+			tool := &ToolInfo{Name: name, Input: map[string]any{"unfamiliar_parameter": "preserve me"}, Output: map[string]any{"output": "native failure detail", "status": "error"}}
+			rendered := formatToolAsMarkdown(tool)
+			if !strings.Contains(rendered, "preserve me") || !strings.Contains(rendered, "Error: native failure detail") {
+				t.Fatalf("inventory tool drops unknown parameters or errors: %s", rendered)
+			}
+		})
+	}
+}
+
+func TestResultMetadataAndControlBytes(t *testing.T) {
+	tool := &ToolInfo{Name: "spawn_subagent", Output: map[string]any{"output": "\x1b[31mfinished\x1b[0m\x00\n✓", "subagentStatus": "completed", "durationMs": 1000}}
+	md := formatToolAsMarkdown(tool)
+	for _, want := range []string{"finished", "✓", "completed", "1000"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("result omitted %q: %s", want, md)
+		}
+	}
+	if strings.ContainsAny(md, "\x1b\x00") {
+		t.Fatal("terminal controls leaked into markdown")
+	}
+	tool = &ToolInfo{Name: "web_search", Output: map[string]any{"status": "in_progress"}}
+	if !strings.Contains(formatToolAsMarkdown(tool), "in_progress") {
+		t.Fatal("pending backend tool status lost")
+	}
+}
+
+func TestAdditionalNative134Tools(t *testing.T) {
+	for _, name := range []string{"discovery", "headless", "scheduler"} {
+		t.Run(name, func(t *testing.T) {
+			session := loadFixture(t, "session-1.0.34/"+name)
+			data, err := GenerateAgentSession(session, session.Cwd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var want, got []string
+			for _, r := range session.Records {
+				for _, call := range r.ToolCalls {
+					want = append(want, call.ID)
+				}
+			}
+			for _, e := range data.Exchanges {
+				for _, m := range e.Messages {
+					if m.Tool == nil {
+						continue
+					}
+					got = append(got, m.Tool.UseID)
+					md := *m.Tool.FormattedMarkdown
+					switch m.Tool.Name {
+					case "search_tool":
+						for _, text := range []string{"Discovered tools:", "Server:", "input_schema", "total_hidden_tools"} {
+							if !strings.Contains(md, text) {
+								t.Errorf("discovery dropped %q", text)
+							}
+						}
+					case "ask_user_question":
+						for _, text := range []string{"Question 1: Is this a headless QA session?", "- Yes:", "- No:", "No user is available"} {
+							if !strings.Contains(md, text) {
+								t.Errorf("question dropped %q", text)
+							}
+						}
+					case "workflow":
+						if m.Tool.Output["status"] != "error" || !strings.Contains(md, "Error: User cancelled") || !strings.Contains(md, "SPECSTORY_QA_NONEXISTENT") {
+							t.Errorf("cancellation misrepresented: %s", md)
+						}
+					case "scheduler_list":
+						if !strings.Contains(md, "No scheduled tasks.") {
+							t.Error("empty scheduler result missing")
+						}
+					}
+				}
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("native order changed: %v, want %v", got, want)
+			}
+		})
 	}
 }
