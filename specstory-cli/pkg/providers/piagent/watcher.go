@@ -218,7 +218,13 @@ func (w *piWatcher) ensureWatch() error {
 	return nil
 }
 
-func (w *piWatcher) run(ctx context.Context) (err error) {
+func (w *piWatcher) run(ctx context.Context) error {
+	return w.runWithEvents(ctx, w.fs.Events, w.fs.Errors)
+}
+
+// Keep event delivery separate so tests can drive the real loop and its timers
+// without depending on the OS notification goroutine's scheduling.
+func (w *piWatcher) runWithEvents(ctx context.Context, events <-chan fsnotify.Event, watchErrors <-chan error) (err error) {
 	// The last write may still be in the kernel's event queue at process exit.
 	// A final on-disk scan, on this same worker, also flushes debounced updates.
 	defer func() { err = errors.Join(err, w.reconcile()) }()
@@ -233,7 +239,7 @@ func (w *piWatcher) run(ctx context.Context) (err error) {
 		select {
 		case <-ctx.Done():
 			return nil
-		case event, ok := <-w.fs.Events:
+		case event, ok := <-events:
 			if !ok {
 				return fmt.Errorf("pi: filesystem event stream closed")
 			}
@@ -254,7 +260,7 @@ func (w *piWatcher) run(ctx context.Context) (err error) {
 				}
 				w.pending[event.Name] = time.Now().Add(piDebounceDelay)
 			}
-		case watchErr, ok := <-w.fs.Errors:
+		case watchErr, ok := <-watchErrors:
 			if !ok {
 				return fmt.Errorf("pi: filesystem error stream closed")
 			}
