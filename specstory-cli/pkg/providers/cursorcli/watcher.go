@@ -19,8 +19,8 @@ type fileStamp struct {
 	modified time.Time
 }
 
-// A WAL write need not change the database file or the number of rows.
-// Track both durable database content and the WAL, ignoring read-side shm churn.
+// File metadata is only a discovery/watch-window hint. A WAL write can precede
+// its commit, so committed changes are tracked separately through data_version.
 type databaseStamp [2]fileStamp
 
 func cursorDatabaseStamp(path string) databaseStamp {
@@ -48,6 +48,7 @@ type CursorWatcher struct {
 	watched         map[string]bool
 	stamps          map[string]databaseStamp
 	walEnabled      map[string]bool
+	databases       map[string]*watchedCursorDatabase
 }
 
 // NewCursorWatcher creates a watcher without starting it.
@@ -75,8 +76,10 @@ func (w *CursorWatcher) Start() error {
 	w.watched = make(map[string]bool)
 	w.stamps = make(map[string]databaseStamp)
 	w.walEnabled = make(map[string]bool)
+	w.databases = make(map[string]*watchedCursorDatabase)
 	w.tsCache = NewMessageTimestampCache()
 	if err := w.reconcile(false); err != nil {
+		w.closeDatabases()
 		_ = watcher.Close()
 		return err
 	}
@@ -102,10 +105,15 @@ func (w *CursorWatcher) Stop() {
 
 func (w *CursorWatcher) watchLoop(ctx context.Context) {
 	defer func() { _ = w.watcher.Close() }()
+	defer w.closeDatabases()
 	// Events drive change detection. Reconciliation recovers missed events and
 	// prunes idle directory watches as the store ages.
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
+	// Publishing a WAL commit can happen after its last filesystem event.
+	// Check committed versions without rescanning or parsing session history.
+	commits := time.NewTicker(250 * time.Millisecond)
+	defer commits.Stop()
 	debounce := time.NewTimer(time.Hour)
 	debounce.Stop()
 	defer debounce.Stop()
@@ -132,6 +140,9 @@ func (w *CursorWatcher) watchLoop(ctx context.Context) {
 			}
 			slog.Warn("Cursor watcher event error", "error", err)
 		case <-ticker.C:
+		case <-commits.C:
+			w.checkDatabaseCommits()
+			continue
 		case <-pending:
 			pending = nil
 		}
@@ -208,13 +219,9 @@ func (w *CursorWatcher) reconcile(emit bool) error {
 					w.walEnabled[id] = true
 				}
 			}
-			stamp = cursorDatabaseStamp(path)
-			if !emit || (known && stamp == previous) {
-				w.stamps[id] = stamp
-				continue
-			}
-			if !stamp[0].modified.IsZero() && w.processSessionChanges(id, path) {
-				w.stamps[id] = stamp
+			w.stamps[id] = cursorDatabaseStamp(path)
+			if active && !stamp[0].modified.IsZero() {
+				w.checkDatabaseCommit(id, path, emit)
 			}
 		}
 	}
@@ -222,6 +229,13 @@ func (w *CursorWatcher) reconcile(emit bool) error {
 		if !wanted[path] {
 			_ = w.watcher.Remove(path)
 			delete(w.watched, path)
+		}
+	}
+	for id, db := range w.databases {
+		if !wanted[filepath.Join(w.hashDir, id)] {
+			db.close()
+			delete(w.databases, id)
+			delete(w.walEnabled, id)
 		}
 	}
 	return nil
