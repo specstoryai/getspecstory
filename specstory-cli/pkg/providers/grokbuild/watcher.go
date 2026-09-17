@@ -109,14 +109,14 @@ func WatchGrokProject(projectPath string, callback func(*spi.AgentChatSession)) 
 		watcher: watcher, projectPath: projectPath, sessionsDir: sessionsDir,
 		watched: map[string]bool{}, signatures: map[string]sessionSignature{}, pending: map[string]bool{},
 	}
-	started := time.Now()
 	// Capture before installing watches, then reconcile again after registration.
-	// The start time also catches a write that races the initial stat itself.
-	if err := state.refresh(true, started); err != nil {
+	// File times and the process clock can differ (notably on Windows); only
+	// changes between signatures establish activity.
+	if err := state.refresh(true); err != nil {
 		_ = watcher.Close()
 		return err
 	}
-	if err := state.refresh(false, started); err != nil {
+	if err := state.refresh(false); err != nil {
 		_ = watcher.Close()
 		return err
 	}
@@ -162,7 +162,7 @@ type grokWatchState struct {
 	pending                            map[string]bool
 }
 
-func (s *grokWatchState) refresh(baseline bool, started time.Time) error {
+func (s *grokWatchState) refresh(baseline bool) error {
 	groupDir, err := ResolveGrokProjectDir(s.projectPath)
 	if err != nil {
 		var missing *GrokPathError
@@ -189,13 +189,6 @@ func (s *grokWatchState) refresh(baseline bool, started time.Time) error {
 			previous, known := s.signatures[dir]
 			if !baseline && (!known || previous != signature) {
 				s.pending[dir] = true
-			}
-			if baseline {
-				for _, file := range signature {
-					if file.exists && !file.modified.Before(started) {
-						s.pending[dir] = true
-					}
-				}
 			}
 			current[dir] = signature
 		}
@@ -261,11 +254,11 @@ func (s *grokWatchState) run(ctx context.Context) error {
 		case <-ctx.Done():
 			// fsnotify may still have unread events when the child exits. The final
 			// disk reconciliation captures those writes before callbacks are joined.
-			err := s.refresh(false, time.Time{})
+			err := s.refresh(false)
 			s.flush()
 			return err
 		case <-ticker.C:
-			if err := s.refresh(false, time.Time{}); err != nil {
+			if err := s.refresh(false); err != nil {
 				return err
 			}
 			s.flush()
@@ -277,7 +270,7 @@ func (s *grokWatchState) run(ctx context.Context) error {
 				s.pending[dir] = true
 			}
 			if event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove) {
-				if err := s.refresh(false, time.Time{}); err != nil {
+				if err := s.refresh(false); err != nil {
 					return err
 				}
 			}
@@ -285,7 +278,7 @@ func (s *grokWatchState) run(ctx context.Context) error {
 				debounce.Reset(watchDebounce)
 			}
 		case <-debounce.C:
-			if err := s.refresh(false, time.Time{}); err != nil {
+			if err := s.refresh(false); err != nil {
 				return err
 			}
 			s.flush()
@@ -294,7 +287,7 @@ func (s *grokWatchState) run(ctx context.Context) error {
 				return fmt.Errorf("grok filesystem error stream closed")
 			}
 			slog.Warn("Grok filesystem event error; reconciling", "error", err)
-			if err := s.refresh(false, time.Time{}); err != nil {
+			if err := s.refresh(false); err != nil {
 				return err
 			}
 			s.flush()

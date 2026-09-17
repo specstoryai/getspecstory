@@ -348,7 +348,7 @@ func TestWatcherReconcilesStartupAndDormantSession(t *testing.T) {
 	}
 	defer func() { _ = watcher.Close() }()
 	state := &grokWatchState{watcher: watcher, projectPath: project, sessionsDir: filepath.Join(home, "sessions"), watched: map[string]bool{}, signatures: map[string]sessionSignature{}, pending: map[string]bool{}}
-	if err := state.refresh(true, time.Now()); err != nil {
+	if err := state.refresh(true); err != nil {
 		t.Fatal(err)
 	}
 	if len(state.pending) != 0 {
@@ -358,7 +358,7 @@ func TestWatcherReconcilesStartupAndDormantSession(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, eventsFile), []byte("{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.refresh(false, time.Time{}); err != nil {
+	if err := state.refresh(false); err != nil {
 		t.Fatal(err)
 	}
 	if !state.pending[dir] {
@@ -372,7 +372,7 @@ func TestWatcherReconcilesStartupAndDormantSession(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, updatesFile), []byte("{}\n{}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := state.refresh(false, time.Time{}); err != nil {
+	if err := state.refresh(false); err != nil {
 		t.Fatal(err)
 	}
 	if !state.pending[dir] {
