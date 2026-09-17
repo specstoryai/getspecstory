@@ -99,7 +99,7 @@ func (p *Provider) Check(customCommand string) (result spi.CheckResult) {
 		displayCmd = cmdName
 	}
 	attempt := analytics.CheckAttempt{Provider: providerID, CustomCommand: isCustom, CommandPath: displayCmd, VersionFlag: versionFlag}
-	resolved, err := exec.LookPath(cmdName)
+	resolved, err := spi.LookPathForCheck(cmdName)
 	attempt.ResolvedPath = resolved
 	if err != nil {
 		errorType := spi.ClassifyCheckError(err)
@@ -107,6 +107,7 @@ func (p *Provider) Check(customCommand string) (result spi.CheckResult) {
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, ""),
 		}
 	}
@@ -117,12 +118,13 @@ func (p *Provider) Check(customCommand string) (result spi.CheckResult) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		slog.Error("Check: Pi version probe failed", "path", resolved, "error", err, "stderr", stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolved,
 			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, stderrOutput),
 		}

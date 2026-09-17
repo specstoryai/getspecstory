@@ -41,21 +41,37 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check for global database
 	globalDbPath, err := GetGlobalDatabasePath()
 	if err != nil {
-		analytics.TrackCheckFailure(attempt, "database_not_found", err.Error(), "")
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     "",
-			ErrorMessage: fmt.Sprintf("Cursor IDE global database not found: %v", err),
+			ErrorMessage: fmt.Sprintf("Cannot locate Cursor IDE global database: %v", err),
 		}
+	}
+	// Preserve native permission errors before SQLite translates them into its
+	// own error codes. Resolving the path alone does not prove it is readable.
+	file, err := os.Open(globalDbPath)
+	if err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{ErrorType: errorType, Location: globalDbPath,
+			ErrorMessage: fmt.Sprintf("Cannot read Cursor IDE global database: %v", err)}
+	}
+	if err := file.Close(); err != nil {
+		slog.Warn("Failed to close database file during check", "error", err)
 	}
 
 	// Try to open the database
 	db, err := OpenDatabase(globalDbPath)
 	if err != nil {
-		analytics.TrackCheckFailure(attempt, "database_open_failed", err.Error(), "")
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     globalDbPath,
 			ErrorMessage: fmt.Sprintf("Failed to open global database: %v", err),
@@ -66,6 +82,14 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 			slog.Warn("Failed to close database during check", "error", closeErr)
 		}
 	}()
+	// sql.Open is lazy; a schema query actually opens and validates the database.
+	var tableCount int
+	if err := db.QueryRow("SELECT count(*) FROM sqlite_master").Scan(&tableCount); err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{ErrorType: errorType, Location: globalDbPath,
+			ErrorMessage: fmt.Sprintf("Cannot read Cursor IDE global database: %v", err)}
+	}
 
 	slog.Debug("Cursor IDE check successful", "dbPath", globalDbPath)
 

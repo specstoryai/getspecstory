@@ -32,31 +32,34 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustom := customCommand != ""
 
 	attempt := analytics.CheckAttempt{Provider: "gemini", CustomCommand: isCustom, CommandPath: cmdName, VersionFlag: "--version"}
-	resolvedPath, err := exec.LookPath(cmdName)
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
 	attempt.ResolvedPath = resolvedPath
 	if err != nil {
-		errorMessage := buildGeminiCheckErrorMessage("not_found", cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, "not_found", err.Error(), "")
+		errorType := spi.ClassifyCheckError(err)
+		errorMessage := buildGeminiCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
 	}
 
-	cmd := exec.Command(cmdName, "--version")
+	cmd := exec.Command(resolvedPath, "--version")
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		errorMessage := buildGeminiCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(stderr.String()))
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}

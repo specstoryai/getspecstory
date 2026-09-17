@@ -166,7 +166,7 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 - `spi.CapRunes` for truncation. Never slice a string by bytes.
 - Compare a sentinel error with `errors.Is` and match an error type with `errors.As`. Never `err == io.EOF` or `err.(*exec.ExitError)`: a wrapped error fails both, and wrapping gets added later by someone who has no reason to look for a bare comparison.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName` for tool rendering.
-- `spi.ClassifyCheckError` and the `spi.CheckErrorNotFound`, `spi.CheckErrorPermissionDenied`, `spi.CheckErrorUnknown` constants for `Check` failures. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
+- `spi.LookPathForCheck` for binary lookup, `spi.ClassifyCheckError` for lookup/storage errors, and `spi.ClassifyCheckExecutionError` for probe failures after the binary was found. Populate `CheckResult.ErrorType` with the same `spi.CheckError*` value sent to analytics; leave it empty on success. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
 - `analytics.CheckAttempt` populated once per `Check`, with the event emitted by `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`. No inline `analytics.TrackEvent` calls in a provider.
 - `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand, or `spi.EnsureResumeFlagArgs` when it uses a flag.
 - `spi.AgentExitError` to report a non-zero agent exit. Never call `os.Exit` inside a provider; it skips the final session save (the reason is in `pkg/spi/exit.go`).
@@ -254,10 +254,11 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 
 ### Check and analytics
 
-- `Check` resolves the binary with `exec.LookPath`, probes `--version` capturing stdout and stderr, classifies failures with `spi.ClassifyCheckError`, reports `"unknown"` when the binary prints nothing, and emits exactly one event per outcome through `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`.
+- `Check` resolves the binary with `spi.LookPathForCheck`, probes `--version` capturing stdout and stderr, reports `"unknown"` when the binary prints nothing, and emits exactly one event per outcome through `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`.
+- Every failed `CheckResult` includes an `ErrorType` and a helpful `ErrorMessage`. Reserve `spi.CheckErrorNotFound` for an absent binary or IDE store: the CLI presents it as informational, except for a missing custom `-c` command. Permission errors, failed probes, and invalid stores remain failures. Use `spi.ClassifyCheckExecutionError` after a successful lookup so a broken interpreter/loader is not mistaken for an uninstalled agent.
 - The failure message names the command actually run, including a custom one.
 - Providers emit no other analytics. Hidden flags get none.
-- IDE providers probe the store, not a binary, and emit one check event per outcome in the shape the existing IDE providers use.
+- IDE providers probe the store, not a binary, preserve filesystem errors for classification, and emit one check event per outcome. Verify the store is readable; merely resolving its path or obtaining a lazy database handle does not prove it is usable.
 
 ### Logging
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -278,6 +279,74 @@ func TestWatchAgentRestart(t *testing.T) {
 				if !received {
 					t.Fatalf("watch %d delivered no live update", attempt+1)
 				}
+			}
+		})
+	}
+}
+
+// Exercise the public Check contract for every CLI provider with the same real
+// filesystem/process failures, so one provider cannot silently soften a broken install.
+func TestCLIProviderCheckErrorTypes(t *testing.T) {
+	providers := []spi.Provider{
+		antigravitycli.NewProvider(), claudecode.NewProvider(), codexcli.NewProvider(),
+		cursorcli.NewProvider(), deepseektui.NewProvider(), droidcli.NewProvider(),
+		geminicli.NewProvider(), musecode.NewProvider(), piagent.NewProvider(), qwencode.NewProvider(),
+	}
+	for _, p := range providers {
+		t.Run(p.Name(), func(t *testing.T) {
+			for _, tt := range []struct {
+				name, script, want string
+				mode               os.FileMode
+			}{
+				{"missing", "", spi.CheckErrorNotFound, 0},
+				{"permission denied", "#!/bin/sh\necho version\n", spi.CheckErrorPermissionDenied, 0600},
+				{"failed probe", "#!/bin/sh\necho broken >&2\nexit 7\n", spi.CheckErrorUnknown, 0700},
+				{"missing interpreter", "#!/nonexistent-specstory-test-interpreter\n", spi.CheckErrorUnknown, 0700},
+				{"working", "#!/bin/sh\necho '1.2.3 (Claude Code)'\n", "", 0700},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					if runtime.GOOS == "windows" && tt.script != "" {
+						t.Skip("POSIX executable fixture")
+					}
+					path := filepath.Join(t.TempDir(), "agent")
+					if tt.script != "" {
+						if err := os.WriteFile(path, []byte(tt.script), tt.mode); err != nil {
+							t.Fatal(err)
+						}
+					}
+					result := p.Check(`"` + path + `"`)
+					if result.ErrorType != tt.want || result.Success != (tt.want == "") {
+						t.Fatalf("Check = %+v, want ErrorType %q", result, tt.want)
+					}
+					if !result.Success && result.ErrorMessage == "" {
+						t.Fatal("failed check has no explanation")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestCLIProviderInvalidVersionOutput(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX executable fixture")
+	}
+	path := filepath.Join(t.TempDir(), "agent")
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		provider spi.Provider
+		want     string
+	}{
+		{claudecode.NewProvider(), spi.CheckErrorUnexpectedOutput},
+		{cursorcli.NewProvider(), spi.CheckErrorNoOutput},
+		{codexcli.NewProvider(), spi.CheckErrorNoOutput},
+	} {
+		t.Run(tt.provider.Name(), func(t *testing.T) {
+			result := tt.provider.Check(`"` + path + `"`)
+			if result.Success || result.ErrorType != tt.want {
+				t.Fatalf("empty version output = %+v, want %q", result, tt.want)
 			}
 		})
 	}

@@ -71,6 +71,14 @@ specstory help <command>
 specstory help run
 ```
 
+Check agent availability:
+
+```zsh
+specstory check
+```
+
+Missing optional agents (or IDE session storage) are shown as informational and skipped. Permission problems and failed version or storage checks are shown as errors. Use `specstory check <provider>` for details, or add `-c "/path/to/agent"` to check a custom command. A missing custom command is treated as an error. Exit codes are unchanged: a single-provider check fails if that provider is unavailable; a multi-provider check fails if none are available. Invalid configuration also fails the check.
+
 Interactive auto-save mode:
 
 ```zsh

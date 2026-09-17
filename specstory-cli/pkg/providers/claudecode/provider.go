@@ -168,17 +168,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustomCommand := customCommand != ""
 
 	// Resolve the actual path of the command
-	resolvedPath := claudeCmd
-	if !filepath.IsAbs(claudeCmd) {
-		// Try to find the command in PATH
-		if path, err := exec.LookPath(claudeCmd); err == nil {
-			resolvedPath = path
-		}
-	}
+	resolvedPath, lookupErr := spi.LookPathForCheck(claudeCmd)
 
 	// Run claude -v to check version (ignore custom args for version check)
 	attempt := analytics.CheckAttempt{Provider: "claude", CustomCommand: isCustomCommand, CommandPath: claudeCmd, ResolvedPath: resolvedPath, VersionFlag: "-v"}
-	cmd := exec.Command(claudeCmd, "-v")
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, claudeCmd, isCustomCommand, ""),
+		}
+	}
+	cmd := exec.Command(resolvedPath, "-v")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
@@ -186,7 +189,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
@@ -195,6 +198,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -204,13 +208,15 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check if output contains "Claude Code"
 	output := out.String()
 	if !strings.Contains(output, "(Claude Code)") {
+		errorType := spi.CheckErrorUnexpectedOutput
 		// Track unexpected output error
-		analytics.TrackCheckFailure(attempt, "unexpected_output", strings.TrimSpace(output), strings.TrimSpace(errOut.String()))
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorUnexpectedOutput, strings.TrimSpace(output), strings.TrimSpace(errOut.String()))
 
-		errorMessage := buildCheckErrorMessage("unexpected_output", claudeCmd, isCustomCommand, output)
+		errorMessage := buildCheckErrorMessage(spi.CheckErrorUnexpectedOutput, claudeCmd, isCustomCommand, output)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,

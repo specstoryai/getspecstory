@@ -620,7 +620,8 @@ func FindWindowsAppDataPathFromWSL(elem ...string) string {
 // "User", "workspaceStorage"). ok is false when no override is set or when the
 // derived path does not exist. The missing-path case logs a warning rather than
 // failing hard so a stale override doesn't silently kill the provider — callers
-// are expected to fall through to OS-default discovery.
+// are expected to fall through to OS-default discovery. Other access errors keep
+// the override selected so callers surface the failure instead of hiding it.
 func ResolveUserDataDirOverride(override, providerID string, elem ...string) (string, bool) {
 	if override == "" {
 		return "", false
@@ -628,6 +629,9 @@ func ResolveUserDataDirOverride(override, providerID string, elem ...string) (st
 	candidate := filepath.Join(append([]string{override}, elem...)...)
 	if _, err := os.Stat(candidate); err == nil {
 		slog.Debug("Using --user-data-dir override", "provider", providerID, "path", candidate)
+		return candidate, true
+	} else if !os.IsNotExist(err) {
+		slog.Warn("Cannot access --user-data-dir override", "provider", providerID, "path", candidate, "error", err)
 		return candidate, true
 	}
 	slog.Warn("--user-data-dir override path missing; falling back to OS default",

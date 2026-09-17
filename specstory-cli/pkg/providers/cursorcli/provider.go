@@ -92,17 +92,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustomCommand := customCommand != ""
 
 	// Resolve the actual path of the command
-	resolvedPath := cursorCmd
-	if !filepath.IsAbs(cursorCmd) {
-		// Try to find the command in PATH
-		if path, err := exec.LookPath(cursorCmd); err == nil {
-			resolvedPath = path
-		}
-	}
+	resolvedPath, lookupErr := spi.LookPathForCheck(cursorCmd)
 
 	// Run cursor-agent --version to check version
 	attempt := analytics.CheckAttempt{Provider: "cursor", CustomCommand: isCustomCommand, CommandPath: cursorCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
-	cmd := exec.Command(cursorCmd, "--version")
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, cursorCmd, isCustomCommand, ""),
+		}
+	}
+	cmd := exec.Command(resolvedPath, "--version")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
@@ -110,7 +113,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
@@ -119,6 +122,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -128,6 +132,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check if we got any output
 	output := strings.TrimSpace(out.String())
 	if output == "" {
+		errorType := spi.CheckErrorNoOutput
 		// Track unexpected output error
 		analytics.TrackCheckFailure(attempt, spi.CheckErrorNoOutput, "", strings.TrimSpace(errOut.String()))
 
@@ -135,6 +140,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,

@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -110,23 +109,32 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	codexCmd, _ := parseCodexCommand(customCommand)
 	isCustomCommand := customCommand != ""
 
-	resolvedPath := codexCmd
-	if !filepath.IsAbs(codexCmd) {
-		if path, err := exec.LookPath(codexCmd); err == nil {
-			resolvedPath = path
+	resolvedPath, lookupErr := spi.LookPathForCheck(codexCmd)
+
+	attempt := analytics.CheckAttempt{Provider: "codex", CustomCommand: isCustomCommand, CommandPath: codexCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, ""),
 		}
 	}
-
-	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(codexCmd)
-	attempt := analytics.CheckAttempt{Provider: "codex", CustomCommand: isCustomCommand, CommandPath: codexCmd, ResolvedPath: resolvedPath, VersionFlag: versionFlag}
+	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(resolvedPath)
+	attempt.VersionFlag = versionFlag
 	if err != nil {
 		errorType := classifyCheckError(err)
+		if errorType == spi.CheckErrorNotFound {
+			errorType = spi.CheckErrorUnknown
+		}
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -141,6 +149,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,

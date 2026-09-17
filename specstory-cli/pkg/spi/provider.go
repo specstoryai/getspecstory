@@ -13,7 +13,8 @@ import (
 type CheckResult struct {
 	Success      bool   // Whether the check succeeded
 	Version      string // Version of the provider (empty on failure)
-	Location     string // File path/location of the provider executable
+	Location     string // File path/location of the provider executable or IDE storage
+	ErrorType    string // CheckError* classification on failure; empty on success
 	ErrorMessage string // Error message if check failed (empty on success)
 }
 
