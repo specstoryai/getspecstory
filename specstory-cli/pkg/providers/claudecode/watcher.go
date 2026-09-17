@@ -19,7 +19,7 @@ import (
 var (
 	watcherCtx      context.Context
 	watcherCancel   context.CancelFunc
-	watcherWg       sync.WaitGroup
+	watcherWg       = new(sync.WaitGroup)
 	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
 	watcherDebugRaw bool                        // Whether to write debug raw data files
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
@@ -93,15 +93,15 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 
 // StopWatcher gracefully stops the watcher goroutine
 func StopWatcher() {
-	// Save any session the shell gate is holding back before the callback is
-	// cleared by the caller's deferred ClearWatcherCallback
-	flushDeferredScans()
 	slog.Info("StopWatcher: Signaling watcher to stop")
 	if watcherCancel != nil {
 		watcherCancel()
 	}
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
 	watcherWg.Wait()
+	// No event or deadline scans can add work now. Save synchronously before
+	// the caller clears the callback and closes its persistence dependencies.
+	flushDeferredScans()
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
@@ -337,6 +337,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 			case <-ticker.C:
 				reconcile(true)
+				flushExpiredDeferredScans(time.Now())
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -361,7 +362,8 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 
 // scanJSONLFilesWithOptions is scanJSONLFiles with the shell gate made explicit:
 // force saves the targeted session even while a shell tool call is open. The
-// gate's fallback timer and the shutdown flush use it; event-driven scans do not.
+// deadline and shutdown flushes and final post-exit sweep use it; event scans do
+// not. Call only on the watcher loop, or after StopWatcher has joined it.
 func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force bool) {
 	// Ensure logs are flushed even if we panic
 	defer func() {

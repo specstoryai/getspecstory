@@ -3,7 +3,6 @@ package claudecode
 import (
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -16,18 +15,18 @@ import (
 // files show up as edits made by the command.
 //
 // The gate below defers a session's save while a shell tool call is still open
-// (a tool_use with no tool_result yet) and lets the save through on the next
-// JSONL event, which is normally the tool_result itself. Only shell tools are
-// gated: other tools do not trigger the diff, and gating them would only delay
-// the transcript.
+// (a tool_use with no tool_result yet) and saves on an event once all shell
+// calls have results. Only shell tools are gated: other tools do not trigger
+// the diff, and gating them would only delay the transcript.
 //
 // See https://github.com/specstoryai/getspecstory/issues/317 for the full
 // analysis and the reproduction.
 
-// shellGateMaxWait bounds how long a session save can stay deferred. Claude
-// Code always closes a tool call with a tool_result, even when interrupted, so
-// the timer only fires when Claude was killed mid-command. It is long on
-// purpose: a flush during a still-running command would be attributed to it.
+// shellGateMaxWait is the fallback deadline, checked on the watcher tick.
+// Prefer persistence over suppressing false edits indefinitely: elapsed time
+// cannot distinguish a dead session from a live, long-running command. A forced
+// save may therefore appear as a Bash edit after this deadline. Sync and final
+// post-exit exports bypass the gate entirely.
 const shellGateMaxWait = 5 * time.Minute
 
 // shellToolNames are the Claude Code tools whose calls trigger the edit diff.
@@ -105,69 +104,60 @@ func openShellToolUses(records []JSONLRecord) []string {
 	return ids
 }
 
-// deferredScans tracks session files whose save was deferred by the shell gate,
-// keyed by JSONL path, with the fallback timer that forces the save if no
-// further event arrives.
+// deferredScan records the original deadline so repeated events cannot defer
+// persistence indefinitely.
 type deferredScan struct {
 	claudeProjectDir string
-	timer            *time.Timer
+	deadline         time.Time
 }
 
-var (
-	deferredScansMu sync.Mutex
-	deferredScans   = make(map[string]deferredScan)
-)
+// Only the watcher loop accesses this registry while running. StopWatcher joins
+// that loop before flushing it. Deadlines are checked in the same loop as event
+// scans, so no timer goroutines can race conversion, saves, or shutdown.
+var deferredScans = make(map[string]deferredScan)
 
-// deferScan records that a scan of file was skipped because a shell tool call
-// is open, arming the fallback timer if none is running. An existing timer is
-// left alone so a stream of events during one long command cannot postpone the
-// fallback indefinitely.
 func deferScan(claudeProjectDir, file string, openIDs []string) {
-	deferredScansMu.Lock()
-	defer deferredScansMu.Unlock()
-
-	if _, armed := deferredScans[file]; armed {
+	if _, pending := deferredScans[file]; pending {
 		return
 	}
 	slog.Info("shellGate: deferring session save while shell tool calls are open",
 		"file", file,
 		"openToolUses", openIDs)
-	timer := time.AfterFunc(shellGateMaxWait, func() {
-		slog.Warn("shellGate: no tool_result arrived within the wait window, saving anyway",
-			"file", file,
-			"maxWait", shellGateMaxWait)
-		scanJSONLFilesWithOptions(claudeProjectDir, file, true)
-	})
-	deferredScans[file] = deferredScan{claudeProjectDir: claudeProjectDir, timer: timer}
+	deferredScans[file] = deferredScan{
+		claudeProjectDir: claudeProjectDir,
+		deadline:         time.Now().Add(shellGateMaxWait),
+	}
 }
 
-// clearDeferredScan stops the fallback timer for file, if any, because its
-// scan went through.
 func clearDeferredScan(file string) {
-	deferredScansMu.Lock()
-	defer deferredScansMu.Unlock()
+	delete(deferredScans, file)
+}
 
-	if entry, ok := deferredScans[file]; ok {
-		entry.timer.Stop()
-		delete(deferredScans, file)
+// flushExpiredDeferredScans runs on the watcher loop, after event processing.
+// Looking up current entries rather than queuing timeout callbacks means a
+// completed call's old deadline cannot force a save for a later call.
+func flushExpiredDeferredScans(now time.Time) {
+	for file, entry := range deferredScans {
+		if !now.Before(entry.deadline) {
+			slog.Warn("shellGate: deferral deadline expired; saving even if shell calls remain open",
+				"file", file, "maxWait", shellGateMaxWait)
+			flushDeferredScan(file, entry)
+		}
 	}
 }
 
-// flushDeferredScans forces a save of every deferred session. Called on
-// shutdown, while the session callback is still registered, so the last state
-// of a session is never lost to the gate.
+// flushDeferredScans attempts to save every deferred session after the watcher
+// has stopped, while its callback is still installed.
 func flushDeferredScans() {
-	deferredScansMu.Lock()
-	pending := make(map[string]string, len(deferredScans))
 	for file, entry := range deferredScans {
-		entry.timer.Stop()
-		pending[file] = entry.claudeProjectDir
-	}
-	deferredScans = make(map[string]deferredScan)
-	deferredScansMu.Unlock()
-
-	for file, claudeProjectDir := range pending {
 		slog.Info("shellGate: flushing deferred session save on shutdown", "file", file)
-		scanJSONLFilesWithOptions(claudeProjectDir, file, true)
+		flushDeferredScan(file, entry)
 	}
+}
+
+func flushDeferredScan(file string, entry deferredScan) {
+	// Consume this deadline even if parsing fails; a subsequent file event can
+	// retry, without repeatedly forcing a broken file on every watcher tick.
+	clearDeferredScan(file)
+	scanJSONLFilesWithOptions(entry.claudeProjectDir, file, true)
 }
