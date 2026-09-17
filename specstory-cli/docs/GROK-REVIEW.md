@@ -4,7 +4,7 @@ This is an implementation and QA review, with fixes made directly on `grok-build
 
 The review follows [NEW-PROVIDER-REVIEW.md](NEW-PROVIDER-REVIEW.md), the [provider guide](../NEW-PROVIDER-GUIDE.md), the [SPI contract](../pkg/spi/provider.go), and the repository [PR review checklist](../.claude/commands/pr-review.md). The table records the source of each decision, rather than treating a sibling implementation or bot recommendation as sufficient proof.
 
-**Status: implementation and local QA complete; final pushed-revision CI and Copilot reconciliation pending.** Native media and scheduler mutation success paths are unverified because the approved run exhausted the Grok account allowance before those calls. The remaining native-success coverage limits are listed below.
+**Implementation review complete: 32 numbered fixes, with local QA passing.** Merge recommendation: proceed when the [latest PR checks](https://github.com/specstoryai/getspecstory/pull/270/checks) are green and no new review finding remains unresolved. The final code revision covered here is `c2ebf9a`; subsequent report-only edits do not change that implementation. Native media and scheduler mutation success paths are unverified because the approved run exhausted the Grok account allowance before those calls. The remaining native-success coverage limits are listed below.
 
 “Wrong” below means a demonstrated mismatch with an explicit user requirement, repository contract, observed native record, or acceptance test—not a preference for a different coding style. Copilot identified candidate defects; the contract or native evidence established whether they were defects. Rows 14 and 28 distinguish a regression introduced during this review and an existing shared CLI defect, respectively. The inventory includes changes made after the initial reviewed revision; it does not claim authorship of the original provider.
 
@@ -61,10 +61,24 @@ The checked-in evidence is [Grok format notes](../pkg/providers/grokbuild/GROK-F
 | Minimal native reconstruction | Real Grok loaded plain user/assistant records with no system record or historical assistant model, recalled `ORANGE-OTTER-73`, and grew the same transcript. Removing summary failed; removing transcript after native updates existed still recovered the conversation. Required summary title/model fields were isolated experimentally. |
 | Claude → Grok | Real source `cde4d8fe-da63-4715-a5b3-9eb53dff7bc0` included thinking, Bash activity, and `/context`. Native target `56b8123d-d890-4342-9278-9c976a3bd9b2` recalled `BLUE-BADGER-91`. Exact comparison with `spi.PrepareTurns` verified all 4 prepared turns, migration note first, no source command scaffolding, then 2 continuation turns. |
 | Grok → Claude | Source `01a0b14e-1cd4-7051-aa41-f25319cef01b` included thinking, 14 local calls and a pending backend search; native `/context` added no replayable records. Final target `f8d23036-2f70-4597-94d0-fdf452cb39e2` recalled the Unicode shell result and missing-file error. All 47 prepared turns match exactly in order, then 2 continuation turns. Claude 2.1.273 was used. |
-| Automated checks | `go test -race ./pkg/providers/grokbuild` passes, including captured cancellation and runtime watcher failure tests. `go test ./...`, `golangci-lint run` (0 issues), `GOOS=windows GOARCH=amd64 go build ./...`, and `GOOS=windows GOARCH=amd64 go vet ./...` all passed after the final code edits, including the later Copilot regressions. Final pushed-revision CI is still required. |
+| Automated checks | `go test -race ./pkg/providers/grokbuild` passes, including captured cancellation and runtime watcher failure tests. `go test ./...`, `golangci-lint run` (0 issues), `GOOS=windows GOARCH=amd64 go build ./...`, and `GOOS=windows GOARCH=amd64 go vet ./...` all passed after the final code edits, including the later Copilot regressions. The [PR checks](https://github.com/specstoryai/getspecstory/pull/270/checks) are the final merge gate, including native Windows tests and Linux-hosted cross-compilation of all release targets. |
 | Factory scripts | An isolated install reports exactly `1.0.34`; two harness inventories agree at 27 names. Simulated unreachable channel, bogus pinned version (404), and unset named credential all return nonzero with no version/inventory on stdout. |
 
-The earlier Windows CI failure on `26309c6` was caused by a fix introduced in this review, not the original provider. Commit `e432c5a` corrected it and passed Windows/Linux tests, lint and CodeQL. Those earlier checks do not validate later edits; final revision CI is required before the readiness decision.
+The earlier Windows CI failure on `26309c6` was caused by a fix introduced in this review, not the original provider. Commit `e432c5a` corrected it and passed Windows/Linux tests, lint and CodeQL. Code revision `82e0e63` also passed all five CI checks (Linux tests/release cross-builds, Windows tests, lint, CodeQL analysis and CodeQL). Those earlier checks do not validate the three later Copilot fixes in `c2ebf9a`; their local regressions and full checks passed, and the latest PR checks remain the final gate.
+
+## Change and review ledger
+
+| Commit | Scope |
+|---|---|
+| [`e6dc180`](https://github.com/specstoryai/getspecstory/commit/e6dc180) | Parsing, identity/version, timestamps, bounded records, raw/debug snapshots, metadata discovery, resume flags and check logging. |
+| [`26309c6`](https://github.com/specstoryai/getspecstory/commit/26309c6) | Restartable watcher, reconciliation, final draining and initial report. |
+| [`e432c5a`](https://github.com/specstoryai/getspecstory/commit/e432c5a) | Review-induced Windows startup-clock regression. |
+| [`1fb5ec2`](https://github.com/specstoryai/getspecstory/commit/1fb5ec2) | Shared CLI default-provider correction. |
+| [`31b2d0e`](https://github.com/specstoryai/getspecstory/commit/31b2d0e) | Baseline 1.0.34 native QA, rendering/outcomes, canonical/scoped paths, sidecar debug, reconstruction, factory scripts, captured evidence and release documentation. |
+| [`82e0e63`](https://github.com/specstoryai/getspecstory/commit/82e0e63) | Remove unsupported reasoning/backend model attribution. |
+| [`c2ebf9a`](https://github.com/specstoryai/getspecstory/commit/c2ebf9a) | Effective child cwd, direct-lookup error propagation, child-session watch exclusion and their regressions. |
+
+The six initial Copilot findings and nine later findings were each answered and resolved. Fourteen led to fixes (including removal of an unobserved alias); the remaining coverage-count finding referred to an older PR description, which had already been corrected to 27 declared tools, 18 distinct invoked tools and 26 audited blocks. Only finding-resolution replies were posted; the PR description was updated separately with evidence and limits.
 
 ## Explicit limits and release follow-ups
 
