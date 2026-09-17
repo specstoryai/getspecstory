@@ -487,3 +487,20 @@ func TestInvalidSummaryIDCannotChooseDebugPath(t *testing.T) {
 		})
 	}
 }
+
+func TestGlobalDiscoveryRequiresNativeStoreLayout(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	native := seedSession(t, home, project, "session-basic", id)
+	group := filepath.Dir(native)
+	// All copies have valid native contents and UUID summary IDs. Only their
+	// position in the store distinguishes them from the real session.
+	for _, dir := range []string{group, filepath.Join(group, "not-a-session"), filepath.Join(native, "archive", id), filepath.Join(home, "sessions", "extra", filepath.Base(group), id)} {
+		copyFixture(t, "session-basic", dir)
+	}
+	refs, err := NewProvider().ListAllAgentChatSessions()
+	if err != nil || len(refs) != 1 || refs[0].NativePath != filepath.Join(native, chatHistoryFile) {
+		t.Fatalf("non-native store paths became sessions: %v, %v", refs, err)
+	}
+}

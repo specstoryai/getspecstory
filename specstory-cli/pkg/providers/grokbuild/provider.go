@@ -334,11 +334,17 @@ func (p *Provider) ListAllAgentChatSessionsProgress(reporter *spi.ScanReporter) 
 		if filepath.Base(path) != chatHistoryFile {
 			return nil, nil
 		}
-		dir := filepath.Dir(path)
-		// Anything under a subagents/ directory belongs to a parent session.
-		if filepath.Base(filepath.Dir(dir)) == subagentsDir {
+		relative, err := filepath.Rel(sessionsDir, path)
+		if err != nil {
+			return nil, err
+		}
+		parts := strings.Split(relative, string(os.PathSeparator))
+		// A matching filename in an archive, nested child directory, or at
+		// group level is not a native top-level session.
+		if len(parts) != 3 || parts[0] == ".." || !uuidLike.MatchString(parts[1]) {
 			return nil, nil
 		}
+		dir := filepath.Dir(path)
 
 		session, err := parseSessionDir(dir, true)
 		if err != nil {
