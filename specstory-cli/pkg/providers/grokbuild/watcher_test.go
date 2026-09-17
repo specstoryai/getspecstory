@@ -1,8 +1,10 @@
 package grokbuild
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -249,5 +251,131 @@ func TestTriggerCallback_NilSafe(t *testing.T) {
 
 	if called {
 		t.Error("callback invoked for a nil session")
+	}
+}
+
+func TestWatcherRestartAndShutdownDrain(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	dir := seedSession(t, home, project, "session-basic", id)
+	t.Cleanup(StopWatcher)
+	for cycle := range 2 {
+		delivered := make(chan *spi.AgentChatSession, 10)
+		if err := WatchGrokProject(project, func(s *spi.AgentChatSession) { delivered <- s }); err != nil {
+			t.Fatal(err)
+		}
+		// Stopping an unchanged watcher must not manufacture session activity.
+		StopWatcher()
+		if len(delivered) != 0 {
+			t.Fatal("startup or idle shutdown emitted an unchanged session")
+		}
+		if err := WatchGrokProject(project, func(s *spi.AgentChatSession) { delivered <- s }); err != nil {
+			t.Fatal(err)
+		}
+		file, err := os.OpenFile(filepath.Join(dir, chatHistoryFile), os.O_APPEND|os.O_WRONLY, 0o600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := fmt.Sprintf("final reply %d", cycle)
+		_, err = fmt.Fprintf(file, "{\"type\":\"assistant\",\"content\":%q}\n", text)
+		_ = file.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// No sleep: this specifically exercises cancellation before fsnotify delivery.
+		StopWatcher()
+		if len(delivered) == 0 {
+			t.Fatal("shutdown lost the final native write")
+		}
+		var latest *spi.AgentChatSession
+		for len(delivered) > 0 {
+			latest = <-delivered
+		}
+		if !strings.Contains(latest.RawData, text) {
+			t.Fatal("callback did not finish with the final reply")
+		}
+	}
+}
+
+func TestWatcherAdoptsLateStoreWithOldFiles(t *testing.T) {
+	home := withFakeGrokHome(t)
+	// Multiple missing ancestors must not disable startup.
+	home = filepath.Join(home, "new", "nested", "grok")
+	t.Setenv("GROK_HOME", home)
+	project := t.TempDir()
+	delivered := make(chan *spi.AgentChatSession, 10)
+	if err := WatchGrokProject(project, func(s *spi.AgentChatSession) { delivered <- s }); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(StopWatcher)
+	dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
+	old := time.Now().Add(-24 * time.Hour)
+	for _, name := range []string{chatHistoryFile, summaryFile, updatesFile, eventsFile} {
+		if err := os.Chtimes(filepath.Join(dir, name), old, old); err != nil {
+			t.Fatal(err)
+		}
+	}
+	select {
+	case session := <-delivered:
+		if !strings.Contains(session.RawData, "read the README") {
+			t.Fatal("late session content missing")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("late store was not adopted through filesystem events")
+	}
+	StopWatcher()
+}
+
+func TestWatcherRejectsInvalidStore(t *testing.T) {
+	home := withFakeGrokHome(t)
+	if err := os.WriteFile(filepath.Join(home, "sessions"), []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := WatchGrokProject(t.TempDir(), nil); err == nil {
+		StopWatcher()
+		t.Fatal("invalid store was silently accepted")
+	}
+}
+
+func TestWatcherReconcilesStartupAndDormantSession(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = watcher.Close() }()
+	state := &grokWatchState{watcher: watcher, projectPath: project, sessionsDir: filepath.Join(home, "sessions"), watched: map[string]bool{}, signatures: map[string]sessionSignature{}, pending: map[string]bool{}}
+	if err := state.refresh(true, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if len(state.pending) != 0 {
+		t.Fatal("pre-existing session counted as activity")
+	}
+	// Model an edit between the baseline and completion of watch registration.
+	if err := os.WriteFile(filepath.Join(dir, eventsFile), []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.refresh(false, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	if !state.pending[dir] {
+		t.Fatal("initialization race lost the sidecar change")
+	}
+	delete(state.pending, dir)
+	// Periodic reconciliation must also find a resumed old session outside the
+	// bounded watch set, even when no directory entry is created.
+	_ = watcher.Remove(dir)
+	delete(state.watched, dir)
+	if err := os.WriteFile(filepath.Join(dir, updatesFile), []byte("{}\n{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := state.refresh(false, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	if !state.pending[dir] {
+		t.Fatal("unwatched sidecar change was lost")
 	}
 }

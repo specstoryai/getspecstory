@@ -2,6 +2,7 @@ package grokbuild
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,8 +20,7 @@ import (
 // Why: on macOS fsnotify's kqueue backend holds an open file descriptor per file
 // in a watched directory, and a Grok session directory holds around twenty files.
 // Watching a project's whole history would pin descriptors in proportion to it,
-// which is the failure that exhausted the system file table for Codex and Claude
-// (changelog v2.6.0). Recent sessions are the only ones that receive writes.
+// so older sessions are monitored by bounded periodic reconciliation instead.
 const maxWatchedSessions = 20
 
 // watchDebounce collapses the burst of writes a single turn produces. Grok
@@ -32,7 +32,8 @@ const watchDebounce = 300 * time.Millisecond
 const refreshInterval = 30 * time.Second
 
 var (
-	watcherCtx           context.Context
+	watcherLifecycle     sync.Mutex
+	watcherErrors        chan error
 	watcherCancel        context.CancelFunc
 	watcherWg            sync.WaitGroup
 	watcherCallback      func(*spi.AgentChatSession)
@@ -40,10 +41,6 @@ var (
 	watcherDebugRaw      bool
 	watcherWorkspaceRoot string
 )
-
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
 
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
@@ -75,191 +72,232 @@ func getWatcherDebugRaw() bool {
 	return watcherDebugRaw
 }
 
+// StopWatcher drains changes from disk and joins all callback delivery.
 func StopWatcher() {
-	watcherCancel()
-	watcherWg.Wait()
+	watcherLifecycle.Lock()
+	defer watcherLifecycle.Unlock()
+	stopWatcherLocked()
 }
 
-// WatchGrokProject watches a project's Grok sessions for changes.
-//
-// The store may not exist yet on a machine that has never run Grok, and the
-// project's own group directory appears only on its first session, so the
-// watcher walks down the chain waiting for each level in turn.
+func stopWatcherLocked() {
+	if watcherCancel != nil {
+		watcherCancel()
+		watcherWg.Wait()
+		watcherCancel = nil
+	}
+}
+
+// WatchGrokProject establishes the baseline before returning to the caller.
+// A new native session can finish immediately after the agent is launched.
 func WatchGrokProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+	watcherLifecycle.Lock()
+	defer watcherLifecycle.Unlock()
+	stopWatcherLocked()
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
 		return err
 	}
-
-	SetWatcherCallback(callback)
-	SetWatcherWorkspaceRoot(projectPath)
-
 	sessionsDir, err := GetGrokSessionsDir()
 	if err != nil {
-		return fmt.Errorf("failed to resolve the Grok sessions directory: %w", err)
+		return err
 	}
-	grokHome := filepath.Dir(sessionsDir)
-
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-
-		if err := waitForDirectory(watcherCtx, grokHome, "Grok home directory"); err != nil {
-			slog.Debug("Grok watcher: stopped waiting for the home directory", "error", err)
-			return
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return fmt.Errorf("create Grok watcher: %w", err)
+	}
+	state := &grokWatchState{
+		watcher: watcher, projectPath: projectPath, sessionsDir: sessionsDir,
+		watched: map[string]bool{}, signatures: map[string]sessionSignature{}, pending: map[string]bool{},
+	}
+	started := time.Now()
+	// Capture before installing watches, then reconcile again after registration.
+	// The start time also catches a write that races the initial stat itself.
+	if err := state.refresh(true, started); err != nil {
+		_ = watcher.Close()
+		return err
+	}
+	if err := state.refresh(false, started); err != nil {
+		_ = watcher.Close()
+		return err
+	}
+	SetWatcherCallback(callback)
+	SetWatcherWorkspaceRoot(projectPath)
+	ctx, cancel := context.WithCancel(context.Background())
+	watcherCancel = cancel
+	watcherErrors = make(chan error, 1)
+	failures := watcherErrors
+	watcherWg.Go(func() {
+		defer func() { _ = watcher.Close() }()
+		if err := state.run(ctx); err != nil {
+			failures <- err
 		}
-		if err := waitForDirectory(watcherCtx, sessionsDir, "Grok sessions directory"); err != nil {
-			slog.Debug("Grok watcher: stopped waiting for the sessions directory", "error", err)
-			return
-		}
-
-		groupDir, err := waitForProjectDir(watcherCtx, sessionsDir, projectPath)
-		if err != nil {
-			slog.Debug("Grok watcher: stopped waiting for the project directory", "error", err)
-			return
-		}
-
-		watchSessions(watcherCtx, groupDir)
-	}()
-
+	})
 	return nil
 }
 
-// waitForProjectDir waits for the group directory holding this project's
-// sessions. Matching is by decoded working directory rather than by encoding the
-// project path, so it stays correct whatever Grok's escape table does.
-func waitForProjectDir(ctx context.Context, sessionsDir, projectPath string) (string, error) {
-	if dir, err := ResolveGrokProjectDir(projectPath); err == nil {
-		return dir, nil
-	}
+// File signatures include all sidecars that affect conversion. Periodic stat
+// reconciliation catches dormant sessions outside the bounded fsnotify set.
+type nativeFileSignature struct {
+	size     int64
+	modified time.Time
+	exists   bool
+}
+type sessionSignature [4]nativeFileSignature
 
-	watcher, err := fsnotify.NewWatcher()
+func signatureFor(dir string) sessionSignature {
+	var result sessionSignature
+	for i, name := range []string{chatHistoryFile, updatesFile, eventsFile, summaryFile} {
+		if info, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			result[i] = nativeFileSignature{info.Size(), info.ModTime(), true}
+		}
+	}
+	return result
+}
+
+type grokWatchState struct {
+	watcher                            *fsnotify.Watcher
+	projectPath, sessionsDir, groupDir string
+	watched                            map[string]bool
+	signatures                         map[string]sessionSignature
+	pending                            map[string]bool
+}
+
+func (s *grokWatchState) refresh(baseline bool, started time.Time) error {
+	groupDir, err := ResolveGrokProjectDir(s.projectPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to create a watcher for the sessions directory: %w", err)
+		var missing *GrokPathError
+		if !errors.As(err, &missing) {
+			return err
+		}
 	}
-	defer func() { _ = watcher.Close() }()
-
-	if err := watcher.Add(sessionsDir); err != nil {
-		return "", fmt.Errorf("failed to watch %q: %w", sessionsDir, err)
-	}
-
-	// Re-check after adding the watch to close the race window.
-	if dir, err := ResolveGrokProjectDir(projectPath); err == nil {
-		return dir, nil
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return "", ctx.Err()
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return "", fmt.Errorf("the sessions directory watch closed unexpectedly")
-			}
-			if !event.Has(fsnotify.Create) {
+	s.groupDir = groupDir
+	desired := map[string]bool{}
+	if groupDir != "" {
+		desired = desiredWatchDirs(groupDir)
+		desired[groupDir] = true
+		entries, err := os.ReadDir(groupDir)
+		if err != nil {
+			return err
+		}
+		current := map[string]sessionSignature{}
+		for _, entry := range entries {
+			if !entry.IsDir() || !uuidLike.MatchString(entry.Name()) {
 				continue
 			}
-			// Re-resolve on any creation rather than inspecting the new entry:
-			// the group directory can appear before its first session does.
-			if dir, err := ResolveGrokProjectDir(projectPath); err == nil {
-				return dir, nil
+			dir := filepath.Join(groupDir, entry.Name())
+			signature := signatureFor(dir)
+			previous, known := s.signatures[dir]
+			if !baseline && (!known || previous != signature) {
+				s.pending[dir] = true
 			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return "", fmt.Errorf("the sessions directory watch closed unexpectedly")
+			if baseline {
+				for _, file := range signature {
+					if file.exists && !file.modified.Before(started) {
+						s.pending[dir] = true
+					}
+				}
 			}
-			return "", fmt.Errorf("watch error on the sessions directory: %w", err)
+			current[dir] = signature
 		}
+		s.signatures = current
+	}
+	// Watch the nearest existing ancestor until the project store appears.
+	ancestor := s.sessionsDir
+	for {
+		info, err := os.Stat(ancestor)
+		if err == nil {
+			if !info.IsDir() {
+				return fmt.Errorf("grok watch path %q is not a directory", ancestor)
+			}
+			desired[ancestor] = true
+			break
+		}
+		if !os.IsNotExist(err) {
+			return err
+		}
+		parent := filepath.Dir(ancestor)
+		if parent == ancestor {
+			return fmt.Errorf("no existing ancestor for %q", s.sessionsDir)
+		}
+		ancestor = parent
+	}
+	for dir := range s.watched {
+		if !desired[dir] {
+			_ = s.watcher.Remove(dir)
+			delete(s.watched, dir)
+		}
+	}
+	for dir := range desired {
+		if s.watched[dir] {
+			continue
+		}
+		if err := s.watcher.Add(dir); err != nil {
+			return fmt.Errorf("watch Grok directory %q: %w", dir, err)
+		}
+		s.watched[dir] = true
+	}
+	return nil
+}
+
+func (s *grokWatchState) flush() {
+	dirs := make([]string, 0, len(s.pending))
+	for dir := range s.pending {
+		dirs = append(dirs, dir)
+	}
+	sort.Strings(dirs)
+	for _, dir := range dirs {
+		processSessionChange(dir)
+		delete(s.pending, dir)
 	}
 }
 
-// watchSessions watches the group directory plus a bounded set of recent session
-// directories, refreshing that set as new sessions appear.
-func watchSessions(ctx context.Context, groupDir string) {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		slog.Error("Grok watcher: failed to create watcher", "error", err)
-		return
-	}
-	defer func() { _ = watcher.Close() }()
-
-	// Watching the group directory means a brand new session is seen immediately.
-	if err := watcher.Add(groupDir); err != nil {
-		slog.Error("Grok watcher: failed to watch the project directory", "dir", groupDir, "error", err)
-		return
-	}
-
-	watched := map[string]bool{}
-	syncWatches(watcher, groupDir, watched)
-
-	pending := map[string]bool{}
+func (s *grokWatchState) run(ctx context.Context) error {
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
-
-	// One timer, reset per burst, rather than a fresh time.After per event.
-	// Grok appends to updates.jsonl on every streaming chunk, so a timer per
-	// event would allocate thousands of short-lived timers across a session.
-	// It starts stopped and drained: nothing is pending yet.
 	debounce := time.NewTimer(watchDebounce)
-	if !debounce.Stop() {
-		<-debounce.C
-	}
 	defer debounce.Stop()
-
-	// resetDebounce restarts the quiet period, draining a already-fired timer
-	// first so the next receive reflects this burst rather than the last one.
-	resetDebounce := func() {
-		if !debounce.Stop() {
-			select {
-			case <-debounce.C:
-			default:
-			}
-		}
-		debounce.Reset(watchDebounce)
-	}
-
-	// flush processes everything the debounce is holding. It runs on shutdown as
-	// well as on the timer, because otherwise the final turn of a session, which
-	// is the one that just triggered the exit, would never be saved.
-	flush := func() {
-		for dir := range pending {
-			processSessionChange(dir)
-			delete(pending, dir)
-		}
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
-			flush()
-			return
-
+			// fsnotify may still have unread events when the child exits. The final
+			// disk reconciliation captures those writes before callbacks are joined.
+			err := s.refresh(false, time.Time{})
+			s.flush()
+			return err
 		case <-ticker.C:
-			syncWatches(watcher, groupDir, watched)
-
-		case event, ok := <-watcher.Events:
+			if err := s.refresh(false, time.Time{}); err != nil {
+				return err
+			}
+			s.flush()
+		case event, ok := <-s.watcher.Events:
 			if !ok {
-				return
+				return fmt.Errorf("grok filesystem event stream closed")
 			}
-			if dir := sessionDirFor(groupDir, event.Name); dir != "" {
-				if event.Has(fsnotify.Create) && !watched[dir] {
-					// A new session started; watch it now rather than at the next tick.
-					syncWatches(watcher, groupDir, watched)
-				}
-				if isTranscriptChange(event) {
-					pending[dir] = true
-					resetDebounce()
+			if dir := sessionDirFor(s.groupDir, event.Name); dir != "" && isTranscriptChange(event) {
+				s.pending[dir] = true
+			}
+			if event.Has(fsnotify.Create) || event.Has(fsnotify.Rename) || event.Has(fsnotify.Remove) {
+				if err := s.refresh(false, time.Time{}); err != nil {
+					return err
 				}
 			}
-
+			if len(s.pending) > 0 {
+				debounce.Reset(watchDebounce)
+			}
 		case <-debounce.C:
-			flush()
-
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return
+			if err := s.refresh(false, time.Time{}); err != nil {
+				return err
 			}
-			slog.Warn("Grok watcher: watch error", "error", err)
+			s.flush()
+		case err, ok := <-s.watcher.Errors:
+			if !ok {
+				return fmt.Errorf("grok filesystem error stream closed")
+			}
+			slog.Warn("Grok filesystem event error; reconciling", "error", err)
+			if err := s.refresh(false, time.Time{}); err != nil {
+				return err
+			}
+			s.flush()
 		}
 	}
 }
@@ -294,30 +332,6 @@ func sessionDirFor(groupDir, path string) string {
 		return ""
 	}
 	return dir
-}
-
-// syncWatches keeps watches on the most recently updated session directories and
-// drops the ones that age out, so descriptor use stays flat however long a watch
-// runs.
-func syncWatches(watcher *fsnotify.Watcher, groupDir string, watched map[string]bool) {
-	desired := desiredWatchDirs(groupDir)
-
-	for dir := range watched {
-		if !desired[dir] {
-			_ = watcher.Remove(dir)
-			delete(watched, dir)
-		}
-	}
-	for dir := range desired {
-		if watched[dir] {
-			continue
-		}
-		if err := watcher.Add(dir); err != nil {
-			slog.Debug("Grok watcher: failed to watch session directory", "dir", dir, "error", err)
-			continue
-		}
-		watched[dir] = true
-	}
 }
 
 // desiredWatchDirs returns the session directories worth watching: the most
@@ -407,62 +421,5 @@ func triggerCallback(agentSession *spi.AgentChatSession) {
 	callback := watcherCallback
 	watcherMutex.RUnlock()
 
-	if callback == nil || agentSession == nil {
-		return
-	}
-
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Error("grok: session callback panicked", "sessionId", agentSession.SessionID, "panic", r)
-		}
-	}()
-	callback(agentSession)
-}
-
-// waitForDirectory blocks until a directory exists, watching its parent.
-func waitForDirectory(ctx context.Context, dir string, label string) error {
-	if info, err := os.Stat(dir); err == nil && info.IsDir() {
-		return nil
-	}
-
-	parent := filepath.Dir(dir)
-	child := filepath.Base(dir)
-
-	if _, err := os.Stat(parent); err != nil {
-		return fmt.Errorf("parent directory %q does not exist for the %s: %w", parent, label, err)
-	}
-
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return fmt.Errorf("failed to create a watcher for the %s: %w", label, err)
-	}
-	defer func() { _ = watcher.Close() }()
-
-	if err := watcher.Add(parent); err != nil {
-		return fmt.Errorf("failed to watch %q for the %s: %w", parent, label, err)
-	}
-
-	// Re-check after adding the watch to close the race window.
-	if info, err := os.Stat(dir); err == nil && info.IsDir() {
-		return nil
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case event, ok := <-watcher.Events:
-			if !ok {
-				return fmt.Errorf("the watch on %q closed unexpectedly", parent)
-			}
-			if event.Has(fsnotify.Create) && filepath.Base(event.Name) == child {
-				return nil
-			}
-		case err, ok := <-watcher.Errors:
-			if !ok {
-				return fmt.Errorf("the watch on %q closed unexpectedly", parent)
-			}
-			return fmt.Errorf("watch error for the %s: %w", label, err)
-		}
-	}
+	spi.DeliverSession("grok", callback, agentSession)
 }

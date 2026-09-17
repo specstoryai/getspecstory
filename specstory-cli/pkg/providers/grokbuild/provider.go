@@ -210,7 +210,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	SetWatcherDebugRaw(debugRaw)
 	if err := WatchGrokProject(projectPath, sessionCallback); err != nil {
-		slog.Error("ExecAgentAndWatch: failed to start watcher", "error", err)
+		return fmt.Errorf("failed to start Grok watcher: %w", err)
 	}
 	defer StopWatcher()
 
@@ -232,12 +232,16 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 		return fmt.Errorf("failed to start watcher: %w", err)
 	}
 
-	<-ctx.Done()
-
-	slog.Info("WatchAgent: context cancelled, stopping watcher")
-	StopWatcher()
-
-	return ctx.Err()
+	watcherLifecycle.Lock()
+	failures := watcherErrors
+	watcherLifecycle.Unlock()
+	defer StopWatcher()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-failures:
+		return err
+	}
 }
 
 func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
