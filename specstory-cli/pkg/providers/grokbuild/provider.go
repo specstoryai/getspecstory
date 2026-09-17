@@ -176,9 +176,16 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	// Sessions are directories named by their id, so resolve directly before
 	// falling back to a scan.
 	directDir := filepath.Join(groupDir, sessionID)
-	if info, err := os.Lstat(directDir); err == nil && info.IsDir() {
+	info, err := os.Lstat(directDir)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to inspect Grok session directory: %w", err)
+	}
+	if err == nil && info.IsDir() {
 		session, parseErr := ParseSessionDir(directDir)
-		if parseErr == nil && len(session.Records) > 0 && !session.IsSubagent() {
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		if len(session.Records) > 0 && !session.IsSubagent() {
 			return convertToAgentChatSession(session, projectPath, debugRaw), nil
 		}
 	}
@@ -230,7 +237,7 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("ExecAgentAndWatch: resuming Grok Build session", "sessionId", resumeSessionID)
 	}
 
-	agentErr := ExecuteGrok(customCommand, resumeSessionID)
+	agentErr := ExecuteGrok(projectPath, customCommand, resumeSessionID)
 	StopWatcher()
 	watcherLifecycle.Lock()
 	failures := watcherErrors

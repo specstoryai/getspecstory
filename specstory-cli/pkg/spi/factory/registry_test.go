@@ -101,7 +101,7 @@ func TestTerminalAgentExitStatus(t *testing.T) {
 		{"codex", codexcli.ExecuteCodex},
 		{"cursor", cursorcli.ExecuteCursorCLI},
 		{"gemini", geminicli.ExecuteGemini},
-		{"grok", grokbuild.ExecuteGrok},
+		{"grok", func(command, id string) error { return grokbuild.ExecuteGrok(t.TempDir(), command, id) }},
 		{"droid", droidcli.ExecuteDroid},
 		{"deepseek", deepseektui.ExecuteDeepSeek},
 		{"antigravity", antigravitycli.ExecuteAntigravity},

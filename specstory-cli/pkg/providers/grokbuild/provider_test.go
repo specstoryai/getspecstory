@@ -395,3 +395,21 @@ func TestDebugSidecarsPreserveTheParsingSnapshot(t *testing.T) {
 		}
 	}
 }
+
+func TestGetSessionReturnsFilesystemFailure(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	dir := seedSession(t, home, project, "session-basic", id)
+	summary := filepath.Join(dir, summaryFile)
+	if err := os.Remove(summary); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(summary, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	got, err := NewProvider().GetAgentChatSession(project, id, false)
+	if err == nil || got != nil {
+		t.Fatalf("filesystem failure hidden: %v, %v", got, err)
+	}
+}

@@ -1,8 +1,13 @@
 package grokbuild
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 func TestEnsureResumeArgs(t *testing.T) {
@@ -93,5 +98,36 @@ func TestParseGrokCommand(t *testing.T) {
 	}
 	if len(args) != 0 {
 		t.Errorf("default args = %v, want none", args)
+	}
+}
+
+func TestExecuteGrokUsesProjectDirectory(t *testing.T) {
+	if path := os.Getenv("GROK_QA_CWD_FILE"); path != "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(cwd), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	withFakeGrokHome(t)
+	project := t.TempDir()
+	output := filepath.Join(t.TempDir(), "child-cwd")
+	t.Setenv("GROK_QA_CWD_FILE", output)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewProvider().ExecAgentAndWatch(project, fmt.Sprintf("%q -test.run=^TestExecuteGrokUsesProjectDirectory$", exe), "", false, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if spi.CanonicalizePathOrClean(string(got)) != spi.CanonicalizePathOrClean(project) {
+		t.Fatalf("child ran in %q, wanted %q", got, project)
 	}
 }

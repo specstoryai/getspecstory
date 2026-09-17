@@ -6,6 +6,10 @@
 
 - The SpecStory CLI now supports [Grok Build](https://x.ai/cli) (i.e. `grok`, SpaceXAI's terminal coding agent) for sessions created from Grok Build version `1.0.34` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot). Grok Build sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Grok Build.
 
+### 🐛 Bug Fixes
+
+- Bare `specstory run` launches Claude Code as documented, rather than choosing the first provider alphabetically. The help text and configured command now use the same default.
+
 ## v2.13.0 2026-09-17
 
 ### ⚙️ Improvements

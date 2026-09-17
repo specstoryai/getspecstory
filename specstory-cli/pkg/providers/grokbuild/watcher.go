@@ -364,6 +364,11 @@ func desiredWatchDirs(groupDir string) map[string]bool {
 			continue
 		}
 		path := filepath.Join(groupDir, entry.Name())
+		// Top-level child sessions are not exportable human conversations and
+		// must not displace them from the bounded set of live watches.
+		if summary, err := readSummary(filepath.Join(path, summaryFile)); err == nil && summary != nil && summary.SessionKind == "subagent" {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue

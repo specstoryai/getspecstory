@@ -40,7 +40,7 @@ func ensureResumeArgs(args []string, resumeSessionID string) []string {
 }
 
 // ExecuteGrok runs the Grok Build CLI, optionally resuming a session.
-func ExecuteGrok(customCommand string, resumeSessionID string) error {
+func ExecuteGrok(projectPath string, customCommand string, resumeSessionID string) error {
 	grokCmd, customArgs := parseGrokCommand(customCommand)
 
 	customArgs = ensureResumeArgs(customArgs, resumeSessionID)
@@ -49,6 +49,9 @@ func ExecuteGrok(customCommand string, resumeSessionID string) error {
 	}
 
 	cmd := exec.Command(grokCmd, customArgs...)
+	// Native discovery and the watcher must refer to the same project even
+	// when the CLI was launched elsewhere with --project-path.
+	cmd.Dir = projectPath
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

@@ -410,3 +410,19 @@ func TestWatcherSignatureIncludesSubagentMetadata(t *testing.T) {
 		t.Fatal("child transcript changed parent signature")
 	}
 }
+
+func TestWatchSlotsExcludeTopLevelSubagents(t *testing.T) {
+	group := t.TempDir()
+	base := time.Now()
+	parent := makeSessionDir(t, group, uuidForIndex(0), base)
+	for i := 1; i <= maxWatchedSessions+1; i++ {
+		child := makeSessionDir(t, group, uuidForIndex(i), base.Add(time.Duration(i)*time.Second))
+		if err := os.WriteFile(filepath.Join(child, summaryFile), []byte(`{"session_kind":"subagent"}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := desiredWatchDirs(group)
+	if len(got) != 1 || !got[parent] {
+		t.Fatalf("child sessions displaced parent watch: %v", got)
+	}
+}
