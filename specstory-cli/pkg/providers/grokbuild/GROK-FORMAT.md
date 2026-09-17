@@ -15,7 +15,7 @@ sessions/<percent-encoded-canonical-cwd>/<session-uuid>/
     subagents/<child-id>/meta.json
 ```
 
-The project name percent-encodes UTF-8 bytes outside the RFC 3986 unreserved set; spaces become `%20`, not `+`. Discovery decodes project names and canonicalizes local paths for comparison. A `.cwd` sidecar is also recognized for non-path group names. Global enumeration prefers `summary.json.info.cwd`; project matching never derives ownership from a file touched by a tool.
+The project name percent-encodes UTF-8 bytes outside the RFC 3986 unreserved set; spaces become `%20`, not `+`. Discovery decodes project names and canonicalizes local paths for comparison. A `.cwd` sidecar is also recognized for non-path group names. Global enumeration accepts only this exact group/UUID/transcript depth, ignoring archive and group-level lookalikes. It prefers `summary.json.info.cwd`; project matching never derives ownership from a file touched by a tool.
 
 `chat_history.jsonl` is the durable conversation. The native agent appends turns and can rewrite the transcript; readers therefore parse its current full contents instead of retaining a byte offset. Summary and event/update sidecars change independently during a turn. File locks, `rewind_points.jsonl`, `system_prompt.txt`, `prompt_context.json`, `announcement_state.json`, `signals.json`, `usage.json`, and `terminal/` output files are not alternative conversation sources. A directory can exist before its first usable conversation/summary; the watcher waits for metadata before publishing it. No scratch/checkpoint file is used as a fallback transcript.
 
