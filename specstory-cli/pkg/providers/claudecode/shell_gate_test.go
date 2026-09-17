@@ -159,7 +159,7 @@ func newShellGateFixture(t *testing.T) *shellGateFixture {
 	spi.SetDebugBaseDir(t.TempDir())
 	SetWatcherDebugRaw(true)
 	t.Cleanup(func() {
-		clearDeferredScan(f.file)
+		clearDeferredScan(f.deferredSession())
 		ClearWatcherCallback()
 		SetWatcherDebugRaw(false)
 		spi.SetDebugBaseDir("")
@@ -167,6 +167,10 @@ func newShellGateFixture(t *testing.T) *shellGateFixture {
 	})
 	f.append(t, promptRecord(false), assistantRecord(false, [2]string{"t1", "Bash"}))
 	return f
+}
+
+func (f *shellGateFixture) deferredSession() deferredSession {
+	return deferredSession{claudeProjectDir: f.dir, sessionID: f.sessionID}
 }
 
 func (f *shellGateFixture) append(t *testing.T, records ...JSONLRecord) {
@@ -206,7 +210,7 @@ func TestShellGateScanAndDeadline(t *testing.T) {
 				})
 				f.append(t, assistantRecord(false, [2]string{"t2", "PowerShell"}))
 				scanJSONLFiles(f.dir, f.file)
-				first, pending := deferredScans[f.file]
+				first, pending := deferredScans[f.deferredSession()]
 				if !pending || saves != 0 {
 					t.Fatalf("open calls: pending=%t saves=%d", pending, saves)
 				}
@@ -217,7 +221,7 @@ func TestShellGateScanAndDeadline(t *testing.T) {
 				// One parallel result must neither save nor extend the original deadline.
 				f.append(t, toolResultRecord("t1"))
 				scanJSONLFiles(f.dir, f.file)
-				if deferredScans[f.file].deadline != first.deadline || saves != 0 {
+				if deferredScans[f.deferredSession()].deadline != first.deadline || saves != 0 {
 					t.Fatal("partial result saved or changed the original deadline")
 				}
 				flushExpiredDeferredScans(first.deadline.Add(-time.Nanosecond))
@@ -251,13 +255,74 @@ func TestShellGateScanAndDeadline(t *testing.T) {
 				before := saves
 				f.append(t, assistantRecord(false, [2]string{"t3", "Bash"}))
 				scanJSONLFiles(f.dir, f.file)
-				next := deferredScans[f.file]
+				next := deferredScans[f.deferredSession()]
 				if !next.deadline.After(first.deadline) {
 					t.Fatal("new call reused the old deadline")
 				}
 				flushExpiredDeferredScans(first.deadline)
 				if saves != before {
 					t.Fatal("old deadline forced the new call")
+				}
+			})
+		})
+	}
+}
+
+func TestShellGateSharedSessionDeadline(t *testing.T) {
+	for _, release := range []string{"result", "deadline", "shutdown", "forced scan"} {
+		t.Run(release, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				f := newShellGateFixture(t)
+				saves := 0
+				SetWatcherCallback(func(*spi.AgentChatSession) { saves++ })
+				scanJSONLFiles(f.dir, f.file)
+				first := deferredScans[f.deferredSession()]
+
+				// A resumed file carries the same session and history. Its event
+				// must share the first file's deadline, even when it arrives later.
+				time.Sleep(time.Second)
+				f.file = filepath.Join(f.dir, "resumed.jsonl")
+				f.append(t)
+				scanJSONLFiles(f.dir, f.file)
+				pending := deferredScans[f.deferredSession()]
+				if len(deferredScans) != 1 || pending.deadline != first.deadline || saves != 0 {
+					t.Fatalf("second file changed session deferral: pending=%d saves=%d deadline=%v want=%v",
+						len(deferredScans), saves, pending.deadline, first.deadline)
+				}
+
+				switch release {
+				case "result":
+					f.append(t, toolResultRecord("t1"))
+					scanJSONLFiles(f.dir, f.file)
+				case "deadline":
+					flushExpiredDeferredScans(first.deadline)
+				case "shutdown":
+					StopWatcher()
+				case "forced scan":
+					scanJSONLFilesWithOptions(f.dir, f.file, true)
+				}
+				if saves != 1 || len(deferredScans) != 0 {
+					t.Fatalf("release: saves=%d pending=%d", saves, len(deferredScans))
+				}
+
+				// Finish any forcibly saved call before opening the next one.
+				if release != "result" {
+					f.append(t, toolResultRecord("t1"))
+				}
+				f.append(t, assistantRecord(false, [2]string{"t2", "Bash"}))
+				scanJSONLFiles(f.dir, f.file)
+				next, exists := deferredScans[f.deferredSession()]
+				if !exists || !next.deadline.After(first.deadline) {
+					t.Fatal("subsequent shell call did not get a fresh deadline")
+				}
+				flushExpiredDeferredScans(first.deadline)
+				if saves != 1 {
+					t.Fatalf("stale deadline saved during subsequent shell call: saves=%d", saves)
+				}
+				f.append(t, toolResultRecord("t2"))
+				scanJSONLFiles(f.dir, f.file)
+				if saves != 2 || len(deferredScans) != 0 {
+					t.Fatalf("subsequent result: saves=%d pending=%d", saves, len(deferredScans))
 				}
 			})
 		})
@@ -288,7 +353,7 @@ func TestShellGateShutdownOrdering(t *testing.T) {
 					<-releaseScan
 					scanJSONLFiles(f.dir, f.file)
 					if activeSave {
-						flushExpiredDeferredScans(deferredScans[f.file].deadline)
+						flushExpiredDeferredScans(deferredScans[f.deferredSession()].deadline)
 					}
 				})
 				if activeSave {

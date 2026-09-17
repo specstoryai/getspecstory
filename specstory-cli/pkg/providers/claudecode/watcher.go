@@ -450,14 +450,15 @@ func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force
 		// files as its edits. Wait for the tool_result event instead. This
 		// runs before convertToAgentChatSession because the debug-raw files
 		// are written in there too.
+		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
 		if targetFile != "" && !force {
 			if open := openShellToolUses(session.Records); len(open) > 0 {
-				deferScan(claudeProjectDir, targetFile, open)
+				deferScan(pendingSession, targetFile, open)
 				continue
 			}
 		}
 		if targetFile != "" {
-			clearDeferredScan(targetFile)
+			clearDeferredScan(pendingSession)
 		}
 
 		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)

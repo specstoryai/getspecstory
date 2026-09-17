@@ -104,44 +104,55 @@ func openShellToolUses(records []JSONLRecord) []string {
 	return ids
 }
 
-// deferredScan records the original deadline so repeated events cannot defer
-// persistence indefinitely.
-type deferredScan struct {
+// deferredSession identifies the merged session, which may span several JSONL
+// files. All of its files must share one deadline and release it together.
+type deferredSession struct {
 	claudeProjectDir string
-	deadline         time.Time
+	sessionID        string
+}
+
+// deferredScan records the original deadline so repeated events cannot defer
+// persistence indefinitely, plus the latest source file for a targeted rescan.
+type deferredScan struct {
+	file     string
+	deadline time.Time
 }
 
 // Only the watcher loop accesses this registry while running. StopWatcher joins
 // that loop before flushing it. Deadlines are checked in the same loop as event
 // scans, so no timer goroutines can race conversion, saves, or shutdown.
-var deferredScans = make(map[string]deferredScan)
+var deferredScans = make(map[deferredSession]deferredScan)
 
-func deferScan(claudeProjectDir, file string, openIDs []string) {
-	if _, pending := deferredScans[file]; pending {
+func deferScan(session deferredSession, file string, openIDs []string) {
+	if entry, pending := deferredScans[session]; pending {
+		// Keep a current source path without extending the session's deadline.
+		entry.file = file
+		deferredScans[session] = entry
 		return
 	}
 	slog.Info("shellGate: deferring session save while shell tool calls are open",
 		"file", file,
+		"sessionId", session.sessionID,
 		"openToolUses", openIDs)
-	deferredScans[file] = deferredScan{
-		claudeProjectDir: claudeProjectDir,
-		deadline:         time.Now().Add(shellGateMaxWait),
+	deferredScans[session] = deferredScan{
+		file:     file,
+		deadline: time.Now().Add(shellGateMaxWait),
 	}
 }
 
-func clearDeferredScan(file string) {
-	delete(deferredScans, file)
+func clearDeferredScan(session deferredSession) {
+	delete(deferredScans, session)
 }
 
 // flushExpiredDeferredScans runs on the watcher loop, after event processing.
 // Looking up current entries rather than queuing timeout callbacks means a
 // completed call's old deadline cannot force a save for a later call.
 func flushExpiredDeferredScans(now time.Time) {
-	for file, entry := range deferredScans {
+	for session, entry := range deferredScans {
 		if !now.Before(entry.deadline) {
 			slog.Warn("shellGate: deferral deadline expired; saving even if shell calls remain open",
-				"file", file, "maxWait", shellGateMaxWait)
-			flushDeferredScan(file, entry)
+				"file", entry.file, "sessionId", session.sessionID, "maxWait", shellGateMaxWait)
+			flushDeferredScan(session, entry)
 		}
 	}
 }
@@ -149,15 +160,15 @@ func flushExpiredDeferredScans(now time.Time) {
 // flushDeferredScans attempts to save every deferred session after the watcher
 // has stopped, while its callback is still installed.
 func flushDeferredScans() {
-	for file, entry := range deferredScans {
-		slog.Info("shellGate: flushing deferred session save on shutdown", "file", file)
-		flushDeferredScan(file, entry)
+	for session, entry := range deferredScans {
+		slog.Info("shellGate: flushing deferred session save on shutdown", "file", entry.file, "sessionId", session.sessionID)
+		flushDeferredScan(session, entry)
 	}
 }
 
-func flushDeferredScan(file string, entry deferredScan) {
+func flushDeferredScan(session deferredSession, entry deferredScan) {
 	// Consume this deadline even if parsing fails; a subsequent file event can
 	// retry, without repeatedly forcing a broken file on every watcher tick.
-	clearDeferredScan(file)
-	scanJSONLFilesWithOptions(entry.claudeProjectDir, file, true)
+	clearDeferredScan(session)
+	scanJSONLFilesWithOptions(session.claudeProjectDir, entry.file, true)
 }
