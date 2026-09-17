@@ -18,11 +18,11 @@ func TestGenerateAgentSession_Basic(t *testing.T) {
 	if !data.Validate() {
 		t.Error("SessionData failed schema validation")
 	}
-	if data.Provider.ID != "grok-build" || data.Provider.Name != "Grok Build" {
+	if data.Provider.ID != "grok" || data.Provider.Name != "Grok Build" {
 		t.Errorf("provider = %+v", data.Provider)
 	}
-	if data.Provider.Version != "grok-4.6" {
-		t.Errorf("provider version = %q, want the model id", data.Provider.Version)
+	if data.Provider.Version != "unknown" {
+		t.Errorf("provider version = %q, want unknown (the native store omits the CLI version)", data.Provider.Version)
 	}
 
 	// Two <user_query> records, so two exchanges. The injected context records
@@ -282,4 +282,19 @@ func keysOf(m map[string]*ToolInfo) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+func TestBackendToolClosesExchange(t *testing.T) {
+	session := loadFixture(t, "session-basic")
+	session.Records = session.Records[:1]
+	session.Records = append(session.Records, GrokRecord{Type: "backend_tool_call", Kind: &GrokBackendKind{ToolType: "web_search", ID: "last-tool"}})
+	const stamp = "2026-09-17T21:00:00.000Z"
+	session.Index.toolTime["last-tool"] = stamp
+	data, err := GenerateAgentSession(session, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Exchanges) != 1 || data.Exchanges[0].EndTime != stamp {
+		t.Fatalf("wrong backend tool end time: %+v", data.Exchanges)
+	}
 }

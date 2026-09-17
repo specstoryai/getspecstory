@@ -243,3 +243,52 @@ func TestGetAgentChatSessionByPath(t *testing.T) {
 		t.Errorf("WorkspaceRoot = %q, want the origin cwd", session.SessionData.WorkspaceRoot)
 	}
 }
+
+func TestRawSnapshotAndDebugRefresh(t *testing.T) {
+	spi.SetDebugBaseDir(t.TempDir())
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	dir := t.TempDir()
+	copyFixture(t, "session-basic", dir)
+	path := filepath.Join(dir, chatHistoryFile)
+	first := `{"type":"user","content":[{"type":"text","text":"<user_query>snapshot</user_query>"}],"future_field":{"keep":true}}`
+	second := `{"type":"assistant","content":"original reply"}`
+	if err := os.WriteFile(path, []byte(first+"\nmalformed\n"+second+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseSessionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A later native write cannot change the raw export of an already parsed session.
+	if err := os.WriteFile(path, []byte(first+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	chat := convertToAgentChatSession(parsed, dir, true)
+	if chat == nil || chat.RawData != first+"\n"+second+"\n" {
+		t.Fatalf("inconsistent raw snapshot: %+v", chat)
+	}
+	debugDir := spi.GetDebugDir(parsed.ID)
+	debug, err := os.ReadFile(filepath.Join(debugDir, "1.json"))
+	if err != nil || !strings.Contains(string(debug), "future_field") {
+		t.Fatalf("native field missing: %s, %v", debug, err)
+	}
+	cliFile := filepath.Join(debugDir, "session-data.json")
+	if err := os.WriteFile(cliFile, []byte("CLI owned"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	shorter, err := ParseSessionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	convertToAgentChatSession(shorter, dir, false)
+	if _, err := os.Stat(filepath.Join(debugDir, "2.json")); err != nil {
+		t.Fatal("debug=false changed exports", err)
+	}
+	convertToAgentChatSession(shorter, dir, true)
+	if _, err := os.Stat(filepath.Join(debugDir, "2.json")); !os.IsNotExist(err) {
+		t.Fatalf("stale record remains: %v", err)
+	}
+	if data, err := os.ReadFile(cliFile); err != nil || string(data) != "CLI owned" {
+		t.Fatalf("CLI file changed: %s, %v", data, err)
+	}
+}

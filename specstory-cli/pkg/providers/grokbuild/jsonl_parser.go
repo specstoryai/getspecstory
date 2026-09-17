@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -12,13 +13,11 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 const (
-	mb = 1024 * 1024
-	// maxReasonableLineSize guards against OOM on a malformed or malicious file.
-	maxReasonableLineSize = 250 * mb
-
 	chatHistoryFile = "chat_history.jsonl"
 	updatesFile     = "updates.jsonl"
 	eventsFile      = "events.jsonl"
@@ -39,6 +38,8 @@ var userQueryRe = regexp.MustCompile(`(?s)<user_query>(.*?)</user_query>`)
 // type: user records hold an array of parts, while system, assistant and
 // tool_result records hold a plain string.
 type GrokRecord struct {
+	// Raw preserves unknown native fields from the same accepted parsing snapshot.
+	Raw     json.RawMessage `json:"-"`
 	Type    string          `json:"type"`
 	Content json.RawMessage `json:"content,omitempty"`
 
@@ -139,14 +140,16 @@ type GrokUsage struct {
 // tool classification, tool outcomes, and per-turn usage. chat_history.jsonl has
 // none of this.
 type sessionIndex struct {
-	toolTime    map[string]string     // tool_call_id -> ISO 8601
-	toolKind    map[string]string     // tool_call_id -> Grok's own tool kind
-	toolError   map[string]bool       // tool_call_id -> the call failed
-	userTime    map[int]string        // prompt index -> ISO 8601
-	agentTime   []string              // assistant text, in order of appearance
-	agentPrompt []string              // prompt id per assistant text, same order
-	thoughtTime []string              // reasoning, in order of appearance
-	usage       map[string]*GrokUsage // token totals by prompt id
+	userTimes        []string              // first timestamp of each prompt in arrival order
+	unindexedPrompts map[string]bool       // chunk deduplication when promptIndex is absent
+	toolTime         map[string]string     // tool_call_id -> ISO 8601
+	toolKind         map[string]string     // tool_call_id -> Grok's own tool kind
+	toolError        map[string]bool       // tool_call_id -> the call failed
+	userTime         map[int]string        // prompt index -> ISO 8601
+	agentTime        []string              // assistant text, in order of appearance
+	agentPrompt      []string              // prompt id per assistant text, same order
+	thoughtTime      []string              // reasoning, in order of appearance
+	usage            map[string]*GrokUsage // token totals by prompt id
 }
 
 // GrokSession is one parsed session directory.
@@ -188,6 +191,11 @@ func (s *GrokSession) IsSubagent() bool {
 // ParseSessionDir reads one session directory: the transcript plus the sidecars
 // that carry timing, tool outcomes, and metadata.
 func ParseSessionDir(dir string) (*GrokSession, error) {
+	return parseSessionDir(dir, false)
+}
+
+// Metadata scans stop at the first real prompt and never open sidecars.
+func parseSessionDir(dir string, metadataOnly bool) (*GrokSession, error) {
 	session := &GrokSession{
 		Dir:       dir,
 		ID:        filepath.Base(dir),
@@ -215,16 +223,29 @@ func ParseSessionDir(dir string) (*GrokSession, error) {
 		}
 	}
 
-	records, err := readChatHistory(filepath.Join(dir, chatHistoryFile))
+	if metadataOnly {
+		if session.IsSubagent() {
+			return session, nil
+		}
+		err = visitJSONLines(filepath.Join(dir, chatHistoryFile), spi.MaxRecordLineSize, func(raw []byte) bool {
+			var record GrokRecord
+			if json.Unmarshal(raw, &record) != nil {
+				return true
+			}
+			if _, ok := record.UserQuery(); ok {
+				session.Records = []GrokRecord{record}
+				return false
+			}
+			return true
+		})
+	} else {
+		session.Records, err = readChatHistory(filepath.Join(dir, chatHistoryFile))
+		session.Index = buildSessionIndex(dir)
+		session.Subagents = readSubagentMeta(filepath.Join(dir, subagentsDir))
+	}
 	if err != nil {
 		return nil, err
 	}
-	session.Records = records
-
-	// Sidecars are best effort: a session still renders without them, just with
-	// coarser timestamps and no error markers.
-	session.Index = buildSessionIndex(dir)
-	session.Subagents = readSubagentMeta(filepath.Join(dir, subagentsDir))
 
 	// summary.json is where the times live, so a missing or corrupt one would
 	// otherwise leave createdAt empty, which the schema rejects. The transcript's
@@ -268,66 +289,65 @@ func readSummary(path string) (*GrokSummary, error) {
 // live session can be mid-write when the watcher fires, so a corrupt trailing
 // line is expected rather than fatal.
 func readChatHistory(path string) ([]GrokRecord, error) {
-	return readChatHistoryCapped(path, maxReasonableLineSize)
+	return readChatHistoryCapped(path, spi.MaxRecordLineSize)
 }
 
-// readChatHistoryCapped is readChatHistory with the line cap as a parameter so
-// tests can exercise the limit without a multi-hundred-megabyte fixture.
-//
-// The scanner's buffer cap is what actually bounds memory: an unterminated
-// multi-gigabyte line fails with ErrTooLong once the cap is hit, rather than
-// being read whole before any size check can run.
+// readChatHistoryCapped accepts records on either side of a corrupt or oversized line.
 func readChatHistoryCapped(path string, maxLine int) ([]GrokRecord, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
+	var records []GrokRecord
+	err := visitJSONLines(path, maxLine, func(raw []byte) bool {
+		var record GrokRecord
+		if err := json.Unmarshal(raw, &record); err != nil {
+			slog.Warn("readChatHistory: skipping invalid record", "path", path, "error", err)
+			return true
 		}
-		return nil, fmt.Errorf("failed to open %s: %w", chatHistoryFile, err)
+		record.Raw = append(json.RawMessage(nil), raw...)
+		records = append(records, record)
+		return true
+	})
+	return records, err
+}
+
+// visitJSONLines bounds each allocation and can stop after a metadata query.
+// Missing files are normal while a new session is being initialized.
+func visitJSONLines(path string, maxLine int, fn func([]byte) bool) error {
+	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
 	}
 	defer func() { _ = file.Close() }()
-
-	var records []GrokRecord
-	scanner := bufio.NewScanner(file)
-	// The initial buffer must not exceed the cap: Scanner's effective limit is
-	// the larger of the two, so an initial buffer bigger than maxLine would
-	// quietly raise it.
-	scanner.Buffer(make([]byte, 0, min(64*1024, maxLine)), maxLine)
-	lineNumber := 0
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
-			continue
+	reader := bufio.NewReader(file)
+	for number := 1; ; number++ {
+		raw, oversized, readErr := spi.ReadRecordLine(reader, maxLine)
+		if oversized {
+			slog.Warn("Skipping oversized Grok record", "path", path, "line", number, "limit", maxLine)
+		} else if len(strings.TrimSpace(string(raw))) > 0 {
+			if !json.Valid(raw) {
+				slog.Warn("Skipping malformed Grok record", "path", path, "line", number)
+			} else if !fn(raw) {
+				return nil
+			}
 		}
-		lineNumber++
-
-		var record GrokRecord
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			slog.Warn("readChatHistory: skipping corrupted line",
-				"file", filepath.Base(path), "line", lineNumber, "error", err)
-			continue
+		if errors.Is(readErr, io.EOF) {
+			return nil
 		}
-		records = append(records, record)
+		if readErr != nil {
+			return fmt.Errorf("read %s line %d: %w", path, number, readErr)
+		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		if errors.Is(err, bufio.ErrTooLong) {
-			return nil, fmt.Errorf("line %d exceeds the %d MB size limit: refusing to process", lineNumber+1, maxLine/mb)
-		}
-		return nil, fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
-	}
-
-	return records, nil
 }
 
 func newSessionIndex() *sessionIndex {
 	return &sessionIndex{
-		toolTime:  map[string]string{},
-		toolKind:  map[string]string{},
-		toolError: map[string]bool{},
-		userTime:  map[int]string{},
-		usage:     map[string]*GrokUsage{},
+		toolTime:         map[string]string{},
+		unindexedPrompts: map[string]bool{},
+		toolKind:         map[string]string{},
+		toolError:        map[string]bool{},
+		userTime:         map[int]string{},
+		usage:            map[string]*GrokUsage{},
 	}
 }
 
@@ -378,19 +398,29 @@ func buildSessionIndex(dir string) *sessionIndex {
 			}
 		case "user_message_chunk":
 			// A prompt can arrive as several chunks; the first one is its start.
-			promptIndex := 0
+			if ts == "" {
+				return
+			}
 			if meta, ok := update["_meta"].(map[string]any); ok {
-				if v, ok := meta["promptIndex"].(float64); ok {
-					promptIndex = int(v)
+				if v, ok := meta["promptIndex"].(float64); ok && v >= 0 && v == float64(int(v)) {
+					index := int(v)
+					if _, seen := idx.userTime[index]; !seen {
+						idx.userTime[index] = ts
+						idx.userTimes = append(idx.userTimes, ts)
+					}
+					return
 				}
 			}
-			// Keyed by Grok's own prompt index, which is the field that joins
-			// updates.jsonl to the transcript. Grok also emits a chunk for the
-			// synthetic prompts it injects, so counting turns here instead
-			// would shift every later prompt onto the wrong time.
-			if _, seen := idx.userTime[promptIndex]; !seen && ts != "" {
-				idx.userTime[promptIndex] = ts
+			// Missing indices must never overwrite valid index zero. A prompt id can
+			// still identify repeated chunks; without either key preserve arrival order.
+			id := envelope.Params.Meta.PromptID
+			if id != "" && idx.unindexedPrompts[id] {
+				return
 			}
+			if id != "" {
+				idx.unindexedPrompts[id] = true
+			}
+			idx.userTimes = append(idx.userTimes, ts)
 		case "agent_message_chunk":
 			if ts != "" {
 				idx.agentTime = append(idx.agentTime, ts)
@@ -461,32 +491,13 @@ func buildSessionIndex(dir string) *sessionIndex {
 // forEachJSONLine streams a JSONL file, handing each non-empty line to fn.
 // A missing file is not an error: every sidecar is optional.
 func forEachJSONLine(path string, fn func(raw []byte)) {
-	forEachJSONLineCapped(path, maxReasonableLineSize, fn)
+	forEachJSONLineCapped(path, spi.MaxRecordLineSize, fn)
 }
 
-// forEachJSONLineCapped is forEachJSONLine with the line cap as a parameter so
-// tests can exercise the limit. The scanner's buffer cap bounds the allocation;
-// a line past the cap stops the scan, which for a best-effort sidecar means the
-// session renders with whatever was indexed up to that point.
+// forEachJSONLineCapped keeps valid sidecar records after oversized lines.
 func forEachJSONLineCapped(path string, maxLine int, fn func(raw []byte)) {
-	file, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer func() { _ = file.Close() }()
-
-	scanner := bufio.NewScanner(file)
-	// The initial buffer must not exceed the cap: Scanner's effective limit is
-	// the larger of the two, so an initial buffer bigger than maxLine would
-	// quietly raise it.
-	scanner.Buffer(make([]byte, 0, min(64*1024, maxLine)), maxLine)
-	for scanner.Scan() {
-		if trimmed := strings.TrimSpace(scanner.Text()); trimmed != "" {
-			fn([]byte(trimmed))
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		slog.Debug("forEachJSONLine: stopped reading sidecar", "path", filepath.Base(path), "error", err)
+	if err := visitJSONLines(path, maxLine, func(raw []byte) bool { fn(raw); return true }); err != nil {
+		slog.Warn("Failed to read Grok sidecar", "path", path, "error", err)
 	}
 }
 
@@ -522,6 +533,10 @@ func readSubagentMeta(dir string) map[string]*GrokSubagentMeta {
 // FindSessions parses every session directory in a project group, skipping
 // subagent sessions. Returns them most recently updated first.
 func FindSessions(groupDir string) ([]*GrokSession, error) {
+	return findSessions(groupDir, false)
+}
+
+func findSessions(groupDir string, metadataOnly bool) ([]*GrokSession, error) {
 	entries, err := os.ReadDir(groupDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -535,7 +550,7 @@ func FindSessions(groupDir string) ([]*GrokSession, error) {
 		if !entry.IsDir() || !uuidLike.MatchString(entry.Name()) {
 			continue
 		}
-		session, err := ParseSessionDir(filepath.Join(groupDir, entry.Name()))
+		session, err := parseSessionDir(filepath.Join(groupDir, entry.Name()), metadataOnly)
 		if err != nil {
 			slog.Warn("FindSessions: failed to parse session, skipping", "dir", entry.Name(), "error", err)
 			continue

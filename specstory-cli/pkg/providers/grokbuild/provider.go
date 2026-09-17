@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -31,12 +32,15 @@ var (
 // result so analytics can tell a flag change from a genuine failure.
 const versionFlag = "--version"
 
+// Provider reads and watches Grok Build sessions.
 type Provider struct{}
 
+// NewProvider constructs the Grok Build provider.
 func NewProvider() *Provider {
 	return &Provider{}
 }
 
+// Name returns the display name of the agent.
 func (p *Provider) Name() string {
 	return "Grok Build"
 }
@@ -51,8 +55,10 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
+	slog.Info("Check: verifying Grok Build installation", "command", cmdName, "customCommand", isCustom)
 	resolvedPath, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
+		slog.Info("Check: binary lookup failed", "command", cmdName, "error", err)
 		errorType := spi.ClassifyCheckError(err)
 		errorMessage := buildGrokCheckErrorMessage(errorType, cmdName, isCustom, "")
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
@@ -71,6 +77,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
+		slog.Info("Check: version probe failed", "command", resolvedPath, "error", err)
 		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		errorMessage := buildGrokCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
@@ -83,12 +90,8 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		}
 	}
 
-	// A binary that runs but prints nothing still passes the check; report a
-	// placeholder rather than an empty version so the result reads unambiguously.
 	version := strings.TrimSpace(stdout.String())
-	if version == "" {
-		version = "unknown"
-	}
+	slog.Info("Check: succeeded", "resolved", resolvedPath, "version", version)
 	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
@@ -107,7 +110,7 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 		return false
 	}
 
-	sessions, err := FindSessions(groupDir)
+	sessions, err := findSessions(groupDir, true)
 	if err != nil || len(sessions) == 0 {
 		if helpOutput {
 			fmt.Printf("Grok Build data found at %s but no sessions have been recorded yet.\n", groupDir)
@@ -248,7 +251,7 @@ func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetad
 		return nil, err
 	}
 
-	sessions, err := FindSessions(groupDir)
+	sessions, err := findSessions(groupDir, true)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +303,7 @@ func (p *Provider) ListAllAgentChatSessionsProgress(reporter *spi.ScanReporter) 
 			return nil, nil
 		}
 
-		session, err := ParseSessionDir(dir)
+		session, err := parseSessionDir(dir, true)
 		if err != nil {
 			return nil, err
 		}
@@ -382,11 +385,12 @@ func convertToAgentChatSession(session *GrokSession, workspaceRoot string, debug
 	}
 	sessionData.Slug = slug
 
-	rawData, err := os.ReadFile(filepath.Join(session.Dir, chatHistoryFile))
-	if err != nil {
-		slog.Debug("convertToAgentChatSession: failed to read raw transcript",
-			"dir", session.Dir, "error", err)
-		rawData = nil
+	var rawData bytes.Buffer
+	for _, record := range session.Records {
+		rawData.Write(record.Raw)
+		if len(record.Raw) > 0 && record.Raw[len(record.Raw)-1] != '\n' {
+			rawData.WriteByte('\n')
+		}
 	}
 
 	if debugRaw {
@@ -401,7 +405,7 @@ func convertToAgentChatSession(session *GrokSession, workspaceRoot string, debug
 		CreatedAt:   session.CreatedAt,
 		Slug:        slug,
 		SessionData: sessionData,
-		RawData:     string(rawData),
+		RawData:     rawData.String(),
 	}
 }
 
@@ -413,14 +417,29 @@ func writeDebugRawFiles(session *GrokSession) error {
 		return fmt.Errorf("failed to create debug dir: %w", err)
 	}
 
-	for idx := range session.Records {
-		data, err := json.MarshalIndent(session.Records[idx], "", "  ")
-		if err != nil {
-			continue
+	// Remove only provider-owned numbered records; the CLI owns session-data.json.
+	entries, err := os.ReadDir(debugDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() && strings.HasSuffix(name, ".json") {
+			if n, err := strconv.Atoi(strings.TrimSuffix(name, ".json")); err == nil && n > len(session.Records) {
+				if err := os.Remove(filepath.Join(debugDir, name)); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	for idx, record := range session.Records {
+		var data bytes.Buffer
+		if err := json.Indent(&data, record.Raw, "", "  "); err != nil {
+			return err
 		}
 		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", idx+1))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: failed to write", "index", idx+1, "error", err)
+		if err := os.WriteFile(filename, data.Bytes(), 0o644); err != nil {
+			return err
 		}
 	}
 	return nil

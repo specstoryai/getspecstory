@@ -162,29 +162,26 @@ func TestSessionIndex_TimingAndOutcomes(t *testing.T) {
 	}
 }
 
-func TestReadChatHistoryCapped_RefusesOversizedLine(t *testing.T) {
+func TestReadChatHistoryCapped_SkipsOversizedLine(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, chatHistoryFile)
 
-	// One valid record, then a line past the cap. The scanner's buffer cap is
-	// what bounds the allocation, so the oversized line must surface as a
-	// refusal rather than being read whole first.
 	oversized := `{"type":"assistant","content":"` + strings.Repeat("x", 4096) + `"}`
-	content := `{"type":"user","content":[{"type":"text","text":"<user_query>hi</user_query>"}]}` + "\n" + oversized + "\n"
+	content := `{"type":"user","content":[{"type":"text","text":"<user_query>hi</user_query>"}]}` + "\n" + oversized + "\n" + `{ "type":"assistant", "content":"after" }`
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := readChatHistoryCapped(path, 1024)
-	if err == nil {
-		t.Fatal("an oversized line should refuse the file")
+	records, err := readChatHistoryCapped(path, 1024)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "size limit") {
-		t.Errorf("error should name the size limit, got: %v", err)
+	if len(records) != 2 || records[1].TextContent() != "after" {
+		t.Fatalf("records after oversized line lost: %+v", records)
 	}
 }
 
-func TestForEachJSONLineCapped_StopsAtOversizedLine(t *testing.T) {
+func TestForEachJSONLineCapped_SkipsOversizedLine(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, updatesFile)
 
@@ -197,10 +194,8 @@ func TestForEachJSONLineCapped_StopsAtOversizedLine(t *testing.T) {
 	var seen int
 	forEachJSONLineCapped(path, 1024, func(raw []byte) { seen++ })
 
-	// Sidecars are best effort: everything before the oversized line is kept,
-	// and the scan stops there instead of allocating past the cap.
-	if seen != 1 {
-		t.Errorf("lines handed to fn = %d, want 1 (the line before the oversized one)", seen)
+	if seen != 2 {
+		t.Errorf("valid sidecar lines = %d, want 2", seen)
 	}
 }
 
@@ -304,4 +299,58 @@ func copyFixture(t *testing.T, fixture, dest string) {
 func quote(s string) string {
 	replacer := strings.NewReplacer("\\", "\\\\", "\"", "\\\"", "\n", "\\n")
 	return "\"" + replacer.Replace(s) + "\""
+}
+
+func TestMissingPromptIndexDoesNotCollideWithZero(t *testing.T) {
+	dir := t.TempDir()
+	records := []string{
+		`{"timestamp":1700000000,"params":{"update":{"sessionUpdate":"user_message_chunk","_meta":{"promptIndex":0}}}}`,
+		`{"timestamp":1700000001,"params":{"update":{"sessionUpdate":"user_message_chunk"}}}`,
+		`{"timestamp":1700000002,"params":{"update":{"sessionUpdate":"user_message_chunk"}}}`,
+		`{"timestamp":1700000003,"params":{"update":{"sessionUpdate":"user_message_chunk","_meta":{"promptIndex":4}}}}`,
+	}
+	if err := os.WriteFile(filepath.Join(dir, updatesFile), []byte(strings.Join(records, "\n")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	index := buildSessionIndex(dir)
+	for n := range 4 {
+		if got, want := index.userTimeAtOrdinal(n), isoFromMillis(0, int64(1700000000+n)); got != want {
+			t.Errorf("prompt %d: %q, want %q", n, got, want)
+		}
+	}
+	if got := index.userTimeForPrompt(0); got != isoFromMillis(0, 1700000000) {
+		t.Errorf("index zero overwritten: %s", got)
+	}
+	if got := index.userTimeForPrompt(4); got != isoFromMillis(0, 1700000003) {
+		t.Errorf("index four lost: %s", got)
+	}
+}
+
+func TestMetadataScanStopsAtFirstQueryAndSkipsSidecars(t *testing.T) {
+	dir := t.TempDir()
+	copyFixture(t, "session-basic", dir)
+	full, err := ParseSessionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A directory cannot be read as a JSONL sidecar on any supported OS.
+	for _, name := range []string{updatesFile, eventsFile} {
+		if err := os.Remove(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(filepath.Join(dir, name), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	metadata, err := parseSessionDir(dir, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(metadata.Records) != 1 || len(metadata.Index.userTime) != 0 || len(metadata.Subagents) != 0 {
+		t.Fatalf("full parse during metadata scan: %+v", metadata)
+	}
+	got, want := extractSessionMetadata(metadata), extractSessionMetadata(full)
+	if *got != *want {
+		t.Fatalf("metadata differs: %+v, want %+v", got, want)
+	}
 }

@@ -25,10 +25,10 @@ func TestEnsureResumeArgs(t *testing.T) {
 			want:            []string{"--resume", "abc-123"},
 		},
 		{
-			name:            "an existing choice of session is respected",
+			name:            "the selected session overrides the configured id",
 			args:            []string{"--resume", "other-id"},
 			resumeSessionID: "abc-123",
-			want:            []string{"--resume", "other-id"},
+			want:            []string{"--resume", "abc-123"},
 		},
 		{
 			// A bare --resume is meaningful to grok on its own: it opens the
@@ -52,10 +52,10 @@ func TestEnsureResumeArgs(t *testing.T) {
 			want:            []string{"--resume=abc-123"},
 		},
 		{
-			name:            "a populated --resume= is respected",
+			name:            "a populated --resume= is replaced",
 			args:            []string{"--resume=other-id"},
 			resumeSessionID: "abc-123",
-			want:            []string{"--resume=other-id"},
+			want:            []string{"--resume=abc-123"},
 		},
 	}
 

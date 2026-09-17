@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -52,17 +51,12 @@ func GenerateAgentSession(session *GrokSession, workspaceRoot string) (*SessionD
 		}
 	}
 
-	version := session.Model
-	if version == "" {
-		version = "unknown"
-	}
-
 	return &SessionData{
 		SchemaVersion: "1.0",
 		Provider: ProviderInfo{
-			ID:      "grok-build",
+			ID:      "grok",
 			Name:    "Grok Build",
-			Version: version,
+			Version: "unknown",
 		},
 		SessionID:     session.ID,
 		CreatedAt:     createdAt,
@@ -192,7 +186,11 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 				continue
 			}
 			current = ensureExchange(current, session.CreatedAt)
-			current.Messages = append(current.Messages, buildBackendToolMessage(session, record))
+			msg := buildBackendToolMessage(session, record)
+			current.Messages = append(current.Messages, msg)
+			if msg.Timestamp != "" {
+				current.EndTime = msg.Timestamp
+			}
 		}
 	}
 
@@ -531,18 +529,12 @@ func (i *sessionIndex) userTimeForPrompt(promptIndex int) string {
 	return i.userTime[promptIndex]
 }
 
-// userTimeAtOrdinal returns the nth recorded prompt time in prompt order. Only
-// sessions written before Grok stamped prompt_index onto its records need this.
+// userTimeAtOrdinal is a best-effort fallback for records missing a prompt index.
 func (i *sessionIndex) userTimeAtOrdinal(n int) string {
-	if i == nil || n < 0 || n >= len(i.userTime) {
+	if i == nil || n < 0 || n >= len(i.userTimes) {
 		return ""
 	}
-	indices := make([]int, 0, len(i.userTime))
-	for index := range i.userTime {
-		indices = append(indices, index)
-	}
-	sort.Ints(indices)
-	return i.userTime[indices[n]]
+	return i.userTimes[n]
 }
 
 // agentTimeAt returns the recorded time of the nth agent message.
