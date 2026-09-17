@@ -156,7 +156,7 @@ func TestWatch_EmitsOnNewSession(t *testing.T) {
 // must not panic or emit), then completes the file and asserts an emit follows.
 // Exercises readLines fragment handling under a live write.
 func TestWatch_PartialLineThenComplete(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		ch := make(chan *spi.AgentChatSession, 16)
 		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
@@ -328,7 +328,7 @@ func TestWatch_DefaultLayoutCollidingDirFiltersByCwd(t *testing.T) {
 // TestWatch_IgnoresNonJSONLAndHeaderOnly asserts a .txt file and a header-only
 // .jsonl produce no emit.
 func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		ch := make(chan *spi.AgentChatSession, 16)
 		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
@@ -347,7 +347,7 @@ func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
 // assertions are that StopWatcher does not return while the save is in flight
 // and that the markdown exists once it does return.
 func TestStopWatcher_JoinsInFlightSave(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		markdown := filepath.Join(t.TempDir(), "saved-session.md")
 		started, gate := make(chan struct{}), make(chan struct{})
@@ -492,7 +492,7 @@ func TestStopWatcher_SweepSkipsSessionAlreadyEmitted(t *testing.T) {
 // before the watch starts and its mtime is pushed an hour back so the grace
 // window for coarse filesystem clocks cannot admit it.
 func TestStopWatcher_SweepLeavesOlderFileAlone(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		path := filepath.Join(dir, "older.jsonl")
 		if err := os.WriteFile(path, []byte(validSession("sess-older", project, "prompt from before the watch")), 0600); err != nil {
@@ -513,7 +513,7 @@ func TestStopWatcher_SweepLeavesOlderFileAlone(t *testing.T) {
 }
 
 func TestWatch_LeavesFreshExistingSessionAlone(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		path := filepath.Join(dir, "existing.jsonl")
 		if err := os.WriteFile(path, []byte(validSession("existing", project, "already saved")), 0600); err != nil {
@@ -530,7 +530,7 @@ func TestWatch_LeavesFreshExistingSessionAlone(t *testing.T) {
 }
 
 func TestWatch_CallbacksFinishInOrder(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		started, gate := make(chan struct{}), make(chan struct{})
 		second := make(chan *spi.AgentChatSession, 16)
@@ -564,7 +564,7 @@ func TestWatch_CallbacksFinishInOrder(t *testing.T) {
 }
 
 func TestStopWatcher_WaitsForSlowSave(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		started, gate := make(chan struct{}), make(chan struct{})
 		var release sync.Once
@@ -588,12 +588,12 @@ func TestStopWatcher_WaitsForSlowSave(t *testing.T) {
 }
 
 func TestWatch_ReconcilesWithoutFileEvent(t *testing.T) {
-	withPiWatchClock(t, func(t *testing.T, fs *fsnotify.Watcher) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
 		project, dir := t.TempDir(), t.TempDir()
 		ch := make(chan *spi.AgentChatSession, 16)
 		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
-		// Startup is complete and the production tickers are armed. Remove the OS
-		// watch and deliberately deliver no event for this write.
+		// Startup is complete and the production tickers are armed. Remove the
+		// registration and deliberately deliver no event for this write.
 		if err := fs.Remove(dir); err != nil {
 			t.Fatal(err)
 		}
@@ -620,8 +620,35 @@ func TestWatch_ReconcilesWithoutFileEvent(t *testing.T) {
 				return
 			}
 		}
-		t.Fatal("reconciliation did not restore the filesystem watch")
+		t.Fatal("reconciliation did not restore the directory watch")
 	})
+}
+
+// Keep the OS registration part of missing-event recovery covered outside the
+// virtual clock. The clock test above exercises the periodic trigger and scan.
+func TestWatch_RestoresRemovedDirectoryWatch(t *testing.T) {
+	dir := t.TempDir()
+	fs, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = fs.Close() })
+	w := &piWatcher{fs: fs, dir: dir}
+	if err := w.ensureWatch(); err != nil {
+		t.Fatal(err)
+	}
+	if err := fs.Remove(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.ensureWatch(); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range fs.WatchList() {
+		if path == dir {
+			return
+		}
+	}
+	t.Fatal("reconciliation did not restore the OS directory watch")
 }
 
 func TestWatchAgent_ReportsTerminalWatcherFailure(t *testing.T) {
@@ -723,7 +750,7 @@ func TestWatch_WriteDuringBaselineStillEmits(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		if err := w.run(ctx); err != nil {
+		if err := w.run(ctx, fs.Events, fs.Errors); err != nil {
 			t.Errorf("watch failed: %v", err)
 		}
 	})

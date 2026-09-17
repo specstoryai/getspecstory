@@ -3,6 +3,8 @@ package piagent
 import (
 	"context"
 	"os"
+	"slices"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -11,18 +13,62 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// The OS notification goroutine lives outside the clock bubble. Tests still
-// register real directory watches and parse real files, but explicitly deliver
-// events on bubble-owned channels. This lets the production timers advance in
-// virtual time, including when testing a completely missing filesystem event.
-func withPiWatchClock(t *testing.T, test func(*testing.T, *fsnotify.Watcher)) {
+// OS watchers must never cross the clock bubble boundary: on Windows even
+// Add/Remove exchange messages with a background goroutine over reply channels
+// created by the caller. Keep registration and delivery entirely in memory;
+// the other watcher tests cover the real fsnotify integration without synctest.
+func withPiWatchClock(t *testing.T, test func(*testing.T, *piClockDirectoryWatcher)) {
 	t.Helper()
-	fs, err := fsnotify.NewWatcher()
-	if err != nil {
-		t.Fatal(err)
+	synctest.Test(t, func(t *testing.T) {
+		fs := &piClockDirectoryWatcher{paths: make(map[string]bool)}
+		t.Cleanup(func() { _ = fs.Close() })
+		test(t, fs)
+	})
+}
+
+type piClockDirectoryWatcher struct {
+	mu     sync.Mutex
+	paths  map[string]bool
+	closed bool
+}
+
+func (fs *piClockDirectoryWatcher) Add(path string) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if fs.closed {
+		return fsnotify.ErrClosed
 	}
-	defer func() { _ = fs.Close() }()
-	synctest.Test(t, func(t *testing.T) { test(t, fs) })
+	fs.paths[path] = true
+	return nil
+}
+
+func (fs *piClockDirectoryWatcher) Remove(path string) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	if !fs.paths[path] {
+		return fsnotify.ErrNonExistentWatch
+	}
+	delete(fs.paths, path)
+	return nil
+}
+
+func (fs *piClockDirectoryWatcher) WatchList() []string {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	paths := make([]string, 0, len(fs.paths))
+	for path := range fs.paths {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+func (fs *piClockDirectoryWatcher) Close() error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	fs.closed = true
+	clear(fs.paths)
+	return nil
 }
 
 type piClockWatcher struct {
@@ -30,7 +76,7 @@ type piClockWatcher struct {
 	events chan fsnotify.Event
 }
 
-func startPiClockWatcher(t *testing.T, fs *fsnotify.Watcher, project, dir string, callback func(*spi.AgentChatSession)) *piClockWatcher {
+func startPiClockWatcher(t *testing.T, fs *piClockDirectoryWatcher, project, dir string, callback func(*spi.AgentChatSession)) *piClockWatcher {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	w := &piWatcher{
@@ -58,7 +104,7 @@ func startPiClockWatcher(t *testing.T, fs *fsnotify.Watcher, project, dir string
 	watchErrors := make(chan error)
 	w.wg.Go(func() {
 		defer close(w.done)
-		w.err = w.runWithEvents(ctx, f.events, watchErrors)
+		w.err = w.run(ctx, f.events, watchErrors)
 	})
 	t.Cleanup(func() {
 		stopWatcher(w)

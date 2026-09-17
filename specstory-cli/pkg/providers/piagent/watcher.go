@@ -34,10 +34,19 @@ type fileStamp struct {
 	mtime time.Time
 }
 
+// Directory registration is separate from event delivery so virtual-time tests
+// can keep all watcher operations inside their synctest bubble.
+type piDirectoryWatcher interface {
+	Add(string) error
+	Remove(string) error
+	WatchList() []string
+	Close() error
+}
+
 // piWatcher owns one run's state. Only its worker reads or changes stamps and
 // pending paths, so parsing, delivery and the final sweep cannot overtake each other.
 type piWatcher struct {
-	fs          *fsnotify.Watcher
+	fs          piDirectoryWatcher
 	dir         string
 	flat        bool
 	candidates  []string
@@ -148,7 +157,7 @@ func startProjectWatcher(projectPath string) (*piWatcher, error) {
 	w.wg.Go(func() {
 		defer close(w.done)
 		defer func() { _ = fs.Close() }()
-		w.err = w.run(ctx)
+		w.err = w.run(ctx, fs.Events, fs.Errors)
 		if w.err != nil {
 			slog.Error("WatchAgent: pi session watcher failed", "projectPath", projectPath, "error", w.err)
 		}
@@ -218,13 +227,9 @@ func (w *piWatcher) ensureWatch() error {
 	return nil
 }
 
-func (w *piWatcher) run(ctx context.Context) error {
-	return w.runWithEvents(ctx, w.fs.Events, w.fs.Errors)
-}
-
 // Keep event delivery separate so tests can drive the real loop and its timers
 // without depending on the OS notification goroutine's scheduling.
-func (w *piWatcher) runWithEvents(ctx context.Context, events <-chan fsnotify.Event, watchErrors <-chan error) (err error) {
+func (w *piWatcher) run(ctx context.Context, events <-chan fsnotify.Event, watchErrors <-chan error) (err error) {
 	// The last write may still be in the kernel's event queue at process exit.
 	// A final on-disk scan, on this same worker, also flushes debounced updates.
 	defer func() { err = errors.Join(err, w.reconcile()) }()
