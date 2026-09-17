@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
 
@@ -116,8 +117,8 @@ func TestFormatEntries_CompactionKeepsHistoryAndSummary(t *testing.T) {
 // a real pi session (testdata/real_world.jsonl) to assert the hard-to-synthesize
 // format features: the pre-compaction history is PRESERVED in the transcript,
 // the compaction summary is rendered as a marker, and the bashExecution message
-// role on the live leaf path is skipped (it sits before the compaction entry,
-// which no longer truncates the path — so this skip is genuinely exercised).
+// role on the live leaf path is preserved as labeled user activity, even when
+// the native record excludes it from Pi's model context.
 func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "real_world.jsonl"))
 	if err != nil {
@@ -144,6 +145,13 @@ func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
 				}
 				if strings.Contains(part.Text, "total 24") {
 					hasBashExecContent = true
+					if msg.Role != schema.RoleUser || msg.Tool != nil {
+						t.Errorf("shell execution should be user text, got %+v", msg)
+					}
+					text := spi.FlattenSessionData(&schema.SessionData{Exchanges: []schema.Exchange{{Messages: []schema.Message{msg}}}}, "")
+					if len(text) != 1 || text[0].Role != schema.RoleUser || !strings.Contains(text[0].Text, "User ran a shell command") || !strings.Contains(text[0].Text, "ls -la") {
+						t.Errorf("shell command missing from resume context: %+v", text)
+					}
 				}
 			}
 		}
@@ -157,8 +165,77 @@ func TestFormatEntries_RealWorldCompactionAndBashExecution(t *testing.T) {
 	if !hasSummary {
 		t.Error("compaction summary was not rendered as a marker message")
 	}
-	if hasBashExecContent {
-		t.Error("bashExecution content leaked into exchanges (should be skipped)")
+	if !hasBashExecContent {
+		t.Error("user shell execution output was dropped")
+	}
+}
+
+func TestFormatFields_BashExecution(t *testing.T) {
+	tests := []struct {
+		name    string
+		message string
+		want    []string
+		absent  []string
+		skipped bool
+	}{
+		{
+			name:    "successful command",
+			message: `{"role":"bashExecution","command":"echo hi","output":"hi","exitCode":0,"cancelled":false,"truncated":false}`,
+			want:    []string{"User ran a shell command", "echo hi", "Output:", "hi", "Exit code: 0"},
+			absent:  []string{"Cancelled", "truncated"},
+		},
+		{
+			name:    "failed command",
+			message: `{"role":"bashExecution","command":"missing-command","output":"command not found","exitCode":127}`,
+			want:    []string{"missing-command", "command not found", "Exit code: 127"},
+		},
+		{
+			name:    "cancelled truncated output with controls and fences",
+			message: "{\"role\":\"bashExecution\",\"command\":\"printf '```'\",\"output\":\"\\u001b[31m```\\u001b[0m\\u0000\",\"exitCode\":null,\"cancelled\":true,\"truncated\":true,\"excludeFromContext\":true}",
+			want:    []string{"````bash", "````text", "Cancelled", "truncated"},
+			absent:  []string{"\x1b", "\x00", "Exit code: 0"},
+		},
+		{
+			name:    "malformed shell payload",
+			message: `{"role":"bashExecution","command":"echo hi","output":42}`,
+			skipped: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			entries := []rawEntry{
+				{Type: entryMessage, ID: "shell", Timestamp: "2026-07-09T10:00:05.000Z", Message: json.RawMessage(tt.message)},
+				{Type: entryMessage, ID: "answer", Message: json.RawMessage(`{"role":"assistant","content":[{"type":"text","text":"Following response"}]}`)},
+			}
+			exchanges := buildExchanges(entries)
+			if len(exchanges) != 1 {
+				t.Fatalf("got %d exchanges, want 1", len(exchanges))
+			}
+			messages := exchanges[0].Messages
+			if tt.skipped {
+				if len(messages) != 1 || messages[0].Role != schema.RoleAgent {
+					t.Fatalf("malformed shell should be skipped without losing following response: %+v", messages)
+				}
+				return
+			}
+			if len(messages) != 2 || messages[0].Role != schema.RoleUser || messages[1].Role != schema.RoleAgent {
+				t.Fatalf("want user shell followed by agent response, got %+v", messages)
+			}
+			if messages[0].ID != "shell" || messages[0].Timestamp != entries[0].Timestamp || messages[0].Tool != nil {
+				t.Errorf("shell identity/attribution not preserved: %+v", messages[0])
+			}
+			turns := spi.FlattenSessionData(&schema.SessionData{Exchanges: exchanges}, "")
+			for _, want := range tt.want {
+				if !strings.Contains(turns[0].Text, want) {
+					t.Errorf("missing %q in shell text: %s", want, turns[0].Text)
+				}
+			}
+			for _, absent := range tt.absent {
+				if strings.Contains(turns[0].Text, absent) {
+					t.Errorf("unexpected %q in shell text: %s", absent, turns[0].Text)
+				}
+			}
+		})
 	}
 }
 
@@ -378,7 +455,7 @@ func TestFormatFields_ToolResultFields(t *testing.T) {
 }
 
 // TestFormatFields_NonConversationRolesSkipped covers the message roles v1 does
-// not map into exchanges: bashExecution, custom, branchSummary, compactionSummary.
+// not map into exchanges: custom, branchSummary, compactionSummary.
 func TestFormatFields_NonConversationRolesSkipped(t *testing.T) {
 	data := parseFields(t)
 	if !data.Validate() {
@@ -387,7 +464,7 @@ func TestFormatFields_NonConversationRolesSkipped(t *testing.T) {
 	for _, ex := range data.Exchanges {
 		for _, msg := range ex.Messages {
 			for _, part := range msg.Content {
-				for _, marker := range []string{"echo hi", "extension content", "explored approach A", "compacted earlier"} {
+				for _, marker := range []string{"extension content", "explored approach A", "compacted earlier"} {
 					if strings.Contains(part.Text, marker) {
 						t.Errorf("non-conversation role content leaked into exchange: %q", part.Text)
 					}

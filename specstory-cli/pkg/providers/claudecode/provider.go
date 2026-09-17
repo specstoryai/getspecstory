@@ -393,7 +393,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	StopWatcher()
 	if projectDir != "" {
 		for _, path := range finalChanges() {
-			scanJSONLFiles(projectDir, path)
+			// Claude has exited: export even an interrupted shell call, without
+			// registering deferred work after the watcher has stopped.
+			scanJSONLFilesWithOptions(projectDir, path, true)
 		}
 	}
 

@@ -79,6 +79,16 @@ type userMessage struct {
 	Timestamp int64           `json:"timestamp"`
 }
 
+// bashExecutionMessage records a command run by the user, independently of
+// assistant tool calls. A missing exit code must not be reported as success.
+type bashExecutionMessage struct {
+	Command   string `json:"command"`
+	Output    string `json:"output"`
+	ExitCode  *int   `json:"exitCode"`
+	Cancelled bool   `json:"cancelled"`
+	Truncated bool   `json:"truncated"`
+}
+
 // assistantMessage is a pi assistant-role message.
 type assistantMessage struct {
 	Role         string         `json:"role"`
@@ -240,8 +250,13 @@ func buildExchanges(ordered []rawEntry) []schema.Exchange {
 			continue
 		}
 		switch messageRole(e) {
-		case roleUser:
-			msg := buildUserMessage(e)
+		case roleUser, roleBashExecution:
+			var msg *schema.Message
+			if messageRole(e) == roleBashExecution {
+				msg = buildBashExecutionMessage(e)
+			} else {
+				msg = buildUserMessage(e)
+			}
 			if msg == nil {
 				continue
 			}
@@ -361,6 +376,47 @@ func buildUserMessage(e rawEntry) *schema.Message {
 		Role:      schema.RoleUser,
 		Content:   parts,
 	}
+}
+
+// buildBashExecutionMessage keeps user-run commands and their results together
+// as user activity. Native context exclusion does not remove archival content
+// or prevent this text from being carried into a reconstructed conversation.
+func buildBashExecutionMessage(e rawEntry) *schema.Message {
+	var execution bashExecutionMessage
+	if err := json.Unmarshal(e.Message, &execution); err != nil {
+		slog.Warn("pi: skipping corrupted shell execution", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+		return nil
+	}
+	var result []string
+	if execution.Output != "" {
+		// Match the rendered output cap used for shell tools; RawData retains
+		// the original accepted record, including any omitted output.
+		output := spi.CapRunes(sanitizeShellOutput(execution.Output), 5000)
+		result = append(result, "Output:\n\n"+spi.CodeFence("text", output))
+	}
+	if execution.ExitCode != nil {
+		result = append(result, fmt.Sprintf("Exit code: %d", *execution.ExitCode))
+	}
+	if execution.Cancelled {
+		result = append(result, "Cancelled.")
+	}
+	if execution.Truncated {
+		result = append(result, "[Output truncated by Pi]")
+	}
+	parts := []schema.ContentPart{{Type: schema.ContentTypeText, Text: bashExecutionCommandText(execution.Command)}}
+	if len(result) > 0 {
+		parts = append(parts, schema.ContentPart{Type: schema.ContentTypeText, Text: strings.Join(result, "\n\n")})
+	}
+	return &schema.Message{
+		ID: e.ID, Timestamp: e.Timestamp, Role: schema.RoleUser, Content: parts,
+	}
+}
+
+// bashExecutionCommandText labels historical shell activity so it cannot be
+// mistaken for a new instruction. The scan path shares it to keep slugs aligned
+// without retaining command output.
+func bashExecutionCommandText(command string) string {
+	return "User ran a shell command:\n\n" + spi.CodeFence("bash", command)
 }
 
 // userContentParts decodes a pi user message's content (string or array) into
@@ -558,15 +614,19 @@ func classifyToolType(name string) string {
 	}
 }
 
-// firstUserText extracts the first user message text from a message entry, if
-// its role is "user". Returns "" for non-user messages or empty content.
+// firstUserText extracts user text or a labeled user-run shell command for
+// metadata scanning. Shell output is not needed to derive the session title.
 func firstUserText(e rawEntry) string {
 	var m struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
+		Command string          `json:"command"`
 	}
 	if err := json.Unmarshal(e.Message, &m); err != nil {
 		return ""
+	}
+	if m.Role == roleBashExecution {
+		return bashExecutionCommandText(m.Command)
 	}
 	if m.Role != roleUser {
 		return ""

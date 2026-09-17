@@ -381,6 +381,55 @@ func TestParse_AssistantErrorMessageSurfaced(t *testing.T) {
 
 // ---- scan path ----
 
+func TestScan_ShellOnlySession(t *testing.T) {
+	snapshot, err := readEntries(loadFixture(t, "real_world.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var shell *rawEntry
+	for _, entry := range snapshot.entries {
+		if messageRole(entry) == roleBashExecution {
+			shell = &entry
+			break
+		}
+	}
+	if shell == nil {
+		t.Fatal("fixture has no shell execution")
+	}
+	// Isolate captured shell activity as the first and only native message.
+	shell.ParentID = nil
+	var content bytes.Buffer
+	encoder := json.NewEncoder(&content)
+	if err := encoder.Encode(snapshot.header); err != nil {
+		t.Fatal(err)
+	}
+	if err := encoder.Encode(shell); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "shell-only.jsonl")
+	if err := os.WriteFile(path, content.Bytes(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	scan, err := scanPiSession(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if scan == nil || !scan.foundUser || !strings.Contains(scan.firstUserMessage, "ls -la") {
+		t.Fatalf("shell-only session not discoverable: %+v", scan)
+	}
+	chat, err := parseToAgentSession(path, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := scanToGlobalRef(scan, path)
+	if ref == nil || ref.Slug != chat.Slug {
+		t.Fatalf("enumeration and full parse disagree: ref=%+v, slug=%q", ref, chat.Slug)
+	}
+	if !strings.Contains(chat.RawData, `"excludeFromContext":true`) || !chat.SessionData.Validate() {
+		t.Error("shell-only session did not preserve native data and valid normalized content")
+	}
+}
+
 // TestScan_PopulatesSlugAndName asserts scanPiSession derives Slug/Name from
 // the first user message on the active leaf path (matching the full parse's
 // deriveSlug, so list/reindex titles agree with sync markdown filenames).

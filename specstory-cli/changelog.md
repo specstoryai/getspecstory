@@ -7,6 +7,7 @@
 - `specstory check` now treats missing optional agents as informational instead of showing a failed check for each agent you haven't installed. Permission problems, broken installations, and unreadable IDE storage still appear as errors, as does a missing custom command supplied with `-c`. Exit codes are unchanged.
 - Pi transcripts now include edit diffs, read ranges, search options, and clearer PowerShell tool output. Narration and tool calls retain their original order, and unfamiliar tool fields are preserved instead of silently omitted.
 - `specstory skills` now recognizes Pi as an installation target, using `.pi/skills` for project skills and `~/.pi/agent/skills` for global skills.
+- Claude Code live session saving (`specstory run` or `specstory watch`) now defers file writes (transcript, statistics, and debug writes) while a Bash or PowerShell tool call is in progress, reducing cases where Claude Code 2.1.269+ diff sweep incorrectly shows SpecStory's files as edits made by those commands. Deferred updates are flushed on shutdown. `specstory sync` and final exports after Claude exits still write immediately, and a five-minute fallback prioritizes saving SpecStory history in case of a hung tool call, so very long commands that eventually do finish may still show these edits as originating with the tool.
 
 ### 🐛 Bug Fixes
 
