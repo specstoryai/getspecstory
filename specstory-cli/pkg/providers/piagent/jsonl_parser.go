@@ -2,39 +2,35 @@ package piagent
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// Line-size sanity limits, mirroring claudecode/codex. bufio.Reader.ReadString
-// has no line-size limit, so a 250MB cap guards against OOM from pathological or
-// malicious files (a legitimate pi session line — a big tool result or base64
-// image — can exceed the 16MB bufio.Scanner cap, so we do NOT use Scanner).
 const (
 	KB = 1024
 	MB = 1024 * 1024
 )
 
-// maxReasonableLineSize is the only sanity limit the pi parser applies.
-// Aggregate session-wide byte/entry caps were considered and rejected: the
-// full parse must retain the whole tree to reconstruct the transcript, and
-// this is no worse than the Claude Code/Codex providers, which also cap only
-// a single line's size. The metadata-only scan path (readScanEntries below)
-// instead avoids the memory cost by never retaining message payloads it
-// doesn't need, rather than by refusing large-but-valid sessions outright.
-var maxReasonableLineSize = 250 * MB
+// maxRecordLineSize is the per-record cap, shared with every other provider. A
+// var only so a test can shrink it; treat it as spi.MaxRecordLineSize.
+//
+// Aggregate session-wide byte or entry caps were considered and rejected: the
+// full parse must retain the whole tree to reconstruct the transcript. The
+// metadata-only scan path (readScanEntries below) instead avoids the memory
+// cost by never retaining message payloads it doesn't need, rather than by
+// refusing large-but-valid sessions outright.
+var maxRecordLineSize = spi.MaxRecordLineSize
 
-// readLines reads a pi session file line-by-line via bufio.Reader (unbounded
-// line size, unlike bufio.Scanner) and calls visit for each non-empty trimmed
-// line. Lines exceeding maxReasonableLineSize are refused with an error to
-// prevent OOM.
-func readLines(path string, visit func(line string) error) error {
+// readRecordLines preserves each bounded record's original bytes. Consumers
+// retaining them own the buffers returned by ReadRecordLine, including newlines.
+func readRecordLines(path string, visit func(line []byte, lineNumber int) error) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("pi: opening session %s: %w", path, err)
@@ -42,63 +38,21 @@ func readLines(path string, visit func(line string) error) error {
 	defer func() { _ = f.Close() }()
 
 	reader := bufio.NewReader(f)
-	lineNum := 0
-	var longLine bytes.Buffer
-	for {
-		part, isPrefix, readErr := reader.ReadLine()
-		if readErr != nil && readErr != io.EOF {
-			return fmt.Errorf("pi: reading line %d of %s: %w", lineNum+1, path, readErr)
+	for lineNum := 1; ; lineNum++ {
+		line, oversized, readErr := spi.ReadRecordLine(reader, maxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return fmt.Errorf("pi: reading line %d of %s: %w", lineNum, path, readErr)
 		}
-		if len(part) > 0 {
-			if longLine.Len()+len(part) > maxReasonableLineSize {
-				slog.Warn("pi: line exceeds reasonable size limit",
-					"lineNumber", lineNum+1, "sizeMB", (longLine.Len()+len(part))/MB,
-					"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
-				return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
-					lineNum+1, path, maxReasonableLineSize/MB)
-			}
-			if _, wErr := longLine.Write(part); wErr != nil {
-				return fmt.Errorf("pi: buffering line %d of %s: %w", lineNum+1, path, wErr)
-			}
-		}
-		if readErr == io.EOF {
-			if longLine.Len() == 0 {
-				return nil
-			}
-			lineNum++
-			trimmed := strings.TrimSpace(longLine.String())
-			longLine.Reset()
-			if trimmed != "" {
-				if len(trimmed) > maxReasonableLineSize {
-					slog.Warn("pi: line exceeds reasonable size limit",
-						"lineNumber", lineNum, "sizeMB", len(trimmed)/MB,
-						"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
-					return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
-						lineNum, path, maxReasonableLineSize/MB)
-				}
-				if vErr := visit(trimmed); vErr != nil {
-					return vErr
-				}
-			}
-			return nil
-		}
-		if isPrefix {
-			continue
-		}
-		lineNum++
-		trimmed := strings.TrimSpace(longLine.String())
-		longLine.Reset()
-		if trimmed != "" {
-			if len(trimmed) > maxReasonableLineSize {
-				slog.Warn("pi: line exceeds reasonable size limit",
-					"lineNumber", lineNum, "sizeMB", len(trimmed)/MB,
-					"limitMB", maxReasonableLineSize/MB, "file", filepath.Base(path))
-				return fmt.Errorf("pi: line %d of %s exceeds %dMB (refusing to process potentially malformed file)",
-					lineNum, path, maxReasonableLineSize/MB)
-			}
-			if vErr := visit(trimmed); vErr != nil {
+		if oversized {
+			slog.Warn("pi: skipping oversized JSONL line",
+				"lineNumber", lineNum, "limit", maxRecordLineSize, "file", path)
+		} else if trimmed := strings.TrimSpace(string(line)); trimmed != "" {
+			if vErr := visit(line, lineNum); vErr != nil {
 				return vErr
 			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return nil
 		}
 	}
 }
@@ -114,15 +68,18 @@ func readLines(path string, visit func(line string) error) error {
 // abort the whole parse. This logic is shared verbatim by readEntries and
 // readScanEntries: they must pick the same active leaf, or scan and full parse
 // disagree on a session's slug/name.
-func decodeEntry(line, path, prevID string, n int) (rawEntry, bool) {
+func decodeEntry(line, path, prevID string, n, lineNumber int) (rawEntry, bool) {
 	var e rawEntry
 	if jErr := json.Unmarshal([]byte(line), &e); jErr != nil {
+		slog.Warn("pi: skipping corrupted JSONL line", "file", path, "lineNumber", lineNumber, "error", jErr)
 		return rawEntry{}, false
 	}
 	if e.Type == "" {
-		slog.Debug("pi: skipping entry with empty type", "file", path)
+		slog.Warn("pi: skipping entry with empty type", "file", path, "lineNumber", lineNumber)
 		return rawEntry{}, false
 	}
+	e.sourcePath, e.lineNumber = path, lineNumber
+	diagnoseEntry(e)
 	if e.ID == "" {
 		e.ID = fmt.Sprintf("legacy-%d", n+1)
 		if prevID != "" {
@@ -133,36 +90,92 @@ func decodeEntry(line, path, prevID string, n int) (rawEntry, bool) {
 	return e, true
 }
 
-// readEntries parses every line of the session file into a header (line 1) and
-// a list of message/control entries (the rest). Malformed lines are skipped
-// rather than aborting the whole parse.
-func readEntries(path string) (*sessionHeader, []rawEntry, error) {
+// diagnoseEntry distinguishes known non-conversation data from format changes.
+// Keep every valid envelope in the tree: dropping a control or unknown entry
+// would disconnect its descendants from their recorded parents.
+func diagnoseEntry(e rawEntry) {
+	switch e.Type {
+	case entryMessage:
+		var role struct {
+			Role string `json:"role"`
+		}
+		if err := json.Unmarshal(e.Message, &role); err != nil {
+			slog.Warn("pi: corrupted message envelope", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+			return
+		}
+		switch role.Role {
+		case roleUser, roleAssistant, roleToolResult:
+			// Conversation messages are rendered or merged into their matching call.
+		case roleBashExecution:
+			// User-invoked shell executions have no assistant tool call to pair with.
+		case roleCustom:
+			// Extension context has no unified conversation role.
+		case roleBranchSummary, roleCompaction:
+			// Context-only summaries are distinct from durable compaction entries.
+		default:
+			slog.Warn("pi: unknown message role", "file", e.sourcePath, "lineNumber", e.lineNumber, "role", role.Role)
+		}
+	case entryCompaction:
+		// Rendered as a transcript marker without dropping earlier turns.
+	case entryModelChange, entryThinkingLevelChange:
+		// Settings changes; assistant entries carry the model actually used.
+	case entrySessionInfo, entryLabel:
+		// Session name and tree labels belong to navigation, not conversation.
+	case entryCustom, entryCustomMessage:
+		// Extension state and injected context are not user/assistant turns.
+	case entryBranchSummary:
+		// Context about a branch the user left, not conversation on the active path.
+	default:
+		slog.Warn("pi: unknown entry kind", "file", e.sourcePath, "lineNumber", e.lineNumber, "kind", e.Type)
+	}
+}
+
+// sessionSnapshot keeps decoded records and their original bytes together so
+// normalized data, raw uploads and debug exports describe the same read.
+type sessionSnapshot struct {
+	header  *sessionHeader
+	entries []rawEntry
+	records []json.RawMessage
+}
+
+// readEntries retains accepted, bounded records, skipping malformed body lines
+// without aborting the rest of the session.
+func readEntries(path string) (*sessionSnapshot, error) {
 	var header *sessionHeader
 	var entries []rawEntry
-	err := readLines(path, func(line string) error {
+	var records []json.RawMessage
+	err := readRecordLines(path, func(raw []byte, lineNumber int) error {
+		line := strings.TrimSpace(string(raw))
 		if header == nil {
 			h := sessionHeader{}
 			if jErr := json.Unmarshal([]byte(line), &h); jErr != nil {
-				return fmt.Errorf("pi: parsing session header: %w", jErr)
+				return fmt.Errorf("pi: parsing session header of %s at line %d: %w", path, lineNumber, jErr)
+			}
+			if h.Type != entrySession || h.ID == "" {
+				return fmt.Errorf("pi: invalid session header in %s at line %d (type %q, id %q)", path, lineNumber, h.Type, h.ID)
 			}
 			header = &h
+			records = append(records, json.RawMessage(raw))
 			return nil
 		}
 		prevID := ""
 		if len(entries) > 0 {
 			prevID = entries[len(entries)-1].ID
 		}
-		e, ok := decodeEntry(line, path, prevID, len(entries))
+		e, ok := decodeEntry(line, path, prevID, len(entries), lineNumber)
 		if !ok {
 			return nil
 		}
 		entries = append(entries, e)
+		records = append(records, json.RawMessage(raw))
 		return nil
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return header, entries, nil
+	// Only accepted, bounded records enter the snapshot. Unknown native fields
+	// remain intact because records contain original bytes, not reserialized structs.
+	return &sessionSnapshot{header: header, entries: entries, records: records}, nil
 }
 
 // scanEntry is the lightweight branch-walk shape used by the metadata-only
@@ -190,7 +203,8 @@ func readScanEntries(path string) ([]scanEntry, string, error) {
 	var entries []scanEntry
 	var sessionName string
 	first := true
-	err := readLines(path, func(line string) error {
+	err := readRecordLines(path, func(raw []byte, lineNumber int) error {
+		line := strings.TrimSpace(string(raw))
 		if first {
 			first = false // header already parsed by readHeader
 			return nil
@@ -199,7 +213,7 @@ func readScanEntries(path string) ([]scanEntry, string, error) {
 		if len(entries) > 0 {
 			prevID = entries[len(entries)-1].ID
 		}
-		e, ok := decodeEntry(line, path, prevID, len(entries))
+		e, ok := decodeEntry(line, path, prevID, len(entries), lineNumber)
 		if !ok {
 			return nil
 		}

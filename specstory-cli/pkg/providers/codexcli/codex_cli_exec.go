@@ -262,6 +262,10 @@ func ExecuteCodex(customCommand string, resumeSessionID string) error {
 	// Run the command and wait for it to complete
 	slog.Info("ExecuteCodex: Executing Codex CLI (blocking until exit)")
 	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return &spi.AgentExitError{Agent: "Codex CLI", Code: exitErr.ExitCode()}
+		}
 		slog.Error("ExecuteCodex: Codex execution failed", "error", err)
 		return fmt.Errorf("codex execution failed: %w", err)
 	}

@@ -24,10 +24,6 @@ var (
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 // SetWatcherCallback sets the callback function for session updates.
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
@@ -69,7 +65,9 @@ func getWatcherDebugRaw() bool {
 // StopWatcher gracefully stops the watcher goroutine.
 func StopWatcher() {
 	slog.Info("StopWatcher: Signaling watcher to stop")
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
 	watcherWg.Wait()
 	slog.Info("StopWatcher: Watcher stopped")
@@ -79,6 +77,7 @@ func StopWatcher() {
 // If resumeSessionID is provided, it finds and watches the directory containing that session.
 // Otherwise, watches hierarchically for new sessions, handling date changes across days/months/years.
 func WatchForCodexSessions(projectPath string, resumeSessionID string) error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	slog.Info("WatchForCodexSessions: Starting Codex session watcher",
 		"projectPath", projectPath,
 		"resumeSessionID", resumeSessionID)
@@ -611,8 +610,8 @@ func processCodexSessionFile(sessionPath string, projectPath string, normalizedP
 	}
 
 	slog.Info("processCodexSessionFile: Calling callback for session", "sessionID", agentSession.SessionID)
-	// Call the callback in a goroutine to avoid blocking
-	go func(s *spi.AgentChatSession) {
+	// Deliver synchronously so Stop joins every save in order.
+	func(s *spi.AgentChatSession) {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("processCodexSessionFile: Callback panicked", "panic", r)

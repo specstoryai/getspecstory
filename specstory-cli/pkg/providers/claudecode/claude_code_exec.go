@@ -1,6 +1,7 @@
 package claudecode
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -68,7 +69,7 @@ func expandTilde(path string) string {
 
 // parseClaudeCommand parses a custom command string into executable and arguments.
 // If customCommand is empty, returns the default command.
-// If resumeSessionId is provided, appends "--resume <sessionId>" to the arguments.
+// If resumeSessionId is provided, it overrides any configured resume id.
 // Supports quoted strings with spaces: claude --arg "value with spaces"
 // Example: "claude --model gpt-4" returns ("claude", ["--model", "gpt-4"])
 func parseClaudeCommand(customCommand string, resumeSessionId string) (string, []string) {
@@ -90,9 +91,9 @@ func parseClaudeCommand(customCommand string, resumeSessionId string) (string, [
 		}
 	}
 
-	// Append --resume flag if sessionId is provided
+	// The requested session overrides any resume id in the configured command.
 	if resumeSessionId != "" {
-		args = append(args, "--resume", resumeSessionId)
+		args = spi.EnsureResumeFlagArgs(args, resumeSessionId, "--resume", "-r")
 	}
 
 	return cmd, args
@@ -125,12 +126,12 @@ func ExecuteClaude(customCommand string, resumeSessionId string) error {
 	// Wait for the command to complete
 	slog.Info("ExecuteClaude: Waiting for Claude Code to exit")
 	if err := cmd.Wait(); err != nil {
-		// Don't return error if the command exited with a non-zero status
-		// This is normal for many CLI applications
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		// Return the status so the watcher can finish saving before CLI exit.
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteClaude: Claude Code exited", "exitCode", exitCode)
-			os.Exit(exitCode)
+			return &spi.AgentExitError{Agent: "Claude Code", Code: exitCode}
 		}
 		return fmt.Errorf("claude execution failed: %v", err)
 	}

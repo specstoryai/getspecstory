@@ -623,7 +623,7 @@ func sessionFileReadable(path string) (bool, error) {
 	if n > 0 {
 		return true, nil
 	}
-	if err == io.EOF || err == nil {
+	if errors.Is(err, io.EOF) || err == nil {
 		return false, fmt.Errorf("session file is empty")
 	}
 	return false, err

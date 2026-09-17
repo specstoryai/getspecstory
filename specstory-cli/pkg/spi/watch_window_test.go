@@ -1,7 +1,9 @@
 package spi
 
 import (
+	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 )
@@ -108,5 +110,33 @@ func TestDateDirWithinWatchWindow(t *testing.T) {
 					tt.path, sessionsRoot, tt.maxDepth, tt.cutoff, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestSessionFileChanges(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "project[1]")
+	if err := os.Mkdir(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(root, "old.jsonl")
+	if err := os.WriteFile(old, []byte("initial"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	changed := SessionFileChanges(root, "*.jsonl")
+	if got := changed(); len(got) != 0 {
+		t.Fatalf("startup history: %v", got)
+	}
+	if err := os.WriteFile(old, []byte("longer content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	newPath := filepath.Join(root, "new.jsonl")
+	if err := os.WriteFile(newPath, []byte("new"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "sidecar.txt"), []byte("ignored"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := changed(); !slices.Equal(got, []string{newPath, old}) {
+		t.Fatalf("changed=%v", got)
 	}
 }

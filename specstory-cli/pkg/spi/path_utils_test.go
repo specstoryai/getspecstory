@@ -674,3 +674,26 @@ func TestWindowsFileURIPath(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveUserDataDirOverridePreservesAccessFailures(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("requires Unix permissions enforced for a non-root user")
+	}
+	override := t.TempDir()
+	blocked := filepath.Join(override, "User")
+	if err := os.Mkdir(blocked, 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(blocked, 0700); err != nil {
+			t.Error(err)
+		}
+	})
+	path, ok := ResolveUserDataDirOverride(override, "copilotide", "User", "workspaceStorage")
+	if !ok || path != filepath.Join(blocked, "workspaceStorage") {
+		t.Fatalf("inaccessible override silently fell back: path=%q, ok=%v", path, ok)
+	}
+	if _, err := os.Stat(path); ClassifyCheckError(err) != CheckErrorPermissionDenied {
+		t.Fatalf("selected override did not preserve permission failure: %v", err)
+	}
+}

@@ -1,6 +1,6 @@
 # Session Data Schema
 
-The unified session data format used by all terminal coding agent providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI, etc.).
+The unified session data format that every provider under `pkg/providers/` produces. The Go types in `pkg/spi/schema/types.go` are the source of truth; this document explains them.
 
 ## Purpose
 
@@ -234,7 +234,7 @@ type ToolInfo struct {
       "additionalProperties": false,
       "required": ["id", "name", "version"],
       "properties": {
-        "id": { "type": "string", "enum": ["claude", "cursor", "codex", "gemini"] },
+        "id": { "type": "string", "description": "The provider's registry id, as registered in pkg/spi/factory/registry.go" },
         "name": { "type": "string" },
         "version": { "type": "string" }
       }
@@ -560,8 +560,7 @@ Each provider must convert its native session format to this schema:
 ### Exchange IDs
 
 - Must be unique within the session
-- Suggested format: `ex_<index>` or `ex_<hash>`
-- Can include context like `ex_0_9f86d081` (index + short hash)
+- Convention: `<sessionId>:<index>`, which every provider uses unless its native format already assigns a stable per-exchange id (the IDE providers use the native request id)
 
 ## Versioning
 

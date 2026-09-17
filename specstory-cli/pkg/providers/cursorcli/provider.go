@@ -10,7 +10,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
@@ -93,16 +92,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustomCommand := customCommand != ""
 
 	// Resolve the actual path of the command
-	resolvedPath := cursorCmd
-	if !filepath.IsAbs(cursorCmd) {
-		// Try to find the command in PATH
-		if path, err := exec.LookPath(cursorCmd); err == nil {
-			resolvedPath = path
-		}
-	}
+	resolvedPath, lookupErr := spi.LookPathForCheck(cursorCmd)
 
 	// Run cursor-agent --version to check version
-	cmd := exec.Command(cursorCmd, "--version")
+	attempt := analytics.CheckAttempt{Provider: "cursor", CustomCommand: isCustomCommand, CommandPath: cursorCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, cursorCmd, isCustomCommand, ""),
+		}
+	}
+	cmd := exec.Command(resolvedPath, "--version")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
@@ -110,21 +113,16 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "cursor",
-			"custom_command": isCustomCommand,
-			"command_path":   cursorCmd,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(errorType, cursorCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -134,19 +132,15 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check if we got any output
 	output := strings.TrimSpace(out.String())
 	if output == "" {
+		errorType := spi.CheckErrorNoOutput
 		// Track unexpected output error
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "cursor",
-			"custom_command": isCustomCommand,
-			"command_path":   cursorCmd,
-			"error_type":     spi.CheckErrorNoOutput,
-			"output":         "",
-		})
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorNoOutput, "", strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(spi.CheckErrorNoOutput, cursorCmd, isCustomCommand, "")
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -154,12 +148,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "cursor",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        output,
-	})
+	analytics.TrackCheckSuccess(attempt, output)
 
 	slog.Debug("Cursor CLI check successful", "version", output, "location", resolvedPath)
 
@@ -346,71 +335,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Info("Resuming Cursor session", "sessionId", resumeSessionID)
 	}
 
-	// Process any existing sessions first before starting the watcher
-	slog.Info("Processing existing sessions...")
-	existingSessionIDs := make(map[string]bool)
-	existingSessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
+	watcher, err := WatchCursorProject(projectPath, debugRaw, sessionCallback)
 	if err != nil {
-		slog.Error("Failed to get existing sessions", "error", err)
-	} else {
-		// Use a worker pool to limit concurrent session processing
-		const maxWorkers = 10
-		var initialWg sync.WaitGroup
-		sessionChan := make(chan spi.AgentChatSession, len(existingSessions))
-
-		// Queue all sessions
-		for _, session := range existingSessions {
-			existingSessionIDs[session.SessionID] = true
-			sessionChan <- session
-		}
-		close(sessionChan)
-
-		// Start worker goroutines (up to maxWorkers or number of sessions, whichever is less)
-		numWorkers := maxWorkers
-		if len(existingSessions) < maxWorkers {
-			numWorkers = len(existingSessions)
-		}
-
-		if sessionCallback != nil && numWorkers > 0 {
-			initialWg.Add(numWorkers)
-			for i := 0; i < numWorkers; i++ {
-				go func() {
-					defer initialWg.Done()
-					for session := range sessionChan {
-						func(s spi.AgentChatSession) {
-							defer func() {
-								if r := recover(); r != nil {
-									slog.Error("Session callback panicked", "panic", r, "sessionId", s.SessionID)
-								}
-							}()
-							sessionCallback(&s)
-						}(session)
-					}
-				}()
-			}
-		}
-
-		// Wait for all workers to complete
-		initialWg.Wait()
-		slog.Info("Processed existing sessions", "count", len(existingSessions), "workers", numWorkers)
-	}
-
-	// Create and configure the watcher before starting it
-	slog.Info("Initializing database monitoring...")
-	watcher, err := NewCursorWatcher(projectPath, debugRaw, sessionCallback)
-	if err != nil {
-		// Log the error but don't fail - watcher might work later
-		slog.Error("Failed to create database watcher", "error", err)
-		watcher = nil
-	} else if watcher != nil {
-		// Tell the watcher about existing sessions and resumed session BEFORE starting
-		watcher.SetInitialState(existingSessionIDs, resumeSessionID)
-
-		// Now start the watcher
-		if err := watcher.Start(); err != nil {
-			slog.Error("Failed to start database watcher", "error", err)
-			watcher = nil
-		}
+		return fmt.Errorf("failed to start Cursor watcher: %w", err)
 	}
 
 	// Execute Cursor CLI - this blocks until Cursor exits
@@ -455,23 +382,6 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 		slog.Error("WatchAgent: Failed to create Cursor watcher", "error", err)
 		return fmt.Errorf("failed to create watcher: %w", err)
 	}
-
-	// Get existing sessions to avoid processing pre-existing ones
-	// (unless they're being resumed, but that's handled by the watcher)
-	sessions, err := p.GetAgentChatSessions(projectPath, debugRaw, nil)
-	if err != nil {
-		slog.Warn("WatchAgent: Failed to get existing sessions", "error", err)
-		// Continue anyway - not fatal
-	}
-
-	// Build map of existing session IDs
-	existingSessionIDs := make(map[string]bool)
-	for _, session := range sessions {
-		existingSessionIDs[session.SessionID] = true
-	}
-
-	// Set initial state (no resumed session for watch-only mode)
-	watcher.SetInitialState(existingSessionIDs, "")
 
 	// Start the watcher
 	if err := watcher.Start(); err != nil {

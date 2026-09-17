@@ -160,7 +160,7 @@ func TestParseSession_MapsRealPiV3Session(t *testing.T) {
 }
 
 // TestParseSession_ProviderVersionPopulated asserts Provider.Version is non-empty
-// (schema.Validate() warns when it is empty) — addresses Copilot review comment.
+// because schema.Validate() requires a non-empty version.
 func TestParseSession_ProviderVersionPopulated(t *testing.T) {
 	data, err := ParseSession(loadFixture(t, "sample.jsonl"))
 	if err != nil {

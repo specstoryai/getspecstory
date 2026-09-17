@@ -1,8 +1,10 @@
 package piagent
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -246,8 +248,8 @@ func TestFormatFields_SessionHeader(t *testing.T) {
 	if data.WorkspaceRoot != "/test/proj" {
 		t.Errorf("WorkspaceRoot = %q, want /test/proj", data.WorkspaceRoot)
 	}
-	if data.Provider.Version != "v3" {
-		t.Errorf("Provider.Version = %q, want v3", data.Provider.Version)
+	if data.Provider.Version != "unknown" {
+		t.Errorf("Provider.Version = %q, want unknown", data.Provider.Version)
 	}
 }
 
@@ -270,7 +272,7 @@ func TestFormatFields_UserMessageStringContent(t *testing.T) {
 }
 
 // TestFormatFields_UserMessageImageSkipped covers a user message with an image
-// content block: v1 drops images, but the sibling text block must survive.
+// content block: v1 drops images, but the adjacent text block must survive.
 func TestFormatFields_UserMessageImageSkipped(t *testing.T) {
 	data := parseFields(t)
 	var foundText bool
@@ -439,8 +441,8 @@ func TestFormatTree_Version1Legacy(t *testing.T) {
 	if data.SessionID != "v1-uuid" {
 		t.Errorf("SessionID = %q, want v1-uuid", data.SessionID)
 	}
-	if data.Provider.Version != "v1" {
-		t.Errorf("Provider.Version = %q, want v1", data.Provider.Version)
+	if data.Provider.Version != "unknown" {
+		t.Errorf("Provider.Version = %q, want unknown", data.Provider.Version)
 	}
 	var hasFirst, hasSecond, hasSummary bool
 	for _, ex := range data.Exchanges {
@@ -585,5 +587,145 @@ func TestFormatTree_UserOnlyExchangeHasEndTime(t *testing.T) {
 	ex := data.Exchanges[0]
 	if ex.EndTime != "2026-07-09T10:00:05.000Z" {
 		t.Errorf("user-only exchange EndTime = %q, want the user message timestamp", ex.EndTime)
+	}
+}
+
+func TestToolMarkdownPreservesNestedFences(t *testing.T) {
+	content := "before\n````markdown\n```text\ninner\n```\n````\nafter"
+	for _, name := range []string{"bash", "write"} {
+		_, got := formatToolMarkdown(&schema.ToolInfo{Name: name, Input: map[string]interface{}{"path": "notes.md", "command": content, "content": content}, Output: map[string]interface{}{"content": content}})
+		if !strings.Contains(got, content) || !strings.Contains(got, "`````\n") {
+			t.Fatalf("unsafe fence: %s", got)
+		}
+	}
+}
+
+// The inventory and parameter shapes were captured from Pi 0.85.1's
+// pi.getAllTools() declaration, including the Windows-only PowerShell tool.
+func TestNativeToolInventoryAndRendering(t *testing.T) {
+	tests := []struct {
+		name, kind, input string
+		want              []string
+	}{
+		{"read", schema.ToolTypeRead, `{"path":"main.go","offset":7,"limit":20}`, []string{"Path", "main.go", "Offset (line)", "7", "Limit", "20", "```go\nresult"}},
+		{"bash", schema.ToolTypeShell, `{"command":"echo hi","timeout":12}`, []string{"```bash\necho hi", "Timeout (seconds)", "12", "```text\nresult"}},
+		{"powershell", schema.ToolTypeShell, `{"command":"Get-Content main.go","timeout":13}`, []string{"```powershell\nGet-Content main.go", "13", "```text\nresult"}},
+		{"edit", schema.ToolTypeWrite, `{"path":"main.go","edits":[{"oldText":"old","newText":"new","future":true}]}`, []string{"```diff\n-old\n+new", `"future": true`}},
+		{"write", schema.ToolTypeWrite, `{"path":"main.go","content":"package main"}`, []string{"```go\npackage main"}},
+		{"grep", schema.ToolTypeSearch, `{"pattern":"TODO","path":"src","glob":"*.go","ignoreCase":true,"literal":false,"context":2,"limit":9}`, []string{"Pattern", "TODO", "src", "Glob", "*.go", "Ignore case", "true", "Literal", "false", "Context (lines)", "2", "Limit", "9"}},
+		{"find", schema.ToolTypeSearch, `{"pattern":"*.go","path":"src","limit":11}`, []string{"Pattern", "*.go", "Path", "src", "Limit", "11"}},
+		{"ls", schema.ToolTypeRead, `{"limit":17}`, []string{"Limit", "17"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := classifyToolType(tt.name); got != tt.kind {
+				t.Fatalf("classification = %q, want %q", got, tt.kind)
+			}
+			var input map[string]any
+			if err := json.Unmarshal([]byte(tt.input), &input); err != nil {
+				t.Fatal(err)
+			}
+			input["newOption"] = map[string]any{"z": 2, "a": 1}
+			tool := &schema.ToolInfo{Name: tt.name, Input: input, Output: map[string]any{"content": "result", "is_error": false, "details": map[string]any{"futureResult": "kept"}}}
+			_, got := formatToolMarkdown(tool)
+			for _, want := range append(tt.want, `"newOption"`, `"futureResult": "kept"`) {
+				if !strings.Contains(got, want) {
+					t.Errorf("missing %q in:\n%s", want, got)
+				}
+			}
+			_, again := formatToolMarkdown(tool)
+			if got != again {
+				t.Error("rendering is not deterministic")
+			}
+		})
+	}
+	for _, name := range []string{"web_search", "fetch_content", "until_done_plan", "future_tool"} {
+		if classifyToolType(name) != schema.ToolTypeUnknown {
+			t.Errorf("unverified tool %q has bespoke classification", name)
+		}
+		_, got := formatToolMarkdown(&schema.ToolInfo{Name: name, Input: map[string]any{"weird": []any{"retained"}}, Output: map[string]any{"answer": 42}})
+		if !strings.Contains(got, "retained") || !strings.Contains(got, `"answer": 42`) {
+			t.Errorf("generic tool lost data: %s", got)
+		}
+	}
+}
+
+func TestEditNativeResultAndErrorPrecedence(t *testing.T) {
+	// details is the result of executing Pi 0.85.1 createEditTool on a scratch file.
+	var output map[string]any
+	if err := json.Unmarshal([]byte(`{"content":"Successfully replaced 1 block(s) in native-edit.txt.","is_error":false,"details":{"diff":"-1 old\n+1 new","patch":"--- native-edit.txt\n+++ native-edit.txt\n@@ -1,1 +1,1 @@\n-old\n+new\n","firstChangedLine":1}}`), &output); err != nil {
+		t.Fatal(err)
+	}
+	tool := &schema.ToolInfo{Name: "edit", Input: map[string]any{"path": "native-edit.txt"}, Output: output}
+	_, got := formatToolMarkdown(tool)
+	for _, want := range []string{"```diff\n-1 old\n+1 new", "```diff\n--- native-edit.txt", `"firstChangedLine": 1`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q in %s", want, got)
+		}
+	}
+	output["is_error"] = true
+	output["content"] = "Could not find unique match"
+	_, got = formatToolMarkdown(tool)
+	if !strings.HasPrefix(got, "**Error:**") || !strings.Contains(got, "Could not find unique match") || strings.Contains(got, "```diff") || !strings.Contains(got, `"patch"`) || !strings.Contains(got, "native-edit.txt") {
+		t.Errorf("error was success-formatted or lost diagnostics: %s", got)
+	}
+}
+
+func TestToolOutputSanitizationAndBounds(t *testing.T) {
+	for _, name := range []string{"bash", "powershell"} {
+		tool := &schema.ToolInfo{Name: name, Input: map[string]any{"command": "echo \"```\"\n" + strings.Repeat("x", 6000)}, Output: map[string]any{"content": "\x1b[31mred\x1b[0m\x00\a\r\n\tline\n" + strings.Repeat("界", 6000), "details": map[string]any{"huge": strings.Repeat("x", 6000)}}}
+		original, _ := json.Marshal(tool)
+		_, got := formatToolMarkdown(tool)
+		if strings.ContainsAny(got, "\x1b\x00\a\r") || !strings.Contains(got, "```text\nred\n\tline") || !strings.Contains(got, "… (output truncated)") || !strings.Contains(got, strings.Repeat("x", 6000)) || !strings.HasSuffix(got, "```") {
+			t.Errorf("unsafe or incomplete rendering: %.250s", got)
+		}
+		after, _ := json.Marshal(tool)
+		if string(original) != string(after) {
+			t.Error("rendering modified native input/output")
+		}
+	}
+}
+
+func TestAssistantInterleavedNarrationOrder(t *testing.T) {
+	e := rawEntry{ID: "a1", Timestamp: "2026-09-16T12:00:00Z", Message: json.RawMessage(`{"role":"assistant","model":"native-model","usage":{"input":12,"output":8},"content":[{"type":"text","text":"Before"},{"type":"toolCall","id":"first","name":"read","arguments":{"path":"a.go"}},{"type":"text","text":"After"},{"type":"thinking","thinking":"Reasoning"},{"type":"toolCall","id":"second","name":"ls","arguments":{}},{"type":"text","text":"Done"}]}`)}
+	messages := buildAgentMessages(e)
+	var order []string
+	seen := map[string]bool{}
+	usages := 0
+	for _, msg := range messages {
+		if msg.ID == "" || seen[msg.ID] {
+			t.Fatalf("duplicate/empty message ID: %q", msg.ID)
+		}
+		seen[msg.ID] = true
+		if msg.Model != "native-model" {
+			t.Errorf("model missing on %q", msg.ID)
+		}
+		if msg.Usage != nil {
+			usages++
+			if msg.Usage.InputTokens != 12 || msg.Usage.OutputTokens != 8 {
+				t.Errorf("wrong usage: %+v", msg.Usage)
+			}
+		}
+		if msg.Tool != nil {
+			order = append(order, msg.Tool.UseID)
+		}
+		for _, part := range msg.Content {
+			order = append(order, part.Text)
+		}
+	}
+	if want := []string{"Before", "first", "After", "Reasoning", "second", "Done"}; !reflect.DeepEqual(order, want) {
+		t.Fatalf("order=%v, want %v", order, want)
+	}
+	if usages != 1 {
+		t.Fatalf("usage assigned %d times", usages)
+	}
+	if !reflect.DeepEqual(messages, buildAgentMessages(e)) {
+		t.Fatal("message IDs or contents are unstable")
+	}
+	// Missing call IDs must not collide with each other or with narration IDs.
+	e.Message = json.RawMessage(`{"role":"assistant","content":[{"type":"toolCall","name":"read"},{"type":"text","text":"middle"},{"type":"toolCall","name":"ls"}]}`)
+	messages = buildAgentMessages(e)
+	if len(messages) != 3 || messages[0].ID == messages[1].ID || messages[0].ID == messages[2].ID || messages[1].ID == messages[2].ID {
+		t.Fatalf("colliding IDs: %+v", messages)
 	}
 }
