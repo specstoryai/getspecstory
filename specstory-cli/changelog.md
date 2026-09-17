@@ -10,6 +10,7 @@
 
 ### 🐛 Bug Fixes
 
+- Claude Code live saving now defers transcript, statistics, and debug writes while Bash or PowerShell calls are open, reducing cases where Claude Code 2.1.269+ incorrectly shows SpecStory's files as edits made by those commands. Deferred updates are flushed on shutdown, while `specstory sync` and final exports after Claude exits write immediately. A five-minute fallback prioritizes saving history, so very long commands may still show these edits.
 - Improved saving when a coding agent exits: pending session updates finish in order, and final writes are picked up before `specstory run` returns. This fixes shutdown paths that could lose the last update or let an older save overwrite a newer one, including when an agent exits with an error. The agent's exit status is preserved.
 - Selecting a session to resume now overrides conflicting resume flags in custom commands for Claude Code, Cursor CLI, Droid, Gemini, Antigravity, and DeepSeek TUI. Previously a configured session ID could take precedence over the session you selected.
 - Cursor CLI live saving now picks up changes to existing sessions resumed outside SpecStory, rather than ignoring sessions that were already present when watching started. Reading a newly created session before its first message has been written no longer causes a crash.
