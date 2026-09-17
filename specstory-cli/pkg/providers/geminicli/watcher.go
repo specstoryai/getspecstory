@@ -23,10 +23,6 @@ var (
 	watcherWorkspaceRoot string
 )
 
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
-
 func SetWatcherCallback(callback func(*spi.AgentChatSession)) {
 	watcherMutex.Lock()
 	defer watcherMutex.Unlock()
@@ -58,11 +54,14 @@ func getWatcherDebugRaw() bool {
 }
 
 func StopWatcher() {
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	watcherWg.Wait()
 }
 
 func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)) error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	SetWatcherCallback(callback)
 	SetWatcherWorkspaceRoot(projectPath)
 
@@ -77,10 +76,7 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 	geminiDir := filepath.Dir(filepath.Dir(hashDir)) // ~/.gemini
 	tmpDir := filepath.Dir(hashDir)                  // ~/.gemini/tmp
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
-
+	watcherWg.Go(func() {
 		if err := waitForDirectoryFsnotify(watcherCtx, geminiDir, "Gemini root directory"); err != nil {
 			slog.Debug("Stopped Gemini watcher while waiting for root directory", "error", err)
 			return
@@ -115,7 +111,7 @@ func WatchGeminiProject(projectPath string, callback func(*spi.AgentChatSession)
 		if err := startArtifactWatcher(filepath.Join(resolvedDir, "shell_history"), "shell_history"); err != nil {
 			slog.Warn("Failed to watch shell_history", "error", err)
 		}
-	}()
+	})
 
 	return nil
 }
@@ -205,9 +201,7 @@ func startChatsWatcher(chatsDir string) error {
 		return err
 	}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			_ = watcher.Close()
 		}()
@@ -235,7 +229,7 @@ func startChatsWatcher(chatsDir string) error {
 				slog.Error("Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }
@@ -405,9 +399,7 @@ func startArtifactWatcher(filePath string, label string) error {
 		return err
 	}
 
-	watcherWg.Add(1)
-	go func() {
-		defer watcherWg.Done()
+	watcherWg.Go(func() {
 		defer func() {
 			_ = watcher.Close()
 		}()
@@ -435,7 +427,7 @@ func startArtifactWatcher(filePath string, label string) error {
 				slog.Warn("Gemini artifact watcher error", "artifact", label, "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

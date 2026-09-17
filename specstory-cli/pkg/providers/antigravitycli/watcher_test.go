@@ -234,3 +234,52 @@ func waitFor(t *testing.T, mu *sync.Mutex, counter *int, want int) {
 	}
 	t.Fatalf("callback never reached %d", want)
 }
+
+// The startup contract: a conversation already on disk is not emitted when the
+// watcher starts — it predates the watcher and belongs to `sync` — but the
+// moment Antigravity touches it again, it is.
+func TestSeedProcessedConversations_SuppressesOnlyWhatPredatesTheWatcher(t *testing.T) {
+	home := t.TempDir()
+	testutil.SetHome(t, home)
+	path := writeConversation(t, home, "conv-1",
+		`{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","created_at":"2026-07-24T10:00:00Z","content":"<USER_REQUEST>\nhello\n</USER_REQUEST>"}`,
+	)
+
+	var mu sync.Mutex
+	var calls int
+	cb := func(*spi.AgentChatSession) {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+	}
+
+	state := newWatchState()
+	seedProcessedConversations(state)
+
+	if _, ok := state.lastProcessed[path]; !ok {
+		t.Fatalf("existing conversation was not seeded: %s", path)
+	}
+
+	// A scan right after startup must stay silent.
+	if err := scanAndProcessConversations("", false, cb, state); err != nil {
+		t.Fatalf("scan after seeding failed: %v", err)
+	}
+	mu.Lock()
+	afterSeed := calls
+	mu.Unlock()
+	if afterSeed != 0 {
+		t.Errorf("scan after seeding emitted %d sessions, want 0", afterSeed)
+	}
+
+	// Antigravity appends a turn. Bump the mtime explicitly rather than relying
+	// on filesystem tick resolution.
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(path, future, future); err != nil {
+		t.Fatalf("chtimes: %v", err)
+	}
+
+	if err := scanAndProcessConversations("", false, cb, state); err != nil {
+		t.Fatalf("scan after change failed: %v", err)
+	}
+	waitFor(t, &mu, &calls, 1)
+}

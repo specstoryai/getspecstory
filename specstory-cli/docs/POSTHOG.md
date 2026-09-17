@@ -39,6 +39,19 @@ specstory sync --no-usage-analytics
 | `ext_check_install_failed`     | `check`      | Failed agent installation check           |
 | `ext_version_command`          | `version`    | User checked the CLI version              |
 | `ext_help_command`             | `help`       | User viewed help                          |
+| `ext_sync_stats_complete`      | `sync`       | `--only-stats` sync completed             |
+| `ext_list_sessions`            | `list`       | User listed sessions                      |
+| `ext_reindex_completed`        | `reindex`    | Restore index finished rebuilding         |
+| `ext_resume_activated`         | `resume`     | Triggered when the resume picker starts   |
+| `ext_resume_reconstructed`     | `resume`     | Outcome of a cross-agent session reconstruction (success/unsupported/error) |
+| `ext_search_activated`         | `search`     | Triggered when the search TUI starts      |
+| `ext_session_deleted`          | `resume, search` | User soft-deleted a session or project from the picker |
+| `ext_skills_activated`         | `skills`     | Triggered when the skills browser starts  |
+| `ext_skills_installed`         | `skills`     | A cloud skill was installed locally       |
+| `ext_skills_uninstalled`       | `skills`     | A cloud skill was uninstalled             |
+| `ext_skills_approved`          | `skills`     | A review-state skill was approved         |
+| `ext_skills_rejected`          | `skills`     | A review-state skill was rejected         |
+| `ext_skills_run_triggered`     | `skills`     | A new lore mining run was started         |
 
 ## Common Properties
 
@@ -88,4 +101,10 @@ The analytics code is in `pkg/analytics/`:
 
 - `client.go` - PostHog client initialization and configuration
 - `events.go` - Event constants and the `TrackEvent` function
+- `check_events.go` - `TrackCheckSuccess` / `TrackCheckFailure`, the normalized property
+  schema for `check` telemetry. Providers that call these emit consistent property names;
+  the ones that still inline their own `TrackEvent` call for
+  `ext_check_install_success` / `ext_check_install_failed` do not.
 - `shared_id.go` - Shared analytics ID management
+
+When adding an event, add its constant to `events.go` **and** a row to the table above.

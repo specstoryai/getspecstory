@@ -1,5 +1,65 @@
 # Specstory CLI Changelog
 
+## v2.13.0 2026-09-17
+
+### ⚙️ Improvements
+
+- `specstory check` now treats missing optional agents as informational instead of showing a failed check for each agent you haven't installed. Permission problems, broken installations, and unreadable IDE storage still appear as errors, as does a missing custom command supplied with `-c`. Exit codes are unchanged.
+- Pi transcripts now include edit diffs, read ranges, search options, and clearer PowerShell tool output. Narration and tool calls retain their original order, and unfamiliar tool fields are preserved instead of silently omitted.
+- `specstory skills` now recognizes Pi as an installation target, using `.pi/skills` for project skills and `~/.pi/agent/skills` for global skills.
+- Claude Code live session saving (`specstory run` or `specstory watch`) now defers file writes (transcript, statistics, and debug writes) while a Bash or PowerShell tool call is in progress, reducing cases where Claude Code 2.1.269+ diff sweep incorrectly shows SpecStory's files as edits made by those commands. Deferred updates are flushed on shutdown. `specstory sync` and final exports after Claude exits still write immediately, and a five-minute fallback prioritizes saving SpecStory history in case of a hung tool call, so very long commands that eventually do finish may still show these edits as originating with the tool.
+
+### 🐛 Bug Fixes
+
+- Improved saving when a coding agent exits: pending session updates finish in order, and final writes are picked up before `specstory run` returns. This fixes shutdown paths that could lose the last update or let an older save overwrite a newer one, including when an agent exits with an error. The agent's exit status is preserved.
+- Selecting a session to resume now overrides conflicting resume flags in custom commands for Claude Code, Cursor CLI, Droid, Gemini, Antigravity, and DeepSeek TUI. Previously a configured session ID could take precedence over the session you selected.
+- Cursor CLI live saving now picks up changes to existing sessions resumed outside SpecStory, rather than ignoring sessions that were already present when watching started. Reading a newly created session before its first message has been written no longer causes a crash.
+- Pi sessions are now found consistently when you access a project through a symlink or use different path capitalization on a case-insensitive filesystem. Watching and resuming use the same canonical project location.
+- Codex custom-tool inputs are no longer cut off after 200 characters in saved markdown. Remaining cases where embedded code fences could break transcript formatting are also fixed for Claude Code, Droid, and DeepSeek TUI tool output.
+- Sessions transferred into DeepSeek TUI with `specstory resume` are now discoverable by project. Previously their generated file layout could hide the workspace information from session discovery, leaving them out of subsequent listings and syncs.
+
+## v2.12.0 2026-09-16
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Qwen Code](https://github.com/QwenLM/qwen-code) (i.e., `qwen`) for sessions created from Qwen Code version `0.23.4` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [Muse Code](https://developer.meta.com/ai/products/muse-code/) and [Pi](https://pi.dev). Qwen Code sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Qwen Code. Thanks to [JinYang88](https://github.com/JinYang88) for the alternative Qwen Code provider in [PR 267](https://github.com/specstoryai/getspecstory/pull/267), which informed clearer shell command transcripts that show the working directory and more consistent use of the shared session schema.
+- Qwen is a cross-provider `specstory resume` target: you can resume any agent's session into Qwen, and resume a Qwen session into another agent.
+
+### 🐛 Bug Fixes
+
+- `pi_cmd` now works in your configuration file. Pi accepted a custom command from the `-c` flag, but the `pi_cmd` config key was silently ignored, so a custom Pi command or extra flags set there had no effect. Every agent that `specstory run` can launch now honors its `<agent>_cmd` key.
+
+### ⚙️ Improvements
+
+- The JSONL session providers (e.g., Claude Code, Codex CLI, Antigravity CLI, Pi, etc.) used to fail rendering a session upon encountering a single JSON line beyond a per provider size limit. The line size limit is now universal across providers (64MB), and the too long line is skipped with the rest of the session still rendering.
+
+## v2.11.0 2026-09-14
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Pi](https://pi.dev) for agent sessions created from Pi `0.85.1` (the current `@earendil-works/pi-coding-agent` release) or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [Muse Code](https://developer.meta.com/ai/products/muse-code/). `specstory sync`, `list`, `search`, `reindex` and `check` all understand Pi sessions, including Pi's branching, compaction and tool results. Pi's own `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` settings are honored, so sessions are found wherever Pi keeps them.
+- `specstory run pi` and `specstory watch pi` save Pi sessions to local markdown and the SpecStory Cloud live as you work, the same as the other supported agents. `run pi` waits for the last save before it returns, and exits with Pi's own exit code when Pi fails.
+- Pi is a cross-provider `specstory resume` target: you can resume any agent's session into Pi, and resume a Pi session into another agent. Pi continues an existing session by its exact id (`pi --session-id <id>`).
+
+### 🐛 Bug Fixes
+
+- `specstory watch` now exits with an error when no provider watcher could start, for example when watching a provider that does not support live watching. Previously it printed the watching banner and then silently exited 0.
+
+## v2.10.0 2026-08-17
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Muse Code](https://developer.meta.com/ai/products/muse-code/) for agent sessions created from Muse Code `0.1.0-R708.1` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/) and [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI).
+- You can use `specstory resume` to resume Muse Code sessions in other coding agents, and to resume any agent's session into Muse Code.
+
+### 🐛 Bug Fixes
+
+- `output_dir` in `config.toml` is now honored by `specstory watch` and `specstory resume`, not just by `run` and `sync`. Previously only the `--output-dir` flag reached `watch`, so with the setting in your config file the startup save went to your configured directory while everything written during the watch went to `./.specstory/history` — leaving markdown in two places, with the configured copy going stale. Thanks to [petercurcio](https://github.com/petercurcio) for the detailed report in [issue 273](https://github.com/specstoryai/getspecstory/issues/273). If you hit this, the copies under `./.specstory/history` are the newer ones; move or delete them once, and everything lands in your configured directory from now on.
+- Codex CLI sessions started in Codex `0.147.0`+ are saved again. Codex changed how its Codex CLI TUI records a conversation in that release, and SpecStory read only the older form, so those sessions produced a markdown file containing just a header, with every prompt and reply missing. Both forms are now read. This affects only sessions **started** in `0.147.0`+. Sessions from earlier versions, and older sessions you resume under `0.147` were never affected, and their markdown is unchanged. Re-run `specstory sync` to fill in any sessions that were saved empty.
+- `specstory watch` and `specstory run` now behave the same way at startup whichever agent you are watching: they save new activity from that point on, and leave sessions that already exist alone. Previously Codex CLI, Droid CLI, DeepSeek TUI and Antigravity CLI re-saved and re-synced their existing sessions on every start, while Claude Code, Cursor, VS Code Copilot, Gemini CLI and Muse Code did not. Run `specstory sync` when you want existing sessions written or refreshed.
+- The first update to a session that already had a markdown file is no longer missing from `specstory watch` output. The line was sometimes being swallowed as if it were startup noise, so for some agents, some of the time your first prompt after starting `watch` appeared to do nothing; only the second one showed up.
+- `specstory run` and `specstory watch` no longer reprocess your entire Codex CLI history every time they start. Codex stores sessions by date, and while SpecStory only ever watched the last few days for live changes, it was scanning and re-saving every day directory going back to your first ever session — rewriting all that markdown and re-syncing it to the SpecStory Cloud on each launch. Startup now covers the same trailing window that live watching does, plus the day of a session you are resuming, however old it is. If you have a long Codex history, expect `run` and `watch` to start noticeably faster and stop touching old markdown files; a full `specstory sync` still processes everything as before.
+
 ## v2.9.0 2026-08-12
 
 ### 📢 Announcements

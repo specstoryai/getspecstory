@@ -1,11 +1,11 @@
 package antigravitycli
 
 import (
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -59,34 +59,15 @@ func ExecuteAntigravity(customCommand string, resumeSessionID string) error {
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 
-	return command.Run()
+	err := command.Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return &spi.AgentExitError{Agent: "Antigravity CLI", Code: exitErr.ExitCode()}
+	}
+	return err
 }
 
-// ensureResumeArgs adds --conversation <id> to args when resuming, unless the
-// caller already supplied a conversation flag with a value.
+// ensureResumeArgs makes the requested conversation override configured flags.
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
-	if resumeSessionID == "" {
-		return args
-	}
-
-	for i, arg := range args {
-		if arg == resumeFlag {
-			if i+1 < len(args) && strings.TrimSpace(args[i+1]) != "" && !strings.HasPrefix(args[i+1], "-") {
-				return args
-			}
-			// slices.Concat always allocates a new backing array, so the caller's
-			// slice is never mutated.
-			return slices.Concat(args[:i+1], []string{resumeSessionID}, args[i+1:])
-		}
-		if strings.HasPrefix(arg, resumeFlag+"=") {
-			if strings.TrimSpace(strings.TrimPrefix(arg, resumeFlag+"=")) != "" {
-				return args
-			}
-			repaired := slices.Clone(args)
-			repaired[i] = resumeFlag + "=" + resumeSessionID
-			return repaired
-		}
-	}
-
-	return append(args, resumeFlag, resumeSessionID)
+	return spi.EnsureResumeFlagArgs(args, resumeSessionID, resumeFlag)
 }

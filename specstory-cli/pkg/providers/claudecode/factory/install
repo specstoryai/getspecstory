@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Install Claude Code at an exact version, for the factory's audits (TOOL-AUDIT,
+# SESSION-AUDIT).
+#
+# Channel: the native installer (https://claude.ai/install.sh) — Anthropic's
+# recommended install; accepts a pinned version. Everything lands under $HOME
+# (~/.local/bin/claude -> ~/.local/share/claude/versions/<v>), so the caller
+# isolates the install by pointing $HOME at a throwaway directory.
+#
+# Factory SPI contract: `install <version>` installs the agent under $HOME,
+# prints the version as read back from the installed binary, and exits 0.
+# Non-zero exit means the install failed or the binary reports a different
+# version — never "close enough".
+set -euo pipefail
+version=${1:?usage: install <version>}
+curl -fsSL https://claude.ai/install.sh | bash -s "$version" >&2
+installed=$("$HOME/.local/bin/claude" --version | awk '{print $1}')
+if [ "$installed" != "$version" ]; then
+  echo "install: wanted $version, binary reports $installed" >&2
+  exit 1
+fi
+echo "$installed"

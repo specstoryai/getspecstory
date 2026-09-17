@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // resetUserDataDirOverride restores the package-level override after a test mutates it.
@@ -363,5 +366,65 @@ func TestEnsureWorkspaceForProject_MintsEntry(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Errorf("expected 1 workspace entry after two calls, got %d", len(entries))
+	}
+}
+
+func TestCheckDatabaseFailures(t *testing.T) {
+	resetUserDataDirOverride(t)
+	SetUserDataDirOverride("")
+	home := t.TempDir()
+	testutil.SetHome(t, home)
+	t.Setenv("APPDATA", home)
+	// Use the production resolver to ensure missing-file errors survive wrapping.
+	if !spi.IsWSL() {
+		result := NewProvider().Check("")
+		if result.Success || result.ErrorType != spi.CheckErrorNotFound {
+			t.Fatalf("absent database = %+v", result)
+		}
+	}
+	original := GetGlobalDatabasePath
+	t.Cleanup(func() { GetGlobalDatabasePath = original })
+	for _, tt := range []struct{ name, want string }{
+		{"valid", ""}, {"corrupt", spi.CheckErrorUnknown},
+		{"directory", spi.CheckErrorUnknown}, {"unreadable", spi.CheckErrorPermissionDenied},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "unreadable" && (runtime.GOOS == "windows" || os.Geteuid() == 0) {
+				t.Skip("requires Unix permissions enforced for a non-root user")
+			}
+			path := filepath.Join(t.TempDir(), "state.vscdb")
+			GetGlobalDatabasePath = func() (string, error) { return path, nil }
+			switch tt.name {
+			case "directory":
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+			case "valid":
+				db, err := sql.Open("sqlite", path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, createErr := db.Exec("CREATE TABLE ItemTable (key TEXT PRIMARY KEY, value TEXT)")
+				closeErr := db.Close()
+				if createErr != nil {
+					t.Fatal(createErr)
+				}
+				if closeErr != nil {
+					t.Fatal(closeErr)
+				}
+			default:
+				mode := os.FileMode(0600)
+				if tt.name == "unreadable" {
+					mode = 0
+				}
+				if err := os.WriteFile(path, []byte("not a SQLite database"), mode); err != nil {
+					t.Fatal(err)
+				}
+			}
+			result := NewProvider().Check("")
+			if result.ErrorType != tt.want || result.Success != (tt.want == "") {
+				t.Fatalf("Check = %+v, want ErrorType %q", result, tt.want)
+			}
+		})
 	}
 }

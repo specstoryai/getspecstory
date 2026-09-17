@@ -94,29 +94,27 @@ func (p *Provider) Name() string {
 
 // Check verifies the variant's workspace storage exists and returns info
 func (p *Provider) Check(customCommand string) spi.CheckResult {
+	attempt := analytics.CheckAttempt{Provider: p.variant.ID}
 	slog.Debug("Check: Checking Copilot installation", "app", p.variant.AppName)
 
 	// Check for workspace storage directory
-	storagePath := p.workspaceStoragePath()
-	if storagePath == "" {
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":   p.variant.ID,
-			"error_type": "workspace_storage_not_found",
-		})
+	storagePath, err := checkWorkspaceStorage(p.variant)
+	if err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
-			Location:     "",
-			ErrorMessage: p.variant.AppName + " workspace storage directory not found",
+			Location:     storagePath,
+			ErrorMessage: fmt.Sprintf("Cannot access %s workspace storage: %v", p.variant.AppName, err),
 		}
 	}
 
 	slog.Debug("Copilot check successful", "app", p.variant.AppName, "storagePath", storagePath)
 
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider": p.variant.ID,
-		"location": storagePath,
-	})
+	attempt.Location = storagePath
+	analytics.TrackCheckSuccess(attempt, "")
 
 	return spi.CheckResult{
 		Success: true,

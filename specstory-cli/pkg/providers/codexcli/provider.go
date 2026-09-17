@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -18,11 +17,9 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-const (
-	KB                    = 1024
-	MB                    = 1024 * 1024
-	maxReasonableLineSize = 250 * MB // 250MB sanity limit to prevent OOM from malformed or malicious files
-)
+// MB labels the large-line debug log below; the record cap itself is
+// spi.MaxRecordLineSize.
+const MB = 1024 * 1024
 
 // codexSessionMetaPayload captures the payload embedded in the Codex CLI session metadata record.
 type codexSessionMetaPayload struct {
@@ -112,31 +109,32 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	codexCmd, _ := parseCodexCommand(customCommand)
 	isCustomCommand := customCommand != ""
 
-	resolvedPath := codexCmd
-	if !filepath.IsAbs(codexCmd) {
-		if path, err := exec.LookPath(codexCmd); err == nil {
-			resolvedPath = path
+	resolvedPath, lookupErr := spi.LookPathForCheck(codexCmd)
+
+	attempt := analytics.CheckAttempt{Provider: "codex", CustomCommand: isCustomCommand, CommandPath: codexCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, ""),
 		}
 	}
-
-	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(codexCmd)
+	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(resolvedPath)
+	attempt.VersionFlag = versionFlag
 	if err != nil {
 		errorType := classifyCheckError(err)
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "codex",
-			"custom_command": isCustomCommand,
-			"command_path":   codexCmd,
-			"resolved_path":  resolvedPath,
-			"error_type":     errorType,
-			"version_flag":   versionFlag,
-			"stderr":         stderrOutput,
-			"error_message":  err.Error(),
-		})
+		if errorType == spi.CheckErrorNotFound {
+			errorType = spi.CheckErrorUnknown
+		}
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -145,33 +143,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if versionOutput == "" {
 		errorType := spi.CheckErrorNoOutput
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "codex",
-			"custom_command": isCustomCommand,
-			"command_path":   codexCmd,
-			"resolved_path":  resolvedPath,
-			"error_type":     errorType,
-			"version_flag":   versionFlag,
-			"stderr":         stderrOutput,
-		})
+		analytics.TrackCheckFailure(attempt, errorType, "version command produced no output", stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}
 	}
 
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "codex",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        versionOutput,
-		"version_flag":   versionFlag,
-	})
+	analytics.TrackCheckSuccess(attempt, versionOutput)
 
 	slog.Debug("Codex CLI check successful", "version", versionOutput, "location", resolvedPath, "flag", versionFlag)
 
@@ -407,11 +392,16 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Execute Codex CLI - this blocks until Codex exits
 	slog.Info("Executing Codex CLI", "command", customCommand, "resumeSessionID", resumeSessionID)
+	homeDir, _ := osUserHomeDir()
+	finalChanges := spi.SessionFileChanges(codexSessionsRoot(homeDir), "*/*/*/*.jsonl")
 	err := ExecuteCodex(customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine and wait for it to finish before returning
 	slog.Info("Codex CLI has exited, stopping watcher")
 	StopWatcher()
+	for _, path := range finalChanges() {
+		ScanCodexSessions(projectPath, filepath.Dir(path), &path)
+	}
 
 	// Return any execution error
 	if err != nil {
@@ -646,28 +636,37 @@ func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface
 	var records []map[string]interface{}
 	var rawBuilder strings.Builder
 
-	// Use bufio.Reader instead of Scanner to handle arbitrarily large lines
-	// Scanner has a token size limit (even with custom buffer), but Reader does not
 	reader := bufio.NewReader(file)
 
 	lineNumber := 0
 	for {
-		// Read line using ReadString which has no size limit
-		line, err := reader.ReadString('\n')
-		line = strings.TrimSuffix(line, "\n")
+		rawLine, oversized, err := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		line := strings.TrimSuffix(string(rawLine), "\n")
 
 		// EOF is expected at end of file, other errors are genuine failures
-		if err != nil && err != io.EOF {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, "", fmt.Errorf("error reading line %d: %w", lineNumber+1, err)
 		}
 
 		// Determine if we're at end of file and if we have content to process
-		atEOF := err == io.EOF
+		atEOF := errors.Is(err, io.EOF)
 		hasContent := len(line) > 0
 
 		// Increment line number for every line read (including empty lines) to match text editor line numbers
-		if hasContent || !atEOF {
+		if hasContent || oversized || !atEOF {
 			lineNumber++
+		}
+
+		// One pathological record costs that record, not the rest of the session.
+		if oversized {
+			slog.Warn("Skipping oversized JSONL line",
+				"file", filepath.Base(sessionPath),
+				"line", lineNumber,
+				"limit", spi.MaxRecordLineSize)
+			if atEOF {
+				break
+			}
+			continue
 		}
 
 		// If no content, either skip empty line or exit at EOF
@@ -676,17 +675,6 @@ func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface
 				break // Reached end of file with no content
 			}
 			continue // Empty line in middle of file, skip it
-		}
-
-		// Sanity check to prevent OOM from pathological files
-		if len(line) > maxReasonableLineSize {
-			slog.Warn("line exceeds reasonable size limit",
-				"lineNumber", lineNumber,
-				"sizeMB", len(line)/MB,
-				"limitMB", maxReasonableLineSize/MB,
-				"file", filepath.Base(sessionPath))
-			return nil, "", fmt.Errorf("line %d exceeds reasonable size limit (%d MB): refusing to process potentially malformed file",
-				lineNumber, maxReasonableLineSize/MB)
 		}
 
 		// Log when processing unusually large lines (helps debug performance issues)
@@ -886,9 +874,15 @@ func findFirstUserMessage(records []map[string]interface{}) string {
 			continue
 		}
 
-		// Check if this is a user message
+		// Check if this is a user message, in either of the shapes Codex writes
 		payloadType, ok := payload["type"].(string)
-		if !ok || payloadType != "user_message" {
+		if !ok {
+			continue
+		}
+		if payloadType == itemCompletedEvent {
+			payloadType, payload = codexItemAsLegacyEvent(payload)
+		}
+		if payloadType != "user_message" {
 			continue
 		}
 
@@ -967,7 +961,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 	// so we always process the line first, then check for EOF once at the bottom.
 	for {
 		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
 
@@ -984,7 +978,11 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 					"error", jsonErr)
 			} else if recordType, ok := record["type"].(string); ok && recordType == "event_msg" {
 				if payload, ok := record["payload"].(map[string]interface{}); ok {
-					if payloadType, ok := payload["type"].(string); ok && payloadType == "user_message" {
+					payloadType, _ := payload["type"].(string)
+					if payloadType == itemCompletedEvent {
+						payloadType, payload = codexItemAsLegacyEvent(payload)
+					}
+					if payloadType == "user_message" {
 						if message, ok := payload["message"].(string); ok && message != "" {
 							firstUserMessage = message
 						}
@@ -994,7 +992,7 @@ func extractCodexSessionMetadata(sessionInfo *codexSessionInfo) (*spi.SessionMet
 		}
 
 		// Single exit: found what we need, or reached end of file
-		if firstUserMessage != "" || readErr == io.EOF {
+		if firstUserMessage != "" || errors.Is(readErr, io.EOF) {
 			break
 		}
 	}
@@ -1027,11 +1025,16 @@ type codexSessionHeader struct {
 	firstUserMessage string
 }
 
-// userMessageMarker is the cheap substring screen for a Codex user_message record. Every real
-// user_message record contains it (it is the payload "type" value), so screening on it before a
-// full JSON parse never misses one; a rare false positive (the literal text inside an injected
-// context record) just costs one extra parse that codexUserMessageText then rejects.
-const userMessageMarker = `"user_message"`
+// userMessageMarker and itemUserMessageMarker are the cheap substring screens for the two shapes
+// a Codex first prompt takes: the user_message event, and the thread item 0.147's TUI writes in
+// its place. Every real record of either kind contains its marker (each is a JSON "type" value),
+// so screening on them before a full JSON parse never misses one; a rare false positive (the
+// literal text inside an injected context record) just costs one extra parse that
+// codexUserMessageText then rejects.
+const (
+	userMessageMarker     = `"user_message"`
+	itemUserMessageMarker = `"UserMessage"`
+)
 
 // scanCodexSessionHeader reads a Codex session file ONCE and extracts the session_meta
 // (id/cwd/timestamp from line 1) and the first user message. It deliberately avoids fully
@@ -1051,17 +1054,18 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 	h := &codexSessionHeader{}
 	lineNum := 0
 	for {
-		line, readErr := reader.ReadString('\n')
-		if readErr != nil && readErr != io.EOF {
+		rawLine, oversized, readErr := spi.ReadRecordLine(reader, spi.MaxRecordLineSize)
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
 			return nil, fmt.Errorf("failed to read line: %w", readErr)
 		}
+		line := string(rawLine)
 		lineNum++
 
-		// Skip a pathological/oversized line, for parity with readCodexJSONL's
-		// maxReasonableLineSize cap (this parallel scan must not be the weaker path). Such a
-		// line cannot be the small user_message we seek; line 1 has its own tighter limit below.
-		if len(line) > maxReasonableLineSize {
-			if readErr == io.EOF {
+		// Skip a pathological record, for parity with readCodexJSONL (this parallel
+		// scan must not be the weaker path). Such a record cannot be the small
+		// user_message we seek; line 1 has its own tighter limit below.
+		if oversized {
+			if errors.Is(readErr, io.EOF) {
 				break
 			}
 			continue
@@ -1086,7 +1090,7 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 				h.cwd = meta.Payload.CWD
 				h.createdAt = meta.Timestamp
 			}
-		} else if strings.Contains(line, userMessageMarker) {
+		} else if strings.Contains(line, userMessageMarker) || strings.Contains(line, itemUserMessageMarker) {
 			// Cheap screen passed: only now pay for a full parse. The big context records before
 			// the first user message lack the marker and are skipped without a parse. The marker
 			// is interior JSON, so the screen runs on the RAW line — no TrimSpace copy of a
@@ -1097,7 +1101,7 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 			}
 		}
 
-		if readErr == io.EOF {
+		if errors.Is(readErr, io.EOF) {
 			break
 		}
 	}
@@ -1111,9 +1115,9 @@ func scanCodexSessionHeader(sessionPath string) (*codexSessionHeader, error) {
 	return h, nil
 }
 
-// codexUserMessageText returns the message text when line is an event_msg user_message with a
-// non-empty message, else "". It is only called for lines that passed the userMessageMarker
-// screen, and applies the same structural checks extractCodexSessionMetadata used.
+// codexUserMessageText returns the message text when line is an event_msg carrying a user prompt
+// in either shape Codex writes, else "". It is only called for lines that passed one of the
+// marker screens, and applies the same structural checks extractCodexSessionMetadata used.
 func codexUserMessageText(line string) string {
 	var record map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &record); err != nil {
@@ -1126,7 +1130,11 @@ func codexUserMessageText(line string) string {
 	if !ok {
 		return ""
 	}
-	if payloadType, _ := payload["type"].(string); payloadType != "user_message" {
+	payloadType, _ := payload["type"].(string)
+	if payloadType == itemCompletedEvent {
+		payloadType, payload = codexItemAsLegacyEvent(payload)
+	}
+	if payloadType != "user_message" {
 		return ""
 	}
 	message, _ := payload["message"].(string)

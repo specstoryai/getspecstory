@@ -234,14 +234,9 @@ func formatCustomToolCall(toolName string, input string) string {
 	case "apply_patch":
 		return formatApplyPatch(toolName, input)
 	default:
-		// For unknown custom tools, show truncated input if too long
+		// Preserve arbitrary custom input, including embedded Markdown fences.
 		if input != "" {
-			// Show first 200 characters if input is long
-			if len(input) > 200 {
-				return fmt.Sprintf("\n\nInput (truncated): ```\n%s\n...\n```\n", input[:200])
-			} else {
-				return fmt.Sprintf("\n\nInput: ```\n%s\n```\n", input)
-			}
+			return "\n\nInput:\n" + spi.CodeFence("", input) + "\n"
 		}
 		return ""
 	}

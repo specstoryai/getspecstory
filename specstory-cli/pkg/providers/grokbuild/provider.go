@@ -51,30 +51,33 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
-	resolvedPath, err := exec.LookPath(cmdName)
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
-		errorMessage := buildGrokCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
+		errorType := spi.ClassifyCheckError(err)
+		errorMessage := buildGrokCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
 	}
 	attempt.ResolvedPath = resolvedPath
 
-	cmd := exec.Command(cmdName, versionFlag)
+	cmd := exec.Command(resolvedPath, versionFlag)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		errorMessage := buildGrokCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}

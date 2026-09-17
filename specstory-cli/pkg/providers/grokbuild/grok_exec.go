@@ -92,18 +92,11 @@ func ExecuteGrok(customCommand string, resumeSessionID string) error {
 
 	slog.Info("ExecuteGrok: waiting for Grok Build to exit")
 	if err := cmd.Wait(); err != nil {
-		// Mirror grok's own exit code rather than wrapping it, so scripts
-		// wrapping `specstory run grok` see what they would without SpecStory.
+		// Return the status so the caller can finish watcher and cloud cleanup
+		// before the CLI exits with the agent's code.
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
-			exitCode := exitErr.ExitCode()
-			slog.Info("ExecuteGrok: Grok Build exited", "exitCode", exitCode)
-			// os.Exit skips ExecAgentAndWatch's deferred StopWatcher, and the
-			// watcher's debounce may be holding the session's final turn, the
-			// very one the abnormal exit just produced. Stop it here so that
-			// turn is flushed to markdown before the process dies.
-			StopWatcher()
-			os.Exit(exitCode)
+			return &spi.AgentExitError{Agent: "Grok Build", Code: exitErr.ExitCode()}
 		}
 		return fmt.Errorf("grok execution failed: %w", err)
 	}

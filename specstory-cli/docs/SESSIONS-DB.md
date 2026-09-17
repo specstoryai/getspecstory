@@ -1,12 +1,12 @@
 # Sessions Index (`sessions.db`)
 
-> **STATUS: FIRST CUT RATIFIED; LATER STAGES STRAWMAN.** The first build chunk — the
-> `sessions.db` schema, the global-enumeration SPI method, and the `specstory reindex` command
-> — is **agreed** and specified in
-> [Build Plan — First Cut](#build-plan--first-cut). Everything
-> about *keeping the index warm* (steady-state hooks, staleness, eviction) and the cloud
-> stages remains strawman; sections still marked **OPEN** are unresolved. The reconstruction
-> design this serves lives in [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md).
+> **STATUS: BUILT.** The schema, the global-enumeration SPI method
+> (`ListAllAgentChatSessions`), `specstory reindex`, the live/warm indexing path, full-text
+> search, and soft delete all ship. This document describes what exists. Two design questions
+> remain genuinely unresolved and are marked **OPEN** in
+> [Open questions](#open-questions) — nothing else here is speculative. The reconstruction
+> design this index serves lives in [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md); the
+> picker that consumes it is [RESUME-TUI.md](RESUME-TUI.md).
 
 ## Purpose
 
@@ -16,17 +16,17 @@ session I want to continue, wherever it came from."* For cross-project resume in
 particular, that means surfacing sessions that originated in **other** projects, from one
 place, with full-text search to help find them.
 
-Today the SPI answers only a narrower question — *"for this project dir, what sessions
-exist?"* — by mapping a `projectPath` forward to a native store location. The resume
-experience needs a broader, searchable view across everything we know about. `sessions.db`
-is the proposed index that backs it.
+The project-scoped SPI method (`ListAgentChatSessions`) answers only a narrower question —
+*"for this project dir, what sessions exist?"* — by mapping a `projectPath` forward to a
+native store location. The resume experience needs a broader, searchable view across
+everything we know about, which is what `sessions.db` and the companion
+`ListAllAgentChatSessions` enumerator provide.
 
-This doc is about **where that index lives, and WHEN entries get into it** — not the
-column-level schema (that is deliberately deferred; see [Non-Goals](#non-goals)).
+This doc covers where the index lives, when entries get into it, and its schema.
 
-## Decisions taken so far
+## Decisions taken
 
-Settled in conversation:
+Ratified and implemented:
 
 - **One global index, not per-project.** A single machine-level `sessions.db`
   (`~/.specstory/sessions.db`, no leading dot — matches its sibling `lore.db`) indexes
@@ -49,10 +49,10 @@ Settled in conversation:
   style (`database/sql` + a `file:…?_pragma=busy_timeout=…&_pragma=journal_mode(WAL)` DSN +
   perf pragmas) — **not** lore's `node:sqlite` (lore is a separate Node skill; nothing shared
   at the code level).
-- **First cut indexes full-body full-text, for all six providers.** `reindex` parses each
-  session's full `SessionData` and indexes the entire conversation body into FTS5 (not a
-  metadata-only sweep), and every provider implements the global enumerator from day one. See
-  [Build Plan — First Cut](#build-plan--first-cut).
+- **Full-body full-text, for every provider.** `reindex` parses each session's full
+  `SessionData` and indexes the entire conversation body into FTS5 (not a metadata-only
+  sweep), and every registered provider implements the global enumerator. See
+  [How the cold rebuild works](#how-the-cold-rebuild-works).
 
 ## Guiding principle: `sessions.db` is a derived cache
 
@@ -115,15 +115,16 @@ What is **already solved** is identity across *clones / machines*: two checkouts
 remote both compute the same `git_id` (verified — two clones of one repo, differing
 `workspace_id`s, identical `git_id`).
 
-What is **NOT solved by the stored files** is the monorepo case, and this is the trap to avoid.
-`EnsureProjectIdentity` / `generateGitID` look for `.git/config` at *exactly* the project root
-they were given and **never walk up**. So when an agent runs from a subdirectory of a repo, the
-written `.specstory/.project.json` there has **no `git_id`** and a fresh, path-based
-`workspace_id` — three launch directories in one repo (`/`, `/a`, `/b`) produce three different
-identities. **Reading the nearest stored `.project.json` would therefore *fragment* one
-monorepo into many projects.**
+What the stored files did **not** solve was the monorepo case, and it is the trap this design
+exists to avoid. `EnsureProjectIdentity` / `generateGitID` originally looked for `.git/config` at
+*exactly* the project root they were given and **never walked up**. So when an agent ran from a
+subdirectory of a repo, the `.specstory/.project.json` written there had **no `git_id`** and a
+fresh, path-based `workspace_id` — three launch directories in one repo (`/`, `/a`, `/b`)
+produced three different identities, fragmenting one monorepo into many projects.
 
-**Resolution strategy for `sessions.db` (the new part — Build Plan step 1).** Identity is
+Both the index and the writer now walk up; the rest of this section is how.
+
+**Resolution strategy for `sessions.db`.** Identity is
 computed fresh per session by `ComputeProjectID(cwd)`, which **walks up from the session's cwd
 to the git root**, computes `git_id` from *that* root's remote, and **ignores any per-directory
 `.project.json`**. From `/a` it walks up, finds the repo's `.git`, and yields the same `git_id`
@@ -143,9 +144,9 @@ remote-less monorepo's subdirectories share one identity on a given machine.
 `project_id` (the resolved `git_id`, else `workspace_id`) is the same vocabulary the cloud sync
 and Lore speak, so the index, the cloud, and Lore share one identity space.
 
-**The writer is fixed too, not just sessions.db.** To avoid maintaining two divergent identity
-strategies, the existing `EnsureProjectIdentity` writer is switched onto the same walk-up core
-(Build Plan step 1), so the stored `.specstory/.project.json` files stop fragmenting. The cloud
+**The writer was fixed too, not just sessions.db.** To avoid maintaining two divergent identity
+strategies, `EnsureProjectIdentity` now runs on the same walk-up core (`resolveIdentity` →
+`findGitRoot`), so stored `.specstory/.project.json` files no longer fragment. The cloud
 groups sessions by `project_id`, so monorepo-subdir sessions consequently regroup under the
 repo's project. That is **intended and desirable**; the rare case of a previously-synced subdir
 session "moving" cloud project is an accepted edge case, not a concern.
@@ -176,10 +177,11 @@ must plug live.
 
 ### Catchup — cold rebuild / explicit reindex
 
-Triggered explicitly by the user via `specstory reindex` (and, in a later chunk, automatically
-when `sessions.db` is missing or detected stale). This is the path that enumerates *everything*
-and is the reason for the new SPI capability below — and it is the **entirety of the first
-cut** ([Build Plan](#build-plan--first-cut)): the only population path that exists initially.
+Triggered explicitly by the user via `specstory reindex`, and automatically when the picker
+finds `sessions.db` missing (it runs a rebuild with the normal progress UI, then continues
+straight into the picker). This is the path that enumerates *everything*, and the reason for
+the enumeration SPI capability below. See
+[How the cold rebuild works](#how-the-cold-rebuild-works).
 
 ## The missing SPI capability: project-*discovering* enumeration
 
@@ -190,10 +192,10 @@ belongs to. The project becomes an *output*, not an input.
 That changes the return shape. A global enumeration must surface each session's **originating
 cwd**, because the cwd is the only thing that lets the CLI attribute the session to a
 `project_id`. Identity resolution stays in the CLI (one source of truth) via the new
-read-only `ComputeProjectID(cwd)` helper (see [Build Plan](#build-plan--first-cut)) — providers
+read-only `ComputeProjectID(cwd)` helper (see [How the cold rebuild works](#how-the-cold-rebuild-works)) — providers
 surface the cwd, they do not compute `project_id`.
 
-Signature (ratified for the first cut):
+Signature:
 
 ```go
 // ListAllAgentChatSessions enumerates every session in this provider's native store,
@@ -246,7 +248,7 @@ catchup tool; it is also the correct primitive for the monorepo current-project 
 Still fragments: remote-less directories (only `workspace_id`, which is path-based). Flagged,
 not solved.
 
-## Two fill-levels (a future optimization, not the first cut)
+## Two fill-levels (a possible future optimization)
 
 The index has two natural fill-levels:
 
@@ -294,10 +296,11 @@ The two-level split also keeps the index warm *without* an explicit `reindex`, t
   full `SessionData` for the current project, so each is `Record`ed into the index via the same
   `LiveIndexer` — indexing is essentially free there. `--print` (stdout, no save) is excluded.
 
-## Build Plan — First Cut
+## How the cold rebuild works
 
-Scope: the cold-rebuild path only — `reindex` + the global enumerator + the schema. The
-interactive picker's *rewiring* to read `sessions.db`, and all warm-keeping, are later chunks.
+The `reindex` path: the global enumerator, the schema, and the concurrency/progress model
+below. The picker that reads the resulting index is [RESUME-TUI.md](RESUME-TUI.md); the
+warm-keeping path is [above](#when-do-entries-get-into-sessionsdb).
 
 1. **Shared walk-up identity core** — extract one resolver in
    `pkg/utils/project_identity.go` that, given a directory, walks **up** to the git root
@@ -315,7 +318,8 @@ interactive picker's *rewiring* to read `sessions.db`, and all warm-keeping, are
      [Project identity](#project-identity-reuse-the-algorithm-not-the-stored-files).
 
 2. **SPI extension** — add `GlobalSessionRef` + `ListAllAgentChatSessions()` to the
-   `spi.Provider` interface (type in a small new `pkg/spi/global.go`). Lightweight; cwd read
+   `spi.Provider` interface (defined alongside `GlobalSessionRef` in
+   [pkg/spi/provider.go](../pkg/spi/provider.go)). Lightweight; cwd read
    from inside each session file.
 
 3. **Per-provider enumerators — all six.** Mostly "existing store walk, minus the project
@@ -438,7 +442,7 @@ plus the same final summary, so logs stay clean.
 |-----------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `project_id`    | TEXT    | Resolved identity (walk-up `git_id`, else `workspace_id`). The value the cloud groups by and Lore speaks. Indexed.                                     |
 | `project_name`  | TEXT    | Human-readable project name (repo name from the walked-up root).                                                                                       |
-| `agent`         | TEXT    | Provider id: `claude`, `codex`, `gemini`, `droid`, `deepseek`, `cursor`. Part of the primary key.                                                      |
+| `agent`         | TEXT    | Provider id as registered in `pkg/spi/factory/registry.go` (`claude`, `codex`, `cursor`, `gemini`, `droid`, `deepseek`, `antigravity`, `muse`, `pi`, `qwen`, `cursoride`, `copilotide` and its variants). Part of the primary key. |
 | `session_id`    | TEXT    | Native session id (uuid). Part of the primary key.                                                                                                     |
 | `created_at`    | TEXT    | ISO 8601 session creation timestamp (first turn). Powers the "Created" sort.                                                                           |
 | `updated_at`    | TEXT    | ISO 8601 last-activity timestamp (last turn, else file mtime). Powers "X ago", the "Updated" sort, and resume-last.                                    |
@@ -460,13 +464,13 @@ exactly one project. `project_id` is indexed for per-project filtering. `created
 `updated_at` / `user_turns` / `total_turns` come from the full `SessionData` parse `reindex`
 already performs; the rest come from the lightweight enumeration ref.
 
-**Considered and deliberately excluded (first cut):**
+**Considered and deliberately excluded:**
 
 - **Git branch.** Claude Code records `gitBranch` per turn (stable within a session), but Codex
   and the others record nothing — a half-populated, Claude-only column isn't worth it yet. If
   added later it belongs on the enumeration ref as native metadata, *not* in neutral
   `SessionData`.
-- **User naming / rename.** No `custom_name`; sessions are not renameable in the first cut.
+- **User naming / rename.** No `custom_name`; sessions are not renameable.
   Keeps `sessions` a purely rebuildable cache (no user-authoritative fields to preserve across
   `reindex`).
 - **Lineage.** No `source_session_id`. The breadcrumb already exists natively for free —
@@ -508,37 +512,37 @@ stores each FTS row's rowid on its `sessions` row (`fts_rowid`) at insert time
 This is why the body lookup and the per-row delete stay O(1) as the index grows into the tens of
 thousands of rows, instead of each becoming a full-table scan.
 
-## Non-Goals (first cut)
+## Non-Goals
 
-- **The picker rewiring.** `specstory resume`'s interactive flow still uses the project-scoped
-  `ListAgentChatSessions` until a later chunk points it at `sessions.db`.
-- **Storing serialized `SessionData`.** The first cut stores metadata + full-text body, not a
-  `SessionData` blob. A blob becomes relevant for cloud Stages 3–4 (where the cloud is the
-  source). Deferred.
+- **Storing serialized `SessionData`.** The index stores metadata + full-text body, not a
+  `SessionData` blob. Cloud resume fetches the blob from the cloud instead (see
+  [CLOUD-RESUME.md](CLOUD-RESUME.md)), so the index never needed to hold one.
 
-## Deferred — DO NEXT (Cursor cwd recovery)
+## Cursor CLI cwd recovery
 
-Cursor CLI sessions are currently enumerated with `OriginCwd=""` and therefore indexed
-under the **`unknown` project_id**. This is a first-cut shortcut, not the end state — it is
-the immediate follow-up after the `reindex` first cut.
-
-Cursor stores sessions at `~/.cursor/chats/<projectHash>/<sessionID>/store.db`, where
+Cursor CLI is the one provider that cannot report its own `OriginCwd`. It stores sessions at
+`~/.cursor/chats/<projectHash>/<sessionID>/store.db`, where
 `projectHash = md5(canonical project path)` (`cursorcli/path_utils.go` `GetProjectHashDir`),
-and records no workspace path inside the store. md5 is one-way, but the hash is embedded in
-`GlobalSessionRef.NativePath` (two directories up from `store.db`). **Recovery plan:** the
-`reindex` orchestrator builds `map[md5(canonicalize(cwd))]cwd` from every *other* provider's
-cwds (optionally augmented by a filesystem scan for git/`.specstory` roots), then matches each
-Cursor ref's `projectHash` to recover its cwd → resolve `project_id` via `ComputeProjectID`.
-Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-cwd-deferred`.)
+and records no workspace path inside the store — the meta blob holds only agent/model fields.
+So `ListAllAgentChatSessions` leaves `OriginCwd` empty and the hash travels in
+`GlobalSessionRef.NativePath` (two directories up from `store.db`).
 
-## Open questions (later chunks)
+`reindex` recovers it by **forward** matching, since md5 is one-way: `recoverCursorCwds`
+(`pkg/cmd/reindex.go:202`) builds `map[md5(canonicalize(cwd))]cwd` from every *other*
+provider's enumerated cwds, then `cursorcli.RecoverOriginCwds` matches each Cursor ref's
+`projectHash` against that map and fills in the cwd, which resolves to a `project_id` via
+`ComputeProjectID` as normal.
 
-- **DONE — Warm-keeping triggers.** `resume`/`search` warm the index in the background on launch
-  (current project first, then full corpus); `watch`/`run`/`resume`-launch upsert each change in
-  real time via `LiveIndexer`; and `sync` indexes every session it loads (all via the same
-  `LiveIndexer`). See "keeping the index warm" above and [RESUME-TUI.md](RESUME-TUI.md). Possible
-  follow-up: throttle repeated background warms (today every `resume`/`search` invocation
-  re-enumerates, which is cheap but unbounded in frequency).
+**Residual gap:** a project only ever used with Cursor CLI has no other provider to supply
+its cwd, so its hash never matches and those sessions stay under the `unknown` project_id.
+Opening that project with any other agent once is enough to recover them on the next
+reindex.
+
+## Open questions
+
+- **OPEN — Warm throttling.** Every `resume`/`search` invocation re-enumerates to warm the
+  index. That is cheap but unbounded in frequency, with no backoff between successive
+  launches. Whether it needs throttling is unmeasured.
 - **OPEN — Eviction / prune.** When a native session is *deleted on disk*, when does its row
   leave `sessions.db`? (Lore prunes on rescan when the file is gone.) Distinct from the
   user-initiated [soft delete](#soft-delete-the-d-key), which keeps the row as a tombstone; this
@@ -550,5 +554,5 @@ Unmatched Cursor sessions remain `unknown`. (Tracked in memory: `restore-cursor-
 
 - [SESSION-PORTABILITY.md](SESSION-PORTABILITY.md) — the reconstruction / resume design this
   index serves.
-- [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface the new enumeration method joins.
+- `pkg/spi/provider.go` — the provider interface the new enumeration method joins (its doc comments are the spec); [NEW-PROVIDER-GUIDE.md](../NEW-PROVIDER-GUIDE.md) covers implementing it.
 - `pkg/utils/project_identity.go` — `git_id` / `workspace_id` / `GetProjectID()`.

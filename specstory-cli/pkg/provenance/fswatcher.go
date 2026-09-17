@@ -168,8 +168,7 @@ func (w *FSWatcher) loadIgnoreFile(dir, filename string) {
 // The watcher runs until Stop is called or the context is cancelled.
 func (w *FSWatcher) Start(ctx context.Context) {
 	ctx, w.cancel = context.WithCancel(ctx)
-	w.wg.Add(1)
-	go w.eventLoop(ctx)
+	w.wg.Go(func() { w.eventLoop(ctx) })
 	slog.Info("FSWatcher started", "rootDir", w.rootDir)
 }
 
@@ -185,8 +184,6 @@ func (w *FSWatcher) Stop() {
 
 // eventLoop processes fsnotify events until the context is cancelled.
 func (w *FSWatcher) eventLoop(ctx context.Context) {
-	defer w.wg.Done()
-
 	for {
 		select {
 		case <-ctx.Done():

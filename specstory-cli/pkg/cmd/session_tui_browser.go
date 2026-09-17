@@ -270,6 +270,12 @@ func colorForAgent(id string) color.Color {
 		// xAI's black and white brand is invisible on one terminal theme or the
 		// other, so use a distinct readable accent instead.
 		return lipgloss.Color("#D6336C") // magenta
+	case "muse":
+		return lipgloss.Color("#0866FF") // Meta blue
+	case "pi":
+		return lipgloss.Color("#8B5CF6") // violet
+	case "qwen":
+		return lipgloss.Color("#0A2DFF") // Qwen blue
 	default:
 		return lipgloss.Color("250")
 	}

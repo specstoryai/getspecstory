@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Enumerate Qwen Code's declared built-in tool inventory for TOOL-AUDIT.
+#
+# Source: the installed vendor bundle's exported ToolNames and
+# ToolNamesMigration declarations (0.23.4). This reads the complete built-in
+# surface, including gated tools, without a model self-report or credential.
+# Dynamic MCP/computer_use__ tools depend on external servers and are excluded.
+# Hashed chunk names are discovered, not pinned; a missing/ambiguous declaration
+# or changed export fails loudly. Imports only the declaration's module, never
+# the CLI entry point, so no user config, model call or self-update runs.
+#
+# Factory SPI contract: print raw tool names, one per line, to stdout and exit 0.
+# Non-zero exit means enumeration failed, never an empty or partial inventory.
+# Run in an empty working directory under isolated $HOME. The reader and its
+# diagnostics remain in that directory. No credentials are needed or read.
+set -euo pipefail
+qwen="$HOME/.local/bin/qwen"
+"$qwen" --version > qwen-version.txt
+cat > read-tools.mjs <<'JS'
+import { readFile, readdir, realpath } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const root = dirname(await realpath(process.argv[2]));
+const chunks = join(root, 'chunks');
+const candidates = [];
+for (const name of await readdir(chunks)) {
+  if (!name.endsWith('.js')) continue;
+  const path = join(chunks, name);
+  if (/^var ToolNames = \{/m.test(await readFile(path, 'utf8'))) candidates.push(path);
+}
+if (candidates.length !== 1) throw new Error(`Expected one ToolNames declaration, found ${candidates.length}`);
+const { ToolNames, ToolNamesMigration } = await import(pathToFileURL(candidates[0]).href);
+if (!ToolNames || !ToolNamesMigration) throw new Error('Vendor tool exports changed');
+const names = [...new Set([...Object.values(ToolNames), ...Object.keys(ToolNamesMigration)])].sort();
+if (!names.length || names.some(n => typeof n !== 'string' || !/^[a-z][a-z0-9_]*$/.test(n))) {
+  throw new Error('Invalid or empty tool inventory');
+}
+console.log(names.join('\n'));
+JS
+# Buffer output until the entire declaration has been validated.
+if ! timeout 120 node read-tools.mjs "$qwen" > tools.txt 2> tool-reader.log; then
+  echo 'list-tools: vendor declaration reader failed; see tool-reader.log' >&2
+  head -c 600 tool-reader.log >&2
+  exit 1
+fi
+if [ ! -s tools.txt ]; then
+  echo 'list-tools: vendor declaration produced no tools; see tool-reader.log' >&2
+  exit 1
+fi
+cat tools.txt

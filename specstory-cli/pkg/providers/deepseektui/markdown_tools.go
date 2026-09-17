@@ -73,7 +73,7 @@ func formatToolOutput(tool *ToolInfo) string {
 		return ""
 	}
 	if strings.Contains(content, "\n") {
-		return fmt.Sprintf("Output:\n```text\n%s\n```", content)
+		return "Output:\n" + spi.CodeFence("text", content)
 	}
 	return fmt.Sprintf("Output: %s", content)
 }

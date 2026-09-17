@@ -23,6 +23,10 @@ var (
 
 var errNoVersionOutput = errors.New("codex CLI version command produced no output")
 
+// resumeSubcommand is how Codex continues a session: `codex resume <id>`, a
+// subcommand rather than a flag.
+const resumeSubcommand = "resume"
+
 // parseCodexCommand splits a custom command string into the binary path and its arguments.
 // An empty custom command falls back to the detected default binary.
 // Supports quoted strings with spaces: codex --arg "value with spaces"
@@ -230,8 +234,10 @@ func ExecuteCodex(customCommand string, resumeSessionID string) error {
 		// Parse custom command to get binary and args
 		codexCmd, customArgs := parseCodexCommand(customCommand)
 
-		// Build args: custom args + resume subcommand + sessionID
-		args := append(customArgs, "resume", resumeSessionID)
+		// A configured command may already name the resume subcommand, with or
+		// without an id of its own; appending unconditionally would produce a
+		// second `resume` and leave the requested session unopened.
+		args := spi.EnsureResumeArgs(customArgs, resumeSubcommand, resumeSessionID)
 
 		slog.Info("ExecuteCodex: Resuming Codex session",
 			"command", codexCmd,
@@ -256,6 +262,10 @@ func ExecuteCodex(customCommand string, resumeSessionID string) error {
 	// Run the command and wait for it to complete
 	slog.Info("ExecuteCodex: Executing Codex CLI (blocking until exit)")
 	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) {
+			return &spi.AgentExitError{Agent: "Codex CLI", Code: exitErr.ExitCode()}
+		}
 		slog.Error("ExecuteCodex: Codex execution failed", "error", err)
 		return fmt.Errorf("codex execution failed: %w", err)
 	}

@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/vscode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
 // resetUserDataDirOverride restores the package-level override map after a test mutates it.
@@ -127,6 +130,57 @@ func TestForEachUniqueSession_EmptyCopyDoesNotSuppressPopulated(t *testing.T) {
 			}
 			if got := len(handled[0].Requests); got != tt.wantRequests {
 				t.Errorf("handled copy has %d requests, want %d", got, tt.wantRequests)
+			}
+		})
+	}
+}
+
+func TestCheckWorkspaceStorageFailures(t *testing.T) {
+	for _, variant := range []Variant{VSCode, VSCodeInsiders, VSCodium, VSCodiumInsiders} {
+		t.Run(variant.ID, func(t *testing.T) {
+			home := t.TempDir()
+			testutil.SetHome(t, home)
+			t.Setenv("APPDATA", home)
+			prev := userDataDirOverrides[variant.ID]
+			SetUserDataDirOverride(variant.ID, "")
+			t.Cleanup(func() { SetUserDataDirOverride(variant.ID, prev) })
+			// A unique name prevents WSL from discovering the host's real IDE storage.
+			variant.DataDirName = "specstory-check-test-" + filepath.Base(home)
+			path := workspaceStorageRoot(variant)
+			p := NewProvider(variant)
+			if result := p.Check(""); result.Success || result.ErrorType != spi.CheckErrorNotFound {
+				t.Fatalf("missing storage = %+v", result)
+			}
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("not a directory"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if result := p.Check(""); result.Success || result.ErrorType != spi.CheckErrorUnknown {
+				t.Fatalf("file in place of storage = %+v", result)
+			}
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(path, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if result := p.Check(""); !result.Success || result.ErrorType != "" {
+				t.Fatalf("empty readable directory = %+v", result)
+			}
+			if runtime.GOOS != "windows" && os.Geteuid() != 0 {
+				if err := os.Chmod(path, 0000); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := os.Chmod(path, 0700); err != nil {
+						t.Error(err)
+					}
+				})
+				if result := p.Check(""); result.Success || result.ErrorType != spi.CheckErrorPermissionDenied {
+					t.Fatalf("unreadable storage = %+v", result)
+				}
 			}
 		})
 	}

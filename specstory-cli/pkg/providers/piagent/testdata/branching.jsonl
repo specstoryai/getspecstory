@@ -1,0 +1,6 @@
+{"type":"session","version":3,"id":"branch-uuid","timestamp":"2026-07-09T10:00:00.000Z","cwd":"/test"}
+{"type":"message","id":"u1","parentId":null,"timestamp":"2026-07-09T10:00:01.000Z","message":{"role":"user","content":"common prompt","timestamp":1783600001000}}
+{"type":"message","id":"a1","parentId":"u1","timestamp":"2026-07-09T10:00:02.000Z","message":{"role":"assistant","content":[{"type":"text","text":"common answer"}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}
+{"type":"message","id":"u2left","parentId":"a1","timestamp":"2026-07-09T10:00:03.000Z","message":{"role":"user","content":"left branch prompt","timestamp":1783600003000}}
+{"type":"message","id":"u2right","parentId":"a1","timestamp":"2026-07-09T10:00:04.000Z","message":{"role":"user","content":"right branch prompt","timestamp":1783600004000}}
+{"type":"message","id":"a2right","parentId":"u2right","timestamp":"2026-07-09T10:00:05.000Z","message":{"role":"assistant","content":[{"type":"text","text":"right branch answer"}],"provider":"x","model":"m","usage":{"input":1,"output":1,"cacheRead":0,"cacheWrite":0,"totalTokens":2,"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"total":0}}}}

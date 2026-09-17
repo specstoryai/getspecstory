@@ -20,6 +20,9 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/piagent"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -120,6 +123,17 @@ func (r *Registry) registerAll() {
 	grokProvider := grokbuild.NewProvider()
 	r.providers["grok"] = grokProvider
 	slog.Debug("Registered provider", "id", "grok", "name", grokProvider.Name())
+
+	museProvider := musecode.NewProvider()
+	r.providers["muse"] = museProvider
+	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
+
+	piProvider := piagent.NewProvider()
+	r.providers["pi"] = piProvider
+	slog.Debug("Registered provider", "id", "pi", "name", piProvider.Name())
+	qwenProvider := qwencode.NewProvider()
+	r.providers["qwen"] = qwenProvider
+	slog.Debug("Registered provider", "id", "qwen", "name", qwenProvider.Name())
 
 	r.initialized = true
 	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())
