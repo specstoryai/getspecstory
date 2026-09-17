@@ -192,29 +192,29 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	defer ClearWatcherCallback()
 	SetWatcherDebugRaw(debugRaw)
 
-	// Start the watcher before launching pi so nothing pi writes is missed.
-	// Non-fatal (same as the sibling providers): a failed watcher must not stop
-	// the user's interactive pi session.
-	if err := WatchForProjectDir(projectPath); err != nil {
-		slog.Error("pi: failed to start session watcher", "error", err)
+	// Establish the watch before launching so startup errors are returned while
+	// the terminal is still ours and the first session write cannot be missed.
+	watcher, err := startProjectWatcher(projectPath)
+	if err != nil {
+		return fmt.Errorf("pi: failed to start session watcher: %w", err)
 	}
 
-	err := ExecutePi(customCommand, resumeSessionID)
+	err = ExecutePi(customCommand, resumeSessionID)
 	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
 	// on: pi writes its session file right before it exits, and the callback
 	// for that write is what saves the markdown. This must run on the non-zero
 	// path too, which is why ExecutePi returns pi's status instead of exiting.
-	StopWatcher()
+	stopWatcher(watcher)
 	if err != nil {
 		var agentExit *spi.AgentExitError
 		if errors.As(err, &agentExit) {
-			// pi's own status, not a specstory failure: pass it through unwrapped
-			// so the CLI exits with that code and prints nothing extra.
-			return err
+			// Preserve the typed exit status even when saving also failed; the
+			// CLI extracts it with errors.As, and the watcher logs its own failure.
+			return errors.Join(err, watcher.err)
 		}
-		return fmt.Errorf("pi execution failed: %w", err)
+		return errors.Join(fmt.Errorf("pi execution failed: %w", err), watcher.err)
 	}
-	return nil
+	return watcher.err
 }
 
 // WatchAgent watches for pi session activity (`specstory watch pi`) and invokes
@@ -225,20 +225,18 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 	defer ClearWatcherCallback()
 	SetWatcherDebugRaw(debugRaw)
 
-	if err := WatchForProjectDir(projectPath); err != nil {
-		slog.Error("pi: failed to start session watcher", "error", err)
+	watcher, err := startProjectWatcher(projectPath)
+	if err != nil {
 		return fmt.Errorf("pi: failed to start watcher: %w", err)
 	}
-
-	<-ctx.Done()
-	StopWatcher()
-	return ctx.Err()
-}
-
-// sessionFile pairs a discovered pi session file with its header metadata.
-type sessionFile struct {
-	Path   string
-	Header sessionHeader
+	select {
+	case <-ctx.Done():
+		stopWatcher(watcher)
+		return errors.Join(ctx.Err(), watcher.err)
+	case <-watcher.done:
+		stopWatcher(watcher)
+		return watcher.err
+	}
 }
 
 // findProjectSession locates the session file with the given ID within the
@@ -289,29 +287,6 @@ func readHeader(path string) (*sessionHeader, error) {
 	return &h, nil
 }
 
-// listProjectSessions returns all session files in the project's pi directory
-// with their headers. Non-session files (readHeader returns nil,nil) are
-// skipped silently; only a genuine read error is logged.
-func listProjectSessions(projectPath string) ([]sessionFile, error) {
-	files, err := SessionFilesInProject(projectPath)
-	if err != nil {
-		return nil, err
-	}
-	var out []sessionFile
-	for _, f := range files {
-		h, err := readHeader(f)
-		if err != nil {
-			slog.Debug("pi: skipping unreadable session file", "path", f, "error", err)
-			continue
-		}
-		if h == nil {
-			continue // not a pi session file (bad header type/id)
-		}
-		out = append(out, sessionFile{Path: f, Header: *h})
-	}
-	return out, nil
-}
-
 // GetAgentChatSession returns a single pi session by ID for the project.
 func (p *Provider) GetAgentChatSession(projectPath, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	path, err := findProjectSession(projectPath, sessionID)
@@ -321,23 +296,43 @@ func (p *Provider) GetAgentChatSession(projectPath, sessionID string, debugRaw b
 	if path == "" {
 		return nil, nil
 	}
-	return parseToAgentSession(path, debugRaw)
+	candidates, err := projectCandidates(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	return parseToAgentSession(path, candidates[0], debugRaw)
 }
 
 // GetAgentChatSessions returns all pi sessions for the project.
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
-	files, err := listProjectSessions(projectPath)
+	files, candidates, flat, err := projectSessionCandidates(projectPath)
 	if err != nil {
 		return nil, err
 	}
-	total := len(files)
+	// Exclude definite other-project sessions, but keep failures in the worklist.
+	var work []string
+	for _, path := range files {
+		h, _ := readHeader(path)
+		if h != nil && h.Cwd != "" && !cwdMatchesCandidate(h.Cwd, candidates) {
+			continue
+		}
+		work = append(work, path)
+	}
+	total := len(work)
 	var result []spi.AgentChatSession
-	for i, sf := range files {
-		chat, pErr := parseToAgentSession(sf.Path, debugRaw)
-		if pErr != nil {
-			slog.Debug("pi: skipping session", "path", sf.Path, "error", pErr)
-		} else if chat != nil {
-			result = append(result, *chat)
+	for i, path := range work {
+		snapshot, parseErr := readEntries(path)
+		if parseErr == nil && !headerBelongsToProject(path, snapshot.header, candidates, flat) {
+			slog.Warn("pi: skipping session with unassigned or changed project", "file", path)
+		} else if parseErr == nil {
+			var chat *spi.AgentChatSession
+			chat, parseErr = snapshot.agentSession(path, candidates[0], debugRaw)
+			if parseErr == nil {
+				result = append(result, *chat)
+			}
+		}
+		if parseErr != nil {
+			slog.Warn("pi: skipping session", "file", path, "error", parseErr)
 		}
 		if progress != nil {
 			progress(i+1, total)
@@ -348,26 +343,35 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 
 // parseToAgentSession parses one session file into an AgentChatSession,
 // writing debug-raw artifacts when debugRaw is true.
-func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, error) {
-	data, err := ParseSession(path)
+func parseToAgentSession(path, projectPath string, debugRaw bool) (*spi.AgentChatSession, error) {
+	snapshot, err := readEntries(path)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.agentSession(path, projectPath, debugRaw)
+}
+
+// agentSession derives every output from the same accepted native records.
+func (snapshot *sessionSnapshot) agentSession(path, projectPath string, debugRaw bool) (*spi.AgentChatSession, error) {
+	data, err := snapshot.sessionData(path, projectPath)
 	if err != nil {
 		return nil, err
 	}
 	if debugRaw {
-		if dErr := writeDebugRaw(path, data); dErr != nil {
+		if dErr := writeDebugRaw(data.SessionID, snapshot.records[1:]); dErr != nil {
 			slog.Warn("pi: debug-raw write failed", "error", dErr)
 		}
 	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("pi: reading raw session: %w", err)
+	var raw strings.Builder
+	for _, record := range snapshot.records {
+		raw.Write(record)
 	}
 	return &spi.AgentChatSession{
 		SessionID:   data.SessionID,
 		CreatedAt:   data.CreatedAt,
 		Slug:        deriveSlug(data),
 		SessionData: data,
-		RawData:     string(raw),
+		RawData:     raw.String(),
 	}, nil
 }
 
@@ -379,29 +383,7 @@ func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, err
 // so `specstory reindex` uses the O(N) path-keyed fast path instead of the
 // O(N²) by-id lookup.
 func (p *Provider) GetAgentChatSessionByPath(nativePath, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
-	data, err := ParseSession(nativePath)
-	if err != nil {
-		return nil, err
-	}
-	if data.WorkspaceRoot == "" && originCwd != "" {
-		data.WorkspaceRoot = originCwd
-	}
-	if debugRaw {
-		if dErr := writeDebugRaw(nativePath, data); dErr != nil {
-			slog.Warn("pi: debug-raw write failed", "error", dErr)
-		}
-	}
-	raw, err := os.ReadFile(nativePath)
-	if err != nil {
-		return nil, fmt.Errorf("pi: reading raw session: %w", err)
-	}
-	return &spi.AgentChatSession{
-		SessionID:   data.SessionID,
-		CreatedAt:   data.CreatedAt,
-		Slug:        deriveSlug(data),
-		SessionData: data,
-		RawData:     string(raw),
-	}, nil
+	return parseToAgentSession(nativePath, originCwd, debugRaw)
 }
 
 // ListAgentChatSessions returns lightweight metadata for all project sessions,

@@ -54,6 +54,14 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		return nil, err
 	}
 	cwd := spi.ResolveWorkspaceRoot(opts, data)
+	// Only an explicit destination names a local directory. A source workspace
+	// may belong to another machine and must retain its recorded spelling.
+	if opts.WorkspaceRoot != "" {
+		cwd, err = spi.GetCanonicalPath(opts.WorkspaceRoot)
+		if err != nil {
+			return nil, fmt.Errorf("pi: canonicalizing reconstruction destination: %w", err)
+		}
+	}
 
 	newID := uuid.NewString()
 	base := time.Now().UTC()

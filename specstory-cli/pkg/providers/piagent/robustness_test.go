@@ -1,9 +1,14 @@
 package piagent
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -13,6 +18,102 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
+
+func TestPath_DifferentCaseFindsSameProject(t *testing.T) {
+	base := t.TempDir()
+	project := filepath.Join(base, "CaseProject")
+	if err := os.Mkdir(project, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	lower := filepath.Join(base, "caseproject")
+	if _, err := os.Stat(lower); os.IsNotExist(err) {
+		t.Skip("filesystem is case sensitive")
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	canonical, err := spi.GetCanonicalPath(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, flat := range []bool{false, true} {
+		t.Run(fmt.Sprint("flat=", flat), func(t *testing.T) {
+			t.Setenv(envSessionDir, "")
+			t.Setenv(envAgentDir, t.TempDir())
+			if flat {
+				t.Setenv(envSessionDir, t.TempDir())
+			}
+			dir, err := ProjectSessionDir(canonical)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			writeSessionForCwd(t, filepath.Join(dir, "case.jsonl"), "case", canonical)
+			sessions, err := NewProvider().GetAgentChatSessions(lower, false, nil)
+			if err != nil || len(sessions) != 1 {
+				t.Fatalf("sessions=%d error=%v; want one session through alternate casing", len(sessions), err)
+			}
+
+			listed, err := NewProvider().ListAgentChatSessions(lower)
+			if err != nil || len(listed) != 1 {
+				t.Fatalf("list=%v error=%v", listed, err)
+			}
+			single, err := NewProvider().GetAgentChatSession(lower, "case", false)
+			if err != nil || single == nil {
+				t.Fatalf("by-id lookup failed: %v", err)
+			}
+			destination, err := NewProvider().NativeSessionPath(lower, "new.jsonl")
+			if err != nil || destination != filepath.Join(dir, "new.jsonl") {
+				t.Fatalf("destination=%q error=%v", destination, err)
+			}
+			reconstructed, err := NewProvider().ReconstructSession(single.SessionData, spi.ReconstructOptions{WorkspaceRoot: lower})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cwd := parsePiJSONL(t, reconstructed.Content)[0]["cwd"]; cwd != canonical {
+				t.Fatalf("reconstructed cwd=%q; want %q", cwd, canonical)
+			}
+			ch, stop := startWatch(t, lower)
+			defer stop()
+			writeSessionForCwd(t, filepath.Join(dir, "case.jsonl"), "case", canonical)
+			// A different-sized prompt forces a distinct signature even on filesystems
+			// with coarse mtimes, while retaining the correctly cased native cwd.
+			if err := os.WriteFile(filepath.Join(dir, "case.jsonl"), []byte(validSession("case", canonical, "updated canonical project")), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if got := waitForSession(t, ch); got.SessionData.WorkspaceRoot != canonical {
+				t.Fatalf("watch changed recorded cwd: %q", got.SessionData.WorkspaceRoot)
+			}
+		})
+	}
+}
+
+func TestParse_DebugExportUsesOriginalSnapshot(t *testing.T) {
+	spi.SetDebugBaseDir(t.TempDir())
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	dir := spi.GetDebugDir("snapshot")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Export deliberately overwrites the input in this temporary directory.
+	// Any native-file reread after debug export would observe different data.
+	path := filepath.Join(dir, "1.json")
+	body := validSession("snapshot", t.TempDir(), "original conversation")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	chat, err := NewProvider().GetAgentChatSessionByPath(path, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chat.RawData != body {
+		t.Error("RawData was reread after the native file changed")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "session-data.json")); !os.IsNotExist(err) {
+		t.Errorf("provider wrote the CLI-owned session-data.json: %v", err)
+	}
+}
 
 // Robustness + edge-case tests: the parser must handle large lines, distinct
 // tool-call IDs, EndTime on tool-final exchanges, parentId cycles (no hang),
@@ -713,5 +814,254 @@ func TestFormatEdge_ReasoningTokensMapped(t *testing.T) {
 	}
 	if !found {
 		t.Error("usage.reasoning was not mapped to Usage.ReasoningOutputTokens")
+	}
+}
+
+func TestPath_SymlinkUsesCanonicalWatchAndResumeDestination(t *testing.T) {
+	project, err := spi.GetCanonicalPath(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "linked project_name")
+	if err := os.Symlink(project, alias); err != nil {
+		if runtime.GOOS == "windows" {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		t.Fatal(err)
+	}
+	t.Setenv(envSessionDir, "")
+	t.Setenv(envAgentDir, t.TempDir())
+	realDir, err := ProjectSessionDir(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliasDir, err := ProjectSessionDir(alias)
+	if err != nil || aliasDir != realDir {
+		t.Fatalf("symlink dir=%q canonical=%q error=%v", aliasDir, realDir, err)
+	}
+	ch, stop := startWatch(t, alias)
+	defer stop()
+	if err := os.MkdirAll(realDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	writeSessionForCwd(t, filepath.Join(realDir, "linked.jsonl"), "linked", project)
+	if s := waitForSession(t, ch); s.SessionID != "linked" {
+		t.Fatalf("wrong session %q", s.SessionID)
+	}
+	listed, err := NewProvider().ListAgentChatSessions(alias)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("list=%v error=%v", listed, err)
+	}
+	destination, err := NewProvider().NativeSessionPath(alias, "resume.jsonl")
+	if err != nil || destination != filepath.Join(realDir, "resume.jsonl") {
+		t.Fatalf("destination=%q error=%v", destination, err)
+	}
+}
+
+func TestParse_RawSnapshotPreservesAcceptedNativeRecords(t *testing.T) {
+	oldLimit := maxRecordLineSize
+	maxRecordLineSize = 1024
+	t.Cleanup(func() { maxRecordLineSize = oldLimit })
+	spi.SetDebugBaseDir(t.TempDir())
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	// Unknown fields and inactive branches belong to the raw transcript even
+	// though the normalized conversation only follows the current active branch.
+	header := piHeaderLine("native-snapshot", t.TempDir()) + "\r\n"
+	first := piUserLine("first", "", "inactive branch") + "\n"
+	last := strings.TrimSuffix(piUserLine("last", "", "active branch"), "}") + `,"unknownNative":{"keep":true}}`
+	expected := header + first + last
+	path := filepath.Join(t.TempDir(), "native.jsonl")
+	oversized := `{"type":"custom","payload":"` + strings.Repeat("x", 1024) + `"}` + "\n"
+	body := header + first + "{broken\n" + oversized + last
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, debug := range []bool{false, true} {
+		t.Run(fmt.Sprint("debug=", debug), func(t *testing.T) {
+			chat, err := parseToAgentSession(path, "", debug)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if chat.RawData != expected {
+				t.Fatalf("RawData lost original record bytes or retained rejected records: %q", chat.RawData)
+			}
+			if len(chat.SessionData.Exchanges) != 1 || chat.Slug != spi.GenerateFilenameFromUserMessage("active branch") {
+				t.Fatalf("wrong active branch: %+v", chat.SessionData)
+			}
+			if debug {
+				raw, err := os.ReadFile(filepath.Join(spi.GetDebugDir("native-snapshot"), "2.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var decoded map[string]any
+				if err := json.Unmarshal(raw, &decoded); err != nil {
+					t.Fatal(err)
+				}
+				if decoded["unknownNative"] == nil {
+					t.Fatal("debug export lost unknown native fields")
+				}
+			}
+		})
+	}
+}
+
+func TestWorkspaceFallbackDoesNotInventOrigin(t *testing.T) {
+	t.Setenv(envSessionDir, t.TempDir())
+	t.Setenv(envAgentDir, "")
+	project := t.TempDir()
+	canonical, err := spi.GetCanonicalPath(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cwd, err = spi.GetCanonicalPath(cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(os.Getenv(envSessionDir), "missing-cwd.jsonl")
+	// A relative tool path exercises enrichment after fallback resolution.
+	body := validSession("missing-cwd", "", "prompt") + `{"type":"message","id":"a","parentId":"m2","message":{"role":"assistant","content":[{"type":"toolCall","id":"call","name":"read","arguments":{"path":"src/main.go","file_path":"invented.go"}}]}}` + "\n"
+	if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ origin, want string }{{canonical, canonical}, {"", cwd}, {`C:\foreign\project`, `C:\foreign\project`}} {
+		chat, err := NewProvider().GetAgentChatSessionByPath(path, tc.origin, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data := chat.SessionData
+		if data.WorkspaceRoot != tc.want || data.Provider.Version != "unknown" || data.SchemaVersion != schema.CurrentSchemaVersion {
+			t.Fatalf("incorrect metadata: %+v", data)
+		}
+		tool := data.Exchanges[0].Messages[len(data.Exchanges[0].Messages)-1]
+		wantHints := []string{spi.NormalizePath("src/main.go", tc.want)}
+		if !reflect.DeepEqual(tool.PathHints, wantHints) {
+			t.Fatalf("hints=%v want=%v", tool.PathHints, wantHints)
+		}
+	}
+	refs, err := NewProvider().ListAllAgentChatSessions()
+	if err != nil || len(refs) != 1 || refs[0].OriginCwd != "" {
+		t.Fatalf("invented origin: %+v, err=%v", refs, err)
+	}
+	// Native cwd wins even when a different caller fallback is supplied.
+	if err := os.WriteFile(path, []byte(validSession("native", "/foreign/native", "prompt")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	chat, err := NewProvider().GetAgentChatSessionByPath(path, canonical, false)
+	if err != nil || chat.SessionData.WorkspaceRoot != "/foreign/native" {
+		t.Fatalf("native cwd replaced: %+v %v", chat, err)
+	}
+}
+
+func TestPathHintsIgnoreUnverifiedToolsAndAliases(t *testing.T) {
+	input := map[string]any{"path": "real.go", "file_path": "fake.go", "target": "fake2.go", "command": "cat command.go"}
+	if got := extractPathHints("read", input, "/project"); !reflect.DeepEqual(got, []string{spi.NormalizePath("real.go", "/project")}) {
+		t.Fatalf("hints=%v", got)
+	}
+	if got := extractPathHints("custom", input, "/project"); len(got) != 0 {
+		t.Fatalf("guessed extension paths=%v", got)
+	}
+}
+
+func TestRecordDiagnosticsIncludeFileAndPhysicalLine(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	path := filepath.Join(t.TempDir(), "diagnostics.jsonl")
+	data := `{"type":"session","version":3,"id":"diag","cwd":"/project"}` + "\n\n" +
+		"{broken\n" +
+		`{"type":"message","id":"u","parentId":null,"message":{"role":"user","content":"survives"}}` + "\n" +
+		`{"type":"future_kind","id":"x","parentId":"u"}` + "\n" +
+		`{"type":"message","id":"r","parentId":"x","message":{"role":"future_role"}}` + "\n" +
+		`{"type":"label","id":"l","parentId":"r"}` + "\n" +
+		`{"type":"message","id":"a","parentId":"l","message":{"role":"assistant","content":[{"type":"text","text":"still here"}]}}` + "\n"
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseSession(path)
+	if err != nil || len(parsed.Exchanges) != 1 || len(parsed.Exchanges[0].Messages) != 2 {
+		t.Fatalf("lost tree through unknown entries: %+v %v", parsed, err)
+	}
+	for _, pass := range []string{"parse", "scan"} {
+		if pass == "scan" {
+			logs.Reset()
+			if _, _, err := readScanEntries(path); err != nil {
+				t.Fatal(err)
+			}
+		}
+		lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("%s: want 3 warnings, got %s", pass, logs.String())
+		}
+		for i, line := range lines {
+			var record map[string]any
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatal(err)
+			}
+			wantLine := []float64{3, 5, 6}[i]
+			if record["file"] != path || record["lineNumber"] != wantLine || record["level"] != "WARN" {
+				t.Errorf("%s: incomplete diagnostic %s", pass, line)
+			}
+		}
+	}
+}
+
+func TestSyncProgressIncludesSkippedCandidates(t *testing.T) {
+	for _, flat := range []bool{false, true} {
+		t.Run(fmt.Sprint("flat=", flat), func(t *testing.T) {
+			t.Setenv(envAgentDir, t.TempDir())
+			t.Setenv(envSessionDir, "")
+			if flat {
+				t.Setenv(envSessionDir, t.TempDir())
+			}
+			project := t.TempDir()
+			canonical, err := spi.GetCanonicalPath(project)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir, err := ProjectSessionDir(project)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			files := map[string]string{
+				"valid.jsonl":   validSession("valid", canonical, "prompt"),
+				"bad.jsonl":     "{corrupt header\n",
+				"empty.jsonl":   "",
+				"missing.jsonl": validSession("missing", "", "prompt"),
+				"other.jsonl":   validSession("other", canonical+"-elsewhere", "prompt"),
+			}
+			for name, data := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(data), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var progress [][2]int
+			chats, err := NewProvider().GetAgentChatSessions(project, false, func(done, total int) { progress = append(progress, [2]int{done, total}) })
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := [][2]int{{1, 4}, {2, 4}, {3, 4}, {4, 4}}; !reflect.DeepEqual(progress, want) {
+				t.Errorf("progress=%v want=%v", progress, want)
+			}
+			wantCount := 2
+			if flat {
+				wantCount = 1
+			}
+			if len(chats) != wantCount {
+				t.Fatalf("got %d sessions, want %d", len(chats), wantCount)
+			}
+			for _, chat := range chats {
+				if chat.SessionData.WorkspaceRoot != canonical {
+					t.Errorf("fallback=%q want=%q", chat.SessionData.WorkspaceRoot, canonical)
+				}
+			}
+		})
 	}
 }

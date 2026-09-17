@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -171,5 +172,17 @@ func TestExecAgentAndWatch_NonZeroExitStillSavesSession(t *testing.T) {
 	}
 	if _, statErr := os.Stat(markdown); statErr != nil {
 		t.Fatalf("markdown missing after ExecAgentAndWatch returned on pi exit 7: %v", statErr)
+	}
+}
+
+func TestExecAgentAndWatch_ReportsInvalidWatchPathBeforeLaunch(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(path, []byte("file"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(envSessionDir, path)
+	err := NewProvider().ExecAgentAndWatch(t.TempDir(), "nonexistent-pi-binary", "", false, func(*spi.AgentChatSession) {})
+	if err == nil || !strings.Contains(err.Error(), "failed to start session watcher") {
+		t.Fatalf("want startup watch error, got %v", err)
 	}
 }

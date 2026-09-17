@@ -225,3 +225,19 @@ func TestNativeSessionPath(t *testing.T) {
 		}
 	})
 }
+
+func TestReconstructSession_PreservesRecordedWorkspaceWithoutLocalOverride(t *testing.T) {
+	for _, root := range []string{`C:\Users\Somebody\CaseProject`, "/another-machine/CaseProject"} {
+		t.Run(root, func(t *testing.T) {
+			data := reconstructSampleData()
+			data.WorkspaceRoot = root
+			reconstructed, err := NewProvider().ReconstructSession(data, spi.ReconstructOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := parsePiJSONL(t, reconstructed.Content)[0]["cwd"]; got != root {
+				t.Fatalf("recorded workspace changed from %q to %q", root, got)
+			}
+		})
+	}
+}

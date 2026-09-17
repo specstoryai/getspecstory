@@ -3,8 +3,12 @@ package piagent
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
 	"strings"
+	"unicode"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -40,13 +44,15 @@ const (
 // summary as a top-level field (no message wrapper), and session_info entries
 // carry the user-visible session name the same way.
 type rawEntry struct {
-	Type      string          `json:"type"`
-	ID        string          `json:"id"`
-	ParentID  *string         `json:"parentId"` // null for the first entry
-	Timestamp string          `json:"timestamp"`
-	Summary   string          `json:"summary,omitempty"` // compaction entries only
-	Name      string          `json:"name,omitempty"`    // session_info entries only
-	Message   json.RawMessage `json:"message,omitempty"`
+	Type       string          `json:"type"`
+	ID         string          `json:"id"`
+	ParentID   *string         `json:"parentId"` // null for the first entry
+	Timestamp  string          `json:"timestamp"`
+	Summary    string          `json:"summary,omitempty"` // compaction entries only
+	Name       string          `json:"name,omitempty"`    // session_info entries only
+	Message    json.RawMessage `json:"message,omitempty"`
+	sourcePath string
+	lineNumber int
 }
 
 // sessionHeader is the first line of a pi session file (no id/parentId).
@@ -113,10 +119,15 @@ type toolResultMessage struct {
 // not the transcript, so pre-compaction history is preserved and the
 // compaction summary is rendered as a marker message.
 func ParseSession(path string) (*schema.SessionData, error) {
-	header, entries, err := readEntries(path)
+	snapshot, err := readEntries(path)
 	if err != nil {
 		return nil, err
 	}
+	return snapshot.sessionData(path, "")
+}
+
+func (snapshot *sessionSnapshot) sessionData(path, projectPath string) (*schema.SessionData, error) {
+	header, entries := snapshot.header, snapshot.entries
 	if header == nil {
 		return nil, fmt.Errorf("pi: no session header in %s", path)
 	}
@@ -130,33 +141,40 @@ func ParseSession(path string) (*schema.SessionData, error) {
 		return nil, fmt.Errorf("pi: session %s has no entries", header.ID)
 	}
 	ordered := leafPathEntries(entries)
-	return buildSessionData(header, ordered), nil
-}
-
-// piProviderVersion derives the provider version string recorded on SessionData
-// from the pi session header's format version (e.g. v3). Always non-empty so
-// schema.Validate() does not warn about a missing provider.version.
-func piProviderVersion(header *sessionHeader) string {
-	if header.Version > 0 {
-		return fmt.Sprintf("v%d", header.Version)
+	// A missing native cwd only affects normalized rendering. Discovery must
+	// continue using the original header so this fallback never invents an origin.
+	workspaceRoot := header.Cwd
+	if workspaceRoot == "" {
+		workspaceRoot = projectPath
 	}
-	return "v1"
+	if workspaceRoot == "" {
+		var err error
+		workspaceRoot, err = os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("pi: resolving workspace fallback: %w", err)
+		}
+		workspaceRoot, err = spi.GetCanonicalPath(workspaceRoot)
+		if err != nil {
+			return nil, fmt.Errorf("pi: canonicalizing workspace fallback: %w", err)
+		}
+	}
+	return buildSessionData(header, ordered, workspaceRoot), nil
 }
 
 // buildSessionData maps the ordered leaf-path entries into schema.SessionData.
-func buildSessionData(header *sessionHeader, ordered []rawEntry) *schema.SessionData {
+func buildSessionData(header *sessionHeader, ordered []rawEntry, workspaceRoot string) *schema.SessionData {
 	exchanges := buildExchanges(ordered)
-	enrichToolMessages(exchanges, header.Cwd)
+	enrichToolMessages(exchanges, workspaceRoot)
 	return &schema.SessionData{
-		SchemaVersion: "1.0",
+		SchemaVersion: schema.CurrentSchemaVersion,
 		Provider: schema.ProviderInfo{
 			ID:      providerID,
 			Name:    providerName,
-			Version: piProviderVersion(header),
+			Version: "unknown", // Pi records its session format version, not its application release.
 		},
 		SessionID:     header.ID,
 		CreatedAt:     header.Timestamp,
-		WorkspaceRoot: header.Cwd,
+		WorkspaceRoot: workspaceRoot,
 		Exchanges:     exchanges,
 	}
 }
@@ -172,7 +190,7 @@ func enrichToolMessages(exchanges []schema.Exchange, workspaceRoot string) {
 			if msg.Tool == nil {
 				continue
 			}
-			msg.PathHints = extractPathHints(msg.Tool.Input, workspaceRoot)
+			msg.PathHints = extractPathHints(msg.Tool.Name, msg.Tool.Input, workspaceRoot)
 			summary, markdown := formatToolMarkdown(msg.Tool)
 			if summary != "" {
 				msg.Tool.Summary = &summary
@@ -184,115 +202,189 @@ func enrichToolMessages(exchanges []schema.Exchange, workspaceRoot string) {
 	}
 }
 
-// extractPathHints collects file paths from a pi tool call's arguments (pi
-// tools use "path"; the extra keys cover extension tools) plus paths mentioned
-// in shell commands, normalized and deduped like the sibling providers.
-func extractPathHints(input map[string]any, workspaceRoot string) []string {
-	if input == nil {
-		return nil
+// extractPathHints uses only the argument shapes declared by Pi's built-ins.
+// Extension tools remain generic until their path semantics are known.
+func extractPathHints(name string, input map[string]any, workspaceRoot string) []string {
+	switch strings.ToLower(name) {
+	case "read", "write", "edit", "grep", "find", "ls":
+		if path, ok := input["path"].(string); ok && path != "" {
+			return []string{spi.NormalizePath(path, workspaceRoot)}
+		}
+	case "bash":
+		// The shared extractor understands shell syntax, not PowerShell syntax.
+		if command, ok := input["command"].(string); ok {
+			return spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot)
+		}
 	}
-	var hints []string
-	add := func(p string) {
-		if p == "" {
+	return nil
+}
+
+// formatToolMarkdown preserves unrecognized fields even when a built-in has a
+// bespoke rendering. Native inputs are never truncated; only displayed results
+// are capped, leaving the complete structured output and RawData available.
+func formatToolMarkdown(tool *schema.ToolInfo) (string, string) {
+	var blocks []string
+	in := tool.Input
+	name := strings.ToLower(tool.Name)
+	if failed, _ := tool.Output["is_error"].(bool); failed {
+		// Error details can contain diagnostic diffs, not successfully applied edits.
+		blocks = append(blocks, "**Error:**", renderToolOutput(tool, false))
+		if args := spi.RenderGenericJSON(in); args != "" {
+			blocks = append(blocks, "**Input:**\n"+args)
+		}
+		return "", strings.Join(blocks, "\n\n")
+	}
+	var consumed []string
+	field := func(key, label, lang string) {
+		value, exists := in[key]
+		if !exists {
 			return
 		}
-		n := spi.NormalizePath(p, workspaceRoot)
-		for _, h := range hints {
-			if h == n {
-				return
-			}
+		switch value.(type) {
+		case string, float64, bool, int, json.Number:
+			blocks = append(blocks, "**"+label+":**\n"+spi.CodeFence(lang, spi.StringValue(in, key)))
+			consumed = append(consumed, key)
 		}
-		hints = append(hints, n)
 	}
-	for _, field := range []string{"path", "file_path", "filePath", "dir", "directory", "target"} {
-		switch v := input[field].(type) {
-		case string:
-			add(v)
-		case []any:
-			for _, item := range v {
-				if s, ok := item.(string); ok {
-					add(s)
+	var summary string
+	switch name {
+	case "bash", "powershell":
+		field("command", "Command", name)
+		field("timeout", "Timeout (seconds)", "text")
+		if cmd, ok := in["command"].(string); ok && cmd != "" && !strings.ContainsAny(cmd, "\n\r`") {
+			summary = fmt.Sprintf("Tool use: **%s** `%s`", name, cmd)
+		}
+	case "read", "write", "edit", "grep", "find", "ls":
+		field("path", "Path", "text")
+		switch name {
+		case "read":
+			field("offset", "Offset (line)", "text")
+			field("limit", "Limit", "text")
+		case "write":
+			field("content", "Content", spi.LanguageFromPath(spi.StringValue(in, "path")))
+		case "edit":
+			if old, ok := in["oldText"].(string); ok {
+				if newText, ok := in["newText"].(string); ok {
+					blocks = append(blocks, "**Edit:**\n"+spi.FormatDiffBlock(old, newText))
+					consumed = append(consumed, "oldText", "newText")
 				}
 			}
+			if edits, ok := in["edits"].([]any); ok {
+				for i, edit := range edits {
+					args, ok := edit.(map[string]any)
+					if !ok {
+						blocks = append(blocks, spi.RenderGenericJSON(map[string]any{"edit": edit}))
+						continue
+					}
+					old, oldOK := args["oldText"].(string)
+					newText, newOK := args["newText"].(string)
+					var drop []string
+					if oldOK && newOK {
+						blocks = append(blocks, fmt.Sprintf("**Edit %d:**\n%s", i+1, spi.FormatDiffBlock(old, newText)))
+						drop = []string{"oldText", "newText"}
+					} else {
+						blocks = append(blocks, spi.RenderGenericJSON(map[string]any{"edit": args}))
+						continue
+					}
+					if extra := spi.RenderGenericJSON(args, drop...); extra != "" {
+						blocks = append(blocks, extra)
+					}
+				}
+				// An empty edits array is meaningful too: keep it in the generic fallback.
+				if len(edits) > 0 {
+					consumed = append(consumed, "edits")
+				}
+			}
+		case "grep", "find":
+			field("pattern", "Pattern", "text")
+			field("limit", "Limit", "text")
+			if name == "grep" {
+				field("glob", "Glob", "text")
+				field("ignoreCase", "Ignore case", "text")
+				field("literal", "Literal", "text")
+				field("context", "Context (lines)", "text")
+			}
+		case "ls":
+			field("limit", "Limit", "text")
 		}
 	}
-	if command, _ := input["command"].(string); command != "" {
-		for _, sp := range spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot) {
-			add(sp)
-		}
+	if extra := spi.RenderGenericJSON(in, consumed...); extra != "" {
+		blocks = append(blocks, "**Input:**\n"+extra)
 	}
-	return hints
+	if output := renderToolOutput(tool, true); output != "" {
+		blocks = append(blocks, output)
+	}
+	return summary, strings.Join(blocks, "\n\n")
 }
 
-// formatToolMarkdown builds the pre-formatted markdown (and optional summary)
-// for the pi tools with a natural rendering: single-line bash commands become
-// an inline-code summary, multi-line commands and file writes become fenced
-// blocks, file tools show their path. Tools without a specific format return
-// empty so the CLI's generic fallback (which renders input and output) is
-// used instead. When a specific format is produced, the tool output is
-// appended so the markdown stays self-contained.
-func formatToolMarkdown(tool *schema.ToolInfo) (string, string) {
-	var summary string
-	var b strings.Builder
-	in := tool.Input
-	switch strings.ToLower(tool.Name) {
-	case "bash":
-		cmd, _ := in["command"].(string)
-		if cmd == "" {
-			return "", ""
+func renderToolOutput(tool *schema.ToolInfo, success bool) string {
+	var blocks []string
+	var consumed []string
+	name := strings.ToLower(tool.Name)
+	if content, ok := tool.Output["content"].(string); ok {
+		lang := "text"
+		if success && name == "read" {
+			lang = spi.LanguageFromPath(spi.StringValue(tool.Input, "path"))
 		}
-		if strings.Contains(cmd, "\n") {
-			b.WriteString(spi.CodeFence("bash", cmd))
-		} else {
-			summary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, cmd)
+		if name == "bash" || name == "powershell" {
+			content = sanitizeShellOutput(content)
 		}
-	case "read", "edit", "ls":
-		p, _ := in["path"].(string)
-		if p == "" {
-			return "", ""
+		if content != "" {
+			blocks = append(blocks, spi.CodeFence(lang, spi.CapRunes(content, 5000)))
 		}
-		fmt.Fprintf(&b, "`%s`", p)
-	case "write":
-		p, _ := in["path"].(string)
-		if p == "" {
-			return "", ""
-		}
-		fmt.Fprintf(&b, "`%s`\n", p)
-		if content, _ := in["content"].(string); content != "" {
-			b.WriteString("\n" + spi.CodeFence("", content))
-		}
-	case "grep", "find":
-		pattern, _ := in["pattern"].(string)
-		if pattern == "" {
-			return "", ""
-		}
-		fmt.Fprintf(&b, "`%s`", pattern)
-	default:
-		return "", ""
+		consumed = append(consumed, "content")
 	}
-	appendToolOutput(&b, tool)
-	return summary, strings.TrimSpace(b.String())
+	if success && name == "edit" {
+		if details, ok := tool.Output["details"].(map[string]any); ok {
+			var rendered []string
+			for _, key := range []string{"diff", "patch"} {
+				if diff, ok := details[key].(string); ok {
+					blocks = append(blocks, "**"+key+":**\n"+spi.CodeFence("diff", spi.CapRunes(diff, 5000)))
+					rendered = append(rendered, key)
+				}
+			}
+			if extra := cappedToolJSON(details, rendered...); extra != "" {
+				blocks = append(blocks, "**Details:**\n"+extra)
+			}
+			consumed = append(consumed, "details")
+		}
+	}
+	if _, ok := tool.Output["is_error"].(bool); ok {
+		consumed = append(consumed, "is_error")
+	}
+	if extra := cappedToolJSON(tool.Output, consumed...); extra != "" {
+		blocks = append(blocks, extra)
+	}
+	return strings.Join(blocks, "\n\n")
 }
 
-// appendToolOutput appends the merged toolResult content as a fenced block
-// (truncated like codexcli) so formatted tools still show their result.
-func appendToolOutput(b *strings.Builder, tool *schema.ToolInfo) {
-	if tool.Output == nil {
-		return
+// Cap JSON before fencing it so truncation cannot remove the closing fence.
+func cappedToolJSON(values map[string]any, drop ...string) string {
+	kept := make(map[string]any, len(values))
+	for key, value := range values {
+		kept[key] = value
 	}
-	content, _ := tool.Output["content"].(string)
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return
+	for _, key := range drop {
+		delete(kept, key)
 	}
-	content = spi.CapRunes(content, 5000)
-	if b.Len() > 0 {
-		b.WriteString("\n\n")
+	if len(kept) == 0 {
+		return ""
 	}
-	if isErr, _ := tool.Output["is_error"].(bool); isErr {
-		b.WriteString("Error:\n")
+	data, err := json.MarshalIndent(kept, "", "  ")
+	if err != nil {
+		return ""
 	}
-	b.WriteString(spi.CodeFence("", content))
+	return spi.CodeFence("json", spi.CapRunes(string(data), 5000))
+}
+
+func sanitizeShellOutput(content string) string {
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	return strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return -1
+		}
+		return r
+	}, ansi.Strip(content))
 }
 
 // buildExchanges groups ordered entries into schema exchanges. A new user
@@ -319,12 +411,16 @@ func buildExchanges(ordered []rawEntry) []schema.Exchange {
 		}
 		switch messageRole(e) {
 		case roleUser:
+			msg := buildUserMessage(e)
+			if msg == nil {
+				continue
+			}
 			commit()
 			current = &schema.Exchange{
 				ExchangeID: e.ID,
 				StartTime:  e.Timestamp,
 				EndTime:    e.Timestamp,
-				Messages:   []schema.Message{buildUserMessage(e)},
+				Messages:   []schema.Message{*msg},
 			}
 		case roleAssistant:
 			current = appendAssistant(current, e)
@@ -390,6 +486,7 @@ func mergeToolResult(current *schema.Exchange, e rawEntry) {
 	}
 	var tr toolResultMessage
 	if err := json.Unmarshal(e.Message, &tr); err != nil {
+		slog.Warn("pi: skipping corrupted tool result", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
 		return
 	}
 	content := toolResultContent(tr)
@@ -417,11 +514,18 @@ func toolResultContent(tr toolResultMessage) string {
 
 // buildUserMessage maps a pi user message entry to a schema user Message.
 // pi user content is either a plain string or an array of {type:text|image}.
-func buildUserMessage(e rawEntry) schema.Message {
+func buildUserMessage(e rawEntry) *schema.Message {
 	var um userMessage
-	_ = json.Unmarshal(e.Message, &um)
-	parts := userContentParts(um.Content)
-	return schema.Message{
+	if err := json.Unmarshal(e.Message, &um); err != nil {
+		slog.Warn("pi: skipping corrupted user message", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+		return nil
+	}
+	parts, err := userContentParts(um.Content)
+	if err != nil {
+		slog.Warn("pi: skipping corrupted user content", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+		return nil
+	}
+	return &schema.Message{
 		ID:        e.ID,
 		Timestamp: e.Timestamp,
 		Role:      schema.RoleUser,
@@ -431,19 +535,19 @@ func buildUserMessage(e rawEntry) schema.Message {
 
 // userContentParts decodes a pi user message's content (string or array) into
 // schema ContentParts. Image blocks are dropped in v1 (recorded as a gap).
-func userContentParts(raw json.RawMessage) []schema.ContentPart {
+func userContentParts(raw json.RawMessage) ([]schema.ContentPart, error) {
 	if len(raw) == 0 {
-		return nil
+		return nil, nil
 	}
 	if raw[0] == '"' {
 		var s string
 		if err := json.Unmarshal(raw, &s); err == nil {
-			return []schema.ContentPart{{Type: schema.ContentTypeText, Text: s}}
+			return []schema.ContentPart{{Type: schema.ContentTypeText, Text: s}}, nil
 		}
 	}
 	var blocks []contentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return nil
+		return nil, err
 	}
 	var parts []schema.ContentPart
 	for _, b := range blocks {
@@ -451,20 +555,36 @@ func userContentParts(raw json.RawMessage) []schema.ContentPart {
 			parts = append(parts, schema.ContentPart{Type: schema.ContentTypeText, Text: b.Text})
 		}
 	}
-	return parts
+	return parts, nil
 }
 
-// buildAgentMessages maps a pi assistant message entry to one or more schema
-// Messages: one Message holds the text+thinking content parts; each toolCall
-// block becomes its own agent Message carrying a ToolInfo.
+// buildAgentMessages flushes narration at each tool call so native block order
+// survives normalization. Usage belongs to the native entry, hence only the
+// first emitted message receives it.
 func buildAgentMessages(e rawEntry) []schema.Message {
 	var am assistantMessage
 	if err := json.Unmarshal(e.Message, &am); err != nil {
+		slog.Warn("pi: skipping corrupted assistant message", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
 		return nil
 	}
 	var parts []schema.ContentPart
 	var messages []schema.Message
-	for _, b := range am.Content {
+	segmentStart := 0
+	flush := func() {
+		if len(parts) == 0 {
+			return
+		}
+		id := e.ID
+		if segmentStart > 0 {
+			id = fmt.Sprintf("%s:content:%d", e.ID, segmentStart)
+		}
+		messages = append(messages, schema.Message{ID: id, Timestamp: e.Timestamp, Role: schema.RoleAgent, Model: am.Model, Content: parts})
+		parts = nil
+	}
+	for i, b := range am.Content {
+		if len(parts) == 0 {
+			segmentStart = i
+		}
 		switch b.Type {
 		case schema.ContentTypeText:
 			if b.Text != "" {
@@ -475,30 +595,21 @@ func buildAgentMessages(e rawEntry) []schema.Message {
 				parts = append(parts, schema.ContentPart{Type: schema.ContentTypeThinking, Text: b.Thinking})
 			}
 		case "toolCall":
-			messages = append(messages, buildToolMessage(e, b, am))
+			flush()
+			msg := buildToolMessage(e, b, am)
+			if b.ID == "" {
+				msg.ID = fmt.Sprintf("%s:tool:%d", e.ID, i)
+			}
+			messages = append(messages, msg)
+		default:
+			slog.Warn("pi: unknown assistant content kind", "file", e.sourcePath, "lineNumber", e.lineNumber, "kind", b.Type)
 		}
 	}
-	if len(parts) > 0 {
-		head := schema.Message{
-			ID:        e.ID,
-			Timestamp: e.Timestamp,
-			Role:      schema.RoleAgent,
-			Model:     am.Model,
-			Content:   parts,
-			Usage:     mapUsage(am.Usage),
-		}
-		return append([]schema.Message{head}, messages...)
-	}
+	flush()
 	if len(messages) == 0 {
 		return buildErrorMessage(e, am)
 	}
-	// Tool-call-only assistant message: carry model+usage once on the first
-	// tool message so no metadata is lost and no schema-invalid empty message
-	// is emitted.
-	messages[0].Model = am.Model
-	if messages[0].Usage == nil {
-		messages[0].Usage = mapUsage(am.Usage)
-	}
+	messages[0].Usage = mapUsage(am.Usage)
 	return messages
 }
 
@@ -605,18 +716,14 @@ func deriveSlug(data *schema.SessionData) string {
 // classifyToolType maps pi tool names to the schema tool-type taxonomy.
 func classifyToolType(name string) string {
 	switch strings.ToLower(name) {
-	case "read":
+	case "read", "ls":
 		return schema.ToolTypeRead
 	case "edit", "write":
 		return schema.ToolTypeWrite
-	case "bash", "ls":
+	case "bash", "powershell":
 		return schema.ToolTypeShell
-	case "grep", "find", "web_search", "fetch_content":
+	case "grep", "find":
 		return schema.ToolTypeSearch
-	case "until_done_set", "until_done_plan", "until_done_task_update",
-		"until_done_progress", "until_done_complete", "until_done_block",
-		"until_done_replan", "until_done_distill":
-		return schema.ToolTypeTask
 	default:
 		return schema.ToolTypeUnknown
 	}
