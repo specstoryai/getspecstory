@@ -65,8 +65,8 @@ func parsePiJSONL(t *testing.T, content []byte) []map[string]any {
 }
 
 // TestReconstructSession_RoundTrip reconstructs to native pi v3 JSONL, re-parses
-// through pi's own ParseSession, and asserts the flattened transcript is
-// preserved turn-for-turn — proving pi's reader accepts our output.
+// through the provider's ParseSession, and asserts the flattened transcript is
+// preserved turn-for-turn — checking the provider round trip independently of native Pi acceptance.
 func TestReconstructSession_RoundTrip(t *testing.T) {
 	data := reconstructSampleData()
 	expected := spi.FlattenSessionData(data, "")
@@ -86,7 +86,7 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 		t.Errorf("filename %q must be filesystem-safe (no ':')", out.Filename)
 	}
 
-	// Re-parse the reconstructed bytes through pi's own read path.
+	// Re-parse the reconstructed bytes through the provider parser.
 	dir := t.TempDir()
 	path := filepath.Join(dir, out.Filename)
 	if wErr := os.WriteFile(path, out.Content, 0o600); wErr != nil {
@@ -109,7 +109,7 @@ func TestReconstructSession_RoundTrip(t *testing.T) {
 }
 
 // TestReconstructSession_Chain asserts the header + strictly-linear parentId
-// chain, and that feeding the message entries through pi's own walkToRoot
+// chain, and that feeding the message entries through the provider tree walker
 // terminates and yields every turn in order (no accidental cycle).
 func TestReconstructSession_Chain(t *testing.T) {
 	data := reconstructSampleData()
@@ -239,5 +239,35 @@ func TestReconstructSession_PreservesRecordedWorkspaceWithoutLocalOverride(t *te
 				t.Fatalf("recorded workspace changed from %q to %q", root, got)
 			}
 		})
+	}
+}
+
+func TestReconstructionDoesNotInventModel(t *testing.T) {
+	data := reconstructSampleData()
+	data.Exchanges[0].Messages[1].Model = "actual-source-model"
+	out, err := NewProvider().ReconstructSession(data, spi.ReconstructOptions{MigrationNote: "Imported transcript"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range parsePiJSONL(t, out.Content)[1:] {
+		msg := record["message"].(map[string]any)
+		if msg["role"] == "assistant" && (msg["model"] != "" || msg["provider"] != "") {
+			t.Fatalf("invented native model identity: %+v", msg)
+		}
+	}
+	path := filepath.Join(t.TempDir(), out.Filename)
+	if err := os.WriteFile(path, out.Content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseSession(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, exchange := range parsed.Exchanges {
+		for _, msg := range exchange.Messages {
+			if msg.Model != "" {
+				t.Fatalf("invented normalized model %q", msg.Model)
+			}
+		}
 	}
 }

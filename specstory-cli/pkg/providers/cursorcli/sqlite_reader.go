@@ -296,12 +296,15 @@ func ReadSessionData(sessionPath string) (string, string, []BlobRecord, []BlobRe
 	// Sort rowids for easier debugging
 	sort.Ints(allRowIDs)
 
-	// Log all rowids we got from the database - check if 1555-1560 are present
-	slog.Debug("All rowids from database query",
-		"count", len(allRowIDs),
-		"min", allRowIDs[0],
-		"max", allRowIDs[len(allRowIDs)-1],
-		"rowids", allRowIDs)
+	// Cursor can commit its schema before its first blob. Log bounds only
+	// when rows exist; the watcher will retry the empty session on later writes.
+	if len(allRowIDs) > 0 {
+		slog.Debug("All rowids from database query",
+			"count", len(allRowIDs),
+			"min", allRowIDs[0],
+			"max", allRowIDs[len(allRowIDs)-1],
+			"rowids", allRowIDs)
+	}
 
 	slog.Debug("Blob processing summary",
 		"totalBlobs", totalBlobs,

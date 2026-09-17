@@ -272,7 +272,7 @@ func TestFormatFields_UserMessageStringContent(t *testing.T) {
 }
 
 // TestFormatFields_UserMessageImageSkipped covers a user message with an image
-// content block: v1 drops images, but the sibling text block must survive.
+// content block: v1 drops images, but the adjacent text block must survive.
 func TestFormatFields_UserMessageImageSkipped(t *testing.T) {
 	data := parseFields(t)
 	var foundText bool

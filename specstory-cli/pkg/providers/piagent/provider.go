@@ -25,11 +25,12 @@ const (
 	versionFlag  = "--version"
 )
 
-// Compile-time assertion that Provider satisfies the full spi.Provider contract.
-// The interface conformance is otherwise only exercised at registration in the
-// factory package, so a locally missing method fails there rather than here;
-// this guard surfaces the gap in the provider's own package.
-var _ spi.Provider = (*Provider)(nil)
+// Keep required and optional SPI capabilities checked at the implementation.
+var (
+	_ spi.Provider           = (*Provider)(nil)
+	_ spi.PathSessionReader  = (*Provider)(nil)
+	_ spi.ProgressEnumerator = (*Provider)(nil)
+)
 
 // Provider implements spi.Provider for the pi coding agent.
 // pi stores sessions as JSONL v3 trees under ~/.pi/agent/sessions/--<encoded-cwd>--/.
@@ -42,9 +43,8 @@ func NewProvider() *Provider { return &Provider{} }
 func (p *Provider) Name() string { return providerName }
 
 // parsePiCommand splits a custom check/run command into binary + args,
-// expanding a leading ~ like sibling providers (spi.SplitCommandLine handles
-// quoting). Falls back to the default `pi` binary when no custom command is
-// given.
+// expanding a leading ~ (spi.SplitCommandLine handles quoting). An empty
+// custom command uses the default binary.
 func parsePiCommand(customCommand string) (string, []string) {
 	if strings.TrimSpace(customCommand) != "" {
 		parts := spi.SplitCommandLine(customCommand)
@@ -55,21 +55,6 @@ func parsePiCommand(customCommand string) (string, []string) {
 	return getDefaultPiCommand(), nil
 }
 
-// classifyCheckError buckets a Check failure for messaging and analytics,
-// matching the sibling providers' error taxonomy. errors.Is unwraps through
-// exec.Error/os.PathError, covering both PATH lookups (exec.ErrNotFound) and
-// explicit custom paths (os.ErrNotExist).
-func classifyCheckError(err error) string {
-	switch {
-	case errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist):
-		return "not_found"
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	default:
-		return "version_failed"
-	}
-}
-
 // buildCheckErrorMessage renders the user-facing Check failure text. The
 // custom-command branch avoids the misleading "not found on PATH" wording when
 // the user pointed at an explicit path, and version-probe failures surface the
@@ -77,7 +62,7 @@ func classifyCheckError(err error) string {
 func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr string) string {
 	var b strings.Builder
 	switch errorType {
-	case "not_found":
+	case spi.CheckErrorNotFound:
 		b.WriteString("The pi coding agent was not found.\n\n")
 		if isCustom {
 			b.WriteString("• Verify the custom command/path you provided exists and is executable.\n")
@@ -86,26 +71,30 @@ func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr str
 			b.WriteString("• Install pi (`npm install -g @earendil-works/pi-coding-agent`, see https://pi.dev) and ensure `pi` is on your PATH.\n")
 			b.WriteString("• Re-run `specstory check pi` after installation.\n")
 		}
-	case "permission_denied":
+	case spi.CheckErrorPermissionDenied:
 		b.WriteString("SpecStory cannot execute the pi binary due to permissions.\n\n")
-		fmt.Fprintf(&b, "Try: chmod +x %s\n", command)
+		fmt.Fprintf(&b, "Verify execute permissions for the binary in: %s\n", command)
 	default:
-		b.WriteString("`pi --version` failed.\n\n")
+		fmt.Fprintf(&b, "`%s %s` failed.\n\n", command, versionFlag)
 		if stderr != "" {
 			b.WriteString("Error output:\n")
 			b.WriteString(stderr)
 			b.WriteString("\n\n")
 		}
-		b.WriteString("Run `pi --version` manually to diagnose, then retry.")
+		fmt.Fprintf(&b, "Run `%s %s` manually to diagnose, then retry.", command, versionFlag)
 	}
 	return b.String()
 }
 
 // Check verifies the pi binary is available and reports its version.
-func (p *Provider) Check(customCommand string) spi.CheckResult {
+func (p *Provider) Check(customCommand string) (result spi.CheckResult) {
+	slog.Info("Check: starting Pi version probe", "command", customCommand)
+	defer func() {
+		slog.Info("Check: Pi version probe finished", "success", result.Success, "version", result.Version)
+	}()
 	isCustom := strings.TrimSpace(customCommand) != ""
 	cmdName, cmdArgs := parsePiCommand(customCommand)
-	displayCmd := strings.TrimSpace(strings.Join(append([]string{cmdName}, cmdArgs...), " "))
+	displayCmd := strings.TrimSpace(customCommand)
 	if displayCmd == "" {
 		displayCmd = cmdName
 	}
@@ -113,8 +102,8 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	resolved, err := exec.LookPath(cmdName)
 	attempt.ResolvedPath = resolved
 	if err != nil {
-		errorType := classifyCheckError(err)
-		slog.Info("pi: Check binary not found", "command", cmdName, "error", err)
+		errorType := spi.ClassifyCheckError(err)
+		slog.Error("Check: Pi binary lookup failed", "command", cmdName, "error", err)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
@@ -122,26 +111,26 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		}
 	}
 	var stdout, stderr bytes.Buffer
+	slog.Info("Check: resolved Pi command", "path", resolved)
 	versionArgs := append(append([]string{}, cmdArgs...), versionFlag)
 	cmd := exec.Command(resolved, versionArgs...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := classifyCheckError(err)
+		errorType := spi.ClassifyCheckError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
-		slog.Info("pi: Check version probe failed", "resolved", resolved, "error", err, "stderr", stderrOutput)
+		slog.Error("Check: Pi version probe failed", "path", resolved, "error", err, "stderr", stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{
-			Success:  false,
-			Location: resolved,
-			// Use the resolved path, not displayCmd: LookPath already succeeded
-			// here, so any permission-fix guidance (e.g. "chmod +x") must point at
-			// the actual binary on disk, not a command/args string that isn't a
-			// valid chmod target and may not exist relative to the user's cwd.
-			ErrorMessage: buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput),
+			Success:      false,
+			Location:     resolved,
+			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, stderrOutput),
 		}
 	}
 	version := strings.TrimSpace(stdout.String())
+	if version == "" {
+		version = strings.TrimSpace(stderr.String())
+	}
 	if version == "" {
 		version = "unknown"
 	}
@@ -150,8 +139,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 }
 
 // DetectAgent reports whether pi has created sessions for the given project.
-// When helpOutput is true and nothing is found, it prints guidance like the
-// sibling providers do — the CLI callers (sync/list) rely on the provider to
+// When helpOutput is true and nothing is found, CLI callers rely on it to
 // explain a negative result instead of exiting silently.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	files, err := SessionFilesInProject(projectPath)
@@ -175,17 +163,18 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 // ExecAgentAndWatch runs pi interactively (`specstory run pi`) while watching the
 // project's session directory, invoking sessionCallback as pi writes JSONL so
 // markdown generation and cloud sync happen live. It blocks until pi exits.
-func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (runErr error) {
+	slog.Info("ExecAgentAndWatch: starting Pi", "projectPath", projectPath, "sessionId", resumeSessionID)
+	defer func() { slog.Info("ExecAgentAndWatch: Pi run finished", "error", runErr) }()
 	// pi resumes by exact session id (`pi --session-id <id>`); the id is pi's
 	// header `id`, an arbitrary string, so we only trim + reject empty here and
-	// let pi surface its own id-shape validation rather than second-guessing it
-	// (unlike Claude Code, whose ids are strictly UUIDs).
+	// let Pi validate the native ID shape.
 	if resumeSessionID != "" {
 		resumeSessionID = strings.TrimSpace(resumeSessionID)
 		if resumeSessionID == "" {
 			return fmt.Errorf("pi: resume session id is empty after trimming whitespace")
 		}
-		slog.Info("pi: resuming session", "sessionId", resumeSessionID)
+		slog.Info("ExecAgentAndWatch: resuming Pi session", "sessionId", resumeSessionID)
 	}
 
 	SetWatcherCallback(sessionCallback)
@@ -196,10 +185,13 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// the terminal is still ours and the first session write cannot be missed.
 	watcher, err := startProjectWatcher(projectPath)
 	if err != nil {
+		slog.Error("ExecAgentAndWatch: Pi watcher startup failed", "error", err)
 		return fmt.Errorf("pi: failed to start session watcher: %w", err)
 	}
 
+	slog.Info("ExecAgentAndWatch: Pi watcher ready", "projectPath", projectPath)
 	err = ExecutePi(customCommand, resumeSessionID)
+	slog.Info("ExecAgentAndWatch: draining Pi session saves")
 	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
 	// on: pi writes its session file right before it exits, and the callback
 	// for that write is what saves the markdown. This must run on the non-zero
@@ -220,17 +212,22 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 // WatchAgent watches for pi session activity (`specstory watch pi`) and invokes
 // sessionCallback with each parsed session. It does not launch pi; it blocks
 // until the context is cancelled.
-func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (watchErr error) {
+	slog.Info("WatchAgent: starting Pi watcher", "projectPath", projectPath)
+	defer func() { slog.Info("WatchAgent: Pi watcher stopped", "error", watchErr) }()
 	SetWatcherCallback(sessionCallback)
 	defer ClearWatcherCallback()
 	SetWatcherDebugRaw(debugRaw)
 
 	watcher, err := startProjectWatcher(projectPath)
 	if err != nil {
+		slog.Error("WatchAgent: Pi watcher startup failed", "error", err)
 		return fmt.Errorf("pi: failed to start watcher: %w", err)
 	}
+	slog.Info("WatchAgent: Pi watcher ready", "projectPath", projectPath)
 	select {
 	case <-ctx.Done():
+		slog.Info("WatchAgent: draining Pi session saves")
 		stopWatcher(watcher)
 		return errors.Join(ctx.Err(), watcher.err)
 	case <-watcher.done:

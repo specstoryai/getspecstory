@@ -45,9 +45,24 @@ timeout 120 "$pi" -p -e ./list-tools.ts --no-session --no-extensions --no-skills
   --no-prompt-templates --no-themes --no-context-files --no-approve "OK" \
   < /dev/null > stream.log 2>&1 || rc=$?
 
+if [ "$rc" -ne 0 ]; then
+  echo "list-tools: Pi failed (exit $rc); refusing partial inventory" >&2
+  head -c 600 stream.log >&2
+  exit 1
+fi
 if [ ! -s tools.txt ]; then
   echo "list-tools: the session_start hook never wrote tools.txt (pi exit $rc)" >&2
   head -c 600 stream.log >&2
+  exit 1
+fi
+# Reject whitespace, malformed names and duplicates without hiding the raw
+# diagnostic file. A future built-in is accepted without hard-coding its name.
+if ! LC_ALL=C awk '
+  !/^[A-Za-z_][A-Za-z0-9_.:-]*$/ { bad=1 }
+  seen[$0]++ { bad=1 }
+  END { exit (NR == 0 || bad) }
+' tools.txt; then
+  echo "list-tools: invalid or duplicate tool names in tools.txt" >&2
   exit 1
 fi
 if [ -s active.txt ]; then

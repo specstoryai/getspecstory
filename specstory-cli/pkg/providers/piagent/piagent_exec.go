@@ -44,10 +44,7 @@ func parsePiRunCommand(customCommand string, resumeSessionID string) (string, []
 	return cmd, args
 }
 
-// getDefaultPiCommand returns the default pi binary. Unlike Claude Code
-// (~/.local/bin, npm) and Codex (Homebrew, npm), pi ships as a single `pi` on
-// the PATH with no per-manager install locations worth probing, so a plain PATH
-// lookup via exec.Command is the safe default and keeps the code DRY.
+// getDefaultPiCommand uses PATH so the user controls which Pi installation runs.
 func getDefaultPiCommand() string {
 	return defaultCmd
 }
@@ -68,10 +65,11 @@ func ExecutePi(customCommand string, resumeSessionID string) error {
 
 	slog.Info("ExecutePi: starting pi process", "command", piCmd)
 	if err := cmd.Start(); err != nil {
+		slog.Error("ExecutePi: Pi process startup failed", "error", err)
 		return fmt.Errorf("failed to start pi: %w", err)
 	}
 
-	slog.Info("ExecutePi: waiting for pi to exit")
+	slog.Debug("ExecutePi: waiting for pi to exit")
 	if err := cmd.Wait(); err != nil {
 		// A non-zero exit is normal for an interactive CLI; hand pi's own exit
 		// code up so the caller's shell sees it once the watcher has stopped.

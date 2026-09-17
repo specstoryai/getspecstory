@@ -265,8 +265,7 @@ func TestParse_OversizeFinalLineWithoutTrailingNewlineIsSkipped(t *testing.T) {
 // bytes retained across all entries must be tiny relative to the session
 // file — proving the scan discards each rawEntry's Message payload after a
 // per-line decode instead of accumulating it the way a full parse must.
-// This is the aggregate-memory fix from the greptile review: rather than
-// capping session size, the scan path stops retaining what it never reads.
+// Avoid a session-wide cap by discarding payloads the scan never reads.
 func TestScan_DoesNotRetainMessagePayloads(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "big-payloads.jsonl")
@@ -739,8 +738,7 @@ func TestGlobal_NestedSubagentFilesExcluded(t *testing.T) {
 }
 
 // TestFormatEdge_ToolEnrichment asserts tool messages carry PathHints (for
-// provenance) and Summary/FormattedMarkdown (for markdown rendering), matching
-// the sibling providers.
+// provenance) and Summary/FormattedMarkdown (for markdown rendering).
 func TestFormatEdge_ToolEnrichment(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "enrich.jsonl")
@@ -787,7 +785,7 @@ func TestFormatEdge_ToolEnrichment(t *testing.T) {
 }
 
 // TestFormatEdge_ReasoningTokensMapped asserts pi's usage.reasoning field maps
-// into schema Usage (same field codexcli uses) instead of being dropped.
+// into schema Usage instead of being dropped.
 func TestFormatEdge_ReasoningTokensMapped(t *testing.T) {
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "reasoning.jsonl")
