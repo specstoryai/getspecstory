@@ -29,7 +29,6 @@
           "id": "rs_b04c3d7f-40b4-9e3e-873c-f2ad8919d8b3",
           "timestamp": "2026-09-17T21:56:26.009Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -73,7 +72,6 @@
           "id": "rs_4a91c8e5-01cf-9796-b30e-13385368f8c3",
           "timestamp": "2026-09-17T21:56:30.910Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -138,7 +136,6 @@
           "id": "rs_82d3fb4b-c934-9aea-abab-1cbe923dbac4",
           "timestamp": "2026-09-17T21:56:39.830Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -194,7 +191,6 @@
           "id": "rs_b310de28-abc4-9ccd-b570-4e51295909d5",
           "timestamp": "2026-09-17T21:56:54.193Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -238,7 +234,6 @@
           "id": "rs_4109bc4a-8cc8-9751-8a08-5bfdd5e6106e",
           "timestamp": "2026-09-17T21:57:02.368Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -266,7 +261,6 @@
           "id": "rs_2a080fcd-6c13-90fc-bc86-91061816f613",
           "timestamp": "2026-09-17T21:57:04.645Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",

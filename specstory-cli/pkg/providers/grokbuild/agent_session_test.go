@@ -297,3 +297,33 @@ func TestBackendToolClosesExchange(t *testing.T) {
 		t.Fatalf("wrong backend tool end time: %+v", data.Exchanges)
 	}
 }
+
+func TestModelAttributionUsesNativeRecordOnly(t *testing.T) {
+	session := loadFixture(t, "session-1.0.34")
+	// The summary describes the current model, not every historical message.
+	session.Model = "later-session-model"
+	data, err := GenerateAgentSession(session, session.Cwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range data.Exchanges {
+		for _, msg := range e.Messages {
+			if msg.Role != "agent" {
+				continue
+			}
+			unattributed := msg.Tool != nil && msg.Tool.Name == "web_search"
+			for _, part := range msg.Content {
+				if part.Type == "thinking" {
+					unattributed = true
+				}
+			}
+			if unattributed {
+				if msg.Model != "" {
+					t.Errorf("invented model %q for unlabelled native record", msg.Model)
+				}
+			} else if msg.Model != "grok-4.6" {
+				t.Errorf("lost native assistant model: %q", msg.Model)
+			}
+		}
+	}
+}

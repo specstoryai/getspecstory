@@ -1,6 +1,6 @@
 # Grok Build session format
 
-The supported baseline is **`grok 1.0.34 (3736acbc8658) [stable]`**, verified on macOS arm64. The provider ID is `grok`. The CLI version is not recorded in the session summary or transcript, so normalized `ProviderInfo.Version` is `unknown`; `current_model_id` and assistant `model_id` identify the model, not the application.
+The supported baseline is **`grok 1.0.34 (3736acbc8658) [stable]`**, verified on macOS arm64. The provider ID is `grok`. The CLI version is not recorded in the session summary or transcript, so normalized `ProviderInfo.Version` is `unknown`; `current_model_id` and assistant `model_id` identify the model, not the application. Assistant messages keep their native model; reasoning/backend records without a model field remain unlabelled instead of borrowing a potentially different historical model.
 
 ## Native store and write lifecycle
 

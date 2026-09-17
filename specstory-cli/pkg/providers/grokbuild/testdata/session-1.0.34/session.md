@@ -10,7 +10,7 @@ This is a bounded QA exercise for Grok Build transcript exporters, only in the c
 
 ---
 
-_**Agent (grok-4.6 2026-09-17 21:38:08Z)**_
+_**Agent (2026-09-17 21:38:08Z)**_
 
 <think><details><summary>Thought Process</summary>
 The user wants me to exercise a comprehensive set of tools in a bounded QA exercise. Let me carefully follow their instructions:
@@ -85,7 +85,7 @@ Limitations listed per request (not exercised this session):
 Result: The file /qa/project space_under/tools.txt has been created.
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:19Z)**_
+_**Agent (2026-09-17 21:38:19Z)**_
 
 <think><details><summary>Thought Process</summary>
 Write succeeded. Next: list_dir as requested. One at a time.
@@ -108,7 +108,7 @@ Directory: `/qa/project space_under`
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:21Z)**_
+_**Agent (2026-09-17 21:38:21Z)**_
 
 <think><details><summary>Thought Process</summary>
 list_dir worked. Next: read_file with offset and limit on tools.txt.
@@ -146,7 +146,7 @@ Exercised in this QA run:
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:23Z)**_
+_**Agent (2026-09-17 21:38:23Z)**_
 
 <think><details><summary>Thought Process</summary>
 read_file with offset and limit worked. Next: grep with options. I'll grep tools.txt with some options like -i, -C, etc.
@@ -190,7 +190,7 @@ Found 5 matching lines
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:25Z)**_
+_**Agent (2026-09-17 21:38:25Z)**_
 
 <think><details><summary>Thought Process</summary>
 grep worked. Next: search_replace to create and modify a small local QA file.
@@ -218,7 +218,7 @@ Path: `/qa/project space_under/qa_sample.txt`
 Result: The file /qa/project space_under/qa_sample.txt has been created successfully.
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:28Z)**_
+_**Agent (2026-09-17 21:38:28Z)**_
 
 <think><details><summary>Thought Process</summary>
 Created. Now modify it with search_replace.
@@ -246,7 +246,7 @@ Path: `/qa/project space_under/qa_sample.txt`
 Result: The file /qa/project space_under/qa_sample.txt has been updated successfully.
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:31Z)**_
+_**Agent (2026-09-17 21:38:31Z)**_
 
 <think><details><summary>Thought Process</summary>
 search_replace create and modify done. Next: todo_write with an initial list, then incremental completion.
@@ -268,7 +268,7 @@ Todo List:
 - [ ] Exercise web_search, web_fetch, search_tool, use_tool (nonexistent only)
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:35Z)**_
+_**Agent (2026-09-17 21:38:35Z)**_
 
 <think><details><summary>Thought Process</summary>
 Initial todo list created. Next: incremental completion - I'll mark item 3 as completed later after shell work, but they asked for "todo_write with an initial list and an incremental completion" - I should do an incremental merge now to show completion of something, or after shell. Let me do an incremental merge marking something - actually item 3 is in_progress which is the current work. I could ...
@@ -300,7 +300,7 @@ hello from qa_sample
 ````
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:39Z)**_
+_**Agent (2026-09-17 21:38:39Z)**_
 
 <think><details><summary>Thought Process</summary>
 Successful command with Unicode and triple backticks. Next: a failed command.
@@ -328,7 +328,7 @@ ls: /qa/project space_under/this_path_does_not_exist: No such file or directory
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:42Z)**_
+_**Agent (2026-09-17 21:38:42Z)**_
 
 <think><details><summary>Thought Process</summary>
 Failed command captured. Next: read_file on a missing file.
@@ -352,7 +352,7 @@ Note: your current working directory is /qa/project space_under
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:44Z)**_
+_**Agent (2026-09-17 21:38:44Z)**_
 
 <think><details><summary>Thought Process</summary>
 Good, error capture on missing file. Next: Run a brief background command, then get_command_or_subagent_output and kill_command_or_subagent against that command only.
@@ -390,7 +390,7 @@ Use get_command_or_subagent_output with task_ids=["01a0b14e-d91b-7753-8267-b1e65
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:51Z)**_
+_**Agent (2026-09-17 21:38:51Z)**_
 
 <think><details><summary>Thought Process</summary>
 Got task_id 01a0b14e-d91b-7753-8267-b1e65b5aaebc. Next: get_command_or_subagent_output. I should wait a bit so there's some output - timeout_ms can wait. Let me use a short timeout to get some ticks.
@@ -432,7 +432,7 @@ Waited the requested 2s. Unless the user specified, do not kill this task just b
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:55Z)**_
+_**Agent (2026-09-17 21:38:55Z)**_
 
 <think><details><summary>Thought Process</summary>
 Got output. Now kill that command only.
@@ -452,7 +452,7 @@ Task ID: `01a0b14e-d91b-7753-8267-b1e65b5aaebc`
 Result: killed: Task was terminated successfully
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:38:57Z)**_
+_**Agent (2026-09-17 21:38:57Z)**_
 
 <think><details><summary>Thought Process</summary>
 Killed successfully. Next: monitor with a short finite command if supported.
@@ -484,13 +484,13 @@ Events may arrive while you are waiting for the user -- an event is not their re
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:39:00Z)**_
+_**Agent (2026-09-17 21:39:00Z)**_
 
 <think><details><summary>Thought Process</summary>
 Monitor started. I should continue working rather than poll. Next: web_search for public example.com only.
 </details></think>
 
-_**Agent (grok-4.6 2026-09-17 21:39:01Z)**_
+_**Agent (2026-09-17 21:39:01Z)**_
 
 <tool-use data-tool-type="search" data-tool-name="web_search"><details>
 <summary>Tool use: **web_search** `example.com`</summary>

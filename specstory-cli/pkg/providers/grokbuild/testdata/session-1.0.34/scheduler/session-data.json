@@ -29,7 +29,6 @@
           "id": "rs_9f2c6107-eb36-9ee5-8638-d4e9fe5c622b",
           "timestamp": "2026-09-17T22:05:00.668Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",

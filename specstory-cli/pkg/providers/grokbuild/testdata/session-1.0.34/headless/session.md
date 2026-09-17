@@ -10,7 +10,7 @@ This is an isolated headless transcript QA session. Call scheduler_list (read-on
 
 ---
 
-_**Agent (grok-4.6 2026-09-17 21:56:26Z)**_
+_**Agent (2026-09-17 21:56:26Z)**_
 
 <think><details><summary>Thought Process</summary>
 The user wants me to execute a specific QA session with several steps:
@@ -675,7 +675,7 @@ Example: 'id testIssueId parameters { name type } rows { order Values }'
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:56:30Z)**_
+_**Agent (2026-09-17 21:56:30Z)**_
 
 <think><details><summary>Thought Process</summary>
 The search_tool only found TestRail/Xray MCP tools, not scheduler_list. scheduler_list might be a built-in tool that's not in MCP. Let me try searching more specifically, and also look at the long-running-background-tasks skill which mentions scheduled loops.
@@ -1443,7 +1443,7 @@ Example: 'issueId projectId testEnvironments jira(fields: ["key", "summary"])'
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:56:39Z)**_
+_**Agent (2026-09-17 21:56:39Z)**_
 
 <think><details><summary>Thought Process</summary>
 scheduler_list doesn't appear to be an MCP tool. Looking at the user's request more carefully:
@@ -1468,7 +1468,7 @@ Question 1: Is this a headless QA session?
 Result: No user is available to answer questions in this non-interactive session. Continue with your best judgment; do not wait for clarification.
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:56:54Z)**_
+_**Agent (2026-09-17 21:56:54Z)**_
 
 <think><details><summary>Thought Process</summary>
 Good, I got the headless error for ask_user_question. Now I need to try scheduler_list. It's not in my available tools. Let me try calling it as a native function anyway.
@@ -1488,7 +1488,7 @@ MCP tool: `scheduler_list`
 Error: Tool `scheduler_list` failed via `use_tool`: 'scheduler_list' is not a valid MCP tool name. Tool names must be qualified as `server__tool` (e.g., `linear__save_issue`). Use `search_tool` to discover available tools.
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:57:02Z)**_
+_**Agent (2026-09-17 21:57:02Z)**_
 
 <think><details><summary>Thought Process</summary>
 Good, captured the scheduler_list outcome. Now enter_plan_mode, then later exit_plan_mode, then workflow.
@@ -1516,7 +1516,7 @@ In plan mode, you should:
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:57:04Z)**_
+_**Agent (2026-09-17 21:57:04Z)**_
 
 <think><details><summary>Thought Process</summary>
 I need to write a trivial QA plan to the plan file, then call exit_plan_mode. The user said "with a trivial QA plan; do not implement anything."

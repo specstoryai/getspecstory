@@ -29,7 +29,6 @@
           "id": "rs_b2051e9b-f907-9515-a9f9-3d144c409b44",
           "timestamp": "2026-09-17T21:48:30.531Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -72,7 +71,6 @@
           "id": "rs_16be05b7-f485-9657-82c3-4bc21c2d59fa",
           "timestamp": "2026-09-17T21:48:33.461Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -116,7 +114,6 @@
           "id": "rs_d87d72d5-9b6f-987e-9628-dcf3ca5ebe64",
           "timestamp": "2026-09-17T21:48:35.238Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",
@@ -159,7 +156,6 @@
           "id": "rs_2992242a-b835-9156-970f-01a4a12fc55c",
           "timestamp": "2026-09-17T21:48:37.084Z",
           "role": "agent",
-          "model": "grok-4.6",
           "content": [
             {
               "type": "thinking",

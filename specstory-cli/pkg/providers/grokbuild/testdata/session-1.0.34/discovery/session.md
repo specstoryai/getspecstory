@@ -10,7 +10,7 @@ This is a disposable exporter QA session. Exercise exactly these tools in order:
 
 ---
 
-_**Agent (grok-4.6 2026-09-17 21:48:30Z)**_
+_**Agent (2026-09-17 21:48:30Z)**_
 
 <think><details><summary>Thought Process</summary>
 The user wants me to exercise specific tools in order as part of a disposable exporter QA session:
@@ -253,7 +253,7 @@ Example: "id name"
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:48:33Z)**_
+_**Agent (2026-09-17 21:48:33Z)**_
 
 <think><details><summary>Thought Process</summary>
 The search_tool returned unrelated Xray tools (fuzzy matches) rather than finding SPECSTORY-NONEXISTENT-QA-TOOL-9281. That's expected - the tool doesn't exist. Now I need to call use_tool with that nonexistent tool name and empty tool_input.
@@ -273,7 +273,7 @@ MCP tool: `SPECSTORY-NONEXISTENT-QA-TOOL-9281`
 Error: Tool `SPECSTORY-NONEXISTENT-QA-TOOL-9281` failed via `use_tool`: 'SPECSTORY-NONEXISTENT-QA-TOOL-9281' is not a valid MCP tool name. Tool names must be qualified as `server__tool` (e.g., `linear__save_issue`). Use `search_tool` to discover available tools.
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:48:35Z)**_
+_**Agent (2026-09-17 21:48:35Z)**_
 
 <think><details><summary>Thought Process</summary>
 Good, captured the failure. Now web_fetch of https://example.com.
@@ -302,7 +302,7 @@ This domain is for use in documentation examples without needing permission. Avo
 ```
 </details></tool-use>
 
-_**Agent (grok-4.6 2026-09-17 21:48:37Z)**_
+_**Agent (2026-09-17 21:48:37Z)**_
 
 <think><details><summary>Thought Process</summary>
 I have all three outcomes. Now I need to report the actual outcomes without modifying files, sending feedback, or invoking real MCP account tools. I'll write a clear summary.

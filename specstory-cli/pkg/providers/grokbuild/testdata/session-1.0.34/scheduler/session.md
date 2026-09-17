@@ -10,7 +10,7 @@ This is explicitly authorized bounded native-tool QA. Do only these steps, no su
 
 ---
 
-_**Agent (grok-4.6 2026-09-17 22:05:00Z)**_
+_**Agent (2026-09-17 22:05:00Z)**_
 
 <think><details><summary>Thought Process</summary>
 The user wants me to follow a specific sequence of steps for QA testing. Let me carefully follow their instructions:
