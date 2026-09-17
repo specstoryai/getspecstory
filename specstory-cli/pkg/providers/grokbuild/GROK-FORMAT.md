@@ -40,6 +40,8 @@ Images and other nontext user parts are retained in raw/debug exports. The share
 
 ## Summary and sidecars
 
+Session identity must be a UUID. An invalid summary ID falls back to the native directory UUID; if neither is valid, parsing fails rather than using arbitrary metadata in an output path.
+
 `summary.json` carries `info.id`, `info.cwd`, `created_at`, `updated_at`, `session_summary`, optional `generated_title`, message counts, `current_model_id`, and `chat_format_version`. `session_kind:"subagent"` distinguishes a child agent from a human session; ordinary headless sessions record `session_kind:"headless"`. Child sessions are excluded from project lists and exports. The parent's `subagents/<id>/meta.json` can enrich its invocation with child type/status/duration.
 
 Times normalize to RFC 3339 milliseconds. Missing summary timestamps fall back to the transcript's modification time. No parser path uses the current wall clock to invent historical message times.
@@ -76,4 +78,4 @@ Real baseline tests resumed the minimal conversation, recalled its passphrase, a
 
 ## Factory
 
-The executable scripts under `factory/` track the public stable manifest named by the [official installer](https://x.ai/cli/install.sh), install an exact standalone binary under `$HOME/.local/bin/grok`, and enumerate the harness declaration in a bounded headless run. Self-update is disabled. `list-tools` accepts only the named `GROK_AUTH_JSON` credential (a dedicated factory account's native auth JSON) and removes its temporary private credential file on exit. It does not read workstation credentials. Factory secret provisioning remains an operational enrollment step; no credential is checked in.
+The executable scripts under `factory/` track the public stable manifest named by the [official installer](https://x.ai/cli/install.sh), install an exact standalone binary under `$HOME/.local/bin/grok`, and enumerate the harness declaration in a bounded headless run. Self-update is disabled. `list-tools` accepts only the named `GROK_AUTH_JSON` credential (a dedicated factory account's native auth JSON) unsets the duplicate JSON environment variable before launching Grok, and removes its temporary private credential file on exit. It does not read workstation credentials. Factory secret provisioning remains an operational enrollment step; no credential is checked in.

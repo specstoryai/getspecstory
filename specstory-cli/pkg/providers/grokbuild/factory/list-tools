@@ -18,6 +18,7 @@ auth=$(mktemp "$GROK_HOME/factory-auth.XXXXXX")
 trap 'rm -f "$auth"' EXIT
 chmod 600 "$auth"
 printf '%s' "$GROK_AUTH_JSON" > "$auth"
+unset GROK_AUTH_JSON
 export GROK_AUTH_PATH="$auth"
 # A fresh HOME and working directory isolate user settings, plugins, and MCP.
 # Pin the config overlay as well, so an inherited overlay cannot add tools.

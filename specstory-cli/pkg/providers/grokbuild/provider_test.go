@@ -445,3 +445,45 @@ func TestDiscoveryRejectsSymlinkedTranscripts(t *testing.T) {
 		t.Fatalf("global discovery imported linked transcript: %v, %v", refs, err)
 	}
 }
+
+func TestInvalidSummaryIDCannotChooseDebugPath(t *testing.T) {
+	for _, bad := range []string{"../../outside", `..\..\outside`, "/absolute/outside", "not-a-uuid"} {
+		t.Run(bad, func(t *testing.T) {
+			home := withFakeGrokHome(t)
+			project := t.TempDir()
+			id := "11111111-2222-7333-8444-555555555555"
+			dir := seedSession(t, home, project, "session-basic", id)
+			path := filepath.Join(dir, summaryFile)
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var summary map[string]any
+			if err := json.Unmarshal(raw, &summary); err != nil {
+				t.Fatal(err)
+			}
+			summary["info"].(map[string]any)["id"] = bad
+			raw, err = json.Marshal(summary)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			debug := t.TempDir()
+			spi.SetDebugBaseDir(debug)
+			t.Cleanup(func() { spi.SetDebugBaseDir("") })
+			session, err := NewProvider().GetAgentChatSession(project, id, true)
+			if err != nil || session == nil || session.SessionID != id {
+				t.Fatalf("unsafe summary identity accepted: %v, %v", session, err)
+			}
+			if _, err := os.Stat(filepath.Join(debug, id, "1.json")); err != nil {
+				t.Fatalf("debug not written under native UUID: %v", err)
+			}
+			parsed, err := parseSessionDir(dir, true)
+			if err != nil || parsed.ID != id {
+				t.Fatalf("metadata identity disagrees: %v, %v", parsed, err)
+			}
+		})
+	}
+}
