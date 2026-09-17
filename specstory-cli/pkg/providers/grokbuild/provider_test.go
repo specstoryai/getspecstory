@@ -413,3 +413,35 @@ func TestGetSessionReturnsFilesystemFailure(t *testing.T) {
 		t.Fatalf("filesystem failure hidden: %v, %v", got, err)
 	}
 }
+
+func TestDiscoveryRejectsSymlinkedTranscripts(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project, other := t.TempDir(), t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	dir := seedSession(t, home, project, "session-basic", id)
+	target := seedSession(t, home, other, "session-basic", id)
+	transcript := filepath.Join(dir, chatHistoryFile)
+	if err := os.Remove(transcript); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(target, chatHistoryFile), transcript); err != nil {
+		t.Skipf("file symlinks unavailable: %v", err)
+	}
+	p := NewProvider()
+	if sessions, err := p.GetAgentChatSessions(project, false, nil); err != nil || len(sessions) != 0 {
+		t.Fatalf("project discovery followed transcript link: %v, %v", sessions, err)
+	}
+	if sessions, err := p.ListAgentChatSessions(project); err != nil || len(sessions) != 0 {
+		t.Fatalf("metadata discovery followed transcript link: %v, %v", sessions, err)
+	}
+	if session, err := p.GetAgentChatSession(project, id, false); err == nil || session != nil {
+		t.Fatalf("by-id lookup followed transcript link: %v, %v", session, err)
+	}
+	if session, err := p.GetAgentChatSessionByPath(transcript, project, false); err == nil || session != nil {
+		t.Fatalf("by-path lookup followed transcript link: %v, %v", session, err)
+	}
+	refs, err := p.ListAllAgentChatSessions()
+	if err != nil || len(refs) != 1 || refs[0].OriginCwd != other {
+		t.Fatalf("global discovery imported linked transcript: %v, %v", refs, err)
+	}
+}

@@ -202,6 +202,17 @@ func ParseSessionDir(dir string) (*GrokSession, error) {
 
 // Metadata scans stop at the first real prompt and never open sidecars.
 func parseSessionDir(dir string, metadataOnly bool) (*GrokSession, error) {
+	// Grok writes regular transcripts. Following a link here could associate
+	// another project's conversation with this directory's summary; opening a
+	// special file could also block discovery indefinitely.
+	transcript := filepath.Join(dir, chatHistoryFile)
+	info, err := os.Lstat(transcript)
+	if err != nil {
+		return nil, fmt.Errorf("failed to inspect Grok transcript: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("grok transcript %q is not a regular file", transcript)
+	}
 	session := &GrokSession{
 		Dir:       dir,
 		ID:        filepath.Base(dir),
