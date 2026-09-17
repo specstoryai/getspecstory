@@ -620,13 +620,17 @@ func firstUserText(e rawEntry) string {
 	var m struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
-		Command string          `json:"command"`
 	}
 	if err := json.Unmarshal(e.Message, &m); err != nil {
 		return ""
 	}
 	if m.Role == roleBashExecution {
-		return bashExecutionCommandText(m.Command)
+		// Match full parsing so rejected shell records cannot supply a title.
+		var execution bashExecutionMessage
+		if err := json.Unmarshal(e.Message, &execution); err != nil {
+			return ""
+		}
+		return bashExecutionCommandText(execution.Command)
 	}
 	if m.Role != roleUser {
 		return ""
