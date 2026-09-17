@@ -84,8 +84,8 @@ func SplitCommandLine(s string) []string {
 
 // EnsureResumeArgs makes sure a parsed command line carries `<subcommand> <id>`
 // for the session the caller asked for. Shared by the agents that resume via a
-// subcommand rather than a flag (Codex, Muse); providers using a flag build
-// their own arguments.
+// subcommand rather than a flag (Codex, Muse); flag-based agents use
+// EnsureResumeFlagArgs.
 //
 // A custom command that already names the subcommand keeps its position — the
 // id is filled in after it, replacing one the command already carried — rather
@@ -118,4 +118,41 @@ func EnsureResumeArgs(args []string, subcommand string, resumeSessionID string) 
 	}
 
 	return slices.Concat(args, []string{subcommand, resumeSessionID})
+}
+
+// EnsureResumeFlagArgs gives an explicit session precedence over configured
+// flags, including aliases and repeated flags. It preserves arguments after
+// -- as positional input and never modifies the caller's backing array.
+func EnsureResumeFlagArgs(args []string, sessionID string, flags ...string) []string {
+	if sessionID == "" || len(flags) == 0 {
+		return args
+	}
+	result := slices.Clone(args)
+	found := false
+	i := 0
+	for ; i < len(result); i++ {
+		arg := result[i]
+		if arg == "--" {
+			break
+		}
+		flag, _, assigned := strings.Cut(arg, "=")
+		if !slices.Contains(flags, flag) {
+			continue
+		}
+		found = true
+		if assigned {
+			result[i] = flag + "=" + sessionID
+		} else {
+			if i+1 < len(result) && !strings.HasPrefix(result[i+1], "-") {
+				result[i+1] = sessionID
+			} else {
+				result = slices.Insert(result, i+1, sessionID)
+			}
+			i++
+		}
+	}
+	if !found {
+		result = slices.Insert(result, i, flags[0], sessionID)
+	}
+	return result
 }

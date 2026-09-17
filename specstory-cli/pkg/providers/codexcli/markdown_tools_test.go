@@ -335,16 +335,15 @@ func TestFormatCustomToolCall(t *testing.T) {
 			name:         "unknown tool with short input",
 			toolName:     "custom_tool",
 			input:        "short input text",
-			wantContains: []string{"Input:", "Input: ```", "short input text"},
+			wantContains: []string{"Input:", "Input:\n```", "short input text"},
 		},
 		{
-			name:     "unknown tool with long input (truncated)",
+			name:     "unknown tool preserves long input",
 			toolName: "another_tool",
 			input:    strings.Repeat("x", 300),
 			wantContains: []string{
 				"Input",
-				"Input (truncated):",
-				"...",
+				strings.Repeat("x", 300),
 			},
 		},
 		{
@@ -365,5 +364,13 @@ func TestFormatCustomToolCall(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestToolMarkdownPreservesNestedFences(t *testing.T) {
+	content := "before\n````markdown\n```text\ninner\n```\n````\nafter"
+	got := formatCustomToolCall("unknown", content)
+	if !strings.Contains(got, "`````\n"+content+"\n`````") {
+		t.Fatalf("unsafe fence: %s", got)
 	}
 }

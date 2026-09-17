@@ -168,16 +168,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	isCustomCommand := customCommand != ""
 
 	// Resolve the actual path of the command
-	resolvedPath := claudeCmd
-	if !filepath.IsAbs(claudeCmd) {
-		// Try to find the command in PATH
-		if path, err := exec.LookPath(claudeCmd); err == nil {
-			resolvedPath = path
-		}
-	}
+	resolvedPath, lookupErr := spi.LookPathForCheck(claudeCmd)
 
 	// Run claude -v to check version (ignore custom args for version check)
-	cmd := exec.Command(claudeCmd, "-v")
+	attempt := analytics.CheckAttempt{Provider: "claude", CustomCommand: isCustomCommand, CommandPath: claudeCmd, ResolvedPath: resolvedPath, VersionFlag: "-v"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, claudeCmd, isCustomCommand, ""),
+		}
+	}
+	cmd := exec.Command(resolvedPath, "-v")
 	var out bytes.Buffer
 	var errOut bytes.Buffer
 	cmd.Stdout = &out
@@ -185,21 +189,16 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if err := cmd.Run(); err != nil {
 		// Track installation check failure
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 
 		stderrOutput := strings.TrimSpace(errOut.String())
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "claude",
-			"custom_command": isCustomCommand,
-			"command_path":   claudeCmd,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), strings.TrimSpace(errOut.String()))
 
 		errorMessage := buildCheckErrorMessage(errorType, claudeCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -209,19 +208,15 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	// Check if output contains "Claude Code"
 	output := out.String()
 	if !strings.Contains(output, "(Claude Code)") {
+		errorType := spi.CheckErrorUnexpectedOutput
 		// Track unexpected output error
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "claude",
-			"custom_command": isCustomCommand,
-			"command_path":   claudeCmd,
-			"error_type":     "unexpected_output",
-			"output":         strings.TrimSpace(output),
-		})
+		analytics.TrackCheckFailure(attempt, spi.CheckErrorUnexpectedOutput, strings.TrimSpace(output), strings.TrimSpace(errOut.String()))
 
-		errorMessage := buildCheckErrorMessage("unexpected_output", claudeCmd, isCustomCommand, output)
+		errorMessage := buildCheckErrorMessage(spi.CheckErrorUnexpectedOutput, claudeCmd, isCustomCommand, output)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -229,12 +224,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 
 	// Success! Track it
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "claude",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        strings.TrimSpace(output),
-	})
+	analytics.TrackCheckSuccess(attempt, strings.TrimSpace(output))
 
 	return spi.CheckResult{
 		Success:      true,
@@ -391,6 +381,9 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		slog.Error("Failed to start project directory watcher", "error", err)
 	}
 
+	projectDir, _ := resolveClaudeProjectDir(projectPath)
+	finalChanges := spi.SessionFileChanges(projectDir, "*.jsonl")
+
 	// Execute Claude Code - this blocks until Claude exits
 	slog.Info("Executing Claude Code", "command", customCommand)
 	err := ExecuteClaude(customCommand, resumeSessionID)
@@ -398,6 +391,13 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 	// Stop the watcher goroutine before returning
 	slog.Info("Claude Code has exited, stopping watcher")
 	StopWatcher()
+	if projectDir != "" {
+		for _, path := range finalChanges() {
+			// Claude has exited: export even an interrupted shell call, without
+			// registering deferred work after the watcher has stopped.
+			scanJSONLFilesWithOptions(projectDir, path, true)
+		}
+	}
 
 	// Return any execution error
 	if err != nil {
@@ -443,6 +443,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
 
 	slog.Info("WatchAgent: Project directory found", "directory", claudeProjectDir)
 
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	if err := startProjectWatcher(claudeProjectDir); err != nil {
 		slog.Error("WatchAgent: Failed to start project watcher", "error", err)
 		return fmt.Errorf("failed to start watcher: %w", err)

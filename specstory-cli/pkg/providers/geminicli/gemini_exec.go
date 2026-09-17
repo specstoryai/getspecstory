@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
 
 	"log/slog"
 
@@ -42,22 +41,7 @@ func parseGeminiCommand(customCommand string) (string, []string) {
 }
 
 func ensureResumeArgs(args []string, resumeSessionID string) []string {
-	if resumeSessionID == "" {
-		return args
-	}
-
-	for i, arg := range args {
-		if arg == "--resume" || arg == "-r" {
-			if i+1 < len(args) {
-				return args
-			}
-		}
-		if strings.HasPrefix(arg, "--resume=") {
-			return args
-		}
-	}
-
-	return append(args, "--resume", resumeSessionID)
+	return spi.EnsureResumeFlagArgs(args, resumeSessionID, "--resume", "-r")
 }
 
 // ExecuteGemini runs the Gemini CLI with the given arguments
@@ -91,7 +75,7 @@ func ExecuteGemini(customCommand string, resumeSessionID string) error {
 		if errors.As(err, &exitErr) {
 			exitCode := exitErr.ExitCode()
 			slog.Info("ExecuteGemini: Gemini CLI exited", "exitCode", exitCode)
-			os.Exit(exitCode)
+			return &spi.AgentExitError{Agent: "Gemini CLI", Code: exitCode}
 		}
 		return fmt.Errorf("gemini execution failed: %v", err)
 	}

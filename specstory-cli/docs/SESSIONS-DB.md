@@ -318,7 +318,8 @@ warm-keeping path is [above](#when-do-entries-get-into-sessionsdb).
      [Project identity](#project-identity-reuse-the-algorithm-not-the-stored-files).
 
 2. **SPI extension** — add `GlobalSessionRef` + `ListAllAgentChatSessions()` to the
-   `spi.Provider` interface (type in a small new `pkg/spi/global.go`). Lightweight; cwd read
+   `spi.Provider` interface (defined alongside `GlobalSessionRef` in
+   [pkg/spi/provider.go](../pkg/spi/provider.go)). Lightweight; cwd read
    from inside each session file.
 
 3. **Per-provider enumerators — all six.** Mostly "existing store walk, minus the project

@@ -25,11 +25,12 @@ const (
 	versionFlag  = "--version"
 )
 
-// Compile-time assertion that Provider satisfies the full spi.Provider contract.
-// The interface conformance is otherwise only exercised at registration in the
-// factory package, so a locally missing method fails there rather than here;
-// this guard surfaces the gap in the provider's own package.
-var _ spi.Provider = (*Provider)(nil)
+// Keep required and optional SPI capabilities checked at the implementation.
+var (
+	_ spi.Provider           = (*Provider)(nil)
+	_ spi.PathSessionReader  = (*Provider)(nil)
+	_ spi.ProgressEnumerator = (*Provider)(nil)
+)
 
 // Provider implements spi.Provider for the pi coding agent.
 // pi stores sessions as JSONL v3 trees under ~/.pi/agent/sessions/--<encoded-cwd>--/.
@@ -42,9 +43,8 @@ func NewProvider() *Provider { return &Provider{} }
 func (p *Provider) Name() string { return providerName }
 
 // parsePiCommand splits a custom check/run command into binary + args,
-// expanding a leading ~ like sibling providers (spi.SplitCommandLine handles
-// quoting). Falls back to the default `pi` binary when no custom command is
-// given.
+// expanding a leading ~ (spi.SplitCommandLine handles quoting). An empty
+// custom command uses the default binary.
 func parsePiCommand(customCommand string) (string, []string) {
 	if strings.TrimSpace(customCommand) != "" {
 		parts := spi.SplitCommandLine(customCommand)
@@ -55,21 +55,6 @@ func parsePiCommand(customCommand string) (string, []string) {
 	return getDefaultPiCommand(), nil
 }
 
-// classifyCheckError buckets a Check failure for messaging and analytics,
-// matching the sibling providers' error taxonomy. errors.Is unwraps through
-// exec.Error/os.PathError, covering both PATH lookups (exec.ErrNotFound) and
-// explicit custom paths (os.ErrNotExist).
-func classifyCheckError(err error) string {
-	switch {
-	case errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist):
-		return "not_found"
-	case errors.Is(err, os.ErrPermission):
-		return "permission_denied"
-	default:
-		return "version_failed"
-	}
-}
-
 // buildCheckErrorMessage renders the user-facing Check failure text. The
 // custom-command branch avoids the misleading "not found on PATH" wording when
 // the user pointed at an explicit path, and version-probe failures surface the
@@ -77,7 +62,7 @@ func classifyCheckError(err error) string {
 func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr string) string {
 	var b strings.Builder
 	switch errorType {
-	case "not_found":
+	case spi.CheckErrorNotFound:
 		b.WriteString("The pi coding agent was not found.\n\n")
 		if isCustom {
 			b.WriteString("• Verify the custom command/path you provided exists and is executable.\n")
@@ -86,70 +71,77 @@ func buildCheckErrorMessage(errorType, command string, isCustom bool, stderr str
 			b.WriteString("• Install pi (`npm install -g @earendil-works/pi-coding-agent`, see https://pi.dev) and ensure `pi` is on your PATH.\n")
 			b.WriteString("• Re-run `specstory check pi` after installation.\n")
 		}
-	case "permission_denied":
+	case spi.CheckErrorPermissionDenied:
 		b.WriteString("SpecStory cannot execute the pi binary due to permissions.\n\n")
-		fmt.Fprintf(&b, "Try: chmod +x %s\n", command)
+		fmt.Fprintf(&b, "Verify execute permissions for the binary in: %s\n", command)
 	default:
-		b.WriteString("`pi --version` failed.\n\n")
+		fmt.Fprintf(&b, "`%s %s` failed.\n\n", command, versionFlag)
 		if stderr != "" {
 			b.WriteString("Error output:\n")
 			b.WriteString(stderr)
 			b.WriteString("\n\n")
 		}
-		b.WriteString("Run `pi --version` manually to diagnose, then retry.")
+		fmt.Fprintf(&b, "Run `%s %s` manually to diagnose, then retry.", command, versionFlag)
 	}
 	return b.String()
 }
 
 // Check verifies the pi binary is available and reports its version.
-func (p *Provider) Check(customCommand string) spi.CheckResult {
+func (p *Provider) Check(customCommand string) (result spi.CheckResult) {
+	slog.Info("Check: starting Pi version probe", "command", customCommand)
+	defer func() {
+		slog.Info("Check: Pi version probe finished", "success", result.Success, "version", result.Version)
+	}()
 	isCustom := strings.TrimSpace(customCommand) != ""
 	cmdName, cmdArgs := parsePiCommand(customCommand)
-	displayCmd := strings.TrimSpace(strings.Join(append([]string{cmdName}, cmdArgs...), " "))
+	displayCmd := strings.TrimSpace(customCommand)
 	if displayCmd == "" {
 		displayCmd = cmdName
 	}
-	resolved, err := exec.LookPath(cmdName)
+	attempt := analytics.CheckAttempt{Provider: providerID, CustomCommand: isCustom, CommandPath: displayCmd, VersionFlag: versionFlag}
+	resolved, err := spi.LookPathForCheck(cmdName)
+	attempt.ResolvedPath = resolved
 	if err != nil {
-		errorType := classifyCheckError(err)
-		slog.Info("pi: Check binary not found", "command", cmdName, "error", err)
-		trackCheckFailure(isCustom, displayCmd, "", "", errorType, err.Error())
+		errorType := spi.ClassifyCheckError(err)
+		slog.Error("Check: Pi binary lookup failed", "command", cmdName, "error", err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, ""),
 		}
 	}
 	var stdout, stderr bytes.Buffer
+	slog.Info("Check: resolved Pi command", "path", resolved)
 	versionArgs := append(append([]string{}, cmdArgs...), versionFlag)
 	cmd := exec.Command(resolved, versionArgs...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := classifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
-		slog.Info("pi: Check version probe failed", "resolved", resolved, "error", err, "stderr", stderrOutput)
-		trackCheckFailure(isCustom, displayCmd, resolved, stderrOutput, errorType, err.Error())
+		slog.Error("Check: Pi version probe failed", "path", resolved, "error", err, "stderr", stderrOutput)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{
-			Success:  false,
-			Location: resolved,
-			// Use the resolved path, not displayCmd: LookPath already succeeded
-			// here, so any permission-fix guidance (e.g. "chmod +x") must point at
-			// the actual binary on disk, not a command/args string that isn't a
-			// valid chmod target and may not exist relative to the user's cwd.
-			ErrorMessage: buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput),
+			Success:      false,
+			ErrorType:    errorType,
+			Location:     resolved,
+			ErrorMessage: buildCheckErrorMessage(errorType, displayCmd, isCustom, stderrOutput),
 		}
 	}
 	version := strings.TrimSpace(stdout.String())
 	if version == "" {
+		version = strings.TrimSpace(stderr.String())
+	}
+	if version == "" {
 		version = "unknown"
 	}
-	trackCheckSuccess(isCustom, displayCmd, resolved, version)
+	analytics.TrackCheckSuccess(attempt, version)
 	return spi.CheckResult{Success: true, Version: version, Location: resolved}
 }
 
 // DetectAgent reports whether pi has created sessions for the given project.
-// When helpOutput is true and nothing is found, it prints guidance like the
-// sibling providers do — the CLI callers (sync/list) rely on the provider to
+// When helpOutput is true and nothing is found, CLI callers rely on it to
 // explain a negative result instead of exiting silently.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 	files, err := SessionFilesInProject(projectPath)
@@ -173,101 +165,77 @@ func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
 // ExecAgentAndWatch runs pi interactively (`specstory run pi`) while watching the
 // project's session directory, invoking sessionCallback as pi writes JSONL so
 // markdown generation and cloud sync happen live. It blocks until pi exits.
-func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (runErr error) {
+	slog.Info("ExecAgentAndWatch: starting Pi", "projectPath", projectPath, "sessionId", resumeSessionID)
+	defer func() { slog.Info("ExecAgentAndWatch: Pi run finished", "error", runErr) }()
 	// pi resumes by exact session id (`pi --session-id <id>`); the id is pi's
 	// header `id`, an arbitrary string, so we only trim + reject empty here and
-	// let pi surface its own id-shape validation rather than second-guessing it
-	// (unlike Claude Code, whose ids are strictly UUIDs).
+	// let Pi validate the native ID shape.
 	if resumeSessionID != "" {
 		resumeSessionID = strings.TrimSpace(resumeSessionID)
 		if resumeSessionID == "" {
 			return fmt.Errorf("pi: resume session id is empty after trimming whitespace")
 		}
-		slog.Info("pi: resuming session", "sessionId", resumeSessionID)
+		slog.Info("ExecAgentAndWatch: resuming Pi session", "sessionId", resumeSessionID)
 	}
 
 	SetWatcherCallback(sessionCallback)
 	defer ClearWatcherCallback()
 	SetWatcherDebugRaw(debugRaw)
 
-	// Start the watcher before launching pi so nothing pi writes is missed.
-	// Non-fatal (same as the sibling providers): a failed watcher must not stop
-	// the user's interactive pi session.
-	if err := WatchForProjectDir(projectPath); err != nil {
-		slog.Error("pi: failed to start session watcher", "error", err)
+	// Establish the watch before launching so startup errors are returned while
+	// the terminal is still ours and the first session write cannot be missed.
+	watcher, err := startProjectWatcher(projectPath)
+	if err != nil {
+		slog.Error("ExecAgentAndWatch: Pi watcher startup failed", "error", err)
+		return fmt.Errorf("pi: failed to start session watcher: %w", err)
 	}
 
-	err := ExecutePi(customCommand, resumeSessionID)
+	slog.Info("ExecAgentAndWatch: Pi watcher ready", "projectPath", projectPath)
+	err = ExecutePi(customCommand, resumeSessionID)
+	slog.Info("ExecAgentAndWatch: draining Pi session saves")
 	// Stop the watcher and join in-flight saves BEFORE the exit status is acted
 	// on: pi writes its session file right before it exits, and the callback
 	// for that write is what saves the markdown. This must run on the non-zero
 	// path too, which is why ExecutePi returns pi's status instead of exiting.
-	StopWatcher()
+	stopWatcher(watcher)
 	if err != nil {
 		var agentExit *spi.AgentExitError
 		if errors.As(err, &agentExit) {
-			// pi's own status, not a specstory failure: pass it through unwrapped
-			// so the CLI exits with that code and prints nothing extra.
-			return err
+			// Preserve the typed exit status even when saving also failed; the
+			// CLI extracts it with errors.As, and the watcher logs its own failure.
+			return errors.Join(err, watcher.err)
 		}
-		return fmt.Errorf("pi execution failed: %w", err)
+		return errors.Join(fmt.Errorf("pi execution failed: %w", err), watcher.err)
 	}
-	return nil
+	return watcher.err
 }
 
 // WatchAgent watches for pi session activity (`specstory watch pi`) and invokes
 // sessionCallback with each parsed session. It does not launch pi; it blocks
 // until the context is cancelled.
-func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) (watchErr error) {
+	slog.Info("WatchAgent: starting Pi watcher", "projectPath", projectPath)
+	defer func() { slog.Info("WatchAgent: Pi watcher stopped", "error", watchErr) }()
 	SetWatcherCallback(sessionCallback)
 	defer ClearWatcherCallback()
 	SetWatcherDebugRaw(debugRaw)
 
-	if err := WatchForProjectDir(projectPath); err != nil {
-		slog.Error("pi: failed to start session watcher", "error", err)
+	watcher, err := startProjectWatcher(projectPath)
+	if err != nil {
+		slog.Error("WatchAgent: Pi watcher startup failed", "error", err)
 		return fmt.Errorf("pi: failed to start watcher: %w", err)
 	}
-
-	<-ctx.Done()
-	StopWatcher()
-	return ctx.Err()
-}
-
-// trackCheckSuccess emits the standard install-check success analytics event,
-// matching the shape other providers use.
-func trackCheckSuccess(custom bool, commandPath, resolvedPath, version string) {
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       providerID,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version":        version,
-		"version_flag":   versionFlag,
-	})
-}
-
-// trackCheckFailure emits the standard install-check failure analytics event,
-// including the version probe's stderr when available (matching droidcli).
-func trackCheckFailure(custom bool, commandPath, resolvedPath, stderrOutput, errorType, message string) {
-	props := analytics.Properties{
-		"provider":       providerID,
-		"custom_command": custom,
-		"command_path":   commandPath,
-		"resolved_path":  resolvedPath,
-		"version_flag":   versionFlag,
-		"error_type":     errorType,
-		"error_message":  message,
+	slog.Info("WatchAgent: Pi watcher ready", "projectPath", projectPath)
+	select {
+	case <-ctx.Done():
+		slog.Info("WatchAgent: draining Pi session saves")
+		stopWatcher(watcher)
+		return errors.Join(ctx.Err(), watcher.err)
+	case <-watcher.done:
+		stopWatcher(watcher)
+		return watcher.err
 	}
-	if stderrOutput != "" {
-		props["stderr"] = stderrOutput
-	}
-	analytics.TrackEvent(analytics.EventCheckInstallFailed, props)
-}
-
-// sessionFile pairs a discovered pi session file with its header metadata.
-type sessionFile struct {
-	Path   string
-	Header sessionHeader
 }
 
 // findProjectSession locates the session file with the given ID within the
@@ -318,29 +286,6 @@ func readHeader(path string) (*sessionHeader, error) {
 	return &h, nil
 }
 
-// listProjectSessions returns all session files in the project's pi directory
-// with their headers. Non-session files (readHeader returns nil,nil) are
-// skipped silently; only a genuine read error is logged.
-func listProjectSessions(projectPath string) ([]sessionFile, error) {
-	files, err := SessionFilesInProject(projectPath)
-	if err != nil {
-		return nil, err
-	}
-	var out []sessionFile
-	for _, f := range files {
-		h, err := readHeader(f)
-		if err != nil {
-			slog.Debug("pi: skipping unreadable session file", "path", f, "error", err)
-			continue
-		}
-		if h == nil {
-			continue // not a pi session file (bad header type/id)
-		}
-		out = append(out, sessionFile{Path: f, Header: *h})
-	}
-	return out, nil
-}
-
 // GetAgentChatSession returns a single pi session by ID for the project.
 func (p *Provider) GetAgentChatSession(projectPath, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
 	path, err := findProjectSession(projectPath, sessionID)
@@ -350,23 +295,43 @@ func (p *Provider) GetAgentChatSession(projectPath, sessionID string, debugRaw b
 	if path == "" {
 		return nil, nil
 	}
-	return parseToAgentSession(path, debugRaw)
+	candidates, err := projectCandidates(projectPath)
+	if err != nil {
+		return nil, err
+	}
+	return parseToAgentSession(path, candidates[0], debugRaw)
 }
 
 // GetAgentChatSessions returns all pi sessions for the project.
 func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
-	files, err := listProjectSessions(projectPath)
+	files, candidates, flat, err := projectSessionCandidates(projectPath)
 	if err != nil {
 		return nil, err
 	}
-	total := len(files)
+	// Exclude definite other-project sessions, but keep failures in the worklist.
+	var work []string
+	for _, path := range files {
+		h, _ := readHeader(path)
+		if h != nil && h.Cwd != "" && !cwdMatchesCandidate(h.Cwd, candidates) {
+			continue
+		}
+		work = append(work, path)
+	}
+	total := len(work)
 	var result []spi.AgentChatSession
-	for i, sf := range files {
-		chat, pErr := parseToAgentSession(sf.Path, debugRaw)
-		if pErr != nil {
-			slog.Debug("pi: skipping session", "path", sf.Path, "error", pErr)
-		} else if chat != nil {
-			result = append(result, *chat)
+	for i, path := range work {
+		snapshot, parseErr := readEntries(path)
+		if parseErr == nil && !headerBelongsToProject(path, snapshot.header, candidates, flat) {
+			slog.Warn("pi: skipping session with unassigned or changed project", "file", path)
+		} else if parseErr == nil {
+			var chat *spi.AgentChatSession
+			chat, parseErr = snapshot.agentSession(path, candidates[0], debugRaw)
+			if parseErr == nil {
+				result = append(result, *chat)
+			}
+		}
+		if parseErr != nil {
+			slog.Warn("pi: skipping session", "file", path, "error", parseErr)
 		}
 		if progress != nil {
 			progress(i+1, total)
@@ -377,26 +342,35 @@ func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progr
 
 // parseToAgentSession parses one session file into an AgentChatSession,
 // writing debug-raw artifacts when debugRaw is true.
-func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, error) {
-	data, err := ParseSession(path)
+func parseToAgentSession(path, projectPath string, debugRaw bool) (*spi.AgentChatSession, error) {
+	snapshot, err := readEntries(path)
+	if err != nil {
+		return nil, err
+	}
+	return snapshot.agentSession(path, projectPath, debugRaw)
+}
+
+// agentSession derives every output from the same accepted native records.
+func (snapshot *sessionSnapshot) agentSession(path, projectPath string, debugRaw bool) (*spi.AgentChatSession, error) {
+	data, err := snapshot.sessionData(path, projectPath)
 	if err != nil {
 		return nil, err
 	}
 	if debugRaw {
-		if dErr := writeDebugRaw(path, data); dErr != nil {
+		if dErr := writeDebugRaw(data.SessionID, snapshot.records[1:]); dErr != nil {
 			slog.Warn("pi: debug-raw write failed", "error", dErr)
 		}
 	}
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("pi: reading raw session: %w", err)
+	var raw strings.Builder
+	for _, record := range snapshot.records {
+		raw.Write(record)
 	}
 	return &spi.AgentChatSession{
 		SessionID:   data.SessionID,
 		CreatedAt:   data.CreatedAt,
 		Slug:        deriveSlug(data),
 		SessionData: data,
-		RawData:     string(raw),
+		RawData:     raw.String(),
 	}, nil
 }
 
@@ -408,29 +382,7 @@ func parseToAgentSession(path string, debugRaw bool) (*spi.AgentChatSession, err
 // so `specstory reindex` uses the O(N) path-keyed fast path instead of the
 // O(N²) by-id lookup.
 func (p *Provider) GetAgentChatSessionByPath(nativePath, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {
-	data, err := ParseSession(nativePath)
-	if err != nil {
-		return nil, err
-	}
-	if data.WorkspaceRoot == "" && originCwd != "" {
-		data.WorkspaceRoot = originCwd
-	}
-	if debugRaw {
-		if dErr := writeDebugRaw(nativePath, data); dErr != nil {
-			slog.Warn("pi: debug-raw write failed", "error", dErr)
-		}
-	}
-	raw, err := os.ReadFile(nativePath)
-	if err != nil {
-		return nil, fmt.Errorf("pi: reading raw session: %w", err)
-	}
-	return &spi.AgentChatSession{
-		SessionID:   data.SessionID,
-		CreatedAt:   data.CreatedAt,
-		Slug:        deriveSlug(data),
-		SessionData: data,
-		RawData:     string(raw),
-	}, nil
+	return parseToAgentSession(nativePath, originCwd, debugRaw)
 }
 
 // ListAgentChatSessions returns lightweight metadata for all project sessions,

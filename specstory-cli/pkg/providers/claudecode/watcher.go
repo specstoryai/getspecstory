@@ -19,15 +19,11 @@ import (
 var (
 	watcherCtx      context.Context
 	watcherCancel   context.CancelFunc
-	watcherWg       sync.WaitGroup
+	watcherWg       = new(sync.WaitGroup)
 	watcherCallback func(*spi.AgentChatSession) // Callback for session updates
 	watcherDebugRaw bool                        // Whether to write debug raw data files
 	watcherMutex    sync.RWMutex                // Protects watcherCallback and watcherDebugRaw
 )
-
-func init() {
-	watcherCtx, watcherCancel = context.WithCancel(context.Background())
-}
 
 // watchReconcileInterval is how often the project directory is re-listed to
 // detect newly created session files, re-watch dormant sessions that have woken
@@ -98,14 +94,20 @@ func getWatcherCallback() func(*spi.AgentChatSession) {
 // StopWatcher gracefully stops the watcher goroutine
 func StopWatcher() {
 	slog.Info("StopWatcher: Signaling watcher to stop")
-	watcherCancel()
+	if watcherCancel != nil {
+		watcherCancel()
+	}
 	slog.Info("StopWatcher: Waiting for watcher goroutine to finish")
 	watcherWg.Wait()
+	// No event or deadline scans can add work now. Save synchronously before
+	// the caller clears the callback and closes its persistence dependencies.
+	flushDeferredScans()
 	slog.Info("StopWatcher: Watcher stopped")
 }
 
 // WatchForProjectDir watches for a project directory that matches the current working directory
 func WatchForProjectDir() error {
+	watcherCtx, watcherCancel = context.WithCancel(context.Background())
 	slog.Info("WatchForProjectDir: Determining project directory to monitor")
 	claudeProjectDir, err := GetClaudeCodeProjectDir("")
 	if err != nil {
@@ -335,6 +337,7 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 			case <-ticker.C:
 				reconcile(true)
+				flushExpiredDeferredScans(time.Now())
 
 			case err, ok := <-watcher.Errors:
 				if !ok {
@@ -350,6 +353,18 @@ func startProjectWatcher(claudeProjectDir string) error {
 
 // scanJSONLFiles scans JSONL files and optionally filters processing to a specific changed file
 func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
+	var targetFile string
+	if len(changedFile) > 0 {
+		targetFile = changedFile[0]
+	}
+	scanJSONLFilesWithOptions(claudeProjectDir, targetFile, false)
+}
+
+// scanJSONLFilesWithOptions is scanJSONLFiles with the shell gate made explicit:
+// force saves the targeted session even while a shell tool call is open. The
+// deadline and shutdown flushes and final post-exit sweep use it; event scans do
+// not. Call only on the watcher loop, or after StopWatcher has joined it.
+func scanJSONLFilesWithOptions(claudeProjectDir string, targetFile string, force bool) {
 	// Ensure logs are flushed even if we panic
 	defer func() {
 		if r := recover(); r != nil {
@@ -359,9 +374,7 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 	}()
 
 	slog.Info("ScanJSONLFiles: === START SCAN ===", "timestamp", time.Now().Format(time.RFC3339))
-	var targetFile string
-	if len(changedFile) > 0 && changedFile[0] != "" {
-		targetFile = changedFile[0]
+	if targetFile != "" {
 		slog.Info("ScanJSONLFiles: Scanning JSONL files with changed file",
 			"directory", claudeProjectDir,
 			"changedFile", targetFile)
@@ -432,12 +445,28 @@ func scanJSONLFiles(claudeProjectDir string, changedFile ...string) {
 			continue
 		}
 
+		// Shell gate: while a Bash call is open, saving would land inside
+		// Claude Code's before/after diff of that command and surface our
+		// files as its edits. Wait for the tool_result event instead. This
+		// runs before convertToAgentChatSession because the debug-raw files
+		// are written in there too.
+		pendingSession := deferredSession{claudeProjectDir: claudeProjectDir, sessionID: session.SessionUuid}
+		if targetFile != "" && !force {
+			if open := openShellToolUses(session.Records); len(open) > 0 {
+				deferScan(pendingSession, targetFile, open)
+				continue
+			}
+		}
+		if targetFile != "" {
+			clearDeferredScan(pendingSession)
+		}
+
 		// Convert to AgentChatSession (workspaceRoot extracted from records' cwd field)
 		agentSession := convertToAgentChatSession(session, "", getWatcherDebugRaw())
 		if agentSession != nil {
 			slog.Info("ScanJSONLFiles: Calling callback for session", "sessionId", agentSession.SessionID)
-			// Call the callback in a goroutine to avoid blocking
-			go func(s *spi.AgentChatSession) {
+			// Deliver synchronously so Stop joins every save in order.
+			func(s *spi.AgentChatSession) {
 				defer func() {
 					if r := recover(); r != nil {
 						slog.Error("ScanJSONLFiles: Callback panicked", "panic", r)
@@ -504,11 +533,13 @@ func WatchForClaudeSetup() error {
 	slog.Info("WatchForClaudeSetup: Successfully started watching", "directory", watchDir)
 
 	// Start watching in a goroutine
-	go func() {
+	watcherWg.Go(func() {
 		defer func() { _ = watcher.Close() }() // Cleanup on exit; errors not recoverable
 
 		for {
 			select {
+			case <-watcherCtx.Done():
+				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -583,7 +614,7 @@ func WatchForClaudeSetup() error {
 				slog.Error("WatchForClaudeSetup: Watcher error", "error", err)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

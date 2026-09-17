@@ -15,21 +15,13 @@ import (
 )
 
 const (
-	// reconstructedPiProvider / reconstructedPiModel are placeholder labels stamped
-	// on reconstructed assistant records. They are historical display values only —
-	// on resume pi uses its own configured provider/model for the next turn.
-	// Verified against pi 0.85.1 (@earendil-works/pi-coding-agent) on 2026-09-05:
-	// pi loaded a reconstructed session and answered the next turn, so
-	// provider/model/api/stopReason are display metadata the loader tolerates as
-	// arbitrary strings, a constant placeholder is safe, and no `usage` block is
-	// required.
-	reconstructedPiProvider = "specstory"
-	reconstructedPiModel    = "claude-opus-4-8"
+	// The shared text-only portability format drops model and API metadata.
+	// Empty strings denote unknown native metadata; they must not attribute
+	// imported turns to the model selected for future turns.
+	reconstructedPiProvider = ""
+	reconstructedPiModel    = ""
 
-	// piHeaderVersion is the integer format version pi stamps on a v3 session
-	// header. Confirmed by reading session files written by pi 0.85.1
-	// (@earendil-works/pi-coding-agent): {"type":"session","version":3,...}. The
-	// read side maps header.Version>0 → "v3".
+	// Pi 0.85.1 writes session format version 3, independently of its release.
 	piHeaderVersion = 3
 
 	// reconstructedPiStopReason mirrors the stopReason pi writes on a completed
@@ -54,6 +46,14 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 		return nil, err
 	}
 	cwd := spi.ResolveWorkspaceRoot(opts, data)
+	// Only an explicit destination names a local directory. A source workspace
+	// may belong to another machine and must retain its recorded spelling.
+	if opts.WorkspaceRoot != "" {
+		cwd, err = spi.GetCanonicalPath(opts.WorkspaceRoot)
+		if err != nil {
+			return nil, fmt.Errorf("pi: canonicalizing reconstruction destination: %w", err)
+		}
+	}
 
 	newID := uuid.NewString()
 	base := time.Now().UTC()
@@ -65,7 +65,7 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 
 	// Line 0: the session header (type "session", version 3, no id/parentId).
 	// specstorySourceSessionId is provenance — pi's sessionHeader decode ignores
-	// unknown fields, mirroring how the sibling providers stamp the source id.
+	// unknown fields, preserving the source link without affecting native loading.
 	header := map[string]interface{}{
 		"type":                     entrySession,
 		"version":                  piHeaderVersion,
@@ -162,9 +162,7 @@ func resolvePiSessionDir(projectPath string) (string, error) {
 	return ProjectSessionDir(projectPath)
 }
 
-// SupportsReconstruction reports true: pi now has a native serializer (see
-// ReconstructSession/NativeSessionPath above), so it can be a cross-provider
-// resume target.
+// SupportsReconstruction reports that Pi accepts native text-only imports.
 func (p *Provider) SupportsReconstruction() bool {
 	return true
 }

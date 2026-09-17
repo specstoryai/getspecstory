@@ -50,13 +50,15 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
-	resolvedPath, err := exec.LookPath(cmdName)
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
-		errorMessage := buildQwenCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
+		errorType := spi.ClassifyCheckError(err)
+		errorMessage := buildQwenCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
 		slog.Info("Check: Qwen Code unavailable", "command", cmdName, "error", err)
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     "",
 			ErrorMessage: errorMessage,
 		}
@@ -71,7 +73,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		errorMessage := buildQwenCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
@@ -79,6 +81,7 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}

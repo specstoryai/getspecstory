@@ -1,14 +1,19 @@
 package piagent
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -59,8 +64,6 @@ func startWatch(t *testing.T, projectPath string) (<-chan *spi.AgentChatSession,
 	if err := WatchForProjectDir(projectPath); err != nil {
 		t.Fatalf("WatchForProjectDir: %v", err)
 	}
-	// Give the goroutine a moment to register the directory watch before writes.
-	time.Sleep(200 * time.Millisecond)
 	stop := func() {
 		StopWatcher()
 		ClearWatcherCallback()
@@ -85,6 +88,14 @@ func assertNoSession(t *testing.T, ch <-chan *spi.AgentChatSession, within time.
 	case s := <-ch:
 		t.Fatalf("unexpected session emit: %+v", s)
 	case <-time.After(within):
+	}
+	// All callers use virtual time. Settle work due at the deadline before the
+	// final check, including when within is zero after a synchronous shutdown.
+	synctest.Wait()
+	select {
+	case s := <-ch:
+		t.Fatalf("unexpected session emit: %+v", s)
+	default:
 	}
 }
 
@@ -125,45 +136,42 @@ func TestWatch_EmitsOnNewSession(t *testing.T) {
 	if s.Slug == "" {
 		t.Error("expected a non-empty slug derived from the first user message")
 	}
+	// Keep real start/stop/restart and baseline coverage alongside the tests
+	// that control event delivery. Both scans finish before checking silence.
+	StopWatcher()
+	// Drain any deliveries from the first run before measuring restart silence.
+	for len(ch) > 0 {
+		<-ch
+	}
+	if err := WatchForProjectDir(projectPath); err != nil {
+		t.Fatal(err)
+	}
+	StopWatcher()
+	if len(ch) != 0 {
+		t.Fatal("restart emitted unchanged history")
+	}
 }
 
 // TestWatch_PartialLineThenComplete writes a truncated trailing JSON line (which
 // must not panic or emit), then completes the file and asserts an emit follows.
 // Exercises readLines fragment handling under a live write.
 func TestWatch_PartialLineThenComplete(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.Join(t.TempDir(), "pi-partial-proj")
-
-	targetDir, err := ProjectSessionDir(projectPath)
-	if err != nil {
-		t.Fatalf("ProjectSessionDir: %v", err)
-	}
-	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
-		t.Fatalf("MkdirAll: %v", mkErr)
-	}
-
-	ch, stop := startWatch(t, projectPath)
-	defer stop()
-
-	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-partial.jsonl")
-
-	// Header + a truncated (unclosed) user line: no complete entry yet.
-	partial := piHeaderLine("sess-partial", projectPath) + "\n" +
-		`{"type":"message","id":"m1","parentId":null,"timestamp":"2026-09-03T10:00:01.000Z","message":{"role":"user","content":"hel`
-	if wErr := os.WriteFile(path, []byte(partial), 0o600); wErr != nil {
-		t.Fatalf("WriteFile partial: %v", wErr)
-	}
-	assertNoSession(t, ch, 700*time.Millisecond)
-
-	// Complete the file with a valid session.
-	if wErr := os.WriteFile(path, []byte(validSession("sess-partial", projectPath, "hello there full line")), 0o600); wErr != nil {
-		t.Fatalf("WriteFile complete: %v", wErr)
-	}
-	s := waitForSession(t, ch)
-	if s.SessionID != "sess-partial" {
-		t.Errorf("SessionID = %q, want sess-partial", s.SessionID)
-	}
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		ch := make(chan *spi.AgentChatSession, 16)
+		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
+		path := filepath.Join(dir, "partial.jsonl")
+		partial := piHeaderLine("sess-partial", project) + "\n" +
+			`{"type":"message","id":"m1","parentId":null,"timestamp":"2026-09-03T10:00:01.000Z","message":{"role":"user","content":"hel`
+		f.write(t, path, partial)
+		// Cross both the debounce and periodic reconciliation deadlines while the
+		// record remains incomplete. Neither path may export it.
+		assertNoSession(t, ch, 2*piReconcileInterval)
+		f.write(t, path, validSession("sess-partial", project, "hello there full line"))
+		if s := waitForSession(t, ch); s.SessionID != "sess-partial" || !strings.Contains(s.RawData, "hello there full line") {
+			t.Fatalf("wrong completed session: %+v", s)
+		}
+	})
 }
 
 // TestWatch_SessionInfoRename appends a session_info rename mid-session and
@@ -320,32 +328,16 @@ func TestWatch_DefaultLayoutCollidingDirFiltersByCwd(t *testing.T) {
 // TestWatch_IgnoresNonJSONLAndHeaderOnly asserts a .txt file and a header-only
 // .jsonl produce no emit.
 func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.Join(t.TempDir(), "pi-ignore-proj")
-
-	targetDir, err := ProjectSessionDir(projectPath)
-	if err != nil {
-		t.Fatalf("ProjectSessionDir: %v", err)
-	}
-	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
-		t.Fatalf("MkdirAll: %v", mkErr)
-	}
-
-	ch, stop := startWatch(t, projectPath)
-	defer stop()
-
-	// Non-JSONL file: ignored by extension.
-	if wErr := os.WriteFile(filepath.Join(targetDir, "notes.txt"), []byte("hello"), 0o600); wErr != nil {
-		t.Fatalf("WriteFile txt: %v", wErr)
-	}
-	// Header-only session: ParseSession errors "no entries" → nothing to emit.
-	headerOnly := piHeaderLine("sess-header-only", projectPath) + "\n"
-	if wErr := os.WriteFile(filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_header.jsonl"), []byte(headerOnly), 0o600); wErr != nil {
-		t.Fatalf("WriteFile header-only: %v", wErr)
-	}
-
-	assertNoSession(t, ch, 1*time.Second)
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		ch := make(chan *spi.AgentChatSession, 16)
+		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
+		f.write(t, filepath.Join(dir, "notes.txt"), "hello")
+		f.write(t, filepath.Join(dir, "header.jsonl"), piHeaderLine("sess-header-only", project)+"\n")
+		assertNoSession(t, ch, 2*piReconcileInterval)
+		StopWatcher()
+		assertNoSession(t, ch, 0)
+	})
 }
 
 // TestStopWatcher_JoinsInFlightSave models the `run pi` exit: pi writes its
@@ -355,143 +347,37 @@ func TestWatch_IgnoresNonJSONLAndHeaderOnly(t *testing.T) {
 // assertions are that StopWatcher does not return while the save is in flight
 // and that the markdown exists once it does return.
 func TestStopWatcher_JoinsInFlightSave(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.Join(t.TempDir(), "pi-join-proj")
-
-	targetDir, err := ProjectSessionDir(projectPath)
-	if err != nil {
-		t.Fatalf("ProjectSessionDir: %v", err)
-	}
-	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
-		t.Fatalf("MkdirAll: %v", mkErr)
-	}
-
-	markdown := filepath.Join(tmp, "saved-session.md")
-	started := make(chan struct{})
-	gate := make(chan struct{})
-	SetWatcherCallback(func(s *spi.AgentChatSession) {
-		close(started)
-		<-gate
-		if wErr := os.WriteFile(markdown, []byte("# "+s.SessionID+"\n"), 0o600); wErr != nil {
-			t.Errorf("WriteFile markdown: %v", wErr)
-		}
-	})
-	t.Cleanup(ClearWatcherCallback)
-	if wErr := WatchForProjectDir(projectPath); wErr != nil {
-		t.Fatalf("WatchForProjectDir: %v", wErr)
-	}
-	time.Sleep(200 * time.Millisecond) // let the goroutine register the directory watch
-
-	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-join.jsonl")
-	if wErr := os.WriteFile(path, []byte(validSession("sess-join", projectPath, "final prompt before exit")), 0o600); wErr != nil {
-		t.Fatalf("WriteFile: %v", wErr)
-	}
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for the callback to start")
-	}
-
-	// pi has "exited": stop the watcher while the save is still in flight.
-	stopped := make(chan struct{})
-	go func() {
-		StopWatcher()
-		close(stopped)
-	}()
-	select {
-	case <-stopped:
-		t.Fatal("StopWatcher returned while the session save was still in flight")
-	case <-time.After(300 * time.Millisecond):
-	}
-
-	close(gate)
-	select {
-	case <-stopped:
-	case <-time.After(5 * time.Second):
-		t.Fatal("StopWatcher did not return after the save finished")
-	}
-	if _, statErr := os.Stat(markdown); statErr != nil {
-		t.Fatalf("markdown missing after StopWatcher returned: %v", statErr)
-	}
-}
-
-// TestStopWatcher_BoundsWaitOnStuckCallback asserts a callback that never
-// finishes cannot hang StopWatcher past callbackDrainTimeout.
-func TestStopWatcher_BoundsWaitOnStuckCallback(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.Join(t.TempDir(), "pi-stuck-proj")
-
-	targetDir, err := ProjectSessionDir(projectPath)
-	if err != nil {
-		t.Fatalf("ProjectSessionDir: %v", err)
-	}
-	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
-		t.Fatalf("MkdirAll: %v", mkErr)
-	}
-
-	prevTimeout := callbackDrainTimeout
-	callbackDrainTimeout = 200 * time.Millisecond
-	t.Cleanup(func() { callbackDrainTimeout = prevTimeout })
-
-	started := make(chan struct{})
-	release := make(chan struct{})
-	finished := make(chan struct{})
-	SetWatcherCallback(func(*spi.AgentChatSession) {
-		close(started)
-		<-release
-		close(finished)
-	})
-	t.Cleanup(ClearWatcherCallback)
-	// Let the stuck callback go at the end so callbackWg is back to zero for
-	// the next test in the package. Wait for it only if it ever started: when
-	// the session is never emitted (as happened on Windows before the test
-	// fixtures used absolute paths), a plain wait here blocked forever after
-	// t.Fatal and turned a five second failure into the package's ten minute
-	// timeout, hiding every later test's result.
-	t.Cleanup(func() {
-		close(release)
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		markdown := filepath.Join(t.TempDir(), "saved-session.md")
+		started, gate := make(chan struct{}), make(chan struct{})
+		var release sync.Once
+		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) {
+			close(started)
+			<-gate
+			if err := os.WriteFile(markdown, []byte("# "+s.SessionID+"\n"), 0600); err != nil {
+				t.Errorf("WriteFile markdown: %v", err)
+			}
+		})
+		// Release the consumer before cleanup joins the worker, even on failure.
+		defer release.Do(func() { close(gate) })
+		f.write(t, filepath.Join(dir, "join.jsonl"), validSession("sess-join", project, "final prompt before exit"))
+		waitForPiSignal(t, started, "callback did not start")
+		stopped := make(chan struct{})
+		go func() { StopWatcher(); close(stopped) }()
+		synctest.Wait()
 		select {
-		case <-started:
-			select {
-			case <-finished:
-			case <-time.After(5 * time.Second):
-				t.Log("the stuck callback did not finish within 5 s of release")
-			}
-			// StopWatcher gave up on the callback, but the goroutine it used
-			// to wait on callbackWg stays in Wait until the callback has
-			// finished. A WaitGroup must not be reused while a Wait is in
-			// progress, and the race detector reports the next test's first
-			// callback against that Wait, so join it before this test ends.
-			select {
-			case <-callbackWaitDone:
-			case <-time.After(5 * time.Second):
-				t.Log("the callback wait did not finish within 5 s of release")
-			}
+		case <-stopped:
+			t.Fatal("StopWatcher returned while the session save was still in flight")
 		default:
 		}
+		release.Do(func() { close(gate) })
+		waitForPiSignal(t, stopped, "shutdown did not finish after save")
+		data, err := os.ReadFile(markdown)
+		if err != nil || string(data) != "# sess-join\n" {
+			t.Fatalf("save incomplete after StopWatcher returned: data=%q err=%v", data, err)
+		}
 	})
-	if wErr := WatchForProjectDir(projectPath); wErr != nil {
-		t.Fatalf("WatchForProjectDir: %v", wErr)
-	}
-	time.Sleep(200 * time.Millisecond)
-
-	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-stuck.jsonl")
-	if wErr := os.WriteFile(path, []byte(validSession("sess-stuck", projectPath, "prompt for a stuck save")), 0o600); wErr != nil {
-		t.Fatalf("WriteFile: %v", wErr)
-	}
-	select {
-	case <-started:
-	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for the callback to start")
-	}
-
-	begin := time.Now()
-	StopWatcher()
-	if elapsed := time.Since(begin); elapsed > 3*time.Second {
-		t.Fatalf("StopWatcher took %v with a stuck callback; want about %v", elapsed, callbackDrainTimeout)
-	}
 }
 
 // TestWatch_DirectoryAppearsWithFileEmitsOnce covers the bootstrap gap: the
@@ -525,6 +411,12 @@ func TestWatch_DirectoryAppearsWithFileEmitsOnce(t *testing.T) {
 		t.Fatalf("WriteFile staged: %v", wErr)
 	}
 
+	// Adoption follows arrival, not mtime: copying or renaming a directory
+	// can preserve timestamps from long before this watcher started.
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(stagedFile, old, old); err != nil {
+		t.Fatal(err)
+	}
 	ch, stop := startWatch(t, projectPath)
 	defer stop()
 
@@ -573,7 +465,6 @@ func TestStopWatcher_SweepSkipsSessionAlreadyEmitted(t *testing.T) {
 	if wErr := WatchForProjectDir(projectPath); wErr != nil {
 		t.Fatalf("WatchForProjectDir: %v", wErr)
 	}
-	time.Sleep(200 * time.Millisecond) // let the goroutine register the directory watch
 
 	staged := filepath.Join(tmp, "staged.jsonl")
 	if wErr := os.WriteFile(staged, []byte(validSession("sess-sweep", projectPath, "prompt delivered by event")), 0o600); wErr != nil {
@@ -601,33 +492,297 @@ func TestStopWatcher_SweepSkipsSessionAlreadyEmitted(t *testing.T) {
 // before the watch starts and its mtime is pushed an hour back so the grace
 // window for coarse filesystem clocks cannot admit it.
 func TestStopWatcher_SweepLeavesOlderFileAlone(t *testing.T) {
-	tmp := t.TempDir()
-	t.Setenv(envAgentDir, tmp)
-	projectPath := filepath.Join(t.TempDir(), "pi-older-proj")
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		path := filepath.Join(dir, "older.jsonl")
+		if err := os.WriteFile(path, []byte(validSession("sess-older", project, "prompt from before the watch")), 0600); err != nil {
+			t.Fatal(err)
+		}
+		old := time.Now().Add(-time.Hour)
+		if err := os.Chtimes(path, old, old); err != nil {
+			t.Fatal(err)
+		}
+		ch := make(chan *spi.AgentChatSession, 16)
+		startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
+		assertNoSession(t, ch, 2*piReconcileInterval)
+		StopWatcher()
+		if extra := len(ch); extra != 0 {
+			t.Fatalf("the stop sweep emitted %d sessions older than the watch start", extra)
+		}
+	})
+}
 
-	targetDir, err := ProjectSessionDir(projectPath)
+func TestWatch_LeavesFreshExistingSessionAlone(t *testing.T) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		path := filepath.Join(dir, "existing.jsonl")
+		if err := os.WriteFile(path, []byte(validSession("existing", project, "already saved")), 0600); err != nil {
+			t.Fatal(err)
+		}
+		ch := make(chan *spi.AgentChatSession, 16)
+		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
+		assertNoSession(t, ch, 2*piReconcileInterval)
+		f.write(t, path, validSession("existing", project, "updated after watch started"))
+		if s := waitForSession(t, ch); !strings.Contains(s.RawData, "updated after watch started") {
+			t.Fatal("did not deliver the changed session")
+		}
+	})
+}
+
+func TestWatch_CallbacksFinishInOrder(t *testing.T) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		started, gate := make(chan struct{}), make(chan struct{})
+		second := make(chan *spi.AgentChatSession, 16)
+		var calls int
+		var release sync.Once
+		callback := func(s *spi.AgentChatSession) {
+			calls++
+			if calls == 1 {
+				close(started)
+				<-gate
+			} else {
+				second <- s
+			}
+		}
+		f := startPiClockWatcher(t, fs, project, dir, callback)
+		defer release.Do(func() { close(gate) })
+		path := filepath.Join(dir, "ordered.jsonl")
+		f.write(t, path, validSession("ordered", project, "first"))
+		waitForPiSignal(t, started, "callback did not start")
+		f.write(t, path, validSession("ordered", project, "second updated prompt"))
+		assertNoSession(t, second, 2*piReconcileInterval)
+		release.Do(func() { close(gate) })
+		StopWatcher()
+		if calls != 2 {
+			t.Fatalf("got %d callbacks; want both versions delivered before shutdown", calls)
+		}
+		if got := waitForSession(t, second); !strings.Contains(got.RawData, "second updated prompt") {
+			t.Fatal("shutdown did not save the latest version")
+		}
+	})
+}
+
+func TestStopWatcher_WaitsForSlowSave(t *testing.T) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		started, gate := make(chan struct{}), make(chan struct{})
+		var release sync.Once
+		f := startPiClockWatcher(t, fs, project, dir, func(*spi.AgentChatSession) { close(started); <-gate })
+		defer release.Do(func() { close(gate) })
+		f.write(t, filepath.Join(dir, "slow.jsonl"), validSession("slow", project, "slow save"))
+		waitForPiSignal(t, started, "callback did not start")
+		stopped := make(chan struct{})
+		go func() { StopWatcher(); close(stopped) }()
+		synctest.Wait()
+		// Preserve the regression against abandoning saves after ten seconds;
+		// these eleven seconds now elapse on the bubble's virtual clock.
+		select {
+		case <-stopped:
+			t.Fatal("shutdown abandoned an in-flight save")
+		case <-time.After(11 * time.Second):
+		}
+		release.Do(func() { close(gate) })
+		waitForPiSignal(t, stopped, "shutdown did not finish after save")
+	})
+}
+
+func TestWatch_ReconcilesWithoutFileEvent(t *testing.T) {
+	withPiWatchClock(t, func(t *testing.T, fs *piClockDirectoryWatcher) {
+		project, dir := t.TempDir(), t.TempDir()
+		ch := make(chan *spi.AgentChatSession, 16)
+		f := startPiClockWatcher(t, fs, project, dir, func(s *spi.AgentChatSession) { ch <- s })
+		// Startup is complete and the production tickers are armed. Remove the
+		// registration and deliberately deliver no event for this write.
+		if err := fs.Remove(dir); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "missed.jsonl"), []byte(validSession("missed", project, "missed event")), 0600); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(piReconcileInterval - time.Nanosecond)
+		synctest.Wait()
+		if len(ch) != 0 {
+			t.Fatal("emitted before the reconciliation tick without a file event")
+		}
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		select {
+		case s := <-ch:
+			if s.SessionID != "missed" {
+				t.Fatalf("wrong session %q", s.SessionID)
+			}
+		default:
+			t.Fatal("periodic reconciliation did not recover the missing event")
+		}
+		for _, path := range f.w.fs.WatchList() {
+			if path == dir {
+				return
+			}
+		}
+		t.Fatal("reconciliation did not restore the directory watch")
+	})
+}
+
+// Keep the OS registration part of missing-event recovery covered outside the
+// virtual clock. The clock test above exercises the periodic trigger and scan.
+func TestWatch_RestoresRemovedDirectoryWatch(t *testing.T) {
+	dir := t.TempDir()
+	fs, err := fsnotify.NewWatcher()
 	if err != nil {
-		t.Fatalf("ProjectSessionDir: %v", err)
+		t.Fatal(err)
 	}
-	if mkErr := os.MkdirAll(targetDir, 0o755); mkErr != nil {
-		t.Fatalf("MkdirAll: %v", mkErr)
+	t.Cleanup(func() { _ = fs.Close() })
+	w := &piWatcher{fs: fs, dir: dir}
+	if err := w.ensureWatch(); err != nil {
+		t.Fatal(err)
 	}
-	path := filepath.Join(targetDir, "2026-09-03T10-00-00-000Z_sess-older.jsonl")
-	if wErr := os.WriteFile(path, []byte(validSession("sess-older", projectPath, "prompt from before the watch")), 0o600); wErr != nil {
-		t.Fatalf("WriteFile: %v", wErr)
+	if err := fs.Remove(dir); err != nil {
+		t.Fatal(err)
 	}
-	old := time.Now().Add(-time.Hour)
-	if cErr := os.Chtimes(path, old, old); cErr != nil {
-		t.Fatalf("Chtimes: %v", cErr)
+	if err := w.ensureWatch(); err != nil {
+		t.Fatal(err)
 	}
+	for _, path := range fs.WatchList() {
+		if path == dir {
+			return
+		}
+	}
+	t.Fatal("reconciliation did not restore the OS directory watch")
+}
 
-	ch, stop := startWatch(t, projectPath)
-	// A second StopWatcher after the explicit one below has nothing left to do.
+func TestWatchAgent_ReportsTerminalWatcherFailure(t *testing.T) {
+	project, dir := t.TempDir(), t.TempDir()
+	t.Setenv(envSessionDir, dir)
+	ctx, cancel := context.WithCancel(context.Background())
+	result := make(chan error, 1)
+	var wg sync.WaitGroup
+	wg.Go(func() { result <- NewProvider().WatchAgent(ctx, project, false, func(*spi.AgentChatSession) {}) })
+	t.Cleanup(func() { cancel(); StopWatcher(); wg.Wait() })
+	// Wait on the production state rather than assuming registration takes a
+	// fixed amount of time. Closing the OS watcher reproduces a terminal stream failure.
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	deadline := time.After(5 * time.Second)
+	var w *piWatcher
+	for w == nil {
+		watcherMutex.Lock()
+		w = activeWatcher
+		watcherMutex.Unlock()
+		if w != nil {
+			break
+		}
+		select {
+		case <-ticker.C:
+		case <-deadline:
+			t.Fatal("watcher did not start")
+		}
+	}
+	if err := w.fs.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-result:
+		if err == nil || errors.Is(err, context.Canceled) {
+			t.Fatalf("want watcher failure, got %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("WatchAgent hid terminal watcher failure")
+	}
+}
+
+func TestWatch_CallbackPanicDoesNotStopUpdates(t *testing.T) {
+	project, dir := t.TempDir(), t.TempDir()
+	t.Setenv(envSessionDir, dir)
+	first := make(chan struct{})
+	next := make(chan *spi.AgentChatSession, 16)
+	var calls atomic.Int32
+	SetWatcherCallback(func(s *spi.AgentChatSession) {
+		if calls.Add(1) == 1 {
+			close(first)
+			panic("consumer failed")
+		}
+		next <- s
+	})
+	if err := WatchForProjectDir(project); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { StopWatcher(); ClearWatcherCallback() })
+	path := filepath.Join(dir, "panic.jsonl")
+	if err := os.WriteFile(path, []byte(validSession("panic", project, "first")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-first:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first callback did not start")
+	}
+	if err := os.WriteFile(path, []byte(validSession("panic", project, "after consumer panic")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if s := waitForSession(t, next); !strings.Contains(s.RawData, "after consumer panic") {
+		t.Fatal("missing update after callback panic")
+	}
+}
+
+func TestWatch_WriteDuringBaselineStillEmits(t *testing.T) {
+	project, dir := t.TempDir(), t.TempDir()
+	fs, err := fsnotify.NewWatcher()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = fs.Close() })
+	ch := make(chan *spi.AgentChatSession, 16)
+	w := &piWatcher{fs: fs, dir: dir, flat: true, candidates: []string{project},
+		stamps: make(map[string]fileStamp), baseline: make(map[string]bool), pending: make(map[string]time.Time),
+		callback: func(s *spi.AgentChatSession) { ch <- s }}
+	if err := w.ensureWatch(); err != nil {
+		t.Fatal(err)
+	}
+	// This write happens after registration but before the baseline can stat it.
+	// Its event must win over the already-updated baseline signature.
+	if err := os.WriteFile(filepath.Join(dir, "racing.jsonl"), []byte(validSession("racing", project, "written during startup")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.recordBaseline(); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		if err := w.run(ctx, fs.Events, fs.Errors); err != nil {
+			t.Errorf("watch failed: %v", err)
+		}
+	})
+	t.Cleanup(func() { cancel(); wg.Wait() })
+	if s := waitForSession(t, ch); s.SessionID != "racing" {
+		t.Fatalf("wrong session %q", s.SessionID)
+	}
+}
+
+func TestWatch_DebugExportStaysWithinProject(t *testing.T) {
+	project, dir := t.TempDir(), t.TempDir()
+	t.Setenv(envSessionDir, dir)
+	spi.SetDebugBaseDir(t.TempDir())
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	SetWatcherDebugRaw(true)
+	t.Cleanup(func() { SetWatcherDebugRaw(false) })
+	ch, stop := startWatch(t, project)
 	defer stop()
-	assertNoSession(t, ch, 500*time.Millisecond) // the sweep after watcher.Add must skip it
-
+	if err := os.WriteFile(filepath.Join(dir, "a-other.jsonl"), []byte(validSession("other-project", t.TempDir(), "another project")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "z-mine.jsonl"), []byte(validSession("my-project", project, "my prompt")), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if s := waitForSession(t, ch); s.SessionID != "my-project" {
+		t.Fatalf("unexpected session %q", s.SessionID)
+	}
 	stop()
-	if extra := len(ch); extra != 0 {
-		t.Fatalf("the stop sweep emitted %d session(s) older than the watch start", extra)
+	if _, err := os.Stat(spi.GetDebugDir("other-project")); !os.IsNotExist(err) {
+		t.Fatalf("exported another project's debug data: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(spi.GetDebugDir("my-project"), "1.json")); err != nil {
+		t.Fatalf("missing matching session debug export: %v", err)
 	}
 }

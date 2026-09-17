@@ -9,7 +9,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -110,31 +109,32 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	codexCmd, _ := parseCodexCommand(customCommand)
 	isCustomCommand := customCommand != ""
 
-	resolvedPath := codexCmd
-	if !filepath.IsAbs(codexCmd) {
-		if path, err := exec.LookPath(codexCmd); err == nil {
-			resolvedPath = path
+	resolvedPath, lookupErr := spi.LookPathForCheck(codexCmd)
+
+	attempt := analytics.CheckAttempt{Provider: "codex", CustomCommand: isCustomCommand, CommandPath: codexCmd, ResolvedPath: resolvedPath, VersionFlag: "--version"}
+	if lookupErr != nil {
+		errorType := spi.ClassifyCheckError(lookupErr)
+		analytics.TrackCheckFailure(attempt, errorType, lookupErr.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, ""),
 		}
 	}
-
-	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(codexCmd)
+	versionOutput, versionFlag, stderrOutput, err := runCodexVersionCommand(resolvedPath)
+	attempt.VersionFlag = versionFlag
 	if err != nil {
 		errorType := classifyCheckError(err)
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "codex",
-			"custom_command": isCustomCommand,
-			"command_path":   codexCmd,
-			"resolved_path":  resolvedPath,
-			"error_type":     errorType,
-			"version_flag":   versionFlag,
-			"stderr":         stderrOutput,
-			"error_message":  err.Error(),
-		})
+		if errorType == spi.CheckErrorNotFound {
+			errorType = spi.CheckErrorUnknown
+		}
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
@@ -143,33 +143,20 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 
 	if versionOutput == "" {
 		errorType := spi.CheckErrorNoOutput
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "codex",
-			"custom_command": isCustomCommand,
-			"command_path":   codexCmd,
-			"resolved_path":  resolvedPath,
-			"error_type":     errorType,
-			"version_flag":   versionFlag,
-			"stderr":         stderrOutput,
-		})
+		analytics.TrackCheckFailure(attempt, errorType, "version command produced no output", stderrOutput)
 
 		errorMessage := buildCheckErrorMessage(errorType, codexCmd, isCustomCommand, stderrOutput)
 
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Version:      "",
 			Location:     resolvedPath,
 			ErrorMessage: errorMessage,
 		}
 	}
 
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "codex",
-		"custom_command": isCustomCommand,
-		"command_path":   resolvedPath,
-		"version":        versionOutput,
-		"version_flag":   versionFlag,
-	})
+	analytics.TrackCheckSuccess(attempt, versionOutput)
 
 	slog.Debug("Codex CLI check successful", "version", versionOutput, "location", resolvedPath, "flag", versionFlag)
 
@@ -405,11 +392,16 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	// Execute Codex CLI - this blocks until Codex exits
 	slog.Info("Executing Codex CLI", "command", customCommand, "resumeSessionID", resumeSessionID)
+	homeDir, _ := osUserHomeDir()
+	finalChanges := spi.SessionFileChanges(codexSessionsRoot(homeDir), "*/*/*/*.jsonl")
 	err := ExecuteCodex(customCommand, resumeSessionID)
 
 	// Stop the watcher goroutine and wait for it to finish before returning
 	slog.Info("Codex CLI has exited, stopping watcher")
 	StopWatcher()
+	for _, path := range finalChanges() {
+		ScanCodexSessions(projectPath, filepath.Dir(path), &path)
+	}
 
 	// Return any execution error
 	if err != nil {

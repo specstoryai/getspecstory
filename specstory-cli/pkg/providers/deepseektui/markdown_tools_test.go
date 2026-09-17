@@ -339,3 +339,11 @@ func TestExtractPathHints(t *testing.T) {
 		})
 	}
 }
+
+func TestToolMarkdownPreservesNestedFences(t *testing.T) {
+	content := "before\n````markdown\n```text\ninner\n```\n````\nafter"
+	got := formatToolOutput(&ToolInfo{Output: map[string]interface{}{"content": content}})
+	if !strings.Contains(got, "`````text\n"+content+"\n`````") {
+		t.Fatalf("unsafe fence: %s", got)
+	}
+}

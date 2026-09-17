@@ -45,11 +45,12 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 		VersionFlag:   versionFlag,
 	}
 
-	resolved, err := exec.LookPath(cmdName)
+	resolved, err := spi.LookPathForCheck(cmdName)
 	if err != nil {
-		msg := buildCheckErrorMessage(spi.CheckErrorNotFound, cmdName, isCustom, "")
-		analytics.TrackCheckFailure(attempt, spi.CheckErrorNotFound, err.Error(), "")
-		return spi.CheckResult{Success: false, Location: "", ErrorMessage: msg}
+		errorType := spi.ClassifyCheckError(err)
+		msg := buildCheckErrorMessage(errorType, cmdName, isCustom, "")
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: "", ErrorMessage: msg}
 	}
 	attempt.ResolvedPath = resolved
 
@@ -58,11 +59,11 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		errorType := spi.ClassifyCheckError(err)
+		errorType := spi.ClassifyCheckExecutionError(err)
 		stderrOutput := strings.TrimSpace(stderr.String())
 		msg := buildCheckErrorMessage(errorType, resolved, isCustom, stderrOutput)
 		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
-		return spi.CheckResult{Success: false, Location: resolved, ErrorMessage: msg}
+		return spi.CheckResult{Success: false, ErrorType: errorType, Location: resolved, ErrorMessage: msg}
 	}
 
 	versionOutput := sanitizeDroidVersion(stdout.String())
@@ -176,6 +177,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 		return ExecuteDroid(customCommand, resumeSessionID)
 	}
 
+	// Capture before launching either goroutine so a fast child cannot become
+	// part of the watcher's silent startup baseline.
+	finalState := &watchState{lastProcessed: make(map[string]int64)}
+	seedProcessedSessions(finalState)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -189,6 +194,10 @@ func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, r
 
 	if werr := <-watchErr; werr != nil && !errors.Is(werr, context.Canceled) {
 		slog.Warn("droidcli: watcher stopped with error", "error", werr)
+	}
+
+	if scanErr := scanAndProcessSessions(projectPath, debugRaw, sessionCallback, finalState); scanErr != nil {
+		slog.Warn("Final session scan failed", "error", scanErr)
 	}
 
 	if err != nil {

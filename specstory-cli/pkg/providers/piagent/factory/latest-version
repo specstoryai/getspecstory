@@ -10,4 +10,9 @@
 # Non-zero exit means "sensor failure", never "no change". Output is opaque to
 # the factory — byte-compared against the stored reading, never parsed.
 set -euo pipefail
-npm view @earendil-works/pi-coding-agent version
+version=$(npm view @earendil-works/pi-coding-agent@latest version --fetch-timeout=30000 --fetch-retries=2)
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+  echo "latest-version: npm returned an empty or invalid version" >&2
+  exit 1
+fi
+printf '%s\n' "$version"

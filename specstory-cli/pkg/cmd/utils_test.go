@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/config"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
 
@@ -179,6 +180,40 @@ func TestResolveProviderIDs(t *testing.T) {
 				if ids[i] != tt.wantIDs[i] {
 					t.Errorf("ids[%d] = %q, want %q", i, ids[i], tt.wantIDs[i])
 				}
+			}
+		})
+	}
+}
+
+func TestCheckFailurePresentation(t *testing.T) {
+	for _, tt := range []struct {
+		name, errorType, customCmd string
+		summary, informational     bool
+	}{
+		{"optional absent agent", spi.CheckErrorNotFound, "", true, true},
+		{"explicit absent agent", spi.CheckErrorNotFound, "", false, true},
+		{"missing custom command", spi.CheckErrorNotFound, "/missing/agent", false, false},
+		{"permission denied", spi.CheckErrorPermissionDenied, "", true, false},
+		{"failed version probe", spi.CheckErrorUnknown, "", true, false},
+		{"empty version output", spi.CheckErrorNoOutput, "", true, false},
+		{"invalid version output", spi.CheckErrorUnexpectedOutput, "", true, false},
+		{"unclassified failure", "", "", true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			result := spi.CheckResult{ErrorType: tt.errorType, ErrorMessage: "Reason\nRemediation"}
+			output := formatCheckFailure("Agent", result, tt.customCmd, tt.summary)
+			if strings.Contains(output, "ℹ️") != tt.informational || strings.Contains(output, "❌") == tt.informational {
+				t.Fatalf("wrong severity: %s", output)
+			}
+			if tt.summary {
+				if strings.Contains(output, "Remediation") {
+					t.Fatalf("summary includes full instructions: %s", output)
+				}
+				if tt.informational && (strings.Contains(output, "Error:") || !strings.Contains(output, "Optional")) {
+					t.Fatalf("missing optional agent reads as an error: %s", output)
+				}
+			} else if !strings.Contains(output, "Remediation") {
+				t.Fatalf("detailed check lost help: %s", output)
 			}
 		})
 	}

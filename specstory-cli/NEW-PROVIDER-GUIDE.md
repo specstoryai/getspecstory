@@ -2,15 +2,30 @@
 
 This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few needed changes as possible.
 
-The provider interface is specified by the doc comments on `spi.Provider` in `pkg/spi/provider.go` and on the two optional interfaces in `pkg/spi/global.go`; read those first. The unified session format is `pkg/spi/schema/types.go`, explained in [docs/SPI-SESSION-DATA-SCHEMA.md](docs/SPI-SESSION-DATA-SCHEMA.md).
+The service provider interface (SPI) is documented in [pkg/spi/provider.go](pkg/spi/provider.go). Read the doc comments on `spi.Provider` and the optional capabilities below it first. A provider must implement `spi.Provider`; it may also implement either or both optional interfaces.
 
-Maintainers review every provider submission with [docs/NEW-PROVIDER-REVIEW.md](docs/NEW-PROVIDER-REVIEW.md). Reading it is the fastest way to see exactly what will be checked, and in what order.
+The unified session data format is [pkg/spi/schema/types.go](pkg/spi/schema/types.go), explained in [docs/SPI-SESSION-DATA-SCHEMA.md](docs/SPI-SESSION-DATA-SCHEMA.md).
 
-## Before you write code
+Once you've followed this guide and developed a provider, you can submit it for inclusion in the SpecStory CLI. Contributions of providers are welcomed! This guide defines the submission requirements. [docs/NEW-PROVIDER-REVIEW.md](docs/NEW-PROVIDER-REVIEW.md) supplements it with guidance for reviewers on evaluating evidence, prioritizing findings, and reporting readiness.
 
-### Pick an exemplar and copy its shape, not its code
+## Before you write any provider code
 
-Every provider is judged by parity with the established siblings. Choose the closest one and mirror its file layout, method shapes, and behaviors. No single provider is reference-grade for everything, so take each concern from the provider named for it:
+### Understand a provider's responsibilities and how a provider works
+
+A provider is the part of the SpecStory CLI that knows how to work with one specific coding agent. Each agent stores conversations (sessions) in its own location and format. The provider finds those sessions and translates them into SpecStory's shared session format, preserving the conversation, tool calls and results, and available metadata.
+
+A provider has four main responsibilities:
+
+- **Find the agent and its sessions.** Check the installation, discover sessions, and identify which project each session belongs to.
+- **Read and translate sessions.** Parse the agent's stored data, retain the raw transcript, and format its tool activity for readable output.
+- **Follow an active session.** Launch the agent for `run`, or observe it for `watch`, and report new or updated sessions as the agent writes them. Finish delivering updates before shutting down.
+- **Support resuming conversations.** Launch the agent with a selected local session and, where supported, convert SpecStory's shared format back into a native session the agent can resume.
+
+The provider hands session data back to the CLI through the provider SPI. The CLI, not the providers, handles writing Markdown history, redaction, indexing, and SpecStory Cloud sync. For example, during `specstory run`, the specific coding agent writes its session, the provider detects and reads the session change, and the CLI renders and saves the updated markdown file.
+
+### Use exemplar providers as a starting point
+
+Every provider is judged by behavioral parity with the established siblings. Choose the closest one as a starting point for file organization and method shapes, adapting the layout to your agent's needs. No single provider is reference-grade for everything, so take each concern from the provider named for it:
 
 |                                                Concern                                                |                                              Copy from                                               |
 | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -23,11 +38,9 @@ Every provider is judged by parity with the established siblings. Choose the clo
 | Dealing with a SQLite session store                                                                   | `pkg/spi/sqlite.go` and `pkg/providers/cursoride`                                                    |
 | The SpecStory CLI Software Factory's maintenance scripts                                              | `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory`                           |
 
-There is some known drift in some of the exemplars, which you must not copy: exec helpers that call `os.Exit` or return the raw process error instead of `spi.AgentExitError`; flag-style resume helpers that let an id pinned in the configured command win over the requested id; watcher contexts created in `init()`; inline `analytics.TrackEvent` calls and literal triple-backtick fences in the older providers; the Cursor CLI provider's polling watcher and its `run` that re-emits existing sessions.
+### Learn the agent's on-disk session format
 
-### Learn the agent's on-disk format from the current release
-
-Install the agent, run it, and read what it writes; the files on disk are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-FORMAT.md](pkg/providers/musecode/MUSE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
+Install the agent, run it, and read what it writes as its sessions to disk (or to a database); the stored sessions are the contract. Capture what you learn in `<AGENT>-FORMAT.md` (the agent's short name in capitals, for example `MUSE-CODE-FORMAT.md`), placed **inside your provider package** next to the code it documents, in the style of [MUSE-CODE-FORMAT.md](pkg/providers/musecode/MUSE-CODE-FORMAT.md) and [ANTIGRAVITY-FORMAT.md](pkg/providers/antigravitycli/ANTIGRAVITY-FORMAT.md):
 
 - Store layout, record envelope, and the shape of every tool call and result you observed.
 - The write lifecycle: which file is the durable record, which files are transient (checkpoints, rolling "latest" files, locks), when each is written and deleted, and whether a transient file is shared across concurrent sessions. A session that is still in flight is expected to be invisible until the agent commits it.
@@ -39,26 +52,47 @@ Leave out any notes about versions below your baseline; a brand new provider has
 
 ### Enumerate the agent's real tools yourself
 
-Run the agent directly (not through `specstory run`) in a scratch directory and ask it:
+Build `tools.txt` from the harness's own tool declaration where available, such as startup output, a stream init event, or an extension hook. Prefer that inventory over asking the model or inferring the list from tools used in a session. Record the agent version, operating system, relevant configuration, and enabled extensions alongside the inventory so its scope is clear.
+
+If no declaration is available, run the agent directly (not through `specstory run`) in a scratch directory and ask it:
 
 ```text
 Hello <agent>, tell me all the tools you have access to. Write all the tool names to the file ./tools.txt.
-
-Please use each of your <number> tools one-by-one to show me how they work and how you use them.
 ```
 
-If the agent has a tool-search tool, add to the first prompt: including any deferred tools you can load or discover through a tool search.
+Then run the agent directly in the scratch directory and prompt it to exercise the tools available in that environment:
 
-Keep `tools.txt`, a `versions.txt` with the agent's version banner and the CLI version, and the session. Two rules about that list:
+```text
+Please use each of the tools in ./tools.txt that is available in this environment, one-by-one, to show me how they work. Identify any tools you cannot exercise and explain why.
+```
 
-- Where the agent declares its own tools (a stream init event in headless mode, an extension hook), that declaration is the inventory and the model's self-report is only a lower bound. Tools you see used in the session that the model did not list belong in `tools.txt` too.
+Some agents discover and load additional tools after startup. Include those in the inventory where the harness exposes them; when using the model fallback, also ask it to include tools it can discover or load through tool search.
+
+Keep `tools.txt` and a `versions.txt` containing the agent's version banner and the SpecStory CLI version in a scratch directory. After the session ends, save a copy of its native session files for that session there too, leaving the originals in the agent's store so `specstory sync` can read them. These artifacts document what the agent actually did: use them to build test fixtures, verify tool rendering, and prepare the audit and PR attachments described in [How your provider will be tested](#how-your-provider-will-be-tested).
+
+Two rules about the tool list:
+
+- Model answers and observed sessions may omit tools. Check them against the harness declaration where available, and add any observed tools missing from the inventory.
 - Strip any namespace prefix the model adds (`functions.`, `<agent>.`); session data records bare names, and those are what your provider matches.
 
-The names in that file are the only tool names your provider may special-case. Renderers, classifier cases, argument-key aliases, and fallback branches must each trace to an observed record. A renderer for a tool that never fires is untestable code that reads as though it were verified behavior, and it will likely be deleted in review.
+The tool names in that file are the only tool renderings your provider should special-case. Renderers, classifier cases, argument-key aliases, and fallback branches must each trace to an observed tool record. A renderer for a tool that never fires is untestable code that reads as though it were verified behavior, and it may be deleted in review.
 
-### Verify native resume with a spike before writing a serializer
+Exercise every tool reasonably available in the tested environment. Platform-specific tools, disabled optional extensions, and tools requiring unavailable external accounts may remain unexercised with a documented reason. Keep them in the inventory and distinguish declared, enabled, and exercised tools in the audit. Do not invent bespoke renderers for unobserved payloads; retain generic rendering. Where an attempted call produces an error, capture it and verify failure rendering, without claiming that this verifies the success path.
 
-Plant a fact in a session ("the magic passphrase is PURPLE-ELEPHANT-42"), resume the session with the agent's own resume command, and ask for the fact. Then move one of the agent's store files aside at a time and repeat, so you know which file the agent actually reads on resume. If the agent cannot resume from anything you can reconstruct, ship `spi.ErrReconstructionUnsupported` honestly rather than a serializer that produces files the agent never loads.
+### Find out what the agent needs to resume a session
+
+Cross-agent resume works by flattening the conversation into ordered user/agent text turns, then writing those turns in the target agent's native session format. Everything the agent said, thought, or did becomes agent text, including rendered tool activity. This shared representation avoids having to translate one agent's tool protocol or thinking blocks into another's. See [the reconstruction model](docs/SESSION-PORTABILITY.md#reconstruction-model).
+
+Before writing the conversion code, find out which files and native structure the target needs to load and continue that flattened conversation. The goal is a valid native session carrying the shared text transcript, not recreation of every original native field.
+
+Use a disposable session in your scratch project:
+
+1. Tell the agent "the magic passphrase is PURPLE-ELEPHANT-42", then exit the agent.
+2. Reopen that session using the agent's own resume command and ask "What is the magic passphrase?" Check that it recalls the fact without you supplying it again.
+3. Back up the session's stored files. With the agent stopped, temporarily move one file aside, then repeat the resume test. Restore the backup before testing the next file. This helps identify which files are needed to recover the conversation.
+4. Build a minimal native session containing plain user/agent text turns in the required structure, then repeat the recall test and continue the conversation. Verify that the agent loads it cleanly and appends to that session. Record required fields, lifecycle markers, and any necessary compatibility defaults in `<AGENT>-FORMAT.md`.
+
+Your conversion code must produce the native structure needed to resume the flattened conversation. Missing source tool structures, thinking signatures, or historical model/usage metadata are expected consequences of flattening, not reasons to declare reconstruction unsupported. If you cannot produce a native session the target can resume using this approach, return `spi.ErrReconstructionUnsupported` from `ReconstructSession` and `false` from `SupportsReconstruction`, and document that resuming other agents' conversations in this agent is unsupported.
 
 ## What a complete provider contains
 
@@ -71,7 +105,7 @@ The architecture is one-directional:
 - `pkg/spi/factory/registry.go` imports every provider and is the only place that knows them all. 
 - Nothing else in the CLI imports a provider package directly.
 
-The package is `pkg/providers/<agent>`: the product's own name, lowercased, with the spaces removed. That is the whole rule for ten of the twelve, including `cursoride`, because Code, CLI, TUI and IDE are part of what those products call themselves. The IDE-backed providers end in `ide`, which Cursor IDE's own name already supplies and VS Code Copilot does not, so it becomes `copilotide`. Pi is `piagent`, the one place a bare product name was too slight to stand on its own. The typical file set is:
+The package is `pkg/providers/<agent>`: the product's own name, lowercased, with the spaces removed. That is the whole rule for ten of the twelve, including `cursoride`, because Code, CLI, TUI and IDE are part of what those products call themselves. The IDE-backed providers end in `ide`, which Cursor IDE's own name already supplies and VS Code Copilot does not, so it becomes `copilotide`. Pi is `piagent`, the one place a bare product name was too slight to stand on its own. The following file layout is recommended, not mandatory; add, combine, or split files where that makes the provider easier to understand:
 
 |                                      File                                      |                                          Purpose                                           |
 | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
@@ -86,25 +120,25 @@ The package is `pkg/providers/<agent>`: the product's own name, lowercased, with
 | `*_test.go`                                                                    | Tests alongside each source file, plus `testdata/` fixtures captured from real sessions    |
 | `factory/`                                                                     | Software factory scripts (see below)                                                       |
 
-Do not create tons of small files by splitting helpers into small utility files (`text_utils.go`, `reader_utils.go`, and the like). Helpers live in the file whose concern they serve, matching where the other providers keep theirs.
+Keep related logic together and avoid unnecessary file sprawl. Small helpers usually belong in the file whose concern they serve; a separate file is reasonable when it groups a distinct concern, such as debug output. File organization may differ from this example while still meeting the provider's behavioral and architectural requirements.
 
 Add `var _ spi.Provider = (*Provider)(nil)` so the compiler enforces the interface, and the same assertion for any optional interface you implement.
 
 ### Every SPI method, including the ones that are easy to miss
 
-Implement every method on `spi.Provider` in `pkg/spi/provider.go` (twelve today; count them against the file). Beyond the obvious ones, review these carefully:
+Implement every method on `spi.Provider` in `pkg/spi/provider.go` (count them against the most recent version of the file). Beyond the obvious ones, review these carefully:
 
 - `ListAgentChatSessions` returns lightweight metadata without a full parse.
 - `ListAllAgentChatSessions` enumerates every session in the native store across all projects, reading the originating working directory from inside each session. This powers `specstory reindex`, `search`, and `resume`.
 - `ReconstructSession`, `NativeSessionPath`, and `SupportsReconstruction` implement cross-agent resume into your agent. `SupportsReconstruction` is a pure constant answer and must agree with the other two. `NativeSessionPath` only resolves the path; the CLI creates the directory and writes the file.
 - The `progress` callback on `GetAgentChatSessions` is invoked once per session file, including skipped and failed ones, so the progress bar reaches its total.
-- The two optional interfaces in `pkg/spi/global.go`: implement `spi.PathSessionReader` (`GetAgentChatSessionByPath`) so reindex can open a session by its known path instead of a by-id walk, and `spi.ProgressEnumerator` (`ListAllAgentChatSessionsProgress`) so reindex can show live counts. A JSONL store implements both, using `spi.ScanSessionsInParallel` for the enumeration (it walks `*.jsonl` files only; other store kinds implement the enumeration themselves).
+- The optional capabilities are also defined in [pkg/spi/provider.go](pkg/spi/provider.go). `spi.PathSessionReader` (`GetAgentChatSessionByPath`) lets reindex open a session by its known path instead of searching by id. `spi.ProgressEnumerator` (`ListAllAgentChatSessionsProgress`) adds live scan counts. Implement either, both, or neither; reindex falls back to the required methods when they are absent. Both are recommended for JSONL stores, which can use `spi.ScanSessionsInParallel` for enumeration (it walks `*.jsonl` files only; other store kinds implement enumeration themselves).
 
 ### Wiring outside the package
 
 - `pkg/spi/factory/registry.go`: register under a short lowercase id (`muse`, `antigravity`, `droid`).
 - `pkg/config/config.go`: a `<id>_cmd` entry in the default config template, a `ProvidersConfig` field, a `GetProviderCmd` case with its doc comment updated, and rows in the config tests. `specstory run <id>` must honor it; `specstory check <id> -c` honors the flag only. **All three parts are required and none of them fails loudly on its own** — TOML accepts a key with no struct field, and `GetProviderCmd` returns `""` for an unknown id — so a partial wiring ships a config key that silently does nothing. Two tests enforce it: `config.TestProvidersConfigIsFullyWired` checks each `ProvidersConfig` field reaches both the template and a `GetProviderCmd` case, and `cmd.TestEveryRegisteredProviderHasACommandOverride` checks every registered provider id resolves to one.
-- `pkg/cmd/session_tui_browser.go`: propose an accent color in `colorForAgent`, the agent's brand color if it is legible on both light and dark terminals. The maintainer may replace it.
+- `pkg/cmd/session_tui_browser.go`: add an accent color in `colorForAgent` as a hex code (`#RRGGBB`), based on a color associated with the agent's own brand. Check it on both dark and light terminal backgrounds and adjust the shade if needed for legibility. The maintainer may replace it.
 - `pkg/skills/agents.go`: a row when the agent supports agent skills (it has a project or global skills directory). Its `Name` is the public `npx skills` canonical id, not the provider id.
 - `README.md` in this directory: the intro sentence, the Agent Support table row, the `[providers]` example block, the Configuration Options row, and the Debug Raw Mode provider list. Write a prose paragraph only if the provider behaves differently from wrapping a terminal process.
 - `../README.md` at the monorepo root: the ASCII diagram line, the Installation table row (leave the Min Version to the maintainer), the lead-in sentence, and a `specstory run <id>` example.
@@ -139,16 +173,16 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 - `spi.CapRunes` for truncation. Never slice a string by bytes.
 - Compare a sentinel error with `errors.Is` and match an error type with `errors.As`. Never `err == io.EOF` or `err.(*exec.ExitError)`: a wrapped error fails both, and wrapping gets added later by someone who has no reason to look for a bare comparison.
 - `spi.LanguageFromPath`, `spi.RenderGenericJSON`, `spi.TodoSymbol`, `spi.FormatDiffBlock`, `spi.StringValue`, `spi.NormalizeToolName` for tool rendering.
-- `spi.ClassifyCheckError` and the `spi.CheckErrorNotFound`, `spi.CheckErrorPermissionDenied`, `spi.CheckErrorUnknown` constants for `Check` failures. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
+- `spi.LookPathForCheck` for binary lookup, `spi.ClassifyCheckError` for lookup/storage errors, and `spi.ClassifyCheckExecutionError` for probe failures after the binary was found. Populate `CheckResult.ErrorType` with the same `spi.CheckError*` value sent to analytics; leave it empty on success. Empty `--version` output on a successful run is a success reported as `"unknown"`, not a failure (`spi.CheckErrorNoOutput` is a legacy shape).
 - `analytics.CheckAttempt` populated once per `Check`, with the event emitted by `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`. No inline `analytics.TrackEvent` calls in a provider.
-- `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand.
+- `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand, or `spi.EnsureResumeFlagArgs` when it uses a flag.
 - `spi.AgentExitError` to report a non-zero agent exit. Never call `os.Exit` inside a provider; it skips the final session save (the reason is in `pkg/spi/exit.go`).
 - `spi.GetDebugDir` for debug output paths. Write only provider-specific raw files there; the CLI writes `session-data.json` itself.
 - `spi.NormalizePath` and `spi.ExtractShellPathHints` for path hints; `spi.CanonicalizePathOrClean` for local path comparison; `spi.FileURIToPath` for any `file://` URI.
 - `spi.GenerateFilenameFromUserMessage`, `spi.GenerateReadableName`, and `spi.ReadableTitleFromSessionData` for slugs, names, and titles. If the agent records its own title or summary for a session, prefer it for `Name` and fall back to the shared generator.
 - `spi.PrepareTurns`, `spi.ResolveWorkspaceRoot`, `spi.ReconstructRole`, `spi.RFC3339Millis`, `spi.ResumedSessionTitle` in `ReconstructSession`.
-- `spi.WatchWindowDays`, `spi.WatchWindowCutoff`, `spi.DateDirWithinWatchWindow` to bound watches on a store that grows without limit.
-- `spi.DispatchSession` for asynchronous callback delivery, or a local `defer recover()` around a synchronous callback.
+- `spi.WatchWindowDays`, `spi.WatchWindowCutoff`, `spi.DateDirWithinWatchWindow` when watched paths can grow without limit and the store layout supports a rolling date window. A fixed set of directory watches does not need a rolling window merely because the number of session files grows.
+- `spi.DeliverSession` for synchronous callback delivery with panic recovery. If using `spi.DispatchSession` for asynchronous delivery, track and join every callback before shutdown.
 - SQLite stores: open every read handle as `file:<path>?mode=ro&` plus `spi.BusyTimeoutPragma`. The `file:` scheme is required; the driver ignores `mode=` on a bare path and opens read-write-create. Call `spi.EnsureWALMode` once at watcher startup, never on a read path.
 
 Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the import graph cycles through the registry), nor `pkg/telemetry` (layering).
@@ -157,12 +191,13 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 
 - `CheckResult.Version` is the agent's version string or empty. Never a label.
 - `ProviderInfo.Version` is the agent's version when the native data records it, otherwise the literal `"unknown"`. The model name is not a substitute; it belongs on each agent message's `Model` field, and it is the real model, never a placeholder such as an automatic-mode label.
-- `WorkspaceRoot` is never empty: the workspace the agent stated, then the caller's project path, then the process working directory as a documented last resort.
-- A session whose project cannot be determined from what the agent stated is `unknown`. Never infer a workspace from the paths that tools touched; one read of `~/.gitconfig` would attach the session to every project under the home directory. Session-to-project matching uses containment of stated paths, never a guessed common ancestor.
+- `SessionData.WorkspaceRoot` is never empty: the workspace the agent stated, then the caller's project path, then the process working directory as a documented last resort. These fallbacks support path normalization and rendering; they are not evidence that the session belongs to the caller's project.
+- `GlobalSessionRef.OriginCwd` records the session's originating working directory. Leave it empty when the origin cannot be determined; do not fill it from a rendering fallback. Global enumeration still returns the session, and the CLI assigns the `"unknown"` project ID. The literal `"unknown"` belongs in neither `OriginCwd` nor `WorkspaceRoot`.
+- Never infer project membership from the paths that tools touched; one read of `~/.gitconfig` would attach the session to every project under the home directory. Session-to-project matching uses containment of stated paths, never a rendering fallback or a guessed common ancestor.
 - `GetAgentChatSession` returns `nil, nil` for not found. Errors are for real failures.
 - A by-id lookup on a global store must still check that the session belongs to the requested project, or one project's conversation will be written into another's history.
 - On an IDE store the same session can appear under several matching workspace entries, and an empty copy can come first; mark an id as seen only after the content check, and keep an empty copy only as a fallback.
-- `AgentChatSession.RawData` carries the native transcript on every session you return, whether or not debug output is enabled; SpecStory Cloud stores it. Build it from the records you already parsed, never by reading the file a second time: a session being written grows between the two reads, so the raw transcript would describe turns the converted session never saw, and during `run` that happens on nearly every save.
+- `AgentChatSession.RawData` carries the native transcript on every session you return, whether or not debug output is enabled; SpecStory Cloud stores it. Build it from the records you already parsed, never by reading the file a second time: a session being written grows between the two reads, so the raw transcript would describe turns the converted session never saw, and during `run` that happens on nearly every save. `RawData` contains the accepted native records from the same parsing snapshot; malformed or oversized records skipped during parsing are excluded.
 - `Usage` carries only the token fields the native data distinguishes; a session total is not an input count, so leave it nil with a why-comment rather than guess. A token kind not already in `schema.Usage` is a shared change to ask for.
 - Timestamps come from the record, never from `time.Now()` in a parse or render path, are consistent across every code path, and are RFC 3339 parseable.
 
@@ -176,36 +211,55 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 
 ### Parsing
 
-- Read the primary session file with `spi.ReadRecordLine(reader, spi.MaxRecordLineSize)`. It bounds allocation as the record is read and reports an oversized record instead of returning it, so one bad record degrades to one bad record rather than an aborted file. Log the skip at Warn with the file and line and carry on. Sidecar and index files may use a `bufio.Scanner` capped at `spi.MaxRecordLineSize`, mapping `ErrTooLong` to a clear error.
+- For JSONL session files, read each record with `spi.ReadRecordLine(reader, spi.MaxRecordLineSize)`. It bounds allocation as the record is read and reports an oversized record instead of returning it, so one bad record degrades to one bad record rather than an aborted file. Log the skip at Warn with the file and line and carry on. Sidecar and index files may use a `bufio.Scanner` capped at `spi.MaxRecordLineSize`, mapping `ErrTooLong` to a clear error.
 - When a record holds `json.RawMessage`, unmarshal from a copy of the line (`scanner.Text()`, never `scanner.Bytes()`); the scanner reuses its buffer.
 - A record that fails to parse is skipped, never silently: log at Warn with the file and line ("Skipping corrupted JSONL line" is the established message shape).
-- Order records by the agent's own sequence field, not file order; agents flush asynchronous results ahead of the call that owns them. Identify result records by excluding the known structural types, not by an allow-list, so a new result type degrades to a generic result instead of vanishing. Pair results to pending calls by tool type or id, with first-in-first-out only as the fallback for several in-flight calls, and ship a scrambled-order regression test.
+- Preserve the agent's native ordering and branch-selection semantics. Use sequence numbers where provided, parent links for tree formats, and file order where the native format defines it. Test supported out-of-order cases and branch selection where applicable.
+- Identify tool-result records using the native format's result markers or envelope; an unfamiliar record is not automatically a tool result. A recognized tool result with an unfamiliar payload type degrades to a generic result instead of vanishing. Pair results to calls using the native correlation fields, preferring an explicit call id; use tool type or first-in-first-out only where the native format makes that pairing unambiguous.
 - The parser's kind switch enumerates every record kind observed in real data, rendering it or naming it as known-nothing-to-render with the reason, so the default "unknown kind" log fires only for genuinely new kinds.
+- Preserve unsupported native content in `RawData` when its record is accepted, and document what is omitted from normalized data and Markdown in `<AGENT>-FORMAT.md`. Preserve meaningful conversation text where the shared schema can represent it faithfully. Reserve "known-nothing-to-render" for records with no conversational content to display; an unfamiliar role or missing tool-call pairing is not sufficient reason to discard meaningful content.
 - Scan and watch only the durable session file; never read a scratch file the agent rewrites in place.
 
 ### The watcher
 
-- fsnotify is the change-detection mechanism, never a polling ticker. A bounded reconcile tick (as in the Claude Code watcher) is expected on top, to catch writes to files that were not yet watched and to prune idle watches.
-- At startup, record what already exists and emit nothing. Emit only activity that happens after the watcher started. If a directory appears after the watch was armed, walk it once and adopt what landed inside, because those writes happened unobserved. Never re-publish history.
+- Filesystem events through fsnotify are the primary change signal. Supplement them with bounded periodic reconciliation to recover missed events, including writes to files that were not yet watched. Keep reconciliation scoped to the relevant session paths and prune idle watches where applicable.
+- Establish a startup baseline without emitting existing, unchanged sessions merely because the watcher started. New or changed sessions after startup count as activity, including changes made while the initial watches and baseline are being established. Each watcher architecture must establish this boundary reliably so initialization neither republishes history nor absorbs new activity into the baseline.
+- If a session directory appears after startup, walk it once and adopt the files that arrived inside it, even when they carry old preserved modification times. Arrival is new activity. A pre-existing directory discovered later during the initial scan is part of the baseline, not a late arrival.
 - Never let the watcher silently disable itself. If the agent's directory does not exist yet, watch the nearest existing ancestor and wait.
 - When the store is keyed by project, watch only this project's subtree, never every project's directory. Walks and watches stop at the session directory; a session's own subdirectories (tool outputs, subagent logs) are neither watched nor walked.
 - Watch every path the agent writes session content to, including asynchronous sidecar files. Change detection uses an on-disk signature (size and modification time) of every file the session spans, not a parsed field that a title-only rename would not touch.
-- A debounced burst is re-processed once after the burst ends; the burst's last write is often the completed response. A safety-net poll catches what fsnotify missed.
+- A debounced burst is re-processed once after the burst ends; the burst's last write is often the completed response.
 - Deliver callbacks in order (one worker) or synchronously; contain panics in the consumer callback; close the race between `Stop` and in-flight work under one lock. Track goroutines with `wg.Go`, never `wg.Add(1)` paired with `defer wg.Done()`.
 - Make the watcher restartable: create the context per start, not in `init()`.
-- File descriptors stay flat over a months-long watch: bound the window with `spi.WatchWindow*`, prune watches at rollover, and re-watch a dormant file when its modification time moves.
+- File descriptor usage stays bounded over a months-long watch. When watched paths can grow without limit, bound them with a strategy appropriate to the store layout: for date-organized stores, use `spi.WatchWindow*`, prune watches at rollover, and re-watch a dormant file when its modification time moves. A single-directory watch or another fixed set of watches already satisfies the descriptor bound and does not need a rolling date window.
 - The command layer fingerprints every delivered session and suppresses unchanged parses; add no content-equality guard of your own.
+
+The startup boundary and shutdown behavior must satisfy these acceptance cases:
+
+| Scenario                                                                                             | Expected behavior                                                |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| A session file is written just before startup and remains unchanged                                  | No emission merely because the watcher starts                    |
+| A session file changes while the initial watches and baseline are being established                  | The update is eventually emitted, not absorbed into the baseline |
+| A directory appears after startup containing session files with old preserved modification times     | The arriving sessions are adopted and emitted                    |
+| A pre-existing directory is discovered later during the initial scan, with no activity since startup | No emission merely because discovery happened later              |
+| Shutdown occurs with no new or pending session activity                                              | No emission merely because the watcher stops                     |
+
+Shutdown must still drain pending updates before returning. These cases define which activity counts, without prescribing a particular snapshot, watch-registration, or timestamp strategy.
 
 ### Run and exec
 
 - Honor the custom command from `-c` and `<id>_cmd`; parse it with `spi.SplitCommandLine`.
-- When a resume id is requested it wins over any id pinned in the configured command. For a flag-style resume (`--resume <id>`) there is no shared helper yet; write one that replaces a pinned id, inserts after a bare flag even when the next token is another flag, repairs `--flag=`, and never appends to the caller's slice. The DeepSeek TUI helper is the closest model for the bare-flag and `--flag=` handling, but it lets a pinned id win, which is wrong.
+- When a resume id is requested it wins over any id pinned in the configured command. Use `spi.EnsureResumeFlagArgs` for flag-style resume (`--resume <id>`), passing the agent's supported flag names. It replaces pinned ids, fills bare or empty flags, and preserves the caller's slice.
 - Stop the watcher and join in-flight saves before returning the agent's exit status.
 - For an IDE provider, `run` opens the project directory with the IDE's own CLI, canonicalizing the path first, prints install guidance if that CLI is missing, waits for the IDE to create the workspace, and then watches until Ctrl-C. No silent fallback to opening the app on its home screen.
 
 ### Resume into your agent
 
-- The reconstructed native file must be one the agent considers clean and complete: match the shape the agent itself writes field for field, including any end-of-session record, so the agent shows no crash or unclean-stop warning.
+- Call `spi.PrepareTurns` to obtain the shared ordered user/agent text turns, then serialize them into your agent's native session format. The flattening policy lives in `pkg/spi/reconstruct.go`; providers must not implement their own conversion policy.
+- User text remains user text. Agent speech and thinking become ordinary agent text, and tool activity becomes agent text through `Tool.Summary` and `Tool.FormattedMarkdown`. Do not reconstruct native tool calls, tool-result relationships, or signed thinking blocks. Preserve the prepared text and its order, adapting message grouping only where the target format requires it.
+- Produce the native envelope, fresh identifiers, ordering links, and lifecycle markers the target needs to load and continue the flattened conversation cleanly. Include required end-of-run or end-of-session records so the agent shows no crash or unclean-stop warning. Verify that subsequent turns extend the reconstructed session.
+- Source model, usage, and path-hint metadata are intentionally dropped by the shared flattening step. Source system and environment scaffolding must not be replayed; the target supplies its own runtime context. Document any additional provider-specific preservation limits in `<AGENT>-FORMAT.md`.
+- Do not invent model, usage, or version metadata to make reconstructed sessions resemble native ones. Omit unavailable fields where supported; otherwise use accepted empty or neutral values. A realistic compatibility placeholder is permitted only when testing establishes that the target cannot load or continue the session without it and rejects omission or neutral values. Document the requirement and test evidence in `<AGENT>-FORMAT.md`; an existing provider's placeholder is not evidence that yours needs one. For example, if a native message requires a model field that is absent from `spi.Turn`, write `"model": ""` if the loader accepts it, rather than attributing imported turns to the model configured for future turns.
 - Carry a provenance back-link (`specstorySourceSessionId`) in the native metadata.
 - Keep user-identifying data (account labels, auth metadata) out of reconstructed files.
 - Your parser must exclude your agent's own slash-command and system scaffolding from user turns; the shared resume filter strips only Claude Code's markers.
@@ -217,6 +271,7 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 - Edits render as `diff` fences. Files render in a fence tagged by extension. Shell output renders in a `text` fence with control bytes sanitized. Web search results render as a linked list.
 - A JSON tool result (an answer envelope, a diff array, a subagent record) is parsed into the idiomatic markdown for its kind and folded into the call block; the result renderer then returns empty so the raw JSON does not also appear.
 - A failed call renders the agent's error text; the error branch takes priority over the success formatter for every tool.
+- User-entered shell commands render as user messages clearly labeled "User ran a shell command", with the command and its recorded output/status. They do not need an assistant tool call to pair with. Preserve them as historical activity in flattened resume text, even if the native agent excludes them from its own model context.
 - Thinking content is captured and rendered once, in place. Narration and tool blocks appear in the order the agent recorded them; an invocation the agent re-serializes on every state update renders once.
 - Completeness beats brevity: the full system prompt, the full file content. Results are capped with a visible marker; inputs are not.
 - Never nest `<details>` blocks; the wrapper is owned by `pkg/session`.
@@ -227,10 +282,11 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 
 ### Check and analytics
 
-- `Check` resolves the binary with `exec.LookPath`, probes `--version` capturing stdout and stderr, classifies failures with `spi.ClassifyCheckError`, reports `"unknown"` when the binary prints nothing, and emits exactly one event per outcome through `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`.
+- `Check` resolves the binary with `spi.LookPathForCheck`, probes `--version` capturing stdout and stderr, reports `"unknown"` when the binary prints nothing, and emits exactly one event per outcome through `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`.
+- Every failed `CheckResult` includes an `ErrorType` and a helpful `ErrorMessage`. Reserve `spi.CheckErrorNotFound` for an absent binary or IDE store: the CLI presents it as informational, except for a missing custom `-c` command. Permission errors, failed probes, and invalid stores remain failures. Use `spi.ClassifyCheckExecutionError` after a successful lookup so a broken interpreter/loader is not mistaken for an uninstalled agent.
 - The failure message names the command actually run, including a custom one.
 - Providers emit no other analytics. Hidden flags get none.
-- IDE providers probe the store, not a binary, and emit one check event per outcome in the shape the existing IDE providers use.
+- IDE providers probe the store, not a binary, preserve filesystem errors for classification, and emit one check event per outcome. Verify the store is readable; merely resolving its path or obtaining a lazy database handle does not prove it is usable.
 
 ### Logging
 
@@ -274,17 +330,20 @@ The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs th
 - Fixtures are raw shapes captured from real sessions, so the tests encode what the agent actually writes.
 - A regression test must fail when the fix is backed out. Prove it before you commit it. When a fix adds a guard, the test also proves the guarded path still works for the legitimate case.
 - An exhaustive test that walks the agent's real tool inventory and asserts the expected type per name is not tautological; it guards against omission.
-- Each side of the watcher startup policy (nothing emitted for pre-existing sessions; adoption of a late-arriving directory) gets its own test.
+- Exercise bespoke renderers through the actual dispatch path using captured invocations. Verify that the recorded tool name, after normalization, selects the intended renderer; directly testing the renderer function cannot catch an unreachable dispatch key.
+- Each acceptance case in [The watcher](#the-watcher) gets its own test, covering the startup boundary, late-directory adoption, and shutdown behavior.
+- Reconstruction tests verify that the native output preserves the prepared user text, agent text, thinking text, and rendered tool activity in order, with the required native structure and lifecycle markers. Expect plain conversation text rather than native tool or thinking blocks; the shared flattening policy itself is tested in `pkg/spi`.
 - Tests for a shared helper live in `pkg/spi` next to the helper, not in the provider.
+- When changing shared parsing, rendering, or identity behavior, verify the affected existing providers. Compare regenerated Markdown from representative captured sessions for rendering changes. State any consequences for saved Markdown, indexes, or persisted identifiers.
 - Test hygiene: `testutil.SetHome` (never `t.Setenv("HOME", ...)` alone; it does not fake `%APPDATA%`, so IDE-style providers point at a fake install through their user-data-dir override), `testutil.JSONString` when a real path goes into a JSON fixture, `testutil.EqualPaths` after URI round-trips, `t.TempDir()` (a symlink on macOS and an 8.3 name on Windows, so compare canonical to canonical), `t.Chdir`, never a `"file://" + path` splice, deadline polling rather than fixed sleeps for file events, and expected values built with `filepath.Join` or `filepath.FromSlash`. Windows-shaped table rows run Windows behavior on macOS.
 - A test that creates a fixture and reads it back with the same spelling can never catch a case-sensitivity bug, because both sides carry the same mistake. When the provider matches recorded paths against a local root, add one case that reaches the project through a differently-cased spelling of a real directory and asserts the sessions still resolve. Skip it where the filesystem is case-sensitive rather than asserting the wrong thing there.
 - Any test that enables debug output first calls `spi.SetDebugBaseDir(t.TempDir())` so nothing is written into the package directory.
-- No injectable interface or seam in production code whose only consumer is a test. A package-level root-path variable that lets a test point the store at a temp directory is the accepted form.
+- Keep test accommodations small: package-level root-path or limit overrides and parameterized internal helpers are acceptable when needed to exercise meaningful behavior affordably. Avoid elaborate interfaces or abstraction layers whose only purpose is testing.
 
 ### Dependencies and new files
 
 - No new dependencies without asking first, with the reason. Prefer the standard library.
-- No new files beyond the canonical set without asking first. Test-only helpers belong under `internal/`.
+- Keep provider-specific test helpers in `*_test.go` files alongside the tests. Test helpers shared across packages belong under `internal/`, such as `internal/testutil`.
 - No planning documents in `docs/`. Keep `<AGENT>-FORMAT.md` as a description of what is, not a plan.
 - `.specstory/history` is committed in this repository; do not add `.specstory/` to any `.gitignore`, and do not add ignore entries for directories that do not exist.
 
@@ -306,7 +365,11 @@ Reviewers exercise every command against the real agent, at the version shipping
 
 Also run `sync`, `list`, and `watch` from the scratch project reached through a symlink and from a path containing a space and an underscore; each must find the same sessions as the canonical path.
 
-Then run the tool enumeration session described above through `./specstory sync --log --debug --debug-raw` and audit the markdown block by block against the raw data. Grade every tool-use block as formatted (all important data present and pleasantly presented), partial (formatted but missing important elements), raw (raw JSON or unformatted output), or missing, in a table with the tool name, markdown line, grade, data file, data line, and a comment. Every tool the agent has should grade as formatted. Attach `tools.txt`, `versions.txt`, the synced history file, and the audit table to the PR.
+Check the integration cases that ordinary provider commands can miss: bare `run` must select the default described by `run --help` and the README; `watch` must return an error if no watcher can start; and `watch <id> --output-dir <dir>` must save to the requested directory while still discovering the current project's sessions. `sync -s <session-id> --print` must print the session without writing history files.
+
+For both cross-agent resume directions, use a source session containing user and agent text, thinking, tool activity, and a slash command. Verify that the prepared conversation text survives in order, including thinking and rendered tool activity as ordinary agent text, with the migration note first and no source command or system scaffolding replayed. Ask the target about prior conversation content to establish that it loaded the context, then verify that it continues the same reconstructed session cleanly. Native tool replay and historical model/usage preservation are not part of this contract.
+
+Then run the tool enumeration session described above through `./specstory sync --log --debug --debug-raw` and audit the markdown block by block against the raw data. Reconcile native tool invocations with rendered blocks: each invocation appears once, in the native order, with its own results; repeated state snapshots are not additional invocations, and quoted transcripts must not produce phantom tool blocks. Grade every tool-use block as formatted (all important data present and pleasantly presented), partial (formatted but missing important elements), raw (raw JSON or unformatted output), or missing, in a table with the tool name, markdown line, grade, data file, data line, and a comment. Exercised tools should grade as formatted, including failed calls. List unexercised tools separately with the reason for each coverage gap; do not give them a rendering grade. State the tested version, OS, configuration, and extensions, and distinguish declared, enabled, and exercised tools. Attach `tools.txt`, `versions.txt`, the synced history file, and the audit table to the PR.
 
 ## Software factory affordances
 
@@ -338,18 +401,71 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 
 ## Self-review checklist
 
-- [ ] Package named for the product, lowercased and unspaced; canonical files only; `var _ spi.Provider` assertion present
-- [ ] Every SPI method implemented, including `ListAllAgentChatSessions` and the three reconstruction methods, each with a test
-- [ ] Registry, config (`<id>_cmd` in template, struct, switch, doc comment, and test rows — the two wiring tests must pass), TUI color, both READMEs, changelog
+- [ ] Package named for the product, lowercased and unspaced
+- [ ] Necessary files only, similar to the recommended files list, no file sprawl
+- [ ] `var _ spi.Provider` assertion present
+- [ ] Every SPI method implemented, including `ListAllAgentChatSessions` and the three reconstruction methods
+- [ ] Tests cover behavioral contracts and capability consistency, including agreement between `SupportsReconstruction` and the reconstruction methods; trivial constant-return methods do not need standalone tests
+- [ ] Provider registered in `pkg/spi/factory/registry.go`
+- [ ] Config wired: `<id>_cmd` in template, struct, switch, doc comment, and test rows, with both wiring tests passing
+- [ ] Brand-specific TUI color added
+- [ ] Both READMEs updated
+- [ ] Draft changelog.md entry added
 - [ ] `<AGENT>-FORMAT.md`, in the provider package, written from the current release with the write lifecycle and baseline version, no legacy notes
-- [ ] `tools.txt` from the agent itself, prefixes stripped, declaration preferred over self-report; renderers and type tables list exactly those names; an inventory sweep test exists
-- [ ] No literal fences, no byte slicing, no local copies of `pkg/spi` helpers, no inline `analytics.TrackEvent`
-- [ ] No `os.Exit`, no polling watcher, no emit at startup, panic recovery around the callback, `wg.Go` only, context created per start
-- [ ] Session files read through `spi.ReadRecordLine`; oversized and malformed records skipped with a Warn, never failing the file; results paired by the agent's sequence index
-- [ ] Every comment says why; none reference other providers or history; magic values carry provenance; exported identifiers documented
-- [ ] `Check` lifecycle logging present; no `fmt.Print` outside detection help; `RawData` set on every session and built from the parsed records, not a second read
-- [ ] Tests table-driven where useful, no tautological tests, fixtures from real data, Windows-safe helpers used, `spi.SetDebugBaseDir` in debug tests
-- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go build ./...` and `GOOS=windows GOARCH=amd64 go vet ./...` all clean
-- [ ] Every command in the test table exercised against the real agent; resume verified in both directions; symlinked and special-character project paths tried
-- [ ] `factory/latest-version` present and tested under an isolated home with its negative case; `install` and `list-tools` present if the agent runs headless
-- [ ] Ran this repository's own review pass over your work and acted on it: `/code-review` before the pull request exists, `/pr-review <number>` once it does. Say in the pull request that you ran it and what you changed as a result; findings you decided against get a one-line reason, not silence
+- [ ] `tools.txt` from the agent itself, prefixes stripped, declaration preferred over self-report
+- [ ] Bespoke renderers and classifier cases use names from `tools.txt` and are backed by observed tool records
+- [ ] Tool audit identifies the tested environment and distinguishes declared, enabled, and exercised tools
+- [ ] Unexercised tools have documented reasons, and observed failed calls have verified error rendering
+- [ ] Tool inventory sweep test exists
+- [ ] Markdown code blocks use `spi.CodeFence` instead of hard-coded triple backticks, so backticks in the content cannot prematurely close the block
+- [ ] Text truncation uses `spi.CapRunes` instead of byte slicing such as `text[:limit]`, which can split a multibyte Unicode character and produce invalid UTF-8
+- [ ] No local copies or equivalents of the helpers available in `pkg/spi`
+- [ ] Provider `Check` reports exactly one outcome through `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure` using `analytics.CheckAttempt`, rather than calling `analytics.TrackEvent` directly, so event names and properties stay consistent across providers
+- [ ] No `os.Exit` calls
+- [ ] fsnotify events are the primary change signal, supplemented by bounded periodic reconciliation
+- [ ] Watcher does not keep accumulating open files or filesystem watches as session history grows: use a fixed set of directory watches or prune older watches (with `spi.WatchWindow*` for date-organized stores) to avoid exhausting operating-system resources during long-running watches
+  - [ ] Watcher leaves existing, unchanged sessions alone at startup
+  - [ ] Session activity during watcher initialization is eventually emitted
+  - [ ] Late-arriving directories are adopted even when their files have old modification times
+  - [ ] Initial discovery of pre-existing directories does not count as new activity
+  - [ ] Watcher shutdown drains pending updates without emitting sessions merely because it stops
+  - [ ] Watcher startup and shutdown acceptance cases each have a test
+  - [ ] Watcher context created per start
+- [ ] Session callbacks have panic recovery
+- [ ] Goroutines are tracked with `wg.Go` only
+- [ ] JSONL session files use `spi.ReadRecordLine` with `spi.MaxRecordLineSize` to cap memory allocation while reading each record and allow reading to continue after an oversized record
+  - [ ] Oversized and malformed session records skipped with a Warn, not failing to read the entire session file
+- [ ] Native ordering and branch selection preserved and tested where applicable
+- [ ] Tool results identified and paired using native semantics
+- [ ] Unfamiliar tool-result payloads rendered generically
+- [ ] Comments explain why and do not reference other providers or history
+- [ ] Magic values carry provenance
+- [ ] Exported identifiers are documented
+- [ ] `Check` lifecycle logging present
+- [ ] No `fmt.Print` outside detection help
+- [ ] `RawData` set on every session and built from the parsed records, not a second read
+- [ ] `gofmt -w .` leaves code formatted
+- [ ] `golangci-lint run` passes for the whole project
+- [ ] Good, reliable, robust automated tests
+  - [ ] Tests table-driven where useful
+  - [ ] No tautological tests
+  - [ ] Test fixtures are captured from real data
+  - [ ] Windows-safe test helpers are used
+  - [ ] Symlinked and special-character project paths are tested
+  - [ ] Debug tests call `spi.SetDebugBaseDir`
+  - [ ] `go test ./...` passes
+  - [ ] `GOOS=windows GOARCH=amd64 go build ./...` passes
+  - [ ] `GOOS=windows GOARCH=amd64 go vet ./...` passes
+- [ ] Every SpecStory command in the manual test table was exercised against the real agent and provider
+- [ ] Same agent session resumption works with a native session
+- [ ] Cross-agent session resumption was verified in both directions
+  - [ ] Cross-agent sessions reconstruction uses `spi.PrepareTurns` and preserves its text and order
+  - [ ] Thinking and tool activity are reconstructed as ordinary agent text
+  - [ ] Required native reconstruction structure and lifecycle markers verified
+  - [ ] Unavailable reconstruction metadata omitted or neutral, with test evidence for any required realistic placeholders
+  - [ ] Reconstructed files contain no account or authentication metadata
+  - [ ] Additional provider-specific reconstruction limits documented
+- [ ] `factory/latest-version` present and tested under an isolated home with its negative case
+- [ ] `factory/install` and `factory/list-tools` present if the agent runs headless
+- [ ] Repository review pass completed and findings triaged: `/code-review` before the pull request exists, or `/pr-review <number>` once it does
+- [ ] Pull request states that the review pass was run and explains the informed decisions about which findings to act on

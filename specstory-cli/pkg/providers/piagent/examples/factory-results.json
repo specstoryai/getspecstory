@@ -1,0 +1,66 @@
+[
+  {
+    "name": "latest",
+    "exit": 0,
+    "pass": true
+  },
+  {
+    "name": "install",
+    "exit": 0,
+    "pass": true
+  },
+  {
+    "name": "inventory-0",
+    "exit": 0,
+    "pass": true
+  },
+  {
+    "name": "inventory-1",
+    "exit": 0,
+    "pass": true
+  },
+  {
+    "name": "inventories-match",
+    "pass": true
+  },
+  {
+    "name": "unreachable",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "bogus-version",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "missing-output",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "partial-failure",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "blank",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "duplicate",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "invalid",
+    "exit": 1,
+    "pass": true
+  },
+  {
+    "name": "empty-version",
+    "exit": 1,
+    "pass": true
+  }
+]

@@ -1,7 +1,11 @@
 package spi
 
 import (
+	"io/fs"
+	"log/slog"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -83,5 +87,39 @@ func DateDirWithinWatchWindow(path string, sessionsRoot string, maxDepth int, cu
 			return false
 		}
 		return !date.Before(cutoff)
+	}
+}
+
+// SessionFileChanges records a startup baseline and returns a final-sweep
+// function. Providers call it before launching a child and invoke the result
+// after joining their watcher, to catch last writes even before fsnotify has
+// delivered them. The glob describes only the provider's durable session files.
+func SessionFileChanges(root, pattern string) func() []string {
+	snapshot := func() map[string]os.FileInfo {
+		files := make(map[string]os.FileInfo)
+		paths, err := fs.Glob(os.DirFS(root), pattern)
+		if err != nil {
+			slog.Error("Invalid session file pattern", "pattern", pattern, "error", err)
+			return files
+		}
+		for _, relative := range paths {
+			path := filepath.Join(root, filepath.FromSlash(relative))
+			if info, err := os.Stat(path); err == nil && !info.IsDir() {
+				files[path] = info
+			}
+		}
+		return files
+	}
+	before := snapshot()
+	return func() []string {
+		var changed []string
+		for path, info := range snapshot() {
+			old := before[path]
+			if old == nil || old.Size() != info.Size() || !old.ModTime().Equal(info.ModTime()) {
+				changed = append(changed, path)
+			}
+		}
+		slices.Sort(changed)
+		return changed
 	}
 }

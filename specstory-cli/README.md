@@ -6,7 +6,7 @@
 
 ## SpecStory CLI
 
-SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, Qwen Code) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
+SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, Qwen Code, Pi) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 
 It saves your AI coding conversations as local markdown files of each session. It can optionally sync your markdown files to the [SpecStory Cloud](https://cloud.specstory.com), turning your AI chat history into a centralized knowledge system that you can chat with and search.
 
@@ -70,6 +70,14 @@ specstory help <command>
 # e.g.
 specstory help run
 ```
+
+Check agent availability:
+
+```zsh
+specstory check
+```
+
+Missing optional agents (or IDE session storage) are shown as informational and skipped. Permission problems and failed version or storage checks are shown as errors. Use `specstory check <provider>` for details, or add `-c "/path/to/agent"` to check a custom command. A missing custom command is treated as an error. Exit codes are unchanged: a single-provider check fails if that provider is unavailable; a multi-provider check fails if none are available. Invalid configuration also fails the check.
 
 Interactive auto-save mode:
 

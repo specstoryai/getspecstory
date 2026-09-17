@@ -336,5 +336,5 @@ func emitConversation(file conversationFile, projectPath string, debugRaw bool,
 		return
 	}
 	state.lastProcessed[file.Path] = file.ModTime
-	spi.DispatchSession("antigravity", sessionCallback, chat)
+	spi.DeliverSession("antigravity", sessionCallback, chat)
 }

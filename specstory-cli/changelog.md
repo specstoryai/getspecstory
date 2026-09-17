@@ -1,5 +1,23 @@
 # Specstory CLI Changelog
 
+## v2.13.0 2026-09-17
+
+### ⚙️ Improvements
+
+- `specstory check` now treats missing optional agents as informational instead of showing a failed check for each agent you haven't installed. Permission problems, broken installations, and unreadable IDE storage still appear as errors, as does a missing custom command supplied with `-c`. Exit codes are unchanged.
+- Pi transcripts now include edit diffs, read ranges, search options, and clearer PowerShell tool output. Narration and tool calls retain their original order, and unfamiliar tool fields are preserved instead of silently omitted.
+- `specstory skills` now recognizes Pi as an installation target, using `.pi/skills` for project skills and `~/.pi/agent/skills` for global skills.
+- Claude Code live session saving (`specstory run` or `specstory watch`) now defers file writes (transcript, statistics, and debug writes) while a Bash or PowerShell tool call is in progress, reducing cases where Claude Code 2.1.269+ diff sweep incorrectly shows SpecStory's files as edits made by those commands. Deferred updates are flushed on shutdown. `specstory sync` and final exports after Claude exits still write immediately, and a five-minute fallback prioritizes saving SpecStory history in case of a hung tool call, so very long commands that eventually do finish may still show these edits as originating with the tool.
+
+### 🐛 Bug Fixes
+
+- Improved saving when a coding agent exits: pending session updates finish in order, and final writes are picked up before `specstory run` returns. This fixes shutdown paths that could lose the last update or let an older save overwrite a newer one, including when an agent exits with an error. The agent's exit status is preserved.
+- Selecting a session to resume now overrides conflicting resume flags in custom commands for Claude Code, Cursor CLI, Droid, Gemini, Antigravity, and DeepSeek TUI. Previously a configured session ID could take precedence over the session you selected.
+- Cursor CLI live saving now picks up changes to existing sessions resumed outside SpecStory, rather than ignoring sessions that were already present when watching started. Reading a newly created session before its first message has been written no longer causes a crash.
+- Pi sessions are now found consistently when you access a project through a symlink or use different path capitalization on a case-insensitive filesystem. Watching and resuming use the same canonical project location.
+- Codex custom-tool inputs are no longer cut off after 200 characters in saved markdown. Remaining cases where embedded code fences could break transcript formatting are also fixed for Claude Code, Droid, and DeepSeek TUI tool output.
+- Sessions transferred into DeepSeek TUI with `specstory resume` are now discoverable by project. Previously their generated file layout could hide the workspace information from session discovery, leaving them out of subsequent listings and syncs.
+
 ## v2.12.0 2026-09-16
 
 ### 📢 Announcements

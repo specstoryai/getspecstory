@@ -3,6 +3,8 @@ package piagent
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -40,13 +42,15 @@ const (
 // summary as a top-level field (no message wrapper), and session_info entries
 // carry the user-visible session name the same way.
 type rawEntry struct {
-	Type      string          `json:"type"`
-	ID        string          `json:"id"`
-	ParentID  *string         `json:"parentId"` // null for the first entry
-	Timestamp string          `json:"timestamp"`
-	Summary   string          `json:"summary,omitempty"` // compaction entries only
-	Name      string          `json:"name,omitempty"`    // session_info entries only
-	Message   json.RawMessage `json:"message,omitempty"`
+	Type       string          `json:"type"`
+	ID         string          `json:"id"`
+	ParentID   *string         `json:"parentId"` // null for the first entry
+	Timestamp  string          `json:"timestamp"`
+	Summary    string          `json:"summary,omitempty"` // compaction entries only
+	Name       string          `json:"name,omitempty"`    // session_info entries only
+	Message    json.RawMessage `json:"message,omitempty"`
+	sourcePath string
+	lineNumber int
 }
 
 // sessionHeader is the first line of a pi session file (no id/parentId).
@@ -73,6 +77,16 @@ type userMessage struct {
 	Role      string          `json:"role"`
 	Content   json.RawMessage `json:"content"`
 	Timestamp int64           `json:"timestamp"`
+}
+
+// bashExecutionMessage records a command run by the user, independently of
+// assistant tool calls. A missing exit code must not be reported as success.
+type bashExecutionMessage struct {
+	Command   string `json:"command"`
+	Output    string `json:"output"`
+	ExitCode  *int   `json:"exitCode"`
+	Cancelled bool   `json:"cancelled"`
+	Truncated bool   `json:"truncated"`
 }
 
 // assistantMessage is a pi assistant-role message.
@@ -113,10 +127,15 @@ type toolResultMessage struct {
 // not the transcript, so pre-compaction history is preserved and the
 // compaction summary is rendered as a marker message.
 func ParseSession(path string) (*schema.SessionData, error) {
-	header, entries, err := readEntries(path)
+	snapshot, err := readEntries(path)
 	if err != nil {
 		return nil, err
 	}
+	return snapshot.sessionData(path, "")
+}
+
+func (snapshot *sessionSnapshot) sessionData(path, projectPath string) (*schema.SessionData, error) {
+	header, entries := snapshot.header, snapshot.entries
 	if header == nil {
 		return nil, fmt.Errorf("pi: no session header in %s", path)
 	}
@@ -130,40 +149,47 @@ func ParseSession(path string) (*schema.SessionData, error) {
 		return nil, fmt.Errorf("pi: session %s has no entries", header.ID)
 	}
 	ordered := leafPathEntries(entries)
-	return buildSessionData(header, ordered), nil
-}
-
-// piProviderVersion derives the provider version string recorded on SessionData
-// from the pi session header's format version (e.g. v3). Always non-empty so
-// schema.Validate() does not warn about a missing provider.version.
-func piProviderVersion(header *sessionHeader) string {
-	if header.Version > 0 {
-		return fmt.Sprintf("v%d", header.Version)
+	// A missing native cwd only affects normalized rendering. Discovery must
+	// continue using the original header so this fallback never invents an origin.
+	workspaceRoot := header.Cwd
+	if workspaceRoot == "" {
+		workspaceRoot = projectPath
 	}
-	return "v1"
+	if workspaceRoot == "" {
+		var err error
+		workspaceRoot, err = os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("pi: resolving workspace fallback: %w", err)
+		}
+		workspaceRoot, err = spi.GetCanonicalPath(workspaceRoot)
+		if err != nil {
+			return nil, fmt.Errorf("pi: canonicalizing workspace fallback: %w", err)
+		}
+	}
+	return buildSessionData(header, ordered, workspaceRoot), nil
 }
 
 // buildSessionData maps the ordered leaf-path entries into schema.SessionData.
-func buildSessionData(header *sessionHeader, ordered []rawEntry) *schema.SessionData {
+func buildSessionData(header *sessionHeader, ordered []rawEntry, workspaceRoot string) *schema.SessionData {
 	exchanges := buildExchanges(ordered)
-	enrichToolMessages(exchanges, header.Cwd)
+	enrichToolMessages(exchanges, workspaceRoot)
 	return &schema.SessionData{
-		SchemaVersion: "1.0",
+		SchemaVersion: schema.CurrentSchemaVersion,
 		Provider: schema.ProviderInfo{
 			ID:      providerID,
 			Name:    providerName,
-			Version: piProviderVersion(header),
+			Version: "unknown", // Pi records its session format version, not its application release.
 		},
 		SessionID:     header.ID,
 		CreatedAt:     header.Timestamp,
-		WorkspaceRoot: header.Cwd,
+		WorkspaceRoot: workspaceRoot,
 		Exchanges:     exchanges,
 	}
 }
 
 // enrichToolMessages populates PathHints and Summary/FormattedMarkdown on tool
-// messages after tool results are merged, matching the sibling providers: path
-// hints feed provenance extraction, and the formatted markdown lifts tool
+// messages after tool results are merged. Path hints feed provenance extraction,
+// and the formatted markdown lifts tool
 // rendering out of the generic key/value fallback.
 func enrichToolMessages(exchanges []schema.Exchange, workspaceRoot string) {
 	for i := range exchanges {
@@ -172,7 +198,7 @@ func enrichToolMessages(exchanges []schema.Exchange, workspaceRoot string) {
 			if msg.Tool == nil {
 				continue
 			}
-			msg.PathHints = extractPathHints(msg.Tool.Input, workspaceRoot)
+			msg.PathHints = extractPathHints(msg.Tool.Name, msg.Tool.Input, workspaceRoot)
 			summary, markdown := formatToolMarkdown(msg.Tool)
 			if summary != "" {
 				msg.Tool.Summary = &summary
@@ -184,117 +210,21 @@ func enrichToolMessages(exchanges []schema.Exchange, workspaceRoot string) {
 	}
 }
 
-// extractPathHints collects file paths from a pi tool call's arguments (pi
-// tools use "path"; the extra keys cover extension tools) plus paths mentioned
-// in shell commands, normalized and deduped like the sibling providers.
-func extractPathHints(input map[string]any, workspaceRoot string) []string {
-	if input == nil {
-		return nil
-	}
-	var hints []string
-	add := func(p string) {
-		if p == "" {
-			return
+// extractPathHints uses only the argument shapes declared by Pi's built-ins.
+// Extension tools remain generic until their path semantics are known.
+func extractPathHints(name string, input map[string]any, workspaceRoot string) []string {
+	switch strings.ToLower(name) {
+	case "read", "write", "edit", "grep", "find", "ls":
+		if path, ok := input["path"].(string); ok && path != "" {
+			return []string{spi.NormalizePath(path, workspaceRoot)}
 		}
-		n := spi.NormalizePath(p, workspaceRoot)
-		for _, h := range hints {
-			if h == n {
-				return
-			}
-		}
-		hints = append(hints, n)
-	}
-	for _, field := range []string{"path", "file_path", "filePath", "dir", "directory", "target"} {
-		switch v := input[field].(type) {
-		case string:
-			add(v)
-		case []any:
-			for _, item := range v {
-				if s, ok := item.(string); ok {
-					add(s)
-				}
-			}
-		}
-	}
-	if command, _ := input["command"].(string); command != "" {
-		for _, sp := range spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot) {
-			add(sp)
-		}
-	}
-	return hints
-}
-
-// formatToolMarkdown builds the pre-formatted markdown (and optional summary)
-// for the pi tools with a natural rendering: single-line bash commands become
-// an inline-code summary, multi-line commands and file writes become fenced
-// blocks, file tools show their path. Tools without a specific format return
-// empty so the CLI's generic fallback (which renders input and output) is
-// used instead. When a specific format is produced, the tool output is
-// appended so the markdown stays self-contained.
-func formatToolMarkdown(tool *schema.ToolInfo) (string, string) {
-	var summary string
-	var b strings.Builder
-	in := tool.Input
-	switch strings.ToLower(tool.Name) {
 	case "bash":
-		cmd, _ := in["command"].(string)
-		if cmd == "" {
-			return "", ""
+		// The shared extractor understands shell syntax, not PowerShell syntax.
+		if command, ok := input["command"].(string); ok {
+			return spi.ExtractShellPathHints(command, workspaceRoot, workspaceRoot)
 		}
-		if strings.Contains(cmd, "\n") {
-			fmt.Fprintf(&b, "```bash\n%s\n```", strings.ReplaceAll(cmd, "```", "\\```"))
-		} else {
-			summary = fmt.Sprintf("Tool use: **%s** `%s`", tool.Name, cmd)
-		}
-	case "read", "edit", "ls":
-		p, _ := in["path"].(string)
-		if p == "" {
-			return "", ""
-		}
-		fmt.Fprintf(&b, "`%s`", p)
-	case "write":
-		p, _ := in["path"].(string)
-		if p == "" {
-			return "", ""
-		}
-		fmt.Fprintf(&b, "`%s`\n", p)
-		if content, _ := in["content"].(string); content != "" {
-			fmt.Fprintf(&b, "\n```\n%s\n```", strings.ReplaceAll(content, "```", "\\```"))
-		}
-	case "grep", "find":
-		pattern, _ := in["pattern"].(string)
-		if pattern == "" {
-			return "", ""
-		}
-		fmt.Fprintf(&b, "`%s`", pattern)
-	default:
-		return "", ""
 	}
-	appendToolOutput(&b, tool)
-	return summary, strings.TrimSpace(b.String())
-}
-
-// appendToolOutput appends the merged toolResult content as a fenced block
-// (truncated like codexcli) so formatted tools still show their result.
-func appendToolOutput(b *strings.Builder, tool *schema.ToolInfo) {
-	if tool.Output == nil {
-		return
-	}
-	content, _ := tool.Output["content"].(string)
-	content = strings.TrimSpace(content)
-	if content == "" {
-		return
-	}
-	if len(content) > 5000 {
-		content = content[:5000] + "\n... (truncated)"
-	}
-	if b.Len() > 0 {
-		b.WriteString("\n\n")
-	}
-	if isErr, _ := tool.Output["is_error"].(bool); isErr {
-		b.WriteString("Error:\n")
-	}
-	b.WriteString("```\n" + content + "\n```")
+	return nil
 }
 
 // buildExchanges groups ordered entries into schema exchanges. A new user
@@ -320,13 +250,22 @@ func buildExchanges(ordered []rawEntry) []schema.Exchange {
 			continue
 		}
 		switch messageRole(e) {
-		case roleUser:
+		case roleUser, roleBashExecution:
+			var msg *schema.Message
+			if messageRole(e) == roleBashExecution {
+				msg = buildBashExecutionMessage(e)
+			} else {
+				msg = buildUserMessage(e)
+			}
+			if msg == nil {
+				continue
+			}
 			commit()
 			current = &schema.Exchange{
 				ExchangeID: e.ID,
 				StartTime:  e.Timestamp,
 				EndTime:    e.Timestamp,
-				Messages:   []schema.Message{buildUserMessage(e)},
+				Messages:   []schema.Message{*msg},
 			}
 		case roleAssistant:
 			current = appendAssistant(current, e)
@@ -392,6 +331,7 @@ func mergeToolResult(current *schema.Exchange, e rawEntry) {
 	}
 	var tr toolResultMessage
 	if err := json.Unmarshal(e.Message, &tr); err != nil {
+		slog.Warn("pi: skipping corrupted tool result", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
 		return
 	}
 	content := toolResultContent(tr)
@@ -419,11 +359,18 @@ func toolResultContent(tr toolResultMessage) string {
 
 // buildUserMessage maps a pi user message entry to a schema user Message.
 // pi user content is either a plain string or an array of {type:text|image}.
-func buildUserMessage(e rawEntry) schema.Message {
+func buildUserMessage(e rawEntry) *schema.Message {
 	var um userMessage
-	_ = json.Unmarshal(e.Message, &um)
-	parts := userContentParts(um.Content)
-	return schema.Message{
+	if err := json.Unmarshal(e.Message, &um); err != nil {
+		slog.Warn("pi: skipping corrupted user message", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+		return nil
+	}
+	parts, err := userContentParts(um.Content)
+	if err != nil {
+		slog.Warn("pi: skipping corrupted user content", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+		return nil
+	}
+	return &schema.Message{
 		ID:        e.ID,
 		Timestamp: e.Timestamp,
 		Role:      schema.RoleUser,
@@ -431,21 +378,62 @@ func buildUserMessage(e rawEntry) schema.Message {
 	}
 }
 
+// buildBashExecutionMessage keeps user-run commands and their results together
+// as user activity. Native context exclusion does not remove archival content
+// or prevent this text from being carried into a reconstructed conversation.
+func buildBashExecutionMessage(e rawEntry) *schema.Message {
+	var execution bashExecutionMessage
+	if err := json.Unmarshal(e.Message, &execution); err != nil {
+		slog.Warn("pi: skipping corrupted shell execution", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
+		return nil
+	}
+	var result []string
+	if execution.Output != "" {
+		// Match the rendered output cap used for shell tools; RawData retains
+		// the original accepted record, including any omitted output.
+		output := spi.CapRunes(sanitizeShellOutput(execution.Output), 5000)
+		result = append(result, "Output:\n\n"+spi.CodeFence("text", output))
+	}
+	if execution.ExitCode != nil {
+		result = append(result, fmt.Sprintf("Exit code: %d", *execution.ExitCode))
+	}
+	if execution.Cancelled {
+		result = append(result, "Cancelled.")
+	}
+	if execution.Truncated {
+		result = append(result, "[Output truncated by Pi]")
+	}
+	parts := []schema.ContentPart{{Type: schema.ContentTypeText, Text: bashExecutionCommandText(execution.Command)}}
+	if len(result) > 0 {
+		parts = append(parts, schema.ContentPart{Type: schema.ContentTypeText, Text: strings.Join(result, "\n\n")})
+	}
+	return &schema.Message{
+		ID: e.ID, Timestamp: e.Timestamp, Role: schema.RoleUser, Content: parts,
+	}
+}
+
+// bashExecutionCommandText labels historical shell activity so it cannot be
+// mistaken for a new instruction. The scan path shares it to keep slugs aligned
+// without retaining command output.
+func bashExecutionCommandText(command string) string {
+	return "User ran a shell command:\n\n" + spi.CodeFence("bash", command)
+}
+
 // userContentParts decodes a pi user message's content (string or array) into
 // schema ContentParts. Image blocks are dropped in v1 (recorded as a gap).
-func userContentParts(raw json.RawMessage) []schema.ContentPart {
+func userContentParts(raw json.RawMessage) ([]schema.ContentPart, error) {
 	if len(raw) == 0 {
-		return nil
+		return nil, nil
 	}
 	if raw[0] == '"' {
 		var s string
 		if err := json.Unmarshal(raw, &s); err == nil {
-			return []schema.ContentPart{{Type: schema.ContentTypeText, Text: s}}
+			return []schema.ContentPart{{Type: schema.ContentTypeText, Text: s}}, nil
 		}
 	}
 	var blocks []contentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return nil
+		return nil, err
 	}
 	var parts []schema.ContentPart
 	for _, b := range blocks {
@@ -453,20 +441,36 @@ func userContentParts(raw json.RawMessage) []schema.ContentPart {
 			parts = append(parts, schema.ContentPart{Type: schema.ContentTypeText, Text: b.Text})
 		}
 	}
-	return parts
+	return parts, nil
 }
 
-// buildAgentMessages maps a pi assistant message entry to one or more schema
-// Messages: one Message holds the text+thinking content parts; each toolCall
-// block becomes its own agent Message carrying a ToolInfo.
+// buildAgentMessages flushes narration at each tool call so native block order
+// survives normalization. Usage belongs to the native entry, hence only the
+// first emitted message receives it.
 func buildAgentMessages(e rawEntry) []schema.Message {
 	var am assistantMessage
 	if err := json.Unmarshal(e.Message, &am); err != nil {
+		slog.Warn("pi: skipping corrupted assistant message", "file", e.sourcePath, "lineNumber", e.lineNumber, "error", err)
 		return nil
 	}
 	var parts []schema.ContentPart
 	var messages []schema.Message
-	for _, b := range am.Content {
+	segmentStart := 0
+	flush := func() {
+		if len(parts) == 0 {
+			return
+		}
+		id := e.ID
+		if segmentStart > 0 {
+			id = fmt.Sprintf("%s:content:%d", e.ID, segmentStart)
+		}
+		messages = append(messages, schema.Message{ID: id, Timestamp: e.Timestamp, Role: schema.RoleAgent, Model: am.Model, Content: parts})
+		parts = nil
+	}
+	for i, b := range am.Content {
+		if len(parts) == 0 {
+			segmentStart = i
+		}
 		switch b.Type {
 		case schema.ContentTypeText:
 			if b.Text != "" {
@@ -477,30 +481,21 @@ func buildAgentMessages(e rawEntry) []schema.Message {
 				parts = append(parts, schema.ContentPart{Type: schema.ContentTypeThinking, Text: b.Thinking})
 			}
 		case "toolCall":
-			messages = append(messages, buildToolMessage(e, b, am))
+			flush()
+			msg := buildToolMessage(e, b, am)
+			if b.ID == "" {
+				msg.ID = fmt.Sprintf("%s:tool:%d", e.ID, i)
+			}
+			messages = append(messages, msg)
+		default:
+			slog.Warn("pi: unknown assistant content kind", "file", e.sourcePath, "lineNumber", e.lineNumber, "kind", b.Type)
 		}
 	}
-	if len(parts) > 0 {
-		head := schema.Message{
-			ID:        e.ID,
-			Timestamp: e.Timestamp,
-			Role:      schema.RoleAgent,
-			Model:     am.Model,
-			Content:   parts,
-			Usage:     mapUsage(am.Usage),
-		}
-		return append([]schema.Message{head}, messages...)
-	}
+	flush()
 	if len(messages) == 0 {
 		return buildErrorMessage(e, am)
 	}
-	// Tool-call-only assistant message: carry model+usage once on the first
-	// tool message so no metadata is lost and no schema-invalid empty message
-	// is emitted.
-	messages[0].Model = am.Model
-	if messages[0].Usage == nil {
-		messages[0].Usage = mapUsage(am.Usage)
-	}
+	messages[0].Usage = mapUsage(am.Usage)
 	return messages
 }
 
@@ -551,9 +546,8 @@ func buildToolOutput(content string, tr toolResultMessage) map[string]any {
 }
 
 // mapUsage converts a pi usage object to the schema Usage. pi's input/output map
-// to InputTokens/OutputTokens; cacheRead/cacheWrite map to the Claude-style
-// cache fields (pi uses the same semantics); reasoning maps to the same field
-// codexcli uses so telemetry aggregates pi thinking tokens like other providers.
+// to InputTokens/OutputTokens; cache reads/writes and reasoning retain their
+// distinct native meanings for token accounting.
 func mapUsage(u *piUsage) *schema.Usage {
 	if u == nil {
 		return nil
@@ -607,25 +601,21 @@ func deriveSlug(data *schema.SessionData) string {
 // classifyToolType maps pi tool names to the schema tool-type taxonomy.
 func classifyToolType(name string) string {
 	switch strings.ToLower(name) {
-	case "read":
+	case "read", "ls":
 		return schema.ToolTypeRead
 	case "edit", "write":
 		return schema.ToolTypeWrite
-	case "bash", "ls":
+	case "bash", "powershell":
 		return schema.ToolTypeShell
-	case "grep", "find", "web_search", "fetch_content":
+	case "grep", "find":
 		return schema.ToolTypeSearch
-	case "until_done_set", "until_done_plan", "until_done_task_update",
-		"until_done_progress", "until_done_complete", "until_done_block",
-		"until_done_replan", "until_done_distill":
-		return schema.ToolTypeTask
 	default:
 		return schema.ToolTypeUnknown
 	}
 }
 
-// firstUserText extracts the first user message text from a message entry, if
-// its role is "user". Returns "" for non-user messages or empty content.
+// firstUserText extracts user text or a labeled user-run shell command for
+// metadata scanning. Shell output is not needed to derive the session title.
 func firstUserText(e rawEntry) string {
 	var m struct {
 		Role    string          `json:"role"`
@@ -633,6 +623,14 @@ func firstUserText(e rawEntry) string {
 	}
 	if err := json.Unmarshal(e.Message, &m); err != nil {
 		return ""
+	}
+	if m.Role == roleBashExecution {
+		// Match full parsing so rejected shell records cannot supply a title.
+		var execution bashExecutionMessage
+		if err := json.Unmarshal(e.Message, &execution); err != nil {
+			return ""
+		}
+		return bashExecutionCommandText(execution.Command)
 	}
 	if m.Role != roleUser {
 		return ""
