@@ -177,7 +177,7 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 - `analytics.CheckAttempt` populated once per `Check`, with the event emitted by `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`. No inline `analytics.TrackEvent` calls in a provider.
 - `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand, or `spi.EnsureResumeFlagArgs` when it uses a flag.
 - `spi.AgentExitError` to report a non-zero agent exit. Never call `os.Exit` inside a provider; it skips the final session save (the reason is in `pkg/spi/exit.go`).
-- `spi.GetDebugDir` for debug output paths. Write only provider-specific raw files there; the CLI writes `session-data.json` itself.
+- `spi.GetDebugDir` for debug output paths. See [Native debug output](#native-debug-output) for the provider's export responsibilities; the CLI writes `session-data.json` itself.
 - `spi.NormalizePath` and `spi.ExtractShellPathHints` for path hints; `spi.CanonicalizePathOrClean` for local path comparison; `spi.FileURIToPath` for any `file://` URI.
 - `spi.GenerateFilenameFromUserMessage`, `spi.GenerateReadableName`, and `spi.ReadableTitleFromSessionData` for slugs, names, and titles. If the agent records its own title or summary for a session, prefer it for `Name` and fall back to the shared generator.
 - `spi.PrepareTurns`, `spi.ResolveWorkspaceRoot`, `spi.ReconstructRole`, `spi.RFC3339Millis`, `spi.ResumedSessionTitle` in `ReconstructSession`.
@@ -219,6 +219,16 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 - The parser's kind switch enumerates every record kind observed in real data, rendering it or naming it as known-nothing-to-render with the reason, so the default "unknown kind" log fires only for genuinely new kinds.
 - Preserve unsupported native content in `RawData` when its record is accepted, and document what is omitted from normalized data and Markdown in `<AGENT>-FORMAT.md`. Preserve meaningful conversation text where the shared schema can represent it faithfully. Reserve "known-nothing-to-render" for records with no conversational content to display; an unfamiliar role or missing tool-call pairing is not sufficient reason to discard meaningful content.
 - Scan and watch only the durable session file; never read a scratch file the agent rewrites in place.
+
+### Native debug output
+
+`--debug-raw` helps provider authors, reviewers, and future maintainers inspect what the agent actually stored, compare it with SpecStory's interpretation, and diagnose missing content or format changes. The provider saves readable native input alongside the normalized `session-data.json` written by the CLI. Populating `AgentChatSession.RawData` does not create these native debug files; exporting them is a separate provider responsibility.
+
+- Honor `debugRaw` in single-session and bulk reads, live `run`/`watch` updates, and optional by-path reads. Write under `spi.GetDebugDir(sessionID)`, which defaults to `.specstory/debug/<session-id>/` and respects `--debug-dir`. When the flag is false, this export creates no files.
+- For JSONL, write one pretty-printed file per accepted native record, numbered from `1.json`, `2.json`, etc. in sequenced source order. For JSON or database stores, write pretty-printed session objects or individual records with native identifiers. Preserve native fields and envelopes, including unfamiliar fields, relevant headers, and sidecar data used during conversion. Keep source identity and ordering clear enough to trace an output back to its input.
+- Generate the export from the same input snapshot used for conversion. Do not reread a changing transcript or substitute a reduced typed structure that drops unknown fields or records omitted from Markdown. Those details may be exactly what a maintainer needs to understand a format change. Malformed or oversized records may be skipped under the parsing rules above, with the required diagnostic.
+- Refresh the export when the session changes, removing obsolete provider-owned files so earlier records cannot masquerade as current data. Preserve CLI-owned files such as `session-data.json`. Log export failures with the session and path, without aborting session processing.
+- Test that a field the provider does not recognize still appears in the saved native JSON, and that `--debug-dir` puts the files in the requested directory. For numbered files, export a session with three records, then export the same session with only two: the old `3.json` must be removed. Check that live updates produce current debug files, and that not using the debug flag creates none. Keep test output isolated with `spi.SetDebugBaseDir(t.TempDir())` and reset the override during cleanup.
 
 ### The watcher
 
@@ -444,6 +454,7 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - [ ] `Check` lifecycle logging present
 - [ ] No `fmt.Print` outside detection help
 - [ ] `RawData` set on every session and built from the parsed records, not a second read
+- [ ] [Native debug output](#native-debug-output) preserves readable native input, honors the flag and debug directory across read and live paths, and refreshes without stale records or deleting CLI-owned files
 - [ ] `gofmt -w .` leaves code formatted
 - [ ] `golangci-lint run` passes for the whole project
 - [ ] Good, reliable, robust automated tests
