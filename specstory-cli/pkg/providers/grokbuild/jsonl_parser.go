@@ -533,7 +533,9 @@ func buildSessionIndex(dir string) *sessionIndex {
 				idx.toolError[event.ToolCallID] = true
 			}
 			if _, seen := idx.toolTime[event.ToolCallID]; !seen && event.TS != "" {
-				idx.toolTime[event.ToolCallID] = normalizeTime(event.TS)
+				if stamp := normalizeTime(event.TS); stamp != "" {
+					idx.toolTime[event.ToolCallID] = stamp
+				}
 			}
 		}
 	})
@@ -738,7 +740,8 @@ func isoFromMillis(millis, seconds int64) string {
 }
 
 // normalizeTime rewrites Grok's microsecond timestamps into the millisecond
-// ISO 8601 form the schema uses. Unparseable values pass through untouched.
+// ISO 8601 form the schema uses. Invalid values are absent so callers can use
+// their documented fallback rather than emitting invalid normalized data.
 func normalizeTime(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -746,7 +749,7 @@ func normalizeTime(value string) string {
 	}
 	parsed, err := time.Parse(time.RFC3339Nano, value)
 	if err != nil {
-		return value
+		return ""
 	}
 	return parsed.UTC().Format("2006-01-02T15:04:05.000Z")
 }

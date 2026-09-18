@@ -389,3 +389,15 @@ func TestUnfamiliarToolResultsRemainReadable(t *testing.T) {
 		}
 	}
 }
+
+func TestMalformedEventTimeDoesNotHideLaterValidTime(t *testing.T) {
+	dir := t.TempDir()
+	records := `{"type":"tool_completed","tool_call_id":"one","ts":"invalid"}` + "\n" + `{"type":"tool_completed","tool_call_id":"one","ts":"2026-09-17T10:11:12.123456Z"}` + "\n"
+	if err := os.WriteFile(filepath.Join(dir, eventsFile), []byte(records), 0600); err != nil {
+		t.Fatal(err)
+	}
+	index := buildSessionIndex(dir)
+	if got := index.toolTime["one"]; got != "2026-09-17T10:11:12.123Z" {
+		t.Fatalf("valid later event time lost: %q", got)
+	}
+}

@@ -618,3 +618,51 @@ func TestUnindexedPromptSkipsSyntheticIndexedUpdates(t *testing.T) {
 		t.Fatalf("unindexed real prompt time %q, want %q", got, want)
 	}
 }
+
+func TestMalformedSummaryTimesUseTranscriptTime(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
+	path := filepath.Join(dir, summaryFile)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var summary map[string]any
+	if err := json.Unmarshal(raw, &summary); err != nil {
+		t.Fatal(err)
+	}
+	summary["created_at"] = "not-a-timestamp"
+	summary["updated_at"] = "2026-99-99T99:99:99Z"
+	raw, err = json.Marshal(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(filepath.Join(dir, chatHistoryFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := info.ModTime().UTC().Format("2006-01-02T15:04:05.000Z")
+	for _, metadata := range []bool{false, true} {
+		session, err := parseSessionDir(dir, metadata)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if session.CreatedAt != want || session.UpdatedAt != want {
+			t.Fatalf("metadata=%v times %q/%q, want %q", metadata, session.CreatedAt, session.UpdatedAt, want)
+		}
+		if string(session.RawSummary) != string(raw) {
+			t.Fatal("native malformed timestamps lost from raw summary")
+		}
+		data, err := GenerateAgentSession(session, project)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !data.Validate() {
+			t.Fatal("invalid normalized session after timestamp fallback")
+		}
+	}
+}
