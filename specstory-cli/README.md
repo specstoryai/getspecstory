@@ -24,7 +24,7 @@ It saves your AI coding conversations as local markdown files of each session. I
 
 The following coding agents are supported in the SpecStory CLI:
 
-|                             Agent                              |                    Provider                     | Data Format |         Source Location         |
+| Agent                                                          | Provider                                        | Data Format | Source Location                 |
 | -------------------------------------------------------------- | ----------------------------------------------- | ----------- | ------------------------------- |
 | [Claude Code](https://www.claude.com/product/claude-code)      | [claudecode](pkg/providers/claudecode/)         | JSONL       | `~/.claude/projects/`           |
 | [Codex CLI](https://www.openai.com/codex/cli/)                 | [codexcli](pkg/providers/codexcli/)             | JSONL       | `~/.codex/sessions/`            |
@@ -38,7 +38,7 @@ The following coding agents are supported in the SpecStory CLI:
 | [Muse Code](https://developer.meta.com/ai/products/muse-code/) | [musecode](pkg/providers/musecode/)             | JSONL       | `~/.local/share/muse/sessions/` |
 | [Pi](https://pi.dev)                                           | [piagent](pkg/providers/piagent/)               | JSONL       | `~/.pi/agent/sessions/`         |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)               | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`             |
-| [Grok Build](https://x.ai/cli)                            | [grokbuild](pkg/providers/grokbuild/)           | JSONL       | `~/.grok/sessions/`          |
+| [Grok Build](https://x.ai/cli)                                 | [grokbuild](pkg/providers/grokbuild/)           | JSONL       | `~/.grok/sessions/`             |
 
 ### Notes on IDEs
 
@@ -355,7 +355,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 
 ### Configuration Options
 
-|      Section      |               Option               |       Default        |                             Description                             |
+| Section           | Option                             | Default              | Description                                                         |
 | ----------------- | ---------------------------------- | -------------------- | ------------------------------------------------------------------- |
 | `[local_sync]`    | `enabled`                          | `true`               | Write local markdown files                                          |
 | `[local_sync]`    | `output_dir`                       | `.specstory/history` | Custom output directory for markdown files                          |
@@ -387,7 +387,7 @@ specstory sync --config-dir ~/specstory-configs/myproject
 | `[providers]`     | `muse_cmd`                         | `"muse"`             | Muse Code command                                                   |
 | `[providers]`     | `pi_cmd`                           | `"pi"`               | Pi command                                                          |
 | `[providers]`     | `qwen_cmd`                         | `"qwen"`             | Qwen Code command                                                   |
-| `[providers]`     | `grok_cmd`        | `"grok"`             | Grok Build command                         |
+| `[providers]`     | `grok_cmd`                         | `"grok"`             | Grok Build command                                                  |
 | `[resume]`†       | `view_mode`                        | `"dense"`            | Picker layout: `dense` (more sessions) or `sparse` (more detail)    |
 | `[resume]`†       | `last_agent`                       | none                 | Provider id of the agent you last resumed into — the default target |
 | `[skills]`†       | `view_mode`                        | `"dense"`            | Skills browser layout: `dense` or `sparse`                          |
