@@ -1,0 +1,16 @@
+{
+  "info": {
+    "id": "11111111-2222-7333-8444-555555555555",
+    "cwd": "/Users/dev/project"
+  },
+  "session_summary": "Read the README",
+  "generated_title": "Read the README",
+  "created_at": "2026-08-12T19:08:38.667534Z",
+  "updated_at": "2026-08-12T19:12:00.000000Z",
+  "num_messages": 10,
+  "num_chat_messages": 10,
+  "current_model_id": "grok-4.6",
+  "chat_format_version": 1,
+  "head_branch": "main",
+  "agent_name": "grok-build-plan"
+}

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Source: Grok's available_commands.tools declaration in streaming-json output.
+# The CLI authenticates before declaring tools. GROK_AUTH_JSON is the single
+# credential: the JSON contents of a dedicated factory account's auth.json.
+# Browser login and ambient workstation credentials are deliberately not read.
+# Run in an empty project and isolated HOME, as required by the factory. The
+# copied credential is private to that HOME and removed when this script exits.
+# Factory SPI: print one bare native tool name per line, nonzero for missing,
+# malformed, empty, inconsistent, or incomplete declarations. Keep diagnostics
+# in stream.jsonl and grok.stderr. No model self-report is used.
+set -euo pipefail
+[ -n "${GROK_AUTH_JSON:-}" ] || { echo 'list-tools: GROK_AUTH_JSON is not set' >&2; exit 1; }
+printf '%s' "$GROK_AUTH_JSON" | jq -e 'type == "object" and length > 0' >/dev/null
+export GROK_HOME="$HOME/.grok"
+export GROK_DISABLE_AUTOUPDATER=1
+mkdir -p "$GROK_HOME"
+auth=$(mktemp "$GROK_HOME/factory-auth.XXXXXX")
+trap 'rm -f "$auth"' EXIT
+chmod 600 "$auth"
+printf '%s' "$GROK_AUTH_JSON" > "$auth"
+unset GROK_AUTH_JSON
+export GROK_AUTH_PATH="$auth"
+# A fresh HOME and working directory isolate user settings, plugins, and MCP.
+# Pin the config overlay as well, so an inherited overlay cannot add tools.
+export GROK_CONFIG_PATH="$GROK_HOME/config.toml"
+printf '[cli]\nauto_update = false\n' > "$GROK_CONFIG_PATH"
+status=0
+timeout 120 "$HOME/.local/bin/grok" --no-auto-update --max-turns 1 \
+  --output-format streaming-json -p 'Reply OK. Do not use tools.' \
+  </dev/null >stream.jsonl 2>grok.stderr || status=$?
+if [ "$status" -ne 0 ]; then
+  echo "list-tools: Grok exited $status (see grok.stderr and stream.jsonl)" >&2
+  exit 1
+fi
+jq -ers '
+  [ .[] | select(.type == "available_commands") | .tools ] as $sets |
+  if ($sets | length) == 0 then error("no tool declaration") else
+    $sets[0] as $first |
+    if ($first | type) != "array" or ($first | length) == 0 or
+       any($first[]; type != "string" or length == 0) or
+       any($sets[]; sort != ($first | sort))
+    then error("empty, malformed, or inconsistent tool declarations")
+    else $first | unique[] end
+  end' stream.jsonl

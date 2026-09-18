@@ -117,12 +117,22 @@ The package is `pkg/providers/<agent>`: the product's own name, lowercased, with
 | `<agent>_exec.go`                                                              | Command line parsing, resume arguments, process launch, exit handling                      |
 | `path_utils.go`                                                                | Native store discovery and working directory encoding                                      |
 | `reconstruct.go`                                                               | `ReconstructSession`, `NativeSessionPath`, `SupportsReconstruction`                        |
-| `*_test.go`                                                                    | Tests alongside each source file, plus `testdata/` fixtures captured from real sessions    |
+| `*_test.go`                                                                    | Tests alongside each source file                                                          |
+| `testdata/`                                                                    | Inputs consumed by automated tests and expected outputs those tests actually compare      |
+| `examples/`                                                                    | Captured examples, rendered histories, QA results and other human-review evidence          |
 | `factory/`                                                                     | Software factory scripts (see below)                                                       |
 
 Keep related logic together and avoid unnecessary file sprawl. Small helpers usually belong in the file whose concern they serve; a separate file is reasonable when it groups a distinct concern, such as debug output. File organization may differ from this example while still meeting the provider's behavioral and architectural requirements.
 
 Add `var _ spi.Provider = (*Provider)(nil)` so the compiler enforces the interface, and the same assertion for any optional interface you implement.
+
+### Separate test fixtures from examples
+
+Reserve `testdata/` for files that automated tests actually consume as inputs or compare as expected outputs. For each fixture or fixture set, identify the consuming test and the behavior it asserts. A file does not become test data merely because a test helper copies the directory containing it.
+
+Put captured examples, manual QA results, version banners, tool audits, and generated JSON or Markdown that no test compares in `examples/`, following [Pi's examples](pkg/providers/piagent/examples/). Keep native captures in `testdata/` when parser or rendering tests consume them; link from the examples to those fixtures rather than duplicating them. A generated `session-data.json` or rendered history belongs in `testdata/` only if an automated test actually compares it as a golden file. Do not add a superficial test just to justify keeping a review artifact there.
+
+This distinction is required even when choosing a different source-file layout. Before submitting, audit every file under `testdata/` for an actual test consumer and move unused review artifacts to `examples/`. Update documentation and audit links after moving them.
 
 ### Every SPI method, including the ones that are easy to miss
 
@@ -338,6 +348,7 @@ The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs th
 - A test must actually create the condition it is named for. One that cannot, and settles for exercising the ordinary path instead, is deleted or made real: it reads as coverage of the hard case while proving nothing about it, which is worse than its absence because it stops anyone else writing the real one. If the condition is too expensive to build, that is a reason to lower the threshold until it is affordable, not to keep the test.
 - Table-driven with `t.Run(tt.name, ...)` where there is a matrix of cases; a single integration test may stay standalone.
 - Fixtures are raw shapes captured from real sessions, so the tests encode what the agent actually writes.
+- Check [fixture placement](#separate-test-fixtures-from-examples): each `testdata/` fixture has an automated consumer and asserted purpose; review-only artifacts belong in `examples/`.
 - A regression test must fail when the fix is backed out. Prove it before you commit it. When a fix adds a guard, the test also proves the guarded path still works for the legitimate case.
 - An exhaustive test that walks the agent's real tool inventory and asserts the expected type per name is not tautological; it guards against omission.
 - Exercise bespoke renderers through the actual dispatch path using captured invocations. Verify that the recorded tool name, after normalization, selects the intended renderer; directly testing the renderer function cannot catch an unreachable dispatch key.
@@ -461,6 +472,7 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
   - [ ] Tests table-driven where useful
   - [ ] No tautological tests
   - [ ] Test fixtures are captured from real data
+  - [ ] Every `testdata/` fixture has an automated test consumer and asserted purpose; unused generated outputs and manual QA evidence are in `examples/`
   - [ ] Windows-safe test helpers are used
   - [ ] Symlinked and special-character project paths are tested
   - [ ] Debug tests call `spi.SetDebugBaseDir`
