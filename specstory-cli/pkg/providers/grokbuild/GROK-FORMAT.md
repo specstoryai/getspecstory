@@ -60,7 +60,7 @@ Raw transcript and debug output come from the same accepted parsing snapshot. `-
 
 ## Tool inventory and rendering
 
-The harness emits `available_commands.tools` in `--output-format streaming-json`; the baseline declares 27 tools. The checked-in [inventory and native fixture](testdata/session-1.0.34/README.md) are the source of regression cases. An isolated factory run produces the same inventory without workstation plugins/MCP configuration.
+The harness emits `available_commands.tools` in `--output-format streaming-json`; the baseline declares 27 tools. The checked-in [inventory and native fixture](examples/session-1.0.34/README.md) are the source of regression cases. An isolated factory run produces the same inventory without workstation plugins/MCP configuration.
 
 Observed file reads preserve ranges; grep preserves options and fences its XML-like result; writes retain complete content; search/replace retains both complete edit halves; shell/monitor calls preserve command settings, Unicode, and nested fences while stripping terminal controls. Todo updates recover text from prior items. MCP discovery/dispatch retains the tool name and arguments; native errors take precedence over success formatting. Every specialized renderer retains unfamiliar input/result fields, and undeclared/unobserved payloads have generic rendering. Media payloads do not have speculative bespoke formatting.
 
