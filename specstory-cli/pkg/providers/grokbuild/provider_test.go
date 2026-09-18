@@ -542,3 +542,16 @@ func TestByPathRejectsReplacedSessionDirectory(t *testing.T) {
 		})
 	}
 }
+
+func TestGetSessionAcceptsUppercaseUUID(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+	seedSession(t, home, project, "session-basic", id)
+	for _, lookup := range []string{id, strings.ToUpper(id)} {
+		session, err := NewProvider().GetAgentChatSession(project, lookup, false)
+		if err != nil || session == nil || session.SessionID != id {
+			t.Fatalf("lookup %q: %v, %v", lookup, session, err)
+		}
+	}
+}

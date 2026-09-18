@@ -152,10 +152,6 @@ func ensureNativeDirectory(dir string) error {
 // never clobbers a real session's metadata.
 func writeSessionSummary(sessionDir, projectPath string) error {
 	path := filepath.Join(sessionDir, summaryFile)
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	}
-
 	now := time.Now().UTC().Format(grokTimeFormat)
 	summary := map[string]any{
 		"info": map[string]any{
@@ -174,7 +170,18 @@ func writeSessionSummary(sessionDir, projectPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode the Grok session summary: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	// An agent or another reconstruction may create native metadata at any
+	// time. Exclusive creation preserves it without a check-then-write race.
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if errors.Is(err, os.ErrExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create the Grok session summary: %w", err)
+	}
+	_, writeErr := file.Write(data)
+	if err := errors.Join(writeErr, file.Close()); err != nil {
+		_ = os.Remove(path)
 		return fmt.Errorf("failed to write the Grok session summary: %w", err)
 	}
 	return nil

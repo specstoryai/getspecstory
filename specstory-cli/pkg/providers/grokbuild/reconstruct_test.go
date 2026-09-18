@@ -396,3 +396,18 @@ func TestReconstructionPreservesPreparedTurns(t *testing.T) {
 		t.Fatal("slash-command scaffolding replayed")
 	}
 }
+
+func TestSummaryNeverFollowsExistingLink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(t.TempDir(), "native-summary.json")
+	path := filepath.Join(dir, summaryFile)
+	if err := os.Symlink(target, path); err != nil {
+		t.Skipf("file symlinks unavailable: %v", err)
+	}
+	if err := writeSessionSummary(dir, "/project"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(target); !os.IsNotExist(err) {
+		t.Fatalf("summary creation followed existing entry: %v", err)
+	}
+}

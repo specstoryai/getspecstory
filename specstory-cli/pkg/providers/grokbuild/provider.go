@@ -159,6 +159,8 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 	if !uuidLike.MatchString(sessionID) {
 		return nil, nil
 	}
+	// Native UUID directory names use lowercase; callers may use either hex case.
+	sessionID = strings.ToLower(sessionID)
 	projectPath, err := defaultProjectPath(projectPath)
 	if err != nil {
 		return nil, err
@@ -195,7 +197,7 @@ func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, deb
 		return nil, err
 	}
 	for _, session := range sessions {
-		if session.ID == sessionID {
+		if strings.EqualFold(session.ID, sessionID) {
 			return convertToAgentChatSession(session, projectPath, debugRaw), nil
 		}
 	}
