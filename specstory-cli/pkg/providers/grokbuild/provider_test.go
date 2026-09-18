@@ -291,7 +291,7 @@ func TestGetAgentChatSessionByPath(t *testing.T) {
 func TestRawSnapshotAndDebugRefresh(t *testing.T) {
 	spi.SetDebugBaseDir(t.TempDir())
 	t.Cleanup(func() { spi.SetDebugBaseDir("") })
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "11111111-2222-7333-8444-555555555555")
 	copyFixture(t, "session-basic", dir)
 	path := filepath.Join(dir, chatHistoryFile)
 	first := `{"type":"user","content":[{"type":"text","text":"<user_query>snapshot</user_query>"}],"future_field":{"keep":true}}`
@@ -368,7 +368,7 @@ func TestGetSessionDoesNotFollowCrossProjectSymlink(t *testing.T) {
 func TestDebugSidecarsPreserveTheParsingSnapshot(t *testing.T) {
 	spi.SetDebugBaseDir(t.TempDir())
 	t.Cleanup(func() { spi.SetDebugBaseDir("") })
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "11111111-2222-7333-8444-555555555555")
 	copyFixture(t, "session-basic", dir)
 	path := filepath.Join(dir, eventsFile)
 	event := `{"type":"future_event","future_field":"original-sidecar"}`
@@ -447,7 +447,7 @@ func TestDiscoveryRejectsSymlinkedTranscripts(t *testing.T) {
 }
 
 func TestInvalidSummaryIDCannotChooseDebugPath(t *testing.T) {
-	for _, bad := range []string{"../../outside", `..\..\outside`, "/absolute/outside", "not-a-uuid"} {
+	for _, bad := range []string{"../../outside", `..\..\outside`, "/absolute/outside", "not-a-uuid", "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"} {
 		t.Run(bad, func(t *testing.T) {
 			home := withFakeGrokHome(t)
 			project := t.TempDir()
@@ -483,6 +483,10 @@ func TestInvalidSummaryIDCannotChooseDebugPath(t *testing.T) {
 			parsed, err := parseSessionDir(dir, true)
 			if err != nil || parsed.ID != id {
 				t.Fatalf("metadata identity disagrees: %v, %v", parsed, err)
+			}
+			refs, err := NewProvider().ListAllAgentChatSessions()
+			if err != nil || len(refs) != 1 || refs[0].SessionID != id {
+				t.Fatalf("global identity disagrees: %v, %v", refs, err)
 			}
 		})
 	}

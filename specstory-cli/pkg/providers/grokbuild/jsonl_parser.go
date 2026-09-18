@@ -220,17 +220,16 @@ func parseSessionDir(dir string, metadataOnly bool) (*GrokSession, error) {
 		Subagents: map[string]*GrokSubagentMeta{},
 	}
 
-	// Summary metadata can enrich the native directory identity.
+	// The native directory names the session. Copied or stale summary metadata
+	// must not re-key lookup, index, debug, or cloud output to another UUID.
 	summary, err := readSummary(filepath.Join(dir, summaryFile))
 	if err != nil {
 		return nil, err
 	}
 	if summary != nil {
 		session.RawSummary = summary.Raw
-		if uuidLike.MatchString(summary.Info.ID) {
-			session.ID = summary.Info.ID
-		} else if summary.Info.ID != "" {
-			slog.Warn("Grok summary has an invalid session ID; using directory identity", "dir", dir)
+		if summary.Info.ID != "" && summary.Info.ID != session.ID {
+			slog.Warn("Grok summary ID disagrees with directory identity; using directory identity", "dir", dir)
 		}
 		session.Cwd = summary.Info.Cwd
 		session.CreatedAt = normalizeTime(summary.CreatedAt)
@@ -242,8 +241,7 @@ func parseSessionDir(dir string, metadataOnly bool) (*GrokSession, error) {
 			session.Title = summary.SessionSummary
 		}
 	}
-	// Session IDs also name debug-output directories. A corrupt summary cannot
-	// override a valid native directory ID with an arbitrary path.
+	// Session IDs also name debug-output directories.
 	if !uuidLike.MatchString(session.ID) {
 		return nil, fmt.Errorf("grok session directory %q has no valid UUID identity", dir)
 	}

@@ -9,7 +9,15 @@ import (
 
 func loadFixture(t *testing.T, name string) *GrokSession {
 	t.Helper()
-	session, err := ParseSessionDir(filepath.Join("testdata", name))
+	summary, err := readSummary(filepath.Join("testdata", name, summaryFile))
+	if err != nil || summary == nil || !uuidLike.MatchString(summary.Info.ID) {
+		t.Fatalf("fixture %s has no valid identity: %v", name, err)
+	}
+	dir := filepath.Join(t.TempDir(), summary.Info.ID)
+	if err := os.CopyFS(dir, os.DirFS(filepath.Join("testdata", name))); err != nil {
+		t.Fatal(err)
+	}
+	session, err := ParseSessionDir(dir)
 	if err != nil {
 		t.Fatalf("ParseSessionDir(%s) failed: %v", name, err)
 	}
@@ -327,7 +335,7 @@ func TestMissingPromptIndexDoesNotCollideWithZero(t *testing.T) {
 }
 
 func TestMetadataScanStopsAtFirstQueryAndSkipsSidecars(t *testing.T) {
-	dir := t.TempDir()
+	dir := filepath.Join(t.TempDir(), "11111111-2222-7333-8444-555555555555")
 	copyFixture(t, "session-basic", dir)
 	full, err := ParseSessionDir(dir)
 	if err != nil {

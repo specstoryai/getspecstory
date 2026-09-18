@@ -113,8 +113,21 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 	}
 
 	sessionDir := filepath.Join(groupDir, filepath.Dir(filename))
-	if err := os.MkdirAll(sessionDir, 0o700); err != nil {
+	if err := os.MkdirAll(groupDir, 0o700); err != nil {
+		return "", fmt.Errorf("failed to create the Grok project directory: %w", err)
+	}
+	// Mkdir does not follow an existing final-component link. If another
+	// creator wins, inspect its entry with Lstat before accepting it; MkdirAll
+	// would silently accept a symlink to a directory here.
+	if err := os.Mkdir(sessionDir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 		return "", fmt.Errorf("failed to create the Grok session directory: %w", err)
+	}
+	info, err := os.Lstat(sessionDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to inspect the Grok session directory: %w", err)
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("grok session path %q is not a directory", sessionDir)
 	}
 
 	if err := writeSessionSummary(sessionDir, projectPath); err != nil {
