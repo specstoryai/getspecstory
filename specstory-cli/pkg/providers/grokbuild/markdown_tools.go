@@ -209,7 +209,7 @@ func formatKnownToolResult(tool *ToolInfo) string {
 		if text == "" {
 			return "Error: the tool call failed"
 		}
-		if strings.Contains(text, "\n") {
+		if strings.Contains(text, "\n") || strings.TrimSpace(text) != text {
 			return fmt.Sprintf("Error:\n%s", spi.CodeFence("text", text))
 		}
 		return fmt.Sprintf("Error: %s", text)
@@ -466,7 +466,7 @@ func formatUseToolBody(input map[string]any) string {
 }
 
 func fenceIfMultiline(text string) string {
-	if strings.Contains(text, "\n") {
+	if strings.Contains(text, "\n") || strings.TrimSpace(text) != text {
 		return spi.CodeFence("text", text)
 	}
 	return text
@@ -493,13 +493,13 @@ func outputText(output map[string]any) string {
 	if output == nil {
 		return ""
 	}
-	if text, ok := output["output"].(string); ok && strings.TrimSpace(text) != "" {
-		return strings.TrimSpace(strings.Map(func(r rune) rune {
+	if text, ok := output["output"].(string); ok && text != "" {
+		return strings.Map(func(r rune) rune {
 			if unicode.IsControl(r) && r != '\n' && r != '\t' {
 				return -1
 			}
 			return r
-		}, ansi.Strip(text)))
+		}, ansi.Strip(text))
 	}
 	return ""
 }

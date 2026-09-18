@@ -297,6 +297,7 @@ Triple backticks:
 ```
 hello from qa_sample
 ```
+
 ````
 </details></tool-use>
 
@@ -325,6 +326,7 @@ Error:
 ```text
 exit: 1
 ls: /qa/project space_under/this_path_does_not_exist: No such file or directory
+
 ```
 </details></tool-use>
 

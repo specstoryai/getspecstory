@@ -14,13 +14,13 @@ This primary captured session contains 15 native invocations: 14 assistant tool 
 | 6 | `search_replace` | [233](session.md#L233) | formatted | [chat_history.jsonl:23](../../testdata/session-1.0.34/chat_history.jsonl#L23) | 24 | Both complete edit inputs and native result. |
 | 7 | `todo_write` | [261](session.md#L261) | formatted | [chat_history.jsonl:26](../../testdata/session-1.0.34/chat_history.jsonl#L26) | 27 | All native items/statuses rendered; no second raw copy of the checklist. |
 | 8 | `run_terminal_command` | [283](session.md#L283) | formatted | [chat_history.jsonl:29](../../testdata/session-1.0.34/chat_history.jsonl#L29) | 30 | Command/options, exit status and full output; nested fences and Unicode remain intact. |
-| 9 | `run_terminal_command` | [315](session.md#L315) | formatted | [chat_history.jsonl:32](../../testdata/session-1.0.34/chat_history.jsonl#L32) | 33 | Command/options, exit status and full output; nested fences and Unicode remain intact. |
-| 10 | `read_file` | [343](session.md#L343) | formatted | [chat_history.jsonl:35](../../testdata/session-1.0.34/chat_history.jsonl#L35) | 36 | Path, observed range, full text or native failure; language/fence preserved. |
-| 11 | `run_terminal_command` | [367](session.md#L367) | formatted | [chat_history.jsonl:38](../../testdata/session-1.0.34/chat_history.jsonl#L38) | 39 | Command/options, exit status and full output; nested fences and Unicode remain intact. |
-| 12 | `get_command_or_subagent_output` | [405](session.md#L405) | formatted | [chat_history.jsonl:41](../../testdata/session-1.0.34/chat_history.jsonl#L41) | 42 | Task IDs/timeout and full recorded task output. |
-| 13 | `kill_command_or_subagent` | [447](session.md#L447) | formatted | [chat_history.jsonl:44](../../testdata/session-1.0.34/chat_history.jsonl#L44) | 45 | Task ID and termination result. |
-| 14 | `monitor` | [467](session.md#L467) | formatted | [chat_history.jsonl:47](../../testdata/session-1.0.34/chat_history.jsonl#L47) | 48 | Command, timeout, persistent flag and native started response. |
-| 15 | `web_search` | [495](session.md#L495) | formatted | [chat_history.jsonl:50](../../testdata/session-1.0.34/chat_history.jsonl#L50) | — | Query and in_progress status preserved; native record has no sources/result. This is pending-path coverage only. |
+| 9 | `run_terminal_command` | [316](session.md#L316) | formatted | [chat_history.jsonl:32](../../testdata/session-1.0.34/chat_history.jsonl#L32) | 33 | Command/options, exit status and full output; nested fences and Unicode remain intact. |
+| 10 | `read_file` | [345](session.md#L345) | formatted | [chat_history.jsonl:35](../../testdata/session-1.0.34/chat_history.jsonl#L35) | 36 | Path, observed range, full text or native failure; language/fence preserved. |
+| 11 | `run_terminal_command` | [369](session.md#L369) | formatted | [chat_history.jsonl:38](../../testdata/session-1.0.34/chat_history.jsonl#L38) | 39 | Command/options, exit status and full output; nested fences and Unicode remain intact. |
+| 12 | `get_command_or_subagent_output` | [407](session.md#L407) | formatted | [chat_history.jsonl:41](../../testdata/session-1.0.34/chat_history.jsonl#L41) | 42 | Task IDs/timeout and full recorded task output. |
+| 13 | `kill_command_or_subagent` | [449](session.md#L449) | formatted | [chat_history.jsonl:44](../../testdata/session-1.0.34/chat_history.jsonl#L44) | 45 | Task ID and termination result. |
+| 14 | `monitor` | [469](session.md#L469) | formatted | [chat_history.jsonl:47](../../testdata/session-1.0.34/chat_history.jsonl#L47) | 48 | Command, timeout, persistent flag and native started response. |
+| 15 | `web_search` | [497](session.md#L497) | formatted | [chat_history.jsonl:50](../../testdata/session-1.0.34/chat_history.jsonl#L50) | — | Query and in_progress status preserved; native record has no sources/result. This is pending-path coverage only. |
 
 ## Additional captured blocks
 

@@ -409,7 +409,7 @@
               "output": "exit: 0\nQA success: café — 你好 — checkmark ✓\nTriple backticks:\n```\nhello from qa_sample\n```\n",
               "status": "success"
             },
-            "formattedMarkdown": "\nPrint Unicode and triple-backtick output\n\n````bash\nprintf 'QA success: café — 你好 — checkmark ✓\\nTriple backticks:\\n```\\nhello from qa_sample\\n```\\n'\n````\n\nResult:\n````text\nexit: 0\nQA success: café — 你好 — checkmark ✓\nTriple backticks:\n```\nhello from qa_sample\n```\n````\n"
+            "formattedMarkdown": "\nPrint Unicode and triple-backtick output\n\n````bash\nprintf 'QA success: café — 你好 — checkmark ✓\\nTriple backticks:\\n```\\nhello from qa_sample\\n```\\n'\n````\n\nResult:\n````text\nexit: 0\nQA success: café — 你好 — checkmark ✓\nTriple backticks:\n```\nhello from qa_sample\n```\n\n````\n"
           }
         },
         {
@@ -451,7 +451,7 @@
               "output": "exit: 1\nls: /qa/project space_under/this_path_does_not_exist: No such file or directory\n",
               "status": "error"
             },
-            "formattedMarkdown": "\nFail on missing path for error capture\n\n```bash\nls /private/tmp/grok-pr270-review/project\\ space_under/this_path_does_not_exist\n```\n\nError:\n```text\nexit: 1\nls: /qa/project space_under/this_path_does_not_exist: No such file or directory\n```\n"
+            "formattedMarkdown": "\nFail on missing path for error capture\n\n```bash\nls /private/tmp/grok-pr270-review/project\\ space_under/this_path_does_not_exist\n```\n\nError:\n```text\nexit: 1\nls: /qa/project space_under/this_path_does_not_exist: No such file or directory\n\n```\n"
           }
         },
         {

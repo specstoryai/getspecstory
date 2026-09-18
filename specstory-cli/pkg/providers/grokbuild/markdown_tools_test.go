@@ -513,3 +513,17 @@ func TestTodoItemsRetainUnfamiliarData(t *testing.T) {
 		}
 	}
 }
+
+func TestToolResultsPreserveWhitespace(t *testing.T) {
+	for _, name := range []string{"read_file", "run_terminal_command", "unfamiliar_tool"} {
+		for _, status := range []string{"success", "error"} {
+			for _, native := range []string{"  indented\ntrailing  \n\n", "\t  "} {
+				tool := &ToolInfo{Name: name, Input: map[string]any{"target_file": "snippet.txt"}, Output: map[string]any{"status": status, "output": "\x1b[31m" + native + "\x1b[0m"}}
+				md := formatToolAsMarkdown(tool)
+				if !strings.Contains(md, "\n"+native+"\n") || strings.ContainsRune(md, '\x1b') {
+					t.Errorf("%s/%s changed native whitespace %q: %q", name, status, native, md)
+				}
+			}
+		}
+	}
+}
