@@ -46,7 +46,7 @@ Session identity is the native directory UUID. A missing, invalid, or different 
 
 `summary.json` carries `info.id`, `info.cwd`, `created_at`, `updated_at`, `session_summary`, optional `generated_title`, message counts, `current_model_id`, and `chat_format_version`. `session_kind:"subagent"` distinguishes a child agent from a human session; ordinary headless sessions record `session_kind:"headless"`. Child sessions are excluded from project lists and exports. The parent's `subagents/<id>/meta.json` can enrich its invocation with child type/status/duration.
 
-Times normalize to RFC 3339 milliseconds. Missing summary timestamps fall back to the transcript's modification time. No parser path uses the current wall clock to invent historical message times.
+Times normalize to RFC 3339 milliseconds. Missing or unparseable summary timestamps fall back to the transcript's modification time. No parser path uses the current wall clock to invent historical message times.
 
 `updates.jsonl` contains `timestamp` (Unix seconds), `method`, and `params`:
 
