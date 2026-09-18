@@ -40,7 +40,7 @@ Images and other nontext user parts are retained in raw/debug exports. The share
 
 ## Summary and sidecars
 
-Session identity must be a UUID. An invalid summary ID falls back to the native directory UUID; if neither is valid, parsing fails rather than using arbitrary metadata in an output path.
+Session identity is the native directory UUID. A missing, invalid, or different UUID in the summary cannot replace it; a non-UUID directory is rejected. The original summary remains available as raw data. Reconstruction creates the UUID directory with an exclusive directory-creation attempt and checks the resulting entry with `Lstat`, rejecting directory links and other non-directory entries before writing a summary or returning a transcript path. This handles an already occupied path or competing creator; it does not make the later path-based SPI write atomic against arbitrary concurrent filesystem replacement.
 
 `summary.json` carries `info.id`, `info.cwd`, `created_at`, `updated_at`, `session_summary`, optional `generated_title`, message counts, `current_model_id`, and `chat_format_version`. `session_kind:"subagent"` distinguishes a child agent from a human session; ordinary headless sessions record `session_kind:"headless"`. Child sessions are excluded from project lists and exports. The parent's `subagents/<id>/meta.json` can enrich its invocation with child type/status/duration.
 
