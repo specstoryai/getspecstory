@@ -113,21 +113,13 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 	}
 
 	sessionDir := filepath.Join(groupDir, filepath.Dir(filename))
-	if err := os.MkdirAll(groupDir, 0o700); err != nil {
-		return "", fmt.Errorf("failed to create the Grok project directory: %w", err)
+	if err := os.MkdirAll(filepath.Dir(groupDir), 0o700); err != nil {
+		return "", fmt.Errorf("failed to create the Grok store directory: %w", err)
 	}
-	// Mkdir does not follow an existing final-component link. If another
-	// creator wins, inspect its entry with Lstat before accepting it; MkdirAll
-	// would silently accept a symlink to a directory here.
-	if err := os.Mkdir(sessionDir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
-		return "", fmt.Errorf("failed to create the Grok session directory: %w", err)
-	}
-	info, err := os.Lstat(sessionDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to inspect the Grok session directory: %w", err)
-	}
-	if !info.IsDir() {
-		return "", fmt.Errorf("grok session path %q is not a directory", sessionDir)
+	for _, dir := range []string{groupDir, sessionDir} {
+		if err := ensureNativeDirectory(dir); err != nil {
+			return "", err
+		}
 	}
 
 	if err := writeSessionSummary(sessionDir, projectPath); err != nil {
@@ -135,6 +127,24 @@ func (p *Provider) NativeSessionPath(projectPath string, filename string) (strin
 	}
 
 	return filepath.Join(groupDir, filename), nil
+}
+
+// ensureNativeDirectory accepts only a real group or session directory.
+func ensureNativeDirectory(dir string) error {
+	// Mkdir does not follow an existing final-component link. If another
+	// creator wins, inspect its entry with Lstat before accepting it; MkdirAll
+	// would silently accept a symlink to a directory here.
+	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return fmt.Errorf("failed to create Grok directory %q: %w", dir, err)
+	}
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("failed to inspect Grok directory %q: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("grok path %q is not a directory", dir)
+	}
+	return nil
 }
 
 // writeSessionSummary writes the metadata file that makes a directory a session

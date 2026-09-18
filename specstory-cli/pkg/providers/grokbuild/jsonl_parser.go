@@ -202,6 +202,17 @@ func ParseSessionDir(dir string) (*GrokSession, error) {
 
 // Metadata scans stop at the first real prompt and never open sidecars.
 func parseSessionDir(dir string, metadataOnly bool) (*GrokSession, error) {
+	// A path returned by enumeration can outlive replacement of either native
+	// directory. Check both components before attributing their transcript.
+	for _, directory := range []string{filepath.Dir(dir), dir} {
+		info, err := os.Lstat(directory)
+		if err != nil {
+			return nil, fmt.Errorf("failed to inspect Grok directory: %w", err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("grok path %q is not a directory", directory)
+		}
+	}
 	// Grok writes regular transcripts. Following a link here could associate
 	// another project's conversation with this directory's summary; opening a
 	// special file could also block discovery indefinitely.

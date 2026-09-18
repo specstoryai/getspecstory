@@ -508,3 +508,37 @@ func TestGlobalDiscoveryRequiresNativeStoreLayout(t *testing.T) {
 		t.Fatalf("non-native store paths became sessions: %v, %v", refs, err)
 	}
 }
+
+func TestByPathRejectsReplacedSessionDirectory(t *testing.T) {
+	for _, component := range []string{"session", "group"} {
+		t.Run(component, func(t *testing.T) {
+			home := withFakeGrokHome(t)
+			project, other := t.TempDir(), t.TempDir()
+			id := "11111111-2222-7333-8444-555555555555"
+			dir := seedSession(t, home, project, "session-basic", id)
+			target := seedSession(t, home, other, "session-basic", id)
+			transcript := filepath.Join(dir, chatHistoryFile)
+			p := NewProvider()
+			if session, err := p.GetAgentChatSessionByPath(transcript, project, false); err != nil || session == nil {
+				t.Fatalf("genuine session not readable: %v, %v", session, err)
+			}
+			// A previously enumerated reference must not follow a replaced UUID directory.
+			replaced, destination := dir, target
+			if component == "group" {
+				replaced, destination = filepath.Dir(dir), filepath.Dir(target)
+			}
+			if err := os.RemoveAll(replaced); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(destination, replaced); err != nil {
+				t.Skipf("directory symlinks unavailable: %v", err)
+			}
+			if session, err := p.GetAgentChatSessionByPath(transcript, project, false); err == nil || session != nil {
+				t.Fatalf("path lookup imported linked session: %v, %v", session, err)
+			}
+			if session, err := parseSessionDir(dir, true); err == nil || session != nil {
+				t.Fatalf("metadata parser imported linked session: %v, %v", session, err)
+			}
+		})
+	}
+}

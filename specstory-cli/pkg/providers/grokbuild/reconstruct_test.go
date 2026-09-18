@@ -231,6 +231,51 @@ func TestNativeSessionPathRejectsLinkedOrNonDirectorySession(t *testing.T) {
 	}
 }
 
+func TestNativeSessionPathRejectsLinkedOrNonDirectoryGroup(t *testing.T) {
+	for _, kind := range []string{"directory link", "dangling link", "file"} {
+		t.Run(kind, func(t *testing.T) {
+			home := withFakeGrokHome(t)
+			project := t.TempDir()
+			id := "11111111-2222-7333-8444-555555555555"
+			group := filepath.Join(home, "sessions", EncodeCwdDirname(spi.CanonicalizePathOrClean(project)))
+			if err := os.MkdirAll(filepath.Dir(group), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			dir := group
+			target := t.TempDir()
+			sentinel := filepath.Join(target, chatHistoryFile)
+			if err := os.WriteFile(sentinel, []byte("other project's conversation"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if kind == "file" {
+				if err := os.WriteFile(dir, []byte("occupied"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				linkTarget := target
+				if kind == "dangling link" {
+					linkTarget = filepath.Join(target, "missing")
+				}
+				if err := os.Symlink(linkTarget, dir); err != nil {
+					t.Skipf("directory symlinks unavailable: %v", err)
+				}
+			}
+			path, err := NewProvider().NativeSessionPath(project, filepath.Join(id, chatHistoryFile))
+			if err == nil || path != "" {
+				t.Fatalf("accepted %s: %q, %v", kind, path, err)
+			}
+			entries, err := os.ReadDir(target)
+			if err != nil || len(entries) != 1 || entries[0].Name() != chatHistoryFile {
+				t.Fatalf("reconstruction changed link target: %v, %v", entries, err)
+			}
+			contents, err := os.ReadFile(sentinel)
+			if err != nil || string(contents) != "other project's conversation" {
+				t.Fatalf("reconstruction changed other transcript: %q, %v", contents, err)
+			}
+		})
+	}
+}
+
 func TestEncodeCwdDirname(t *testing.T) {
 	tests := []struct {
 		name string
