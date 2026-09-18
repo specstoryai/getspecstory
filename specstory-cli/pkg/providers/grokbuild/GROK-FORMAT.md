@@ -19,7 +19,7 @@ The project name percent-encodes UTF-8 bytes outside the RFC 3986 unreserved set
 
 `chat_history.jsonl` is the durable conversation. The native agent appends turns and can rewrite the transcript; readers therefore parse its current full contents instead of retaining a byte offset. Summary and event/update sidecars change independently during a turn. File locks, `rewind_points.jsonl`, `system_prompt.txt`, `prompt_context.json`, `announcement_state.json`, `signals.json`, `usage.json`, and `terminal/` output files are not alternative conversation sources. A directory can exist before its first usable conversation/summary; the watcher waits for metadata before publishing it. No scratch/checkpoint file is used as a fallback transcript.
 
-The watcher establishes an unchanged baseline before launching the agent, uses fsnotify on the project and at most 20 session directories, and reconciles signatures every 30 seconds. Signatures cover the transcript, summary, updates, events, and named subagent metadata. Missing directory ancestors are adopted as they arrive. Shutdown reconciles disk state and joins synchronous callbacks, including when the agent returns a nonzero status. It never recursively watches child transcripts or terminal logs.
+The watcher establishes an unchanged baseline before launching the agent, uses fsnotify on the project and at most 20 session directories, and reconciles signatures every 30 seconds. Signatures cover the transcript, summary, updates, events, and named subagent metadata. Missing directory ancestors are adopted as they arrive. Shutdown reconciles disk state and joins synchronous callbacks, including when the agent returns a nonzero status or the watcher exits with an error. It never recursively watches child transcripts or terminal logs.
 
 ## Transcript records
 
@@ -40,7 +40,7 @@ Images and other nontext user parts are retained in raw/debug exports. The share
 
 ## Summary and sidecars
 
-Session identity is the native directory UUID. A missing, invalid, or different UUID in the summary cannot replace it; a non-UUID directory is rejected. Caller UUID hex is normalized to native lowercase for by-ID lookup. The original summary remains available as raw data. Parsing checks both group and session directory entries, including previously enumerated paths. Reconstruction creates the group and UUID directories with an exclusive directory-creation attempt and checks the resulting entry with `Lstat`, rejecting directory links and other non-directory entries before writing a summary or returning a transcript path. This handles an already occupied path or competing creator; it does not make the later path-based SPI write atomic against arbitrary concurrent filesystem replacement.
+Session identity is the native directory UUID. A missing, invalid, or different UUID in the summary cannot replace it; a non-UUID directory is rejected. Caller UUID hex is normalized to native lowercase for by-ID lookup. The original summary remains available as raw data, including malformed content from the parse snapshot. In `native-sidecars.json`, valid summaries retain native JSON; malformed bytes become a JSON string so the debug envelope remains readable. Parsing checks both group and session directory entries, including previously enumerated paths. Reconstruction creates the group and UUID directories with an exclusive directory-creation attempt and checks the resulting entry with `Lstat`, rejecting directory links and other non-directory entries before writing a summary or returning a transcript path. This handles an already occupied path or competing creator; it does not make the later path-based SPI write atomic against arbitrary concurrent filesystem replacement.
 
 `summary.json` carries `info.id`, `info.cwd`, `created_at`, `updated_at`, `session_summary`, optional `generated_title`, message counts, `current_model_id`, and `chat_format_version`. `session_kind:"subagent"` distinguishes a child agent from a human session; ordinary headless sessions record `session_kind:"headless"`. Child sessions are excluded from project lists and exports. The parent's `subagents/<id>/meta.json` can enrich its invocation with child type/status/duration.
 
@@ -50,7 +50,7 @@ Times normalize to RFC 3339 milliseconds. Missing summary timestamps fall back t
 
 - `params._meta.agentTimestampMs` is the preferred event time; `params._meta.promptId` links agent messages to turn usage.
 - `params.update.sessionUpdate` identifies `user_message_chunk`, `agent_message_chunk`, `agent_thought_chunk`, `tool_call`, `tool_call_update`, or `turn_completed`, among other UI events.
-- User chunks carry `params.update._meta.promptIndex`. The first chunk establishes the prompt time; absent indices are retained independently and cannot overwrite index zero.
+- User chunks carry `params.update._meta.promptIndex`. The first chunk establishes the prompt time; absent indices are retained independently and cannot overwrite index zero. Ordinal fallback for unindexed real prompts uses only unindexed update starts, never indexed synthetic prompts.
 - Tool records identify `toolCallId` and may carry Grok's own tool taxonomy. SpecStory assigns its schema type from the known tool's purpose; unfamiliar tools remain `unknown`.
 - `turn_completed` carries `prompt_id` and `usage` with input/output/cached-read/reasoning token counts. Totals are attached once to the exchange linked by that prompt ID, not matched by positional turn counts.
 
@@ -79,3 +79,4 @@ Real baseline tests resumed the minimal conversation, recalled its passphrase, a
 ## Factory
 
 The executable scripts under `factory/` track the public stable manifest named by the [official installer](https://x.ai/cli/install.sh), install an exact standalone binary under `$HOME/.local/bin/grok`, and enumerate the harness declaration in a bounded headless run. Self-update is disabled. `list-tools` accepts only the named `GROK_AUTH_JSON` credential (a dedicated factory account's native auth JSON), unsets the duplicate JSON environment variable before launching Grok, and removes its temporary private credential file on exit. It does not read workstation credentials. Factory secret provisioning remains an operational enrollment step; no credential is checked in.
+
