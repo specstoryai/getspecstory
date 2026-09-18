@@ -131,3 +131,39 @@ func TestExecuteGrokUsesProjectDirectory(t *testing.T) {
 		t.Fatalf("child ran in %q, wanted %q", got, project)
 	}
 }
+
+func TestRelativeGrokHomeSharedWithChild(t *testing.T) {
+	if output := os.Getenv("GROK_QA_HOME_FILE"); output != "" {
+		if err := os.WriteFile(output, []byte(os.Getenv("GROK_HOME")), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return
+	}
+	launch, project := t.TempDir(), t.TempDir()
+	t.Chdir(launch)
+	t.Setenv("GROK_HOME", "relative-grok")
+	want := filepath.Join(launch, "relative-grok")
+	home, err := GetGrokHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if home != want {
+		t.Errorf("discovery home %q, want %q", home, want)
+	}
+	output := filepath.Join(t.TempDir(), "child-home")
+	t.Setenv("GROK_QA_HOME_FILE", output)
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := NewProvider().ExecAgentAndWatch(project, fmt.Sprintf("%q -test.run=^TestRelativeGrokHomeSharedWithChild$", exe), "", false, nil); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != want {
+		t.Fatalf("child home %q, want shared absolute %q", raw, want)
+	}
+}

@@ -499,3 +499,17 @@ func TestAdditionalNative134Tools(t *testing.T) {
 		})
 	}
 }
+
+func TestTodoItemsRetainUnfamiliarData(t *testing.T) {
+	tool := &ToolInfo{Name: "todo_write", Input: map[string]any{"todos": []any{
+		map[string]any{"id": "one", "content": "Known task", "status": "pending", "priority": "KEEP-PRIORITY"},
+		map[string]any{"id": "two", "content": "Blocked task", "status": "awaiting-external-review"},
+		"UNFAMILIAR-ITEM",
+	}}}
+	rendered := formatToolAsMarkdown(tool)
+	for _, want := range []string{"- [ ] Known task", "KEEP-PRIORITY", "awaiting-external-review", "UNFAMILIAR-ITEM"} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("lost %q in %s", want, rendered)
+		}
+	}
+}

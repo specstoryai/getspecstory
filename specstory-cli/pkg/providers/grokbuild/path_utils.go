@@ -44,7 +44,11 @@ func (e *GrokPathError) Error() string {
 // GetGrokHome returns the Grok home directory, honoring the GROK_HOME override.
 func GetGrokHome() (string, error) {
 	if custom := strings.TrimSpace(os.Getenv("GROK_HOME")); custom != "" {
-		return custom, nil
+		absolute, err := filepath.Abs(custom)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve GROK_HOME: %w", err)
+		}
+		return absolute, nil
 	}
 	homeDir, err := osUserHomeDir()
 	if err != nil {

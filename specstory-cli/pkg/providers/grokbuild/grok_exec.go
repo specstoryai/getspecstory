@@ -52,6 +52,15 @@ func ExecuteGrok(projectPath string, customCommand string, resumeSessionID strin
 	// Native discovery and the watcher must refer to the same project even
 	// when the CLI was launched elsewhere with --project-path.
 	cmd.Dir = projectPath
+	if os.Getenv("GROK_HOME") != "" {
+		home, err := GetGrokHome()
+		if err != nil {
+			return err
+		}
+		// Resolve a relative override against the launch cwd, just as discovery
+		// does, before the child changes to the requested project directory.
+		cmd.Env = append(cmd.Environ(), "GROK_HOME="+home)
+	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

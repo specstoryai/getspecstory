@@ -391,6 +391,7 @@ func formatTodoBody(input map[string]any) string {
 	for _, raw := range todos {
 		todo, ok := raw.(map[string]any)
 		if !ok {
+			builder.WriteString(spi.RenderGenericJSON(map[string]any{"todo": raw}) + "\n")
 			continue
 		}
 		content, _ := todo["content"].(string)
@@ -404,6 +405,18 @@ func formatTodoBody(input map[string]any) string {
 			}
 		}
 		fmt.Fprintf(&builder, "- [%s] %s\n", todoStatusSymbol(status), content)
+		consumed := []string{}
+		for _, key := range []string{"id", "content"} {
+			if _, ok := todo[key].(string); ok {
+				consumed = append(consumed, key)
+			}
+		}
+		if status == "pending" || status == "in_progress" || status == "completed" {
+			consumed = append(consumed, "status")
+		}
+		if extra := spi.RenderGenericJSON(todo, consumed...); extra != "" {
+			builder.WriteString(extra + "\n")
+		}
 	}
 	return builder.String()
 }
