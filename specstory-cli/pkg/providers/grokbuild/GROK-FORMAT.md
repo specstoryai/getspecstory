@@ -15,6 +15,8 @@ sessions/<percent-encoded-canonical-cwd>/<session-uuid>/
     subagents/<child-id>/meta.json
 ```
 
+A relative `GROK_HOME` override is resolved against the SpecStory launch directory, and the same absolute path is passed to the native child even when its project cwd differs.
+
 The project name percent-encodes UTF-8 bytes outside the RFC 3986 unreserved set; spaces become `%20`, not `+`. Discovery decodes project names and canonicalizes local paths for comparison. A `.cwd` sidecar is also recognized for non-path group names. Global enumeration accepts only this exact group/UUID/transcript depth, ignoring archive and group-level lookalikes. It prefers `summary.json.info.cwd`; project matching never derives ownership from a file touched by a tool.
 
 `chat_history.jsonl` is the durable conversation. The native agent appends turns and can rewrite the transcript; readers therefore parse its current full contents instead of retaining a byte offset. Summary and event/update sidecars change independently during a turn. File locks, `rewind_points.jsonl`, `system_prompt.txt`, `prompt_context.json`, `announcement_state.json`, `signals.json`, `usage.json`, and `terminal/` output files are not alternative conversation sources. A directory can exist before its first usable conversation/summary; the watcher waits for metadata before publishing it. No scratch/checkpoint file is used as a fallback transcript.
@@ -79,4 +81,3 @@ Real baseline tests resumed the minimal conversation, recalled its passphrase, a
 ## Factory
 
 The executable scripts under `factory/` track the public stable manifest named by the [official installer](https://x.ai/cli/install.sh), install an exact standalone binary under `$HOME/.local/bin/grok`, and enumerate the harness declaration in a bounded headless run. Self-update is disabled. `list-tools` accepts only the named `GROK_AUTH_JSON` credential (a dedicated factory account's native auth JSON), unsets the duplicate JSON environment variable before launching Grok, and removes its temporary private credential file on exit. It does not read workstation credentials. Factory secret provisioning remains an operational enrollment step; no credential is checked in.
-
