@@ -143,7 +143,7 @@ type GrokUsage struct {
 type sessionIndex struct {
 	rawUpdates       []json.RawMessage
 	rawEvents        []json.RawMessage
-	userTimes        []string              // first timestamp of each prompt in arrival order
+	userTimes        []string              // unindexed prompt starts only, in arrival order
 	unindexedPrompts map[string]bool       // chunk deduplication when promptIndex is absent
 	toolTime         map[string]string     // tool_call_id -> ISO 8601
 	toolKind         map[string]string     // tool_call_id -> Grok's own tool kind
@@ -314,7 +314,7 @@ func readSummary(path string) (*GrokSummary, error) {
 	if err := json.Unmarshal(data, &summary); err != nil {
 		// A half-written summary should not sink the whole session.
 		slog.Warn("readSummary: failed to parse summary.json", "path", path, "error", err)
-		return nil, nil
+		return &GrokSummary{Raw: append(json.RawMessage{}, data...)}, nil
 	}
 	summary.Raw = append(json.RawMessage(nil), data...)
 	return &summary, nil
@@ -456,7 +456,6 @@ func buildSessionIndex(dir string) *sessionIndex {
 					index := int(v)
 					if _, seen := idx.userTime[index]; !seen {
 						idx.userTime[index] = ts
-						idx.userTimes = append(idx.userTimes, ts)
 					}
 					return
 				}

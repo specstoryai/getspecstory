@@ -1,6 +1,7 @@
 package grokbuild
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -424,5 +425,54 @@ func TestWatchSlotsExcludeTopLevelSubagents(t *testing.T) {
 	got := desiredWatchDirs(group)
 	if len(got) != 1 || !got[parent] {
 		t.Fatalf("child sessions displaced parent watch: %v", got)
+	}
+}
+
+func TestWatcherErrorExitDrainsFinalWrites(t *testing.T) {
+	for _, pending := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pending=%v", pending), func(t *testing.T) {
+			home := withFakeGrokHome(t)
+			project := t.TempDir()
+			dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
+			watcher, err := fsnotify.NewWatcher()
+			if err != nil {
+				t.Fatal(err)
+			}
+			state := &grokWatchState{watcher: watcher, projectPath: project, sessionsDir: filepath.Join(home, "sessions"), watched: map[string]bool{}, signatures: map[string]sessionSignature{}, pending: map[string]bool{}}
+			if err := state.refresh(true); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, chatHistoryFile)
+			f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = f.WriteString("\n" + `{"type":"assistant","content":"FINAL-ERROR-DRAIN"}` + "\n")
+			closeErr := f.Close()
+			if err != nil || closeErr != nil {
+				t.Fatalf("append: %v, %v", err, closeErr)
+			}
+			if pending {
+				state.pending[dir] = true
+			}
+			var delivered *spi.AgentChatSession
+			SetWatcherCallback(func(s *spi.AgentChatSession) { delivered = s })
+			SetWatcherWorkspaceRoot(project)
+			t.Cleanup(func() { SetWatcherCallback(nil); SetWatcherWorkspaceRoot("") })
+			if err := watcher.Close(); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := state.run(ctx); err == nil || !strings.Contains(err.Error(), "stream closed") {
+				t.Fatalf("missing watcher failure: %v", err)
+			}
+			if delivered == nil || !strings.Contains(delivered.RawData, "FINAL-ERROR-DRAIN") {
+				t.Fatal("error exit lost final native write")
+			}
+			if len(state.pending) != 0 {
+				t.Fatal("pending callbacks were not drained")
+			}
+		})
 	}
 }

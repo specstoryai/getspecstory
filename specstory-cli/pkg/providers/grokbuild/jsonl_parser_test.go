@@ -321,8 +321,8 @@ func TestMissingPromptIndexDoesNotCollideWithZero(t *testing.T) {
 		t.Fatal(err)
 	}
 	index := buildSessionIndex(dir)
-	for n := range 4 {
-		if got, want := index.userTimeAtOrdinal(n), isoFromMillis(0, int64(1700000000+n)); got != want {
+	for n := range 2 {
+		if got, want := index.userTimeAtOrdinal(n), isoFromMillis(0, int64(1700000001+n)); got != want {
 			t.Errorf("prompt %d: %q, want %q", n, got, want)
 		}
 	}

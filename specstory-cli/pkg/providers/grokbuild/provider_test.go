@@ -555,3 +555,66 @@ func TestGetSessionAcceptsUppercaseUUID(t *testing.T) {
 		}
 	}
 }
+
+func TestMalformedSummaryRetainedInDebugSnapshot(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	dir := seedSession(t, home, project, "session-basic", id)
+	native := `{"info":{"id":"partial`
+	if err := os.WriteFile(filepath.Join(dir, summaryFile), []byte(native), 0600); err != nil {
+		t.Fatal(err)
+	}
+	session, err := ParseSessionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Export the parsing snapshot even if the agent has since repaired its file.
+	if err := os.WriteFile(filepath.Join(dir, summaryFile), []byte(`{}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	debug := t.TempDir()
+	spi.SetDebugBaseDir(debug)
+	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	if err := writeDebugRawFiles(session); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(debug, id, "native-sidecars.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sidecars map[string]any
+	if err := json.Unmarshal(raw, &sidecars); err != nil {
+		t.Fatal(err)
+	}
+	if sidecars[summaryFile] != native {
+		t.Fatalf("malformed native summary lost: %v", sidecars[summaryFile])
+	}
+}
+
+func TestUnindexedPromptSkipsSyntheticIndexedUpdates(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	dir := seedSession(t, home, project, "session-basic", "11111111-2222-7333-8444-555555555555")
+	transcript := `{"type":"user","prompt_index":0,"content":[{"type":"text","text":"<user_query>first</user_query>"}]}` + "\n" + `{"type":"user","content":[{"type":"text","text":"<user_query>second</user_query>"}]}` + "\n"
+	updates := `{"timestamp":1700000000,"params":{"update":{"sessionUpdate":"user_message_chunk","_meta":{"promptIndex":0}}}}` + "\n" + `{"timestamp":1700000001,"params":{"update":{"sessionUpdate":"user_message_chunk","_meta":{"promptIndex":1}}}}` + "\n" + `{"timestamp":1700000002,"params":{"update":{"sessionUpdate":"user_message_chunk"}}}` + "\n"
+	for name, content := range map[string]string{chatHistoryFile: transcript, updatesFile: updates} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	session, err := ParseSessionDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := GenerateAgentSession(session, project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Exchanges) != 2 {
+		t.Fatalf("exchanges: %v", data.Exchanges)
+	}
+	if got, want := data.Exchanges[1].StartTime, isoFromMillis(0, 1700000002); got != want {
+		t.Fatalf("unindexed real prompt time %q, want %q", got, want)
+	}
+}

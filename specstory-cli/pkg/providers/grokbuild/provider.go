@@ -488,6 +488,11 @@ func writeDebugRawFiles(session *GrokSession) error {
 		}
 	}
 	sidecars := map[string]any{summaryFile: session.RawSummary}
+	if session.RawSummary != nil && !json.Valid(session.RawSummary) {
+		// Preserve malformed native bytes as text inside the valid debug JSON.
+		// The typed parser's fallback must not erase the evidence of corruption.
+		sidecars[summaryFile] = string(session.RawSummary)
+	}
 	if session.Index != nil {
 		sidecars[updatesFile] = session.Index.rawUpdates
 		sidecars[eventsFile] = session.Index.rawEvents

@@ -90,7 +90,7 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 	// turn's token totals.
 	var exchangePrompts []string
 	currentPrompt := ""
-	userSeen := 0
+	unindexedUserSeen := 0
 	agentSeen := 0
 	thoughtSeen := 0
 
@@ -122,12 +122,12 @@ func buildExchanges(session *GrokSession, workspaceRoot string) []Exchange {
 			if record.PromptIndex != nil {
 				timestamp = session.Index.userTimeForPrompt(*record.PromptIndex)
 			} else {
-				timestamp = session.Index.userTimeAtOrdinal(userSeen)
+				timestamp = session.Index.userTimeAtOrdinal(unindexedUserSeen)
+				unindexedUserSeen++
 			}
 			if timestamp == "" {
 				timestamp = session.CreatedAt
 			}
-			userSeen++
 			current = &Exchange{
 				StartTime: timestamp,
 				Messages: []Message{{

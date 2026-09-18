@@ -262,7 +262,13 @@ func (s *grokWatchState) flush() {
 	}
 }
 
-func (s *grokWatchState) run(ctx context.Context) error {
+func (s *grokWatchState) run(ctx context.Context) (runErr error) {
+	defer func() {
+		// Error exits need the same final disk reconciliation as cancellation.
+		// Flush already pending work even when the best-effort refresh fails.
+		runErr = errors.Join(runErr, s.refresh(false))
+		s.flush()
+	}()
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
 	debounce := time.NewTimer(watchDebounce)
@@ -270,11 +276,7 @@ func (s *grokWatchState) run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			// fsnotify may still have unread events when the child exits. The final
-			// disk reconciliation captures those writes before callbacks are joined.
-			err := s.refresh(false)
-			s.flush()
-			return err
+			return nil
 		case <-ticker.C:
 			if err := s.refresh(false); err != nil {
 				return err
