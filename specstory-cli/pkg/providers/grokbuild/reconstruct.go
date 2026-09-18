@@ -174,6 +174,16 @@ func writeSessionSummary(sessionDir, projectPath string) error {
 	// time. Exclusive creation preserves it without a check-then-write race.
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if errors.Is(err, os.ErrExist) {
+		// Preserve existing metadata (including a user's link to a regular
+		// file), but do not advertise a directory or missing link target as a
+		// usable native summary. This check never writes through the entry.
+		info, statErr := os.Stat(path)
+		if statErr != nil {
+			return fmt.Errorf("failed to inspect existing Grok summary: %w", statErr)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("existing Grok summary %q is not a regular file", path)
+		}
 		return nil
 	}
 	if err != nil {

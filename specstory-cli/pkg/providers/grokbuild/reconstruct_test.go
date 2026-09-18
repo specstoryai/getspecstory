@@ -2,6 +2,7 @@ package grokbuild
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -397,17 +398,53 @@ func TestReconstructionPreservesPreparedTurns(t *testing.T) {
 	}
 }
 
-func TestSummaryNeverFollowsExistingLink(t *testing.T) {
-	dir := t.TempDir()
-	target := filepath.Join(t.TempDir(), "native-summary.json")
-	path := filepath.Join(dir, summaryFile)
-	if err := os.Symlink(target, path); err != nil {
-		t.Skipf("file symlinks unavailable: %v", err)
+func TestSummaryNeverWritesThroughExistingLink(t *testing.T) {
+	for _, existingTarget := range []bool{false, true} {
+		t.Run(fmt.Sprintf("readable=%v", existingTarget), func(t *testing.T) {
+			dir := t.TempDir()
+			target := filepath.Join(t.TempDir(), "native-summary.json")
+			native, err := os.ReadFile(filepath.Join("testdata", "session-basic", summaryFile))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if existingTarget {
+				if err := os.WriteFile(target, native, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.Symlink(target, filepath.Join(dir, summaryFile)); err != nil {
+				t.Skipf("file symlinks unavailable: %v", err)
+			}
+			err = writeSessionSummary(dir, "/project")
+			if existingTarget {
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := os.ReadFile(target)
+				if err != nil || string(got) != string(native) {
+					t.Fatal("existing native metadata changed")
+				}
+			} else {
+				if err == nil {
+					t.Fatal("dangling summary link accepted as usable metadata")
+				}
+				if _, err := os.Lstat(target); !os.IsNotExist(err) {
+					t.Fatalf("summary creation wrote through existing entry: %v", err)
+				}
+			}
+		})
 	}
-	if err := writeSessionSummary(dir, "/project"); err != nil {
+}
+
+func TestNativeSessionPathRejectsSummaryDirectory(t *testing.T) {
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	dir := filepath.Join(home, "sessions", EncodeCwdDirname(spi.CanonicalizePathOrClean(project)), id)
+	if err := os.MkdirAll(filepath.Join(dir, summaryFile), 0700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Lstat(target); !os.IsNotExist(err) {
-		t.Fatalf("summary creation followed existing entry: %v", err)
+	if path, err := NewProvider().NativeSessionPath(project, filepath.Join(id, chatHistoryFile)); err == nil || path != "" {
+		t.Fatalf("unreadable summary accepted: %q, %v", path, err)
 	}
 }
