@@ -565,14 +565,24 @@ func AuthenticatedAs() (username string, loginTime string) {
 		return "", ""
 	}
 
-	// Read auth data
-	if authData, err := readAuthData(authPath); err == nil {
-		if authData.CloudRefresh != nil {
-			return authData.CloudRefresh.As, authData.CloudRefresh.CreatedAt
-		}
+	// Read auth data. Both failure paths below return "" — the caller cannot act on the
+	// difference — but they are NOT the same condition, so say which one happened. A corrupt or
+	// unreadable auth.json otherwise looks identical to "no credentials stored", and callers
+	// that degrade quietly on an empty result (the resume browser drops owner attribution) give
+	// no clue why.
+	authData, err := readAuthData(authPath)
+	if err != nil {
+		slog.Debug("Could not read auth data for authenticated user info",
+			"path", authPath, "error", err)
+		return "", ""
+	}
+	if authData.CloudRefresh == nil {
+		slog.Debug("Auth data has no cloud refresh token; no user identity available",
+			"path", authPath)
+		return "", ""
 	}
 
-	return "", ""
+	return authData.CloudRefresh.As, authData.CloudRefresh.CreatedAt
 }
 
 // GetCloudToken returns the current access token for API calls.
