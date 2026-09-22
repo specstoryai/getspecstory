@@ -3,13 +3,13 @@ package opencode
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -17,80 +17,89 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// Provider implements the SPI Provider interface for OpenCode.
-// OpenCode is a terminal-based AI coding assistant by SST that stores
-// session data in JSON files at ~/.local/share/opencode/storage/
+// Compile-time assertions that Provider satisfies the full spi.Provider
+// contract plus the optional progress-reporting enumeration. PathSessionReader
+// is not implemented: every session shares one database file, so a path alone
+// does not identify a session.
+var (
+	_ spi.Provider           = (*Provider)(nil)
+	_ spi.ProgressEnumerator = (*Provider)(nil)
+)
+
+// versionFlag is the flag Check probes the binary with, reported alongside the
+// result so analytics can tell a flag change from a genuine failure.
+const versionFlag = "--version"
+
+// Provider implements spi.Provider for OpenCode.
 type Provider struct{}
 
-// NewProvider creates a new OpenCode provider instance.
+// NewProvider creates an OpenCode provider.
 func NewProvider() *Provider {
 	return &Provider{}
 }
 
-// Name returns the human-readable name of this provider.
+// Name returns the product name.
 func (p *Provider) Name() string {
-	return "OpenCode"
+	return providerName
 }
 
-// Check verifies OpenCode installation and returns version info.
-// Runs `opencode --version` and parses the output to verify installation.
+// Check verifies that the opencode binary resolves and reports a version.
 func (p *Provider) Check(customCommand string) spi.CheckResult {
 	cmdName, _ := parseOpenCodeCommand(customCommand)
 	isCustom := customCommand != ""
-
-	// Try to find the command in PATH
-	resolvedPath, err := exec.LookPath(cmdName)
-	if err != nil {
-		errorMessage := buildCheckErrorMessage("not_found", cmdName, isCustom, "")
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "opencode",
-			"custom_command": isCustom,
-			"command_path":   cmdName,
-			"error_type":     "not_found",
-			"error_message":  err.Error(),
-		})
-		return spi.CheckResult{
-			Success:      false,
-			Location:     "",
-			ErrorMessage: errorMessage,
-		}
+	attempt := analytics.CheckAttempt{
+		Provider:      providerID,
+		CustomCommand: isCustom,
+		CommandPath:   cmdName,
+		VersionFlag:   versionFlag,
 	}
 
-	// Run opencode --version to get version info
-	cmd := exec.Command(cmdName, "--version")
+	slog.Info("Check: verifying OpenCode installation", "command", cmdName, "customCommand", isCustom)
+
+	resolvedPath, err := spi.LookPathForCheck(cmdName)
+	if err != nil {
+		errorType := spi.ClassifyCheckError(err)
+		slog.Info("Check: binary lookup failed", "command", cmdName, "error", err)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), "")
+		return spi.CheckResult{
+			Success:      false,
+			ErrorType:    errorType,
+			ErrorMessage: buildCheckErrorMessage(errorType, cmdName, isCustom, ""),
+		}
+	}
+	attempt.ResolvedPath = resolvedPath
+
+	cmd := exec.Command(resolvedPath, versionFlag)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		errorType := classifyCheckError(err)
-		errorMessage := buildCheckErrorMessage(errorType, resolvedPath, isCustom, strings.TrimSpace(stderr.String()))
-		analytics.TrackEvent(analytics.EventCheckInstallFailed, analytics.Properties{
-			"provider":       "opencode",
-			"custom_command": isCustom,
-			"command_path":   resolvedPath,
-			"error_type":     errorType,
-			"error_message":  err.Error(),
-		})
-
+		errorType := spi.ClassifyCheckExecutionError(err)
+		stderrOutput := strings.TrimSpace(stderr.String())
+		slog.Info("Check: version probe failed",
+			"resolved", resolvedPath,
+			"errorType", errorType,
+			"error", err,
+			"stderr", stderrOutput)
+		analytics.TrackCheckFailure(attempt, errorType, err.Error(), stderrOutput)
 		return spi.CheckResult{
 			Success:      false,
+			ErrorType:    errorType,
 			Location:     resolvedPath,
-			ErrorMessage: errorMessage,
+			ErrorMessage: buildCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput),
 		}
 	}
 
-	// Parse version from output
-	// Note: Version validation is minimal - we accept whatever opencode --version returns.
-	// OpenCode may have varying version output formats across releases.
+	// A binary that runs but prints nothing still passes the check; report a
+	// placeholder rather than an empty version so the result reads unambiguously.
 	version := strings.TrimSpace(stdout.String())
-	analytics.TrackEvent(analytics.EventCheckInstallSuccess, analytics.Properties{
-		"provider":       "opencode",
-		"custom_command": isCustom,
-		"command_path":   resolvedPath,
-		"version":        version,
-	})
+	if version == "" {
+		version = "unknown"
+	}
+	slog.Info("Check: succeeded", "resolved", resolvedPath, "version", version)
+	analytics.TrackCheckSuccess(attempt, version)
 
 	return spi.CheckResult{
 		Success:  true,
@@ -99,368 +108,322 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 }
 
-// DetectAgent checks if OpenCode has been used in the given project path.
-// Returns true if OpenCode session data exists for the project.
+func buildCheckErrorMessage(errorType string, command string, isCustom bool, stderr string) string {
+	var b strings.Builder
+
+	switch errorType {
+	case spi.CheckErrorNotFound:
+		b.WriteString("OpenCode could not be found.\n\n")
+		if isCustom {
+			b.WriteString("• Verify the path you supplied actually points to the `opencode` executable.\n")
+			fmt.Fprintf(&b, "• Provided command: %s\n", command)
+		} else {
+			b.WriteString("• Install OpenCode (https://opencode.ai) and ensure `opencode` is on your PATH.\n")
+			b.WriteString("• Or pass a custom command via `specstory check opencode -c \"path/to/opencode\"`.\n")
+		}
+	case spi.CheckErrorPermissionDenied:
+		b.WriteString("OpenCode exists but isn't executable.\n\n")
+		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", command)
+		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
+	default:
+		fmt.Fprintf(&b, "`%s %s` failed.\n\n", command, versionFlag)
+		if stderr != "" {
+			fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
+		}
+		fmt.Fprintf(&b, "• Try running `%s %s` directly in your terminal.\n", command, versionFlag)
+		b.WriteString("• If you upgraded recently, reinstall OpenCode to refresh its installation.\n")
+	}
+
+	return b.String()
+}
+
+// DetectAgent reports whether OpenCode has recorded a session started in this
+// project directory.
 func (p *Provider) DetectAgent(projectPath string, helpOutput bool) bool {
-	projectDir, err := ResolveProjectDir(projectPath)
-	if err != nil {
+	summaries, err := projectSessionSummaries(projectPath)
+	switch {
+	case errors.Is(err, errNoDatabase):
 		if helpOutput {
-			printDetectionHelp(err)
+			dbPath, _ := getDatabasePath()
+			log.UserWarn("No OpenCode sessions were found for this directory.\n")
+			log.UserMessage("OpenCode stores sessions in %s, which does not exist yet.\n\n", dbPath)
+			log.UserMessage("Run `opencode` in this directory once, then run this command again.\n")
+		}
+		return false
+	case err != nil:
+		slog.Warn("DetectAgent: Failed to read OpenCode sessions", "projectPath", projectPath, "error", err)
+		if helpOutput {
+			log.UserWarn("Could not read OpenCode sessions: %v\n", err)
 		}
 		return false
 	}
 
-	// Check if the project directory contains any session files
-	entries, err := os.ReadDir(projectDir)
-	if err != nil {
-		slog.Debug("DetectAgent: Failed to read project directory",
-			"path", projectDir,
-			"error", err)
-		if helpOutput {
-			log.UserWarn("Failed to read OpenCode project directory: %v", err)
-		}
-		return false
-	}
-
-	// Look for session files (ses_*.json)
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasPrefix(entry.Name(), "ses_") && strings.HasSuffix(entry.Name(), ".json") {
-			slog.Debug("DetectAgent: Found OpenCode session", "path", projectDir)
+	for _, summary := range summaries {
+		if firstPromptText(summary.FirstUserData) != "" {
 			return true
 		}
 	}
-
 	if helpOutput {
-		log.UserWarn("OpenCode data found at %s but no session files exist yet.", projectDir)
-		log.UserMessage("Start an OpenCode session in this project to create session data.\n")
+		log.UserWarn("No OpenCode sessions were found for this directory.\n")
+		log.UserMessage("OpenCode records the directory each session starts in; none started here.\n")
+		log.UserMessage("Start `opencode` from this directory so the provider can pick up its sessions.\n")
 	}
 	return false
 }
 
-// GetAgentChatSession retrieves a single chat session by ID.
-// Loads the session, its messages, and parts, then converts to the unified schema.
-func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
-	slog.Debug("GetAgentChatSession: Loading session",
-		"projectPath", projectPath,
-		"sessionID", sessionID)
-
-	// Compute project hash from path
-	projectHash, err := ComputeProjectHash(projectPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to compute project hash: %w", err)
-	}
-
-	// Load and assemble the session
-	fullSession, err := LoadAndAssembleSession(projectHash, sessionID)
-	if err != nil {
-		// Check if it's a "not found" error
-		if strings.Contains(err.Error(), "not found") {
-			slog.Debug("GetAgentChatSession: Session not found",
-				"sessionID", sessionID,
-				"projectHash", projectHash)
-			return nil, nil
+// GetAgentChatSessions returns every session started in the project directory.
+func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool, progress spi.ProgressCallback) ([]spi.AgentChatSession, error) {
+	var result []spi.AgentChatSession
+	err := withDatabase(func(db *sql.DB) error {
+		root, err := canonicalProjectPath(projectPath)
+		if err != nil {
+			return err
 		}
-		return nil, fmt.Errorf("failed to load session: %w", err)
+		summaries, err := listSessionSummaries(db, root)
+		if err != nil {
+			return err
+		}
+		for i, summary := range summaries {
+			snapshot, err := readSessionSnapshot(db, summary.ID)
+			if err != nil {
+				slog.Warn("GetAgentChatSessions: Failed to read OpenCode session, skipping",
+					"sessionId", summary.ID, "error", err)
+			} else if session := convertSnapshot(snapshot, root, debugRaw); session != nil {
+				result = append(result, *session)
+			}
+			// Reported for every session, including skipped ones, so the
+			// progress bar reaches its total.
+			if progress != nil {
+				progress(i+1, len(summaries))
+			}
+		}
+		return nil
+	})
+	if errors.Is(err, errNoDatabase) {
+		return nil, nil
 	}
-
-	// Convert to AgentChatSession
-	chatSession := convertToAgentChatSession(fullSession, projectPath, debugRaw)
-	return chatSession, nil
+	return result, err
 }
 
-// GetAgentChatSessions retrieves all chat sessions for the given project path.
-// Loads all sessions, assembles them with messages and parts, and converts to unified schema.
-func (p *Provider) GetAgentChatSessions(projectPath string, debugRaw bool) ([]spi.AgentChatSession, error) {
-	slog.Debug("GetAgentChatSessions: Loading all sessions", "projectPath", projectPath)
+// GetAgentChatSession returns one session by id, or nil when it does not
+// exist or was not started in this project. The database is global, so the
+// directory check keeps a lookup from one project returning another's session.
+func (p *Provider) GetAgentChatSession(projectPath string, sessionID string, debugRaw bool) (*spi.AgentChatSession, error) {
+	var result *spi.AgentChatSession
+	err := withDatabase(func(db *sql.DB) error {
+		root, err := canonicalProjectPath(projectPath)
+		if err != nil {
+			return err
+		}
+		snapshot, err := readSessionSnapshot(db, sessionID)
+		if err != nil || snapshot == nil {
+			return err
+		}
+		if snapshot.Session.ParentID != "" || snapshot.Session.Directory != root {
+			slog.Debug("GetAgentChatSession: Session is not a top-level session of this project",
+				"sessionId", sessionID, "directory", snapshot.Session.Directory, "projectPath", root)
+			return nil
+		}
+		result = convertSnapshot(snapshot, root, debugRaw)
+		return nil
+	})
+	if errors.Is(err, errNoDatabase) {
+		return nil, nil
+	}
+	return result, err
+}
 
-	// Compute project hash from path
-	projectHash, err := ComputeProjectHash(projectPath)
+// ListAgentChatSessions returns lightweight metadata for the project's
+// sessions, read without decoding any message beyond the first prompt.
+func (p *Provider) ListAgentChatSessions(projectPath string) ([]spi.SessionMetadata, error) {
+	summaries, err := projectSessionSummaries(projectPath)
+	if errors.Is(err, errNoDatabase) {
+		return []spi.SessionMetadata{}, nil
+	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to compute project hash: %w", err)
+		return nil, err
 	}
 
-	// Check if project directory exists
-	projectDir, err := GetSessionsDir(projectHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sessions directory: %w", err)
-	}
-
-	if _, err := os.Stat(projectDir); os.IsNotExist(err) {
-		slog.Debug("GetAgentChatSessions: No sessions directory found", "path", projectDir)
-		return []spi.AgentChatSession{}, nil
-	}
-
-	// Load all sessions for the project
-	fullSessions, err := LoadAllSessionsForProject(projectHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load sessions: %w", err)
-	}
-
-	// Convert each session to AgentChatSession
-	var result []spi.AgentChatSession
-	for _, fullSession := range fullSessions {
-		chatSession := convertToAgentChatSession(fullSession, projectPath, debugRaw)
-		if chatSession != nil {
-			result = append(result, *chatSession)
+	result := make([]spi.SessionMetadata, 0, len(summaries))
+	for _, summary := range summaries {
+		if metadata := summaryMetadata(summary); metadata != nil {
+			result = append(result, *metadata)
 		}
 	}
-
-	slog.Info("GetAgentChatSessions: Loaded sessions",
-		"projectPath", projectPath,
-		"count", len(result))
-
 	return result, nil
 }
 
-// ExecAgentAndWatch executes OpenCode in interactive mode and watches for session updates.
-// Sets up file watching before executing OpenCode and processes existing sessions first.
-func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
-	slog.Info("ExecAgentAndWatch: Starting OpenCode execution and monitoring",
-		"projectPath", projectPath,
-		"customCommand", customCommand,
-		"resumeSessionID", resumeSessionID,
-		"debugRaw", debugRaw)
-
-	// Validate resume session ID if provided
-	if resumeSessionID != "" {
-		resumeSessionID = strings.TrimSpace(resumeSessionID)
-		// OpenCode session IDs start with "ses_"
-		if !strings.HasPrefix(resumeSessionID, "ses_") {
-			slog.Warn("ExecAgentAndWatch: Resume session ID doesn't have expected prefix",
-				"sessionID", resumeSessionID)
-		}
-		slog.Info("Resuming OpenCode session", "sessionId", resumeSessionID)
-	}
-
-	// Create the watcher
-	watcher, err := NewWatcher(projectPath, sessionCallback)
-	if err != nil {
-		slog.Error("ExecAgentAndWatch: Failed to create watcher", "error", err)
-		// Continue without watcher - at least execute OpenCode
-	} else {
-		watcher.SetDebugRaw(debugRaw)
-
-		// Process existing sessions BEFORE starting the watcher to ensure
-		// we capture any sessions that were created before this run started.
-		watcher.ProcessExistingSessions()
-
-		// Start watcher in background
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		go func() {
-			if err := watcher.Start(ctx); err != nil && err != context.Canceled {
-				slog.Error("ExecAgentAndWatch: Watcher error", "error", err)
-			}
-		}()
-
-		defer func() {
-			if err := watcher.Stop(); err != nil {
-				slog.Debug("ExecAgentAndWatch: Error stopping watcher", "error", err)
-			}
-		}()
-	}
-
-	// Execute OpenCode
-	slog.Info("Executing OpenCode", "command", customCommand)
-	execErr := executeOpenCode(customCommand, resumeSessionID)
-
-	if execErr != nil {
-		return fmt.Errorf("OpenCode execution failed: %w", execErr)
-	}
-
-	return nil
+// ListAllAgentChatSessions enumerates every top-level session in the database,
+// regardless of project. See docs/SESSIONS-DB.md.
+func (p *Provider) ListAllAgentChatSessions() ([]spi.GlobalSessionRef, error) {
+	return p.ListAllAgentChatSessionsProgress(nil)
 }
 
-// WatchAgent watches for OpenCode agent activity without executing OpenCode itself.
-// Monitors storage directories for file changes and invokes the callback when sessions update.
+// ListAllAgentChatSessionsProgress enumerates every top-level session while
+// reporting scan progress into r (nil-safe). Used by `specstory reindex`.
+func (p *Provider) ListAllAgentChatSessionsProgress(r *spi.ScanReporter) ([]spi.GlobalSessionRef, error) {
+	dbPath, err := getDatabasePath()
+	if err != nil {
+		return nil, err
+	}
+
+	refs := []spi.GlobalSessionRef{}
+	err = withDatabase(func(db *sql.DB) error {
+		summaries, err := listSessionSummaries(db, "")
+		if err != nil {
+			return err
+		}
+		for _, summary := range summaries {
+			metadata := summaryMetadata(summary)
+			if metadata == nil {
+				continue
+			}
+			refs = append(refs, spi.GlobalSessionRef{
+				SessionID:  metadata.SessionID,
+				CreatedAt:  metadata.CreatedAt,
+				Slug:       metadata.Slug,
+				Name:       metadata.Name,
+				NativePath: dbPath,
+				// The directory OpenCode recorded is the session's origin;
+				// an empty one stays empty so the CLI files it as unknown.
+				OriginCwd: summary.Directory,
+			})
+			r.Add(1)
+		}
+		return nil
+	})
+	if errors.Is(err, errNoDatabase) {
+		return []spi.GlobalSessionRef{}, nil
+	}
+	return refs, err
+}
+
+// ExecAgentAndWatch runs OpenCode interactively while watching the project's
+// sessions, and returns OpenCode's exit status only after the watcher has
+// delivered its final updates.
+func (p *Provider) ExecAgentAndWatch(projectPath string, customCommand string, resumeSessionID string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
+	slog.Info("ExecAgentAndWatch: Starting OpenCode",
+		"projectPath", projectPath,
+		"resumeSessionId", resumeSessionID,
+		"debugRaw", debugRaw)
+
+	root, err := canonicalProjectPath(projectPath)
+	if err != nil {
+		return err
+	}
+
+	// A reconstructed session is staged as an export file; OpenCode must load
+	// it before `opencode -s <id>` can open it.
+	if err := importStagedSession(customCommand, root, resumeSessionID); err != nil {
+		return err
+	}
+
+	watcher, err := startWatcher(root, debugRaw, sessionCallback)
+	if err != nil {
+		// run still launches OpenCode; the sessions are recovered by a later sync.
+		slog.Error("ExecAgentAndWatch: Failed to start OpenCode session watcher", "error", err)
+	}
+
+	execErr := executeOpenCode(customCommand, root, resumeSessionID)
+
+	if watcher != nil {
+		watcher.Stop()
+	}
+	slog.Info("ExecAgentAndWatch: OpenCode session finished", "error", execErr)
+	return execErr
+}
+
+// WatchAgent watches the project's sessions without launching OpenCode, until
+// ctx is cancelled.
 func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw bool, sessionCallback func(*spi.AgentChatSession)) error {
 	slog.Info("WatchAgent: Starting OpenCode activity monitoring",
 		"projectPath", projectPath,
 		"debugRaw", debugRaw)
 
-	// Create the watcher
-	watcher, err := NewWatcher(projectPath, sessionCallback)
+	root, err := canonicalProjectPath(projectPath)
 	if err != nil {
-		return fmt.Errorf("failed to create watcher: %w", err)
+		return err
 	}
-	watcher.SetDebugRaw(debugRaw)
-
-	// Process existing sessions first
-	watcher.ProcessExistingSessions()
-
-	// Start watching - this blocks until context is cancelled
-	err = watcher.Start(ctx)
-
-	// Clean up
-	if stopErr := watcher.Stop(); stopErr != nil {
-		slog.Debug("WatchAgent: Error stopping watcher", "error", stopErr)
-	}
-
-	slog.Info("WatchAgent: Watcher stopped")
-	return err
-}
-
-// parseOpenCodeCommand parses the custom command string into command and arguments.
-// Returns the command name (or "opencode" if empty) and any additional arguments.
-func parseOpenCodeCommand(customCommand string) (string, []string) {
-	if customCommand == "" {
-		return "opencode", nil
-	}
-
-	args := spi.SplitCommandLine(customCommand)
-	if len(args) == 0 {
-		return "opencode", nil
-	}
-
-	return args[0], args[1:]
-}
-
-// classifyCheckError determines the type of error from running opencode --version.
-func classifyCheckError(err error) string {
-	var execErr *exec.Error
-	var pathErr *os.PathError
-
-	switch {
-	case errors.As(err, &execErr) && execErr.Err == exec.ErrNotFound:
-		return ErrTypeNotFound
-	case errors.As(err, &pathErr):
-		if errors.Is(pathErr.Err, os.ErrPermission) {
-			return ErrTypePermissionDenied
-		}
-	case errors.Is(err, os.ErrPermission):
-		return ErrTypePermissionDenied
-	}
-	return ErrTypeVersionFailed
-}
-
-// convertToAgentChatSession converts a FullSession to the provider-agnostic AgentChatSession format.
-// Used by both sync mode (GetAgentChatSession/GetAgentChatSessions) and watch mode.
-func convertToAgentChatSession(fullSession *FullSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
-	if fullSession == nil || fullSession.Session == nil {
-		return nil
-	}
-
-	session := fullSession.Session
-
-	// Skip sessions with no messages
-	if len(fullSession.Messages) == 0 {
-		slog.Debug("convertToAgentChatSession: Skipping empty session", "sessionId", session.ID)
-		return nil
-	}
-
-	// Get provider version from Check (empty string if not checked)
-	providerVersion := ""
-
-	// Convert to SessionData using the schema conversion
-	sessionData, err := ConvertToSessionData(fullSession, providerVersion)
+	watcher, err := startWatcher(root, debugRaw, sessionCallback)
 	if err != nil {
-		slog.Error("convertToAgentChatSession: Failed to convert session data",
-			"sessionId", session.ID,
-			"error", err)
-		return nil
+		slog.Error("WatchAgent: Failed to start OpenCode session watcher", "error", err)
+		return fmt.Errorf("failed to start watcher: %w", err)
 	}
 
-	// Generate slug from first user message if not already set
-	slug := sessionData.Slug
-	if slug == "" {
-		slug = "opencode-session"
-	}
+	slog.Info("WatchAgent: Watcher started, blocking until context cancelled")
+	<-ctx.Done()
 
-	// Build raw data as JSON
-	rawDataBytes, err := json.Marshal(fullSession)
-	if err != nil {
-		slog.Debug("convertToAgentChatSession: Failed to marshal raw data",
-			"sessionId", session.ID,
-			"error", err)
-		rawDataBytes = []byte("{}")
-	}
-
-	// Write provider-specific debug files if requested
-	if debugRaw {
-		if err := writeDebugRawFiles(fullSession); err != nil {
-			slog.Debug("convertToAgentChatSession: Failed to write debug files",
-				"sessionId", session.ID,
-				"error", err)
-		}
-	}
-
-	return &spi.AgentChatSession{
-		SessionID:   session.ID,
-		CreatedAt:   unixMillisToISO8601(session.Time.Created),
-		Slug:        slug,
-		SessionData: sessionData,
-		RawData:     string(rawDataBytes),
-	}
+	slog.Info("WatchAgent: Context cancelled, stopping watcher")
+	watcher.Stop()
+	return ctx.Err()
 }
 
-// writeDebugRawFiles writes debug JSON files for an OpenCode session.
-// Each message is written as a numbered JSON file in .specstory/debug/<session-id>/
-func writeDebugRawFiles(fullSession *FullSession) error {
-	if fullSession == nil || fullSession.Session == nil {
-		return fmt.Errorf("fullSession or session is nil")
-	}
-
-	debugDir := spi.GetDebugDir(fullSession.Session.ID)
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
-	}
-
-	// Write each message with its parts as a numbered JSON file
-	for idx, fullMsg := range fullSession.Messages {
-		number := idx + 1
-		entry := map[string]interface{}{
-			"index":     number,
-			"messageId": fullMsg.Message.ID,
-			"role":      fullMsg.Message.Role,
-			"time":      fullMsg.Message.Time,
-			"modelId":   fullMsg.Message.ModelID,
-			"parts":     fullMsg.Parts,
-		}
-
-		data, err := json.MarshalIndent(entry, "", "  ")
+// canonicalProjectPath returns the on-disk spelling of the project directory
+// (symlinks resolved, case corrected), which is how OpenCode records it.
+func canonicalProjectPath(projectPath string) (string, error) {
+	if strings.TrimSpace(projectPath) == "" {
+		cwd, err := os.Getwd()
 		if err != nil {
-			slog.Debug("writeDebugRawFiles: Failed to marshal message",
-				"index", number,
-				"error", err)
-			continue
+			return "", fmt.Errorf("failed to get current working directory: %w", err)
 		}
-
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", number))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: Failed to write file",
-				"index", number,
-				"error", err)
-			continue
-		}
-		slog.Debug("writeDebugRawFiles: Wrote file", "path", filename, "index", number)
+		projectPath = cwd
 	}
-
-	return nil
+	canonical, err := spi.GetCanonicalPath(projectPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve project path %s: %w", projectPath, err)
+	}
+	return canonical, nil
 }
 
-// executeOpenCode runs the opencode command with optional resume session.
-func executeOpenCode(customCommand string, resumeSessionID string) error {
-	cmdName, extraArgs := parseOpenCodeCommand(customCommand)
+// projectSessionSummaries lists the top-level sessions started in the project.
+func projectSessionSummaries(projectPath string) ([]sessionSummary, error) {
+	var summaries []sessionSummary
+	err := withDatabase(func(db *sql.DB) error {
+		root, err := canonicalProjectPath(projectPath)
+		if err != nil {
+			return err
+		}
+		summaries, err = listSessionSummaries(db, root)
+		return err
+	})
+	return summaries, err
+}
 
-	// Build command arguments
-	var args []string
-	args = append(args, extraArgs...)
-
-	// Add resume session if specified
-	if resumeSessionID != "" {
-		// OpenCode uses --resume or -r flag for resuming sessions
-		args = append(args, "--resume", resumeSessionID)
+// summaryMetadata builds listing metadata from a summary, or nil when the
+// session has no prompt yet. The slug is derived exactly as conversion derives
+// it so listings name sessions the way their markdown files are named.
+func summaryMetadata(summary sessionSummary) *spi.SessionMetadata {
+	prompt := firstPromptText(summary.FirstUserData)
+	if prompt == "" {
+		return nil
 	}
+	slug := spi.GenerateFilenameFromUserMessage(prompt)
+	if slug == "" {
+		slug = defaultSlug
+	}
+	name := strings.TrimSpace(summary.Title)
+	if name == "" {
+		name = spi.GenerateReadableName(prompt)
+	}
+	return &spi.SessionMetadata{
+		SessionID: summary.ID,
+		CreatedAt: formatMillis(summary.TimeCreated),
+		Slug:      slug,
+		Name:      name,
+	}
+}
 
-	slog.Debug("executeOpenCode: Running command",
-		"command", cmdName,
-		"args", args)
-
-	cmd := exec.Command(cmdName, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	return cmd.Run()
+// firstPromptText extracts the trimmed prompt text from a user record payload.
+func firstPromptText(data string) string {
+	if data == "" {
+		return ""
+	}
+	var user struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(data), &user); err != nil {
+		slog.Debug("firstPromptText: Unreadable OpenCode user record", "error", err)
+		return ""
+	}
+	return strings.TrimSpace(user.Text)
 }

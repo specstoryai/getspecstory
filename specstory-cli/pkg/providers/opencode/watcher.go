@@ -2,464 +2,328 @@ package opencode
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/log"
+
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
-// debounceWindow is the time to wait after the last file change before processing.
-// This prevents multiple reloads when OpenCode writes multiple files in rapid succession.
-const debounceWindow = 100 * time.Millisecond
+// Watcher timing. Package variables so tests can shorten them.
+var (
+	// debounceDelay collapses the burst of WAL writes one streamed update
+	// produces into a single read, taken after the burst's last write.
+	debounceDelay = 300 * time.Millisecond
 
-// cleanupInterval is how often we clean up old entries from the lastProcessed map.
-const cleanupInterval = 5 * time.Minute
+	// maxBurstDelay bounds how long a continuous burst (a long streaming
+	// response) can postpone a read, so the markdown keeps growing while the
+	// agent is still writing.
+	maxBurstDelay = 2 * time.Second
 
-// cleanupThreshold is the age after which entries are removed from lastProcessed.
-// Entries older than this are no longer needed for debouncing.
-const cleanupThreshold = 10 * time.Minute
+	// reconcileInterval is the periodic re-read that recovers from missed
+	// filesystem events. One indexed query per interval.
+	reconcileInterval = 15 * time.Second
+)
 
-// Watcher monitors OpenCode storage directories for changes and invokes a callback
-// when session data is updated. It watches the message and part directories to detect
-// new content and reloads the affected session.
-type Watcher struct {
-	projectHash   string
-	projectPath   string
-	fsWatcher     *fsnotify.Watcher
-	callback      func(*spi.AgentChatSession)
-	debugRaw      bool
-	lastProcessed map[string]time.Time // Tracks last processing time per session for debouncing
-	mu            sync.Mutex           // Protects lastProcessed
-	stopCleanup   chan struct{}        // Signals the cleanup goroutine to stop
+// watcherLabel names this watcher in callback panic logs.
+const watcherLabel = "OpenCode watcher"
+
+// sessionWatcher follows one project's sessions in OpenCode's database and
+// delivers each new or changed session, in order, on a single worker.
+//
+// OpenCode keeps every session in one SQLite database, so the watch is a fixed
+// set of one directory (the database's, or its nearest existing ancestor
+// until OpenCode creates it) no matter how many sessions accumulate.
+type sessionWatcher struct {
+	projectPath string
+	debugRaw    bool
+	callback    func(*spi.AgentChatSession)
+	dbPath      string
+	dbDir       string
+
+	fsWatcher  *fsnotify.Watcher
+	watchedDir string // owned by the worker after start
+
+	// startMillis is the startup boundary: sessions last written before it
+	// form the baseline; anything written at or after it is activity.
+	startMillis int64
+	// known holds the signature last delivered (or baselined) per session.
+	// Owned by the worker goroutine after start.
+	known map[string]signature
+
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	stopOnce sync.Once
 }
 
-// NewWatcher creates a new storage watcher for an OpenCode project.
-// The callback is invoked when session data changes, with the updated AgentChatSession.
-func NewWatcher(projectPath string, callback func(*spi.AgentChatSession)) (*Watcher, error) {
-	slog.Debug("NewWatcher: Creating watcher", "projectPath", projectPath)
-
-	projectHash, err := ComputeProjectHash(projectPath)
+// startWatcher establishes the startup baseline and starts the worker. It
+// returns an error only when no watch can be established at all.
+func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentChatSession)) (*sessionWatcher, error) {
+	if callback == nil {
+		return nil, errors.New("session callback must not be nil")
+	}
+	dbPath, err := getDatabasePath()
 	if err != nil {
 		return nil, err
 	}
 
 	fsWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
+		return nil, fmt.Errorf("failed to create file watcher: %w", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	w := &sessionWatcher{
+		projectPath: projectPath,
+		debugRaw:    debugRaw,
+		callback:    callback,
+		dbPath:      dbPath,
+		dbDir:       filepath.Dir(dbPath),
+		fsWatcher:   fsWatcher,
+		known:       make(map[string]signature),
+		ctx:         ctx,
+		cancel:      cancel,
+	}
+
+	// The boundary is taken before the watch exists, so a write that lands
+	// while the watch and baseline are being set up is newer than the
+	// boundary and is emitted rather than absorbed into the baseline.
+	w.startMillis = time.Now().UnixMilli()
+
+	if err := w.updateWatch(); err != nil {
+		cancel()
+		_ = fsWatcher.Close() // nothing was delivered; the watch error is what matters
 		return nil, err
 	}
 
-	return &Watcher{
-		projectHash:   projectHash,
-		projectPath:   projectPath,
-		fsWatcher:     fsWatcher,
-		callback:      callback,
-		lastProcessed: make(map[string]time.Time),
-		stopCleanup:   make(chan struct{}),
-	}, nil
+	if _, err := os.Stat(dbPath); err == nil {
+		// OpenCode's database is normally in WAL mode already; this makes sure
+		// every write reaches the -wal file the watch relies on.
+		if err := spi.EnsureWALMode(dbPath); err != nil {
+			slog.Warn("WatchAgent: Failed to ensure WAL mode on OpenCode database", "path", dbPath, "error", err)
+		}
+	}
+	w.establishBaseline()
+
+	slog.Info("OpenCode watcher started",
+		"projectPath", projectPath,
+		"dbPath", dbPath,
+		"watchedDir", w.watchedDir,
+		"baselineSessions", len(w.known))
+
+	w.wg.Go(w.run)
+	return w, nil
 }
 
-// SetDebugRaw enables or disables debug raw file output.
-func (w *Watcher) SetDebugRaw(debugRaw bool) {
-	w.debugRaw = debugRaw
+// Stop ends the watch after delivering any change that has not been delivered
+// yet. Safe to call more than once.
+func (w *sessionWatcher) Stop() {
+	w.stopOnce.Do(func() {
+		slog.Info("Stopping OpenCode watcher")
+		w.cancel()
+		w.wg.Wait()
+		if err := w.fsWatcher.Close(); err != nil {
+			slog.Debug("Failed to close OpenCode file watcher", "error", err)
+		}
+		slog.Info("OpenCode watcher stopped")
+	})
 }
 
-// Start begins watching for changes in OpenCode storage directories.
-// This method blocks until the context is cancelled or an error occurs.
-// It watches:
-// - storage/session/{projectHash}/ for new sessions
-// - storage/message/ for new messages (filtered to current project's sessions)
-// - storage/part/ for new parts (filtered to current project's sessions)
-func (w *Watcher) Start(ctx context.Context) error {
-	slog.Info("Watcher.Start: Starting OpenCode file watcher",
-		"projectHash", w.projectHash,
-		"projectPath", w.projectPath)
-
-	storageDir, err := GetStorageDir()
-	if err != nil {
-		return err
-	}
-
-	// Watch the session directory for new sessions
-	sessionsDir := filepath.Join(storageDir, "session", w.projectHash)
-	if err := w.watchDirRecursive(sessionsDir); err != nil {
-		// Session directory may not exist yet - this is OK, we'll create watches when it appears
-		slog.Debug("Watcher.Start: Could not watch sessions directory (may not exist yet)",
-			"path", sessionsDir,
-			"error", err)
-	}
-
-	// Watch the message directory for new messages
-	// We watch the entire message directory and filter by session ID in the event handler
-	messagesDir := filepath.Join(storageDir, "message")
-	if err := w.watchDirRecursive(messagesDir); err != nil {
-		slog.Debug("Watcher.Start: Could not watch messages directory",
-			"path", messagesDir,
-			"error", err)
-	}
-
-	// Watch the part directory for new parts
-	// We watch the entire part directory and filter by message -> session in the event handler
-	partsDir := filepath.Join(storageDir, "part")
-	if err := w.watchDirRecursive(partsDir); err != nil {
-		slog.Debug("Watcher.Start: Could not watch parts directory",
-			"path", partsDir,
-			"error", err)
-	}
-
-	slog.Info("Watcher.Start: File watcher started, waiting for events")
-
-	// Start the cleanup goroutine to prevent memory leak in lastProcessed map
-	go w.cleanupLoop()
-
-	// Event processing loop
-	for {
-		select {
-		case <-ctx.Done():
-			slog.Info("Watcher.Start: Context cancelled, stopping watcher")
-			return ctx.Err()
-
-		case event, ok := <-w.fsWatcher.Events:
-			if !ok {
-				slog.Info("Watcher.Start: Events channel closed")
-				return nil
+// establishBaseline records the sessions that were already complete when the
+// watcher started, so starting a watch does not republish history. A missing
+// database leaves the baseline empty: every session in a database created
+// after startup is new activity.
+func (w *sessionWatcher) establishBaseline() {
+	err := withDatabase(func(db *sql.DB) error {
+		summaries, err := listSessionSummaries(db, w.projectPath)
+		if err != nil {
+			return err
+		}
+		for _, summary := range summaries {
+			if summary.TimeUpdated < w.startMillis && summary.LastMessageUpdate < w.startMillis {
+				w.known[summary.ID] = summary.signature()
 			}
-			w.handleEvent(event)
-
-		case err, ok := <-w.fsWatcher.Errors:
-			if !ok {
-				slog.Info("Watcher.Start: Errors channel closed")
-				return nil
-			}
-			log.UserWarn("File watcher error: %v", err)
-			slog.Error("Watcher.Start: Watcher error", "error", err)
 		}
-	}
-}
-
-// Stop gracefully stops the watcher and releases resources.
-func (w *Watcher) Stop() error {
-	slog.Info("Watcher.Stop: Stopping watcher")
-	close(w.stopCleanup)
-	return w.fsWatcher.Close()
-}
-
-// cleanupLoop periodically removes old entries from the lastProcessed map to prevent
-// unbounded memory growth. Entries older than cleanupThreshold are removed since they
-// are no longer needed for debouncing.
-func (w *Watcher) cleanupLoop() {
-	ticker := time.NewTicker(cleanupInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-w.stopCleanup:
-			return
-		case <-ticker.C:
-			w.cleanupOldEntries()
-		}
-	}
-}
-
-// cleanupOldEntries removes entries from lastProcessed that are older than cleanupThreshold.
-func (w *Watcher) cleanupOldEntries() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	threshold := time.Now().Add(-cleanupThreshold)
-	removed := 0
-
-	for sessionID, lastTime := range w.lastProcessed {
-		if lastTime.Before(threshold) {
-			delete(w.lastProcessed, sessionID)
-			removed++
-		}
-	}
-
-	if removed > 0 {
-		slog.Debug("Watcher.cleanupOldEntries: Cleaned up old entries",
-			"removed", removed,
-			"remaining", len(w.lastProcessed))
-	}
-}
-
-// watchDirRecursive adds a directory and all its subdirectories to the watcher.
-// This is needed because fsnotify doesn't watch recursively by default.
-func (w *Watcher) watchDirRecursive(dir string) error {
-	// Check if directory exists
-	info, err := os.Stat(dir)
-	if err != nil {
-		return err
-	}
-	if !info.IsDir() {
 		return nil
+	})
+	if err != nil && !errors.Is(err, errNoDatabase) {
+		// Without a baseline the first check re-emits existing sessions, which
+		// the command layer's fingerprinting absorbs; the watch itself works.
+		slog.Warn("OpenCode watcher: Failed to establish baseline", "error", err)
 	}
+}
 
-	// Add the directory itself
-	if err := w.fsWatcher.Add(dir); err != nil {
-		return err
+// run is the single worker: it owns the known map, the watch, and every
+// callback, so deliveries are ordered and shutdown has one thing to join.
+func (w *sessionWatcher) run() {
+	reconcile := time.NewTicker(reconcileInterval)
+	defer reconcile.Stop()
+
+	debounce := time.NewTimer(debounceDelay)
+	debounce.Stop()
+	var debounceC <-chan time.Time
+	var burstStart time.Time
+
+	events := w.fsWatcher.Events
+	watchErrors := w.fsWatcher.Errors
+
+	// Catch anything written while the baseline was being taken.
+	w.check("startup")
+
+	for {
+		select {
+		case <-w.ctx.Done():
+			debounce.Stop()
+			w.check("shutdown")
+			return
+
+		case event, ok := <-events:
+			if !ok {
+				events = nil
+				continue
+			}
+			if !w.handleEvent(event) {
+				continue
+			}
+			now := time.Now()
+			if debounceC == nil {
+				burstStart = now
+			}
+			wait := min(debounceDelay, max(maxBurstDelay-now.Sub(burstStart), 0))
+			debounce.Reset(wait)
+			debounceC = debounce.C
+
+		case <-debounceC:
+			debounceC = nil
+			w.check("file-change")
+
+		case <-reconcile.C:
+			if w.watchedDir != w.dbDir {
+				// Recovers a missed directory-creation event.
+				if err := w.updateWatch(); err != nil {
+					slog.Debug("OpenCode watcher: Failed to update watch", "error", err)
+				}
+			}
+			w.check("reconcile")
+
+		case err, ok := <-watchErrors:
+			if !ok {
+				watchErrors = nil
+				continue
+			}
+			slog.Warn("OpenCode watcher: File watch error", "error", err)
+		}
 	}
-	slog.Debug("Watcher.watchDirRecursive: Added directory to watch", "path", dir)
+}
 
-	// Walk subdirectories
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return err
-	}
+// handleEvent reacts to one filesystem event and reports whether the
+// database may have changed.
+func (w *sessionWatcher) handleEvent(event fsnotify.Event) bool {
+	slog.Debug("OpenCode watcher: File event", "path", event.Name, "op", event.Op)
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			subdir := filepath.Join(dir, entry.Name())
-			if err := w.watchDirRecursive(subdir); err != nil {
-				// Log but continue with other directories
-				slog.Debug("Watcher.watchDirRecursive: Failed to watch subdirectory",
-					"path", subdir,
-					"error", err)
+	if w.watchedDir != w.dbDir {
+		// Waiting for OpenCode to create its data directory: follow each
+		// directory it creates on the way down.
+		if event.Has(fsnotify.Create) {
+			if err := w.updateWatch(); err != nil {
+				slog.Warn("OpenCode watcher: Failed to follow new directory", "path", event.Name, "error", err)
 			}
 		}
+		return w.watchedDir == w.dbDir
 	}
 
-	return nil
-}
-
-// handleEvent processes a file system event and triggers session reload if needed.
-func (w *Watcher) handleEvent(event fsnotify.Event) {
-	// Only process create and write events for JSON files
-	if !event.Has(fsnotify.Create) && !event.Has(fsnotify.Write) {
-		return
-	}
-
-	path := event.Name
-
-	// If a new directory was created, add it and all subdirectories to the watch list.
-	// We use watchDirRecursive instead of fsWatcher.Add to handle cases where the new
-	// directory already contains subdirectories (e.g., when a tool creates a nested structure).
-	if event.Has(fsnotify.Create) {
-		if info, err := os.Stat(path); err == nil && info.IsDir() {
-			if err := w.watchDirRecursive(path); err != nil {
-				slog.Debug("Watcher.handleEvent: Failed to add new directory to watch",
-					"path", path,
-					"error", err)
-			} else {
-				slog.Debug("Watcher.handleEvent: Added new directory to watch", "path", path)
-			}
-			return
+	if event.Name == w.dbDir && (event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename)) {
+		// The data directory went away; fall back to waiting for it.
+		if err := w.updateWatch(); err != nil {
+			slog.Warn("OpenCode watcher: Failed to re-establish watch", "error", err)
 		}
-	}
-
-	// Only process JSON files
-	if !strings.HasSuffix(path, ".json") {
-		return
-	}
-
-	slog.Debug("Watcher.handleEvent: Processing file event",
-		"operation", event.Op.String(),
-		"path", path)
-
-	// Extract session ID from the path
-	sessionID := w.extractSessionID(path)
-	if sessionID == "" {
-		slog.Debug("Watcher.handleEvent: Could not extract session ID from path", "path", path)
-		return
-	}
-
-	// Verify this session belongs to our project
-	if !w.isSessionForProject(sessionID) {
-		slog.Debug("Watcher.handleEvent: Session not for this project",
-			"sessionID", sessionID,
-			"projectHash", w.projectHash)
-		return
-	}
-
-	// Debounce: check if we've processed this session recently
-	w.mu.Lock()
-	lastTime := w.lastProcessed[sessionID]
-	now := time.Now()
-	if now.Sub(lastTime) < debounceWindow {
-		w.mu.Unlock()
-		slog.Debug("Watcher.handleEvent: Debouncing session reload",
-			"sessionID", sessionID,
-			"timeSinceLastProcess", now.Sub(lastTime))
-		return
-	}
-	w.lastProcessed[sessionID] = now
-	w.mu.Unlock()
-
-	// Schedule the actual reload after the debounce window.
-	// This allows multiple rapid writes to coalesce into a single reload.
-	go func(sid string) {
-		time.Sleep(debounceWindow)
-
-		// Debounce check: If another event arrived for this session while we were sleeping,
-		// it would have updated lastProcessed[sid] to a newer timestamp. By comparing against
-		// the 'now' value we captured before sleeping, we can detect this:
-		// - If timestamps match: no newer event came in, we should proceed with reload
-		// - If timestamps differ: a newer event is pending, skip this reload (newer goroutine will handle it)
-		// This ensures only the most recent event triggers a reload, preventing duplicate processing.
-		w.mu.Lock()
-		if w.lastProcessed[sid] != now {
-			w.mu.Unlock()
-			slog.Debug("Watcher.handleEvent: Skipping reload, newer event pending", "sessionID", sid)
-			return
-		}
-		w.mu.Unlock()
-
-		w.reloadAndCallback(sid)
-	}(sessionID)
-}
-
-// extractSessionID extracts the session ID from a file path.
-// Handles paths like:
-// - storage/session/{hash}/ses_XXX.json -> ses_XXX
-// - storage/message/ses_XXX/msg_YYY.json -> ses_XXX
-// - storage/part/msg_XXX/prt_YYY.json -> requires lookup via message
-func (w *Watcher) extractSessionID(path string) string {
-	// Pattern for session files: .../session/{hash}/ses_XXX.json
-	sessionFileRegex := regexp.MustCompile(`/session/[^/]+/(ses_[^/]+)\.json$`)
-	if matches := sessionFileRegex.FindStringSubmatch(path); len(matches) > 1 {
-		return matches[1]
-	}
-
-	// Pattern for message directory: .../message/ses_XXX/...
-	messagePathRegex := regexp.MustCompile(`/message/(ses_[^/]+)/`)
-	if matches := messagePathRegex.FindStringSubmatch(path); len(matches) > 1 {
-		return matches[1]
-	}
-
-	// Pattern for part directory: .../part/msg_XXX/...
-	// We need to look up the message to find its session ID
-	partPathRegex := regexp.MustCompile(`/part/(msg_[^/]+)/`)
-	if matches := partPathRegex.FindStringSubmatch(path); len(matches) > 1 {
-		messageID := matches[1]
-		return w.lookupSessionIDForMessage(messageID)
-	}
-
-	return ""
-}
-
-// lookupSessionIDForMessage finds the session ID for a given message ID by reading the message file.
-func (w *Watcher) lookupSessionIDForMessage(messageID string) string {
-	storageDir, err := GetStorageDir()
-	if err != nil {
-		return ""
-	}
-
-	// Walk through message directories to find which session this message belongs to
-	messageDir := filepath.Join(storageDir, "message")
-	entries, err := os.ReadDir(messageDir)
-	if err != nil {
-		return ""
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "ses_") {
-			continue
-		}
-
-		sessionID := entry.Name()
-		messagePath := filepath.Join(messageDir, sessionID, messageID+".json")
-		if _, err := os.Stat(messagePath); err == nil {
-			return sessionID
-		}
-	}
-
-	return ""
-}
-
-// isSessionForProject checks if a session belongs to the current project.
-// It does this by checking if the session exists in the project's session directory.
-func (w *Watcher) isSessionForProject(sessionID string) bool {
-	sessionsDir, err := GetSessionsDir(w.projectHash)
-	if err != nil {
 		return false
 	}
 
-	sessionPath := filepath.Join(sessionsDir, sessionID+".json")
-	_, err = os.Stat(sessionPath)
-	return err == nil
+	isDatabaseFile := event.Name == w.dbPath || strings.HasPrefix(event.Name, w.dbPath+"-")
+	return isDatabaseFile && (event.Has(fsnotify.Write) || event.Has(fsnotify.Create))
 }
 
-// reloadAndCallback loads the session data and invokes the callback.
-func (w *Watcher) reloadAndCallback(sessionID string) {
-	slog.Info("Watcher.reloadAndCallback: Reloading session", "sessionID", sessionID)
-
-	// Load and assemble the full session
-	fullSession, err := LoadAndAssembleSession(w.projectHash, sessionID)
-	if err != nil {
-		slog.Error("Watcher.reloadAndCallback: Failed to load session",
-			"sessionID", sessionID,
-			"error", err)
-		return
+// updateWatch points the single directory watch at the database's directory,
+// or at its nearest existing ancestor until that directory exists, so the
+// watcher never disables itself because OpenCode has not run yet.
+func (w *sessionWatcher) updateWatch() error {
+	target := nearestExistingDir(w.dbDir)
+	if target == w.watchedDir {
+		return nil
 	}
-
-	// Convert to AgentChatSession
-	chatSession := convertToAgentChatSession(fullSession, w.projectPath, w.debugRaw)
-	if chatSession == nil {
-		slog.Debug("Watcher.reloadAndCallback: Session converted to nil (empty or filtered)",
-			"sessionID", sessionID)
-		return
+	if err := w.fsWatcher.Add(target); err != nil {
+		return fmt.Errorf("failed to watch %s: %w", target, err)
 	}
+	if w.watchedDir != "" {
+		// The previous directory may already be gone; its watch is dead either way.
+		_ = w.fsWatcher.Remove(w.watchedDir)
+	}
+	slog.Debug("OpenCode watcher: Watching directory", "dir", target, "waitingForStore", target != w.dbDir)
+	w.watchedDir = target
+	return nil
+}
 
-	// Invoke callback in a goroutine to avoid blocking
-	if w.callback != nil {
-		slog.Info("Watcher.reloadAndCallback: Invoking callback for session", "sessionID", sessionID)
-		go func(s *spi.AgentChatSession) {
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("Watcher.reloadAndCallback: Callback panicked", "panic", r)
-				}
-			}()
-			w.callback(s)
-		}(chatSession)
+// nearestExistingDir returns path if it is an existing directory, otherwise
+// its closest existing ancestor.
+func nearestExistingDir(path string) string {
+	for {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			return path
+		}
+		parent := filepath.Dir(path)
+		if parent == path {
+			return path
+		}
+		path = parent
 	}
 }
 
-// ProcessExistingSessions loads and processes all existing sessions for the project.
-// This should be called before starting the watcher to ensure we capture sessions
-// that were created before this run started.
-func (w *Watcher) ProcessExistingSessions() {
-	slog.Info("Watcher.ProcessExistingSessions: Processing existing sessions",
-		"projectHash", w.projectHash)
-
-	// Load all sessions for the project
-	fullSessions, err := LoadAllSessionsForProject(w.projectHash)
-	if err != nil {
-		slog.Error("Watcher.ProcessExistingSessions: Failed to load existing sessions",
-			"error", err)
+// check reads the project's sessions and delivers each one whose signature
+// changed since it was last delivered or baselined.
+func (w *sessionWatcher) check(trigger string) {
+	delivered := 0
+	err := withDatabase(func(db *sql.DB) error {
+		summaries, err := listSessionSummaries(db, w.projectPath)
+		if err != nil {
+			return err
+		}
+		for _, summary := range summaries {
+			sig := summary.signature()
+			if known, ok := w.known[summary.ID]; ok && known == sig {
+				continue
+			}
+			snapshot, err := readSessionSnapshot(db, summary.ID)
+			if err != nil {
+				// Left unrecorded so the next check retries it.
+				slog.Warn("OpenCode watcher: Failed to read session", "sessionId", summary.ID, "error", err)
+				continue
+			}
+			session := convertSnapshot(snapshot, w.projectPath, w.debugRaw)
+			if session == nil {
+				// No prompt yet; retried once the first message lands.
+				continue
+			}
+			w.known[summary.ID] = sig
+			slog.Info("OpenCode watcher: Delivering session update",
+				"sessionId", session.SessionID, "trigger", trigger)
+			spi.DeliverSession(watcherLabel, w.callback, session)
+			delivered++
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, errNoDatabase) {
+		slog.Warn("OpenCode watcher: Check failed", "trigger", trigger, "error", err)
 		return
 	}
-
-	slog.Info("Watcher.ProcessExistingSessions: Found sessions", "count", len(fullSessions))
-
-	// Process each session
-	for _, fullSession := range fullSessions {
-		if fullSession == nil || fullSession.Session == nil {
-			continue
-		}
-
-		chatSession := convertToAgentChatSession(fullSession, w.projectPath, w.debugRaw)
-		if chatSession == nil {
-			continue
-		}
-
-		// Invoke callback
-		if w.callback != nil {
-			slog.Debug("Watcher.ProcessExistingSessions: Processing session",
-				"sessionID", chatSession.SessionID)
-			go func(s *spi.AgentChatSession) {
-				defer func() {
-					if r := recover(); r != nil {
-						slog.Error("Watcher.ProcessExistingSessions: Callback panicked", "panic", r)
-					}
-				}()
-				w.callback(s)
-			}(chatSession)
-		}
-	}
+	slog.Debug("OpenCode watcher: Check complete", "trigger", trigger, "delivered", delivered)
 }
