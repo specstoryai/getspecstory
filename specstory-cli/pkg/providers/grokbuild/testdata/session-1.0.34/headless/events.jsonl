@@ -1,0 +1,6 @@
+{"ts":"2026-09-17T21:56:29.088Z","type":"tool_completed","tool_name":"search_tool","duration_ms":19,"outcome":"success","tool_call_id":"call-7d677a71-2cd3-4a04-b6d2-b606fb713679-0"}
+{"ts":"2026-09-17T21:56:33.070Z","type":"tool_completed","tool_name":"search_tool","duration_ms":25,"outcome":"success","tool_call_id":"call-577ad635-5ac7-4bec-a14b-fa8e6d17f7eb-1"}
+{"ts":"2026-09-17T21:56:33.075Z","type":"tool_completed","tool_name":"search_tool","duration_ms":11,"outcome":"success","tool_call_id":"call-577ad635-5ac7-4bec-a14b-fa8e6d17f7eb-2"}
+{"ts":"2026-09-17T21:56:52.854Z","type":"tool_completed","tool_name":"ask_user_question","duration_ms":1,"outcome":"success","tool_call_id":"call-7d1a8b89-ab92-4faf-ad89-3f8d15c094c5-3"}
+{"ts":"2026-09-17T21:57:01.053Z","type":"tool_completed","tool_name":"use_tool","duration_ms":0,"outcome":"error","tool_call_id":"call-c9c5664a-e97e-4e3d-a510-0704d5421bc7-4"}
+{"ts":"2026-09-17T21:57:03.096Z","type":"tool_completed","tool_name":"enter_plan_mode","duration_ms":1,"outcome":"success","tool_call_id":"call-1cbd3f47-6444-4340-b384-f83e0f30f2b4-5"}

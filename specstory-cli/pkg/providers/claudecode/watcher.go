@@ -628,10 +628,12 @@ func convertToAgentChatSession(session Session, workspaceRoot string, debugRaw b
 	}
 
 	// Write debug files first (even for warmup-only sessions)
-	_ = make(map[int]int) // recordToFileNumber no longer needed
 	if debugRaw {
 		// Write debug files
-		writeDebugRawFiles(session)
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages

@@ -137,35 +137,9 @@ func WriteDebugJSON(jsonlFile string, lineNumber int, data map[string]interface{
 	return writeJSONToDebugDir(uuid, filename, data, "Debug")
 }
 
-// CleanDebugDirectory removes all files from a debug directory before writing new ones
+// CleanDebugDirectory clears numbered provider files, preserving CLI artifacts.
 func CleanDebugDirectory(uuid string) error {
-	debugDir := spi.GetDebugDir(uuid)
-
-	// Check if directory exists
-	if _, err := os.Stat(debugDir); os.IsNotExist(err) {
-		// Directory doesn't exist, nothing to clean
-		return nil
-	}
-
-	// Remove all files in the directory
-	entries, err := os.ReadDir(debugDir)
-	if err != nil {
-		return fmt.Errorf("failed to read debug directory for UUID %s: %v", uuid, err)
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			filePath := filepath.Join(debugDir, entry.Name())
-			if err := os.Remove(filePath); err != nil {
-				slog.Warn("Failed to remove file",
-					"path", filePath,
-					"uuid", uuid,
-					"error", err)
-			}
-		}
-	}
-
-	return nil
+	return spi.PrepareDebugDir(spi.GetDebugDir(uuid), spi.IsNumberedDebugFile)
 }
 
 // WriteSpecstoryBurstJSON writes a pretty-printed JSON file for a record in specstory burst mode
@@ -185,24 +159,11 @@ func WriteDebugRawJSON(sessionUuid string, lineNumber int, data map[string]inter
 	return writeJSONToDebugDir(sessionUuid, filename, data, "Debug raw")
 }
 
-// writeDebugRawFiles writes debug JSON files for a Claude Code session.
-// Returns a map from record index to file number for reference in markdown generation.
-func writeDebugRawFiles(session Session) map[int]int {
-	recordToFileNumber := make(map[int]int)
-
-	// Clean the debug directory first
-	if err := CleanDebugDirectory(session.SessionUuid); err != nil {
-		slog.Warn("Failed to clean debug directory for debug-raw", "error", err)
-		return recordToFileNumber
-	}
-
-	// Write ALL records as JSON files, numbered sequentially
-	fileNumber := 0
+// writeDebugRawFiles refreshes the captured records before warmup filtering.
+func writeDebugRawFiles(session Session) error {
+	records := make([]map[string]interface{}, len(session.Records))
 	for i, record := range session.Records {
-		fileNumber++
-		_ = WriteDebugRawJSON(session.SessionUuid, fileNumber, record.Data)
-		recordToFileNumber[i] = fileNumber
+		records[i] = record.Data
 	}
-
-	return recordToFileNumber
+	return spi.WriteDebugRecords(spi.GetDebugDir(session.SessionUuid), records)
 }

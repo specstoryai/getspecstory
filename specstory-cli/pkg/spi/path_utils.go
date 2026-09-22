@@ -367,6 +367,68 @@ func GetDebugDir(sessionID string) string {
 	return filepath.Join(".specstory", "debug", sessionID)
 }
 
+var numberedDebugFileRe = regexp.MustCompile(`^[1-9][0-9]*\.json$`)
+
+// IsNumberedDebugFile identifies the files owned by a numbered debug export.
+func IsNumberedDebugFile(name string) bool {
+	return numberedDebugFileRe.MatchString(name)
+}
+
+// PrepareDebugDir clears only provider-owned files before refreshing an export.
+// CLI artifacts such as session-data.json and unrelated files must survive.
+func PrepareDebugDir(dir string, ownsFile func(string) bool) error {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("create debug directory %s: %w", dir, err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("read debug directory %s: %w", dir, err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !ownsFile(entry.Name()) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remove debug file %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// WriteDebugRecords refreshes numbered, pretty-printed records from a parsing
+// snapshot. Pass json.RawMessage when native bytes are available to preserve
+// unknown fields, numeric precision, and key order; typed diagnostics also use
+// this writer so numbering, cleanup, formatting, and errors stay consistent.
+func WriteDebugRecords[T any](dir string, records []T) error {
+	if err := PrepareDebugDir(dir, IsNumberedDebugFile); err != nil {
+		return err
+	}
+	for i, record := range records {
+		path := filepath.Join(dir, fmt.Sprintf("%d.json", i+1))
+		data, err := json.MarshalIndent(record, "", "  ")
+		if err != nil {
+			return fmt.Errorf("format debug file %s: %w", path, err)
+		}
+		if err := os.WriteFile(path, data, 0o644); err != nil {
+			return fmt.Errorf("write debug file %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// WriteDebugJSONL exports an already accepted JSONL snapshot without decoding
+// records through float64 or rereading the source file during a live update.
+func WriteDebugJSONL(dir, transcript string) error {
+	var records []json.RawMessage
+	for line := range strings.SplitSeq(transcript, "\n") {
+		if strings.TrimSpace(line) != "" {
+			records = append(records, json.RawMessage(line))
+		}
+	}
+	return WriteDebugRecords(dir, records)
+}
+
 // WriteDebugSessionData writes the SessionData as formatted JSON to the debug directory.
 // This provides a standardized, provider-agnostic debug output alongside provider-specific raw data.
 //

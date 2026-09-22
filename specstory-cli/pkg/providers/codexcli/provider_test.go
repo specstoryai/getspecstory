@@ -1,6 +1,7 @@
 package codexcli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -10,6 +11,48 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestDebugRawRefreshPreservesUnownedFiles(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	header := `{"type":"session_meta","timestamp":"2026-09-18T12:00:00Z","payload":{"id":"debug-refresh","cwd":"/project"}}` + "\n"
+	user := `{"type":"event_msg","timestamp":"2026-09-18T12:00:01Z","payload":{"type":"user_message","message":"hello"},"unknownNative":{"z":9007199254740993,"a":1.234567890123456789}}` + "\n"
+	third := `{"type":"future_record","unknownNative":"old"}` + "\n"
+	if err := os.WriteFile(path, []byte(header+"{broken\n"+user+third), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	meta, err := loadCodexSessionMeta(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info := &codexSessionInfo{SessionID: "debug-refresh", SessionPath: path, Meta: meta}
+	dir := spi.GetDebugDir(info.SessionID)
+	if _, err := processSessionToAgentChat(info, "/project", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("debug-disabled conversion created output: %v", err)
+	}
+	if _, err := processSessionToAgentChat(info, "/project", true); err != nil {
+		t.Fatal(err)
+	}
+	testutil.AssertDebugRefresh(t, dir, []string{"3.json"}, []string{"session-data.json", "3-notes.json"}, func() {
+		if err := os.WriteFile(path, []byte(header+user), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := processSessionToAgentChat(info, "/project", true); err != nil {
+			t.Fatal(err)
+		}
+	})
+	data, err := os.ReadFile(filepath.Join(dir, "2.json"))
+	if err != nil || !json.Valid(data) || !strings.Contains(string(data), "\n  \"unknownNative\": {") {
+		t.Fatalf("native fields/formatting lost: %s (%v)", data, err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, data); err != nil || compact.String() != strings.TrimSpace(user) {
+		t.Fatalf("debug export changed numeric precision or key order: %s (%v)", data, err)
+	}
+}
 
 func TestLoadCodexSessionMeta(t *testing.T) {
 	tests := []struct {
@@ -138,7 +181,7 @@ func TestReadSessionRawData(t *testing.T) {
 `,
 			wantError:       false,
 			wantRecordCount: 2, // Malformed line skipped but parsing continues
-			wantRawLines:    3, // Raw data includes all non-empty lines
+			wantRawLines:    2, // Only accepted records belong to the parsing snapshot
 		},
 		{
 			name: "very long line (under limit)",

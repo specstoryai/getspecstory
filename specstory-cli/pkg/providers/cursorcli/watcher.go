@@ -247,7 +247,7 @@ func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) b
 
 	// Read the session data
 	sessionPath := filepath.Dir(dbPath) // Get the session directory from db path
-	createdAt, slug, blobRecords, _, err := ReadSessionData(sessionPath)
+	createdAt, slug, blobRecords, orphanRecords, err := ReadSessionData(sessionPath)
 	if err != nil {
 		slog.Error("Failed to read session data", "sessionId", sessionID, "error", err)
 		return false
@@ -274,8 +274,8 @@ func (w *CursorWatcher) processSessionChanges(sessionID string, dbPath string) b
 
 	// Write provider-specific debug output if requested
 	if w.debugRaw {
-		if err := writeDebugOutput(sessionID, string(rawDataJSON), nil); err != nil {
-			slog.Debug("Failed to write debug output", "sessionID", sessionID, "error", err)
+		if err := writeDebugOutput(sessionID, string(rawDataJSON), orphanRecords); err != nil {
+			slog.Warn("Failed to write debug output", "sessionID", sessionID, "path", spi.GetDebugDir(sessionID), "error", err)
 			// Don't fail the operation if debug output fails
 		}
 	}

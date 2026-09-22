@@ -117,12 +117,22 @@ The package is `pkg/providers/<agent>`: the product's own name, lowercased, with
 | `<agent>_exec.go`                                                              | Command line parsing, resume arguments, process launch, exit handling                      |
 | `path_utils.go`                                                                | Native store discovery and working directory encoding                                      |
 | `reconstruct.go`                                                               | `ReconstructSession`, `NativeSessionPath`, `SupportsReconstruction`                        |
-| `*_test.go`                                                                    | Tests alongside each source file, plus `testdata/` fixtures captured from real sessions    |
+| `*_test.go`                                                                    | Tests alongside each source file                                                          |
+| `testdata/`                                                                    | Inputs consumed by automated tests and expected outputs those tests actually compare      |
+| `examples/`                                                                    | Captured examples, rendered histories, QA results and other human-review evidence          |
 | `factory/`                                                                     | Software factory scripts (see below)                                                       |
 
 Keep related logic together and avoid unnecessary file sprawl. Small helpers usually belong in the file whose concern they serve; a separate file is reasonable when it groups a distinct concern, such as debug output. File organization may differ from this example while still meeting the provider's behavioral and architectural requirements.
 
 Add `var _ spi.Provider = (*Provider)(nil)` so the compiler enforces the interface, and the same assertion for any optional interface you implement.
+
+### Separate test fixtures from examples
+
+Reserve `testdata/` for files that automated tests actually consume as inputs or compare as expected outputs. For each fixture or fixture set, identify the consuming test and the behavior it asserts. A file does not become test data merely because a test helper copies the directory containing it.
+
+Put captured examples, manual QA results, version banners, tool audits, and generated JSON or Markdown that no test compares in `examples/`, following [Pi's examples](pkg/providers/piagent/examples/). Keep native captures in `testdata/` when parser or rendering tests consume them; link from the examples to those fixtures rather than duplicating them. A generated `session-data.json` or rendered history belongs in `testdata/` only if an automated test actually compares it as a golden file. Do not add a superficial test just to justify keeping a review artifact there.
+
+This distinction is required even when choosing a different source-file layout. Before submitting, audit every file under `testdata/` for an actual test consumer and move unused review artifacts to `examples/`. Update documentation and audit links after moving them.
 
 ### Every SPI method, including the ones that are easy to miss
 
@@ -177,7 +187,7 @@ Every helper below replaced copies that had drifted apart across providers. Do n
 - `analytics.CheckAttempt` populated once per `Check`, with the event emitted by `analytics.TrackCheckSuccess` or `analytics.TrackCheckFailure`. No inline `analytics.TrackEvent` calls in a provider.
 - `spi.SplitCommandLine` for custom commands; `spi.EnsureResumeArgs` when the agent resumes via a subcommand, or `spi.EnsureResumeFlagArgs` when it uses a flag.
 - `spi.AgentExitError` to report a non-zero agent exit. Never call `os.Exit` inside a provider; it skips the final session save (the reason is in `pkg/spi/exit.go`).
-- `spi.GetDebugDir` for debug output paths. Write only provider-specific raw files there; the CLI writes `session-data.json` itself.
+- `spi.GetDebugDir` for debug output paths. See [Native debug output](#native-debug-output) for the provider's export responsibilities; the CLI writes `session-data.json` itself.
 - `spi.NormalizePath` and `spi.ExtractShellPathHints` for path hints; `spi.CanonicalizePathOrClean` for local path comparison; `spi.FileURIToPath` for any `file://` URI.
 - `spi.GenerateFilenameFromUserMessage`, `spi.GenerateReadableName`, and `spi.ReadableTitleFromSessionData` for slugs, names, and titles. If the agent records its own title or summary for a session, prefer it for `Name` and fall back to the shared generator.
 - `spi.PrepareTurns`, `spi.ResolveWorkspaceRoot`, `spi.ReconstructRole`, `spi.RFC3339Millis`, `spi.ResumedSessionTitle` in `ReconstructSession`.
@@ -219,6 +229,16 @@ Providers must never import `pkg/utils`, `pkg/session`, or `pkg/cloud` (the impo
 - The parser's kind switch enumerates every record kind observed in real data, rendering it or naming it as known-nothing-to-render with the reason, so the default "unknown kind" log fires only for genuinely new kinds.
 - Preserve unsupported native content in `RawData` when its record is accepted, and document what is omitted from normalized data and Markdown in `<AGENT>-FORMAT.md`. Preserve meaningful conversation text where the shared schema can represent it faithfully. Reserve "known-nothing-to-render" for records with no conversational content to display; an unfamiliar role or missing tool-call pairing is not sufficient reason to discard meaningful content.
 - Scan and watch only the durable session file; never read a scratch file the agent rewrites in place.
+
+### Native debug output
+
+`--debug-raw` helps provider authors, reviewers, and future maintainers inspect what the agent actually stored, compare it with SpecStory's interpretation, and diagnose missing content or format changes. The provider saves readable native input alongside the normalized `session-data.json` written by the CLI. Populating `AgentChatSession.RawData` does not create these native debug files; exporting them is a separate provider responsibility.
+
+- Honor `debugRaw` in single-session and bulk reads, live `run`/`watch` updates, and optional by-path reads. Write under `spi.GetDebugDir(sessionID)`, which defaults to `.specstory/debug/<session-id>/` and respects `--debug-dir`. When the flag is false, this export creates no files.
+- For JSONL, write one pretty-printed file per accepted native record, numbered from `1.json`, `2.json`, etc. in sequenced source order. For JSON or database stores, write pretty-printed session objects or individual records with native identifiers. Preserve native fields and envelopes, including unfamiliar fields, relevant headers, and sidecar data used during conversion. Keep source identity and ordering clear enough to trace an output back to its input.
+- Generate the export from the same input snapshot used for conversion. Do not reread a changing transcript or substitute a reduced typed structure that drops unknown fields or records omitted from Markdown. Those details may be exactly what a maintainer needs to understand a format change. Malformed or oversized records may be skipped under the parsing rules above, with the required diagnostic.
+- Refresh the export when the session changes, removing obsolete provider-owned files so earlier records cannot masquerade as current data. Preserve CLI-owned files such as `session-data.json`. Log export failures with the session and path, without aborting session processing.
+- Test that a field the provider does not recognize still appears in the saved native JSON, and that `--debug-dir` puts the files in the requested directory. For numbered files, export a session with three records, then export the same session with only two: the old `3.json` must be removed. Check that live updates produce current debug files, and that not using the debug flag creates none. Keep test output isolated with `spi.SetDebugBaseDir(t.TempDir())` and reset the override during cleanup.
 
 ### The watcher
 
@@ -328,6 +348,7 @@ The CLI runs on macOS, Linux (including WSL), and native Windows, and CI runs th
 - A test must actually create the condition it is named for. One that cannot, and settles for exercising the ordinary path instead, is deleted or made real: it reads as coverage of the hard case while proving nothing about it, which is worse than its absence because it stops anyone else writing the real one. If the condition is too expensive to build, that is a reason to lower the threshold until it is affordable, not to keep the test.
 - Table-driven with `t.Run(tt.name, ...)` where there is a matrix of cases; a single integration test may stay standalone.
 - Fixtures are raw shapes captured from real sessions, so the tests encode what the agent actually writes.
+- Check [fixture placement](#separate-test-fixtures-from-examples): each `testdata/` fixture has an automated consumer and asserted purpose; review-only artifacts belong in `examples/`.
 - A regression test must fail when the fix is backed out. Prove it before you commit it. When a fix adds a guard, the test also proves the guarded path still works for the legitimate case.
 - An exhaustive test that walks the agent's real tool inventory and asserts the expected type per name is not tautological; it guards against omission.
 - Exercise bespoke renderers through the actual dispatch path using captured invocations. Verify that the recorded tool name, after normalization, selects the intended renderer; directly testing the renderer function cannot catch an unreachable dispatch key.
@@ -444,12 +465,14 @@ Also run each script's negative case (an unreachable channel, a bogus version, t
 - [ ] `Check` lifecycle logging present
 - [ ] No `fmt.Print` outside detection help
 - [ ] `RawData` set on every session and built from the parsed records, not a second read
+- [ ] [Native debug output](#native-debug-output) preserves readable native input, honors the flag and debug directory across read and live paths, and refreshes without stale records or deleting CLI-owned files
 - [ ] `gofmt -w .` leaves code formatted
 - [ ] `golangci-lint run` passes for the whole project
 - [ ] Good, reliable, robust automated tests
   - [ ] Tests table-driven where useful
   - [ ] No tautological tests
   - [ ] Test fixtures are captured from real data
+  - [ ] Every `testdata/` fixture has an automated test consumer and asserted purpose; unused generated outputs and manual QA evidence are in `examples/`
   - [ ] Windows-safe test helpers are used
   - [ ] Symlinked and special-character project paths are tested
   - [ ] Debug tests call `spi.SetDebugBaseDir`

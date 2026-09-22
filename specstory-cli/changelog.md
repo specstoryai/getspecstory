@@ -1,5 +1,17 @@
 # Specstory CLI Changelog
 
+## v2.14.0 2026-09-22
+
+### 📢 Announcements
+
+- The SpecStory CLI now supports [Grok Build](https://x.ai/cli) (i.e. `grok`, `agent`), SpaceXAI's terminal coding agent, for sessions created from Grok Build version `1.0.34` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [VS Code Copilot](https://code.visualstudio.com/docs/setup/copilot), [Muse Code](https://developer.meta.com/ai/products/muse-code/), [Pi](https://pi.dev) and [Qwen Code](https://github.com/QwenLM/qwen-code).
+- Grok is a cross-provider `specstory resume` target: you can resume any agent's session into Grok, and resume a Grok session into another agent.
+
+### 🐛 Bug Fixes
+
+- Bare `specstory run` launches Claude Code as documented, rather than choosing the first provider alphabetically. The help text and configured command now use the same default.
+- Muse Code sessions containing a single JSONL line larger than the 64MB limit now render with that line skipped, instead of failing to render the whole session.
+
 ## v2.13.0 2026-09-17
 
 ### ⚙️ Improvements

@@ -143,6 +143,9 @@ const defaultConfigTemplate = `# SpecStory CLI Configuration
 # Antigravity CLI command
 # antigravity_cmd = "agy"
 
+# Grok Build command
+# grok_cmd = "grok"
+
 # Muse Code command
 # muse_cmd = "muse"
 
@@ -270,6 +273,7 @@ type ProvidersConfig struct {
 	DeepSeekCmd                   string `toml:"deepseek_cmd"`
 	DroidCmd                      string `toml:"droid_cmd"`
 	GeminiCmd                     string `toml:"gemini_cmd"`
+	GrokCmd                       string `toml:"grok_cmd"`
 	MuseCmd                       string `toml:"muse_cmd"`
 	PiCmd                         string `toml:"pi_cmd"`
 	QwenCmd                       string `toml:"qwen_cmd"`
@@ -1022,6 +1026,8 @@ func (c *Config) GetProviderCmd(providerID string) string {
 		return c.Providers.GeminiCmd
 	case "antigravity":
 		return c.Providers.AntigravityCmd
+	case "grok":
+		return c.Providers.GrokCmd
 	case "muse":
 		return c.Providers.MuseCmd
 	case "pi":

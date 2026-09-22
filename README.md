@@ -43,6 +43,7 @@ Codex CLI          ├──────►  .specstory/history/  ────�
 Droid CLI          │          (Auto-Saved Locally)        (Search, Ask & Share)
 DeepSeek TUI       │
 Antigravity CLI    │
+Grok Build         │
 Muse Code          │
 Pi                 │
 Qwen Code          ┘
@@ -78,6 +79,7 @@ SpecStory integrates seamlessly with your favorite AI coding tools, automaticall
 | [Muse Code](https://developer.meta.com/ai/products/muse-code/)                | CLI        | 0.1.0+       | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/musecode)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Qwen Code](https://github.com/QwenLM/qwen-code)                              | CLI        | 0.23.4+      | **[SpecStory CLI](https://specstory.com/specstory-cli)**         | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/qwencode)       | `brew tap specstoryai/tap`<br/>`brew install specstory`       |
 | [Pi](https://pi.dev) | CLI | 0.85.1+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/piagent) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
+| [Grok Build](https://x.ai/cli) | CLI | 1.0.34+ | **[SpecStory CLI](https://specstory.com/specstory-cli)** | [Open](https://github.com/specstoryai/getspecstory/tree/dev/specstory-cli/pkg/providers/grokbuild) | `brew tap specstoryai/tap`<br/>`brew install specstory` |
 | Any [Agent Skills](https://agentskills.io)                                    | Skill      | Node 22.5+   | **[Lore](./lore)** 📜                                             | [Open](./lore)                                                                                          | `npx skills add specstoryai/getspecstory --skill lore`        |
 
 > [!TIP]
@@ -101,6 +103,7 @@ specstory run codex        # Launch Codex CLI
 specstory run droid        # Launch Droid CLI
 specstory run deepseek     # Launch DeepSeek TUI
 specstory run antigravity  # Launch Antigravity CLI
+specstory run grok         # Launch Grok Build
 specstory run muse         # Launch Muse Code
 specstory run qwen         # Launch Qwen Code
 specstory run pi           # Launch Pi

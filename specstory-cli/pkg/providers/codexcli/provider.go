@@ -694,12 +694,6 @@ func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface
 			continue
 		}
 
-		// Accumulate raw JSONL only when the caller asked for it (reindex does not).
-		if collectRaw {
-			rawBuilder.WriteString(line)
-			rawBuilder.WriteString("\n")
-		}
-
 		// Parse JSON
 		var record map[string]interface{}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
@@ -715,6 +709,12 @@ func readCodexJSONL(sessionPath string, collectRaw bool) ([]map[string]interface
 		}
 
 		records = append(records, record)
+		// Keep the accepted native JSON: the parsed maps may already have
+		// lost numeric precision. Debug output must use the original bytes.
+		if collectRaw {
+			rawBuilder.WriteString(line)
+			rawBuilder.WriteByte('\n')
+		}
 
 		// After processing record, check if we're done
 		if atEOF {
@@ -799,9 +799,10 @@ func processSessionToAgentChat(sessionInfo *codexSessionInfo, workspaceRoot stri
 
 	// Write provider-specific debug files if requested
 	if debugRaw {
-		if err := writeDebugRawFiles(sessionInfo.SessionID, records); err != nil {
-			slog.Debug("processSessionToAgentChat: Failed to write debug files",
+		if err := writeDebugRawFiles(sessionInfo.SessionID, rawData); err != nil {
+			slog.Warn("processSessionToAgentChat: Failed to write debug files",
 				"sessionID", sessionInfo.SessionID,
+				"path", spi.GetDebugDir(sessionInfo.SessionID),
 				"error", err)
 			// Don't fail the operation if debug output fails
 		}
@@ -818,44 +819,8 @@ func processSessionToAgentChat(sessionInfo *codexSessionInfo, workspaceRoot stri
 
 // writeDebugRawFiles writes debug JSON files for a Codex CLI session.
 // Each record is written as a numbered JSON file in .specstory/debug/<session-id>/
-func writeDebugRawFiles(sessionID string, records []map[string]interface{}) error {
-	// Get the debug directory path
-	debugDir := spi.GetDebugDir(sessionID)
-
-	// Create the debug directory
-	if err := os.MkdirAll(debugDir, 0755); err != nil {
-		return fmt.Errorf("failed to create debug directory: %w", err)
-	}
-
-	// Write each record as a pretty-printed JSON file
-	for index, record := range records {
-		// Create filename with 1-based index for readability
-		filename := fmt.Sprintf("%d.json", index+1)
-		debugPath := filepath.Join(debugDir, filename)
-
-		// Pretty print the record
-		prettyJSON, err := json.MarshalIndent(record, "", "  ")
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: Failed to marshal record to JSON",
-				"index", index,
-				"error", err)
-			continue
-		}
-
-		// Write the file
-		if err := os.WriteFile(debugPath, prettyJSON, 0644); err != nil {
-			slog.Debug("writeDebugRawFiles: Failed to write debug file",
-				"path", debugPath,
-				"error", err)
-			continue
-		}
-
-		slog.Debug("writeDebugRawFiles: Wrote debug file",
-			"path", debugPath,
-			"index", index)
-	}
-
-	return nil
+func writeDebugRawFiles(sessionID, rawData string) error {
+	return spi.WriteDebugJSONL(spi.GetDebugDir(sessionID), rawData)
 }
 
 // findFirstUserMessage extracts the first user message from Codex CLI session records.

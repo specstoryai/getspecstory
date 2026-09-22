@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -90,8 +91,7 @@ func TestPath_DifferentCaseFindsSameProject(t *testing.T) {
 }
 
 func TestParse_DebugExportUsesOriginalSnapshot(t *testing.T) {
-	spi.SetDebugBaseDir(t.TempDir())
-	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	testutil.IsolateDebugDir(t)
 	dir := spi.GetDebugDir("snapshot")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
@@ -112,6 +112,38 @@ func TestParse_DebugExportUsesOriginalSnapshot(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "session-data.json")); !os.IsNotExist(err) {
 		t.Errorf("provider wrote the CLI-owned session-data.json: %v", err)
+	}
+}
+
+func TestDebugRawIncludesHeaderAndClearsStaleRecords(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	header := strings.TrimSuffix(piHeaderLine("debug-header", t.TempDir()), "}") + `,"unknownHeader":{"large":9007199254740993}}` + "\n"
+	user := piUserLine("u1", "", "hello") + "\n"
+	if err := os.WriteFile(path, []byte(header+user+piAssistantLine("a1", "u1", "hello")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := spi.GetDebugDir("debug-header")
+	if _, err := parseToAgentSession(path, "", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("debug-disabled conversion created output: %v", err)
+	}
+	if _, err := parseToAgentSession(path, "", true); err != nil {
+		t.Fatal(err)
+	}
+	testutil.AssertDebugRefresh(t, dir, []string{"3.json"}, []string{"session-data.json", "3-notes.json"}, func() {
+		if err := os.WriteFile(path, []byte(header+user), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := parseToAgentSession(path, "", true); err != nil {
+			t.Fatal(err)
+		}
+	})
+	data, err := os.ReadFile(filepath.Join(dir, "1.json"))
+	if err != nil || !strings.Contains(string(data), "\n  \"unknownHeader\": {") || !strings.Contains(string(data), "9007199254740993") {
+		t.Fatalf("native header lost: %s (%v)", data, err)
 	}
 }
 
@@ -909,8 +941,7 @@ func TestParse_RawSnapshotPreservesAcceptedNativeRecords(t *testing.T) {
 	oldLimit := maxRecordLineSize
 	maxRecordLineSize = 1024
 	t.Cleanup(func() { maxRecordLineSize = oldLimit })
-	spi.SetDebugBaseDir(t.TempDir())
-	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	testutil.IsolateDebugDir(t)
 	// Unknown fields and inactive branches belong to the raw transcript even
 	// though the normalized conversation only follows the current active branch.
 	header := piHeaderLine("native-snapshot", t.TempDir()) + "\r\n"
@@ -936,7 +967,7 @@ func TestParse_RawSnapshotPreservesAcceptedNativeRecords(t *testing.T) {
 				t.Fatalf("wrong active branch: %+v", chat.SessionData)
 			}
 			if debug {
-				raw, err := os.ReadFile(filepath.Join(spi.GetDebugDir("native-snapshot"), "2.json"))
+				raw, err := os.ReadFile(filepath.Join(spi.GetDebugDir("native-snapshot"), "3.json"))
 				if err != nil {
 					t.Fatal(err)
 				}
