@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -218,11 +217,7 @@ func isTranscriptPath(path string) bool {
 // because a finished async command writes its output here without touching the
 // transcript, so the session must be re-emitted off this file's event.
 func isTaskLogPath(path string) bool {
-	base := filepath.Base(path)
-	if !strings.HasPrefix(base, "task-") || !strings.HasSuffix(base, ".log") {
-		return false
-	}
-	return filepath.Base(filepath.Dir(path)) == tasksDirName
+	return filepath.Base(filepath.Dir(path)) == tasksDirName && isTaskLogName(filepath.Base(path))
 }
 
 // conversationIDFromTranscriptPath recovers the conversation id (the brain

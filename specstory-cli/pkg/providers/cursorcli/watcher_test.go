@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -49,6 +50,42 @@ func createWatcherDatabase(t *testing.T, root, id string) *sql.DB {
 func watcherMessage(text string) []byte {
 	data, _ := json.Marshal(map[string]any{"role": "user", "content": []map[string]string{{"type": "text", "text": text}}})
 	return data
+}
+
+func TestWatchDebugRawRefreshRetainsCurrentOrphans(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	root := t.TempDir()
+	db := createWatcherDatabase(t, root, "debug-watch")
+	if _, err := db.Exec("INSERT INTO blobs VALUES ('newest', ?)", watcherMessage("latest")); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(root, "debug-watch", "store.db")
+	w := &CursorWatcher{projectPath: root, debugRaw: true, tsCache: NewMessageTimestampCache()}
+	if !w.processSessionChanges("debug-watch", path) {
+		t.Fatal("watch conversion failed")
+	}
+	dir := spi.GetDebugDir("debug-watch")
+	// With no references the highest rowid is connected and the other is an
+	// orphan. A watch refresh must export both from the same database read.
+	data, err := os.ReadFile(filepath.Join(dir, "orphan-1.json"))
+	if err != nil || !strings.Contains(string(data), "initial") {
+		t.Fatalf("watch omitted current orphan: %s (%v)", data, err)
+	}
+	if _, err := db.Exec("DELETE FROM blobs WHERE id = 'newest'"); err != nil {
+		t.Fatal(err)
+	}
+	if !w.processSessionChanges("debug-watch", path) {
+		t.Fatal("watch refresh failed")
+	}
+	for _, name := range []string{"orphan-1.json", "1-2.json"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Errorf("watch retained stale file %s: %v", name, err)
+		}
+	}
+	data, err = os.ReadFile(filepath.Join(dir, "1-1.json"))
+	if err != nil || !strings.Contains(string(data), "initial") {
+		t.Fatalf("watch omitted promoted orphan: %s (%v)", data, err)
+	}
 }
 
 func awaitCursorUpdate(t *testing.T, updates <-chan *spi.AgentChatSession, text string) {

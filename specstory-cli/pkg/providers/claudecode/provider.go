@@ -52,8 +52,10 @@ func filterWarmupMessages(records []JSONLRecord) []JSONLRecord {
 func processSession(session Session, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
 	// Write debug files first (even for warmup-only sessions)
 	if debugRaw {
-		// Write debug files and get the record-to-file mapping
-		_ = writeDebugRawFiles(session) // Unused but needed for side effect
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("Failed to write debug raw files", "sessionId", session.SessionUuid,
+				"path", spi.GetDebugDir(session.SessionUuid), "error", err)
+		}
 	}
 
 	// Filter warmup messages

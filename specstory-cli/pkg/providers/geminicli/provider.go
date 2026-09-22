@@ -288,9 +288,9 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 	// Write provider-specific debug files if requested
 	if debugRaw {
 		if err := writeDebugRawFiles(session); err != nil {
-			slog.Debug("convertToAgentChatSession: failed to write debug files",
+			slog.Warn("convertToAgentChatSession: failed to write debug files",
 				"sessionId", session.ID,
-				"error", err)
+				"path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 
@@ -306,14 +306,10 @@ func convertToAgentChatSession(session *GeminiSession, workspaceRoot string, deb
 // writeDebugRawFiles writes debug JSON files for a Gemini CLI session.
 // Each message is written as a numbered JSON file in .specstory/debug/<session-id>/
 func writeDebugRawFiles(session *GeminiSession) error {
-	debugDir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
-	}
-
+	records := make([]map[string]interface{}, len(session.Messages))
 	for idx, msg := range session.Messages {
 		number := idx + 1
-		entry := map[string]interface{}{
+		records[idx] = map[string]interface{}{
 			"index":      number,
 			"type":       msg.Type,
 			"timestamp":  msg.Timestamp,
@@ -325,21 +321,8 @@ func writeDebugRawFiles(session *GeminiSession) error {
 			"tokens":     msg.Tokens,
 			"logs":       session.LogsForMessage(msgContent(msg)),
 		}
-
-		data, err := json.MarshalIndent(entry, "", "  ")
-		if err != nil {
-			slog.Debug("writeDebugRawFiles: failed to marshal", "index", number, "error", err)
-			continue
-		}
-
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", number))
-		if err := os.WriteFile(filename, data, 0o644); err != nil {
-			slog.Debug("writeDebugRawFiles: failed to write", "index", number, "error", err)
-			continue
-		}
-		slog.Debug("writeDebugRawFiles: wrote file", "path", filename, "index", number)
 	}
-	return nil
+	return spi.WriteDebugRecords(spi.GetDebugDir(session.ID), records)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing

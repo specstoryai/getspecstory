@@ -237,7 +237,7 @@ func convertToAgentSession(session *fdSession, workspaceRoot string, debugRaw bo
 	}
 	if debugRaw {
 		if err := writeFactoryDebugRaw(session); err != nil {
-			slog.Debug("droidcli: debug raw failed", "sessionId", session.ID, "error", err)
+			slog.Warn("droidcli: debug raw failed", "sessionId", session.ID, "path", spi.GetDebugDir(session.ID), "error", err)
 		}
 	}
 	return chat
@@ -394,70 +394,13 @@ func sessionMentionsProjectText(filePath string, projectPath string) bool {
 	return errors.Is(err, errStopScan)
 }
 
-// writeFactoryDebugRaw writes pretty-printed JSON files for each line in the session's JSONL.
-// Each JSONL line becomes a numbered file (1.json, 2.json, etc.) matching the Claude Code provider format.
+// writeFactoryDebugRaw exports the accepted JSONL snapshot without losing
+// native fields, numeric precision, or key order.
 func writeFactoryDebugRaw(session *fdSession) error {
 	if session == nil {
 		return nil
 	}
-
-	dir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("droidcli: unable to create debug dir: %w", err)
-	}
-
-	// Clean existing files from the debug directory
-	entries, err := os.ReadDir(dir)
-	if err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				_ = os.Remove(filepath.Join(dir, entry.Name()))
-			}
-		}
-	}
-
-	// Split JSONL into individual lines and write each as a pretty-printed JSON file
-	lines := strings.Split(session.RawData, "\n")
-	lineNumber := 0
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			continue
-		}
-
-		// Parse the JSON line
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(trimmed), &data); err != nil {
-			slog.Debug("droidcli: skipping malformed JSONL line in debug-raw",
-				"lineNumber", lineNumber+1,
-				"error", err)
-			continue
-		}
-
-		lineNumber++
-
-		// Pretty-print and write to numbered file
-		prettyJSON, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			slog.Debug("droidcli: failed to marshal JSON for debug-raw",
-				"lineNumber", lineNumber,
-				"error", err)
-			continue
-		}
-
-		filePath := filepath.Join(dir, fmt.Sprintf("%d.json", lineNumber))
-		if err := os.WriteFile(filePath, prettyJSON, 0o644); err != nil {
-			slog.Debug("droidcli: failed to write debug-raw file",
-				"path", filePath,
-				"error", err)
-		}
-	}
-
-	slog.Debug("droidcli: wrote debug-raw files",
-		"sessionId", session.ID,
-		"fileCount", lineNumber)
-
-	return nil
+	return spi.WriteDebugJSONL(spi.GetDebugDir(session.ID), session.RawData)
 }
 
 // ListAgentChatSessions retrieves lightweight session metadata without full parsing
