@@ -144,9 +144,11 @@ func (p *Provider) ReconstructSession(data *schema.SessionData, opts spi.Reconst
 
 // NativeSessionPath returns where the export document is staged. OpenCode has
 // no per-session files; ExecAgentAndWatch imports the staged document into
-// OpenCode's database before launching the resumed session.
+// OpenCode's database before launching the resumed session. The staging
+// directory is created here, private to the user, because the caller would
+// otherwise create it world-readable.
 func (p *Provider) NativeSessionPath(_ string, filename string) (string, error) {
-	return stagedImportPath(filename), nil
+	return stagedImportPath(filename)
 }
 
 // SupportsReconstruction reports true: ReconstructSession produces a session

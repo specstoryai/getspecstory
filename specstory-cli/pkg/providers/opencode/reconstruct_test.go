@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema"
 )
@@ -133,7 +134,17 @@ func TestReconstructSession(t *testing.T) {
 	}
 }
 
+// isolateUserCache points the user cache directory at a temp dir on every OS.
+func isolateUserCache(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	testutil.SetHome(t, dir)
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(dir, "cache"))
+	t.Setenv("LocalAppData", filepath.Join(dir, "localappdata"))
+}
+
 func TestReconstructionCapabilityAgrees(t *testing.T) {
+	isolateUserCache(t)
 	p := NewProvider()
 	if !p.SupportsReconstruction() {
 		t.Fatal("SupportsReconstruction() = false")
@@ -147,8 +158,19 @@ func TestReconstructionCapabilityAgrees(t *testing.T) {
 		t.Fatalf("NativeSessionPath() error = %v", err)
 	}
 	// The resume flow writes the document where ExecAgentAndWatch looks for it.
-	if path != stagedImportPath(stagedImportFilename(rec.SessionID)) {
-		t.Errorf("NativeSessionPath() = %q, not the staged import path", path)
+	staged, err := stagedImportPath(stagedImportFilename(rec.SessionID))
+	if err != nil || path != staged {
+		t.Errorf("NativeSessionPath() = %q, staged import path = %q (%v)", path, staged, err)
+	}
+	// The staged conversation is private to the user.
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(filepath.Dir(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.Mode().Perm() != 0o700 {
+			t.Errorf("staging directory mode = %v, want 0700", info.Mode().Perm())
+		}
 	}
 }
 
@@ -191,10 +213,31 @@ func fakeOpenCode(t *testing.T, exitCode string) (command, argsFile string) {
 }
 
 func TestImportStagedSession(t *testing.T) {
-	t.Setenv("TMPDIR", t.TempDir())
+	isolateUserCache(t)
 	project := "/Users/dev/target"
 	sessionID := "ses_staged"
-	staged := stagedImportPath(stagedImportFilename(sessionID))
+	staged, err := stagedImportPath(stagedImportFilename(sessionID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("an id that is not a plain name is never imported", func(t *testing.T) {
+		command, argsFile := fakeOpenCode(t, "0")
+		outside := filepath.Join(t.TempDir(), "outside.json")
+		if err := os.WriteFile(outside, []byte("{}"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		relative, err := filepath.Rel(filepath.Dir(staged), strings.TrimSuffix(outside, ".json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := importStagedSession(command, project, relative); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(argsFile); !os.IsNotExist(err) {
+			t.Errorf("opencode imported a file outside the staging directory: %v", err)
+		}
+	})
 
 	t.Run("nothing staged runs nothing", func(t *testing.T) {
 		command, argsFile := fakeOpenCode(t, "0")
@@ -260,7 +303,7 @@ func TestExecuteOpenCodeResumeArguments(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			command, argsFile := fakeOpenCode(t, tt.exitCode)
-			err := executeOpenCode(strings.TrimSpace(command+" "+tt.custom), "/Users/dev/project", tt.resume)
+			err := executeOpenCode(strings.TrimSpace(command+" "+tt.custom), t.TempDir(), tt.resume)
 			if tt.exitCode != "0" {
 				var exitErr *spi.AgentExitError
 				if !errors.As(err, &exitErr) || exitErr.Code != 7 {

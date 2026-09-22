@@ -23,11 +23,11 @@ const (
 	sessionFlagShort = "-s"
 )
 
-// importStagingDirName is the directory under the system temp dir where a
-// reconstructed session waits to be imported. OpenCode reads sessions only
-// from its database, through its own service, so a reconstructed session is
-// handed over as an export file and loaded with `opencode session import`.
-const importStagingDirName = "specstory-opencode-import"
+// importStagingDir is where a reconstructed session waits to be imported,
+// under the user's cache directory. OpenCode reads sessions only from its
+// database, through its own service, so a reconstructed session is handed over
+// as an export file and loaded with `opencode session import`.
+var importStagingDir = []string{"specstory", "opencode-import"}
 
 // parseOpenCodeCommand splits a custom command into executable and arguments.
 func parseOpenCodeCommand(customCommand string) (string, []string) {
@@ -40,10 +40,33 @@ func parseOpenCodeCommand(customCommand string) (string, []string) {
 	return defaultOpenCodeCommand, nil
 }
 
+// stagedImportDir returns the staging directory, creating it private to the
+// user. The staged file holds a whole conversation, and a fixed name in a
+// shared temp directory could be read, or pre-created, by another local user.
+func stagedImportDir() (string, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve the user cache directory: %w", err)
+	}
+	dir := filepath.Join(append([]string{cacheDir}, importStagingDir...)...)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", fmt.Errorf("failed to create %s: %w", dir, err)
+	}
+	// MkdirAll leaves an existing directory's mode alone.
+	if err := os.Chmod(dir, 0o700); err != nil {
+		return "", fmt.Errorf("failed to restrict %s: %w", dir, err)
+	}
+	return dir, nil
+}
+
 // stagedImportPath returns where a reconstructed session named filename is
 // staged for import.
-func stagedImportPath(filename string) string {
-	return filepath.Join(os.TempDir(), importStagingDirName, filename)
+func stagedImportPath(filename string) (string, error) {
+	dir, err := stagedImportDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, filename), nil
 }
 
 // stagedImportFilename is the staging filename for a reconstructed session.
@@ -58,10 +81,15 @@ func stagedImportFilename(sessionID string) string {
 // Only the executable of a custom command is used: its arguments configure an
 // interactive launch and do not apply to the import subcommand.
 func importStagedSession(customCommand, projectPath, sessionID string) error {
-	if sessionID == "" {
+	// Only a plain id can name a staged file; anything with a path element in
+	// it was not minted by ReconstructSession.
+	if sessionID == "" || sessionID != filepath.Base(sessionID) || strings.ContainsAny(sessionID, `/\`) {
 		return nil
 	}
-	stagedPath := stagedImportPath(stagedImportFilename(sessionID))
+	stagedPath, err := stagedImportPath(stagedImportFilename(sessionID))
+	if err != nil {
+		return err
+	}
 	if _, err := os.Stat(stagedPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil
@@ -105,6 +133,10 @@ func executeOpenCode(customCommand, projectPath, resumeSessionID string) error {
 	args = spi.EnsureResumeFlagArgs(args, resumeSessionID, sessionFlag, sessionFlagShort)
 
 	cmd := exec.Command(command, args...)
+	// OpenCode records the directory it runs in as the session's project;
+	// running it in the project keeps a --project-path run's sessions where
+	// the watcher looks for them.
+	cmd.Dir = projectPath
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

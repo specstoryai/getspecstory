@@ -360,7 +360,7 @@ func formatAttachments(files []fileAttachment, agents []agentAttachment) string 
 		if name == "" {
 			name = "(unnamed)"
 		}
-		line := fmt.Sprintf("- Attached file: `%s`", name)
+		line := "- Attached file: " + inlineCode(name)
 		if file.Mime != "" {
 			line += fmt.Sprintf(" (%s)", file.Mime)
 		}
@@ -368,7 +368,7 @@ func formatAttachments(files []fileAttachment, agents []agentAttachment) string 
 	}
 	for _, agent := range agents {
 		if strings.TrimSpace(agent.Name) != "" {
-			lines = append(lines, fmt.Sprintf("- Mentioned agent: `@%s`", agent.Name))
+			lines = append(lines, "- Mentioned agent: "+inlineCode("@"+agent.Name))
 		}
 	}
 	return strings.Join(lines, "\n")
