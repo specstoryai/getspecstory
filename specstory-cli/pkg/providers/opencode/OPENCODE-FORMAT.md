@@ -5,7 +5,7 @@ OpenCode (`opencode`, the open source terminal coding agent) keeps every session
 Baseline version, exactly as `opencode --version` prints it:
 
 ```text
-2.0.14
+opencode v2.0.14
 ```
 
 ## Store layout
@@ -87,8 +87,8 @@ Tool names are stored bare (`read`, not `functions.read`). The inventory and the
 | `edit` | `path`, `oldString`, `newString` | Text acknowledgement; `metadata.files[]` carries a unified diff per file (`patch`, `additions`, `deletions`). |
 | `glob` | `pattern`, optional `path` | Newline-separated absolute paths; `metadata.count`. |
 | `grep` | `pattern`, optional `path`, `include` | `Found N matches` then per-file `Line N:` rows; `metadata.matches`. |
-| `shell` | `command`, optional `description`, `workdir`, `timeout` | Output text, then a separate `Command exited with code N.` text item for the model; `metadata.exit`. |
-| `webfetch` | `url`, optional `format` | The page converted to markdown. |
+| `shell` | `command`, optional `workdir`, `timeout` (milliseconds) | Output text, then a separate `Command exited with code N.` text item for the model; `metadata.exit`. |
+| `webfetch` | `url`, optional `format` (`html` observed) | The page converted to markdown, or raw HTML with `format: "html"`. |
 | `websearch` | `query` | Only failures were observed (`Web search cancelled`, status `error`). |
 | `skill` | `id` | `<skill_content name="...">` wrapping the skill document; `metadata.name`, `metadata.directory`. |
 | `subagent` | `agent`, `description`, `prompt` | `<subagent sessionID="..." state="completed">` wrapping the subagent's final answer; `metadata.sessionID`. The subagent's own conversation is a child session (`parent_id` set). |
@@ -123,8 +123,8 @@ Tool names are stored bare (`read`, not `functions.read`). The inventory and the
 
 A reconstructed session is an export document with the flattened turns: user turns become `user` records, agent turns become `assistant` records with one `text` part and `finish: "stop"`. Verified with a minimal document containing a passphrase: `opencode -s <id>` opened it with both turns visible, answered "What is the magic passphrase?" from the imported context, and appended `agent-switched`, `model-switched`, `user`, `assistant` and `idle` records to the same session.
 
-- The assistant `model` is required by the schema; it is written as `{"id": "", "providerID": ""}`. OpenCode accepts it and shows the imported turns with an empty model label; the next prompt uses the model configured for the project.
-- `agent` is required on each assistant record; reconstructed records use `build`, the default primary agent, because the field names the OpenCode agent profile that would continue the turn, not historical attribution.
+- Assistant records require `agent` and `model`; reconstructed records write `""` and `{"id": "", "providerID": ""}` because imported turns were not produced by an OpenCode agent or model. OpenCode accepts both, labels the imported turns with an empty agent and model, and uses the project's configured agent and model for the next prompt.
+- `info.projectID` is required but replaced on import, so it is written empty.
 - `info.cost` and `info.tokens` are required and written as zero: the flattened transcript carries no usage.
 - `info.metadata.specstorySourceSessionId` carries the source session id.
 - Ids use OpenCode's layout: a `ses_` or `msg_` prefix, 12 hex digits of `(unix-ms << 12 | counter)` (bit-inverted for session ids so newer sessions sort first), and 14 random base62 characters.

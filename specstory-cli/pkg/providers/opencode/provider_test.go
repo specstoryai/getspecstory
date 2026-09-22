@@ -1,0 +1,215 @@
+package opencode
+
+import (
+	"os"
+	"path/filepath"
+	"runtime"
+	"slices"
+	"strings"
+	"testing"
+
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
+)
+
+// loadTwoProjects loads sessions recorded in two different directories.
+func loadTwoProjects(t *testing.T) (toolsProject, otherProject string) {
+	t.Helper()
+	toolsProject = newProjectDir(t, "oc-tools")
+	otherProject = newProjectDir(t, "oc-1")
+	loadFixtures(t, map[string]string{fixtureToolsDir: toolsProject, fixtureOC1Dir: otherProject},
+		"tool-exercise.jsonl", "model-error.jsonl")
+	return toolsProject, otherProject
+}
+
+func TestSessionsAreScopedToTheirProject(t *testing.T) {
+	toolsProject, otherProject := loadTwoProjects(t)
+	p := NewProvider()
+
+	var progressCalls [][2]int
+	sessions, err := p.GetAgentChatSessions(toolsProject, false, func(current, total int) {
+		progressCalls = append(progressCalls, [2]int{current, total})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The subagent's child session is recorded in the same directory but is
+	// part of its parent's conversation.
+	if len(sessions) != 1 || sessions[0].SessionID != toolSessionID {
+		t.Fatalf("sessions = %v, want only %s", sessionIDs(sessions), toolSessionID)
+	}
+	if !slices.Equal(progressCalls, [][2]int{{1, 1}}) {
+		t.Errorf("progress calls = %v", progressCalls)
+	}
+
+	for _, tt := range []struct {
+		name, project, sessionID string
+		found                    bool
+	}{
+		{"own session", toolsProject, toolSessionID, true},
+		{"another project's session", otherProject, toolSessionID, false},
+		{"subagent child session", toolsProject, subagentSessionID, false},
+		{"unknown id", toolsProject, "ses_missing", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			session, err := p.GetAgentChatSession(tt.project, tt.sessionID, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (session != nil) != tt.found {
+				t.Errorf("GetAgentChatSession() found = %v, want %v", session != nil, tt.found)
+			}
+		})
+	}
+
+	if !p.DetectAgent(toolsProject, false) {
+		t.Error("DetectAgent() = false for a project with sessions")
+	}
+	if p.DetectAgent(newProjectDir(t, "empty"), false) {
+		t.Error("DetectAgent() = true for a project without sessions")
+	}
+}
+
+func sessionIDs(sessions []spi.AgentChatSession) []string {
+	var ids []string
+	for _, session := range sessions {
+		ids = append(ids, session.SessionID)
+	}
+	return ids
+}
+
+func TestListingMatchesConversion(t *testing.T) {
+	toolsProject, _ := loadTwoProjects(t)
+	p := NewProvider()
+
+	listed, err := p.ListAgentChatSessions(toolsProject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := p.GetAgentChatSessions(toolsProject, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(listed) != 1 || len(sessions) != 1 {
+		t.Fatalf("listed %d, converted %d; want 1 each", len(listed), len(sessions))
+	}
+	// A listing must name the session the way its markdown file is named.
+	if listed[0].Slug != sessions[0].Slug || listed[0].CreatedAt != sessions[0].CreatedAt {
+		t.Errorf("listing %+v disagrees with conversion (slug %q, created %q)", listed[0], sessions[0].Slug, sessions[0].CreatedAt)
+	}
+	// OpenCode's own generated title names the session.
+	if listed[0].Name != "Tool exercise" {
+		t.Errorf("Name = %q, want OpenCode's title", listed[0].Name)
+	}
+}
+
+func TestListAllAgentChatSessions(t *testing.T) {
+	toolsProject, otherProject := loadTwoProjects(t)
+	dbPath, err := getDatabasePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var reporter spi.ScanReporter
+	refs, err := NewProvider().ListAllAgentChatSessionsProgress(&reporter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	origins := map[string]string{}
+	for _, ref := range refs {
+		origins[ref.SessionID] = ref.OriginCwd
+		if ref.NativePath != dbPath {
+			t.Errorf("NativePath = %q, want %q", ref.NativePath, dbPath)
+		}
+	}
+	want := map[string]string{toolSessionID: toolsProject, modelErrSessionID: otherProject}
+	if len(origins) != len(want) {
+		t.Errorf("refs = %v, want %v", origins, want)
+	}
+	for id, origin := range want {
+		if origins[id] != origin {
+			t.Errorf("OriginCwd[%s] = %q, want %q", id, origins[id], origin)
+		}
+	}
+	if reporter.Found() != int64(len(want)) {
+		t.Errorf("reporter found %d, want %d", reporter.Found(), len(want))
+	}
+}
+
+// TestProjectReachedThroughOtherSpellings resolves the project through a
+// symlink, a path with a space and an underscore, and a differently-cased
+// spelling; OpenCode records the directory's real path.
+func TestProjectReachedThroughOtherSpellings(t *testing.T) {
+	real := newProjectDir(t, "My Project_dir")
+	loadFixtures(t, map[string]string{fixtureToolsDir: real}, "tool-exercise.jsonl")
+	p := NewProvider()
+
+	spellings := map[string]string{"real path with space and underscore": real}
+
+	link := filepath.Join(t.TempDir(), "linked")
+	if err := os.Symlink(real, link); err != nil {
+		if runtime.GOOS != "windows" {
+			t.Fatal(err)
+		}
+	} else {
+		spellings["symlink"] = link
+	}
+
+	upper := filepath.Join(filepath.Dir(real), strings.ToUpper(filepath.Base(real)))
+	if info, err := os.Stat(upper); err == nil && info.IsDir() {
+		spellings["different case"] = upper
+	} else {
+		t.Log("case-sensitive filesystem: skipping the differently-cased spelling")
+	}
+
+	for name, spelling := range spellings {
+		t.Run(name, func(t *testing.T) {
+			sessions, err := p.GetAgentChatSessions(spelling, false, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(sessions) != 1 {
+				t.Errorf("sessions via %q = %d, want 1", spelling, len(sessions))
+			}
+		})
+	}
+}
+
+func TestCheck(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX executable fixtures")
+	}
+	for _, tt := range []struct {
+		name, script, version string
+		success               bool
+	}{
+		{"version on stdout", `echo "opencode v2.0.14"`, "opencode v2.0.14", true},
+		{"version on stderr", `echo "opencode v2.0.14" >&2`, "opencode v2.0.14", true},
+		{"empty output", "exit 0", "unknown", true},
+		{"failure", "echo boom >&2; exit 3", "", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "open code")
+			if err := os.WriteFile(path, []byte("#!/bin/sh\n"+tt.script+"\n"), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			command := `"` + path + `" --flag`
+			result := NewProvider().Check(command)
+			if result.Success != tt.success || result.Version != tt.version {
+				t.Fatalf("Check() = %+v", result)
+			}
+			if tt.success && result.ErrorType != "" {
+				t.Errorf("ErrorType on success = %q", result.ErrorType)
+			}
+			if !tt.success {
+				if result.ErrorType == "" || !strings.Contains(result.ErrorMessage, command+" --version") || !strings.Contains(result.ErrorMessage, "boom") {
+					t.Errorf("failure lost its type, command or stderr: %+v", result)
+				}
+			}
+		})
+	}
+
+	missing := NewProvider().Check(filepath.Join(t.TempDir(), "no-such-opencode"))
+	if missing.Success || missing.ErrorType != spi.CheckErrorNotFound || !strings.Contains(missing.ErrorMessage, "no-such-opencode") {
+		t.Errorf("missing custom binary = %+v", missing)
+	}
+}

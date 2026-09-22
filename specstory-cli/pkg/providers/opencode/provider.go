@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -45,7 +46,7 @@ func (p *Provider) Name() string {
 
 // Check verifies that the opencode binary resolves and reports a version.
 func (p *Provider) Check(customCommand string) spi.CheckResult {
-	cmdName, _ := parseOpenCodeCommand(customCommand)
+	cmdName, cmdArgs := parseOpenCodeCommand(customCommand)
 	isCustom := customCommand != ""
 	attempt := analytics.CheckAttempt{
 		Provider:      providerID,
@@ -69,7 +70,14 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 	}
 	attempt.ResolvedPath = resolvedPath
 
-	cmd := exec.Command(resolvedPath, versionFlag)
+	// A custom command's arguments are part of how the user runs OpenCode (a
+	// wrapper script may need them), so the probe keeps them.
+	probeArgs := append(slices.Clone(cmdArgs), versionFlag)
+	probeCommand := strings.Join(append([]string{cmdName}, probeArgs...), " ")
+	if isCustom {
+		probeCommand = customCommand + " " + versionFlag
+	}
+	cmd := exec.Command(resolvedPath, probeArgs...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -88,13 +96,17 @@ func (p *Provider) Check(customCommand string) spi.CheckResult {
 			Success:      false,
 			ErrorType:    errorType,
 			Location:     resolvedPath,
-			ErrorMessage: buildCheckErrorMessage(errorType, resolvedPath, isCustom, stderrOutput),
+			ErrorMessage: buildCheckErrorMessage(errorType, probeCommand, isCustom, stderrOutput),
 		}
 	}
 
-	// A binary that runs but prints nothing still passes the check; report a
-	// placeholder rather than an empty version so the result reads unambiguously.
+	// Some wrappers print the version on stderr. A binary that prints nothing
+	// still passes the check, reported as "unknown" so the result reads
+	// unambiguously.
 	version := strings.TrimSpace(stdout.String())
+	if version == "" {
+		version = strings.TrimSpace(stderr.String())
+	}
 	if version == "" {
 		version = "unknown"
 	}
@@ -126,11 +138,11 @@ func buildCheckErrorMessage(errorType string, command string, isCustom bool, std
 		fmt.Fprintf(&b, "• Fix permissions: `chmod +x %s`\n", command)
 		b.WriteString("• Some package managers install the binary as root; run SpecStory with a path you can execute.\n")
 	default:
-		fmt.Fprintf(&b, "`%s %s` failed.\n\n", command, versionFlag)
+		fmt.Fprintf(&b, "`%s` failed.\n\n", command)
 		if stderr != "" {
 			fmt.Fprintf(&b, "Error output:\n%s\n\n", stderr)
 		}
-		fmt.Fprintf(&b, "• Try running `%s %s` directly in your terminal.\n", command, versionFlag)
+		fmt.Fprintf(&b, "• Try running `%s` directly in your terminal.\n", command)
 		b.WriteString("• If you upgraded recently, reinstall OpenCode to refresh its installation.\n")
 	}
 

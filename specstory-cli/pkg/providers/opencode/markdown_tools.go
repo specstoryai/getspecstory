@@ -98,7 +98,7 @@ func toolSummary(name string, tool *schema.ToolInfo) string {
 	var argument string
 	switch name {
 	case toolRead, toolWrite, toolEdit:
-		argument = spi.StringValue(tool.Input, "path", "filePath")
+		argument = spi.StringValue(tool.Input, "path")
 	case toolGlob, toolGrep:
 		argument = spi.StringValue(tool.Input, "pattern")
 	case toolWebFetch:
@@ -106,7 +106,7 @@ func toolSummary(name string, tool *schema.ToolInfo) string {
 	case toolWebSearch:
 		argument = spi.StringValue(tool.Input, "query")
 	case toolSkill:
-		argument = spi.StringValue(tool.Input, "id", "name")
+		argument = spi.StringValue(tool.Input, "id")
 	case toolSubagent:
 		argument = spi.StringValue(tool.Input, "description")
 	}
@@ -181,7 +181,7 @@ func labeledLines(input map[string]any, pairs ...string) string {
 }
 
 func formatWriteBody(input map[string]any) string {
-	path := spi.StringValue(input, "path", "filePath")
+	path := spi.StringValue(input, "path")
 	content, hasContent := input["content"].(string)
 	if !hasContent {
 		return ""
@@ -233,9 +233,6 @@ func editPatches(output map[string]any) []string {
 
 func formatShellBody(input map[string]any) string {
 	var sections []string
-	if description := strings.TrimSpace(spi.StringValue(input, "description")); description != "" {
-		sections = append(sections, description)
-	}
 	if command := spi.StringValue(input, "command"); command != "" {
 		sections = append(sections, spi.CodeFence("bash", command))
 	}
@@ -280,13 +277,19 @@ func formatToolResult(name string, input, output map[string]any) string {
 
 	switch name {
 	case toolRead:
-		sections = append(sections, formatReadResult(spi.StringValue(input, "path", "filePath"), texts))
+		sections = append(sections, formatReadResult(spi.StringValue(input, "path"), texts))
 	case toolWrite, toolEdit:
 		sections = append(sections, formatAcknowledgement(texts))
 	case toolShell:
 		sections = append(sections, formatShellResult(output, texts))
 	case toolWebFetch:
-		sections = append(sections, resultBlock("markdown", strings.Join(texts, "\n")))
+		// The page arrives converted to markdown unless the call asked for
+		// another format.
+		lang := "markdown"
+		if spi.StringValue(input, "format") == "html" {
+			lang = "html"
+		}
+		sections = append(sections, resultBlock(lang, strings.Join(texts, "\n")))
 	case toolSkill:
 		sections = append(sections, resultBlock("markdown", unwrapTag(strings.Join(texts, "\n"), "skill_content")))
 	case toolSubagent:
@@ -486,7 +489,7 @@ func toolPathHints(name string, input map[string]any, workspaceRoot string) []st
 
 	switch spi.NormalizeToolName(name) {
 	case toolRead, toolWrite, toolEdit:
-		add(spi.StringValue(input, "path", "filePath"))
+		add(spi.StringValue(input, "path"))
 	case toolGlob, toolGrep:
 		add(spi.StringValue(input, "path"))
 	case toolShell:

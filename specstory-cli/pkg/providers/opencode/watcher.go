@@ -55,6 +55,10 @@ type sessionWatcher struct {
 	// startMillis is the startup boundary: sessions last written before it
 	// form the baseline; anything written at or after it is activity.
 	startMillis int64
+	// adoptExisting is set when the database did not exist at startup: every
+	// session in a store that arrives later is new activity, even one whose
+	// timestamps predate startup (a store copied or restored into place).
+	adoptExisting bool
 	// known holds the signature last delivered (or baselined) per session.
 	// Owned by the worker goroutine after start.
 	known map[string]signature
@@ -65,8 +69,8 @@ type sessionWatcher struct {
 	stopOnce sync.Once
 }
 
-// startWatcher establishes the startup baseline and starts the worker. It
-// returns an error only when no watch can be established at all.
+// startWatcher records the startup boundary, establishes the watch and starts
+// the worker. It returns an error only when no watch can be established at all.
 func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentChatSession)) (*sessionWatcher, error) {
 	if callback == nil {
 		return nil, errors.New("session callback must not be nil")
@@ -95,8 +99,8 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 	}
 
 	// The boundary is taken before the watch exists, so a write that lands
-	// while the watch and baseline are being set up is newer than the
-	// boundary and is emitted rather than absorbed into the baseline.
+	// while the watch is being set up or before the first read is newer than
+	// the boundary and is emitted rather than absorbed into the baseline.
 	w.startMillis = time.Now().UnixMilli()
 
 	if err := w.updateWatch(); err != nil {
@@ -111,18 +115,27 @@ func startWatcher(projectPath string, debugRaw bool, callback func(*spi.AgentCha
 		if err := spi.EnsureWALMode(dbPath); err != nil {
 			slog.Warn("WatchAgent: Failed to ensure WAL mode on OpenCode database", "path", dbPath, "error", err)
 		}
+	} else {
+		w.adoptExisting = true
 	}
-	w.establishBaseline()
+
+	if beforeFirstCheck != nil {
+		beforeFirstCheck()
+	}
 
 	slog.Info("OpenCode watcher started",
 		"projectPath", projectPath,
 		"dbPath", dbPath,
 		"watchedDir", w.watchedDir,
-		"baselineSessions", len(w.known))
+		"storeExists", !w.adoptExisting)
 
 	w.wg.Go(w.run)
 	return w, nil
 }
+
+// beforeFirstCheck, when set by a test, runs after the watch is established
+// and before the first read, where real activity can race the startup.
+var beforeFirstCheck func()
 
 // Stop ends the watch after delivering any change that has not been delivered
 // yet. Safe to call more than once.
@@ -136,30 +149,6 @@ func (w *sessionWatcher) Stop() {
 		}
 		slog.Info("OpenCode watcher stopped")
 	})
-}
-
-// establishBaseline records the sessions that were already complete when the
-// watcher started, so starting a watch does not republish history. A missing
-// database leaves the baseline empty: every session in a database created
-// after startup is new activity.
-func (w *sessionWatcher) establishBaseline() {
-	err := withDatabase(func(db *sql.DB) error {
-		summaries, err := listSessionSummaries(db, w.projectPath)
-		if err != nil {
-			return err
-		}
-		for _, summary := range summaries {
-			if summary.TimeUpdated < w.startMillis && summary.LastMessageUpdate < w.startMillis {
-				w.known[summary.ID] = summary.signature()
-			}
-		}
-		return nil
-	})
-	if err != nil && !errors.Is(err, errNoDatabase) {
-		// Without a baseline the first check re-emits existing sessions, which
-		// the command layer's fingerprinting absorbs; the watch itself works.
-		slog.Warn("OpenCode watcher: Failed to establish baseline", "error", err)
-	}
 }
 
 // run is the single worker: it owns the known map, the watch, and every
@@ -176,7 +165,8 @@ func (w *sessionWatcher) run() {
 	events := w.fsWatcher.Events
 	watchErrors := w.fsWatcher.Errors
 
-	// Catch anything written while the baseline was being taken.
+	// The first read records the baseline and delivers anything written
+	// since the boundary.
 	w.check("startup")
 
 	for {
@@ -273,6 +263,12 @@ func (w *sessionWatcher) updateWatch() error {
 	return nil
 }
 
+// predatesStart reports whether every write to the session happened before
+// the watcher started.
+func (w *sessionWatcher) predatesStart(summary sessionSummary) bool {
+	return summary.TimeUpdated < w.startMillis && summary.LastMessageUpdate < w.startMillis
+}
+
 // nearestExistingDir returns path if it is an existing directory, otherwise
 // its closest existing ancestor.
 func nearestExistingDir(path string) string {
@@ -289,7 +285,10 @@ func nearestExistingDir(path string) string {
 }
 
 // check reads the project's sessions and delivers each one whose signature
-// changed since it was last delivered or baselined.
+// changed since it was last delivered or baselined. A session seen for the
+// first time joins the baseline instead when its last write predates startup,
+// whichever check first reads it, so a failed or late first read cannot
+// republish history.
 func (w *sessionWatcher) check(trigger string) {
 	delivered := 0
 	err := withDatabase(func(db *sql.DB) error {
@@ -299,7 +298,12 @@ func (w *sessionWatcher) check(trigger string) {
 		}
 		for _, summary := range summaries {
 			sig := summary.signature()
-			if known, ok := w.known[summary.ID]; ok && known == sig {
+			known, seen := w.known[summary.ID]
+			if seen && known == sig {
+				continue
+			}
+			if !seen && !w.adoptExisting && w.predatesStart(summary) {
+				w.known[summary.ID] = sig
 				continue
 			}
 			snapshot, err := readSessionSnapshot(db, summary.ID)
