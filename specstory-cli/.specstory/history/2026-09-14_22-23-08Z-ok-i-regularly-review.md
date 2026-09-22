@@ -2101,7 +2101,7 @@ Show multi-agent tool enumeration repo tree, README, and Muse sample
 
 `cd ~/source/SpecStory/specstory-cli-multi-agent && echo "=== tree ===" && find . -path ./.git -prune -o -type f -print | sort | head -120 && echo && echo "=== README ===" && cat README.md && echo && echo "=== muse-code sample ===" && ls -la muse-code/* | head -40`
 
-```text
+````text
 === tree ===
 ./.cursorindexingignore
 ./.gitignore
@@ -2317,7 +2317,7 @@ drwxr-xr-x  7 sean  staff    224 Aug 16 10:02 .specstory
 -rw-r--r--  1 sean  staff    530 Aug 16 09:05 tools.txt
 -rw-r--r--  1 sean  staff     88 Aug 16 09:03 versions.txt
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:44:45Z)**_
@@ -4264,7 +4264,7 @@ Read first extract file lines 1-400
 
 `sed -n '1,400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-16_20-14-28Z-update-the-readme.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-16_20-14-28Z-update-the-readme.md (36 user turns)
 
 ### [line 7] User (2026-07-16 20:14:28Z)
@@ -4664,7 +4664,7 @@ update the README
 #### [line 8075] Agent (claude-fable-5 2026-07-16 20:28:17Z) (head)
 
 I'll update the README to include the Cursor IDE provider. Let me look at the relevant sections first.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:00Z)**_
@@ -4675,7 +4675,7 @@ Read extract lines 1-500
 
 `sed -n '1,500p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md (41 user turns)
 
 ### [line 7] User (2026-07-21 14:19:33Z)
@@ -5176,7 +5176,7 @@ Release-blocking confirmed: the project does not compile because antigravity is 
 13		"github.com/specstoryai/getspecstory/specsto...
 
 #### [line 4468] Agent (claude-opus-4-8 2026-07-21 14:21:27Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:01Z)**_
@@ -5378,7 +5378,7 @@ Read first prompt extract fully
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-14_16-04-49Z-tests-on-muse-provider.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-14_16-04-49Z-tests-on-muse-provider.md (1 user turns)
 
 ### [line 7] User (2026-08-14 16:04:49Z)
@@ -5782,7 +5782,7 @@ Both fixes are in. Summary of what changed and why:
 **`pkg/providers/musecode/path_utils_test.go:35` — `writeSession` now JSON-escapes the substituted workspace root**
 
 Added a `jsonEscape` helper and a two-pass substitution: nested occurrences (recognizable by their escaped surrounding quotes, `\"…\"`) are rewritten with a double escape first, th...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:01Z)**_
@@ -5793,7 +5793,7 @@ Read prompts extract lines 1-700
 
 `sed -n '1,700p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md`
 
-```text
+`````text
 # Extracted from .specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md (58 user turns)
 
 ### [line 7] User (2026-08-11 15:10:08Z)
@@ -6494,7 +6494,7 @@ pkg/cmd/watch.go:134:			effectiveProjectPath := utils.ResolvePr...
 407				}
 408				// effectiveProjectPath is what providers use for session discovery.
 409				// When --projec...
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:02Z)**_
@@ -6505,7 +6505,7 @@ Read first 400 lines of the first prompt extract
 
 `sed -n '1,400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-28_13-36-04Z-command-name-pr-review.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-01-28_13-36-04Z-command-name-pr-review.md (7 user turns)
 
 ### [line 7] User (2026-01-28 13:36:04Z)
@@ -6906,7 +6906,7 @@ Given the extremely large file size and token constraints, let me try to read it
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:02Z)**_
@@ -6917,7 +6917,7 @@ Read first extract file (103 lines)
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-03_21-15-01Z-use-claude-commands-code.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-03_21-15-01Z-use-claude-commands-code.md (1 user turns)
 
 ### [line 7] User (2026-08-03 21:15:02Z)
@@ -7021,7 +7021,7 @@ const r = await tools.exec_command({cmd:"go test ./...","workdir":"/Users/sean/S
 Review verdict: the unstaged change is a sound fix for [issue #266](https://github.com/specstoryai/getspecstory/issues/266). I found no blocking correctness defects. It preserves historical startup scanning, limits active fsnotify watches, retains Add-before-scan ordering, and handles old explicitly resumed sessions.
 
 Two minor concerns remain: cal...
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:02Z)**_
@@ -7444,7 +7444,7 @@ Read first extract file lines 1-250
 
 `sed -n '1,250p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-13_13-48-53Z-i-ve-got-a.prompts.md"`
 
-```text
+````text
 # Extracted from .specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md (6 user turns)
 
 ### [line 7] User (2026-05-13 13:48:53Z)
@@ -7695,7 +7695,7 @@ Read session manager around save logic
     }
 
     /// Create a new `SessionManager` with the ...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:03Z)**_
@@ -7706,7 +7706,7 @@ Read extract lines 1-400
 
 `sed -n '1,400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-13_13-43-21Z-cross-provider-refactor-200.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md (25 user turns)
 
 ### [line 7] User (2026-08-13 13:43:21Z)
@@ -8106,7 +8106,7 @@ Read other panic-recovery dispatch sites
 `echo "### cursorcli/watcher 340,358"; sed -n '340,358p' pkg/providers/cursorcli/watcher.go; echo "### cursoride/watcher 608,626"; sed -n '608,626p' pkg/providers/cursoride/watcher.go; echo "### cursorcli/...
 
 #### [line 2604] Agent - sidechain (claude-opus-5 2026-08-13 13:46:22Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:04Z)**_
@@ -8117,7 +8117,7 @@ Read second extract file (405 lines)
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_00-58-51Z-merge-dev-into-copilot.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-04_00-58-51Z-merge-dev-into-copilot.md (4 user turns)
 
 ### [line 7] User (2026-08-04 00:58:51Z)
@@ -8523,7 +8523,7 @@ All conflicts are resolved and everything is green. Here's what was done:
 
 - **#1** `pkg/cmd/resume.go:360` — took dev's more informative message ("…it has no native session serializer…").
 - **#2** `pkg/config/config.go:252` — union of all 12 `ProvidersConfig` fields, with `AntigravityCmd` slotted first ...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:04Z)**_
@@ -8534,7 +8534,7 @@ Read first extract file (lines 1-400)
 
 `sed -n '1,400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_19-13-09Z-adress-a-c-108.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-24_19-13-09Z-adress-a-c-108.md (9 user turns)
 
 ### [line 7] User (2026-07-24 19:13:09Z)
@@ -8935,7 +8935,7 @@ Check conventions across providers
 `echo "=== Execute* exported:" && grep -rn "^func Execute" --include="*.go" pkg/providers/ && echo "=== WAL pragma:" && grep -rn "journal_mode" --include="*.go" pkg/ && echo "=== mode=ro:" && grep -rn "mode=ro" ...
 
 #### [line 5267] Agent (claude-opus-5 2026-07-24 19:15:23Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:04Z)**_
@@ -8968,7 +8968,7 @@ Read first extract file lines 400-900
 
 `sed -n '400,900p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-16_20-14-28Z-update-the-readme.prompts.md`
 
-```text
+````text
 #### [line 8079] Agent (claude-fable-5 2026-07-16 20:28:18Z) (head)
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -9469,7 +9469,7 @@ Fix double spaces in cursorcli comments
 #### [line 12248] Agent (claude-fable-5 2026-07-16 20:51:21Z) (head)
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:05Z)**_
@@ -9563,7 +9563,7 @@ Read prompts extract lines 700-1500
 
 `sed -n '700,1500p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md`
 
-```text
+````text
 409				// When --projec...
 
 #### [line 7869] Agent (claude-fable-5 2026-08-11 15:32:42Z) (head)
@@ -10364,7 +10364,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume.
 </details></tool-use>
 
 #### [line 9618] Agent (claude-fable-5 2026-08-11 15:53:55Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:05Z)**_
@@ -10375,7 +10375,7 @@ Read third extract file lines 1-700
 
 `sed -n '1,700p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md (73 user turns)
 
 ### [line 7] User (2026-08-04 15:05:09Z)
@@ -11075,7 +11075,7 @@ pkg/providers/copilotide/parser_test.go:88:func T...
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:05Z)**_
@@ -11086,7 +11086,7 @@ Read first extract file remainder
 
 `sed -n '250,995p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-13_13-48-53Z-i-ve-got-a.prompts.md"`
 
-```text
+`````text
     /// Create a new `SessionManager` with the ...
 
 #### [line 947] Agent (claude-opus-4-7 2026-05-13 13:51:20Z) (head)
@@ -11833,7 +11833,7 @@ Key fin...
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:05Z)**_
@@ -11946,7 +11946,7 @@ Read first extract file (lines 400-800)
 
 `sed -n '400,800p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_19-13-09Z-adress-a-c-108.prompts.md`
 
-```text
+````text
 #### [line 5267] Agent (claude-opus-5 2026-07-24 19:15:23Z) (head)
 
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
@@ -12348,7 +12348,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/a
 
 ```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/antigravitycli/transcript_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:06Z)**_
@@ -12359,7 +12359,7 @@ Read README Development and Testing sections
 
 `sed -n 539,660p README.md`
 
-```text
+````text
 ## Development
 
 ### Development Prerequisites
@@ -12482,7 +12482,7 @@ Testing specific features
 
 ```zsh
 # Test the new filename generation logic
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:07Z)**_
@@ -12493,7 +12493,7 @@ Read first 400 lines of the July 20 cursoride extract
 
 `sed -n 1,400p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.md (16 user turns)
 
 ### [line 7] User (2026-07-20 15:13:10Z)
@@ -12894,7 +12894,7 @@ MIP #5 had three small polish items: the misleading `cursor CLI failed` error fo
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:07Z)**_
@@ -12905,7 +12905,7 @@ Read first extract file (lines 800-1200)
 
 `sed -n '800,1200p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_19-13-09Z-adress-a-c-108.prompts.md`
 
-```text
+````text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/antigravitycli/transcript_parser.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
@@ -13307,7 +13307,7 @@ Format, build and vet
 
 ```text
 BUILD+VET OK
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:07Z)**_
@@ -13351,7 +13351,7 @@ Read extract lines 500-820
 
 `sed -n '500,820p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 #### [line 4468] Agent (claude-opus-4-8 2026-07-21 14:21:27Z) (head)
 
 Antigravity has no accent color (falls to default) — minor. Let me verify the Antigravity package compiles in isolation and check the README documentation delta while the sweep runs.
@@ -13672,7 +13672,7 @@ Run the resume spike to verify transcript-only resume
 #### [line 5731] Agent (claude-opus-4-8 2026-07-21 14:35:05Z) (head)
 
 Let me first check whether `agy` is actually installed and inspect real captured sessions to replicate the exact on-disk format before I synthesize one.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:09Z)**_
@@ -13683,7 +13683,7 @@ Read first extract file (lines 1200-end)
 
 `sed -n '1200,1619p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_19-13-09Z-adress-a-c-108.prompts.md`
 
-```text
+````text
 BUILD+VET OK
 ```
 </details></tool-use>
@@ -14104,7 +14104,7 @@ Speculative renderers removed. `markdown_tools.go` lost 106 net lines.
 ## What went
 
 **19 fabricated tool names** dropped from `classifyToolType`: `create_file`, `edit_file`, `apply_patch`, `read_file`, `read_directory`, `codebase_search`, `file_search`, `find_files`, `web_search`, `read_url`, `fetch_url`, `execute_url`, `run_terminal_command`, `e...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:09Z)**_
@@ -14115,7 +14115,7 @@ Read first extract file lines 900-1500
 
 `sed -n '900,1500p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-16_20-14-28Z-update-the-readme.prompts.md`
 
-```text
+````text
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
 
@@ -14717,7 +14717,7 @@ ok  	github.com/specstoryai/getspecsto...
 #### [line 12901] Agent (claude-fable-5 2026-07-16 20:58:59Z) (head)
 
 Everything passes. Let me also run the `cursoride` and `claudecode` packages with the race detector since I touched concurrency paths:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:09Z)**_
@@ -14728,7 +14728,7 @@ Read second prompt extract lines 1-300
 
 `sed -n 1,300p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-16_12-33-25Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-16_12-33-25Z-let-s-address-mip.md (14 user turns)
 
 ### [line 7] User (2026-08-16 12:33:25Z)
@@ -15028,7 +15028,7 @@ Now the test files.
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/musecode/markdown_tools_test.go`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:09Z)**_
@@ -15039,7 +15039,7 @@ Read prompts extract lines 1500-2400
 
 `sed -n '1500,2400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md`
 
-```text
+````text
 <persisted-output>
 Output too large (32.4KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/boaw78igw.txt
 
@@ -15110,7 +15110,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/CLAUDE.md has b
 ```text
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:10Z)**_
@@ -15206,7 +15206,7 @@ Read second extract file lines 1-300
 
 `sed -n '1,300p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-18_12-47-08Z-that-s-not-the.prompts.md"`
 
-```text
+````text
 # Extracted from .specstory/history/2026-05-18_12-47-08Z-that-s-not-the.md (7 user turns)
 
 ### [line 7] User (2026-05-18 12:47:08Z)
@@ -15506,7 +15506,7 @@ Check claudecode provider analytics helpers
 17...
 
 #### [line 4237] Agent (claude-opus-4-7 2026-05-18 12:49:51Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:11Z)**_
@@ -15517,7 +15517,7 @@ Print all user turns from the extract (part 1)
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && awk '/^### \[line/{p=1} /^#### \[line/{p=0} p' 2026-08-13_13-43-21Z-cross-provider-refactor-200.prompts.md | sed -n '1,400p'`
 
-```text
+````text
 ### [line 7] User (2026-08-13 13:43:21Z)
 
 <command-name>/model</command-name>
@@ -15712,7 +15712,7 @@ Testing `resume` into Muse... anything we can do about this warning in the synth
 ### [line 21027] User (2026-08-16 12:32:18Z)
 
 Yup... all good.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:11Z)**_
@@ -15723,7 +15723,7 @@ Read lines 400-900 of first prompt extract
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && sed -n '400,900p' 2026-01-28_13-36-04Z-command-name-pr-review.prompts.md`
 
-```text
+````text
 <summary>Tool use: **Bash**</summary>
 
 `wc -l "/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/dd4fb067-317f-48c3-ba6f-1f3ed113a8ae/tool-results/517e44d3-9bb5-4ef4-b91a-01a46069040e.txt"`
@@ -16225,7 +16225,7 @@ Good, I now have comprehensive understanding of both the PR diff and the existin
     12→	...
 
 #### [line 14479] Agent (claude-opus-4-5-20251101 2026-01-28 13:37:39Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:11Z)**_
@@ -16236,7 +16236,7 @@ Read lines 400-900 of the July 20 extract
 
 `sed -n 400,900p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.prompts.md`
 
-```text
+````text
 <summary>Tool use: **Edit**</summary>
 
 ```text
@@ -16737,7 +16737,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/watch.g
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/cmd/resume.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
 </details></tool-use>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:12Z)**_
@@ -16748,7 +16748,7 @@ Read third extract lines 700-1400
 
 `sed -n '700,1400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 `grep -rn "cursoride" --include=*.go --include=*.md . | grep -v "^./pkg/providers/cursoride/" | grep -v "_test.go" | head -40`
 
 ```text
@@ -17448,7 +17448,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/path_ut
 </details></tool-use>
 
 #### [line 12231] Agent (claude-fable-5 2026-08-04 15:44:33Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:13Z)**_
@@ -17500,7 +17500,7 @@ Read second prompt extract lines 300-700
 
 `sed -n 300,700p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-16_12-33-25Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 ```text
 1	package musecode
 2	
@@ -17901,7 +17901,7 @@ func TestWatchWindowCutoff(t *testing.T) {
 Now convert codexcli — delete its local copies, point the two call sites at spi, keep `dirType` (it has a second consumer).
 
 #### [line 7342] Agent (claude-fable-5 2026-08-16 12:48:01Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:13Z)**_
@@ -17912,7 +17912,7 @@ Read extract lines 820-1200
 
 `sed -n '820,1200p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 #### [line 5735] Agent (claude-opus-4-8 2026-07-21 14:35:09Z) (head)
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -18293,7 +18293,7 @@ Confirmed the specifics. Here's the consolidated standing.
 ### [line 6675] User (2026-07-21 21:08:34Z)
 
 First, #3781DE as accent color
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:13Z)**_
@@ -18304,7 +18304,7 @@ Read first extract file lines 1500-2200
 
 `sed -n '1500,2200p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-16_20-14-28Z-update-the-readme.prompts.md`
 
-```text
+````text
 Everything passes. Let me also run the `cursoride` and `claudecode` packages with the race detector since I touched concurrency paths:
 
 #### [line 12905] Agent (claude-fable-5 2026-07-16 20:59:19Z) (head)
@@ -19006,7 +19006,7 @@ uhhh... no... I committed the 26 review fixes and the README
 Let me check what's actually still uncommitted so the message matches:
 
 #### [line 14444] Agent (claude-fable-5 2026-07-16 22:31:14Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:13Z)**_
@@ -19017,7 +19017,7 @@ Read the first part of the provider SPI doc
 
 `sed -n 1,200p docs/PROVIDER-SPI.md`
 
-```text
+````text
 # SpecStory CLI's Agent SPI
 
 The SpecStory CLI's Agent SPI (Service Provider Interface) allows developers to extend the SpecStory CLI by implementing support for new AI coding agents.
@@ -19217,7 +19217,7 @@ func (p *Provider) Name() string {
 ```
 
 ### Step 2: Register the Provider
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:13Z)**_
@@ -19298,7 +19298,7 @@ Read second extract file lines 300-700
 
 `sed -n '300,700p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-18_12-47-08Z-that-s-not-the.prompts.md"`
 
-```text
+````text
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/claudecode/provider.go`
@@ -19699,7 +19699,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/d
 144		}
 145	
 146		session, err := parseSessionFile(filePath)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:15Z)**_
@@ -19710,7 +19710,7 @@ Read lines 900-1672 of first prompt extract
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && sed -n '900,1672p' 2026-01-28_13-36-04Z-command-name-pr-review.prompts.md`
 
-```text
+````text
 #### [line 14479] Agent (claude-opus-4-5-20251101 2026-01-28 13:37:39Z) (head)
 
 Now let me also read the existing codexcli or cursorcli providers to see how much code is shared/duplicated with the new droidcli, and check if any patterns diverge.
@@ -20484,7 +20484,7 @@ Consolidation complete. Summary of changes:
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:15Z)**_
@@ -20495,7 +20495,7 @@ Read lines 900-1500 of the July 20 extract
 
 `sed -n 900,1500p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.prompts.md`
 
-```text
+````text
 #### [line 4277] Agent (claude-fable-5 2026-07-20 16:03:40Z) (head)
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -21096,7 +21096,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha256"
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:16Z)**_
@@ -21107,7 +21107,7 @@ Read first extract file lines 2200-end
 
 `sed -n '2200,3141p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-16_20-14-28Z-update-the-readme.prompts.md`
 
-```text
+````text
 <persisted-output>
 Output too large (36KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bsvseu539.txt
 
@@ -21164,7 +21164,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/c
 ```
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:19Z)**_
@@ -21704,7 +21704,7 @@ Read extract lines 1200-1560
 
 `sed -n '1200,1560p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 First, #3781DE as accent color
 
 Fix the docs/antigravity-format-spec.md 
@@ -22065,7 +22065,7 @@ Let me see `sessionMetadata` so I reuse it correctly for the ref's Slug/Name/Cre
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/antigravitycli/transcript_parser.go`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:18Z)**_
@@ -22076,7 +22076,7 @@ Read third extract lines 1400-2300
 
 `sed -n '1400,2300p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 <persisted-output>
 Output too large (32.6KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bgk6bg6sx.txt
 
@@ -22139,7 +22139,7 @@ Show FileURIToPath test cases
 
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:18Z)**_
@@ -22150,7 +22150,7 @@ Read second extract file lines 700-end
 
 `sed -n '700,1039p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-18_12-47-08Z-that-s-not-the.prompts.md"`
 
-```text
+````text
 146		session, err := parseSessionFile(filePath)
 147		if err != nil {
 148			slog.Debug...
@@ -22491,7 +22491,7 @@ All green.
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:19Z)**_
@@ -22502,7 +22502,7 @@ Read second prompt extract lines 700-1100
 
 `sed -n 700,1100p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-16_12-33-25Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 #### [line 7342] Agent (claude-fable-5 2026-08-16 12:48:01Z) (head)
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -22904,7 +22904,7 @@ Eight items — one of them, (25), was already fixed last turn as MIP 5 (the slu
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Check sibling Check() logging idiom and find rename call sites
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:19Z)**_
@@ -22915,7 +22915,7 @@ Read second extract file (lines 1-500)
 
 `sed -n '1,500p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_20-01-58Z-adress-68.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-24_20-01-58Z-adress-68.md (31 user turns)
 
 ### [line 7] User (2026-07-24 20:01:58Z)
@@ -23416,7 +23416,7 @@ That preview header (`session_tui_view.go:301`) uses the padded tag inline, wort
 Run linter and tests for changed packages
 
 `golangci-lint run 2>&1 | tail -5; go test ./pkg/providers/antigravitycli/ ./pkg/config/ ./pkg/cmd/ 2>&1 | tail -10`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:19Z)**_
@@ -23621,7 +23621,7 @@ cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-c
 ' prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md > user_turns_B.txt; wc -l user_turns_B.txt; sed -n '1,60p' user_turns_B.txt
 ```
 
-```text
+`````text
      759 user_turns_B.txt
 ### [line 7] User (2026-08-11 15:10:08Z)
 
@@ -23683,7 +23683,7 @@ Let's address MIP #1 and #2
     >>> I'll start by re-reading the relevant code so the fixes are concrete, then lay out the approach. Let me look at the registry, main() startup, and the duplication sites.
     >>> 
 ### [line 8849] User (2026-08-11 15:50:07Z)
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:20Z)**_
@@ -23694,7 +23694,7 @@ Read the second prompt extract in full
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && cat 2026-01-28_13-42-57Z-this-isn-t-good.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-01-28_13-42-57Z-this-isn-t-good.md (3 user turns)
 
 ### [line 7] User (2026-01-28 13:42:57Z)
@@ -23956,7 +23956,7 @@ Now let me look at the existing droid provider files to understand what's alread
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:20Z)**_
@@ -23967,7 +23967,7 @@ Read lines 1500-2050 of the July 20 extract
 
 `sed -n 1500,2050p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.prompts.md`
 
-```text
+````text
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -24519,7 +24519,7 @@ Fixed and verified. The only files that changed across five consecutive syncs ar
 ## The diagnosis
 
 Your instinct was right — it was indeterminate ordering, with two compounding c...
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:20Z)**_
@@ -24530,7 +24530,7 @@ Read the rest of the provider SPI doc
 
 `sed -n 200,545p docs/PROVIDER-SPI.md`
 
-```text
+````text
 Add your provider to `pkg/spi/factory/registry.go`:
 
 ```go
@@ -24876,7 +24876,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
     return fmt.Errorf("not implemented")
 }
 ```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:20Z)**_
@@ -24887,7 +24887,7 @@ Read saved output part 1
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bsvseu539.txt | sed -n '1,400p'`
 
-```text
+````text
 #### [line 14444] Agent (claude-fable-5 2026-07-16 22:31:14Z) (head)
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -25287,7 +25287,7 @@ src = open("/Applications/Cursor.app/Contents/Resources/app/out/vs/workbench/wor
 for pro...
 
 #### [line 15404] Agent (claude-fable-5 2026-07-17 16:38:43Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:20Z)**_
@@ -25298,7 +25298,7 @@ Read third extract file fully
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-27_15-48-50Z-we-added-an-antigravity.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-27_15-48-50Z-we-added-an-antigravity.md (2 user turns)
 
 ### [line 7] User (2026-07-27 15:48:50Z)
@@ -25930,7 +25930,7 @@ Done. Everything builds, lints clean, and the full test suite passes.
 `pkg/skills/agents.go` had no Antigravity row, so `specstory skills` would never install a skill for it — even though the provider has shipped since v2.5.0.
 
 I took the discovery rules from Antigravity's own bundled documentation (`~/.gemini/antigravity-cli/...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:21Z)**_
@@ -25941,7 +25941,7 @@ Read extract lines 1560-1900
 
 `sed -n '1560,1900p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 ```text
 269	func sessionMetadata(session *agSession, history map[string]historyEntry) *spi.SessionMetadata {
 270		prompt := firstUserPromptText(session)
@@ -26282,7 +26282,7 @@ So far three providers converted to exact brand hex — `codex` `#219B75`, `curs
 gemini same as AG
 
 #### [line 7823] Agent (claude-opus-4-8 2026-07-21 21:34:06Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:21Z)**_
@@ -26293,7 +26293,7 @@ Read the July 29 15:13 MIP-1 extract in full
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-29_15-13-55Z-for-mip-1-let.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-29_15-13-55Z-for-mip-1-let.md (5 user turns)
 
 ### [line 7] User (2026-07-29 15:13:55Z)
@@ -26652,7 +26652,7 @@ Both changes are in place and verified. Lint is clean (`golangci-lint run` — 0
 ## What I changed
 
 **MIP 1 — `sync -s` + `--providers` now rejected** (`main.go:544-549`). I added the check in sync's `PreRunE`, next to the existing `--print`/`--only-stats` combination validations, since that's where the codeba...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:22Z)**_
@@ -26663,7 +26663,7 @@ Read fourth extract file fully
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-28_13-49-50Z-merge-dev-into-current.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-28_13-49-50Z-merge-dev-into-current.md (3 user turns)
 
 ### [line 7] User (2026-07-28 13:49:50Z)
@@ -27050,7 +27050,7 @@ Both conflicts resolved as agreed.
 **`main.go:1530-1532`** — kept both lines, dev's `--no-redact-secrets` first (grouped with the other `BoolVar`-bound globals), then `--providers`.
 
 **`pkg/cmd/watch.go:310-316`** — took dev's side (the `registerSessionProcessingFlags` call), then re-added the single `--providers` line alongside `--json`. Both are...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:23Z)**_
@@ -27068,7 +27068,7 @@ Read user turns 60-400
 
 `sed -n '60,400p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/user_turns_B.txt`
 
-```text
+````text
 ### [line 8849] User (2026-08-11 15:50:07Z)
 
 Let's address MIP #5 with the same doc updates when done.
@@ -27410,7 +27410,7 @@ tackle bucket E
 https://github.com/specstoryai/getspecstory/actions/runs/31615689483/job/94177789725
 
     >>> #### [line 18549] Agent (claude-fable-5 2026-08-12 16:08:59Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:23Z)**_
@@ -27759,7 +27759,7 @@ Read first 400 lines of the July 29 16:22 extract
 
 `sed -n 1,400p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-29_16-22-34Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-29_16-22-34Z-let-s-address-mip.md (7 user turns)
 
 ### [line 7] User (2026-07-29 16:22:34Z)
@@ -28160,7 +28160,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/c
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:23Z)**_
@@ -28178,7 +28178,7 @@ Read original review text part 1 (lines 6270-6520)
 
 `sed -n 6270,6520p "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-16_12-33-25Z-let-s-address-mip.md"`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-16 12:39:59Z)**_
 
 All tests pass (`go test ./...` green, including the new `musecode` package) and `golangci-lint run` reports 0 issues, matching the PR's claims. Below is the full line-by-line review. This is a well-built provider — the code quality is notably high, with genuinely "why"-oriented comments throughout — but I found a handful of things worth discussing before merge.
@@ -28430,7 +28430,7 @@ Lines 82-110 (new): walkMuseSessionFiles / IsSubagentTranscript
 - (78) ✅ SkipDir pruning of subagent/ directories with the "would invent sessions the user never started" rationale
 - (79) ✅ IsSubagentTranscript matches on the slash form with a shape-not-platform comment — directly implements the
         CLAUDE.md cross-platform path guidance
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:24Z)**_
@@ -28441,7 +28441,7 @@ Read saved output part 2
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bsvseu539.txt | sed -n '400,1000p'`
 
-```text
+````text
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Find where Cursor reads composer.composerHeaders
@@ -28984,7 +28984,7 @@ All four updated to `1.26.5`, matching your `go.mod`:
 - `../.github/workflows/release.yml:21` — `setup-go`
 
 Build, lint (0 issues), and the full test suite all pass on the new toolchain.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:24Z)**_
@@ -28995,7 +28995,7 @@ Check original history size and read extract around plan presentation
 
 `wc -l "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md"; echo ---; sed -n '748,830p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-13_13-43-21Z-cross-provider-refactor-200.prompts.md`
 
-```text
+`````text
    21043 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md
 ---
 ### [line 5221] User (2026-08-13 13:50:03Z)
@@ -29081,7 +29081,7 @@ Option B, new files approved, Phases 1 and 2. Let me read the affected source fi
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:25Z)**_
@@ -29092,7 +29092,7 @@ Read first 400 lines of the August 3 extract
 
 `sed -n 1,400p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-03_15-41-34Z-take-a-look-at.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-08-03_15-41-34Z-take-a-look-at.md (12 user turns)
 
 ### [line 7] User (2026-08-03 15:41:34Z)
@@ -29493,7 +29493,7 @@ Now add test cases covering the new validation paths:
 <summary>Tool use: **Edit**</summary>
 
 ```text
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:25Z)**_
@@ -29504,7 +29504,7 @@ Read extract lines 1900-2300
 
 `sed -n '1900,2300p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 #### [line 7823] Agent (claude-opus-4-8 2026-07-21 21:34:06Z) (head)
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -29905,7 +29905,7 @@ echo "=== schema ==="; sqlite3 "$DB" ".schema" 2>&1 |...
 The summaries DB is richer than expected. Let me see the actual row content — especially `title`, `preview`, and `workspace_uris`:
 
 #### [line 8678] Agent (claude-opus-4-8 2026-07-21 22:00:48Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:25Z)**_
@@ -29916,7 +29916,7 @@ Read lines 1-400 of the third prompt extract
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && sed -n '1,400p' 2026-01-28_14-55-51Z-command-message-pr-review.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-01-28_14-55-51Z-command-message-pr-review.md (11 user turns)
 
 ### [line 7] User (2026-01-28 14:55:51Z)
@@ -30317,7 +30317,7 @@ Let's address:   1. DRY Opportunity: markdown_tools.go has significant code dupl
   }
   type fieldConfig struct {
       keys     []string
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:27Z)**_
@@ -30328,7 +30328,7 @@ Read user turns 400-759
 
 `sed -n '400,759p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/user_turns_B.txt`
 
-```text
+````text
     >>> #### [line 18549] Agent (claude-fable-5 2026-08-12 16:08:59Z) (head)
     >>> 
     >>> <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
@@ -30687,7 +30687,7 @@ But why did all those relative paths go to absolute?
     >>> 
     >>> Going with option 1. First, mapping where the effective project path is resolved so the canonicalization lands at one boundary:
     >>>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:27Z)**_
@@ -30698,7 +30698,7 @@ Read original review text part 2 (lines 6520-6700)
 
 `sed -n 6520,6700p "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-16_12-33-25Z-let-s-address-mip.md"`
 
-```text
+````text
         CLAUDE.md cross-platform path guidance
 - (80) ⚠️ Note the asymmetry: walkMuseSessionFiles prunes by exact directory name, IsSubagentTranscript matches a
         path segment anywhere. Both are used in different call paths (walk vs. ScanSessionsInParallel vs. fsnotify
@@ -30879,7 +30879,7 @@ This is close to a model provider PR: the ownership model for a global store is 
 ---
 
 _**User (2026-08-16 12:42:15Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:28Z)**_
@@ -30890,7 +30890,7 @@ Read persisted output part 1 (extract lines 1400-~1850)
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bgk6bg6sx.txt | sed -n '1,450p'`
 
-```text
+````text
 Now the copilotide changes — delegate URI parsing to the shared helpers and add the remote basename matching method:
 
 #### [line 12235] Agent (claude-fable-5 2026-08-04 15:44:40Z) (head)
@@ -31340,7 +31340,7 @@ MIP #2: `specstory watch` is permanently dead when the workspace exists but `cha
 1	package copilotide
 2	
 3	import (
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:29Z)**_
@@ -31351,7 +31351,7 @@ Read lines 389-760 of the third prompt extract
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && sed -n '389,760p' 2026-01-28_14-55-51Z-command-message-pr-review.prompts.md`
 
-```text
+````text
 ### [line 4582] User (2026-01-28 15:00:26Z)
 
 Let's address:   1. DRY Opportunity: markdown_tools.go has significant code duplication
@@ -31723,7 +31723,7 @@ I can see the areas where errors are silently ignored:
 I need to check if `slog` is already imported, and add debug ...
 
 #### [line 5852] Agent (claude-opus-4-5-20251101 2026-01-28 15:10:13Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:29Z)**_
@@ -31734,7 +31734,7 @@ Read persisted output part 2 (extract lines ~1850-2300)
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bgk6bg6sx.txt | sed -n '450,1000p'`
 
-```text
+````text
 3	import (
 4		"context"
 5		"fmt"
@@ -32187,7 +32187,7 @@ The README now covers the Copilot IDE provider in six places:
 ### [line 13914] User (2026-08-05 14:21:42Z)
 
 let's clean the dead code of  `GetSessionIDFromPath` (`watcher.go:181`) — unused.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:29Z)**_
@@ -32349,7 +32349,7 @@ Read remaining lines of the July 29 16:22 extract
 
 `sed -n 400,769p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-29_16-22-34Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 <summary>Tool use: **Edit**</summary>
 
 ```text
@@ -32720,7 +32720,7 @@ Re-run WAL test, both provider suites, and linter
 Done — all tests pass, both provider suites are green, and the linter is clean. The "one line" turned out to have a wrinkle worth knowing about:
 
 **The test immediately caught that `mode=rw` alone doesn't work.** On a bare-path DSN the modernc driver silently ignores the `mode` parameter — the missing-path case happily created a database and the ne...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:30Z)**_
@@ -32731,7 +32731,7 @@ Read third extract file lines 1-400
 
 `sed -n '1,400p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-18_13-34-43Z-finish-line-33-of.prompts.md"`
 
-```text
+````text
 # Extracted from .specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md (12 user turns)
 
 ### [line 7] User (2026-05-18 13:34:43Z)
@@ -33132,7 +33132,7 @@ I've reviewed the PR. Now let me write the line-by-line review.
 ## Overall context
 
 The PR adds a new provider package `pkg/providers/deepseek/` (~3,000 lines including tests) and wires it into the registry + config. The package follows the established `droidcli` provider structure very cl...
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:51:30Z)**_
@@ -33484,7 +33484,7 @@ Read extract lines 2300-2730
 
 `sed -n '2300,2730p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Dump summaries row content
@@ -33915,7 +33915,7 @@ I implemented the multi-tool test from here: /Users/sean/Source/SpecStory/specst
 Resulting session is here: /Users/sean/Source/SpecStory/specstory-cli-multi-agent/antigravity/2026-07-21/.specstory/history/2026-07-24_15-41-21Z-hello-antigravity-tell-me.md
 
 Review it for tool output that's missing and/or not formatted/ideal. Let me know what you see.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:31Z)**_
@@ -33926,7 +33926,7 @@ Read remaining lines of the August 3 extract
 
 `sed -n 400,812p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-03_15-41-34Z-take-a-look-at.prompts.md`
 
-```text
+````text
 ```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/codexcli/watcher_test.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
@@ -34340,7 +34340,7 @@ watch seems ok
 #### [line 2826] Agent (claude-fable-5 2026-08-03 22:20:25Z) (head)
 
 That trace exercises both halves of the new design, so it's a solid confirmation: the ✨ line at 18:19:53 is the polled reconcile pass detecting the brand-new session file (no directory watch anymore, so that's the 2-second ticker doing its job), and the ♻️ updates that follow are Write events streaming through the per-file watch — fully event-drive...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:32Z)**_
@@ -34381,7 +34381,7 @@ Read lines 760-1100 of the third prompt extract
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && sed -n '760,1100p' 2026-01-28_14-55-51Z-command-message-pr-review.prompts.md`
 
-```text
+````text
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/parser.go`
@@ -34722,7 +34722,7 @@ Done. Removed `.specstory/` while keeping `.idea/`.
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:33Z)**_
@@ -34733,7 +34733,7 @@ Read original history: plan doc and TLDR before "option B"
 
 `sed -n '5504,5735p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md"`
 
-```text
+`````text
 _**Agent (claude-fable-5 2026-08-13 13:52:26Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
@@ -34965,7 +34965,7 @@ _**User (2026-08-13 16:47:14Z)**_
   Proceed with Phase 1 and Phase 2
 
 ---
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:33Z)**_
@@ -34976,7 +34976,7 @@ Read second extract file lines 1-700
 
 `sed -n '1,700p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_12-35-45Z-diff-this-branch-to.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-20_12-35-45Z-diff-this-branch-to.md (7 user turns)
 
 ### [line 13] User (2026-07-20 12:35:45Z)
@@ -35676,7 +35676,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has bee
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:34Z)**_
@@ -35687,7 +35687,7 @@ Read second extract file (lines 500-1100)
 
 `sed -n '500,1100p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_20-01-58Z-adress-68.prompts.md`
 
-```text
+````text
 `golangci-lint run 2>&1 | tail -5; go test ./pkg/providers/antigravitycli/ ./pkg/config/ ./pkg/cmd/ 2>&1 | tail -10`
 
 ```text
@@ -36289,7 +36289,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/antigravity
 From the review's outstanding items, that leaves MIP 3 (the watcher's ...
 
 ### [line 7022] User (2026-07-24 21:21:40Z)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:34Z)**_
@@ -36300,7 +36300,7 @@ Read third extract file lines 400-800
 
 `sed -n '400,800p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-18_13-34-43Z-finish-line-33-of.prompts.md"`
 
-```text
+````text
 The PR adds a new provider package `pkg/providers/deepseek/` (~3,000 lines including tests) and wires it into the registry + config. The package follows the established `droidcli` provider structure very cl...
 
 ### [line 5263] User (2026-05-18 13:43:47Z)
@@ -36702,7 +36702,7 @@ Updated task #1 status
 Updated task #2 status
 ```
 </details></tool-use>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:35Z)**_
@@ -36713,7 +36713,7 @@ Read original history before "phase 3, items 1 and 3"
 
 `sed -n '9380,9545p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md"`
 
-```text
+````text
  `./docs/PROVIDER-REFACTOR.md`
 
 ```text
@@ -36880,7 +36880,7 @@ _**Agent (claude-opus-5 2026-08-14 01:01:22Z)**_
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Extract the three language-map variants
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:35Z)**_
@@ -36891,7 +36891,7 @@ Read third extract file lines 1-700
 
 `sed -n '1,700p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_13-11-09Z-address-mip-4-binary.prompts.md`
 
-```text
+````text
 # Extracted from .specstory/history/2026-07-20_13-11-09Z-address-mip-4-binary.md (14 user turns)
 
 ### [line 7] User (2026-07-20 13:11:09Z)
@@ -37592,7 +37592,7 @@ S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cl
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:35Z)**_
@@ -37603,7 +37603,7 @@ Read second extract file (lines 1100-1700)
 
 `sed -n '1100,1700p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_20-01-58Z-adress-68.prompts.md`
 
-```text
+````text
 ### [line 7022] User (2026-07-24 21:21:40Z)
 
 This is dumb:
@@ -38205,7 +38205,7 @@ Verified in `provider.go`: the `version_failed` branch of `Check` passes the *re
 <summary>Tool use: **Edit**</summary>
 
 ```text
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:35Z)**_
@@ -38216,7 +38216,7 @@ Read second prompt extract lines 1100-1500
 
 `sed -n 1100,1500p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-16_12-33-25Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 Check sibling Check() logging idiom and find rename call sites
 
 `grep -n "slog\." pkg/providers/deepseektui/provider.go pkg/providers/antigravitycli/provider.go 2>/dev/null | head -12; echo '////'; grep -rn "storeSessionIDFromPath\|sessionIDFromPa...
@@ -38618,7 +38618,7 @@ def load(n): re...
 #### [line 9865] Agent (claude-fable-5 2026-08-16 13:32:21Z) (head)
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:36Z)**_
@@ -38629,7 +38629,7 @@ Read third extract file lines 800-end
 
 `sed -n '800,1218p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-05-18_13-34-43Z-finish-line-33-of.prompts.md"`
 
-```text
+````text
 </details></tool-use>
 
 #### [line 5907] Agent (claude-opus-4-7 2026-05-18 18:55:42Z) (head)
@@ -39049,7 +39049,7 @@ My mistake — I should have grepped for the changelog before defaulting to a pl
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:36Z)**_
@@ -39067,7 +39067,7 @@ Read third extract lines 2300-2850
 
 `sed -n '2300,2850p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 let's clean the dead code of  `GetSessionIDFromPath` (`watcher.go:181`) — unused.
 
 #### [line 13920] Agent (claude-fable-5 2026-08-05 14:21:51Z) (head)
@@ -39619,7 +39619,7 @@ A nine-item batch. Let me first read the pieces I haven't seen yet — the watch
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/utils/watch_agents_test.go`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:36Z)**_
@@ -39630,7 +39630,7 @@ Read original history: Muse review findings before "apply the five"
 
 `sed -n '12480,12640p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md"`
 
-```text
+``````text
 Check repo clean and find affected muse tests
 
 ````bash
@@ -39791,7 +39791,7 @@ _**Agent (claude-opus-5 2026-08-14 14:43:02Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/musecode/provider.go`
-```
+``````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:37Z)**_
@@ -39802,7 +39802,7 @@ Read the PR 191 review body part 1 (observations)
 
 `sed -n '5569,5800p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-11 15:20:00Z)**_
 
 Review complete. I verified the local `windows-support` branch is exactly the PR head (09669f5), so all findings below were checked against the real tree, not just the diff. Verification results: `golangci-lint run` is clean, `go test ./...` all passes, and both `GOOS=windows` amd64/arm64 cross-compiles succeed.
@@ -40035,7 +40035,7 @@ Line 300 (modified): error message now suggests `--user-data-dir cursoride:<path
 
 ---
 **pkg/providers/cursoride/workspace_test.go**
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:37Z)**_
@@ -40046,7 +40046,7 @@ Read second extract file (lines 1700-2300)
 
 `sed -n '1700,2300p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_20-01-58Z-adress-68.prompts.md`
 
-```text
+````text
 ```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/antigravitycli/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
@@ -40648,7 +40648,7 @@ The constant is now `maxScanLineSize`, used at its two real sites (the `history.
 And this one?
 
 workspaceRoot is required by the SessionData schema, but this function can still produce an empty WorkspaceRoot when both workspaceRoot and session.Workspace are empty (e.g., unscoped/text-only sessions or callers passing an empty projectPath). The comment also claims it’s “never empty”, which isn’t currently guaranteed.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:37Z)**_
@@ -40659,7 +40659,7 @@ Read the second-pass PR review with numbered observations from original history
 
 `sed -n '4800,5200p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"`
 
-```text
+````text
 _**Agent (claude-opus-4-7 2026-05-18 13:40:44Z)**_
 
 I've reviewed the PR. Now let me write the line-by-line review.
@@ -41060,7 +41060,7 @@ The PR adds a new provider package `pkg/providers/deepseek/` (~3,000 lines inclu
 - (119) ✅ `TestEnsureResumeArgs` — fully data-driven with 11 cases. Excellent.
 - (120) ✅ `TestParseCommand` — 6 cases including the home-expansion case.
 - (121) ✅ `TestParseCommand_DoesNotMutate` (lines 164–182) — guards against accidental input mutation and slice aliasing. Defensive but not tautological — would catch a real bug.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:37Z)**_
@@ -41071,7 +41071,7 @@ Read original history: Qwen review before "add the watcher test"
 
 `sed -n '14820,14960p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md"`
 
-```text
+`````text
 @@ -25,6 +25,10 @@ var (
  	_ spi.PathSessionReader  = (*Provider)(nil)
  )
@@ -41212,7 +41212,7 @@ _**Agent (claude-opus-5 2026-08-14 15:12:08Z)**_
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Check test style and watcher globals
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:37Z)**_
@@ -41223,7 +41223,7 @@ Read third extract lines 2850-3420
 
 `sed -n '2850,3420p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
  `./pkg/utils/watch_agents_test.go`
 
 ```text
@@ -41795,7 +41795,7 @@ There were also a few more turns generated I think.
 #### [line 17366] Agent (claude-fable-5 2026-08-05 19:59:50Z) (head)
 
 I'll ground everything in the raw debug data first — checking the node-tree result shape, the empty-fence fragments, and the thinking/response duplication:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:38Z)**_
@@ -42009,7 +42009,7 @@ Read extract lines 2730-3200
 
 `sed -n '2730,3200p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+`````text
 Review it for tool output that's missing and/or not formatted/ideal. Let me know what you see.
 
 #### [line 10074] Agent (claude-opus-4-8 2026-07-24 15:54:48Z) (head)
@@ -42481,7 +42481,7 @@ Good plan — let me study the existing formatter patterns before implementing. 
 
 ```text
 1	package antigravitycli
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:38Z)**_
@@ -42492,7 +42492,7 @@ Read second extract file (lines 2300-end)
 
 `sed -n '2300,2655p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-24_20-01-58Z-adress-68.prompts.md`
 
-```text
+````text
 workspaceRoot is required by the SessionData schema, but this function can still produce an empty WorkspaceRoot when both workspaceRoot and session.Workspace are empty (e.g., unscoped/text-only sessions or callers passing an empty projectPath). The comment also claims it’s “never empty”, which isn’t currently guaranteed.
 
 #### [line 10018] Agent (claude-fable-5 2026-07-24 22:38:45Z) (head)
@@ -42849,7 +42849,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/README.md has been updated su
 #### [line 10674] Agent (claude-fable-5 2026-07-24 23:11:05Z) (head)
 
 Fixed — the table row now reads `v1.1.5+`. My mistake: I lifted `v1.0.2` from the PR description's "detects the real binary (v1.0.2)" line, which was just whatever was installed when Greg first tested detection — not a support statement. The provider's own comments (tool catalog "as of agy 1.1.x", version output example "1.1.3") pointed at the 1.1....
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:39Z)**_
@@ -42860,7 +42860,7 @@ Check original history for the "review doc is yours" interjection
 
 `sed -n '12840,12856p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md"`
 
-```text
+````text
 ```
 </details></tool-use>
 
@@ -42877,7 +42877,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/c
 _**Agent (claude-fable-5 2026-08-04 21:08:50Z)**_
 
 Understood — I won't touch the review doc; that's yours. Verifying the code changes now:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:40Z)**_
@@ -42888,7 +42888,7 @@ Read Copilot comments round 1 triage (items 1-9)
 
 `sed -n '12228,12250p;12300,12543p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md | grep -v "^$" | cut -c1-600`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-11 21:07:29Z)**_
 I'll pull Copilot's review comments from the PR:
 _**Agent (claude-fable-5 2026-08-11 21:07:33Z)**_
@@ -43096,7 +43096,7 @@ Round 2's three are all already fixed on the branch (the double-`t.TempDir()` bu
 Say the word and I'll take on 3, 7, and the three new catches — #4/#9 needs your call first.
 ---
 _**User (2026-08-11 21:24:19Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:40Z)**_
@@ -43114,7 +43114,7 @@ Read Copilot comments round 2 triage (next 9)
 
 `sed -n '13092,13226p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md | grep -v "^$" | cut -c1-600`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-11 21:29:00Z)**_
 Quick verification of the two I haven't fully confirmed (the live-index keying and the second dedup site), then the rundown:
 _**Agent (claude-fable-5 2026-08-11 21:29:00Z)**_
@@ -43217,7 +43217,7 @@ Verified the two open claims (live-index keying and the dedup order — both rea
 Three are already fixed (1–3), one we fixed an hour before Copilot re-asked (4). Of the rest: **5, 7, and 9 are genuine bugs with clear, small fixes** — say the word and I'll take all three. **6** needs your decision on refuse-vs-guess for multi-user machines, and **8** I'd park as a follow-up issue.
 ---
 _**User (2026-08-11 21:31:40Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:42Z)**_
@@ -43228,7 +43228,7 @@ Read second prompt extract lines 1500-2082
 
 `sed -n 1500,2082p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-16_12-33-25Z-let-s-address-mip.prompts.md`
 
-```text
+````text
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Check read_skill raw text for entities/redaction and PTY result keys
@@ -43812,7 +43812,7 @@ Re-sync test session and diff the items 1-3 changes
 All three landed, verified against the real session, and the test directory now holds the fully-current output. To your first question: yes — the output you generated by rerunning sync was byte-identical to the verified I1–I9 dev-build output, so everything was as expected before this round too.
 
 **What items 1–3 render now** (from the diff above):...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:43Z)**_
@@ -43856,7 +43856,7 @@ Read second extract file lines 700-end
 
 `sed -n '700,1435p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_12-35-45Z-diff-this-branch-to.prompts.md`
 
-```text
+````text
 ```text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go has been updated successfully. (file state is current in your context — no need to Read it back)
 ```
@@ -44592,7 +44592,7 @@ Updated the "Session sources" bullet to cover all providers, verified against th
 
 - **Cursor CLI** — labeled `~/.cursor/chats/` (clarifying it's the CLI, distinct from the IDE)
 - **Cursor IDE** — the VS Code–style DB at `Cursor/User/globalStorage/state.vscdb`, with the platform-specific roots noted (`~/Library/Application Support/` on macOS,...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:46Z)**_
@@ -44603,7 +44603,7 @@ Read extract lines 3200-3700
 
 `sed -n '3200,3700p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+````text
 1	package antigravitycli
 2	
 3	import (
@@ -45104,7 +45104,7 @@ These all look excellent. Let me read the remaining subagent/message/ask_questio
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `/Users/sean/Source/SpecStory/specstory-cli-multi-agent/antigravity/2026-07-21/.specstory/history/2026-07-24_15-41-21Z-hello-antigravity-tell-me.md`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:46Z)**_
@@ -45184,7 +45184,7 @@ Read third extract file lines 700-end
 
 `sed -n '700,1474p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-20_13-11-09Z-address-mip-4-binary.prompts.md`
 
-```text
+````text
 <persisted-output>
 Output too large (32.7KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bws107oxw.txt
 
@@ -45240,7 +45240,7 @@ Measure per-line scanning on the slow JSONL session files
 
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:47Z)**_
@@ -45251,7 +45251,7 @@ Read extract lines 3700-end
 
 `sed -n '3700,4130p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-07-21_14-19-33Z-we-re-on-a.prompts.md`
 
-```text
+`````text
 ```text
 538	
 539	_**Agent (Gemini 3.6 Flash (High) 2026-07-24 15:43:25Z)**_
@@ -45682,7 +45682,7 @@ Polished exactly as designed. Both edit-tool outputs now render as clean ` ```di
 - **`multi_replace_file_content`** (lines 293–302): same treatment.
 
 The `[diff_block_start]`/`[diff_b...
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:47Z)**_
@@ -45693,7 +45693,7 @@ Read the 6 tool-rendering quality findings from original history
 
 `sed -n '17327,17356p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md"`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-05 18:03:47Z)**_
 
 Overall verdict: the **structure** is working well — turns, timestamps, thinking blocks, tool `<details>` blocks with correct names/types, input formatting with fenced multiline values, and the 2000-rune result cap are all doing their jobs, and the sequence-based tool matching attributed every tool correctly. But reading it end to end, there are six real quality issues, in descending order of impact:
@@ -45723,7 +45723,7 @@ If you want to attack these, I'd do #1 and #2 first (both live in `BuildToolInfo
 ---
 
 _**User (2026-08-05 19:59:36Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:48Z)**_
@@ -45741,7 +45741,7 @@ Read the code-review MIP list from original history of third file
 
 `sed -n '935,1166p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-20_13-11-09Z-address-mip-4-binary.md"`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-07-20 13:15:00Z)**_
 
 Tests pass and the linter is clean. I have the full picture now — here's the review.
@@ -45974,7 +45974,7 @@ Against your criteria:
 ---
 
 _**User (2026-07-20 13:19:21Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:48Z)**_
@@ -46117,7 +46117,7 @@ Read original history AskUserQuestion and readiness analysis sections
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md"; echo "=====5529-5610====="; sed -n '5529,5610p' "$F"; echo "=====5670-5725====="; sed -n '5670,5725p' "$F"`
 
-```text
+````text
 =====5529-5610=====
 _**Agent (claude-opus-4-8 2026-07-21 14:23:24Z)**_
 
@@ -46258,7 +46258,7 @@ Config/command wiring (`AntigravityCmd` field, default `agy`, `GetProviderCmd` c
 ---
 
 _**User (2026-07-21 14:35:00Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:49Z)**_
@@ -46329,7 +46329,7 @@ Read the pr-235 review with MIP list from original history
 
 `H=/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history; sed -n 1832,2160p "$H/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.md"`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-07-20 15:17:59Z)**_
 
 All green — build passes, `golangci-lint` clean, tests pass in every touched package. Here's the full review of `pr-235` against `dev`. The branch does three things: (a) adds default-on secret redaction of markdown history and cloud-synced payloads via the betterleaks library (with RE2 engine + chunked scanning for performance), (b) adds redaction stats to analytics, and (c) fixes the missing `cursoride_cmd` custom-command config for the Cursor IDE provider.
@@ -46658,7 +46658,7 @@ Error message in `cursoride/provider.go:538` says "cursor CLI failed" even for a
 **Not worth adding** (per your conventions): `IsRedactionEnabled` (a pointer-nil check — tautological), `IsSyncActive` (three boolean ANDs), the detector-failure fallback path (can't be triggered without breaking the library), and `openCursorIDE` (would need an exec seam refactor to test; `SplitCommandLine` — the only logic in it — already has its own table-driven tests in `pkg/spi/cmdline_test.go`).
 
 ---
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:50Z)**_
@@ -46669,7 +46669,7 @@ Read the second PR review (numbered observations and MIPs) from original history
 
 `sed -n '5838,6140p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-24_20-01-58Z-adress-68.md"`
 
-```text
+`````text
 _**Agent (claude-fable-5 2026-07-24 20:08:01Z)**_
 
 All files reviewed, lint is clean (`0 issues`), and all tests pass in the three changed packages. This is a high-quality PR that closely follows the `deepseektui` provider template. Here's the full review.
@@ -46973,7 +46973,7 @@ _**User (2026-07-24 20:34:19Z)**_
 adress 68
 
 ---
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:50Z)**_
@@ -47025,7 +47025,7 @@ Read third extract lines 3420-3960
 
 `sed -n '3420,3960p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+`````text
 I'll ground everything in the raw debug data first — checking the node-tree result shape, the empty-fence fragments, and the thinking/response duplication:
 
 #### [line 17370] Agent (claude-fable-5 2026-08-05 19:59:55Z) (head)
@@ -47566,7 +47566,7 @@ One wrinkle first: the demo used some tools under their internal `copilot_*` ali
 OK... we got more tool results in a new session right. Check the files and debug data again and let's enumerate the issue you see.
 
 #### [line 18568] Agent (claude-fable-5 2026-08-05 20:28:31Z) (head)
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:50Z)**_
@@ -47577,7 +47577,7 @@ Read the session 1 full code review from original history
 
 `sed -n '15447,15880p' 2026-01-28_13-36-04Z-command-name-pr-review.md`
 
-```text
+````text
 _**Agent (claude-opus-4-5-20251101 2026-01-28 13:44:56Z)**_
 
 All 16 tests pass after revert. Now I have all the context needed for a comprehensive review. Let me compile the full review.
@@ -48011,7 +48011,7 @@ The tests are solid but could be improved:
 ---
 
 _**User (2026-01-28 14:44:22Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:51Z)**_
@@ -48151,7 +48151,7 @@ Read third extract lines 3960-4480
 
 `sed -n '3960,4480p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Check for new sessions and debug data
@@ -48672,7 +48672,7 @@ Any tools which seem especially important and the JSON contains important stuff 
 #### [line 20561] Agent (claude-fable-5 2026-08-05 21:01:50Z) (head)
 
 Good question — let me answer it from the data: for each tool in the session, what the JSON carries vs. what our generic rendering shows:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:51Z)**_
@@ -48789,7 +48789,7 @@ Read agent's Phase 3 decision gathering start
 
 `sed -n '9545,9700p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$' | head -150`
 
-```text
+````text
 Extract the three language-map variants
 ```bash
 cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
@@ -48930,7 +48930,7 @@ _**Agent (claude-opus-5 2026-08-14 01:01:37Z)**_
 197		}
 198	
 199		var builder strings.Builder
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:52Z)**_
@@ -48941,7 +48941,7 @@ Read the skills-agent option question and the merge-conflict numbered options
 
 `sed -n '967,1045p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-27_15-48-50Z-we-added-an-antigravity.md"; echo "=========== FILE4 ==========="; sed -n '1012,1080p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-28_13-49-50Z-merge-dev-into-current.md"`
 
-```text
+````text
 _**Agent (claude-opus-5 2026-07-27 15:50:53Z)**_
 
 I found the gap and the authoritative facts for filling it. Here's what I learned before proposing the change.
@@ -49090,7 +49090,7 @@ _**User (2026-07-28 13:59:51Z)**_
 run and other commands don't need --providers
 
 ---
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:52Z)**_
@@ -49101,7 +49101,7 @@ Read agent's diagnostic answers from first session
 
 `echo "=== L1239-1278 (DeepSeek source answer) ==="; sed -n '1239,1278p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md"; echo; echo "=== L1620-1648 (checkpoint collision answer) ==="; sed -n '1620,1648p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md"; echo; echo "=== L6970-6990 (audit summary) ==="; sed -n '6970,6990p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md"`
 
-```text
+````text
 === L1239-1278 (DeepSeek source answer) ===
 _**Agent (claude-opus-4-7 2026-05-13 13:52:08Z)**_
 
@@ -49197,7 +49197,7 @@ Key findings flagged in the report:
 _**User (2026-05-13 18:16:47Z)**_
 
 <command-name>/exit</command-name>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:53Z)**_
@@ -49208,7 +49208,7 @@ Read original history summaries recommendation, correlation bug report, and fixe
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md"; echo "=====9129-9167====="; sed -n '9129,9167p' "$F"; echo "=====10992-11040====="; sed -n '10992,11040p' "$F"; echo "=====11616-11638====="; sed -n '11616,11638p' "$F"`
 
-```text
+````text
 =====9129-9167=====
 _**Agent (claude-opus-4-8 2026-07-21 22:03:43Z)**_
 
@@ -49323,7 +49323,7 @@ Correlation is now correct, but the **generic-tool rendering** you flagged remai
 ---
 
 _**User (2026-07-24 16:20:13Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:54Z)**_
@@ -49334,7 +49334,7 @@ Read MIP2 scope answer, sync-all answer, and indeterminism diagnosis from origin
 
 `H=/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history; echo "=== 5015-5056"; sed -n 5015,5056p "$H/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.md"; echo "=== 6430-6496"; sed -n 6430,6496p "$H/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.md"; echo "=== 7041-7120"; sed -n 7041,7120p "$H/2026-07-20_15-13-10Z-uhhhhh-not-sure-i.md"`
 
-```text
+````text
 === 5015-5056
 _**Agent (claude-fable-5 2026-07-20 20:40:26Z)**_
 
@@ -49470,7 +49470,7 @@ Your instinct was right — it was indeterminate ordering, with two compounding 
 - **5 consecutive `specstory sync` runs** (cloud + analytics off): SHA-256 of every history file byte-identical, except this session's own live file
 
 One thing to expect: the current working tree contains the **one-time settle** — files rewritten from their previously-random order into the canonical line-order form (that's the small `8 ++++----`-style diffs you saw, now final). Commit those once and they'll never flap again. Also worth knowing: this bug predates today's branch work (your conversation-start git status showed the same caveat churn across ~25 files) — it's been quietly rewriting history files on every sync; it just became obvious when you were watching the tree closely.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:54Z)**_
@@ -49481,7 +49481,7 @@ Read third extract tail part 1
 
 `sed -n '1,330p' /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bws107oxw.txt`
 
-```text
+`````text
 <summary>Tool use: **Bash**</summary>
 Run redaction probe on PEM cases and large real session files
 
@@ -49811,7 +49811,7 @@ packag...
 Inspect betterleaks regexp wrapper package for engine build tags
 
 `M=$(go env GOMODCACHE)/github.com/betterleaks/betterleaks@v1.6.1 && ls $M/regexp/ && head -30 $M/regexp/*.go | head -60`
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:54Z)**_
@@ -49836,7 +49836,7 @@ Skim agent prose between Phase 3 request and Muse review request
 
 `awk 'NR>=9700 && NR<=11312 && /^_\*\*Agent/ {hdr=NR} NR>=9700 && NR<=11312 && !/^<tool-use/ && !/^```/ && !/^\s*$/ && !/^[0-9]+\t/ && !/^\+/ && !/^-/ {print NR": "$0}' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\S*: \s' | grep -E '^[0-9]+: (\*\*|#|[A-Z]|- |\| )' | head -200`
 
-```text
+`````text
 9722: Now the check-error variants for item 3.
 9728: Extract codexcli and geminicli check-error variants
 9732: S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad
@@ -49954,7 +49954,7 @@ Skim agent prose between Phase 3 request and Muse review request
 11302: **The §2.3 unreachable-arm bug was in three providers, not one.** My original research attributed it to geminicli, but claudecode and cursorcli had written the identical `case errors.As(err, &pathErr):` bare switch arm. In all three, a `PathError` that was neither missing-file nor permission consumed the arm and the following permission check could never run. The flattened shared switch fixes all three at once, and the §2.4 `ErrNotExist` gap along with it.
 11304: **codexcli was using the error-type string as control flow.** `codex_cli_exec.go` tries `--version` then `-V`, and gated the retry on `classifyCheckError(err) != "unknown"` — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt with no test catching it. It now reads `!= spi.CheckErrorUnknown`, so a future rename moves both sides together. This is the one place where the decision you made was not purely cosmetic, and it's why I checked call sites before touching the constant.
 11306: Also folded in: claudecode's and cursorcli's duplicate `TestGetLanguageFromExtension` pair was removed after moving their one unique case (multi-dot filenames like `file.test.spec.ts`) into the shared test, and stale `"version_failed"` inputs in the deepseektui and antigravitycli message tests now reference `spi.CheckErrorUnknown`.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:55Z)**_
@@ -49965,7 +49965,7 @@ Read the PR 204 review with MIP list from original history
 
 `H=/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history; sed -n 1729,1975p "$H/2026-07-29_15-13-55Z-for-mip-1-let.md"`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-07-29 15:17:01Z)**_
 
 Review complete. I read every changed file on the branch plus the surrounding code (`syncSingleProvider`, `registry.Get`, the sync `-s` path) to verify behavior, not just the diff. Here is the line-by-line review of PR #204.
@@ -50213,7 +50213,7 @@ no no MIP 4, this is a hidden, internal flag
 ---
 
 _**Agent (claude-fable-5 2026-07-29 15:30:19Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:55Z)**_
@@ -50224,7 +50224,7 @@ Read full PR description context block (original lines 35-188)
 
 `sed -n 35,188p "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-16_12-33-25Z-let-s-address-mip.md"`
 
-```text
+````text
 _**User (2026-08-16 12:33:38Z)**_
 
 ## Context
@@ -50379,7 +50379,7 @@ ARGUMENTS: 269
 ---
 
 _**Agent (claude-fable-5 2026-08-16 12:33:48Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:55Z)**_
@@ -50390,7 +50390,7 @@ Read third extract tail part 2
 
 `sed -n '330,800p' /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bws107oxw.txt`
 
-```text
+`````text
 ```text
 internal
 re2
@@ -50836,7 +50836,7 @@ The plan is fully implemented and verified. Here's the complete picture:
 **`pkg/session/redact.go`** — the two performance fixes:
 
 - `getDetector()` now calls `regexp.SetEngine(re2.RE2{})` inside the existing `sync.Once`, before detector construction. Rule compilation is lazy, so every rule compiles under RE2. The comment records ...
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:56Z)**_
@@ -50847,7 +50847,7 @@ Read the /pr-review skill instructions Sean supplies (original lines 35-224)
 
 `sed -n '35,224p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md | grep -v "^$" | cut -c1-700`
 
-```text
+````text
 _**User (2026-08-11 15:10:18Z)**_
 ## Context
 - Current pull request status: title:	Windows and remote workspaces support
@@ -51015,7 +51015,7 @@ For any new test cases that were added, confirm the tests are:
 ARGUMENTS: 191
 ---
 _**Agent (claude-fable-5 2026-08-11 15:10:26Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:56Z)**_
@@ -51033,7 +51033,7 @@ Read geminicli fix start and the context before "no, we were on dev"
 
 `sed -n '15222,15330p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$' | head -120; echo "=========== BEFORE 'no, we were on dev' ==========="; sed -n '15780,15930p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'`
 
-```text
+`````text
 _**User (2026-08-14 15:15:11Z)**_
 Now fix the geminicli fence bug and missing recover
 ---
@@ -51225,7 +51225,7 @@ _**Agent (claude-opus-5 2026-08-14 15:24:51Z)**_
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
 Check current branch and status
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:57Z)**_
@@ -51418,7 +51418,7 @@ Read agent context from third session: config wiring, README, changelog, rename
 
 `echo "=== L5389-5397 (agent alphabetical note) ==="; sed -n '5389,5397p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"; echo; echo "=== L5617-5634 (config wiring verification) ==="; sed -n '5617,5634p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"; echo; echo "=== L6526-6535 (README update plan) ==="; sed -n '6526,6535p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"; echo; echo "=== L6565-6582 (README done summary) ==="; sed -n '6565,6582p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"; echo; echo "=== L6601-6651 (changelog content) ==="; sed -n '6601,6651p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"; echo; echo "=== L6107-6129 (rename summary) ==="; sed -n '6107,6129p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md"`
 
-```text
+````text
 === L5389-5397 (agent alphabetical note) ===
 _**Agent (claude-opus-4-7 2026-05-18 13:47:13Z)**_
 
@@ -51559,7 +51559,7 @@ All packages pass tests (including `pkg/providers/deepseektui`), `golangci-lint 
 ---
 
 _**User (2026-05-18 20:15:40Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:59Z)**_
@@ -51570,7 +51570,7 @@ Read MIP 5 wrap-up and the changelog exchange
 
 `sed -n '10100,10215p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md | grep -v "^$" | cut -c1-900`
 
-```text
+````text
 </details></tool-use>
 _**Agent (claude-fable-5 2026-08-11 15:58:21Z)**_
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
@@ -51644,7 +51644,7 @@ _**User (2026-08-11 19:28:41Z)**_
 Let's address MIP #4 (w/ doc update)
 ---
 _**Agent (claude-fable-5 2026-08-11 19:29:11Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:51:59Z)**_
@@ -51754,7 +51754,7 @@ Read MIP 1-5 summary, Copilot verdicts, and DSN wrinkle from original
 
 `H=/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history; echo "=== 2431-2540"; sed -n 2431,2540p "$H/2026-07-29_16-22-34Z-let-s-address-mip.md"; echo "=== 2968-3020"; sed -n 2968,3020p "$H/2026-07-29_16-22-34Z-let-s-address-mip.md"`
 
-```text
+````text
 === 2431-2540
 _**Agent (claude-fable-5 2026-08-03 14:26:24Z)**_
 
@@ -51878,7 +51878,7 @@ This is also a nice validation of the test itself: had we made the DSN change wi
 **One mishap to disclose, fully repaired:** while setting up the scratch experiment, a failed `cd` (the scratchpad directory didn't exist yet) caused two setup commands to run in the project root instead, overwriting `specstory-cli/go.mod` with the scratch module definition. I caught it immediately, restored `go.mod` byte-identical from `git show HEAD:` (read-only git, per your rules — no checkout), and confirmed `git diff` is empty for it and the project builds. `main.go` was never touched. The redone experiment ran safely in the scratchpad with explicit paths.
 
 Net change since your approval: the DSN line in `pkg/spi/sqlite.go` (now with `file:` + `mode=rw`) and the fourth test case in `pkg/spi/sqlite_test.go` (nonexistent path → error). Once pushed, all six Copilot comments can be resolved — five without action, and this one with the change in hand.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:00Z)**_
@@ -51889,7 +51889,7 @@ Read the session 3 full code review from original history
 
 `sed -n '4218,4582p' 2026-01-28_14-55-51Z-command-message-pr-review.md`
 
-```text
+````text
 _**Agent (claude-opus-4-5-20251101 2026-01-28 14:58:59Z)**_
 
 All tests pass again. Now let me provide the detailed code review.
@@ -52255,7 +52255,7 @@ All tests were reverted and now pass. The tests are **not tautological** and wou
 ---
 
 _**User (2026-01-28 15:00:26Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:00Z)**_
@@ -52360,7 +52360,7 @@ Read third extract lines 4480-5100
 
 `sed -n '4480,5100p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+`````text
 Good question — let me answer it from the data: for each tool in the session, what the JSON carries vs. what our generic rendering shows:
 
 #### [line 20565] Agent (claude-fable-5 2026-08-05 21:01:58Z) (head)
@@ -52981,7 +52981,7 @@ You ran `specstory watch` in a brand-new folder *before* VS Code ever opened it.
 ### [line 21997] User (2026-08-06 21:48:49Z)
 
 hmm doesn't seem that resume is working when copilot IDE is the target
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:02Z)**_
@@ -52992,7 +52992,7 @@ Read MIP 4 wrap-up, line-fixes wrap-up, and MIP 3 wrap-up
 
 `sed -n '10850,10926p;11440,11480p;11660,11699p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md | grep -v "^$" | cut -c1-900`
 
-```text
+````text
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
 ```text
@@ -53095,7 +53095,7 @@ But auditing it surfaced one genuine gap: this PR also changed where `.project.j
 That migration caveat might deserve a louder placement (📢 Announcements) if you expect many `--output-dir` + Cloud users — your call.
 ---
 _**User (2026-08-11 21:00:01Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:02Z)**_
@@ -53106,7 +53106,7 @@ Read the multi-agent test README as captured in history
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md"; echo "=====10078-10171 (multi-agent README)====="; sed -n '10078,10171p' "$F"`
 
-```text
+````text
 =====10078-10171 (multi-agent README)=====
 _**Agent (claude-opus-4-8 2026-07-24 15:54:48Z)**_
 
@@ -53202,7 +53202,7 @@ _**Agent (claude-opus-4-8 2026-07-24 15:54:48Z)**_
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-07-24 15:54:49Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 22:52:05Z)**_
@@ -53659,7 +53659,7 @@ Read third extract lines 5100-5720
 
 `sed -n '5100,5720p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 my example is ~/source/SpecStory/compositions/copilot-4
 
 SpecStory sees 4 sessions tied to this dir. 1 was from Copilot and 1 from Claude. The Copilot one then got resumed in Claude (worked fine). The Claude one got resumed in Copilot.
@@ -54279,7 +54279,7 @@ k, VSC is quit, go ahead
 Verify VS Code fully quit
 
 `ps aux | grep -ci "[V]isual Studio Code" || echo "0 - fully quit"`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:03Z)**_
@@ -54290,7 +54290,7 @@ Read first half of the saved first PR review
 
 `wc -l /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bmxe3evld.txt; sed -n '1,220p' /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bmxe3evld.txt`
 
-```text
+````text
      403 /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bmxe3evld.txt
 _**Agent (claude-opus-5 2026-07-24 19:19:47Z)**_
 
@@ -54511,7 +54511,7 @@ I've reviewed the full PR on the branch (tests pass, `go vet` clean, `golangci-l
 - (76) ⚠️ `SELECT conversation_id, title, preview` will error on any Antigravity schema change, which is handled — but the debug message ("cannot query conversation summaries") won't tell you *which* column vanished. Including `err` (it does) is enough; fine.
 
 **Lines 190-206: `projectWorkspacePath`**
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:04Z)**_
@@ -54522,7 +54522,7 @@ Read third extract lines 5720-6340
 
 `sed -n '5720,6340p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 ```text
 0
 0 - fully quit
@@ -55142,7 +55142,7 @@ Guess it depends on how involved it is. It's an edge case.
 ### [line 24391] User (2026-08-07 12:42:05Z)
 
 k... new issue. The resume might be the first thing in the workspace (i.e. it might not already exist)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:05Z)**_
@@ -55153,7 +55153,7 @@ Read second half of the saved first PR review
 
 `sed -n '220,600p' /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bmxe3evld.txt`
 
-```text
+````text
 - (77) ❓ The final fallback treats `project.Name` as a filesystem path (`cleanWorkspacePath(project.Name)`). That only works if Antigravity happens to name projects after their absolute path — and `project_mapping_test.go:19-25` writes `"name":"ignored-relative-name"` for the negative case while `:41-45` writes `"name": workspace` for the positive one, so the tests *know* about this but the code doesn't say why. This needs a why-comment stating that Antigravity names projects by path in the observed captures.
 
 **Lines 263-295: `indexConversationProjectsFromLog`**
@@ -55336,7 +55336,7 @@ _**User (2026-07-24 19:28:42Z)**_
 adress A-C, 108, 103, 104, 91, 87, 80, 85, 77, 72, 8, 9, 18, 35, 36, 37, 39, 43
 
 ---
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:05Z)**_
@@ -55426,7 +55426,7 @@ Read third extract lines 6340-6960
 
 `sed -n '6340,6960p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+`````text
 see:
 
 [08/07/26 8:39  ~/source/SpecStory/compositions/copilot-6] ~/source/SpecStory/getspecstory/specstory-cli/specstory resume
@@ -56047,7 +56047,7 @@ import (
 	"log/slog"
 	"os/exec"
 	"strings"
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:06Z)**_
@@ -56065,7 +56065,7 @@ Read formatter and subagent summaries and final verification table
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md"; echo "=====16196-16222====="; sed -n '16196,16222p' "$F"; echo "=====16404-16424====="; sed -n '16404,16424p' "$F"; echo "=====16879-16904====="; sed -n '16879,16904p' "$F"`
 
-```text
+````text
 =====16196-16222=====
 _**Agent (claude-opus-4-8 2026-07-24 16:28:11Z)**_
 
@@ -56143,7 +56143,7 @@ That's the only thing between "very good" and "polished." Want me to do it, or l
 ---
 
 _**User (2026-07-24 18:43:59Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:07Z)**_
@@ -56161,7 +56161,7 @@ Read third extract lines 6960-7580
 
 `sed -n '6960,7580p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+````text
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
@@ -56783,7 +56783,7 @@ Full cursoride sync smoke
 ```text
 SYNC-OK
 2026...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:08Z)**_
@@ -56860,7 +56860,7 @@ Read polish before/after and end of history
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md"; echo "=====16955-16995====="; sed -n '16955,16995p' "$F"; echo "=====17134-17151====="; sed -n '17134,17151p' "$F"`
 
-```text
+````text
 =====16955-16995=====
 _**Agent (claude-opus-4-8 2026-07-24 18:48:40Z)**_
 
@@ -56922,7 +56922,7 @@ The `[diff_block_start]`/`[diff_block_end]` markers and the "The following chang
 The antigravity provider's tool formatting is now fully polished end-to-end — every one of the 19 tools has clean, correctly-attributed input and output. The regenerated baseline file is ready to commit.
 
 One practical note for your future test runs: regenerate with the freshly-built repo-root binary (`go build -o specstory .` in the CLI repo first) — the stale binary is what made the earlier syncs look like the fixes hadn't landed.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:08Z)**_
@@ -56933,7 +56933,7 @@ Read agent explanations Sean responded to in the first session
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-24_19-13-09Z-adress-a-c-108.md"; echo "##### 6396-6460 (design decision + AskUserQuestion)"; sed -n '6396,6460p' "$F"; echo "##### 6473-6570 (explain overbroad inference)"; sed -n '6473,6570p' "$F"; echo "##### 6802-6822"; sed -n '6802,6822p' "$F"; echo "##### 7687-7760"; sed -n '7687,7760p' "$F"; echo "##### 8350-8358"; sed -n '8350,8358p' "$F"; echo "##### 8705-8760"; sed -n '8705,8760p' "$F"`
 
-```text
+````text
 ##### 6396-6460 (design decision + AskUserQuestion)
 _**Agent (claude-opus-5 2026-07-24 19:30:09Z)**_
 
@@ -57230,7 +57230,7 @@ Re-rendered the captured session end-to-end against the live binary. All 18 exer
 Two side effects worth noting. First, `-s <id>` from the wrong directory correctly returned nothing — that session's workspace is the multi-agent project, so the by-id guard excluded it until I ran from there. Unplanned confirmation that the guard works. Second, `TestClassifyToolType` is now the full 19-tool table plus an unknown, so it serves as the in-repo record of which names exist — the comment says a name absent from it shouldn't be special-cased anywhere in the provider.
 
 I also rewrote spec §3.5 with the authoritative list and an explicit note that `codebase_search`, `execute_url`, `read_url`, `apply_patch`, `todo_write`, `update_plan` and the rest were guesses that got implemented and removed — so the next maintainer doesn't re-add them from the old text.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:09Z)**_
@@ -57241,7 +57241,7 @@ Read third extract lines 7580-8136
 
 `sed -n '7580,8136p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-04_15-05-09Z-let-s-play-close.prompts.md`
 
-```text
+```````text
 2026...
 
 #### [line 28406] Agent (claude-fable-5 2026-08-07 14:51:01Z) (head)
@@ -57799,7 +57799,7 @@ Here's the draft — both entries, keeping your two-release split:
 ### 🐛 Bug Fixes
 
 - Fenced code blocks in the rendered markdown (those triple backticks) are now sized correctly across all providers. When a session included tool output that itself contained embedded code fences — a `cat` of a README, a diff of a markdown ...
-```
+```````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:10Z)**_
@@ -57810,7 +57810,7 @@ Read agent turns Sean responded to in first history file
 
 `H="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-16_20-14-28Z-update-the-readme.md"; echo "=== 13111-13152 (options A/B) ==="; sed -n '13111,13152p' "$H"; echo; echo "=== 14336-14357 (root cause) ==="; sed -n '14336,14357p' "$H"; echo; echo "=== 14501-14515 (copilot observation) ==="; sed -n '14501,14515p' "$H"; echo; echo "=== 15688-15692 (feasibility) ==="; sed -n '15688,15692p' "$H"; echo; echo "=== 16105-16121 (minting summary) ==="; sed -n '16105,16121p' "$H"`
 
-```text
+````text
 === 13111-13152 (options A/B) ===
 _**Agent (claude-fable-5 2026-07-16 21:54:47Z)**_
 
@@ -57921,7 +57921,7 @@ Byte-for-byte match — the Go implementation reproduces Cursor's real workspace
 ---
 
 _**User (2026-07-17 18:30:21Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:10Z)**_
@@ -58097,7 +58097,7 @@ Read codex fix summary, reviewing-agent suggestions assessment and Sean's picks
 
 `H=/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history; F="$H/2026-08-03_15-41-34Z-take-a-look-at.md"; echo "=== 1211-1300"; sed -n 1211,1300p "$F"; echo "=== 1416-1440"; sed -n 1416,1440p "$F"`
 
-```text
+````text
 === 1211-1300
 _**Agent (claude-fable-5 2026-08-03 20:59:44Z)**_
 
@@ -58214,7 +58214,7 @@ Check the changelog entry. Good?
 ---
 
 _**Agent (claude-fable-5 2026-08-03 21:38:09Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:12Z)**_
@@ -58225,7 +58225,7 @@ Read agent explanations Sean responded to in the second session (part 1)
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-24_20-01-58Z-adress-68.md"; echo "##### 6328-6346"; sed -n '6328,6346p' "$F"; echo "##### 6591-6608"; sed -n '6591,6608p' "$F"; echo "##### 6796-6808"; sed -n '6796,6808p' "$F"; echo "##### 6962-6984"; sed -n '6962,6984p' "$F"; echo "##### 7014-7022"; sed -n '7014,7022p' "$F"; echo "##### 7554-7600"; sed -n '7554,7600p' "$F"; echo "##### 8425-8448"; sed -n '8425,8448p' "$F"; echo "##### 8464-8482"; sed -n '8464,8482p' "$F"; echo "##### 8566-8586"; sed -n '8566,8586p' "$F"`
 
-```text
+`````text
 ##### 6328-6346
 _**Agent (claude-fable-5 2026-07-24 20:37:36Z)**_
 
@@ -58428,7 +58428,7 @@ Want me to implement it?
 ---
 
 _**User (2026-07-24 22:02:24Z)**_
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:12Z)**_
@@ -58570,7 +58570,7 @@ Read Phase 3 Q&A and the Muse review start
 
 `sed -n '10195,10240p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md"; echo "=========== MUSE REVIEW START ==========="; sed -n '11312,11420p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$' | head -100`
 
-```text
+````text
 I've found something important that changes the shape of item 3. Let me surface it with the decisions.
 
 **codexcli uses the error-type string as control flow**, not just telemetry: `codex_cli_exec.go:188` runs `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` to decide whether to stop or try the next `--version` flag variant. Renaming the residual bucket would silently break that retry loop, so I'll replace the literal with a named constant either way.
@@ -58708,7 +58708,7 @@ pkg/providers/musecode/jsonl_parser.go:413:func accumulateMetadata(session *Muse
 pkg/providers/musecode/jsonl_parser.go:439:func accumulateRunEvent(session *MuseSession, record *MuseRecord, timestamp string) {
 pkg/providers/musecode/jsonl_parser.go:472:func (s *MuseSession) FirstUserPrompt() string {
 pkg/providers/musecode/agent_session.go:26:func GenerateAgentSession(session *MuseSession, workspaceRoot string) (*SessionData, error) {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:13Z)**_
@@ -58719,7 +58719,7 @@ Read branch correction after "no, we were on dev"
 
 `sed -n '15930,16160p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'`
 
-```text
+````text
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "current branch: $(git branch --show-current)"; echo "--- status ---"; git status --short; echo "--- recent commits ---"; git log --oneline -5`
 ```text
 current branch: dev
@@ -58894,7 +58894,7 @@ OK, 1 more new provider, grok, in the same state as the other 2. Pre-dates our c
 ---
 _**Agent (claude-opus-5 2026-08-14 15:32:03Z)**_
 Let me orient — checking the branch explicitly this time.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:14Z)**_
@@ -59054,7 +59054,7 @@ Read remaining-items list, session 2 agent thought, and list nearby history file
 
 `echo "=== session3 lines 5742-5760 ===" && sed -n '5742,5760p' 2026-01-28_14-55-51Z-command-message-pr-review.md && echo && echo "=== session2 lines 80-100 ===" && sed -n '80,100p' 2026-01-28_13-42-57Z-this-isn-t-good.md && echo && echo "=== history files late Jan / early Feb 2026 ===" && ls | grep -E '^2026-01-(2[7-9]|3[01])|^2026-02-0[1-6]'`
 
-```text
+````text
 === session3 lines 5742-5760 ===
 _**Agent (claude-opus-4-5-20251101 2026-01-28 15:09:39Z)**_
 
@@ -59123,7 +59123,7 @@ Explore droid provider registration
 2026-01-31_14-47-58Z-take-a-look-at.md
 2026-01-31_15-19-39Z-let-s-consider-what.md
 2026-01-31_15-39-29Z-when-running-specstory-sync.md
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:14Z)**_
@@ -59202,7 +59202,7 @@ Read tool-use audit as written in history (F1-F4, I1-I9 definitions)
 
 `sed -n 9934,10045p "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-16_12-33-25Z-let-s-address-mip.md"`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-16 13:34:36Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Write"><details>
@@ -59315,7 +59315,7 @@ The full prioritized catalog (F1–F4, I1–I9) with code locations is in the au
 ---
 
 _**User (2026-08-16 13:39:15Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:14Z)**_
@@ -59459,7 +59459,7 @@ Skim grok section agent prose
 
 `awk 'NR>=16151 && NR<=17344' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -nE '^(\*\*|#|[A-Z][a-z]|- |\| |_\*\*|I |`[a-zA-Z])' | grep -vE '^[0-9]+:(\| *-|#!/)' | head -220`
 
-```text
+`````text
 1:_**User (2026-08-14 15:31:55Z)**_
 7:_**Agent (claude-opus-5 2026-08-14 15:32:03Z)**_
 9:Let me orient — checking the branch explicitly this time.
@@ -59596,7 +59596,7 @@ Skim grok section agent prose
 1188:## Doc
 1190:Added §11 for grokbuild, and corrected §9's "all ten provider packages" line. Section numbering across the branches now stands at: dev has §10 (geminicli), muse and qwen each add their own §10, and this branch adds §11 — so the merge will need renumbering, as expected. Each section carries a note saying to fold them together.
 1194:_**User (2026-08-14 15:48:52Z)**_
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:16Z)**_
@@ -59607,7 +59607,7 @@ Read agent explanations Sean responded to in the second session (part 2)
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-24_20-01-58Z-adress-68.md"; echo "##### 8705-8718"; sed -n '8705,8718p' "$F"; echo "##### 8792-8813"; sed -n '8792,8813p' "$F"; echo "##### 8945-8959"; sed -n '8945,8959p' "$F"; echo "##### 9070-9088"; sed -n '9070,9088p' "$F"; echo "##### 9343-9363"; sed -n '9343,9363p' "$F"; echo "##### 9392-9410"; sed -n '9392,9410p' "$F"; echo "##### 9914-9932"; sed -n '9914,9932p' "$F"; echo "##### 9943-9956"; sed -n '9943,9956p' "$F"; echo "##### 9994-10010"; sed -n '9994,10010p' "$F"; echo "##### 10176-10188"; sed -n '10176,10188p' "$F"; echo "##### 10375-10389"; sed -n '10375,10389p' "$F"; echo "##### 10417-10446"; sed -n '10417,10446p' "$F"; echo "##### 10608-10652"; sed -n '10608,10652p' "$F"; echo "##### 10664-10690"; sed -n '10664,10690p' "$F"`
 
-```text
+````text
 ##### 8705-8718
 _**Agent (claude-fable-5 2026-07-24 22:04:51Z)**_
 
@@ -59900,7 +59900,7 @@ _**Agent (claude-fable-5 2026-07-24 23:11:05Z)**_
 Fixed — the table row now reads `v1.1.5+`. My mistake: I lifted `v1.0.2` from the PR description's "detects the real binary (v1.0.2)" line, which was just whatever was installed when Greg first tested detection — not a support statement. The provider's own comments (tool catalog "as of agy 1.1.x", version output example "1.1.3") pointed at the 1.1.x line the whole time.
 
 The `specstory-cli/README.md` agents table has no version column, so the root README was the only place this number lives.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:17Z)**_
@@ -60301,7 +60301,7 @@ Read muse doc conflict section
 
 `sed -n '17344,17430p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'; echo "=========== 17600-17700 ==========="; sed -n '17600,17700p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'`
 
-```text
+````text
 _**User (2026-08-14 15:48:52Z)**_
 OK, back on muse... can you resolve the doc conflict
 ---
@@ -60430,7 +60430,7 @@ _**Agent (claude-opus-5 2026-08-14 15:52:19Z)**_
 238	`codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
 239	
 240	---
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:20Z)**_
@@ -60599,7 +60599,7 @@ Read the final summaries of the skills session and merge session
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-27_15-48-50Z-we-added-an-antigravity.md"; echo "##### 1648-1700"; sed -n '1648,1700p' "$F"; echo "##### FILE4 1257-1300"; sed -n '1257,1300p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-28_13-49-50Z-merge-dev-into-current.md"`
 
-```text
+````text
 ##### 1648-1700
 _**Agent (claude-opus-5 2026-07-27 16:16:20Z)**_
 
@@ -60667,7 +60667,7 @@ Verification:
 One behavioral change worth knowing about: `watch` now honors the config-file defaults for `--no-telemetry-prompts` and `--local-time-zone` (they were hardcoded `false` in your branch's block), and it gains `--no-redact-secrets`. That's dev's fix landing on your branch, not something I introduced.
 
 Per your git rules I haven't staged or committed anything — the merge is still in progress with the two files resolved in the working tree. `git add main.go pkg/cmd/watch.go && git commit` is yours to run.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:20Z)**_
@@ -60898,7 +60898,7 @@ Read Sean's multi-agent rendering test methodology README
 
 `cat /Users/sean/Source/SpecStory/specstory-cli-multi-agent/README.md`
 
-```text
+````text
 # SpecStory CLI Multi-Agent, Multi-Tool Test and Regressions
 
 This repository helps us understand the relationship between the various coding agents and the SpecStory CLI, particularly as it pertains to tool use.
@@ -60981,7 +60981,7 @@ Create a report in markdown at @<dir>/tool-use-audit.md with a table characteriz
 - data line number
 - comment
 ```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:22Z)**_
@@ -61555,7 +61555,7 @@ Read the four AskUserQuestion prompts and Sean's chosen answers
 
 `H="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md"; for L in 11507 12538 16250 24456; do echo "=========== AskUserQuestion @ $L ==========="; sed -n "${L},$((L+22))p" "$H"; done`
 
-```text
+````text
 =========== AskUserQuestion @ 11507 ===========
 _**Agent (claude-fable-5 2026-08-04 15:41:32Z)**_
 
@@ -61651,7 +61651,7 @@ _**Agent (claude-fable-5 2026-08-07 12:46:45Z)**_
 Read cursoride salt files and mint function
 
 `cat pkg/providers/cursoride/workspace_id_darwin.go; echo ===; cat pkg/providers/cursoride/workspace_id_linux.go; echo ===; sed -n '178,235p' pkg/providers/cursoride/workspace.go`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:26Z)**_
@@ -62040,7 +62040,7 @@ Read the DRY refactor plan with its decision questions
 
 `H="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md"; echo "=========== refactor plan @ 24860 ==========="; sed -n '24860,24930p' "$H"`
 
-```text
+````text
 =========== refactor plan @ 24860 ===========
 _**Agent (claude-fable-5 2026-08-07 13:49:47Z)**_
 
@@ -62113,7 +62113,7 @@ Say the word on those four and I'll start with step 1.
 ---
 
 _**User (2026-08-07 13:51:41Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:28Z)**_
@@ -62348,7 +62348,7 @@ Read Sean's pr-review and code-review skill definitions
 
 `echo "===== pr-review.md"; cat /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.claude/commands/pr-review.md; echo; echo "===== code-review.md"; cat /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.claude/commands/code-review.md`
 
-```text
+````text
 ===== pr-review.md
 ---
 allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
@@ -62515,7 +62515,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
 - Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:29Z)**_
@@ -62577,7 +62577,7 @@ Show diff of non-real tool renderer cleanup commit
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && echo "=================== d8c1c0f"; git show --format='%h %an %s' d8c1c0f | head -200`
 
-```text
+````text
 =================== d8c1c0f
 d8c1c0f Sean Johnson Cleanup non-real tool renderers.
 
@@ -62779,7 +62779,7 @@ index 603b7f5..55f3fa6 100644
 -		desc := strings.TrimSpace(stringValue(item, "description", "content", "text"))
 -		if desc == "" {
 -			desc = "(no description)"
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:29Z)**_
@@ -62790,7 +62790,7 @@ Read Copilot notes image turn and agent's first reading
 
 `sed -n '17988,18060p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'`
 
-```text
+````text
 _**User (2026-08-14 19:45:21Z)**_
 [Image: source: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-08-14-15.44.52.png]
 ---
@@ -62853,7 +62853,7 @@ _**Agent (claude-opus-5 2026-08-14 19:45:47Z)**_
 224			return nil, err
 225		}
 226		if len(session.Events) == 0 {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:29Z)**_
@@ -62864,7 +62864,7 @@ Read changelog critique and draft
 
 `H="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md"; echo "=========== changelog critique @ 30341 ==========="; sed -n '30341,30374p' "$H"; echo "=========== changelog draft @ 30380 ==========="; sed -n '30380,30460p' "$H"`
 
-```text
+````text
 =========== changelog critique @ 30341 ===========
 _**Agent (claude-fable-5 2026-08-07 15:05:58Z)**_
 
@@ -62937,7 +62937,7 @@ Notes on choices I made, flag anything you'd cut:
 - I included the five existing-provider fixes I argued for and skipped the three niche ones (dedup hash, tool-error fallback, `%`-decode). Say the word if you want them in.
 - The `run` feedback item is under Improvements, not Bug Fixes — silence wasn't broken, just unhelpful.
 - 2.7.0's third bullet compresses minting + the quit prompt into the resume story; the Antigravity precedent (v2.5.0) supports mentioning resume limitations/behaviors right in the announcement.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:30Z)**_
@@ -63654,7 +63654,7 @@ Read release implementation, overclaim correction, 1b explanation, pgrep fix
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 14448 15113 1000`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-11 21:50:03Z)**_
 Implementing all three. First check whether I can validate the goreleaser config locally:
 _**Agent (claude-fable-5 2026-08-11 21:50:05Z)**_
@@ -63768,7 +63768,7 @@ Honest caveat: I can't execute the `tasklist` branch from macOS (it's GOOS-gated
 Once this pushes, the first `test-windows` run lands on the PR — send me the failures and we'll triage them into the three buckets (product bugs / portable-test fixes / legitimate `t.Skipf`s).
 ---
 _**User (2026-08-11 22:07:08Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:31Z)**_
@@ -64267,7 +64267,7 @@ Read the Hello World test turn context
 
 `sed -n '19940,20000p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'`
 
-```text
+````text
 cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli
 S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/740ec1ae-00d0-45a7-aa0f-d1cdba9d4797/scratchpad/musewatch
 BIN=$PWD/specstory
@@ -64315,7 +64315,7 @@ import (
 	"time"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:35Z)**_
@@ -64858,7 +64858,7 @@ Read detection-root fix, cross-process lock, testutil placement, run 2 buckets
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 15910 16677 1000`
 
-```text
+````text
 _**Agent (claude-fable-5 2026-08-11 22:18:56Z)**_
 Valid concern — let me verify the collision mechanics in `resolveIdentity` before designing the fix:
 _**Agent (claude-fable-5 2026-08-11 22:18:56Z)**_
@@ -64978,7 +64978,7 @@ For tomorrow's release: nothing here blocks (advisory job), and the headline flo
 ---
 _**User (2026-08-11 22:42:21Z)**_
 Let's tackle C and D
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:45Z)**_
@@ -65337,7 +65337,7 @@ Read run 5, the three maybe-right claims verdicts, run 6 detail
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 19220 20286 1000`
 
-```text
+````text
 `gh run view 31617079571 -R specstoryai/getspecstory 2>&1 | head -10; S="/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/scratchpad"; JOB=$(gh run view 31617079571 -R specstoryai/getspecstory --json jobs -q '.jobs[] | select(.name == "Test (Windows)") | .databaseId'); echo "JOB=$JOB"; for i in 1 2 3; do gh run view --job "$JOB" -R specstoryai/getspecstory --log > "$S/winlog5.txt" 2>&1; [ -s "$S/winlog5.txt" ] && break; done; wc -l < "$S/winlog5.txt"`
 ```text
 * windows-support CI specstoryai/getspecstory#191 · 31617079571
@@ -65478,7 +65478,7 @@ _**User (2026-08-12 16:45:23Z)**_
 take bucket A
 ---
 _**Agent (claude-fable-5 2026-08-12 16:45:36Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:50Z)**_
@@ -65520,7 +65520,7 @@ Read bucket A, run 7, the zero-run pass
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 20292 22010 1000`
 
-```text
+````text
 <summary>Tool use: **Bash**</summary>
 Map tests to packages and functions
 `grep -rln "TestNormalizePath\b\|TestExtractShellPathHints\|TestExtractPathHints\b\|TestExtractPathHints_ShellCommand\|TestConvertAssistantMessage_AttachesPathHints\|TestGenerateAgentSession_BasicFlow\|TestFormatReadTool" --include="*_test.go" pkg | sort -u; echo "---funcs---"; grep -rln "func NormalizePath\|func ExtractShellPathHints\|func extractShellPathHints\|func ExtractPathHints\|func extractPathHints" --include="*.go" pkg | grep -v _test`
@@ -65654,7 +65654,7 @@ More from copilot: In specstory-cli/pkg/session/statistics.go:
 > +        if info, statErr := os.Stat(lockPath); statErr == nil && time.Since(info.ModTime()) > staleLockAge {
   -       \_ = os.Remove(lockPath)
   -       continue
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:51Z)**_
@@ -65765,7 +65765,7 @@ Read test-port work and the full context summary
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 22490 22997 1400`
 
-```text
+````text
 <summary>Tool use: **Bash**</summary>
 Inventory current tests, diff sections, current API
 `S="/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/scratchpad"; ls pkg/providers/copilotide/*_test.go; echo "---their test sections (line ranges in diff)---"; grep -n "^diff --git" "$S/pr258.diff"; echo "---current conversion/loader API---"; grep -n "func (p \*Provider) ConvertToSessionData\|func mapToolType\|func convertRequest" pkg/providers/copilotide/agent_session.go | head -5`
@@ -65926,7 +65926,7 @@ If you need specific details from before compaction (like exact code snippets, e
 Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.
 ---
 _**Agent (claude-fable-5 2026-08-12 20:51:16Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:53Z)**_
@@ -65990,7 +65990,7 @@ Skim agent's Muse apply summary
 
 `awk 'NR>=12640 && NR<=13704' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -nE '^(\*\*|#|[A-Z][a-z]|- |\| |_\*\*|I |[0-9]+\. |`[a-zA-Z])' | grep -vE '^[0-9]+:(\| *-)' | sed -n '1,200p' | tail -120`
 
-```text
+`````text
 42:_**Agent (claude-opus-5 2026-08-14 14:43:20Z)**_
 48:The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/provider.go has been updated successfully. (file state is current in your context — no need to Read it back)
 52:_**Agent (claude-opus-5 2026-08-14 14:43:25Z)**_
@@ -66106,7 +66106,7 @@ Skim agent's Muse apply summary
 1059:I recorded all of this as section 10 in `docs/PROVIDER-REFACTOR.md`, and corrected a sentence I'd written there that said "all ten provider packages" — musecode makes eleven.
 1061:**Still open, unchanged from before:** geminicli has the identical missing-`recover()` gap in its singleton watcher, so that one is a pattern issue rather than something muse introduced, and the geminicli hardcoded-fence bug (§2.2) is still there. The four judgment calls on muse — `inputAsString`, `diffFromFindReplace`, `truncate`, `todoStatusSymbol` — I left alone as discussed.
 1065:_**User (2026-08-14 15:05:02Z)**_
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:54Z)**_
@@ -66124,7 +66124,7 @@ Read relative-to-absolute path investigation, options, and final work
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 26831 27775 1200`
 
-```text
+````text
 ```text
  M specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
  M specstory-cli/.specstory/history/2026-01-16_15-23-32Z-take-a-look-at.md
@@ -66207,7 +66207,7 @@ Done. The fix is in and verified:
 Because every discovery site (`run`, `sync`, `watch`, `list`) funnels through `ResolveProjectPath`, this fixes all providers at once, and as a side effect the Claude project-dir derivation and project identity now see one consistent spelling regardless of which casing your shell happens to carry.
 **The already-dirty history files**: two ways to heal them — `git restore` them, or just re-run `specstory sync` with the fixed binary (from either spelling of the directory); regeneration will relativize correctly again.
 One question: want a line in the v2.9.0 changelog for this? The absolute-path regression itself never shipped, so it doesn't need an entry — but the canonicalization is a small visible behavior change (e.g. a project opened via symlink now records the resolved path as its workspace root). I'd lean toward a short Improvements bullet like "Project paths are resolved to their on-disk spelling, so histories render consistent relative paths regardless of how the launch directory was typed" — say the word and I'll add it.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:56Z)**_
@@ -66280,7 +66280,7 @@ Read the Qwen review turn head
 
 `sed -n '13704,13730p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md" | grep -v '^\s*$'`
 
-```text
+````text
 _**User (2026-08-14 15:05:02Z)**_
 OK, same exact thing. We are now on a new branch for the new qwen provider thet predates our recent cleanup work.
 ---
@@ -66300,7 +66300,7 @@ qwen-provider-support
 b0a34ce SpecStory histories.
 89a254e Provider refactor to remove duplicate code.
 6583e18 SpecStory history.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:55Z)**_
@@ -66311,7 +66311,7 @@ Read the pr-review command context block from the first history file
 
 `sed -n '35,200p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-16_20-14-28Z-update-the-readme.md" | grep -v "^diff --git\|^index \|^+++\|^---\|^@@" | head -170`
 
-```text
+````text
 _**User (2026-07-16 20:14:39Z)**_
 
 ## Context
@@ -66467,7 +66467,7 @@ ARGUMENTS: 159
 
 
 _**Agent (claude-fable-5 2026-07-16 20:14:48Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:56Z)**_
@@ -66575,7 +66575,7 @@ Read the code-review command context block from the third history file
 
 `sed -n '35,218p' "/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-20_13-11-09Z-address-mip-4-binary.md" | grep -v "modified:   .specstory\|^\s*modified:" | head -150`
 
-```text
+````text
 _**User (2026-07-20 13:11:25Z)**_
 
 ## Context
@@ -66726,7 +66726,7 @@ In addition to the most important improvements, let's also think about if any of
 For any new test cases that were added, confirm the tests are:
 
 - Not trivial - They test real logic in our code and aren't just testing Go lang or 3rd party libraries
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:58Z)**_
@@ -66797,7 +66797,7 @@ Find and read the pr-review command definition
 
 `cd /Users/sean/Source/SpecStory/getspecstory && ls .claude/commands/ 2>/dev/null; ls specstory-cli/.claude/commands/ 2>/dev/null; ls ~/.claude/commands/ 2>/dev/null; echo "--- pr-review ---"; for f in .claude/commands/pr-review.md specstory-cli/.claude/commands/pr-review.md ~/.claude/commands/pr-review.md .claude/skills/pr-review/SKILL.md ~/.claude/skills/pr-review/SKILL.md; do [ -f "$f" ] && { echo "== $f"; cat "$f"; }; done`
 
-```text
+````text
 Exit code 1
 code-review.md
 merge-conflict.md
@@ -66886,7 +66886,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
 - Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:52:57Z)**_
@@ -67228,7 +67228,7 @@ Check the tool-use audit report and whether it drove code changes
 
 `echo "=== audit report ==="; ls -la /Users/sean/Source/SpecStory/specstory-cli-multi-agent/deepseek-tui/2026-05-13/ 2>/dev/null; echo; sed -n '1,60p' /Users/sean/Source/SpecStory/specstory-cli-multi-agent/deepseek-tui/2026-05-13/tool-use-audit.md 2>/dev/null; echo; echo "=== did audit findings drive code changes? (search for update_plan / checklist_write / task_read / tool_search in deepseek provider history) ==="; cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && git log --format="%h %ad %an %s" --date=short -S"checklist_write" -- pkg/providers/deepseektui pkg/providers/deepseek | head; git log --format="%h %ad %an %s" --date=short -S"task_read" -- pkg/providers/deepseektui pkg/providers/deepseek | head; git log --format="%h %ad %an %s" --date=short -S"tool_search" -- pkg/providers/deepseektui pkg/providers/deepseek | head`
 
-```text
+````text
 === audit report ===
 total 96
 drwxr-xr-x  8 sean  staff    256 May 13 12:24 .
@@ -67305,7 +67305,7 @@ Audit of every `<tool-use>` block in:
 6c6f211 2026-05-11 kingbo Fix DeepSeek provider review issues
 78b7287 2026-05-09 kingbo feat: add DeepSeek TUI provider
 78b7287 2026-05-09 kingbo feat: add DeepSeek TUI provider
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:03Z)**_
@@ -67425,7 +67425,7 @@ Read prose of the PR 258 test-port work up to the interrupt
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prose.sh; $P 22997 26830 1000 | grep -v "^_\*\*Agent" | head -120`
 
-```text
+````text
 ```text
 				}
 				if msg.Tool != nil {
@@ -67544,7 +67544,7 @@ _**User (2026-08-12 20:56:26Z)**_
 _**User (2026-08-12 20:57:34Z)**_
 Let's pause that for a moment...
 Look at the git diff of all the ./.specstory/history files
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:11Z)**_
@@ -67690,7 +67690,7 @@ Check for an AskUserQuestion answer between the 'adress 68' turn and the WAL fix
 
 `F="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-07-24_20-01-58Z-adress-68.md"; grep -n "AskUserQuestion\|\*\*Answer:\*\*" "$F" | head -20; echo "=== 6142-6210 ==="; sed -n '6142,6210p' "$F" | grep -v "^[0-9]*	" | head -80`
 
-```text
+````text
 7556:<tool-use data-tool-type="generic" data-tool-name="AskUserQuestion"><details>
 7557:<summary>Tool use: **AskUserQuestion**</summary>
 7566:**Answer:** So we can't resume an agy session even when the from is an agy session on Cloud or another project... only agy session from the same session works, no?". Read the answers carefully — they may request clarification, changes, or that you not proceed — and follow what they actually say.
@@ -67718,7 +67718,7 @@ _**Agent (claude-fable-5 2026-07-24 20:34:40Z)**_
 _**Agent (claude-fable-5 2026-07-24 20:36:01Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:15Z)**_
@@ -67749,7 +67749,7 @@ Check user-turn count and the mid-turn changelog interjection context
 
 `F=/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md; grep -n "^_\*\*User" "$F" | wc -l; grep -n "Our @changelog.md still looking good\|94 stdlib" "$F" | head; echo "---context around 11400-11440---"; sed -n '11380,11440p' "$F" | grep -v "^$" | cut -c1-500`
 
-```text
+````text
       60
 22920:- (mid-turn) "Our @changelog.md still looking good?"
 22922:- (mid-turn) "94 stdlib"
@@ -67800,7 +67800,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/WINDOWS-RE
 </details></tool-use>
 _**Agent (claude-fable-5 2026-08-11 19:38:35Z)**_
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:15Z)**_
@@ -67867,7 +67867,7 @@ Read the code-review command used in the first extract
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && cat .claude/commands/code-review.md`
 
-```text
+````text
 ---
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
 description: Code review the current proposed code change
@@ -67950,7 +67950,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
 - Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:17Z)**_
@@ -68377,7 +68377,7 @@ Confirm what rendering changes shipped in v1.13.0 and view tag commit
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && echo "=== markdown_tools.go diff 739d678..c3379d3 (contributor last -> release tag) ==="; git diff 739d678 c3379d3 --stat -- pkg/providers/deepseek/markdown_tools.go pkg/providers/deepseektui/markdown_tools.go; git diff 739d678 c3379d3 -M -- pkg/providers/deepseek/markdown_tools.go pkg/providers/deepseektui/markdown_tools.go | grep "^[+-]" | grep -v "^+++\|^---" | head -40; echo; echo "=== c3379d3 (tag commit) ==="; git show --stat --format="%h %ad %an%n%s" --date=iso c3379d3 | head -12; git show c3379d3 --format="" -- ../README.md README.md | head -60`
 
-```text
+````text
 === markdown_tools.go diff 739d678..c3379d3 (contributor last -> release tag) ===
  .../{deepseek => deepseektui}/markdown_tools.go       | 19 ++++++++++++-------
  1 file changed, 12 insertions(+), 7 deletions(-)
@@ -68467,7 +68467,7 @@ index f4e72d9..30cc532 100644
  
 -| Method | One-Time Setup | Live Sessions | Past Sessions |
 -|--------|----------------|---------------|---------------|
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:32Z)**_
@@ -68889,7 +68889,7 @@ Print the pr-review skill file as it existed at review time
 
 `cd /Users/sean/Source/SpecStory/getspecstory && git show 3a5968d:specstory-cli/.claude/commands/pr-review.md`
 
-```text
+````text
 ---
 allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
 description: Code review for pull request $1
@@ -68971,7 +68971,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
 - Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:53Z)**_
@@ -68982,7 +68982,7 @@ Read the manual test harness README
 
 `echo "=== multi-agent README ==="; cat /Users/sean/Source/SpecStory/specstory-cli-multi-agent/README.md; echo; echo "=== deepseek-tui dir listing ==="; ls -la /Users/sean/Source/SpecStory/specstory-cli-multi-agent/deepseek-tui/`
 
-```text
+````text
 === multi-agent README ===
 # SpecStory CLI Multi-Agent, Multi-Tool Test and Regressions
 
@@ -69072,7 +69072,7 @@ total 0
 drwxr-xr-x   3 sean  staff   96 May 13 10:31 .
 drwxr-xr-x  15 sean  staff  480 Aug 16 09:02 ..
 drwxr-xr-x   8 sean  staff  256 May 13 12:24 2026-05-13
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:56Z)**_
@@ -69217,7 +69217,7 @@ Read DeepSeek context in provider fix and refactor docs
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli && echo "=== PROVIDER-FIXES.md deepseek context ==="; grep -n -i -B2 -A6 "deepseek" docs/PROVIDER-FIXES.md | head -80; echo; echo "=== PROVIDER-REFACTOR.md head ==="; sed -n '1,60p' docs/PROVIDER-REFACTOR.md`
 
-```text
+````text
 === PROVIDER-FIXES.md deepseek context ===
 18-| `codexcli`       | scan and emit     | entire history — every year/month/day dir found (`watcher.go:290`, `:386`)          |
 19-| `droidcli`       | scan and emit     | every session file in scope; `lastProcessed` starts empty (`watcher.go:40`, `:204`) |
@@ -69306,7 +69306,7 @@ The dependency direction is strict and verified:
 So the candidates are `pkg/spi`, `pkg/analytics` (for the tracking helpers only), or a new leaf package.
 
 ### Option A — everything into `pkg/spi`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:53:59Z)**_
@@ -69324,7 +69324,7 @@ Print the project's /pr-review command definition
 
 `cat /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.claude/commands/pr-review.md`
 
-```text
+````text
 ---
 allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
 description: Code review for pull request $1
@@ -69407,7 +69407,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
 - Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:54:07Z)**_
@@ -69582,7 +69582,7 @@ Print the opening user turns of adjacent droid-related sessions for workflow con
 
 `for f in 2026-01-28_13-10-29Z-take-a-look-at.md 2026-01-29_14-35-22Z-already-done-the-test.md 2026-01-29_14-35-22Z-command-message-pr-review.md 2026-01-29_15-58-30Z-the-droid-provider-uses.md 2026-01-29_16-26-43Z-the-test-inversions-have.md 2026-01-29_17-39-47Z-the-droid-factory-provider.md 2026-01-30_18-58-14Z-command-name-pr-review.md; do echo "=================== $f"; grep -n -A8 '^_\*\*User' "$f" | grep -v '^\-\-$' | grep -v -E '^[0-9]+-$' | head -60; done`
 
-```text
+````text
 =================== 2026-01-28_13-10-29Z-take-a-look-at.md
 7:_**User (2026-01-28 13:10:29Z)**_
 9-Take a look at the GH workflows. We have one for releases, that's triggered by a tagging, but we'd also like the linting and testing to be run automatically for any commit to `dev`, `main` or to a branch with an open PR.
@@ -69910,7 +69910,7 @@ Print the opening user turns of adjacent droid-related sessions for workflow con
 1616-<local-command-stdout>Goodbye!</local-command-stdout>
 1618:_**User (2026-01-31 14:40:56Z)**_
 1620-<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:54:24Z)**_
@@ -69934,7 +69934,7 @@ Confirm what Sean asked at line 13914 and how not-found semantics came up
 
 `H="/Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md"; sed -n '13914,13919p' "$H"; echo "----- 13980-13990 -----"; sed -n '13980,13990p' "$H"`
 
-```text
+````text
 _**User (2026-08-05 14:21:42Z)**_
 
 let's clean the dead code of  `GetSessionIDFromPath` (`watcher.go:181`) — unused.
@@ -69953,7 +69953,7 @@ _**Agent (claude-fable-5 2026-08-05 14:22:58Z)**_
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/copilotide/provider.go`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:54:26Z)**_
@@ -73433,7 +73433,7 @@ Read first extract file lines 1-400
 
 `sed -n '1,400p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_14-35-22Z-command-message-pr-review.prompts.md"`
 
-```text
+````text
 # Extracted from .specstory/history/2026-01-29_14-35-22Z-command-message-pr-review.md (9 user turns)
 
 ### [line 7] User (2026-01-29 14:35:22Z)
@@ -73834,7 +73834,7 @@ Those files don't exist - they might have been listed from a different branch st
      7→	"errors"
      8→	"fmt"
      9→	"log/slog"
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:07Z)**_
@@ -73845,7 +73845,7 @@ Read first extract file lines 400-850
 
 `sed -n '400,850p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_14-35-22Z-command-message-pr-review.prompts.md"`
 
-```text
+````text
      9→	"log/slog"
     10→	"os"
     11→	"os/exec"
@@ -74296,7 +74296,7 @@ All tests pass and the linter is clean. Here's a summary of the table-driven tes
 - `TestFormatToolCall` - 8 test cases covering Execute, TodoWrite (both formats), ...
 
 ### [line 7023] User (2026-01-29 15:46:34Z)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:11Z)**_
@@ -74307,7 +74307,7 @@ Read first extract file lines 850-end
 
 `sed -n '850,1275p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_14-35-22Z-command-message-pr-review.prompts.md"`
 
-```text
+````text
 Consider this cleanup:   2. Consider DRY Refactoring for Render Functions
 
   renderReadInput, renderListInput, renderGlobInput have similar patterns. Consider whether renderFields() could be extended to handle more cases, reducing code duplication.
@@ -74733,7 +74733,7 @@ Let me look at the other providers' watcher implementations to understand the pa
 ### [line 9670] User (2026-01-29 15:57:16Z)
 
 [Request interrupted by user]
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:15Z)**_
@@ -74744,7 +74744,7 @@ Read second extract file lines 1-400
 
 `sed -n '1,400p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_15-58-30Z-the-droid-provider-uses.prompts.md"`
 
-```text
+`````text
 # Extracted from .specstory/history/2026-01-29_15-58-30Z-the-droid-provider-uses.md (7 user turns)
 
 ### [line 7] User (2026-01-29 15:58:30Z)
@@ -75144,7 +75144,7 @@ Now let me check the sessions.go file to understand the `listSessionFiles`, `res
 Let me also check the sessions.go file for the helper functions I'll need to use.
 
 #### [line 2953] Agent (claude-opus-4-5-20251101 2026-01-29 16:07:25Z) (head)
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:18Z)**_
@@ -75155,7 +75155,7 @@ Read second extract file lines 400-end
 
 `sed -n '400,717p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_15-58-30Z-the-droid-provider-uses.prompts.md"`
 
-```text
+````text
 <tool-use data-tool-type="read" data-tool-name="Read"><details>
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/sessions.go`
@@ -75473,7 +75473,7 @@ I migrated the Droid provider from 1-second polling to fsnotify event-based file
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:22Z)**_
@@ -75484,7 +75484,7 @@ Read third extract file lines 1-450
 
 `sed -n '1,450p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_16-26-43Z-command-message-pr-review.prompts.md"`
 
-```text
+````text
 # Extracted from .specstory/history/2026-01-29_16-26-43Z-command-message-pr-review.md (10 user turns)
 
 ### [line 7] User (2026-01-29 16:26:43Z)
@@ -75935,7 +75935,7 @@ Run droidcli tests
 === RUN   TestGenerateAgen...
 
 #### [line 3982] Agent (claude-opus-4-5-20251101 2026-01-29 16:27:38Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:26Z)**_
@@ -75946,7 +75946,7 @@ Read third extract file lines 450-850
 
 `sed -n '450,850p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_16-26-43Z-command-message-pr-review.prompts.md"`
 
-```text
+````text
 #### [line 3982] Agent (claude-opus-4-5-20251101 2026-01-29 16:27:38Z) (head)
 
 All tests pass. Now let me verify the tests are not tautological by inverting assertions. I'll modify a few key tests and run them to confirm they fail:
@@ -76348,7 +76348,7 @@ The test IS already data-driven and covers:
 yup
 
 #### [line 5311] Agent (claude-opus-4-5-20251101 2026-01-29 17:16:43Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:29Z)**_
@@ -76359,7 +76359,7 @@ Read third extract file lines 850-end
 
 `sed -n '850,1187p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_16-26-43Z-command-message-pr-review.prompts.md"`
 
-```text
+````text
 #### [line 5311] Agent (claude-opus-4-5-20251101 2026-01-29 17:16:43Z) (head)
 
 <think><details><summary>Thought Process</summary>
@@ -76698,7 +76698,7 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 
     canonicalProject := canonicalizePath(projectPath)
     if sessionRoot := extractSessionWorkspaceRoot(filePath);...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:33Z)**_
@@ -76719,7 +76719,7 @@ Read fourth extract file lines 1-550
 
 `sed -n '1,550p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_17-39-47Z-the-droid-factory-provider.prompts.md"`
 
-```text
+````text
 # Extracted from .specstory/history/2026-01-29_17-39-47Z-the-droid-factory-provider.md (16 user turns)
 
 ### [line 7] User (2026-01-29 17:39:47Z)
@@ -77270,7 +77270,7 @@ Now I need to update the handling of thinking blocks to use the `Thinking` field
 </details></think>
 
 #### [line 4281] Agent (claude-opus-4-5-20251101 2026-01-29 17:57:05Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-09-14 22:59:36Z)**_
@@ -77300,7 +77300,7 @@ Read fourth extract file lines 550-1100
 
 `sed -n '550,1100p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_17-39-47Z-the-droid-factory-provider.prompts.md"`
 
-```text
+````text
 #### [line 4281] Agent (claude-opus-4-5-20251101 2026-01-29 17:57:05Z) (head)
 
 Now I need to update the case handling for thinking blocks to use the `Thinking` field instead of `Text`.
@@ -77852,7 +77852,7 @@ There's a formatting issue. Let me fix it with gofmt.
 
 <tool-use data-tool-type="shell" data-tool-name="Bash"><details>
 <summary>Tool use: **Bash**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:39Z)**_
@@ -78275,7 +78275,7 @@ Read fourth extract file lines 1100-1650
 
 `sed -n '1100,1650p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_17-39-47Z-the-droid-factory-provider.prompts.md"`
 
-```text
+````text
 <summary>Tool use: **Bash**</summary>
 Format and rerun linter and tests
 
@@ -78827,7 +78827,7 @@ Run all droidcli tests
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli	0.260s
 ```
 </details></tool-use>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:45Z)**_
@@ -78860,7 +78860,7 @@ Read fourth extract file lines 1650-end
 
 `sed -n '1650,2114p' "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-29_17-39-47Z-the-droid-factory-provider.prompts.md"`
 
-```text
+````text
 </details></tool-use>
 
 #### [line 6688] Agent (claude-opus-4-5-20251101 2026-01-29 23:31:12Z) (head)
@@ -79326,7 +79326,7 @@ Done. Now renders as:
 
 You are a Python testing specialist with deep expertise in pytest...
 ```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 22:59:48Z)**_
@@ -80595,7 +80595,7 @@ Read the first review's full text in the original history
 
 `sed -n '4272,4730p' .specstory/history/2026-01-29_14-35-22Z-command-message-pr-review.md`
 
-```text
+````text
 _**Agent (claude-opus-4-5-20251101 2026-01-29 14:38:49Z)**_
 
 Understood. Let me proceed with the full code review of PR #150.
@@ -81055,7 +81055,7 @@ This is a well-implemented provider that follows the established patterns from o
 ---
 
 _**User (2026-01-29 14:41:54Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:06Z)**_
@@ -81066,7 +81066,7 @@ Read the PR #222 section of the reviews evidence file
 
 `sed -n '163,260p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/evidence/pr-reviews-and-comments.txt`
 
-```text
+````text
 ################ PR #222
 Add Antigravity CLI provider | by gregce | merged 2026-07-24T22:51:04Z by belucid | commits 19
 BODY:
@@ -81165,7 +81165,7 @@ We then ran a 12 agent verification workflow. Three agents drove muse through fr
 
 | Area | What works today | What is not verified yet |
 |---|---|---|
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:07Z)**_
@@ -81242,7 +81242,7 @@ Read tail of first history and the polling-vs-fsnotify reply
 
 `echo "=== FILE1 tail 9660-9672 ===" && sed -n '9660,9672p' .specstory/history/2026-01-29_14-35-22Z-command-message-pr-review.md && echo && echo "=== FILE1 polling reply 8764-8782 ===" && sed -n '8764,8782p' .specstory/history/2026-01-29_14-35-22Z-command-message-pr-review.md`
 
-```text
+````text
 === FILE1 tail 9660-9672 ===
    533→	}(agentSession)
    534→
@@ -81278,7 +81278,7 @@ Would you like me to refactor the droidcli watcher to use fsnotify? I can create
 _**User (2026-01-29 15:56:49Z)**_
 
 yes, refactor it to use fsnotify, look at Claude Code and Gemini and Codex to see how we typically do this.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-09-14 23:00:13Z)**_
@@ -81802,7 +81802,7 @@ Read the second review's full text in the original history
 
 `sed -n '4076,4561p' .specstory/history/2026-01-29_16-26-43Z-command-message-pr-review.md`
 
-```text
+````text
 _**Agent (claude-opus-4-5-20251101 2026-01-29 16:29:48Z)**_
 
 Understood. I'll proceed with the comprehensive code review based on my analysis of all the files.
@@ -82289,7 +82289,7 @@ The test coverage focuses on the core parsing and conversion logic, which is app
 ---
 
 _**User (2026-01-29 16:35:34Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:15Z)**_
@@ -82555,7 +82555,7 @@ Read agent's single-exit-point answer and session tail
 
 `echo "=== FILE3 6161-6225 (single exit answer + tail) ===" && sed -n '6161,6225p' .specstory/history/2026-01-29_16-26-43Z-command-message-pr-review.md`
 
-```text
+````text
 === FILE3 6161-6225 (single exit answer + tail) ===
 _**Agent (claude-opus-4-5-20251101 2026-01-29 17:28:56Z)**_
 
@@ -82622,7 +82622,7 @@ func sessionMentionsProject(filePath string, projectPath string) bool {
 **Recommendation:** Respond to the reviewer that the guard clause is explicitly allowed by guidelines, the function is short, and the early returns improve readability by making each matching strategy's outcome immediately clear. Unless they feel strongly, I'd leave it as-is.
 
 Want me to make the change anyway, or would you prefer to discuss with the reviewer?
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:24Z)**_
@@ -83916,7 +83916,7 @@ Read two agent answers Sean accepted in second review session
 
 `echo "=== parseDroidCommand answer 4987-5011 ===" && sed -n '4987,5011p' .specstory/history/2026-01-29_16-26-43Z-command-message-pr-review.md && echo && echo "=== sessionMentionsProject assessment 5267-5305 ===" && sed -n '5267,5305p' .specstory/history/2026-01-29_16-26-43Z-command-message-pr-review.md`
 
-```text
+````text
 === parseDroidCommand answer 4987-5011 ===
 _**Agent (claude-opus-4-5-20251101 2026-01-29 16:38:26Z)**_
 
@@ -83984,7 +83984,7 @@ Would you like me to add a test case for the basename threshold scenario?
 ---
 
 _**User (2026-01-29 17:16:36Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:33Z)**_
@@ -84066,7 +84066,7 @@ Read PR #160 section and locate PR #191/#258 mentions
 
 `F=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/evidence/pr-reviews-and-comments.txt; sed -n '65,121p' $F; echo "=== grep 191/258 ==="; grep -n "#191\|#258\|windows-support\|all workspaces" $F | head -20`
 
-```text
+````text
 ################ PR #160
 Copilot IDE | by bago2k4 | merged 2026-08-07T13:19:26Z by belucid | commits 79
 BODY:
@@ -84125,7 +84125,7 @@ copilot-pull-request-reviewer[bot] [COMMENTED] 2026-08-07T13:24:07Z: ## Pull req
  136 Copilot
 --- issue comments ---
 === grep 191/258 ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:35Z)**_
@@ -84176,7 +84176,7 @@ Read b47d66b diff for README, changelog, and first set of provider files
 
 `git show b47d66b -- README.md changelog.md pkg/providers/claudecode/provider.go pkg/providers/cursorcli/provider.go pkg/providers/cursoride/agent_session.go pkg/providers/cursoride/agent_session_test.go pkg/providers/cursoride/types.go pkg/providers/cursoride/tool_handlers.go pkg/providers/cursoride/tool_grep.go | head -700`
 
-```text
+````text
 commit b47d66b55d9e805bc823f7fea369aa9cf1d60782
 Author: Sean Johnson <sean@specstory.com>
 Date:   Thu Jul 16 17:04:55 2026 -0400
@@ -84617,7 +84617,7 @@ index 78cc4e2..5702fce 100644
  // WorkspaceComposerRefs represents the workspace-specific composer references
  // Stored in workspace database with key "composer.composerData".
  // Cursor 2 used allComposers; Cursor 3 uses selectedComposerIds (currently-open tabs only).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:37Z)**_
@@ -84836,7 +84836,7 @@ Read the GenerateDroid rendering proposal
 
 `sed -n '7012,7031p' .specstory/history/2026-01-29_17-39-47Z-the-droid-factory-provider.md`
 
-```text
+````text
 _**Agent (claude-opus-4-5-20251101 2026-01-29 23:39:49Z)**_
 
 I see. The input has `description` and `location`, and the output returns `identifier`, `description` (refined), and `systemPrompt`. Here's what I propose:
@@ -84857,7 +84857,7 @@ I see. The input has `description` and `location`, and the output returns `ident
 The system prompt is very long and probably not needed in the markdown - the refined description captures the essence.
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 23:41:07Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:39Z)**_
@@ -87246,7 +87246,7 @@ Show contributor's initial README/changelog/config/registry changes
 
 `git show 7b205db --format='' -- README.md changelog.md pkg/config/config.go pkg/config/config_test.go pkg/spi/factory/registry.go`
 
-```text
+````text
 diff --git a/specstory-cli/README.md b/specstory-cli/README.md
 index 3f092f7..ad9f2f9 100644
 --- a/specstory-cli/README.md
@@ -87440,7 +87440,7 @@ index a665a5d..5afcef5 100644
  	r.initialized = true
  	slog.Info("Provider registry initialized", "count", len(r.providers), "providers", r.ListIDsUnsafe())
  }
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:51Z)**_
@@ -87965,7 +87965,7 @@ Fetch full PR #218 review bodies and inline comments from GitHub
 
 `gh api repos/specstoryai/getspecstory/pulls/218/reviews --jq '.[] | "=== REVIEW by \(.user.login) [\(.state)] \(.submitted_at)\n\(.body)\n"' 2>&1 | head -300; echo "########## REVIEW COMMENTS"; gh api repos/specstoryai/getspecstory/pulls/218/comments --jq '.[] | "=== \(.user.login) \(.path):\(.line) \(.created_at)\n\(.body)\n"' 2>&1 | head -200`
 
-```text
+````text
 === REVIEW by gregce [COMMENTED] 2026-05-10T21:41:48Z
 Hi @KiBlazer — thanks for the DeepSeek TUI provider! I gave the PR a deep review (with the help of an automated parity audit against our existing providers) and pushed three follow-up commits to a branch on this repo: [`review/pr218-deepseek-fixes`](https://github.com/specstoryai/getspecstory/tree/review/pr218-deepseek-fixes). Feel free to pull or cherry-pick into your branch.
 
@@ -88008,7 +88008,7 @@ git cherry-pick 78b7287..origin/review/pr218-deepseek-fixes
 Happy to discuss any of the changes — the commit messages have full context. Once your PR has these (or equivalent fixes), I think it's mergeable.
 
 ########## REVIEW COMMENTS
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:00:55Z)**_
@@ -93015,7 +93015,7 @@ List multi-agent repo and read README
 
 `ls -la /Users/sean/source/SpecStory/specstory-cli-multi-agent/ && echo "---README---" && cat /Users/sean/source/SpecStory/specstory-cli-multi-agent/README.md`
 
-```text
+````text
 total 24
 drwxr-xr-x  15 sean  staff   480 Aug 16 09:02 .
 drwxr-xr-x  48 sean  staff  1536 Sep 10 18:10 ..
@@ -93115,7 +93115,7 @@ Create a report in markdown at @<dir>/tool-use-audit.md with a table characteriz
 - data line number
 - comment
 ```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:06Z)**_
@@ -93423,7 +93423,7 @@ Read first half of 6ad6e24 diff
 
 `sed -n '1,450p' /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bmnp78mj4.txt`
 
-```text
+````text
 diff --git a/specstory-cli/changelog.md b/specstory-cli/changelog.md
 index c62a0ed..1b67e2c 100644
 --- a/specstory-cli/changelog.md
@@ -93874,7 +93874,7 @@ index fd7b697..70d164e 100644
 +		}
 +		index[id] = conversationSummary{Title: title, Preview: preview}
 +	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:07Z)**_
@@ -93885,7 +93885,7 @@ Fetch full PR #218 issue comments and find the merge commit
 
 `gh api repos/specstoryai/getspecstory/issues/218/comments --jq '.[] | "=== COMMENT by \(.user.login) \(.created_at)\n\(.body)\n"' 2>&1; echo "########## MERGE COMMITS"; git log --merges --format='%h %ad %an | %s' --date=short --after=2026-05-13 --before=2026-05-20 | cat`
 
-```text
+````text
 === COMMENT by gregce 2026-05-10T22:04:25Z
 Let me know if you have any questions @KiBlazer
 
@@ -93984,7 +93984,7 @@ It was only `gofmt` on `specstory-cli/pkg/spi/factory/registry.go` (import order
 190bafa 2026-05-19 bago2k4 | Merge branch 'cursor-ide' into copilot-ide
 a1c8724 2026-05-19 bago2k4 | Merge branch 'dev' into cursor-ide
 25a957a 2026-05-19 iacopo | Merge pull request #219 from danxtshake/fix/install-script-filename
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:07Z)**_
@@ -94706,7 +94706,7 @@ Read new-agent-version GitHub workflow
 
 `cd /Users/sean/source/SpecStory/provider-factory && cat -n .github/workflows/new-agent-version.yml`
 
-```text
+````text
      1	name: new-agent-version
      2	
      3	# NEW-AGENT-VERSION — the factory's release sensor.
@@ -94926,7 +94926,7 @@ Read new-agent-version GitHub workflow
    217	              --label "sf:coding-agent-version-changed" --label "sf:provider:$PROVIDER" \
    218	              --body-file "$RUNNER_TEMP/body.md"
    219	          fi
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:07Z)**_
@@ -96783,7 +96783,7 @@ Fetch PR #150 inline review comments via GitHub API
 
 `gh api repos/specstoryai/getspecstory/pulls/150/comments --paginate --jq '.[] | "\(.user.login) | \(.created_at) | \(.path):\(.line // .original_line) | id=\(.id) in_reply_to=\(.in_reply_to_id // "")\n\(.body)\n-----"' 2>&1 | head -700`
 
-```text
+```````text
 Copilot | 2026-01-19T21:49:49Z | specstory-cli/pkg/providers/droidcli/provider.go:437 | id=2706169900 in_reply_to=
 The function has multiple exit points (early returns at lines 260, 273, 278) rather than a single exit point. Consider using a single return variable and falling through to a single return statement at the end for better maintainability and consistency with the codebase guidelines.
 -----
@@ -97114,7 +97114,7 @@ Consider whether this in-memory map will scale appropriately for long-running wa
 Copilot | 2026-01-29T23:47:20Z | specstory-cli/pkg/providers/droidcli/provider.go:446 | id=2743996601 in_reply_to=
 The function writeFactoryDebugRaw checks for nil session but then returns nil without logging. For consistency with other debug logging in this file, consider adding a debug log message when session is nil, similar to lines 208 and 495.
 -----
-```
+```````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:13Z)**_
@@ -103495,7 +103495,7 @@ Read 84372c6 parser.go diff
 
 `git show --format='%h %s' 84372c6 -- pkg/providers/copilotide/parser.go`
 
-```text
+````text
 84372c6 A LOT of work on the Copilot IDE provider's tool rendering.
 
 diff --git a/specstory-cli/pkg/providers/copilotide/parser.go b/specstory-cli/pkg/providers/copilotide/parser.go
@@ -103855,7 +103855,7 @@ index 6b3593d..0a8efc2 100644
  // codeFence returns a backtick fence long enough to safely wrap s: one backtick more
  // than the longest backtick run inside it (a value containing ``` would otherwise
  // terminate a plain three-backtick fence early), never shorter than the standard three.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:25Z)**_
@@ -104078,7 +104078,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:26Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bsrl01682.txt`
 
-```text
+````text
 1	===== deepseek-tui/2026-05-13/tool-use-audit.md =====
 2	     1	# Tool-use audit — DeepSeek TUI session 2429dd93
 3	     2	
@@ -104279,7 +104279,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:26Z)**_
 198	    41	| subagent_spawn         | 784      | 😢       | 103/104        | —         | Role + objective rendered; `task_name` ("demo subagent") dropped from the body; result is raw single-line JSON (though informative).                                                                                      |
 199	    42	| subagent_status        | 796      | 😢       | 106/107        | —         | Generic JSON input; raw JSON result.                                                                                                                                                                                      |
 200	    43	| subagent_send_message  | 814      | 😢       | 109/110        | —         | Generic JSON input; raw JSON result.                                                                                                                                                                                      |
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:26Z)**_
@@ -104290,7 +104290,7 @@ Read f45cab4 diff part 1 (tool rendering improvements)
 
 `sed -n '1,520p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/f45cab4.diff`
 
-```text
+````text
 diff --git a/specstory-cli/pkg/providers/antigravitycli/agent_session.go b/specstory-cli/pkg/providers/antigravitycli/agent_session.go
 index 55b69b3..4ba5e42 100644
 --- a/specstory-cli/pkg/providers/antigravitycli/agent_session.go
@@ -104811,7 +104811,7 @@ index 1c312e0..4aebdac 100644
 +		fmt.Fprintf(&b, "Subagent: `%s`", name)
 +	}
 +	if desc != "" {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:26Z)**_
@@ -105032,7 +105032,7 @@ Read f45cab4 diff part 2
 
 `sed -n '520,1046p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/f45cab4.diff`
 
-```text
+````text
 +	if desc != "" {
 +		if b.Len() > 0 {
 +			b.WriteString(" — ")
@@ -105560,7 +105560,7 @@ index 1408fd0..47da5f3 100644
  	session := &agSession{
  		ConversationID: conversationID,
  		Steps:          steps,
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:28Z)**_
@@ -109019,7 +109019,7 @@ Show diffs for Sean's 2026-01-29 afternoon droidcli commits part 1
 
 `for s in 6fca1a0 3afaec4 93de186 4469841 110a58a; do echo "=================== $s"; git show --format='%h %s' $s -- . ':!.specstory' | cat; done`
 
-```text
+````text
 =================== 6fca1a0
 6fca1a0 Fix the --debug-raw output from the Droid provider.
 
@@ -109588,7 +109588,7 @@ index 220be62..f907907 100644
  	}
  
  	for _, tt := range tests {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:34Z)**_
@@ -109838,7 +109838,7 @@ Read PROVIDER-SPI.md
 
 `cat -n docs/PROVIDER-SPI.md`
 
-```text
+````text
      1	# SpecStory CLI's Agent SPI
      2	
      3	The SpecStory CLI's Agent SPI (Service Provider Interface) allows developers to extend the SpecStory CLI by implementing support for new AI coding agents.
@@ -110384,7 +110384,7 @@ Read PROVIDER-SPI.md
    543	    return fmt.Errorf("not implemented")
    544	}
    545	```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:35Z)**_
@@ -110395,7 +110395,7 @@ Show diffs for Sean's 2026-01-29 afternoon droidcli commits part 2
 
 `for s in ade1b53 948bcfa 0d1dd24 172fb97; do echo "=================== $s"; git show --format='%h %s' $s -- . ':!.specstory' | cat; done`
 
-```text
+````text
 =================== ade1b53
 ade1b53 Fix formatting for Droid provider's Edit tool.
 
@@ -110819,7 +110819,7 @@ index b182651..81531c7 100644
  
  require (
  	github.com/charmbracelet/fang v0.3.0 // Styled terminal output for Cobra commands
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:35Z)**_
@@ -110830,7 +110830,7 @@ Read SESSION-PORTABILITY.md
 
 `cat -n docs/SESSION-PORTABILITY.md`
 
-```text
+````text
      1	# Session Portability (Reverse Data Flow)
      2	
      3	This document describes the design for **session portability**: reconstructing an agent's native session format *from* the SpecStory CLI's neutral session schema, so a conversation captured from one agent can be resumed in another — and, eventually, on another machine, and by another user.
@@ -111107,7 +111107,7 @@ Read SESSION-PORTABILITY.md
    274	
    275	- [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface and registry.
    276	- [SPI-SESSION-DATA-SCHEMA.md](SPI-SESSION-DATA-SCHEMA.md) — the neutral `SessionData` schema.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:35Z)**_
@@ -111118,7 +111118,7 @@ Read PROVIDER-REFACTOR.md as added in 89a254e
 
 `sed -n 1,260p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bilauvxws.txt`
 
-```text
+````text
 89a254e Provider refactor to remove duplicate code.
 
 diff --git a/specstory-cli/docs/PROVIDER-REFACTOR.md b/specstory-cli/docs/PROVIDER-REFACTOR.md
@@ -111379,7 +111379,7 @@ index 0000000..5635aa9
 +// then reported with TrackCheckSuccess or TrackCheckFailure.
 +//
 +// Grouping the fields is what keeps the two report calls honest: they otherwise
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:35Z)**_
@@ -111849,7 +111849,7 @@ Read RESUME-TUI.md and SESSION-SEARCH.md
 
 `cat -n docs/RESUME-TUI.md docs/SESSION-SEARCH.md`
 
-```text
+````text
      1	# `specstory resume` — the picker TUI
      2	
      3	The interactive session picker that makes SpecStory the best way to resume a coding-agent
@@ -112064,7 +112064,7 @@ Read RESUME-TUI.md and SESSION-SEARCH.md
     90	
     91	- [RESUME-TUI.md](RESUME-TUI.md) — the shared `sessionTUI` model, keymap, and browser.
     92	- [SESSIONS-DB.md](SESSIONS-DB.md) — the index both read from.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:37Z)**_
@@ -112319,7 +112319,7 @@ Read PROVIDER-FIXES.md
 
 `cat -n docs/PROVIDER-FIXES.md`
 
-```text
+````text
      1	# Provider fixes
      2	
      3	**Date:** 2026-08-17 · **Status:** All three implemented. §1 resolved as option A.
@@ -112455,7 +112455,7 @@ Read PROVIDER-FIXES.md
    133	Coverage for §1 is uneven by design. `antigravitycli` carries the full contract as a test — seed, scan emits nothing, bump the mtime, scan emits — verified to fail when the seed is neutered. `droidcli` and `deepseektui` have their seed functions tested directly (every transcript recorded, non-transcripts left out, missing store tolerated) because neither package has a fixture helper for writing a parseable session, and the mtime guard their scan applies runs before parsing, so a garbage file cannot tell the seeded and unseeded paths apart. `codexcli`'s change is control flow inside the watcher goroutine's closures, which has no test harness; only `dirInWatchScope` is unit-tested.
    134	
    135	The Muse bootstrap case from the same investigation is already fixed and covered by `TestRefresh_AdoptsSessionsWrittenWhileTheStoreDidNotExist` and `TestRefresh_DoesNotAdoptSessionsThatPredateTheWatcher` in `pkg/providers/musecode/watcher_test.go`. The second of those is the guard that keeps a future change from turning every watcher start into a re-publish of the trailing window.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:38Z)**_
@@ -112466,7 +112466,7 @@ Show Sean's June commits that introduced reconstruct.go to the deepseektui provi
 
 `git show 0981e7a af21305 --format='##### %h %ad %an | %s' --date=short -- pkg/providers/deepseektui | cat`
 
-```text
+````text
 ##### 0981e7a 2026-06-17 Sean Johnson | Work on agent session portability.
 
 diff --git a/specstory-cli/pkg/providers/deepseektui/reconstruct.go b/specstory-cli/pkg/providers/deepseektui/reconstruct.go
@@ -112731,7 +112731,7 @@ index 42d3f49..85f727b 100644
 +	}
 +	return refs, nil
 +}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:39Z)**_
@@ -113516,7 +113516,7 @@ Read d8c1c0f diff (cleanup non-real tool renderers)
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/d8c1c0f.diff`
 
-```text
+````text
 diff --git a/specstory-cli/docs/antigravity-format-spec.md b/specstory-cli/docs/antigravity-format-spec.md
 index 5313cd6..9a5fab7 100644
 --- a/specstory-cli/docs/antigravity-format-spec.md
@@ -113785,7 +113785,7 @@ index b5fe834..5c55ec6 100644
  		{"some_future_tool", schema.ToolTypeGeneric},
  	}
  	for _, tt := range tests {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:45Z)**_
@@ -114177,7 +114177,7 @@ Read 1e3a9d9 diff (minor code cleanup, deepseek too)
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/1e3a9d9.diff`
 
-```text
+`````text
 diff --git a/specstory-cli/pkg/cmd/session_tui_browser.go b/specstory-cli/pkg/cmd/session_tui_browser.go
 index 5119931..a439cda 100644
 --- a/specstory-cli/pkg/cmd/session_tui_browser.go
@@ -114584,7 +114584,7 @@ index 5d55b27..15c9db5 100644
  			}
  			if data.WorkspaceRoot != tt.wantWorkspace {
  				t.Errorf("WorkspaceRoot = %q, want %q", data.WorkspaceRoot, tt.wantWorkspace)
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:48Z)**_
@@ -114676,7 +114676,7 @@ Read 57503af diff part A (fence, changelog, cursoride non-workspace files)
 
 `git show 57503af -- changelog.md pkg/spi/fence.go pkg/session/markdown.go pkg/providers/cursoride/tool_handlers.go pkg/providers/cursoride/tool_shell.go pkg/providers/cursoride/tool_write.go pkg/providers/cursoride/database.go pkg/providers/cursoride/provider.go pkg/providers/cursoride/reconstruct.go pkg/providers/cursoride/watcher.go | head -800`
 
-```text
+````text
 commit 57503af4bfd6ab1091bcfd1c707aa4a9e20f3dae
 Author: Sean Johnson <sean@specstory.com>
 Date:   Fri Aug 7 11:26:48 2026 -0400
@@ -115220,7 +115220,7 @@ index 0000000..34ed147
 +	}
 +	return s // more bytes than max but fewer runes (multi-byte characters)
 +}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:48Z)**_
@@ -117208,7 +117208,7 @@ Read dry-run fixtures
 
 `cd /Users/sean/source/SpecStory/provider-factory && cat -n Workflows/coding-agent-release/dry-runs/README.md && echo "=====issue1.md=====" && cat -n Workflows/coding-agent-release/dry-runs/issue1.md && echo "=====issue1.tools=====" && cat Workflows/coding-agent-release/dry-runs/issue1.tools && echo "=====issue2.md (head)=====" && head -40 Workflows/coding-agent-release/dry-runs/issue2.md && echo "=====issue3.md (head)=====" && head -40 Workflows/coding-agent-release/dry-runs/issue3.md`
 
-```text
+````text
      1	# TOOL-AUDIT dry-runs
      2	
      3	Hand-executed, non-committing runs of the [TOOL-AUDIT](../TOOL-AUDIT.md) job body against the eight bootstrap issues (#1–#8, opened 2026-08-24), one provider at a time. Nothing is posted or committed by these runs; each `issueN.md` is the report the workflow *would* have posted to that issue, marker line included.
@@ -117341,7 +117341,7 @@ Reasoning: the stored list is the seed from the human-run predecessor repo at Cl
 Cross-run note for whoever reads this next: the 2.1.258 dry-run fixture (`dry-runs/issue3.*`) recorded `Agent` and no `Task`, and paired them as a rename. This run's two readings both show `Task` and no `Agent`. Against the stored seed, `Task` is simply unchanged — but the flip between runs suggests that name is not stable in the enumeration, and a future audit seeing `Agent` again should treat it as the same subagent-launch tool, not a new one.
 
 Evidence: stored `tools/claudecode` (18 lines), `reading-1` / `reading-1.raw`, `reading-2` / `reading-2.raw` (26 lines each). Downstream: the 16 additions are rendering-coverage work for getspecstory.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:54Z)**_
@@ -117457,7 +117457,7 @@ Read e4b8ff2 diff (watch behavior normalization)
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/e4b8ff2.diff`
 
-```text
+````text
 diff --git a/specstory-cli/changelog.md b/specstory-cli/changelog.md
 index e976f59..ec05a4e 100644
 --- a/specstory-cli/changelog.md
@@ -117762,7 +117762,7 @@ index c9f5b49..8df34a2 100644
 +	}
 +	waitFor(t, &mu, &calls, 1)
 +}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:54Z)**_
@@ -117773,7 +117773,7 @@ Read the post-review formatToolInput dispatch for remaining aliases
 
 `echo "=== formatToolInput switch at 0d1dd24"; git show 0d1dd24:specstory-cli/pkg/providers/droidcli/markdown_tools.go | sed -n '1,120p'`
 
-```text
+````text
 === formatToolInput switch at 0d1dd24
 package droidcli
 
@@ -117895,7 +117895,7 @@ func formatEditDiffOutput(content string) string {
 			builder.WriteString(line.Content)
 			builder.WriteString("\n")
 		case "removed":
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:54Z)**_
@@ -118481,7 +118481,7 @@ Read f5e2862 diff (muse adaptation to refactor)
 
 `cat /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/gitdiffs/f5e2862.diff`
 
-```text
+`````text
 f5e2862 2026-08-14 Code cleanup.
 
 diff --git a/specstory-cli/docs/PROVIDER-REFACTOR.md b/specstory-cli/docs/PROVIDER-REFACTOR.md
@@ -118873,7 +118873,7 @@ index 5840ad7..83a5f4f 100644
 +		t.Fatal("callback was never invoked")
 +	}
 +}
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:01:58Z)**_
@@ -120296,7 +120296,7 @@ Show full diff of the second Droid doc-update commit
 
 `git show 3f1cd2d --format='%h %s' | grep -v '^index' | head -80`
 
-```text
+````text
 3f1cd2d Doc updates for Droid provider.
 
 diff --git a/README.md b/README.md
@@ -120345,7 +120345,7 @@ diff --git a/README.md b/README.md
  specstory run gemini    # Launch Gemini CLI
  specstory run           # Launch default agent
  ```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:00Z)**_
@@ -120693,7 +120693,7 @@ Read 89a254e diff part 2
 
 `sed -n '600,1200p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/89a254e.diff`
 
-```text
+`````text
 -		return renderGenericJSON(args)
 +		return spi.RenderGenericJSON(args, metaArgKeys...)
  	}
@@ -121295,7 +121295,7 @@ index 0000000..37c35ea
 +			err:  errors.New("the binary crashed"),
 +			want: CheckErrorUnknown,
 +		},
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:00Z)**_
@@ -121344,7 +121344,7 @@ Read 89a254e diff part 3
 
 `sed -n '1200,1759p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/89a254e.diff`
 
-```text
+`````text
 +		},
 +		{
 +			name: "unrelated sentinel is unclassified",
@@ -121905,7 +121905,7 @@ index 0000000..b395cf2
 +		}
 +	})
 +}
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:02Z)**_
@@ -121916,7 +121916,7 @@ Read first half of test refactoring diff
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bhepvioco.txt | sed -n '1,450p'`
 
-```text
+````text
 76142c7 Minor test code refactoring.
 
 diff --git a/specstory-cli/pkg/providers/droidcli/agent_session_test.go b/specstory-cli/pkg/providers/droidcli/agent_session_test.go
@@ -122367,7 +122367,7 @@ index 25055ee..96ffb35 100644
  
 -func TestFormatToolCallTodoWrite(t *testing.T) {
 -	input, _ := json.Marshal(map[string]any{
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:03Z)**_
@@ -122449,7 +122449,7 @@ Read second half of test refactoring diff
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bhepvioco.txt | sed -n '450,1000p'`
 
-```text
+````text
 -	input, _ := json.Marshal(map[string]any{
 -		"todos": []map[string]any{{"description": "Task", "status": "completed"}},
 -	})
@@ -122865,7 +122865,7 @@ index 0dad12b..f39a4ba 100644
 +		})
  	}
  }
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:03Z)**_
@@ -122958,7 +122958,7 @@ Read DeepSeek audit prompt ranges and file format
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && echo "=== FORMAT SAMPLE (head of deepseek prompts) ===" && head -40 2026-05-13_13-48-53Z-i-ve-got-a.prompts.md && echo && echo "=== DEEPSEEK 420-500 ===" && sed -n '420,500p' 2026-05-13_13-48-53Z-i-ve-got-a.prompts.md && echo && echo "=== DEEPSEEK 940-1010 ===" && sed -n '940,1010p' 2026-05-13_13-48-53Z-i-ve-got-a.prompts.md`
 
-```text
+`````text
 === FORMAT SAMPLE (head of deepseek prompts) ===
 # Extracted from .specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md (6 user turns)
 
@@ -123141,7 +123141,7 @@ Key fin...
 <command-name>/exit</command-name>
             <command-message>exit</command-message>
             <command-args></command-args>
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:05Z)**_
@@ -123518,7 +123518,7 @@ Read 57503af stat and spi fence and session markdown diffs
 
 `git show --stat --format='%h %s%n%b' 57503af -- . ':!.specstory' ':!specstory' ':!go.sum' | cat; echo "######## spi/fence.go"; git show --format= 57503af -- pkg/spi/fence.go; echo "######## session/markdown.go"; git show --format= 57503af -- pkg/session/markdown.go`
 
-```text
+````text
 57503af Fixes to markdown code fence runs, inspired by PR #241, but applied to the new providers that didn't exist at the time of that PR. DRY up the common VS Code handling from Cursor and Copilot providers.
 
 
@@ -123660,7 +123660,7 @@ index 859501c..45321bd 100644
 +			markdown.WriteString("\n")
  		}
  	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:06Z)**_
@@ -123797,7 +123797,7 @@ Show August diffs restricted to deepseektui provider
 
 `git show 57503af a2bb733 e4b8ff2 --format='##### %h %ad %an | %s' --date=short -- pkg/providers/deepseektui | cat`
 
-```text
+````text
 ##### 57503af 2026-08-07 Sean Johnson | Fixes to markdown code fence runs, inspired by PR #241, but applied to the new providers that didn't exist at the time of that PR. DRY up the common VS Code handling from Cursor and Copilot providers.
 
 diff --git a/specstory-cli/pkg/providers/deepseektui/markdown_tools.go b/specstory-cli/pkg/providers/deepseektui/markdown_tools.go
@@ -124020,7 +124020,7 @@ index 0000000..67b23fc
 +		t.Errorf("seeded %v against a missing store, want nothing", state.lastProcessed)
 +	}
 +}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:07Z)**_
@@ -124182,7 +124182,7 @@ Read SESSIONS-DB.md first half
 
 `sed -n '1,280p' docs/SESSIONS-DB.md | cat -n`
 
-```text
+````text
      1	# Sessions Index (`sessions.db`)
      2	
      3	> **STATUS: FIRST CUT RATIFIED; LATER STAGES STRAWMAN.** The first build chunk — the
@@ -124463,7 +124463,7 @@ Read SESSIONS-DB.md first half
    278	  uses (only the progress reporter differs: live bars vs. a silent `nopReporter`). It is
    279	  cancelled the instant the TUI exits and never blocks process exit — an abandoned write batch
    280	  is safe under WAL. It is skipped when the index was just built fresh in the foreground (see
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:09Z)**_
@@ -124562,7 +124562,7 @@ Read SESSIONS-DB.md second half
 
 `sed -n '281,554p' docs/SESSIONS-DB.md | awk '{printf "%d\t%s\n", NR+280, $0}'`
 
-```text
+````text
 281	  `openOrBuildResumeIndex` → `builtFresh`).
 282	
 283	- **Real-time upserts from `watch`/`run`/`resume`-launch.** These already write a markdown file
@@ -124837,7 +124837,7 @@ Read SESSIONS-DB.md second half
 552	  index serves.
 553	- [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface the new enumeration method joins.
 554	- `pkg/utils/project_identity.go` — `git_id` / `workspace_id` / `GetProjectID()`.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:10Z)**_
@@ -124855,7 +124855,7 @@ Read README Agent Support, Quickstart, Resume & Search, Debug Raw sections
 
 `sed -n '23,160p' README.md | awk '{printf "%d\t%s\n", NR+22, $0}' && echo "=== DEBUG RAW ===" && sed -n '581,632p' README.md | awk '{printf "%d\t%s\n", NR+580, $0}'`
 
-```text
+````text
 23	## Agent Support
 24	
 25	The following coding agents are supported in the SpecStory CLI:
@@ -125047,7 +125047,7 @@ Read README Agent Support, Quickstart, Resume & Search, Debug Raw sections
 630	
 631	## Testing
 632
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:11Z)**_
@@ -125352,7 +125352,7 @@ Read 57503af copilotide DRY diffs
 
 `git show --format= 57503af -- pkg/providers/copilotide/parser.go pkg/providers/copilotide/provider.go pkg/providers/copilotide/reconstruct.go; echo "######## workspace.go (only +/- lines with func or comment header)"; git show --format= 57503af -- pkg/providers/copilotide/workspace.go | grep -E '^[+-](func |// [A-Za-z]|type |import|\t"github)' | head -80`
 
-```text
+````text
 diff --git a/specstory-cli/pkg/providers/copilotide/parser.go b/specstory-cli/pkg/providers/copilotide/parser.go
 index 2d1c4a2..16c3c39 100644
 --- a/specstory-cli/pkg/providers/copilotide/parser.go
@@ -125679,7 +125679,7 @@ index b72782b..f00dc46 100644
 -// machine / inside the container — matching against a local project path is
 -// handled by the basename fallback in findWorkspaceForProject.
 -func uriToPath(uri string) (string, error) {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:14Z)**_
@@ -128934,7 +128934,7 @@ Skim contributor's 8cadb3f project mapping commit
 
 `sed -n '1,140p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/8cadb3f.diff`
 
-```text
+````text
 diff --git a/specstory-cli/docs/antigravity-format-spec.md b/specstory-cli/docs/antigravity-format-spec.md
 index 17f0a76..0e54af5 100644
 --- a/specstory-cli/docs/antigravity-format-spec.md
@@ -129075,7 +129075,7 @@ index be85331..1871083 100644
 @@ -266,12 +266,17 @@ func TestResolveSessionWorkspace(t *testing.T) {
  
  	// History is authoritative when present.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:25Z)**_
@@ -129179,7 +129179,7 @@ Read first half of e6d3508 diff
 
 `sed -n 1,420p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bx5dqmfx1.txt`
 
-```text
+````text
 e6d3508 2026-08-16 Code cleanup.
 
 diff --git a/specstory-cli/docs/PROVIDER-REFACTOR.md b/specstory-cli/docs/PROVIDER-REFACTOR.md
@@ -129600,7 +129600,7 @@ diff --git a/specstory-cli/pkg/providers/musecode/watcher.go b/specstory-cli/pkg
 index 23c3f10..6b9f89c 100644
 --- a/specstory-cli/pkg/providers/musecode/watcher.go
 +++ b/specstory-cli/pkg/providers/musecode/watcher.go
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:26Z)**_
@@ -130253,7 +130253,7 @@ Check whether Copilot's fence, magic-number and exit-point comments were acted o
 
 `echo "=== maxReasonableLineSize comment at 0d1dd24"; git show 0d1dd24:specstory-cli/pkg/providers/droidcli/parser.go | grep -n -B3 -A3 'maxReasonableLineSize ='; echo "=== fence handling at 0d1dd24 markdown_tools.go"; git show 0d1dd24:specstory-cli/pkg/providers/droidcli/markdown_tools.go | grep -n -B4 -A12 'func renderCodeBlock\|func codeBlock\|\\\\```\|fence'; echo "=== sessionMentionsProject at 0d1dd24 (threshold / exits)"; git show 0d1dd24:specstory-cli/pkg/providers/droidcli/provider.go | grep -n -A40 'func sessionMentionsProject(' | head -70`
 
-```text
+````text
 === maxReasonableLineSize comment at 0d1dd24
 365-const (
 366-	kb                    = 1024
@@ -130322,7 +130322,7 @@ Check whether Copilot's fence, magic-number and exit-point comments were acted o
 376-			return nil
 377-		}
 378-		var event sessionStartEvent
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:27Z)**_
@@ -133599,7 +133599,7 @@ Look at contributor's original provider.go and markdown_tools.go comment style
 
 `echo "=== 7b205db provider.go head"; git show 7b205db:specstory-cli/pkg/providers/antigravitycli/provider.go | sed -n '1,60p'; echo; echo "=== 7b205db markdown_tools.go head"; git show 7b205db:specstory-cli/pkg/providers/antigravitycli/markdown_tools.go | sed -n '1,120p'`
 
-```text
+````text
 === 7b205db provider.go head
 package antigravitycli
 
@@ -133783,7 +133783,7 @@ func formatToolOutput(tool *ToolInfo) string {
 		return fmt.Sprintf("Output:\n```text\n%s\n```", content)
 	}
 	return fmt.Sprintf("Output: %s", content)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:32Z)**_
@@ -135551,7 +135551,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:46Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b147cpv1f.txt`
 
-```text
+````text
 1	################ 2026-08-04_15-05-09Z-let-s-play-close.prompts.md ################
 2	@@3: ### [line 7] User (2026-08-04 15:05:09Z)
 3	<command-name>/model</command-name>
@@ -136055,7 +136055,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:46Z)**_
 501	@@2034: ### [line 7218] User (2026-01-29 23:44:49Z)
 502	hmm a <details> tag w/in a <details> tag is unlikely to work and/or be helpful when this is renederred. So... just **System Prompt:** without the HTML tagging.
 503
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:46Z)**_
@@ -136073,7 +136073,7 @@ Read PROVIDER-REFACTOR.md section of 89a254e
 
 `sed -n '1,230p' /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/agdiffs/89a254e.diff`
 
-```text
+````text
 diff --git a/specstory-cli/docs/PROVIDER-REFACTOR.md b/specstory-cli/docs/PROVIDER-REFACTOR.md
 new file mode 100644
 index 0000000..cad7928
@@ -136304,7 +136304,7 @@ index 0000000..cad7928
 +
 +The `ToLower` additions are strictly corrective: a shouted extension previously produced a tag no highlighter recognizes.
 +
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:47Z)**_
@@ -136315,7 +136315,7 @@ Show spi check helpers and analytics check events added in the provider refactor
 
 `git show 89a254e --format='##### %h' -- pkg/spi/check.go pkg/analytics/check_events.go | cat; echo "##### PROVIDER-REFACTOR.md head"; git show 89a254e:specstory-cli/docs/PROVIDER-REFACTOR.md | head -80`
 
-```text
+````text
 ##### 89a254e
 
 diff --git a/specstory-cli/pkg/analytics/check_events.go b/specstory-cli/pkg/analytics/check_events.go
@@ -136512,7 +136512,7 @@ All twelve helpers into one new sub-package importing `spi` + `analytics`.
 
 - **Pros:** `spi` stays pristine; single home.
 - **Cons:** a third shared location for provider code when `spi` already plays that role; every provider adds an import; the markdown helpers would sit next to `spi.CodeFence`'s callers but in a different package.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:48Z)**_
@@ -136985,7 +136985,7 @@ Read e4b8ff2 PROVIDER-FIXES.md and watch.go diff
 
 `git show e4b8ff2 --format='%h %s' -- docs/PROVIDER-FIXES.md pkg/cmd/watch.go | cat`
 
-```text
+````text
 e4b8ff2 Normalize the provider watch behavior on previously unsynced sessions. Fix a format change in Codex affecting the Codex CLI provider.
 
 diff --git a/specstory-cli/docs/PROVIDER-FIXES.md b/specstory-cli/docs/PROVIDER-FIXES.md
@@ -137175,7 +137175,7 @@ index 1106edc..096ece7 100644
  				if log.IsSilent() {
  					return
  				}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:51Z)**_
@@ -137675,7 +137675,7 @@ Show fence helper, watch normalization, and changelog wording from the August co
 
 `echo "##### 57503af changelog"; git show 57503af -- changelog.md | cat; echo "##### 57503af fence.go head"; git show 57503af:specstory-cli/pkg/spi/fence.go | head -40; echo "##### e4b8ff2 changelog + watch.go"; git show e4b8ff2 -- changelog.md pkg/cmd/watch.go | cat; echo "##### PROVIDER-FIXES.md head"; git show e4b8ff2:specstory-cli/docs/PROVIDER-FIXES.md | head -60`
 
-```text
+````text
 ##### 57503af changelog
 commit 57503af4bfd6ab1091bcfd1c707aa4a9e20f3dae
 Author: Sean Johnson <sean@specstory.com>
@@ -137883,7 +137883,7 @@ The four scan-and-emit providers were converted, by the means each one's structu
 Seeding rather than not-looking is the right implementation for the three `lastProcessed`-based providers: their scan function is also the adopt path, so suppressing the emit has to happen through the state the scan already consults, and their later scans keep adopting unchanged.
 
 Codex needed the flag instead because it holds no per-session state — `ScanCodexSessions` re-emits a directory wholesale every time — so startup and adoption had to be told apart at the call site. `watchDayDir` serves both, and the day-rollover path passes `scan: true` because a directory appearing mid-flight holds activity nobody observed.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:02:56Z)**_
@@ -138340,7 +138340,7 @@ Fetch PR #159 inline review comments via GitHub API
 
 `gh api repos/specstoryai/getspecstory/pulls/159/comments --paginate --jq '.[] | "\(.user.login) | \(.path | sub("specstory-cli/";"")):\(.line // .original_line) | \(.created_at) | \(.body | gsub("\n";" ") | .[0:260])"' 2>&1 | head -200`
 
-```text
+````text
 <persisted-output>
 Output too large (57.8KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bz0kghal4.txt
 
@@ -138353,7 +138353,7 @@ Copilot | pkg/providers/cursoride/provider.go:293 | 2026-01-29T13:02:23Z | The e
 Copilot | pkg/providers/cursoride/watcher.go:77 | 2026-01-29T13:02:23Z | The comment 'Configurable in code as requested' is unclear. If this should be configurable by users, document how to change it (e.g., via environment variable). If it's only configurable by developers, the comment is unnecessary since all code is configurable 
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:10Z)**_
@@ -139144,7 +139144,7 @@ Read Antigravity agent-finding ranges from prompts
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && F=2026-07-21_14-19-33Z-we-re-on-a.prompts.md && echo "=== AG 2724-2830 ===" && sed -n '2724,2830p' $F | cut -c1-900 && echo "=== AG 3181-3215 ===" && sed -n '3181,3215p' $F | cut -c1-900 && echo "=== AG 3864-3900 ===" && sed -n '3864,3900p' $F | cut -c1-900 && echo "=== AG 3960-4075 ===" && sed -n '3960,4075p' $F | cut -c1-900`
 
-```text
+`````text
 === AG 2724-2830 ===
 ### [line 10064] User (2026-07-24 15:54:41Z)
 
@@ -139444,7 +139444,7 @@ On it — converting both edit-output blocks to `diff` fences and dropping the r
 #### [line 17005] Agent (claude-opus-4-8 2026-07-24 18:49:45Z) (head)
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:14Z)**_
@@ -140598,7 +140598,7 @@ Read 734fe6d muse tests, watcher and remaining shared diffs (part 3)
 
 `sed -n 1417,2159p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/gitdiffs/734fe6d.diff`
 
-```text
+````text
 diff --git a/specstory-cli/pkg/providers/musecode/markdown_tools_test.go b/specstory-cli/pkg/providers/musecode/markdown_tools_test.go
 index 54e59af..103ab44 100644
 --- a/specstory-cli/pkg/providers/musecode/markdown_tools_test.go
@@ -141342,7 +141342,7 @@ index 45e04b2..90cfe50 100644
  	}
  
  	// Wait for all watchers to complete (they run until Ctrl+C)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:20Z)**_
@@ -141419,7 +141419,7 @@ Fetch full PR #269 review bodies including suppressed comments
 
 `gh api repos/specstoryai/getspecstory/pulls/269/reviews --paginate --jq '.[] | "### \(.user.login) [\(.state)] \(.submitted_at)\n\(.body)\n"' 2>&1 | sed 's/<details>//g; s/<\/details>//g; s/<summary>//g; s/<\/summary>//g' | head -400`
 
-```text
+````text
 ### copilot-pull-request-reviewer[bot] [COMMENTED] 2026-08-08T00:05:45Z
 ## Pull request overview
 
@@ -141819,7 +141819,7 @@ Copilot reviewed 51 out of 51 changed files in this pull request and generated 1
 
 
 Suppressed comments (3)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:22Z)**_
@@ -142012,7 +142012,7 @@ Extract Sean's user turns from today's second history file
 
 `grep -n "^_\*\*User" -A 12 .specstory/history/2026-09-14_21-58-35Z-i-am-going-to.md | head -200`
 
-```text
+````text
 7:_**User (2026-09-14 21:58:35Z)**_
 8-
 9-I am going to work on PR 268, a Qwen provider
@@ -142134,7 +142134,7 @@ Extract Sean's user turns from today's second history file
 646-_**Agent (claude-fable-5-1 2026-09-14 22:16:22Z)**_
 647-
 648-<tool-use data-tool-type="shell" data-tool-name="Bash"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:24Z)**_
@@ -142567,7 +142567,7 @@ Show contributor wiring diff and PROVIDER-REFACTOR.md section 11
 
 `git show 137a085 --format='%h %s' -- README.md changelog.md docs/PROVIDER-SPI.md pkg/config/config.go pkg/config/config_test.go pkg/spi/factory/registry.go pkg/cmd/session_tui_browser.go | cat; echo "----- REFACTOR doc sections"; grep -n "^## " docs/PROVIDER-REFACTOR.md; awk '/^## 11\./{p=1} /^## 12\./{p=0} p' docs/PROVIDER-REFACTOR.md`
 
-```text
+`````text
 137a085 Muse provider phase C: provider, watcher, exec, reconstruction, and wiring
 
 diff --git a/specstory-cli/README.md b/specstory-cli/README.md
@@ -142773,7 +142773,7 @@ Two fixes outside the dedup:
 Left alone deliberately: `inputAsString` (single-key, with nil handling for muse's JSON nulls and a `json.Marshal` fallback where `spi.StringValue` returns `""`), `diffFromFindReplace` (same logic as `spi.FormatDiffBlock` but unfenced, because muse truncates before fencing — deduping needs `FormatDiffBlock` split into a `DiffLines` core), and `truncate` (duplicates `spi.CapRunes` with a different visible marker).
 
 ---
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:27Z)**_
@@ -142784,7 +142784,7 @@ Inspect provider factory dirs, AGENT.md and PROVIDER-REFACTOR headings
 
 `ls pkg/providers/piagent/factory pkg/providers/claudecode/factory internal 2>/dev/null && echo "--- AGENT.md head ---" && head -60 AGENT.md && echo "--- PROVIDER-REFACTOR headings ---" && grep -n "^## \|^### " docs/PROVIDER-REFACTOR.md | head -40`
 
-```text
+````text
 internal:
 testutil
 
@@ -142894,7 +142894,7 @@ There are two main modes of operation:
 325:### Muse-local fixes from the same review
 333:## 13. Follow-on: bringing `qwencode` in line
 357:### What does *not* apply to qwencode
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:28Z)**_
@@ -142963,7 +142963,7 @@ Read Copilot agent-finding ranges from prompts
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && F=2026-08-04_15-05-09Z-let-s-play-close.prompts.md && echo "=== COPILOT 3378-3410 ===" && sed -n '3378,3410p' $F | cut -c1-1500 && echo "=== COPILOT 3929-3960 ===" && sed -n '3929,3960p' $F | cut -c1-1200 && echo "=== COPILOT 3955-4045 (issue enumeration) ===" && sed -n '3961,4045p' $F | grep -v '^$' | cut -c1-1200 && echo "=== COPILOT 4041-4135 ===" && sed -n '4046,4135p' $F | grep -v '^$' | cut -c1-1200 && echo "=== COPILOT 4435-4520 ===" && sed -n '4435,4520p' $F | grep -v '^$' | cut -c1-1500 && echo "=== COPILOT 4661-4700 ===" && sed -n '4661,4700p' $F | grep -v '^$' | cut -c1-800`
 
-```text
+````text
 === COPILOT 3378-3410 ===
 ### [line 16439] User (2026-08-05 18:02:31Z)
 
@@ -143237,7 +143237,7 @@ pkg/providers/copilotide/types.go:75:// VSCodeCodeblockUriResponse represents a 
 <summary>Tool use: **Bash**</summary>
 Find todo list arguments in metadata or invocations
 ```bash
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:30Z)**_
@@ -143308,7 +143308,7 @@ Read Sean's own Cursor IDE gap analysis doc from 713f3aa
 
 `git show 713f3aa:specstory-cli/docs/CURSOR-IDE.md`
 
-```text
+````text
 # Cursor IDE Provider — Gap Analysis vs. SPI & Peer Providers
 
 ## Bottom line
@@ -143384,7 +143384,7 @@ Recommendation: ship on **Tier 1 + item 4** (Cursor showing up in the restore br
 
 - **Reconstruct**: confirm stubs (recommended) vs. actually building resume-into-Cursor via `store.db` — a much larger effort given the reverse-engineered Merkle-DAG format.
 - **`ListAllAgentChatSessions`**: real implementation now (Tier 1) vs. empty stub to unblock the build and defer the browser integration.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:36Z)**_
@@ -143429,7 +143429,7 @@ Read adedebf stat and key diffs
 
 `git show --stat --format='%h %s' adedebf -- . ':!.specstory' ':!specstory' | cat; git show --format= adedebf -- pkg/providers/copilotide/workspace_test.go pkg/spi/factory/registry.go pkg/config/config.go CLAUDE.md docs/EXTENSION-ARCHITECTURE.md bin/dev-build.sh changelog.md README.md pkg/cmd/utils.go | head -400`
 
-```text
+````text
 adedebf Code cleanup.
 
  specstory-cli/CLAUDE.md                            |  2 +-
@@ -143770,7 +143770,7 @@ index 74937d7..77d2fb0 100644
  
  	// The Copilot IDE provider is variant-driven: one instance per VS Code
  	// distribution, keyed by the variant's own ID so the registry key always
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:36Z)**_
@@ -144883,7 +144883,7 @@ Fetch the last two Copilot reviews on PR #269 in full
 
 `gh api repos/specstoryai/getspecstory/pulls/269/reviews --paginate --jq '.[] | select(.submitted_at >= "2026-08-17T16:00:00Z") | "### \(.user.login) [\(.state)] \(.submitted_at)\n\(.body)\n"' 2>&1 | sed 's/<details>//g; s/<\/details>//g; s/<summary>//g; s/<\/summary>//g'`
 
-```text
+````text
 ### copilot-pull-request-reviewer[bot] [COMMENTED] 2026-08-17T16:35:05Z
 ## Pull request overview
 
@@ -144955,7 +144955,7 @@ This issue also appears on line 259 of the same file.
 * Reindex has the same top-level-session gap as project discovery: filtering only by basename and `subagent` allows a valid `session.jsonl` nested in `tool-outputs` or another session-owned directory to be indexed independently. Restrict candidates to the exact five-component path under the sessions root.
 **specstory-cli/pkg/providers/musecode/watcher.go:148**
 * The initial refresh runs inside the new goroutine, so `WatchMuseProject` can return and `ExecAgentAndWatch` can start Muse before any watch is installed. If a short session finishes in that gap while the store already exists, the later refresh deliberately does not adopt it (`rootMissing` is false), so no callback is ever emitted. Run the initial refresh synchronously before returning, then start the event loop.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:44Z)**_
@@ -144966,7 +144966,7 @@ Read PROVIDER-SPI.md context around factory mentions
 
 `sed -n '20,60p' docs/PROVIDER-SPI.md && echo "..." && sed -n '195,210p' docs/PROVIDER-SPI.md`
 
-```text
+````text
 > The `pi` provider implements sync/list/search/reindex/check/detect, `run`, `watch`, and native session reconstruction (`ReconstructSession`/`NativeSessionPath`), so it can be a cross-provider `resume` target.
 
 ## Quick Start: Implementing a New Provider
@@ -145024,7 +145024,7 @@ import (
 
 func (r *Registry) registerAll() {
     // ... existing registrations
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:44Z)**_
@@ -145491,7 +145491,7 @@ Read Muse agent-finding ranges from prompts
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && F=2026-08-16_12-33-25Z-let-s-address-mip.prompts.md && echo "=== MUSE 1391-1545 ===" && sed -n '1391,1545p' $F | grep -v '^$' | cut -c1-1500 && echo "=== MUSE 1704-1800 ===" && sed -n '1704,1800p' $F | grep -v '^$' | cut -c1-1500 && echo "=== MUSE 1966-2010 ===" && sed -n '1966,2010p' $F | grep -v '^$' | cut -c1-2000`
 
-```text
+````text
 === MUSE 1391-1545 ===
 ### [line 8232] User (2026-08-16 13:29:51Z)
 OK... take a look at our rendering test methodology here: /Users/sean/Source/SpecStory/specstory-cli-multi-agent/README.md
@@ -145679,7 +145679,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/m
 </details></tool-use>
 #### [line 11108] Agent (claude-fable-5 2026-08-16 14:01:44Z) (head)
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:52Z)**_
@@ -145690,7 +145690,7 @@ Read 00df199 cleanup diffs including docs
 
 `git show --stat --format='%h %s' 00df199 -- . ':!.specstory' ':!specstory' | cat; git show --format= 00df199 -- docs/COPILOTIDE-PROVIDER.md changelog.md pkg/providers/cursoride/path_utils.go pkg/providers/vscode/workspace_test.go pkg/utils/path_utils.go pkg/providers/droidcli/reconstruct.go | head -260`
 
-```text
+````text
 00df199 Code cleanup.
 
  specstory-cli/changelog.md                         |  4 ++
@@ -145961,7 +145961,7 @@ index 6957cd8..c23d8b4 100644
  func validateDirectory(dir, label string) (string, error) {
  	// Expand ~ to home directory before converting to absolute
  	dir = ExpandTilde(dir)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:53Z)**_
@@ -146277,7 +146277,7 @@ Read history findings A, first half
 
 `sed -n 1,170p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b8hin6m1u.txt`
 
-```text
+`````text
 # Sean's review judgement: Muse Code provider (PR #269) + cross-provider dedup refactor
 
 Group: history-musecode-A
@@ -146448,7 +146448,7 @@ Sean commits himself, with terse messages ("Code cleanup."), after each agent pa
 ### T18. Resume into a provider must synthesize a native file the target agent considers clean
 
 - **SEAN:** "could we synthesize a clean stop?" (`H:20167`). This is the standard: the reconstructed native session should not trigger the target agent's crash/unclean warnings.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:03:59Z)**_
@@ -146696,7 +146696,7 @@ Read PROVIDER-REFACTOR qwencode follow-on section
 
 `sed -n '333,400p' docs/PROVIDER-REFACTOR.md | awk '{printf "%d\t%s\n", NR+332, $0}'`
 
-```text
+````text
 333	## 13. Follow-on: bringing `qwencode` in line
 334	
 335	`qwencode` was developed on its own branch alongside this refactor and merged after it, so it reintroduced four of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all eight fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
@@ -146727,7 +146727,7 @@ Read PROVIDER-REFACTOR qwencode follow-on section
 360	- **No `FormatDiffBlock` overlap.** Edits render from the tool outcome's pre-formed unified diff (`resultDisplay`), not from a find/replace pair.
 361	
 362	Left alone deliberately: `inputAsString` (single-key, with a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:00Z)**_
@@ -146910,7 +146910,7 @@ Read README and changelog doc commits
 
 `echo "######## bec0205 README"; git show --format='%h %s' bec0205 -- README.md; for s in 2046ca6 0e4e470 5e7b300; do echo "######## $s changelog"; git show --format='%h %ad %s' --date=short $s -- changelog.md; done`
 
-```text
+````text
 ######## bec0205 README
 bec0205 Updates to README for Cursor and Copilot IDE providers.
 
@@ -147045,7 +147045,7 @@ index 6308fac..080e5fd 100644
 +- The SpecStory CLI now supports native Windows and the Windows Subsystem for Linux (WSL). Install on Windows by downloading `SpecStoryCLI_Windows_x86_64.zip` (or `_arm64`) from the [GitHub release](https://github.com/specstoryai/getspecstory/releases) and putting `specstory.exe` on your PATH. Signing the binary, and a package manager install (e.g. winget) is planned. Since the binaries are not yet code-signed, Windows SmartScreen may show an "unrecognized app" warning on first run. WSL users should just keep using the standard Linux install, which now reads Windows-side IDE data automatically.
  
  ### 🔧 CLI Configuration & Commands
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:01Z)**_
@@ -147410,7 +147410,7 @@ Read Droid agent-finding ranges from prompts
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && F=2026-01-29_17-39-47Z-the-droid-factory-provider.prompts.md && for r in '304,330' '667,700' '740,770' '1124,1140' '1230,1260' '1357,1380' '1666,1690' '1787,1830' '1904,1930' '2034,2060'; do echo "=== DROID $r ==="; sed -n "${r}p" $F | grep -v '^$' | cut -c1-900; done`
 
-```text
+````text
 === DROID 304,330 ===
 ### [line 1827] User (2026-01-29 17:52:24Z)
 Here's the markdown output from the Droid LS tool:
@@ -147621,7 +147621,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/d
 Now I need to update the test to reflect this change.
 </details></think>
 #### [line 7246] Agent (claude-opus-4-5-20251101 2026-01-29 23:45:00Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:06Z)**_
@@ -148316,7 +148316,7 @@ Read the tail of the merge history file for any test asks
 
 `sed -n '1329,1429p' .specstory/history/2026-09-14_21-57-06Z-we-are-going-to.md | grep -v "^<tool-use\|^<summary\|^</details>\|^</tool-use" | head -100`
 
-```text
+````text
 The " ... as for " statement for the Qwen provider is now out of date... it's missing Muse and Pi and VSC... base it on the one from Pi (but add Pi to it)
 
 Also we are using the Qwen as of today, which is 0.23.3, so updated the changelog for that.
@@ -148408,7 +148408,7 @@ All three edits are applied, lint-clean, tested, and staged on top of the still-
 - **TUI color** for Qwen is now `#0A2DFF` with a "Qwen blue" comment, so it no longer shares the "violet" label with Pi.
 
 Lint reports 0 issues and the `pkg/cmd` and `pkg/config` tests pass. Nothing is committed. Everything sits staged in the merge, ready for `git commit` on your instruction.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:16Z)**_
@@ -148419,7 +148419,7 @@ Read test-file changes across DRY and Windows commits
 
 `echo "######## 57503af test-file changes"; git show --format= 57503af -- pkg/providers/copilotide/parser_test.go pkg/providers/copilotide/reconstruct_test.go pkg/providers/cursoride/tool_handlers_test.go | grep -E '^[+-].*func Test|^[+-]\s+name:|^[+-]\t\t\{"' | head -40; echo "######## fence_test names"; git show 57503af:specstory-cli/pkg/spi/fence_test.go | grep -E 'func Test|name:' ; echo "######## vscode/workspace_test names"; git show 57503af:specstory-cli/pkg/providers/vscode/workspace_test.go | grep -E '^func Test'; echo "######## 546f5a0 vscode"; git show --format= 546f5a0 -- pkg/providers/vscode/workspace_test.go; echo "######## f4360f3 cmd/resume.go"; git show --format= f4360f3 -- pkg/cmd/resume.go`
 
-```text
+``````text
 ######## 57503af test-file changes
 -func TestCapRunes(t *testing.T) {
 -		{"short ascii unchanged", "hello", 10, "hello"},
@@ -148505,7 +148505,7 @@ index cd465d3..2394cac 100644
  	if _, err := utils.NewProjectIdentityManager(cwd, outConfig.GetSpecstoryDir()).EnsureProjectIdentity(); err != nil {
  		slog.Error("Failed to ensure project identity", "error", err)
  	}
-```
+``````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:16Z)**_
@@ -148606,7 +148606,7 @@ Extract Sean's turns from Cursor-era prompts and cursor rendering mentions
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && for f in 2026-07-16_20-14-28Z-update-the-readme.prompts.md 2026-07-20_12-35-45Z-diff-this-branch-to.prompts.md 2026-07-20_15-13-10Z-uhhhhh-not-sure-i.prompts.md; do echo "################ $f ################"; awk '/^### \[line [0-9]+\] User/{p=1; print "@@" NR ": " $0; next} /^#### \[line [0-9]+\] Agent/{p=0} p{print}' "$f" | grep -v '^\s*$' | cut -c1-400 | head -80; done; echo "################ cursor + tool rendering mentions across all prompts (user turns only) ################"; grep -n -i -E "cursor.*(tool|render|format)|(tool|render|format).*cursor" *.prompts.md | grep -v '^\S*:[0-9]*:####' | cut -c1-300 | head -40`
 
-```text
+````text
 ################ 2026-07-16_20-14-28Z-update-the-readme.prompts.md ################
 @@3: ### [line 7] User (2026-07-16 20:14:28Z)
 <command-name>/model</command-name>
@@ -148820,7 +148820,7 @@ Check the 3 unstaged changes. These happened when I ran `specstory sync` w/o any
 2026-08-04_15-05-09Z-let-s-play-close.prompts.md:765: `./pkg/providers/cursoride/tool_shell.go`
 2026-08-04_15-05-09Z-let-s-play-close.prompts.md:783:`cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/cursoride && grep -n "summary = \|summary=" tool_*.go`
 2026-08-04_15-05-09Z-let-s-play-close.prompts.md:803: `./pkg/providers/cursoride/tool_write.go`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:27Z)**_
@@ -148897,7 +148897,7 @@ Sample Copilot comments from early July before Sean's review window
 
 `F=/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bz0kghal4.txt; echo "#### Copilot comments 2026-07-01..08 (pre-window) - file:line + first 120 chars"; grep '2026-07-0' $F | awk -F' \\| ' '{print $2" | "substr($4,1,140)}' | head -70`
 
-```text
+````text
 #### Copilot comments 2026-07-01..08 (pre-window) - file:line + first 120 chars
 pkg/providers/cursoride/provider.go:25 | `cursoride.Provider` is registered as a `spi.Provider` (registry.go:82-84) but it currently does not implement the full `spi.Provider` inter
 pkg/providers/cursoride/agent_session.go:212 | `generateSlug` must be filename-safe because it is used in `session.BuildSessionFilePath` to create the markdown filename. The current imple
@@ -148966,7 +148966,7 @@ pkg/providers/cursoride/watcher.go:428 | `executePendingCheck` drops the pending
 pkg/utils/watch_agents.go:142 | The session fingerprint only accounts for message text and Tool.FormattedMarkdown. If a provider updates Tool.Summary (or relies on summary-
 pkg/providers/cursoride/tool_grep.go:234 | escapeTableCellValue replaces backticks with the HTML entity "&#96;" but callers then wrap the value in markdown code spans ( `...` ). In Co
 pkg/utils/watch_agents.go:81 | Deduplication is keyed only by session.SessionID, but WatchProviders runs multiple providers concurrently. If two providers emit the same se
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:31Z)**_
@@ -149259,7 +149259,7 @@ Show Muse and Antigravity history tool blocks
 
 `cd /Users/sean/source/SpecStory/specstory-cli-multi-agent && M=muse-code/2026-08-16/.specstory/history/2026-08-16_13-04-17Z-hello-muse-code-tell.md && echo "=== MUSE 1-40 ===" && sed -n '1,40p' $M | cut -c1-300 && echo "=== MUSE 100-125 (write_todos) ===" && sed -n '100,125p' $M | cut -c1-300 && echo "=== MUSE 150-170 (read_file) ===" && sed -n '150,170p' $M | cut -c1-300 && echo "=== MUSE 190-235 (search, write_file, edit_file) ===" && sed -n '190,235p' $M | cut -c1-300 && echo "=== MUSE 278-345 (list_peer_sessions, web_search, bash) ===" && sed -n '278,345p' $M | cut -c1-400 && echo "=== MUSE 940-975 (request_user_input) ===" && sed -n '940,975p' $M | cut -c1-300 && A=antigravity/2026-07-21/.specstory/history/2026-07-24_15-41-21Z-hello-antigravity-tell-me.md && echo "=== AG 1-50 ===" && sed -n '1,50p' $A | cut -c1-300 && echo "=== AG 250-320 (edit tools) ===" && sed -n '250,320p' $A | cut -c1-300 && echo "=== AG tool-use summary lines ===" && grep -n 'data-tool-type' $A | cut -c1-140`
 
-```text
+````text
 === MUSE 1-40 ===
 <!-- Generated by SpecStory, Markdown v2.1.0 -->
 
@@ -149648,7 +149648,7 @@ Hello from run_command demo
 481:<tool-use data-tool-type="generic" data-tool-name="manage_subagents"><details>
 491:<tool-use data-tool-type="generic" data-tool-name="manage_subagents"><details>
 505:<tool-use data-tool-type="generic" data-tool-name="ask_question"><details>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:04:40Z)**_
@@ -150137,7 +150137,7 @@ for r in rows:
 EOF
 ```
 
-```text
+````text
 [uriToPath] 2026-07-07 pkg/providers/copilotide/workspace.go:316 :: `uriToPath` returns `parsedURI.Path` without URL-decoding, so workspaces whose path contains escaped characters (e.g. spaces as `%20`) won’t match the project’s canonical filesystem path and Copilot IDE detection/sync can fail. Cursor IDE’s `uriToPath` decodes via `url.PathUnescape`; Copilot IDE should do the same.
 
 [hidden] 2026-07-08 pkg/providers/copilotide/agent_session.go:196 :: `ParseResponsesForTools` matches tool invocations to `metadata.ToolCallRounds` by sequence, but it currently skips hidden invocations *without* advancing `sequenceIndex`. Since `BuildToolCallSequence` includes all tool calls (hidden and visible), this will misalign the sequence after the first hidden tool and attach the wrong to
@@ -150191,7 +150191,7 @@ EOF
 [CombinedOutput] 2026-08-04 pkg/providers/copilotide/provider.go:473 :: `openApp` runs the VS Code launcher with `CombinedOutput()`, which blocks until the launcher process exits. If the configured command includes `--wait` (as suggested in config tests / common usage), `specstory run` will hang before starting the watcher. Consider launching asynchronously and reaping the process instead of waiting
 
 [Windows] 2026-08-07 pkg/providers/copilotide/workspace.go:409 :: `vscodeWorkspaceID` depends on `workspaceIDStatSalt`, but that helper is only defined for `linux` and `darwin`. This package will fail to compile on Windows builds unless you either add a Windows implementation (even if it just returns "" to match VS Code’s fallback) or gate the Copilot IDE provider behind build tags.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:05:02Z)**_
@@ -150209,7 +150209,7 @@ Show Copilot and DeepSeek history tool blocks and muse git state
 
 `cd /Users/sean/source/SpecStory/specstory-cli-multi-agent && C=copilot-ide/2026-08-05/.specstory/history/2026-08-05_17-02-44Z-list-tools-in-tools.md && echo "=== COPILOT 1-45 ===" && sed -n '1,45p' $C | cut -c1-300 && echo "=== COPILOT tool-use types/names (count) ===" && grep -o 'data-tool-type="[a-z]*" data-tool-name="[A-Za-z_-]*"' $C | sort | uniq -c | sort -rn && echo "=== COPILOT sample run_in_terminal block ===" && n=$(grep -n 'data-tool-name="run_in_terminal"' $C | head -1 | cut -d: -f1) && sed -n "${n},$((n+22))p" $C | cut -c1-300 && echo "=== COPILOT sample manage_todo_list block ===" && n=$(grep -n 'data-tool-name="manage_todo_list"' $C | head -1 | cut -d: -f1) && sed -n "${n},$((n+16))p" $C | cut -c1-300 && echo "=== COPILOT sample generic (fetch_webpage) ===" && n=$(grep -n 'data-tool-name="fetch_webpage"' $C | head -1 | cut -d: -f1) && sed -n "${n},$((n+16))p" $C | cut -c1-300 && D=deepseek-tui/2026-05-13/.specstory/history/2026-05-13_14-35-59Z-hello-deepseek-tui-tell.md && echo "=== DEEPSEEK 1-20 ===" && sed -n '1,20p' $D | cut -c1-300 && echo "=== DEEPSEEK 86-98 (tool_search raw) ===" && sed -n '86,98p' $D | cut -c1-400 && echo "=== DEEPSEEK 545-560 (write_file good) ===" && sed -n '545,560p' $D | cut -c1-300 && echo "=== DEEPSEEK 1023-1045 (update_plan broken) ===" && sed -n '1023,1045p' $D | cut -c1-300 && echo "=== DEEPSEEK 2141-2158 (git_status/git_diff) ===" && sed -n '2141,2158p' $D | cut -c1-300 && echo "=== DEEPSEEK 2369-2378 (phantom) ===" && sed -n '2369,2378p' $D | cut -c1-300 && echo "=== git state of muse-code dir ===" && git status --short muse-code/ | head && git log --oneline -- muse-code/ | head -3`
 
-```text
+````text
 === COPILOT 1-45 ===
 <!-- Generated by SpecStory, Markdown v2.1.0 -->
 
@@ -150474,7 +150474,7 @@ _**Agent (deepseek-v4-pro 2026-05-13 15:14:05Z)**_
 +_**Agent (gpt-5.2-codex 2026-01-07 14:10:26Z)**_
 === git state of muse-code dir ===
 caa1c5f Copilot IDE and Muse Code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:05:05Z)**_
@@ -150598,7 +150598,7 @@ Read the final agent conclusion of the Qwen-setup history
 
 `sed -n '838,909p' .specstory/history/2026-09-14_21-58-35Z-i-am-going-to.md | grep -v '^<tool-use\|^<summary\|^</details>\|^</tool-use' | cut -c1-400`
 
-```text
+````text
 anthropicContentGenerator-JSKMKS6V.js :: eneratedToolIdCounter = 0;   constructor(_model, schemaCompliance = "auto", enableCacheControl = true) {     this.schemaCompliance = schemaCompliance;     this.enableCacheControl = enableCacheControl;   }   convertLlmRequestToAnthropic(request, options = {}) {     this.resetToolIdState();     let messages = [];     const systemText = th 
 
 anthropicContentGenerator-JSKMKS6V.js ::  = 0;   constructor(_model, schemaCompliance = "auto", enableCacheControl = true) {     this.schemaCompliance = schemaCompliance;     this.enableCacheControl = enableCacheControl;   }   convertLlmRequestToAnthropic(request, options = {}) {     this.resetToolIdState();     let messages = [];     const systemText = this.extractTextFromCon 
@@ -150666,7 +150666,7 @@ Done. Prompt caching is now disabled for the Anthropic provider in `~/.qwen/sett
 **What I changed.** I set the `enableCacheControl` flag to false at the top-level model config and on each of the three provider entries. That drops all cache tagging, so there's no scope to get wrong. The cost is no prompt-cache discount, which is fine for generating test sessions.
 
 **Fallback if it still fails.** Adding `/v1` back to the base URL will not work, but pointing at Anthropic through OpenRouter under Third-party Providers would sidestep this code path entirely, since the global scope is only attached for a native Anthropic hostname.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:05:17Z)**_
@@ -152244,7 +152244,7 @@ Read TOOL-AUDIT dry-run fixtures and reports
 
 `cd /Users/sean/Source/SpecStory/provider-factory && echo "NEW-TOOL-DETECTED.md bytes: $(wc -c < Workflows/coding-agent-release/NEW-TOOL-DETECTED.md)"; echo "=== dry-runs/README.md ==="; cat -n Workflows/coding-agent-release/dry-runs/README.md; for i in 1 2 3; do echo "=== dry-runs/issue$i.md ==="; cat -n Workflows/coding-agent-release/dry-runs/issue$i.md; echo "--- issue$i.tools ($(wc -l < Workflows/coding-agent-release/dry-runs/issue$i.tools) lines) ---"; cat Workflows/coding-agent-release/dry-runs/issue$i.tools | tr '\n' ' '; echo; echo "--- issue$i.reading-1.raw (head 12) ---"; head -12 Workflows/coding-agent-release/dry-runs/issue$i.reading-1.raw; done`
 
-```text
+````text
 NEW-TOOL-DETECTED.md bytes:        0
 === dry-runs/README.md ===
      1	# TOOL-AUDIT dry-runs
@@ -152366,7 +152366,7 @@ ExitWorktree
 ListAgents
 Monitor
 NotebookEdit
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:06:22Z)**_
@@ -153484,7 +153484,7 @@ Read pkg/spi/fence.go
 
 `cat -n pkg/spi/fence.go`
 
-```text
+````text
      1	package spi
      2	
      3	import (
@@ -153550,7 +153550,7 @@ Read pkg/spi/fence.go
     63		}
     64		return s // more bytes than max but fewer runes (multi-byte characters)
     65	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:06:44Z)**_
@@ -155140,7 +155140,7 @@ Read docs/COPILOTIDE-TOOLS-PLAN.md
 
 `wc -l docs/COPILOTIDE-TOOLS-PLAN.md && cat -n docs/COPILOTIDE-TOOLS-PLAN.md`
 
-```text
+````text
      313 docs/COPILOTIDE-TOOLS-PLAN.md
      1	# VS Code Copilot IDE - Tool Implementation Plan
      2	
@@ -155455,7 +155455,7 @@ Read docs/COPILOTIDE-TOOLS-PLAN.md
    311	- Support MCP tool variations
    312	- Add tool summary generation
    313	- Implement tool result streaming (for long outputs)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:06:59Z)**_
@@ -156469,7 +156469,7 @@ Show Claude Code exemplar blocks, Copilot post-fix blocks, and multi-agent commi
 
 `cd /Users/sean/source/SpecStory/specstory-cli-multi-agent && CC=claude-code/2026-01-06/.specstory/history/2026-01-06_22-10-59Z-hello-claude-tell-me.md && echo "=== CC tool names/types ===" && grep -o 'data-tool-type="[a-z]*" data-tool-name="[A-Za-z_-]*"' $CC | sort | uniq -c | sort -rn && for t in AskUserQuestion TodoWrite Edit Task WebSearch Grep; do n=$(grep -n "data-tool-name=\"$t\"" $CC | head -1 | cut -d: -f1); echo "=== CC $t block @ $n ==="; sed -n "${n},$((n+24))p" $CC | cut -c1-220; done; C=copilot-ide/2026-08-05/.specstory/history/2026-08-05_17-02-44Z-list-tools-in-tools.md; n=$(grep -n 'data-tool-name="manage_todo_list"' $C | sed -n '4p' | cut -d: -f1); echo "=== COPILOT manage_todo_list (4th) @ $n ==="; sed -n "${n},$((n+16))p" $C | cut -c1-220; n=$(grep -n 'data-tool-name="textEditGroup"' $C | head -1 | cut -d: -f1); echo "=== COPILOT textEditGroup @ $n ==="; sed -n "${n},$((n+18))p" $C | cut -c1-220; echo "=== multi-agent repo commit stats ==="; for s in 06bf73e e2cf606 567a70e 23e8fd8 d9b611b 5ddc4b2 1591c1a a5a599a caa1c5f; do git show --stat --format='%h %ad %s' --date=short $s | grep -v '/debug/' | head -14; echo; done`
 
-```text
+````text
 === CC tool names/types ===
    7 data-tool-type="shell" data-tool-name="Bash"
    5 data-tool-type="write" data-tool-name="Write"
@@ -156798,7 +156798,7 @@ caa1c5f 2026-08-17 Copilot IDE and Muse Code.
  copilot-ide/2026-08-05/tool_demos/symbols.ts       |    7 +
  copilot-ide/2026-08-05/tool_demos/tiny.png         |  Bin 0 -> 68 bytes
  copilot-ide/2026-08-05/tool_demos/tiny.png.b64     |    1 +
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:07:51Z)**_
@@ -156860,7 +156860,7 @@ Read DeepSeek dispatch and edit/todo renderers
 
 `echo "=== deepseektui/markdown_tools.go 20-70 (dispatch) ===" && sed -n '20,70p' pkg/providers/deepseektui/markdown_tools.go && echo "=== 225-330 (edit/patch/todo/write renderers) ===" && sed -n '225,330p' pkg/providers/deepseektui/markdown_tools.go && echo "=== deepseektui output rendering (formatToolOutput) ===" && grep -n -E 'func formatToolOutput|func format[A-Za-z]*Output|Output:|CodeFence\("text"' pkg/providers/deepseektui/markdown_tools.go | head -20`
 
-```text
+````text
 === deepseektui/markdown_tools.go 20-70 (dispatch) ===
 	body := strings.TrimSpace(formatToolInput(tool))
 	result := strings.TrimSpace(formatToolOutput(tool))
@@ -157020,7 +157020,7 @@ func formatContentBlock(content, path string) string {
 66:func formatToolOutput(tool *ToolInfo) string {
 76:		return fmt.Sprintf("Output:\n```text\n%s\n```", content)
 78:	return fmt.Sprintf("Output: %s", content)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-09-14 23:08:24Z)**_
@@ -157290,7 +157290,7 @@ Check Copilot committed renders and README audit-directions diff
 
 `cd /Users/sean/source/SpecStory/specstory-cli-multi-agent && C=copilot-ide/2026-08-05/.specstory/history/2026-08-05_17-02-44Z-list-tools-in-tools.md && echo "=== manage_todo_list blocks with checklist items ===" && grep -n -A10 'data-tool-name="manage_todo_list"' $C | grep -E '^\d*[-:]*\s*- \[|manage_todo_list' | head -20 && echo "=== all run_in_terminal blocks (first 8 lines each) ===" && grep -n 'data-tool-name="run_in_terminal"' $C | cut -d: -f1 | while read n; do sed -n "${n},$((n+7))p" $C | cut -c1-160; echo ---; done && echo "=== last 30 lines of copilot file ===" && tail -30 $C | cut -c1-200 && echo "=== README diff at 1591c1a ===" && git show 1591c1a -- README.md | head -60`
 
-```text
+````text
 === manage_todo_list blocks with checklist items ===
 227:<tool-use data-tool-type="task" data-tool-name="manage_todo_list"><details>
 228-<summary>Tool use: **manage_todo_list**</summary>
@@ -157418,7 +157418,7 @@ index b6d04b2..719ce2e 100644
 +- data line number
 +- comment
 +```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:31Z)**_
@@ -157429,7 +157429,7 @@ Read PROVIDER-FIXES.md
 
 `cat -n docs/PROVIDER-FIXES.md`
 
-```text
+````text
      1	# Provider fixes
      2	
      3	**Date:** 2026-08-17 · **Status:** All three implemented. §1 resolved as option A.
@@ -157565,7 +157565,7 @@ Read PROVIDER-FIXES.md
    133	Coverage for §1 is uneven by design. `antigravitycli` carries the full contract as a test — seed, scan emits nothing, bump the mtime, scan emits — verified to fail when the seed is neutered. `droidcli` and `deepseektui` have their seed functions tested directly (every transcript recorded, non-transcripts left out, missing store tolerated) because neither package has a fixture helper for writing a parseable session, and the mtime guard their scan applies runs before parsing, so a garbage file cannot tell the seeded and unseeded paths apart. `codexcli`'s change is control flow inside the watcher goroutine's closures, which has no test harness; only `dirInWatchScope` is unit-tested.
    134	
    135	The Muse bootstrap case from the same investigation is already fixed and covered by `TestRefresh_AdoptsSessionsWrittenWhileTheStoreDidNotExist` and `TestRefresh_DoesNotAdoptSessionsThatPredateTheWatcher` in `pkg/providers/musecode/watcher_test.go`. The second of those is the guard that keeps a future change from turning every watcher start into a re-publish of the trailing window.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:32Z)**_
@@ -157576,7 +157576,7 @@ Read PROVIDER-SPI.md
 
 `cat -n docs/PROVIDER-SPI.md`
 
-```text
+````text
      1	# SpecStory CLI's Agent SPI
      2	
      3	The SpecStory CLI's Agent SPI (Service Provider Interface) allows developers to extend the SpecStory CLI by implementing support for new AI coding agents.
@@ -158122,7 +158122,7 @@ Read PROVIDER-SPI.md
    543	    return fmt.Errorf("not implemented")
    544	}
    545	```
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:33Z)**_
@@ -158133,7 +158133,7 @@ Read SPI-SESSION-DATA-SCHEMA.md
 
 `cat -n docs/SPI-SESSION-DATA-SCHEMA.md`
 
-```text
+````text
      1	# Session Data Schema
      2	
      3	The unified session data format used by all terminal coding agent providers (Claude Code, Cursor CLI, Codex CLI, Gemini CLI, etc.).
@@ -158646,7 +158646,7 @@ Read SPI-SESSION-DATA-SCHEMA.md
    510	3. Show tool uses with type/name and list any `pathHints`
    511	4. Use `thinking` content type for collapsible/styled reasoning sections
    512	5. If `formattedMarkdown` is present, use it; otherwise render from `input`/`output`
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:34Z)**_
@@ -158878,7 +158878,7 @@ Extract Sean's factory-design turns mentioning tool audits
 
 `cd /Users/sean/Source/SpecStory/provider-factory && for H in .specstory/history/2026-08-21_13-48-42Z-ok-brainstorming-a-bespoke.md .specstory/history/2026-08-31_14-15-30Z-ok-we-want-to.md .specstory/history/2026-08-31_14-09-46Z-review-this-project-especially.md .specstory/history/2026-08-24_21-29-12Z-use-image-2-to.md; do echo "################ $H ################"; awk '/^_\*\*User/{p=1; print "@@" NR ": " $0; next} /^_\*\*Agent/{p=0} p{print}' $H | grep -v '^\s*$' | grep -i -B1 -A6 -E 'tool|audit|enumerat|multi-agent' | cut -c1-600 | head -80; done`
 
-```text
+````text
 ################ .specstory/history/2026-08-21_13-48-42Z-ok-brainstorming-a-bespoke.md ################
 Before we get into any solutioning... I want us to catalog the work/tasks that humans are doing today. So we can come up with a plan for accounting for all that work in the factory, and a sensible sequence for implementing the parts of the factory to accomplish all that work. Makes sense.
 So... I'll open the brainstorming... then I want you to audit the repository/GH project/history etc. to suggest other possible tasks getting done that I'm not considering.
@@ -158963,7 +158963,7 @@ pkg/providers/cursorcli/markdown_tools.go:102:4: QF1012: Use fmt.Fprintf(...) in
 ################ .specstory/history/2026-08-31_14-15-30Z-ok-we-want-to.md ################
 ################ .specstory/history/2026-08-31_14-09-46Z-review-this-project-especially.md ################
 ################ .specstory/history/2026-08-24_21-29-12Z-use-image-2-to.md ################
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:39Z)**_
@@ -159020,7 +159020,7 @@ Read PROVIDER-REFACTOR.md lines 1-120
 
 `sed -n 1,120p docs/PROVIDER-REFACTOR.md`
 
-```text
+````text
 # Provider helper dedup refactor
 
 **Date:** 2026-08-13 · **Status:** Phases 1 and 2 implemented (Option B); Phase 3 items 1 and 3 implemented; items 2, 4, 5 not started
@@ -159141,7 +159141,7 @@ Each item resolves a specific divergence; the resolution is stated so the delta 
    - **Option 5b — standardize on `MarshalIndent`** (antigravitycli style) with the same `dropKeys` parameter. Simpler code (~15 lines vs ~45, and `renderJSONValue` becomes internal-only or is deleted), deterministic key order for free, and antigravitycli output is byte-stable; deepseektui/droidcli nested values gain indentation.
    - **Recommendation: 5b.** It deletes more code, `MarshalIndent`'s output is the more readable form for nested arguments, and the only cost is a cosmetic change in regenerated deepseektui/droidcli markdown. The antigravitycli key-filtering test (`pkg/providers/antigravitycli/markdown_tools_test.go:145`) moves to `spi` as the regression guard for `dropKeys`.
 6. Add tests for the merged behavior in `pkg/spi/tool_markdown_test.go`: `StringValue` type coverage, `RenderJSONValue` escaping (the §2.1 case), `TodoSymbol` trimming, `FormatDiffBlock` trailing-newline handling, `RenderGenericJSON` key sorting + `dropKeys`. Today `stringValue`, `renderJSONValue`, `normalizeToolName`, and `todoSymbol` are untested everywhere.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:41Z)**_
@@ -159152,7 +159152,7 @@ Read PROVIDER-REFACTOR.md lines 120-240
 
 `sed -n 120,240p docs/PROVIDER-REFACTOR.md`
 
-```text
+````text
 6. Add tests for the merged behavior in `pkg/spi/tool_markdown_test.go`: `StringValue` type coverage, `RenderJSONValue` escaping (the §2.1 case), `TodoSymbol` trimming, `FormatDiffBlock` trailing-newline handling, `RenderGenericJSON` key sorting + `dropKeys`. Today `stringValue`, `renderJSONValue`, `normalizeToolName`, and `todoSymbol` are untested everywhere.
 
 ### Phase 3 — cross-provider convergence (optional; each item independent and decision-gated)
@@ -159274,7 +159274,7 @@ Telemetry changes: deepseektui, droidcli, antigravitycli and geminicli now emit 
 `codexcli` was using the classifier's return value as **control flow**, not just telemetry. `codex_cli_exec.go` tries `--version` then `-V`, and `if classifyCheckError(err) != "unknown" || idx == len(flags)-1` decides whether to stop or try the next flag — an unclassified failure being the only kind another flag might fix. Renaming the residual bucket would have silently collapsed that retry to a single attempt. The literal is now `spi.CheckErrorUnknown`, so the coupling is explicit and a future rename moves both sides together.
 
 ---
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:41Z)**_
@@ -159448,7 +159448,7 @@ Read PROVIDER-REFACTOR.md lines 240-362
 
 `sed -n 240,362p docs/PROVIDER-REFACTOR.md`
 
-```text
+`````text
 ---
 
 ## 10. geminicli: fence bug and missing panic recovery
@@ -159572,7 +159572,7 @@ Two fixes outside the dedup:
 - **No `FormatDiffBlock` overlap.** Edits render from the tool outcome's pre-formed unified diff (`resultDisplay`), not from a find/replace pair.
 
 Left alone deliberately: `inputAsString` (single-key, with a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:45Z)**_
@@ -159583,7 +159583,7 @@ Read README lines 20-200
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b695h2d3t.txt | sed -n '20,200p'`
 
-```text
+````text
     20	- Optional: Syncs your markdown files to the SpecStory Cloud for easy search and chat
     21	- Open source under the Apache 2.0 license
     22	
@@ -159765,7 +159765,7 @@ Read README lines 20-200
    198	### Targeting a non-production cloud
    199	
    200	By default the CLI talks to `https://cloud.specstory.com`. To point every command at a
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:47Z)**_
@@ -159776,7 +159776,7 @@ Read README lines 200-420
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b695h2d3t.txt | sed -n '200,420p'`
 
-```text
+````text
    200	By default the CLI talks to `https://cloud.specstory.com`. To point every command at a
    201	dev/staging cloud without passing `--cloud-url` each time, set an environment variable:
    202	
@@ -159998,7 +159998,7 @@ Read README lines 200-420
    418	   export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
    419	   export OTEL_SERVICE_NAME="specstory-cli"
    420	   export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev"
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:47Z)**_
@@ -160401,7 +160401,7 @@ Read README lines 420-700
 
 `cat /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b695h2d3t.txt | sed -n '420,700p'`
 
-```text
+````text
    420	   export OTEL_RESOURCE_ATTRIBUTES="user_id_hash=user_name,env=dev"
    421	   
    422	   specstory run
@@ -160683,7 +160683,7 @@ Read README lines 420-700
    698	The linter configuration is in `.golangci.yml`. Key linters include:
    699	- **errcheck**: Ensures error return values are checked
    700	- **gofmt**: Enforces standard Go formatting
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:49Z)**_
@@ -160694,7 +160694,7 @@ Read spi check, exit, fence
 
 `cat -n pkg/spi/check.go pkg/spi/exit.go pkg/spi/fence.go`
 
-```text
+````text
      1	package spi
      2	
      3	import (
@@ -160838,7 +160838,7 @@ Read spi check, exit, fence
     63		}
     64		return s // more bytes than max but fewer runes (multi-byte characters)
     65	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:50Z)**_
@@ -161911,7 +161911,7 @@ Read README tail, list docs, read CLI-RELEASE.md
 
 `sed -n '700,760p' README.md; echo ----; ls docs/; echo ----; cat docs/CLI-RELEASE.md`
 
-```text
+````text
 - **gofmt**: Enforces standard Go formatting
 - **goimports**: Manages import statements
 - **staticcheck**: Comprehensive bug detection
@@ -162085,7 +162085,7 @@ curl -sL "https://github.com/specstoryai/getspecstory/releases/download/specstor
 ```
 
 Then update [Formula/specstory.rb](https://github.com/specstoryai/homebrew-tap/blob/main/Formula/specstory.rb) with the new version and hashes.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:08:53Z)**_
@@ -166900,7 +166900,7 @@ Confirm DeepSeek output fence and raw update_plan/edit_file payload keys
 
 `echo "=== deepseektui formatToolOutput 60-80 ===" && sed -n '60,80p' pkg/providers/deepseektui/markdown_tools.go && echo "=== deepseek raw update_plan input (session-data.json 684-700) ===" && sed -n '684,700p' /Users/sean/source/SpecStory/specstory-cli-multi-agent/deepseek-tui/2026-05-13/.specstory/debug/2429dd93-45df-4ea2-a42c-cbb56918ff6b/session-data.json | cut -c1-200 && echo "=== deepseek raw edit_file #2 input (session-data.json 888-901) ===" && sed -n '888,901p' /Users/sean/source/SpecStory/specstory-cli-multi-agent/deepseek-tui/2026-05-13/.specstory/debug/2429dd93-45df-4ea2-a42c-cbb56918ff6b/session-data.json | cut -c1-200`
 
-```text
+````text
 === deepseektui formatToolOutput 60-80 ===
 		return spi.RenderGenericJSON(args)
 	default:
@@ -166956,7 +166956,7 @@ func formatToolOutput(tool *ToolInfo) string {
             },
             "formattedMarkdown": "Path: `demo.txt`\n\nOutput:\n```text\n--- a//Users/sean/Source/SpecStory/specstory-cli-multi-agent/deepseek-tui/2026-05-13/demo.txt\n+++ b//Users/sean/Source/SpecStor
           },
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:20Z)**_
@@ -166967,7 +166967,7 @@ Read PostHog documentation
 
 `cat -n docs/POSTHOG.md`
 
-```text
+````text
      1	# PostHog Analytics
      2	
      3	This document describes the analytics implementation in SpecStory CLI.
@@ -167059,7 +167059,7 @@ Read PostHog documentation
     89	- `client.go` - PostHog client initialization and configuration
     90	- `events.go` - Event constants and the `TrackEvent` function
     91	- `shared_id.go` - Shared analytics ID management
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:20Z)**_
@@ -167490,7 +167490,7 @@ Read CLI-VERSION-CHECK, MUSE-FORMAT, ANTIGRAVITY-FORMAT heads
 
 `cat -n docs/CLI-VERSION-CHECK.md; echo =====MUSE; cat -n docs/MUSE-FORMAT.md | head -120; echo =====ANTIGRAVITY; cat -n docs/ANTIGRAVITY-FORMAT.md | head -120`
 
-```text
+````text
 Exit code 1
      1	# CLI Version Check
      2	
@@ -167547,7 +167547,7 @@ Exit code 1
     53	- Integrated with existing flag system
     54	- Follows existing logging patterns
     55	- Respects existing `--silent` flag(eval):1: ====MUSE not found
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:26Z)**_
@@ -168448,7 +168448,7 @@ Find enumeration-to-code links in format docs, Antigravity correlation fix, and 
 
 `echo "=== ANTIGRAVITY-FORMAT.md tool enumeration section ===" && grep -n -i -E '^#|tools\.txt|enumerat|19 tools|multi-agent' docs/ANTIGRAVITY-FORMAT.md | head -40 && n=$(grep -n -E '^#+.*3\.5' docs/ANTIGRAVITY-FORMAT.md | head -1 | cut -d: -f1) && [ -n "$n" ] && sed -n "${n},$((n+30))p" docs/ANTIGRAVITY-FORMAT.md; echo "=== MUSE-FORMAT.md tool inventory mentions ===" && grep -n -i -E 'all-tools|29 tools|tools\.txt|enumerat|multi-agent|inventory' docs/MUSE-FORMAT.md | head -20 && echo "=== antigravitycli agent_session.go correlation fix ===" && grep -n -E 'step_index|stepIndex|pickPendingTool|sort\.Slice|slices\.Sort|func attach|FIFO|positional' pkg/providers/antigravitycli/agent_session.go | head -30 && echo "=== pkg/session/markdown.go tool-use emission ===" && grep -n -E 'tool-use|data-tool-type|<details>|FormattedMarkdown|escape' pkg/session/markdown.go | head -30`
 
-```text
+````text
 === ANTIGRAVITY-FORMAT.md tool enumeration section ===
 1:# Antigravity CLI — On-Disk Session Storage Format Spec
 19:## 1. Directory layout
@@ -168531,7 +168531,7 @@ the list above.
 260:		markdown.WriteString(*tool.FormattedMarkdown)
 263:		if !strings.HasSuffix(*tool.FormattedMarkdown, "\n") {
 271:	// Close tool-use tag
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:28Z)**_
@@ -169265,7 +169265,7 @@ Show Droid, Codex, Gemini tool counts and Droid post-fix renders
 
 `cd /Users/sean/source/SpecStory/specstory-cli-multi-agent && for f in droid-factory/2026-01-29/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md codex-cli/2026-01-06/.specstory/history/2026-01-07_14-09-33Z-hello-codex-tell-me.md gemini-cli/2026-01-07/.specstory/history/2026-01-07_18-41-41Z-hello-gemini-tell-me.md; do echo "=== $f ==="; sed -n '7,9p' $f | cut -c1-200; grep -o 'data-tool-type="[a-z]*" data-tool-name="[A-Za-z_.-]*"' $f | sort | uniq -c | sort -rn; done; D=droid-factory/2026-01-29/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md; for t in AskUser Edit Skill GenerateDroid LS; do n=$(grep -n "data-tool-name=\"$t\"" $D | head -1 | cut -d: -f1); echo "=== DROID $t @ $n ==="; sed -n "${n},$((n+18))p" $D | cut -c1-200; done`
 
-```text
+````text
 === droid-factory/2026-01-29/.specstory/history/2026-01-29_17-30-49Z-hello-droid-tell-me.md ===
 _**User (2026-01-29 17:30:49Z)**_
 
@@ -169410,7 +169410,7 @@ _**Agent (2026-01-29 17:31:53Z)**_
 <think><details><summary>Thought Process</summary>
 Good! LS demonstrated. Now let me move to Execute.
 </details></think>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:34Z)**_
@@ -170551,7 +170551,7 @@ Find tracking-pair notes in PROVIDER-REFACTOR.md
 
 `cat -n docs/PROVIDER-REFACTOR.md | grep -n -i -B3 -A12 "tracking pair\|track\|analytics" | head -200`
 
-```text
+`````text
 1-     1	# Provider helper dedup refactor
 2-     2	
 3-     3	**Date:** 2026-08-13 · **Status:** Phases 1 and 2 implemented (Option B); Phase 3 items 1 and 3 implemented; items 2, 4, 5 not started
@@ -170752,7 +170752,7 @@ Find tracking-pair notes in PROVIDER-REFACTOR.md
 347-   347	
 348-   348	`classifyQwenCheckError` was the pre-fix shape, carrying both §2.3 and §2.4: a `PathError` wrapping `ErrNotExist` was `version_failed` and is now `not_found` (the practical case — a binary that vanishes between `LookPath` and `Run`), and plain errors move from `version_failed` to `unknown`. `buildQwenCheckErrorMessage` has a `default:` arm, so no remediation text changed.
 349-   349
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:37Z)**_
@@ -170949,7 +170949,7 @@ Find fmt.Print, os.Exit, and hardcoded fences in providers
 
 `echo "=== fmt.Print* in providers (non-test)"; grep -n "fmt\.Print\(ln\|f\)\?(" pkg/providers/*/*.go | grep -v _test | sed 's/^pkg\/providers\///'; echo; echo "=== os.Exit in providers"; grep -n "os\.Exit" pkg/providers/*/*.go | grep -v _test | sed 's/^pkg\/providers\///'; echo; echo "=== hardcoded triple-backtick fences in non-test provider files"; grep -n '```' pkg/providers/*/*.go | grep -v _test | grep -v '^\s*//' | grep -v '//.*```' | sed 's/^pkg\/providers\///'`
 
-```text
+````text
 === fmt.Print* in providers (non-test)
 claudecode/provider.go:265:		fmt.Println() // Add visual separation
 claudecode/provider.go:273:		fmt.Println() // Add trailing newline
@@ -171016,7 +171016,7 @@ droidcli/markdown_tools.go:88:		return fmt.Sprintf("%s:\n```text\n%s\n```", labe
 piagent/agent_session.go:245:			fmt.Fprintf(&b, "```bash\n%s\n```", strings.ReplaceAll(cmd, "```", "\\```"))
 piagent/agent_session.go:262:			fmt.Fprintf(&b, "\n```\n%s\n```", strings.ReplaceAll(content, "```", "\\```"))
 piagent/agent_session.go:297:	b.WriteString("```\n" + content + "\n```")
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:38Z)**_
@@ -172286,7 +172286,7 @@ Read MUSE-FORMAT and ANTIGRAVITY-FORMAT doc heads
 
 `printf '=== MUSE-FORMAT.md ===\n'; cat -n docs/MUSE-FORMAT.md | head -140; printf '\n=== ANTIGRAVITY-FORMAT.md ===\n'; cat -n docs/ANTIGRAVITY-FORMAT.md | head -140`
 
-```text
+````text
 === MUSE-FORMAT.md ===
      1	# Muse Code Session Format
      2	
@@ -172516,7 +172516,7 @@ Read MUSE-FORMAT and ANTIGRAVITY-FORMAT doc heads
    138	| `SYSTEM_MESSAGE` | SYSTEM | injected system notice (e.g. server restart, subagent stop) | `<SYSTEM_MESSAGE>...</SYSTEM_MESSAGE>` wrapper text, see §3.8 |
    139	| `CHECKPOINT` | SYSTEM | conversation-truncation marker inserted when history is compacted | `{{ CHECKPOINT N }}` header + "The earlier parts of this conversation have been truncated…" — context scaffolding, not user-visible turn content (skip like `CONVERSATION_HISTORY`) |
    140	| `PLANNER_RESPONSE` | MODEL | model turn: text and/or `tool_calls` (+optional `thinking`) | the model's prose reply (may be empty when it's only a tool call) |
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:09:57Z)**_
@@ -176955,7 +176955,7 @@ Show README/changelog/docs diffs for four release-doc commits
 
 `for sha in cdb5d18 c8fe44e 6ad6e24 57503af; do printf '\n=================== %s\n' "$sha"; git show "$sha" -- README.md changelog.md docs | head -220; done`
 
-```text
+````text
 =================== cdb5d18
 commit cdb5d18223a448a8c6b9686e8175392d9321239c
 Author: Sean Johnson <sean@specstory.com>
@@ -177264,7 +177264,7 @@ index 127613d..e352c45 100644
 +- You can use `specstory resume` to resume VS Code Copilot sessions in other coding agents, and to resume any agent's session into VS Code Copilot, including into a project folder that has never been opened in VS Code (SpecStory creates the workspace entry, which VS Code adopts on first open). When resuming into Copilot, SpecStory will prompt you to fully quit VS Code first: a running VS Code discards externally imported sessions when it exits.
  
  ## v2.6.0 2026-08-03
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:06Z)**_
@@ -177749,7 +177749,7 @@ Locate monorepo root, workflows, internal dir, AGENT.md, claude commands
 
 `git rev-parse --show-toplevel; ls "$(git rev-parse --show-toplevel)"; ls "$(git rev-parse --show-toplevel)/.github/workflows" 2>/dev/null; printf '\n--- internal ---\n'; ls -R internal | head -30; printf '\n--- AGENT.md head ---\n'; head -30 AGENT.md; printf '\n--- .claude/commands ---\n'; ls .claude/commands 2>/dev/null`
 
-```text
+````text
 /Users/sean/Source/SpecStory/getspecstory
 CODE-OF-CONDUCT.md
 CONTRIBUTING.md
@@ -177813,7 +177813,7 @@ go test -v ./pkg/cli
 code-review.md
 merge-conflict.md
 pr-review.md
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:09Z)**_
@@ -178007,7 +178007,7 @@ Get exact README and audit line numbers for citations
 
 `cd /Users/sean/source/SpecStory/specstory-cli-multi-agent && grep -n -E '^#|versions\.txt|tool-use-audit|Hello <agent>|each of your|specstory sync|commit the|Your task is|quality -|- comment|cursor-cli|cursor-ide|Still to come' README.md; echo "=== tool-use-audit line refs ==="; grep -n -E '^## |^### |^Score|^- \*\*|Quality legend' muse-code/2026-08-16/tool-use-audit.md | head -30; grep -n -E '^## |^- \*\*' deepseek-tui/2026-05-13/tool-use-audit.md | head -20`
 
-```text
+````text
 1:# SpecStory CLI Multi-Agent, Multi-Tool Test and Regressions
 9:## Repo Organization
 18:- cursor-cli
@@ -178049,7 +178049,7 @@ Get exact README and audit line numbers for citations
 152:- **The biggest recurring problem** is JSON-envelope-dumping for outputs: most tools return a structured object that the renderer drops into a ```text``` fence without unpacking the human-relevant fields. The clean exceptions (read_file, write_file, task_shell_*, git_status, git_log, load_skill, checklist_write, todo_write, rlm, notify) all have purpose-built renderers.
 153:- **`update_plan` is uniquely broken**: the markdown todo list shows '(no description)' for every item — the descriptions exist in the raw input but the renderer can't reach them, then the same descriptions appear in the JSON appendix that follows.
 154:- **`edit_file` is half-broken**: the renderer assumes the input fields are `old`/`new` (which DeepSeek rejects as the wrong schema). On the call that uses the correct `search`/`replace` schema, the input vanishes entirely from the rendering — reader sees the diff *output* but not what the agent asked for.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:13Z)**_
@@ -180134,7 +180134,7 @@ Print context around candidate Sean quotes in prompts file
 
 `F=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md; for L in 3750 4036 4064 4088 4340 7000 7455 7505 8185; do echo "=== around $L ==="; sed -n "$((L-6)),$((L+8))p" "$F" | cut -c1-400; done`
 
-```text
+````text
 === around 3750 ===
 #### [line 13894] Agent (claude-fable-5 2026-08-11 21:35:36Z) (head)
 
@@ -180279,7 +180279,7 @@ Found it. Short version: **the tool paths didn't change — the workspace root t
 The full chain:
 
 1. In the markdown generators, `makeRelativePath(absolutePath, cwd)` turns a reco...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:21Z)**_
@@ -180976,7 +180976,7 @@ Find OpenTelemetry docs in README and telemetry package
 
 `grep -n -i -B2 -A30 'opentelemetry\|otel\|span attribute' README.md | head -150; echo "=== telemetry pkg ==="; ls pkg/telemetry 2>/dev/null && grep -rn --include='*.go' -E 'attribute\.(String|Int|Bool)|SetAttributes|span\.' pkg/telemetry | head -40`
 
-```text
+````text
 372-| `[providers]`     | `qwen_cmd`        | `"qwen"`             | Qwen Code command                          |
 373-
 374:\* Telemetry is enabled when an endpoint is configured unless the standard `OTEL_SDK_DISABLED` ENV var is set to `true` or `1`.
@@ -181172,7 +181172,7 @@ pkg/telemetry/telemetry.go:602:		attribute.String("specstory.agent", agent),
 pkg/telemetry/telemetry.go:603:		attribute.String("specstory.session.id", sessionID),
 pkg/telemetry/telemetry.go:611:		attribute.String("specstory.agent", agent),
 pkg/telemetry/telemetry.go:612:		attribute.String("specstory.session.id", sessionID),
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:26Z)**_
@@ -182491,7 +182491,7 @@ Inspect piagent hardcoded fence sites
 
 `echo "=== piagent hardcoded fences"; sed -n 235,300p pkg/providers/piagent/agent_session.go`
 
-```text
+````text
 === piagent hardcoded fences
 	var summary string
 	var b strings.Builder
@@ -182559,7 +182559,7 @@ func appendToolOutput(b *strings.Builder, tool *schema.ToolInfo) {
 }
 
 // buildExchanges groups ordered entries into schema exchanges. A new user
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:44Z)**_
@@ -182873,7 +182873,7 @@ Inspect remaining hardcoded fence sites in other providers
 
 `echo "=== claudecode agent_session.go 520-565"; sed -n 520,565p pkg/providers/claudecode/agent_session.go; echo "=== codexcli markdown_tools.go 230-246"; sed -n 230,246p pkg/providers/codexcli/markdown_tools.go; echo "=== deepseektui markdown_tools.go 68-80"; sed -n 68,80p pkg/providers/deepseektui/markdown_tools.go; echo "=== droidcli markdown_tools.go 80-92"; sed -n 80,92p pkg/providers/droidcli/markdown_tools.go`
 
-```text
+````text
 === claudecode agent_session.go 520-565
 	// Add formatted tool content
 	if toolContent != "" {
@@ -182966,7 +182966,7 @@ func formatCustomToolCall(toolName string, input string) string {
 	}
 	return fmt.Sprintf("%s: %s", label, content)
 }
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:10:47Z)**_
@@ -185411,7 +185411,7 @@ Read PROVIDER-SPI conventions and registry provider IDs
 
 `sed -n 425,460p docs/PROVIDER-SPI.md; echo "=== registry ==="; grep -n -E 'ID:|Name:|Register\(|ProviderInfo\{' pkg/spi/factory/registry.go | head -80`
 
-```text
+````text
 The `schema.SessionData` type includes a `Validate()` method that checks:
 
 - SchemaVersion is `"1.0"`
@@ -185449,7 +185449,7 @@ func TestProviderInterface(t *testing.T) {
     if p.Name() == "" {
         t.Error("Name() should return non-empty string")
 === registry ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:11:06Z)**_
@@ -186113,7 +186113,7 @@ Read README debugging section
 
 `grep -n -i -B2 -A25 '^## Debug\|^### Debug\|--debug\b' README.md | head -120`
 
-```text
+````text
 258-
 259-# Debug-level output, requires console or log (default: false)
 260:# debug = true # equivalent to --debug 
@@ -186202,7 +186202,7 @@ Read README debugging section
 631-## Testing
 632-
 633-To run all tests with easy to read output:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:11:14Z)**_
@@ -186347,7 +186347,7 @@ Show Sean's README commits for IDE providers and Droid
 
 `for sha in bec0205 2b98643; do printf '\n=================== %s\n' "$sha"; git show --format='%h %an %ad %s' --date=short "$sha" -- README.md changelog.md | head -150; done`
 
-```text
+````text
 =================== bec0205
 bec0205 Sean Johnson 2026-08-04 Updates to README for Cursor and Copilot IDE providers.
 
@@ -186488,7 +186488,7 @@ index 90034f5..b5c3b07 100644
  ## v1.3.0 2026-01-25
  
  ### ⚙️ Improvements
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:11:15Z)**_
@@ -186631,7 +186631,7 @@ Show contributor README/changelog hunks for Pi and Antigravity
 
 `for sha in b10e137 7b205db; do printf '\n=================== %s\n' "$sha"; git show --format='%h %an %ad %s' --date=short "$sha" --stat | grep -E 'README|changelog|docs/|config.go|registry.go|session_tui_browser|skills/agents|^[0-9a-f]{7} '; git show "$sha" -- README.md changelog.md | head -120; done`
 
-```text
+````text
 =================== b10e137
 b10e137 Jake Levirne 2026-07-09 feat(cli): add Pi agent provider
  specstory-cli/README.md                            |   1 +
@@ -186808,7 +186808,7 @@ index cf32e49..e5612f5 100644
  ## v1.13.0 2026-05-18
  
  ### 📢 Announcements
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:11:17Z)**_
@@ -186861,7 +186861,7 @@ Show Greg's README/changelog/docs hunks for Qwen and Muse
 
 `for sha in b8512bc 137a085; do printf '\n=================== %s\n' "$sha"; git show --format='%h %an %ad %s' --date=short "$sha" --stat | grep -E 'README|changelog|docs/|config.go|registry.go|session_tui_browser|skills/agents|PROVIDER-SPI|^[0-9a-f]{7} '; git show "$sha" -- README.md changelog.md docs/PROVIDER-SPI.md | head -160; done`
 
-```text
+````text
 =================== b8512bc
 b8512bc Greg Ceccarelli 2026-08-07 Add Qwen Code provider (qwen) with full resume support
  README.md                                          |   7 +-
@@ -187091,7 +187091,7 @@ index 7c74a03..615cd3e 100644
 +| `muse` | Muse Code | `~/.local/share/muse/sessions/YYYY/MM/DD/<session-id>/session.jsonl` |
  
  ## Quick Start: Implementing a New Provider
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:11:19Z)**_
@@ -187539,7 +187539,7 @@ Check whether version floors exist in code; read PROVIDER-SPI table and registra
 
 `grep -rn --include='*.go' -E '"0\.23\.3"|"0\.85\.1"|"1\.1\.5"|"0\.8\.39"|"1\.132\.0"|"0\.1\.0-R708\.1"|"0\.56\.3"|"0\.15\.1"|"0\.42\.0"|MinVersion|minVersion|minimumVersion|supportedVersion' pkg | grep -v _test | head -20; printf '\n--- PROVIDER-SPI table ---\n'; sed -n '7,32p' docs/PROVIDER-SPI.md; sed -n '160,215p' docs/PROVIDER-SPI.md`
 
-```text
+````text
 --- PROVIDER-SPI table ---
 The SPI defines a standard interface that all agent providers must implement. This enables SpecStory CLI to work uniformly with multiple AI coding agents while each provider handles the specifics of its native data formats.
 
@@ -187623,7 +187623,7 @@ func (r *Registry) registerAll() {
 ```
 
 ### Step 3: Implement Core Methods
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:11:29Z)**_
@@ -189172,7 +189172,7 @@ Print the agent's Windows failure triage sections
 
 `F=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md; echo "=== first-run triage 4341-4400 ==="; sed -n '4341,4400p' "$F" | cut -c1-700; echo; echo "=== run-2 buckets 4933-4990 ==="; sed -n '4933,4990p' "$F" | cut -c1-700`
 
-```text
+````text
 === first-run triage 4341-4400 ===
 The first-ever Windows run is in: Linux tests green, lint green, **Windows red — 64 unique failing tests across 16 packages**. But the signature analysis is encouraging: this isn't 64 independent problems, it's about five root causes, and the biggest one explains the majority by itself.
 
@@ -189294,7 +189294,7 @@ Read ResolveProjectPath and canonicalizeWorkspacePath
 
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:04Z)**_
@@ -189305,7 +189305,7 @@ Print later bucket taxonomy, session summary and 733dead context
 
 `F=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-08-11_15-10-08Z-write-this-exactly-as.prompts.md; echo "=== run-6 buckets 6686-6720 ==="; sed -n '6686,6720p' "$F" | cut -c1-700; echo; echo "=== summary 7680-7700 ==="; sed -n '7680,7700p' "$F" | cut -c1-900; echo; echo "=== Sean q leading to 733dead: 8160-8200 ==="; sed -n '8150,8200p' "$F" | cut -c1-600`
 
-```text
+````text
 === run-6 buckets 6686-6720 ===
 That's run 6 — the one I analyzed mid-turn (20 → 17). Let me give you the full detail on its 17 survivors since that's now the definitive worklist:
 
@@ -189417,7 +189417,7 @@ The full chain:
 1
 
 #### [line 27381] Agent (claude-fable-5 2026-08-12 21:01:45Z) (head)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:31Z)**_
@@ -189786,7 +189786,7 @@ Extract Sean's Pi changelog prompts and the agent's reaction from the Pi release
 
 `f=.specstory/history/2026-09-14_15-55-13Z-read-the-pr-going.md; printf '=== L15 user prompt ===\n'; sed -n '13,22p' "$f" | cut -c1-1500; printf '\n=== around L628 (user) ===\n'; sed -n '624,640p' "$f" | cut -c1-2500; printf '\n=== agent response after L628: first 120 lines ===\n'; awk 'NR>640 && NR<=800' "$f" | grep -v '^\s*$' | cut -c1-600 | head -70`
 
-```text
+````text
 === L15 user prompt ===
 Let me know what else should go in, if anything, based on what we typically put in the changelog.
 
@@ -189889,7 +189889,7 @@ _**Agent (claude-fable-5-1 2026-09-14 16:04:05Z)**_
 Done. The changelog is edited and not committed.
 Changes in `changelog.md`:
 - The "Unreleased" heading is now `v2.11.0 2026-09-14`.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:31Z)**_
@@ -190100,7 +190100,7 @@ Extract Sean's Qwen changelog/version-floor prompts and the agent's edits
 
 `f=.specstory/history/2026-09-14_21-57-06Z-we-are-going-to.md; printf '=== L956 user prompt ===\n'; sed -n '952,962p' "$f" | cut -c1-2000; printf '\n=== L1335 user prompt ===\n'; sed -n '1331,1345p' "$f" | cut -c1-3000; printf '\n=== agent response after L1335 (non-empty lines) ===\n'; awk 'NR>1345 && NR<=1520' "$f" | grep -v '^\s*$' | cut -c1-700 | head -90`
 
-```text
+````text
 === L956 user prompt ===
 Qwen should be moved to 2.12.0 in the changelog
 
@@ -190195,7 +190195,7 @@ All three edits are applied, lint-clean, tested, and staged on top of the still-
 - **Version** bumped from `0.21.0` to `0.23.3` in the changelog bullet and in the repo README's product table, which listed the same minimum version. A parser comment in `jsonl_parser.go` that records the versions it was verified against was left alone since that is a factual test note.
 - **TUI color** for Qwen is now `#0A2DFF` with a "Qwen blue" comment, so it no longer shares the "violet" label with Pi.
 Lint reports 0 issues and the `pkg/cmd` and `pkg/config` tests pass. Nothing is committed. Everything sits staged in the merge, ready for `git commit` on your instruction.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:31Z)**_
@@ -191128,7 +191128,7 @@ Show Sean's docs-website commits and the per-provider integration pages
 
 `cd /Users/sean/Source/SpecStory/specstory-website && for sha in 19c038a 091837b da002dd; do printf '\n=================== %s\n' "$sha"; git show --format='%h %an %ad %s' --date=short --stat "$sha" | head -25; done; printf '\n=== antigravity-cli.mdx head ===\n'; head -60 content/docs/integrations/antigravity-cli.mdx; printf '\n=== droid-cli.mdx head ===\n'; head -30 content/docs/integrations/droid-cli.mdx; ls content/docs/integrations/`
 
-```text
+````text
 =================== 19c038a
 19c038a Sean Johnson 2026-07-27 Swap out Gemini CLI in favor of Antigravity CLI across the website and documentation.
 
@@ -191272,7 +191272,7 @@ cursor.mdx
 droid-cli.mdx
 terminal-coding-agents
 vscode.mdx
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:35Z)**_
@@ -191283,7 +191283,7 @@ Show the Antigravity docs-website swap commit diff
 
 `cd /Users/sean/Source/SpecStory/specstory-website && git show 19c038a -- content/docs | head -260`
 
-```text
+````text
 commit 19c038a2f6dba57011596b16e85e94b131526b83
 Author: Sean Johnson <sean@specstory.com>
 Date:   Mon Jul 27 11:52:31 2026 -0400
@@ -191544,7 +191544,7 @@ index d0a95ed..0000000
 -# Convert a single session by UUID
 -specstory sync gemini -s <session-uuid>
 -
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:34Z)**_
@@ -191555,7 +191555,7 @@ Read run-2 bucket taxonomy from history file
 
 `H=.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md; echo "=== run-2 buckets (history ~16600-16677) ==="; awk 'NR>=16590 && NR<=16677' "$H" | grep -v "^$" | cut -c1-900`
 
-```text
+````text
 === run-2 buckets (history ~16600-16677) ===
 5
 ```
@@ -191627,7 +191627,7 @@ For tomorrow's release: nothing here blocks (advisory job), and the headline flo
 ---
 _**User (2026-08-11 22:42:21Z)**_
 Let's tackle C and D
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:36Z)**_
@@ -191696,7 +191696,7 @@ Read the monorepo root README provider diagram and Supported Development Tools t
 
 `cd /Users/sean/Source/SpecStory/getspecstory && sed -n '36,110p' README.md; printf '\n=== root README commits ===\n'; git log --format='%h %ad %an %s' --date=short -n 20 -- README.md`
 
-```text
+````text
 ## How It Works
 ```
 AI Coding Tools              Local First                  Cloud Platform
@@ -191794,7 +191794,7 @@ cd59200 2026-01-16 Sean Johnson Update README.md
 63c25b8 2026-01-15 Greg Ceccarelli Add open source indicators for CLI
 e6293f9 2026-01-13 Sean Johnson Update README.md
 0017736 2025-11-22 Greg Ceccarelli Update README.md
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:38Z)**_
@@ -191805,7 +191805,7 @@ Read run-6 buckets and session summary from history file
 
 `H=.specstory/history/2026-08-11_15-10-08Z-write-this-exactly-as.md; echo "=== run-6 buckets (history ~20260-20286) ==="; awk 'NR>=20260 && NR<=20286' "$H" | grep -v "^$" | cut -c1-900; echo; echo "=== summary Key Technical Concepts (history ~22860-22900) ==="; awk 'NR>=22858 && NR<=22900' "$H" | grep -v "^$" | cut -c1-700`
 
-```text
+````text
 === run-6 buckets (history ~20260-20286) ===
 ## Bucket B — provider install-layout expectations (8 tests, mostly per-OS gating, one research item)
 - `TestGetDefaultClaudeCommand` / `TestGetDefaultCursorCommand` / `TestParseCursorCommand`: `~/.local/bin/claude` and `~/.cursor/bin/cursor-agent` are Unix install conventions; on Windows the code falls back to bare `claude`/`cursor-agent` (PATH lookup). That fallback might actually be *correct* Windows behavior — but it deserves a real answer to "where does Claude Code's native installer put claude.exe on Windows?" before we gate the tests, because if there's a well-known location, the product should probe it. This is the one genuine research item in the bucket.
@@ -191864,7 +191864,7 @@ func EqualPaths(a, b string) bool { if runtime.GOOS == "windows" { return string
 - **waitForFileEvents polling-for-2 when expecting 1**: would burn 5s deadline every run — rewritten to settle-past-debounce-then-count.
 - **My own overclaim** (user: "Where were they written?"): claimed all 3 deferred items were in the release doc when 1b wasn't — admitted, added the missing Test-coverage bullet.
 - **My finding 117 was wrong** (Copilot claim 3): schema IDs ≠ registry IDs for 5 providers — restored `providerID` param end-to-end (finding 157 supersedes 117).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:39Z)**_
@@ -191875,7 +191875,7 @@ Show Qwen and Pi hunks in the monorepo root README
 
 `cd /Users/sean/Source/SpecStory/getspecstory && git show b8512bc -- README.md | head -80; printf '\n=== Pi root README hunk? ===\n'; git log --format='%h %ad %an %s' --date=short -S'Pi   ' -- README.md | head; git log --format='%h %ad %an %s' --date=short -S'piagent' -- README.md | head`
 
-```text
+````text
 commit b8512bc4b42b6a244a412a1fefa0ab7a3e4c0a2e
 Author: Greg Ceccarelli <gregce@gmail.com>
 Date:   Fri Aug 7 14:18:54 2026 -0400
@@ -191958,7 +191958,7 @@ index 116b1e3..3bfeb23 100644
  specstory run gemini       # Launch Gemini CLI
 
 === Pi root README hunk? ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:12:40Z)**_
@@ -192700,7 +192700,7 @@ List Sean's prompts in the Antigravity, Cursor IDE README, and DeepSeek-era sess
 
 `for f in .specstory/history/2026-07-27_15-48-50Z-we-added-an-antigravity.md .specstory/history/2026-07-16_20-14-28Z-update-the-readme.md .specstory/history/2026-07-21_14-19-33Z-we-re-on-a.md .specstory/history/2026-07-24_19-13-09Z-adress-a-c-108.md .specstory/history/2026-07-24_20-01-58Z-adress-68.md .specstory/history/2026-05-18_12-47-08Z-that-s-not-the.md .specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md; do printf '\n##### %s\n' "$f"; awk '/^_\*\*User/{inuser=1; buf=""; ln=NR; next} /^_\*\*Agent|^---$/{ if(inuser) print "  [L" ln "] " substr(buf,1,500); inuser=0 } inuser{ buf = buf " " $0 }' "$f" | grep -v '## Context\|task-notification\|\[Image' | head -14; done`
 
-```text
+````text
 ##### .specstory/history/2026-07-27_15-48-50Z-we-added-an-antigravity.md
   [L7]   We added an Antigravity provider but failed to update skills but failed to update  pkg/skills/agents.go for it 
   [L1020]   <command-name>/login</command-name>             <command-message>login</command-message>             <command-args></command-args> 
@@ -192789,7 +192789,7 @@ List Sean's prompts in the Antigravity, Cursor IDE README, and DeepSeek-era sess
   [L6582]   why "latest", you know what we put in the Changelog 
   [L6673]   <command-name>/exit</command-name>             <command-message>exit</command-message>             <command-args></command-args> 
   [L6681]   <local-command-stdout>Bye!</local-command-stdout>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:13:26Z)**_
@@ -192867,7 +192867,7 @@ EOF
 for f in .specstory/history/2026-01-29_15-58-30Z-the-droid-provider-uses.md .specstory/history/2026-01-29_17-39-47Z-the-droid-factory-provider.md .specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md .specstory/history/2026-07-27_15-48-50Z-we-added-an-antigravity.md; do awk -v MAXN=25 -f $S/allusers.awk "$f"; done
 ```
 
-```text
+````text
 ### .specstory/history/2026-01-29_15-58-30Z-the-droid-provider-uses.md:13 _**User (2026-01-29 15:58:30Z)**_ [lines=5]
    | 
    | The Droid provider uses a 1 sec poll for its watcher while the Claude, Codex and Gemini providers use fsnotify event based watching. The latter is the preferred approach. We need to change the Droid provider to use fsnotify for watching.
@@ -193147,7 +193147,7 @@ for f in .specstory/history/2026-01-29_15-58-30Z-the-droid-provider-uses.md .spe
    | ---
    | 
 -----
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:13:34Z)**_
@@ -193174,7 +193174,7 @@ Show the fence-run fix diff for claudecode and codexcli
 
 `git show 57503af -- pkg/providers/claudecode/markdown_tools.go pkg/providers/codexcli/markdown_tools.go pkg/providers/codexcli/agent_session.go | grep "^[-+]" | grep -v "^[-+][-+]" | head -40`
 
-```text
+````text
 +
 +	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 -				escapedCommand := strings.ReplaceAll(command, "```", "\\```")
@@ -193196,7 +193196,7 @@ Show the fence-run fix diff for claudecode and codexcli
 -		result.WriteString("```\n\n")
 +		result.WriteString(spi.CodeFence("diff", strings.TrimRight(patchContent.String(), "\n")))
 +		result.WriteString("\n\n")
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:13:35Z)**_
@@ -193207,7 +193207,7 @@ Print all user turns from refactor, muse, and qwen review sessions
 
 `S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad; for f in .specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md .specstory/history/2026-08-14_16-04-49Z-tests-on-muse-provider.md .specstory/history/2026-09-14_15-55-13Z-read-the-pr-going.md .specstory/history/2026-09-14_21-57-06Z-we-are-going-to.md .specstory/history/2026-09-14_21-58-35Z-i-am-going-to.md; do awk -v MAXN=25 -f $S/allusers.awk "$f"; done`
 
-```text
+````text
 ### .specstory/history/2026-08-13_13-43-21Z-cross-provider-refactor-200.md:36 _**User (2026-08-13 13:44:21Z)**_ [lines=8]
    | 
    | Cross-provider refactor: ~200 lines of helpers copied verbatim across deepseektui/droidcli/antigravitycli (stringValue, renderJSONValue, normalizeToolName, todoSymbol, languageFromPath, formatDiffBlock,
@@ -193636,7 +193636,7 @@ Print all user turns from refactor, muse, and qwen review sessions
    | ---
    | 
 -----
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:13:35Z)**_
@@ -193647,7 +193647,7 @@ Read docs-site FAQ version list, terminal-agents overview, and quickstart provid
 
 `cd /Users/sean/Source/SpecStory/specstory-website && printf '=== faqs.mdx ===\n'; sed -n '5,20p' content/docs/faqs.mdx; printf '\n=== terminal-coding-agents/index.mdx 1-40 ===\n'; sed -n '1,40p' content/docs/integrations/terminal-coding-agents/index.mdx; printf '\n=== index.mdx 85-120 ===\n'; sed -n '85,120p' content/docs/integrations/terminal-coding-agents/index.mdx; printf '\n=== docs/index.mdx + started/quickstart provider mentions ===\n'; grep -n -i -E 'antigravity|droid|deepseek|codex' content/docs/index.mdx content/docs/quickstart.mdx content/docs/started.mdx | head -12`
 
-```text
+````text
 === faqs.mdx ===
 
 <AccordionGroup>
@@ -193755,7 +193755,7 @@ content/docs/quickstart.mdx:116:    [Dive deeper →](/integrations/codex-cli)
 content/docs/quickstart.mdx:118:  <Accordion title="Droid CLI">
 content/docs/quickstart.mdx:119:    Capture Factory Droid CLI sessions with SpecStory:
 content/docs/quickstart.mdx:126:    specstory run droid
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:13:35Z)**_
@@ -194071,7 +194071,7 @@ Extract Sean's Antigravity min-version correction and the provider version obser
 
 `f=.specstory/history/2026-07-24_20-01-58Z-adress-68.md; printf '=== L10602 agy min version ===\n'; sed -n '10598,10606p' "$f" | cut -c1-600; awk 'NR>10606 && NR<=10700' "$f" | grep -v '^\s*$' | cut -c1-500 | head -24; printf '\n=== L6608 "50 is wrong" ===\n'; sed -n '6604,6612p' "$f" | cut -c1-500; awk 'NR>6612 && NR<=6660' "$f" | grep -v '^\s*$' | cut -c1-400 | head -16`
 
-```text
+`````text
 === L10602 agy min version ===
 Gemini left out as you specified. That closes out the root README updates — diagram, products table, quick-start list, and this intro line are all consistent with the new provider.
 
@@ -194133,7 +194133,7 @@ _**Agent (claude-fable-5 2026-07-24 21:03:45Z)**_
 <summary>Tool use: **Bash**</summary>
 Find ProviderInfo construction in sibling providers
 `grep -rn "ProviderInfo{" pkg/providers --include="*.go" | grep -v _test | grep -v antigravity`
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:14:08Z)**_
@@ -194458,7 +194458,7 @@ Extract Sean's DeepSeek README/config/changelog instructions and the agent's min
 
 `f=.specstory/history/2026-05-18_13-34-43Z-finish-line-33-of.md; for r in '5260,5268' '5316,5324' '5394,5402' '6364,6372' '6578,6586'; do printf '\n=== L%s ===\n' "$r"; sed -n "${r}p" "$f" | cut -c1-500; done; printf '\n=== agent reply after L6582 ===\n'; awk 'NR>6586 && NR<=6660' "$f" | grep -v '^\s*$' | cut -c1-500 | head -22`
 
-```text
+````text
 === L5260,5268 ===
 
 ---
@@ -194537,7 +194537,7 @@ _**Agent (claude-opus-4-7 2026-05-18 20:25:33Z)**_
 6	
 7	- The SpecStory CLI now supports [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) (i.e. `deepseek-tui`) for sessions created from DeepSeek TUI version `0.8.39` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/
 8
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:14:08Z)**_
@@ -194548,7 +194548,7 @@ Read PROVIDER-SPI debug-dir documentation
 
 `sed -n 280,300p docs/PROVIDER-SPI.md; echo "..."; sed -n 400,416p docs/PROVIDER-SPI.md`
 
-```text
+````text
     // 2. Convert to unified schema
     sessionData := convertToSchema(rawData)
 
@@ -194586,7 +194586,7 @@ func WriteDebugSessionData(projectPath, sessionID string, sessionData *schema.Se
 ```
 
 ### Command Line Parsing (`pkg/spi/cmdline.go`)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:14:11Z)**_
@@ -194643,7 +194643,7 @@ See what the agent derived as the changelog convention and Sean's acceptance in 
 
 `f=.specstory/history/2026-09-14_15-55-13Z-read-the-pr-going.md; printf '=== agent conventions summary in Pi session (lines 20-140, non-empty) ===\n'; awk 'NR>=20 && NR<=200' "$f" | grep -v '^\s*$' | grep -v 'tool-use\|<details>\|</details>\|<summary>' | cut -c1-500 | head -60`
 
-```text
+````text
 === agent conventions summary in Pi session (lines 20-140, non-empty) ===
 _**Agent (claude-fable-5-1 2026-09-14 15:55:28Z)**_
 List open PRs, repo root files, latest tags
@@ -194705,7 +194705,7 @@ Adds `factory/install`, `factory/latest-version`, and `factory/list-tools` scrip
 - #313 golang.org/x/text 0.41.0 → 0.42.0 — merge — [assessment](https://github.com/specstoryai/getspecstory/pull/313#issuecomment-5660481311)
 - #309 anthropics/claude-code-action 1.0.216 → 1.0.217 (actions-minor-patch group) — merge — [assessment](https://github.com/specstoryai/getspecstory/pull/309#issuecomment-5597869154)
 - #306 modernc.org/sqlite 1.57.0 → 1.58.0 — merge — [assessment](https://github.com/specstoryai/getspecstory/pull/306#issuecomment-5566833374)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:14:27Z)**_
@@ -195025,7 +195025,7 @@ Read context around slog.Error, lifecycle logging, and Check analytics review tu
 
 `sed -n 7701,7735p .specstory/history/2026-02-22_13-40-18Z-i-need-to-understand.md | cut -c1-300; echo "=== 2026-05-18 turn ==="; sed -n 5898,5912p .specstory/history/2026-05-18_12-47-08Z-that-s-not-the.md | cut -c1-300; echo "=== 2026-08-04 context ==="; sed -n 12712,12724p .specstory/history/2026-08-04_15-05-09Z-let-s-play-close.md | cut -c1-300`
 
-```text
+````text
 _**Agent (claude-opus-4-6 2026-02-22 14:27:28Z)**_
 
 
@@ -195091,7 +195091,7 @@ _**Agent (claude-fable-5 2026-08-04 21:07:52Z)**_
 ```text
 28	func (p *Provider) Name() string {
 29		return "Cursor IDE"
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:15:09Z)**_
@@ -198287,7 +198287,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:20Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-copilotide-B.md`
 
-```text
+````text
 1	# Sean Johnson's review judgement: Copilot IDE (copilotide) Windows support, PRs #191 and #258
 2	
 3	Group: history-copilotide-B
@@ -198552,7 +198552,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:20Z)**_
 262	- The screenshot at H:14865 (Copilot pgrep High comment) is an image; its content is known only from the agent's description (H:14871, H:15103).
 263	- No tool-enumeration, `--debug-raw`, `session.db`, or cross-provider resume tests occur in this session; the guide should source those from other histories.
 264
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:21Z)**_
@@ -198561,7 +198561,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:21Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-antigravitycli-A.md`
 
-```text
+`````text
 1	# Sean Johnson's review judgement — Antigravity CLI provider (PR #222), group A
 2	
 3	## Scope and sources
@@ -198879,7 +198879,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:21Z)**_
 315	
 316	`f45cab4` Antigravity tool rendering improvements → `13ab49d` Remove workspace inference attempt; other minor cleanup (watcher.go +143/−, agentColW) → `d8c1c0f` Cleanup non-real tool renderers → `2bc5a96` / `1e3a9d9` / `64ae209` Minor code cleanup (arg keys, read-only DB, Version constant, tab de-indent, changelog v2.5.0/1.1.5, resume preset validation, spec result types) → `98f40aa` Code cleanup (rename to `docs/ANTIGRAVITY-FORMAT.md`, `SupportsReconstruction()` on interface, `watcher_test.go`) → five "Comment fix" commits (doc-name references) → `f9d3e73` Share Cursor IDE Windows-aware path handling → `195266a` 3rd-level cwd fallback for Antigravity and DeepSeek. PR #222 merged into `dev` 22:51Z. Whether these were produced with agent help in the two later 07-24 sessions is outside this extract.
 317
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:22Z)**_
@@ -199573,7 +199573,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:24Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-musecode-A.md`
 
-```text
+`````text
 1	# Sean's review judgement: Muse Code provider (PR #269) + cross-provider dedup refactor
 2	
 3	Group: history-musecode-A
@@ -199881,7 +199881,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:24Z)**_
 305	- `changelog.md` has a second, earlier Muse Code announcement under `## v2.8.0 2026-08-10` (`changelog.md:48-58`, citing `github.com/facebook/muse-code`, version `0.1.0`) as well as the v2.10.0 entry (`changelog.md:25-26`). I did not investigate which is canonical; PR #269 merged 08-17 and v2.10.0 is dated 08-17.
 306	- The three screenshots are not in the extract; their content is inferred from the agent's readings.
 307
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:25Z)**_
@@ -200455,7 +200455,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:27Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-droidcli-B.md`
 
-```text
+````text
 1	# Sean Johnson's review judgement: Factory Droid CLI provider (droidcli, PR #150)
 2	
 3	Group: droidcli-B (secondary example, older provider). Evidence is Sean's own user turns in four SpecStory history sessions from 2026-01-29, cross-checked against git history. "A/B/C/D" below refer to the four sessions; line numbers are lines in the ORIGINAL history file under `.specstory/history/`.
@@ -200887,7 +200887,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:27Z)**_
 429	
 430	The agent proposed and Sean rejected: inverting tests (A, C); ExitPlanMode approval flow (B); omitting the system prompt (D:7075); nested `<details>` (D:7218); a Claude Code reference comment (D:6445).
 431
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:28Z)**_
@@ -201582,7 +201582,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:30Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-antigravitycli.md`
 
-```text
+`````text
 1	# Antigravity CLI provider (PR #222): what Sean changed before release
 2	
 3	All paths are relative to `specstory-cli/` unless noted. Every claim below cites a commit sha (read with `git show <sha> -- <path>`) or a PR review comment (fetched with `gh api repos/specstoryai/getspecstory/pulls/222/comments`). Where something is inferred rather than observed it is marked as such.
@@ -201915,7 +201915,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:30Z)**_
 330	17. **Windows is a first-class target**: URI conversion handles drive letters/UNC/WSL; tests use `testutil.SetHome`/`JSONString` so fixtures are valid on Windows paths.
 331	18. **Post-release, the provider is still subject to cross-cutting refactors** documented in a research doc with options, a recommendation, and a "what actually landed" ledger (`docs/PROVIDER-REFACTOR.md`, `docs/PROVIDER-FIXES.md`).
 332
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:31Z)**_
@@ -201924,7 +201924,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:31Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-deepseektui.md`
 
-```text
+````text
 1	# DeepSeek TUI provider (PR #218): what Sean changed, and what it reveals
 2	
 3	All paths are relative to `specstory-cli/`. Git evidence is cited as `<sha> -- <path>` with the diff hunk header where useful. Provider dir was `pkg/providers/deepseek/` until Sean renamed it to `pkg/providers/deepseektui/` in `a1c596c` (2026-05-18).
@@ -202236,7 +202236,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:31Z)**_
 309	18. **Cross-platform test hygiene.** `t.Setenv("HOME")` → `testutil.SetHome` (`a2bb733`) so the same tests pass on Windows.
 310	19. **Contributor's reviewer nit that Sean judged not worth doing was simply not done.** Greg's config-test row was left; Greg added it himself later (`7b205db`). Sean's cleanup scope was the provider package, config identifier spelling, registry, README, changelog — nothing else.
 311
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:32Z)**_
@@ -202245,7 +202245,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:32Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-musecode.md`
 
-```text
+`````text
 1	# Git reconstruction: Sean Johnson's refinement of the `musecode` provider (PR #269)
 2	
 3	Provider: `musecode` (id `muse`), Muse Code, Meta's terminal coding agent.
@@ -202633,7 +202633,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:32Z)**_
 385	19. **Comments are self-contained "why" comments that name the failure they prevent.** Examples: `adoptExisting` ("fsnotify only reports what happens after a watch is added..."), bounded reader ("forces exactly the allocation such a check exists to prevent"), `ensureResumeArgs` ("resuming the pinned session instead would silently open a different conversation than the one asked for"), `sessionIDFromStoreLayout` naming its counterpart.
 386	20. **A fix found on the new provider is propagated to the sibling with the same shape in the same release, as shared code.** Muse resume-arg fix -> codex via `spi.EnsureResumeArgs` (`e56d6cc`); muse watch policy -> four providers (`e4b8ff2`); muse curl timeout -> six sensors (`6b762a4`).
 387
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:33Z)**_
@@ -202642,7 +202642,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:33Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-droidcli.md`
 
-```text
+`````text
 1	# Droid CLI provider (PR #150): what Sean changed during review
 2	
 3	Secondary, older example. Reconstructed from git in `specstory-cli/` (paths below are relative to that dir) plus the PR #150 inline review comments fetched from the GitHub API (the evidence file `scratchpad/evidence/pr-reviews-and-comments.txt:289-320` only carries the PR body, the review headers and the per-user comment counts: `33 Copilot`, `1 Itz-Antaripa`). The other evidence file, `sean-commits-per-review-window.txt`, has no Droid window at all (its windows are DeepSeek, CursorIDE, Antigravity, CursorIDE2, Copilot), so the commit list here comes straight from `git log --author=sean --since=2026-01-19 --until=2026-02-10 -- pkg/providers/droidcli`.
@@ -202831,7 +202831,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:33Z)**_
 186	
 187	Honest caveats about what this window does not show: Sean did not rewrite the contributor's comments into "why" comments here (his own added comments are mostly "what" style, e.g. `// Initial scan to process existing sessions`, `// Event loop` in `b2c095d`); he did not move anything into `pkg/spi` for droidcli during the review; he did not prune the alias cases in `formatToolInput`; and he did not add tests for `Check`/`DetectAgent`/`GetAgentChatSessions`. Those standards show up in later windows, not this one.
 188
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:34Z)**_
@@ -203137,7 +203137,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:35Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-factory-affordances.md`
 
-```text
+````text
 1	# Software-factory affordances a provider must ship, and how to audit them
 2	
 3	Read-only research report. Sources: the provider-factory repo at `/Users/sean/source/SpecStory/provider-factory` (README, TEMPLATE, NEW-AGENT-VERSION, TOOL-AUDIT, SESSION-AUDIT, SENSOR-FAILURE, the two `scripts/tool-audit-*.sh`, `new-agent-version.yml`, `ci.yml`, `versions/*`, `tools/*`, `dry-runs/`, build plan, SETUP.md) and the CLI repo at `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (all 17 `pkg/providers/*/factory/*` scripts and commits 50fed4e, 633e9a0, 6b762a4, 5c64cb1, 1e49496, 7199e95). Every claim cites a file:line or a sha. Where I ran something, the observed output is quoted.
@@ -203426,7 +203426,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:35Z)**_
 286	
 287	12. **Not verified: install/list-tools for claudecode, codexcli, antigravitycli** on this machine (need vendor credentials and a large download; the `~/.config/provider-factory/env` file is absent). Their behaviour is evidenced only by the dry-run fixtures (`issue1/2/3.md`) dated 2026-09-03.
 288
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:36Z)**_
@@ -203435,7 +203435,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:36Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-tool-enumeration-audit.md`
 
-```text
+````text
 1	# Cross-provider tool enumeration + tool-output audit: the procedure, the standard, and what it has caught
 2	
 3	Path abbreviations used below:
@@ -203881,7 +203881,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:36Z)**_
 443	8. **Whether phantom `<tool-use>` blocks affect downstream parsing** (cloud sync / resume reading `<tool-use>` tags) was not determined; the DeepSeek audit counted them by grep.
 444	9. **Copilot self-report gap** ("listed 64 and used two others") is asserted in `TOOL-AUDIT.md:109`; I did not independently identify the two extra names.
 445
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:37Z)**_
@@ -203890,7 +203890,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:37Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-spi-symmetry.md`
 
-```text
+````text
 1	# Provider symmetry / SPI conformance checklist
 2	
 3	Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (branch `qwen-provider-support`, HEAD `f367e1a`).
@@ -204183,7 +204183,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:37Z)**_
 290	17. Todo checkbox symbol is still split (`x` in droid/deepseek/gemini/muse/qwen vs `X` in claude/cursor/codex) — Sean's recorded decision (doc §7 D3) was to skip Phase 3 item 2, so this is not a bug, but a new provider needs to be told which side to join (`spi.TodoSymbol` returns `x`).
 291	18. Not verified: whether `piagent`'s watcher satisfies the no-emit-at-startup rule in the same way (its tests `TestWatch_EmitsOnNewSession` and `TestStopWatcher_SweepSkipsSessionAlreadyEmitted` at `piagent/watcher_test.go:95,553` suggest yes, and it post-dates FIXES); the behaviour of copilotide/cursoride `Check` against `analytics.CheckAttempt` (they have no binary probe, doc §5 says their DB-oriented error types are correct as-is).
 292
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:38Z)**_
@@ -204192,7 +204192,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:38Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-docs-release.md`
 
-```text
+````text
 1	# Cross-artifact release conventions for a new SpecStory CLI provider
 2	
 3	Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (subdir of the `getspecstory` monorepo). Branch at time of research: `qwen-provider-support` (HEAD `f367e1a`). All file:line cites are against the working tree unless a sha is given. History cites are `.specstory/history/<file>.md [L<n>]` and quote Sean's own `_**User**_` turns verbatim.
@@ -204438,7 +204438,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:38Z)**_
 243	- The root README "Min Version" column mixes `v1.1.5+` and `0.23.3+`; no convention found.
 244	- Intent's pinned `specstory-cli` version (`CLI-RELEASE.md:46`) is a separate repo step; I only confirmed old references in `/Users/sean/Source/SpecStory/intent/intent-cli/AS-BUILT-ARCHITECTURE.md:2975,2995` (v1.10.0) and did not verify the live pin.
 245
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:39Z)**_
@@ -204447,7 +204447,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:39Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-windows.md`
 
-```text
+````text
 1	# Cross-platform standards for a provider (macOS, Linux, WSL, native Windows)
 2	
 3	Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (branch `qwen-provider-support`, Go 1.27.1).
@@ -204719,7 +204719,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:39Z)**_
 269	- The prompts extract truncates agent turns; bucket taxonomies were read from the source history file (`H:15404`, `H:16640-16670`, `H:20260-20286`). Line numbers there are approximate to the section, not to a single sentence.
 270	- The vet/build results above are from this checkout at HEAD of `qwen-provider-support`; they do not prove the Windows job would pass, only that it would compile.
 271
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:23:40Z)**_
@@ -204728,7 +204728,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:40Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-analytics-logging.md`
 
-```text
+````text
 1	# Cross-provider conventions: analytics, logging, observability
 2	
 3	Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (branch `qwen-provider-support`, HEAD `f367e1a`). All `file:line` cites are relative to that directory. Git shas are from the monorepo (`/Users/sean/Source/SpecStory/getspecstory`), whose paths carry a `specstory-cli/` prefix.
@@ -205092,7 +205092,7 @@ _**Agent (claude-fable-5-1 2026-09-14 23:23:40Z)**_
 361	10. The `deepseektui`/`antigravitycli` debug-raw output (single raw file, or a verbatim `.jsonl` copy for antigravity) does not match the per-record numbering Sean demanded for droid; DeepSeek's format is a single JSON document so numbering may not apply, but antigravity's `raw-transcript.jsonl` is exactly the shape rejected on 2026-01-29. I found no turn where Sean accepted or rejected it for antigravity (the 2026-07-24 antigravity session used `--debug-raw` without complaint at `:16608`).
 362	11. History-file authorship: user turns are attributed to Sean by path evidence only.
 363
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 23:25:30Z)**_
@@ -206531,7 +206531,7 @@ Read the contributor guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -206797,7 +206797,7 @@ Read the contributor guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:24Z)**_
@@ -206808,7 +206808,7 @@ Read the provider guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -207074,7 +207074,7 @@ Read the provider guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:24Z)**_
@@ -207085,7 +207085,7 @@ Read the provider guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -207351,7 +207351,7 @@ Read the provider guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:25Z)**_
@@ -207978,7 +207978,7 @@ Read history-musecode-A lines 1-200
 
 `sed -n 1,200p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-musecode-A.md`
 
-```text
+`````text
 # Sean's review judgement: Muse Code provider (PR #269) + cross-provider dedup refactor
 
 Group: history-musecode-A
@@ -208179,7 +208179,7 @@ Sean commits himself, with terse messages ("Code cleanup."), after each agent pa
 - The refactor's canonical-path helper (`CanonicalizePathOrClean`) is the shared, platform-aware path (`H:5598`).
 
 ### T24. Scope discipline: fix what was asked, list the rest as "still open" / "worth checking", and let Sean pick
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:26Z)**_
@@ -208322,7 +208322,7 @@ Read report A lines 1-200
 
 `sed -n 1,200p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-antigravitycli-A.md`
 
-```text
+`````text
 # Sean Johnson's review judgement — Antigravity CLI provider (PR #222), group A
 
 ## Scope and sources
@@ -208522,7 +208522,7 @@ What Sean wants: constants over literals, no dead constants, comments that expla
 - Agent verified changelog coverage as part of status (H:8556, H:8612); Sean's `64ae209` fixed the heading to `## v2.5.0 2026-07-24`, bumped support to `1.1.5`, added the resume caveat, and tightened the Gemini CLI deprecation sentence ("is now deprecated and will eventually be completely replaced").
 - `98f40aa` renamed the spec to `docs/ANTIGRAVITY-FORMAT.md` (uppercase doc naming convention).
 - `64ae209` spec: added the five new result-step types (`SEARCH_WEB`, `READ_URL_CONTENT`, `GENERATE_IMAGE`, `INVOKE_SUBAGENT`, `ASK_QUESTION`) to the §3.2 table.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:27Z)**_
@@ -208533,7 +208533,7 @@ Read the guide document with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -208799,7 +208799,7 @@ Read the guide document with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:27Z)**_
@@ -209400,7 +209400,7 @@ Read review doc lines 1-200
 
 `sed -n 1,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b41d173fb.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -209601,7 +209601,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:29Z)**_
@@ -209612,7 +209612,7 @@ Read review doc lines 1-200
 
 `sed -n '1,200p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -209813,7 +209813,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:29Z)**_
@@ -210546,7 +210546,7 @@ Read review doc lines 400-700
 
 `sed -n 400,700p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b41d173fb.txt`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -210737,7 +210737,7 @@ Read review doc lines 400-700
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:31Z)**_
@@ -210781,7 +210781,7 @@ Read review doc lines 1-150
 
 `sed -n 1,150p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bilzxlj3m.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -210932,7 +210932,7 @@ Read review doc lines 1-150
    148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
    149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
    150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:31Z)**_
@@ -210975,7 +210975,7 @@ Read review doc lines 400-650
 
 `sed -n '400,650p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%6d\t%s\n", NR+399, $0}'`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -211166,7 +211166,7 @@ Read review doc lines 400-650
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:32Z)**_
@@ -211177,7 +211177,7 @@ Read review doc lines 1-200
 
 `sed -n 1,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b3s1zn7sw.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -211378,7 +211378,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:32Z)**_
@@ -212003,7 +212003,7 @@ Read review doc lines 300-450
 
 `sed -n 300,450p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bilzxlj3m.txt`
 
-```text
+````text
    300	
    301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
    302	
@@ -212155,7 +212155,7 @@ Read review doc lines 300-450
    448	## 10. Factory affordances
    449	
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:34Z)**_
@@ -212166,7 +212166,7 @@ Read git report lines 1-180
 
 `sed -n 1,180p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bwm1socqp.txt`
 
-```text
+````text
      1	# DeepSeek TUI provider (PR #218): what Sean changed, and what it reveals
      2	
      3	All paths are relative to `specstory-cli/`. Git evidence is cited as `<sha> -- <path>` with the diff hunk header where useful. Provider dir was `pkg/providers/deepseek/` until Sean renamed it to `pkg/providers/deepseektui/` in `a1c596c` (2026-05-18).
@@ -212347,7 +212347,7 @@ Read git report lines 1-180
    178	| `16449f8` | 2026-07-14 | skills | DeepSeek added to the skills agent registry with `ConfigDir: ~/.codewhale` and `ConfigDirFallback: ~/.deepseek` (tracking the upstream product rename). |
    179	| `1e3a9d9` | 2026-07-24 | version-detection | `ProviderInfo.Version` changed from `session.Metadata.Model` to `"unknown"` with comment "Version is the agent's version, which DeepSeek TUI does not record in its session files — the model is not a substitute and is carried on each assistant message's Model field instead." Test updated to assert `Exchanges[0].Messages[1].Model == "deepseek-r1"` instead. |
    180	| `98f40aa` | 2026-07-24 | resume | `SupportsReconstruction() bool { return true }` added (interface method added to `spi/provider.go` in the same commit). |
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:34Z)**_
@@ -212358,7 +212358,7 @@ Read review doc lines 1-150
 
 `wc -l /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md; sed -n 1,150p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      589 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md
      1	# New Provider Review
      2	
@@ -212510,7 +212510,7 @@ Read review doc lines 1-150
    148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
    149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
    150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:35Z)**_
@@ -212753,7 +212753,7 @@ Read review doc lines 400-600
 
 `sed -n 400,600p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b3s1zn7sw.txt`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -212944,7 +212944,7 @@ Read review doc lines 400-600
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:35Z)**_
@@ -213250,7 +213250,7 @@ Read review doc lines 450-600
 
 `sed -n 450,600p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bilzxlj3m.txt`
 
-```text
+````text
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
    451	
    452	### Contracts
@@ -213391,7 +213391,7 @@ Read review doc lines 450-600
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:35Z)**_
@@ -213402,7 +213402,7 @@ Read git report lines 180-400
 
 `sed -n 180,400p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bwm1socqp.txt`
 
-```text
+````text
    180	| `98f40aa` | 2026-07-24 | resume | `SupportsReconstruction() bool { return true }` added (interface method added to `spi/provider.go` in the same commit). |
    181	| `195266a` | 2026-07-24 | cwd/project-mapping + test-added | Third-level fallback in `generateAgentSession`: metadata.workspace → caller projectPath → `os.Getwd()`, with an 8-line why-comment explaining the reindex case ("a session file without a metadata.workspace loaded by id with no project context… the schema requires a non-empty WorkspaceRoot"). New table row `"cwd fallback when metadata and caller workspace both empty"`. |
    182	| `57503af` | 2026-08-07 | fence-fix | `renderApplyPatch`, `formatDiffBlock`, `formatContentBlock`, `renderGenericJSON` switched from hard-coded ` ``` ` to `spi.CodeFence(lang, content)`; the `strings.ReplaceAll(content, "```", "\\```")` escape hack removed. |
@@ -213534,7 +213534,7 @@ Read git report lines 180-400
    308	17. **Tests are re-homed with the code they test.** `TestClassifyCheckError`, `TestCanonicalizePath`, `TestRenderGenericJSON_SortsKeys` deleted from the provider and re-created under `pkg/spi` in the same commit (`89a254e`); provider tests keep only provider-specific behaviour (`TestBuildCheckErrorMessage`, `DetectAgent`).
    309	18. **Cross-platform test hygiene.** `t.Setenv("HOME")` → `testutil.SetHome` (`a2bb733`) so the same tests pass on Windows.
    310	19. **Contributor's reviewer nit that Sean judged not worth doing was simply not done.** Greg's config-test row was left; Greg added it himself later (`7b205db`). Sean's cleanup scope was the provider package, config identifier spelling, registry, README, changelog — nothing else.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:36Z)**_
@@ -213890,7 +213890,7 @@ Read the guide document with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -214156,7 +214156,7 @@ Read the guide document with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:36Z)**_
@@ -214719,7 +214719,7 @@ Read review doc lines 330-520
 
 `sed -n 330,520p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{print NR+329": "$0}'`
 
-```text
+````text
 330: 
 331: Correct: the banner lists only providers in use; nothing is printed or rewritten for existing sessions; the first new update prints and saves; a session created in a new day directory (or any directory created after the watch armed) is picked up; Ctrl-C exits 0; if no watcher could start the command errors rather than exiting 0 with a banner. Over a long watch, `lsof -p <pid> | wc -l` stays flat.
 332: 
@@ -214911,7 +214911,7 @@ Read review doc lines 330-520
 518: - [ ] Ledger: every MIP resolved or explicitly deferred with a reason; skipped items listed.
 519: - [ ] `gofmt -w .`, `golangci-lint run`, `go test ./...`, `go build -o specstory`, `GOOS=windows GOARCH=amd64 go build ./... && go vet ./...` clean; CI green including the Windows job.
 520: - [ ] Shared-code audit table complete; no local copies of shared helpers without a stated reason.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:37Z)**_
@@ -214922,7 +214922,7 @@ Read history report B lines 140-263
 
 `sed -n 140,263p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-copilotide-B.md`
 
-```text
+````text
 - (90) double `t.TempDir()` made an assertion dead (H:5878) — fixed.
 - Rubric: "for test cases, ensure a data-driven approach... rather than lots of repetitive test code" (H:177); review praise for table-driven tests ((107), (108), (122) H:5893-5906).
 - Missing tests were only requested for "complicated logic only, per conventions" (H:5975): `ResolveProjectPath`, identity override semantics, `ApplyUserDataDirOverrides` parsing, `GetCanonicalPath` volume handling, copilotide multi-workspace dedup (H:5977-5985). Sean took #7 (ResolveProjectPath tests) via "#7 your recommendation" (H:12545).
@@ -215047,7 +215047,7 @@ Run by the agent (Sean accepted the results):
 - The mid-turn interjections "94 stdlib" and "Our @changelog.md still looking good?" exist only in the compaction summary (H:22920-22922), not as separate user turns; their effect is visible in the agent's output (H:11959ff).
 - The screenshot at H:14865 (Copilot pgrep High comment) is an image; its content is known only from the agent's description (H:14871, H:15103).
 - No tool-enumeration, `--debug-raw`, `session.db`, or cross-provider resume tests occur in this session; the guide should source those from other histories.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:37Z)**_
@@ -215097,7 +215097,7 @@ Read git report lines 1-170
 
 `sed -n 1,170p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-antigravitycli.md`
 
-```text
+`````text
 # Antigravity CLI provider (PR #222): what Sean changed before release
 
 All paths are relative to `specstory-cli/` unless noted. Every claim below cites a commit sha (read with `git show <sha> -- <path>`) or a PR review comment (fetched with `gh api repos/specstoryai/getspecstory/pulls/222/comments`). Where something is inferred rather than observed it is marked as such.
@@ -215267,7 +215267,7 @@ What changed:
 What it reveals: A provider's declared limitation must be enforced everywhere the user could hit it (CLI arg validation, TUI picker, error text), not just returned as an error deep inside. Copilot findings are triaged: real ones get code + a test; cosmetic ones get fixed too.
 
 ### `98f40aa` 2026-07-24 — "Code cleanup."
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:37Z)**_
@@ -215543,7 +215543,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -215809,7 +215809,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:39Z)**_
@@ -216604,7 +216604,7 @@ Read review guide lines 1-200
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 1,200p`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -216805,7 +216805,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:42Z)**_
@@ -217065,7 +217065,7 @@ Read review guide lines 1-150
 
 `sed -n 1,150p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bom6dhbdu.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -217216,7 +217216,7 @@ Read review guide lines 1-150
    148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
    149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
    150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:43Z)**_
@@ -217227,7 +217227,7 @@ Inspect the prompts extract format
 
 `cd /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/ && head -c 3000 2026-05-13_13-48-53Z-i-ve-got-a.prompts.md; echo; echo ---------; grep -c '' 2026-05-13_13-48-53Z-i-ve-got-a.prompts.md; grep -n '^_\*\*\|^## \|^# \|^---' 2026-05-13_13-48-53Z-i-ve-got-a.prompts.md | head -30`
 
-```text
+````text
 # Extracted from .specstory/history/2026-05-13_13-48-53Z-i-ve-got-a.md (6 user turns)
 
 ### [line 7] User (2026-05-13 13:48:53Z)
@@ -217358,7 +217358,7 @@ drwxr-xr-x   3 sean  staff   96 May 13 09:46 checkpoints
 767:# Build representative list: one per unique tool name (first occurrence)
 952:# Per-tool quality + comment specifications. Keys are (name, occurrence_index) for tools
 953:# where the per-call quality differs; bare name applies to all calls of that tool...
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:43Z)**_
@@ -217369,7 +217369,7 @@ Read review guide lines 400-600
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 400,600p`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -217560,7 +217560,7 @@ Read review guide lines 400-600
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:44Z)**_
@@ -217773,7 +217773,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -218039,7 +218039,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:44Z)**_
@@ -218050,7 +218050,7 @@ Read review guide lines 1-200
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 1,200p`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -218251,7 +218251,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:45Z)**_
@@ -218262,7 +218262,7 @@ Read git-musecode lines 1-100
 
 `sed -n 1,100p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-musecode.md`
 
-```text
+`````text
 # Git reconstruction: Sean Johnson's refinement of the `musecode` provider (PR #269)
 
 Provider: `musecode` (id `muse`), Muse Code, Meta's terminal coding agent.
@@ -218362,7 +218362,7 @@ What it reveals: Copilot findings are inputs for issue identification, never pat
 Files: `watcher.go`, `watcher_test.go`. +79 / -0.
 
 Categories: watch-behavior, test-added.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:45Z)**_
@@ -218373,7 +218373,7 @@ Inspect history originals and their format
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/ && ls | grep -E '2026-0[5-8]|2026-01-2[89]' ; echo ----; head -c 2500 2026-05-13_13-48-53Z-i-ve-got-a.md 2>/dev/null || ls | grep 2026-05-13`
 
-```text
+````text
 2026-01-28_13-10-29Z-take-a-look-at.md
 2026-01-28_13-36-04Z-command-name-pr-review.md
 2026-01-28_13-36-04Z-read-the-file-at.md
@@ -218573,7 +218573,7 @@ _**Agent (claude-opus-4-7 2026-05-13 13:49:06Z)**_
 21	)
 22	
 23	// Provider implements the spi.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:45Z)**_
@@ -218584,7 +218584,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -218850,7 +218850,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:45Z)**_
@@ -219074,7 +219074,7 @@ Read review guide lines 300-450
 
 `sed -n 1,150p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bwc8symcw.txt`
 
-```text
+````text
    300	
    301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
    302	
@@ -219225,7 +219225,7 @@ Read review guide lines 300-450
    447	
    448	## 10. Factory affordances
    449
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:46Z)**_
@@ -219347,7 +219347,7 @@ Read review guide lines 400-589
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 400,589p`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -219538,7 +219538,7 @@ Read review guide lines 400-589
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:47Z)**_
@@ -219549,7 +219549,7 @@ Read review guide lines 450-589
 
 `sed -n 150,300p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bwc8symcw.txt`
 
-```text
+````text
    449	
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
    451	
@@ -219691,7 +219691,7 @@ Read review guide lines 450-589
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:47Z)**_
@@ -219702,7 +219702,7 @@ Read review guide lines 1-200
 
 `sed -n 1,200p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 # New Provider Review
 
 This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -219903,7 +219903,7 @@ The maintainer reads watchers for real races and startup behavior, and has rewri
 - It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
 - Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
 - IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:47Z)**_
@@ -219914,7 +219914,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -220180,7 +220180,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:48Z)**_
@@ -220404,7 +220404,7 @@ Read review guide lines 1-110
 
 `sed -n 1,110p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -220515,7 +220515,7 @@ Read review guide lines 1-110
    108	
    109	### 4.1 SPI conformance and symmetry
    110
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:49Z)**_
@@ -220526,7 +220526,7 @@ Read review guide lines 400-589
 
 `sed -n 400,589p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 - Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
 - Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
 - Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -220717,7 +220717,7 @@ Review and refine commits, by provider (all by the maintainer):
 Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 
 Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:49Z)**_
@@ -220858,7 +220858,7 @@ Read contributor guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -221124,7 +221124,7 @@ Read contributor guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:51Z)**_
@@ -221258,7 +221258,7 @@ Read review guide lines 330-460
 
 `sed -n 330,460p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+329, $0}'`
 
-```text
+````text
 330	
 331	Correct: the banner lists only providers in use; nothing is printed or rewritten for existing sessions; the first new update prints and saves; a session created in a new day directory (or any directory created after the watch armed) is picked up; Ctrl-C exits 0; if no watcher could start the command errors rather than exiting 0 with a banner. Over a long watch, `lsof -p <pid> | wc -l` stays flat.
 332	
@@ -221390,7 +221390,7 @@ Read review guide lines 330-460
 458	- `list-tools`: runs in the current empty directory under an isolated `$HOME`; prefers the harness's own declaration (stream init event, extension hook) over a model self-report; prints names one per line as the agent records them in session data; extra facts to stderr; isolation flags so user config cannot leak in; the needed credential named and checked (none is best); bounded by a timeout; diagnostics left in the directory; exits non-zero rather than printing an empty or partial list.
 459	- IDE providers ship `latest-version` only (composite when several release trains change the on-disk format) and say why in the header.
 460
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:35:54Z)**_
@@ -221617,7 +221617,7 @@ Read review guide lines 460-589
 
 `sed -n 460,589p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+459, $0}'`
 
-```text
+````text
 460	
 461	### Validation
 462	
@@ -221748,7 +221748,7 @@ Read review guide lines 460-589
 587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 588	
 589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:36:01Z)**_
@@ -227684,7 +227684,7 @@ Read the delegated pr-review checklist
 
 `cat -n .claude/commands/pr-review.md`
 
-```text
+````text
      1	---
      2	allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
      3	description: Code review for pull request $1
@@ -227767,7 +227767,7 @@ Read the delegated pr-review checklist
     80	- Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
     81	- Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
     82	- Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:38:07Z)**_
@@ -228551,7 +228551,7 @@ Read one Copilot review body carrying suppressed comments
 
 `gh api repos/specstoryai/getspecstory/pulls/269/reviews/4937918435 --jq '.body' 2>/dev/null | head -40`
 
-```text
+````text
 ## Pull request overview
 
 Copilot reviewed 31 out of 31 changed files in this pull request and generated 2 comments.
@@ -228592,7 +228592,7 @@ func StopWatcher() {
 			t.Fatal("session not found")
 		}
 		if session.SessionID != basicSessionID {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:38:34Z)**_
@@ -228708,7 +228708,7 @@ Grep both guides for candidate gap keywords
 
 `R=docs/NEW-PROVIDER-REVIEW.md; G=NEW-PROVIDER-GUIDE.md; for pat in 'workspace' 'remote\|SSH\|WSL\|dev container\|tunnel' 'basename' 'user-data-dir' 'deserializ\|loader\|the agent.s own code\|source code' 'tasklist\|smoke\|Windows box\|real Windows' 'USERNAME\|os/user\|USER' 'side effect\|churn\|update once\|one-time' 'duplicat' '%v\|map\[' 'latency\|subprocess\|spawn' 'case' 'TTY\|tty\|non-interactive\|automation' 'zsh\|```bash\|writing convention' 'multi-user\|profile' 'throwaway\|live check\|LiveCheck' 'codex\|anchor' 'variant' 'blockquote\|warning' 'gracefully\|drift' 'fragment\|streamed\|paragraph' 'empty-label\|\[\](\|link' 'fold' 'effective project\|project-path\|output-dir' 'populated\|empty copy\|dedup' 'canonical' 'interleav\|in the order\|order they'; do echo "=== [$pat] in REVIEW"; grep -n -i "$pat" "$R" | cut -c1-220; echo "=== [$pat] in GUIDE"; grep -n -i "$pat" "$G" | cut -c1-220; done 2>&1 | head -400`
 
-```text
+````text
 === [workspace] in REVIEW
 56:3. The store: where sessions live, the data format family (JSONL, JSON, SQLite, IDE workspace storage), and whether the agent has a headless mode.
 61:8. Read the PR body's open questions. Answer them with code, not comments. When the Copilot IDE PR asked whether the two IDE providers should share workspace code, the answer was a shared `pkg/providers/vscode` packag
@@ -228889,7 +228889,7 @@ Grep both guides for candidate gap keywords
 484:> The SpecStory CLI now supports [<Agent>](<product url>) (i.e. `<binary or id>`) for sessions created from <Agent> version `<X.Y.Z>` or higher. Sessions from earlier versions may work, but are not officially support
 === [interleav\|in the order\|order they] in GUIDE
 217:| `specstory run <id>` | The agent takes the terminal with no interleaved output; markdown appears after the first turn and grows; the CLI exits with the agent's status and the last turn is saved even on a non-zero e
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:38:45Z)**_
@@ -229242,7 +229242,7 @@ Check shared docs, pr-review command and changelog wording
 
 `echo "=== PROVIDER-FIXES multi-workspace/remote"; grep -n -i 'workspace\|remote\|populated' docs/PROVIDER-FIXES.md | head -20; echo "=== PROVIDER-REFACTOR workspace"; grep -n -i 'multi.workspace\|populated\|remote' docs/PROVIDER-REFACTOR.md | head -20; echo "=== pr-review.md"; cat .claude/commands/pr-review.md | head -80; echo "=== changelog v2.7.0/2.8.0 side effect"; grep -n -i 'may update once\|Note:' changelog.md | head -10`
 
-```text
+````text
 === PROVIDER-FIXES multi-workspace/remote
 === PROVIDER-REFACTOR workspace
 === pr-review.md
@@ -229328,7 +229328,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 === changelog v2.7.0/2.8.0 side effect
 62:- Fenced code blocks in the rendered markdown (those triple backticks) are now sized correctly across all providers. When a session included tool output that itself contained embedded code fences — a cat of a README, a diff of a markdown file — the resulting markdown could become unbalanced and wreck how rendering engines display everything after it. Fences are now sized past any backtick runs in the content, and the old backslash-escape workaround (which left visible \ artifacts) is gone. Thanks to [huangruizhe](https://github.com/huangruizhe) for diagnosing the problem and proposing the fix in [PR 241](https://github.com/specstoryai/getspecstory/pull/241), which was the inspiration for this change. Note: your existing markdown files may update once on your next sync as fences are resized and escape artifacts removed.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:38:55Z)**_
@@ -229463,7 +229463,7 @@ View context for composite modifier line, INSANE quote, and regression-test quot
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history && echo "=== R17a composite (2026-07-16 line 8618-8626) ==="; sed -n 8616,8626p 2026-07-16_20-14-28Z-update-the-readme.md; echo; echo "=== R21 dude/INSANE (2026-08-04 15312-15322) ==="; sed -n 15312,15322p 2026-08-04_15-05-09Z-let-s-play-close.md; echo; echo "=== R37 regression test worthless (2026-08-13 19205-19216) ==="; sed -n 19205,19216p 2026-08-13_13-43-21Z-cross-provider-refactor-200.md | cut -c1-400; echo; echo "=== who is speaking before 19213 ==="; awk 'NR<=19213 && /^_\*\*(User|Agent)/{l=NR": "$0} END{print l}' 2026-08-13_13-43-21Z-cross-provider-refactor-200.md`
 
-```text
+````text
 === R17a composite (2026-07-16 line 8618-8626) ===
 One thing to be aware of: I edited the README on your local `cursor-ide` branch, but the PR is from iacopo's fork/branch — if you want this to land as part of PR #159 itself, you'd either push this to the PR branch or ask iacopo to include it; otherwise it can go in as a follow-up commit after merge.
 
@@ -229506,7 +229506,7 @@ _**Agent (claude-opus-5 2026-08-14 19:54:11Z)**_
 
 === who is speaking before 19213 ===
 19211: _**Agent (claude-opus-5 2026-08-14 19:54:04Z)**_
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:38:57Z)**_
@@ -230767,7 +230767,7 @@ View context for InvokedAt and intentional quotes
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history && echo "=== R257/R287 (2026-01-29_16-26-43Z) 4555-4570 ==="; sed -n 4555,4570p 2026-01-29_16-26-43Z-command-message-pr-review.md | cut -c1-300; echo "--- 4585-4595"; sed -n 4585,4595p 2026-01-29_16-26-43Z-command-message-pr-review.md | cut -c1-300; echo "--- 4818-4830"; sed -n 4818,4830p 2026-01-29_16-26-43Z-command-message-pr-review.md | cut -c1-400; echo "--- 4150-4156 agent"; sed -n 4150,4156p 2026-01-29_16-26-43Z-command-message-pr-review.md | cut -c1-300`
 
-```text
+````text
 === R257/R287 (2026-01-29_16-26-43Z) 4555-4570 ===
 4. **Error paths** - Could add tests for file permission errors
 
@@ -230819,7 +230819,7 @@ Lines 33-65: `Check` method
 
 Lines 67-93: `DetectAgent` method
 - ✅ Good early return pattern
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:39:08Z)**_
@@ -231672,7 +231672,7 @@ Search history for missing quotes using alternate wording
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history && echo "=== R176 watch doesn't work at all ==="; grep -rn -i "doesn't work at all\|never seems to see" *.md | cut -c1-250 | head; echo; echo "=== R441 High overstates ==="; grep -rn -i "overstates" *.md | cut -c1-250 | head; echo; echo "=== R442 nil map no-op ==="; grep -rn -i "nil map" *.md | cut -c1-250 | head; echo; echo "=== R457 never close enough ==="; grep -rn -i "close enough" *.md | cut -c1-250 | head; echo; echo "=== A539 secret in the cloud ==="; grep -rn -i "secret in the cloud\|during redaction" *.md | cut -c1-250 | head; echo; echo "=== A550 rework their test ==="; grep -rn -i "rework their\|test scenarios" *.md | cut -c1-250 | head; echo; echo "=== A536/G35 never fires ==="; grep -rn -i "never fires" *.md | cut -c1-250 | head; echo; echo "=== A537 do not guess ==="; grep -rn -i "do not guess\|neither resolves" *.md | cut -c1-250 | head; echo; echo "=== R163a as observed in sessions ==="; grep -rn -i "as observed in sessions\|Cursor 3.12" *.md | cut -c1-250 | head; echo; echo "=== R127 call sites ==="; grep -rn -i "call sites" *.md | grep -i fence | cut -c1-250 | head`
 
-```text
+````text
 === R176 watch doesn't work at all ===
 2026-07-13_15-40-55Z-when-using-the-export.md:1011:2. The user is mistaken and actually it doesn't work at all in either case (but they think no-trailing-slash works because of some other reason)
 2026-08-04_15-05-09Z-let-s-play-close.md:21542:With `watch` it's worse. Just doesn't work at all. SpecStory never seems to see the session at all.
@@ -231752,7 +231752,7 @@ Search history for missing quotes using alternate wording
 2026-08-13_13-43-21Z-cross-provider-refactor-200.md:17503:+ **Lesson for future sweeps:** grepping for ``` catches `Sprintf`-style fences but not ones assembled across `WriteString` calls. The reliable check is "which call sites do *not* go through `
 2026-09-14_21-57-06Z-we-are-going-to.md:641:298: **Lesson for future sweeps:** grepping for ``` catches `Sprintf`-style fences but not ones assembled across `WriteString` calls. The reliable check is "which call sites do *not* go through `
 2026-08-04_15-05-09Z-let-s-play-close.md:25138:`mdfmt.CodeFence` takes an info string, so copilotide's terminal handler drops its manual fence+`"bash"` concatenation for `CodeFence("bash", command)`. `CodeFence` returns without surrounding newlines;
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:39:22Z)**_
@@ -232000,7 +232000,7 @@ Search repo code and commit messages for missing quotes
 
 `echo "=== git grep for missing quotes in repo (excluding .specstory) ==="; for f in "never fires" "do not guess" "neither resolves" "never close enough" "close enough" "as observed in" "secret in the Cloud" "rework their test" "overstates" "nil map" "Cursor 3.12" "call sites"; do echo "--- $f"; git grep -n -i -F -- "$f" -- ':!.specstory' ':!NEW-PROVIDER-GUIDE.md' ':!docs/NEW-PROVIDER-REVIEW.md' | cut -c1-250 | head -5; done; echo; echo "=== git log for missing quotes ==="; for f in "never close enough" "do not guess" "never fires" "secret in the Cloud" "rework their test"; do echo "--- $f"; git log --all -i --grep="$f" --format='%h %an %s' | head -3; done`
 
-```text
+````text
 === git grep for missing quotes in repo (excluding .specstory) ===
 --- never fires
 docs/ANTIGRAVITY-FORMAT.md:217:because a renderer for a tool that never fires is untestable code that reads as
@@ -232036,7 +232036,7 @@ pkg/spi/fence.go:21:// The result has no leading or trailing newline; call sites
 --- never fires
 --- secret in the Cloud
 --- rework their test
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:39:26Z)**_
@@ -233232,7 +233232,7 @@ Check pr-review checklist, README sections, release doc, monorepo CI workflows
 
 `echo "--- pr-review.md checklist"; sed -n 26,45p .claude/commands/pr-review.md; echo "--- README sections"; grep -n -E "^#+ .*(Agent Support|Configuration Options|Debug Raw|Providers)|^\[providers\]" README.md | head; echo "--- CLI-RELEASE"; grep -n -i -E "homebrew|tap|single tag|release notes|website" docs/CLI-RELEASE.md | head -8; echo "--- monorepo workflows"; TOP=$(git rev-parse --show-toplevel); echo "$TOP"; ls "$TOP/.github/workflows/" 2>&1; grep -l -i "windows" "$TOP"/.github/workflows/*.y*ml 2>/dev/null; grep -n -E "awk .*version|changelog" "$TOP"/.github/workflows/*.y*ml 2>/dev/null | head -5`
 
-```text
+````text
 --- pr-review.md checklist
 Review line by line and explain to me the purpose of each change. Use file names and line numbers to reference the changes, but also sequentially number every observation so we can easily reference them.
 
@@ -233287,7 +233287,7 @@ release.yml
 /Users/sean/Source/SpecStory/getspecstory/.github/workflows/release-pr-body.yml:90:            Optimize for a human reviewing a release PR. Be specific; avoid changelog spam; prefer
 /Users/sean/Source/SpecStory/getspecstory/.github/workflows/release.yml:55:            # Extract changelog for this version from specstory-cli/changelog.md
 /Users/sean/Source/SpecStory/getspecstory/.github/workflows/release.yml:56:            # The changelog format is: ## v0.13.0 2025-10-26
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:40:26Z)**_
@@ -233420,7 +233420,7 @@ Check sessions.db, log keys, watcher polling, watch window usage, CodeFence
 
 `echo "--- sessions.db"; grep -rn -E 'sessions\.db|"\.specstory"' pkg/sessionindex/*.go | grep -v _test | head -4; echo "--- claudecode log keys"; grep -o -E '"(sessionId|session_id|projectPath|project_path|exitCode|exit_code|debugRaw|debug_raw|resolved)"' pkg/providers/claudecode/*.go | grep -v _test | sort | uniq -c; echo "--- claudecode watcher ticker/poll"; grep -n -E "time\.NewTicker|time\.Tick\(|poll" pkg/providers/claudecode/watcher.go | head -8; echo "--- musecode watcher ticker"; grep -n -E "time\.NewTicker|poll" pkg/providers/musecode/watcher.go | head -5; echo "--- WatchWindow usage"; grep -rln "WatchWindow" pkg/providers/ | grep -v _test; echo "--- CodeFence impl"; sed -n 10,50p pkg/spi/fence.go`
 
-```text
+````text
 --- sessions.db
 pkg/sessionindex/store.go:1:// Package sessionindex implements sessions.db — the machine-level index of every coding-agent
 pkg/sessionindex/store.go:5:// sessions.db is a DERIVED CACHE over the native session stores: it can be deleted and
@@ -233488,7 +233488,7 @@ func fenceLen(content string) int {
 
 // CapRunes truncates s to at most max runes, marking the cut. Rune-based so a
 // cap never splits a multi-byte character. Scans rune boundaries instead of
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-14 23:40:31Z)**_
@@ -234986,7 +234986,7 @@ Read the contributor guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -235252,7 +235252,7 @@ Read the contributor guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:11Z)**_
@@ -235263,7 +235263,7 @@ Read the provider guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -235529,7 +235529,7 @@ Read the provider guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:11Z)**_
@@ -235607,7 +235607,7 @@ Read the provider guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -235873,7 +235873,7 @@ Read the provider guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:11Z)**_
@@ -236922,7 +236922,7 @@ Read review doc lines 1-200
 
 `sed -n 1,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b6s647lo0.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -237123,7 +237123,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:15Z)**_
@@ -237392,7 +237392,7 @@ Read review doc lines 1-200
 
 `sed -n 1,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bo1jnrgpu.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -237593,7 +237593,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:16Z)**_
@@ -237780,7 +237780,7 @@ Read review doc lines 200-420
 
 `sed -n 200,420p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b6s647lo0.txt`
 
-```text
+````text
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
    201	- The error for the unfixable case is friendly and carries the remedy: "It's a scary error and what the user needs to do is buried behind error text."
    202	- By-id lookups on a global store verify project ownership; "corrupted output, not just a bad lookup."
@@ -238002,7 +238002,7 @@ Read review doc lines 200-420
    418	grep -rn 'Getenv("HOME")\|Getenv("USER")' pkg/providers/<p>
    419	grep -rn 'pgrep\|"sh"\|"/bin/' pkg/providers/<p>
    420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:16Z)**_
@@ -238013,7 +238013,7 @@ Read review doc lines 1-200
 
 `sed -n 1,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bpza9l49b.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -238214,7 +238214,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:16Z)**_
@@ -238225,7 +238225,7 @@ Read review doc lines 1-150
 
 `sed -n 1,150p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/btqof2cqk.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -238376,7 +238376,7 @@ Read review doc lines 1-150
    148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
    149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
    150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:16Z)**_
@@ -238387,7 +238387,7 @@ Read git report lines 1-200
 
 `sed -n 1,200p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-deepseektui.md`
 
-```text
+````text
 # DeepSeek TUI provider (PR #218): what Sean changed, and what it reveals
 
 All paths are relative to `specstory-cli/`. Git evidence is cited as `<sha> -- <path>` with the diff hunk header where useful. Provider dir was `pkg/providers/deepseek/` until Sean renamed it to `pkg/providers/deepseektui/` in `a1c596c` (2026-05-18).
@@ -238588,7 +238588,7 @@ Before, a non-object todo entry would render as `- [ ] (no description)`; now it
 | 4 | `TotalTokens` mis-attributed to `InputTokens` | `6c6f211` leaves `Usage` nil with a why-comment | — |
 | 5 | Missing `PathHints` (use `spi.ExtractShellPathHints`) | `6c6f211` | — |
 | 6 | `extractWorkspaceFast` did `os.ReadFile` per fs event | `6c6f211` bufio.Scanner, 1MB line cap, bail at `"messages"` | — |
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-15 12:01:17Z)**_
@@ -238722,7 +238722,7 @@ Read review doc lines 200-420
 
 `sed -n 200,420p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bo1jnrgpu.txt`
 
-```text
+````text
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
    201	- The error for the unfixable case is friendly and carries the remedy: "It's a scary error and what the user needs to do is buried behind error text."
    202	- By-id lookups on a global store verify project ownership; "corrupted output, not just a bad lookup."
@@ -238944,7 +238944,7 @@ Read review doc lines 200-420
    418	grep -rn 'Getenv("HOME")\|Getenv("USER")' pkg/providers/<p>
    419	grep -rn 'pgrep\|"sh"\|"/bin/' pkg/providers/<p>
    420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:17Z)**_
@@ -238955,7 +238955,7 @@ Read review doc lines 420-700
 
 `sed -n 420,700p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b6s647lo0.txt`
 
-```text
+````text
    420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
    421	GOOS=windows GOARCH=amd64 go build ./... && GOOS=windows GOARCH=amd64 go vet ./...
    422	```
@@ -239126,7 +239126,7 @@ Read review doc lines 420-700
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:18Z)**_
@@ -239137,7 +239137,7 @@ Read git report lines 200-500
 
 `sed -n 200,500p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-deepseektui.md`
 
-```text
+````text
 | 6 | `extractWorkspaceFast` did `os.ReadFile` per fs event | `6c6f211` bufio.Scanner, 1MB line cap, bail at `"messages"` | — |
 | 7 | `Check` analytics omitted `version_flag` | `6c6f211` | `89a254e` replaces with `analytics.CheckAttempt` |
 | 8 | `ProviderInfo.ID = "deepseek"` → `"deepseek-tui"` | `6c6f211` | `a1c596c` extends the convention to the package name |
@@ -239249,7 +239249,7 @@ Current inventory: 33 `Test*` functions across 7 test files, 3296 lines total in
 17. **Tests are re-homed with the code they test.** `TestClassifyCheckError`, `TestCanonicalizePath`, `TestRenderGenericJSON_SortsKeys` deleted from the provider and re-created under `pkg/spi` in the same commit (`89a254e`); provider tests keep only provider-specific behaviour (`TestBuildCheckErrorMessage`, `DetectAgent`).
 18. **Cross-platform test hygiene.** `t.Setenv("HOME")` → `testutil.SetHome` (`a2bb733`) so the same tests pass on Windows.
 19. **Contributor's reviewer nit that Sean judged not worth doing was simply not done.** Greg's config-test row was left; Greg added it himself later (`7b205db`). Sean's cleanup scope was the provider package, config identifier spelling, registry, README, changelog — nothing else.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:18Z)**_
@@ -239296,7 +239296,7 @@ Read review doc lines 420-700
 
 `sed -n 420,700p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bo1jnrgpu.txt`
 
-```text
+````text
    420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
    421	GOOS=windows GOARCH=amd64 go build ./... && GOOS=windows GOARCH=amd64 go vet ./...
    422	```
@@ -239467,7 +239467,7 @@ Read review doc lines 420-700
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:19Z)**_
@@ -239478,7 +239478,7 @@ Read the contributor guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -239744,7 +239744,7 @@ Read the contributor guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:19Z)**_
@@ -239773,7 +239773,7 @@ Read review doc lines 200-420
 
 `sed -n 200,420p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bpza9l49b.txt`
 
-```text
+````text
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
    201	- The error for the unfixable case is friendly and carries the remedy: "It's a scary error and what the user needs to do is buried behind error text."
    202	- By-id lookups on a global store verify project ownership; "corrupted output, not just a bad lookup."
@@ -239995,7 +239995,7 @@ Read review doc lines 200-420
    418	grep -rn 'Getenv("HOME")\|Getenv("USER")' pkg/providers/<p>
    419	grep -rn 'pgrep\|"sh"\|"/bin/' pkg/providers/<p>
    420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:20Z)**_
@@ -240197,7 +240197,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:20Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-antigravitycli-A.md`
 
-```text
+`````text
 1	# Sean Johnson's review judgement — Antigravity CLI provider (PR #222), group A
 2	
 3	## Scope and sources
@@ -240515,7 +240515,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:20Z)**_
 315	
 316	`f45cab4` Antigravity tool rendering improvements → `13ab49d` Remove workspace inference attempt; other minor cleanup (watcher.go +143/−, agentColW) → `d8c1c0f` Cleanup non-real tool renderers → `2bc5a96` / `1e3a9d9` / `64ae209` Minor code cleanup (arg keys, read-only DB, Version constant, tab de-indent, changelog v2.5.0/1.1.5, resume preset validation, spec result types) → `98f40aa` Code cleanup (rename to `docs/ANTIGRAVITY-FORMAT.md`, `SupportsReconstruction()` on interface, `watcher_test.go`) → five "Comment fix" commits (doc-name references) → `f9d3e73` Share Cursor IDE Windows-aware path handling → `195266a` 3rd-level cwd fallback for Antigravity and DeepSeek. PR #222 merged into `dev` 22:51Z. Whether these were produced with agent help in the two later 07-24 sessions is outside this extract.
 317
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:21Z)**_
@@ -241075,7 +241075,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:22Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-antigravitycli.md`
 
-```text
+`````text
 1	# Antigravity CLI provider (PR #222): what Sean changed before release
 2	
 3	All paths are relative to `specstory-cli/` unless noted. Every claim below cites a commit sha (read with `git show <sha> -- <path>`) or a PR review comment (fetched with `gh api repos/specstoryai/getspecstory/pulls/222/comments`). Where something is inferred rather than observed it is marked as such.
@@ -241408,7 +241408,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:22Z)**_
 330	17. **Windows is a first-class target**: URI conversion handles drive letters/UNC/WSL; tests use `testutil.SetHome`/`JSONString` so fixtures are valid on Windows paths.
 331	18. **Post-release, the provider is still subject to cross-cutting refactors** documented in a research doc with options, a recommendation, and a "what actually landed" ledger (`docs/PROVIDER-REFACTOR.md`, `docs/PROVIDER-FIXES.md`).
 332
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:22Z)**_
@@ -241448,7 +241448,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 1	# New Provider Review
 2	
 3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -242039,7 +242039,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
 588	
 589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
 590
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
@@ -242212,7 +242212,7 @@ Read report A part 1
 
 `sed -n 1,160p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/b291h857e.txt`
 
-```text
+`````text
 # Sean's review judgement: Muse Code provider (PR #269) + cross-provider dedup refactor
 
 Group: history-musecode-A
@@ -242373,7 +242373,7 @@ Sean commits himself, with terse messages ("Code cleanup."), after each agent pa
 - Sean never had to ask for this; it is set by CLAUDE.md and the agent followed it.
 
 ### T17. Manual, end-to-end testing by Sean on the real agent is the gate, and he reports failures as screenshots
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
@@ -242384,7 +242384,7 @@ Read review doc lines 420 to end
 
 `sed -n 420,700p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bpza9l49b.txt`
 
-```text
+````text
    420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
    421	GOOS=windows GOARCH=amd64 go build ./... && GOOS=windows GOARCH=amd64 go vet ./...
    422	```
@@ -242555,7 +242555,7 @@ Read review doc lines 420 to end
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
@@ -242566,7 +242566,7 @@ Read review doc lines 330-589
 
 `sed -n 330,589p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/btqof2cqk.txt`
 
-```text
+````text
    330	
    331	Correct: the banner lists only providers in use; nothing is printed or rewritten for existing sessions; the first new update prints and saves; a session created in a new day directory (or any directory created after the watch armed) is picked up; Ctrl-C exits 0; if no watcher could start the command errors rather than exiting 0 with a banner. Over a long watch, `lsof -p <pid> | wc -l` stays flat.
    332	
@@ -242827,7 +242827,7 @@ Read review doc lines 330-589
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
@@ -242836,7 +242836,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
 <summary>Tool use: **Read**</summary>
  `./NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
 1	# New Provider Guide
 2	
 3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -243103,7 +243103,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:23Z)**_
 264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
 265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
 266
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:24Z)**_
@@ -243146,7 +243146,7 @@ Read remainder of report B
 
 `tail -c +24001 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-copilotide-B.md`
 
-```text
+````text
 n checked in as docs "should be rewritten as documentation of what is, or not merged" (H:5596); (12) a stats plan with the author's absolute local paths "hitchhiked into this PR" (H:5598); (14) "```bash" blocks and text after headers violate writing conventions (H:5600).
 - Changelog is checked repeatedly by Sean: "seems the config dir is a bugfix that should land in @changelog.md, no?" (H:10169); mid-turn "Our @changelog.md still looking good?" (summary H:22920); "While we wait, our @changelog.md still in good shape (for release tomorrow)" (H:15166). The agent's rule, accepted: fixes to never-shipped v2.9.0 features get no bug-fix entries (H:15172ff "Deliberately left out... corrections to v2.9.0 features that never existed in a release, so per the `--config-dir` precedent they need no bug-fix entries"). Sean himself edited the changelog outside the session (summary H:22891: "WSL/SSH discovery bullet (user moved to Improvements)") and committed 5e7b300 "Changelog."
 - Release doc: "Our process is here: docs/CLI-RELEASE.md" (H:13910); updated with Windows verification steps, artifact table, and current-state gaps (H:14747).
@@ -243261,7 +243261,7 @@ Run by the agent (Sean accepted the results):
 - The mid-turn interjections "94 stdlib" and "Our @changelog.md still looking good?" exist only in the compaction summary (H:22920-22922), not as separate user turns; their effect is visible in the agent's output (H:11959ff).
 - The screenshot at H:14865 (Copilot pgrep High comment) is an image; its content is known only from the agent's description (H:14871, H:15103).
 - No tool-enumeration, `--debug-raw`, `session.db`, or cross-provider resume tests occur in this session; the guide should source those from other histories.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:24Z)**_
@@ -243484,7 +243484,7 @@ Read contributor-facing guide
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -243750,7 +243750,7 @@ Read contributor-facing guide
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-15 12:01:27Z)**_
@@ -243761,7 +243761,7 @@ Run style, link, and test-bed contamination checks on both guides
 
 `echo "=== headers followed by blank line? ==="; for f in NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md; do awk -v F="$f" 'prev ~ /^#/ && $0 !~ /^$/ {print F": line "NR-1" header not followed by blank: "prev} {prev=$0}' "$f"; done; echo "=== code fence languages ==="; grep -n '^```[a-z]' NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md | sort | uniq -c | sort -rn | head; echo "=== em-dashes in prose (outside quotes) ==="; grep -n '—' NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md | grep -v '"' | head; echo "=== em-dashes inside quotes (count) ==="; grep -c '—' docs/NEW-PROVIDER-REVIEW.md; echo "=== relative links ==="; for f in NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md README.md; do d=$(dirname $f); grep -o '\]([^)h][^)]*)' "$f" | sed 's/^](//; s/)$//' | sed 's/#.*//' | sort -u | while read l; do [ -z "$l" ] && continue; [ -e "$d/$l" ] || echo "$f -> BROKEN: $l"; done; done; echo "=== Pi/Qwen mentions ==="; grep -n -i 'qwen\|piagent\|\bpi\b\|pi_cmd\|session-id' NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md | head -30`
 
-```text
+````text
 === headers followed by blank line? ===
 === code fence languages ===
    1 NEW-PROVIDER-GUIDE.md:236:```zsh
@@ -243785,7 +243785,7 @@ docs/NEW-PROVIDER-REVIEW.md:486:Then a resume sentence or bullet (both direction
 docs/NEW-PROVIDER-REVIEW.md:492:The version floor is the agent version actually run on release day, not the oldest the parser might handle and not the version the contributor tested ("we are using the Qwen as of today, which is 0.23.3, so updated the changelog for that", "why \"latest\", you know what we put in the Changelog", "dude.... v1.0.2+ isn't our agy min version").
 docs/NEW-PROVIDER-REVIEW.md:563:| Non-zero agent exit via `spi.AgentExitError` after joining saves | `pkg/providers/piagent` |
 docs/NEW-PROVIDER-REVIEW.md:568:| Factory scripts | `pkg/providers/piagent/factory`, `pkg/providers/claudecode/factory`, `pkg/providers/antigravitycli/factory` |
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:26Z)**_
@@ -243994,7 +243994,7 @@ Read the contributor-facing guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -244260,7 +244260,7 @@ Read the contributor-facing guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:27Z)**_
@@ -244902,7 +244902,7 @@ Read review guide lines 1-200
 
 `sed -n 1,200p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -245103,7 +245103,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:32Z)**_
@@ -245478,7 +245478,7 @@ Read git report part 1
 
 `sed -n 1,130p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bfj9euv0n.txt`
 
-```text
+`````text
 # Git reconstruction: Sean Johnson's refinement of the `musecode` provider (PR #269)
 
 Provider: `musecode` (id `muse`), Muse Code, Meta's terminal coding agent.
@@ -245609,7 +245609,7 @@ What changed (doc §12 "Review follow-ups"):
 - **Search results fenced**: the `case "search": return outputAsString(...)` branch (comment "ripgrep output is already file:line:text; fencing it adds nothing") deleted so search falls through to `formatDefaultResultFromOutput`; comment: "hits are arbitrary file content, so they must land inside a fence where embedded markdown or HTML cannot break the enclosing tool block." `TestFormatToolAsMarkdown_SearchResultRenderedRaw` inverted into `TestFormatToolAsMarkdown_SearchResultsFenced` and fed a `</details> beta` hit.
 - `todoStatusSymbol` deleted -> `spi.TodoSymbol` (doc: shared map "accepts `done`/`active` as synonyms ... muse's exact-match copy rendered those as unchecked boxes").
 - `getDefaultMuseCommand` (probed PATH and returned `"muse"` in both branches) deleted -> `const defaultMuseCommand = "muse"` with comment "No PATH probing here: Check reports a missing binary with remediation steps, and exec surfaces the OS error directly, so a lookup would only duplicate both." The `execLookPath` test seam and `TestGetDefaultMuseCommand` (a test "which can only ever see 'muse' returned") deleted.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:34Z)**_
@@ -245753,7 +245753,7 @@ Inspect prompts extract format
 
 `P=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts; head -60 "$P/2026-05-18_12-47-08Z-that-s-not-the.prompts.md"; echo ----; ls $P/../ ; echo ----; grep -c '' $P/*.prompts.md | head -3`
 
-```text
+````text
 # Extracted from .specstory/history/2026-05-18_12-47-08Z-that-s-not-the.md (7 user turns)
 
 ### [line 7] User (2026-05-18 12:47:08Z)
@@ -245847,7 +245847,7 @@ userturns.awk
 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-28_13-42-57Z-this-isn-t-good.prompts.md:261
 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-28_13-36-04Z-command-name-pr-review.prompts.md:1672
 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/prompts/2026-01-28_14-55-51Z-command-message-pr-review.prompts.md:1100
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:34Z)**_
@@ -245858,7 +245858,7 @@ Read review guide lines 400-589
 
 `sed -n 400,589p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+399, $0}'`
 
-```text
+````text
 400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
 401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
 402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -246049,7 +246049,7 @@ Read review guide lines 400-589
 587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 588	
 589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:34Z)**_
@@ -246379,7 +246379,7 @@ Read review guide lines 1-220
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n '1,220p'`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -246600,7 +246600,7 @@ Read review guide lines 1-220
    218	
    219	### 4.11 Performance
    220
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:35Z)**_
@@ -246908,7 +246908,7 @@ Read review guide lines 220-460
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n '220,460p'`
 
-```text
+````text
    220	
    221	Taken when the fix is also a simplification or the cost is on a hot path; skipped when it adds caching complexity for an unmeasured cost.
    222	
@@ -247150,7 +247150,7 @@ Read review guide lines 220-460
    458	- `list-tools`: runs in the current empty directory under an isolated `$HOME`; prefers the harness's own declaration (stream init event, extension hook) over a model self-report; prints names one per line as the agent records them in session data; extra facts to stderr; isolation flags so user config cannot leak in; the needed credential named and checked (none is best); bounded by a timeout; diagnostics left in the directory; exits non-zero rather than printing an empty or partial list.
    459	- IDE providers ship `latest-version` only (composite when several release trains change the on-disk format) and say why in the header.
    460
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:37Z)**_
@@ -247161,7 +247161,7 @@ Read review guide part 1
 
 `sed -n 1,150p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/btpyvsad0.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -247312,7 +247312,7 @@ Read review guide part 1
    148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
    149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
    150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:37Z)**_
@@ -247323,7 +247323,7 @@ Read review guide lines 1-150
 
 `sed -n 1,150p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 # New Provider Review
 
 This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -247473,7 +247473,7 @@ The maintainer removes rather than restructures. Look for:
 - Small utility files that split a provider into sprawl ("This is too much file sprawl. Put this function where the other providers have their similar functionality.").
 - Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
 - Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:37Z)**_
@@ -247484,7 +247484,7 @@ Read review guide lines 460-800
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n '460,800p'`
 
-```text
+````text
    460	
    461	### Validation
    462	
@@ -247615,7 +247615,7 @@ Read review guide lines 460-800
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:38Z)**_
@@ -247789,7 +247789,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -248055,7 +248055,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:38Z)**_
@@ -248227,7 +248227,7 @@ Read review guide lines 300-450
 
 `sed -n 300,450p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
 
 Artifacts to inspect: `.specstory/history/*.md`, `.specstory/debug/<id>/session-data.json` and the raw files next to it, `.specstory/debug/debug.log`, `.specstory/statistics.json`, `~/.specstory/sessions.db`, and the agent's own native store.
@@ -248378,7 +248378,7 @@ GitHub Copilot reviews every PR, often across dozens of rounds. Its comments are
 ## 10. Factory affordances
 
 Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:39Z)**_
@@ -248389,7 +248389,7 @@ Read review guide part 3
 
 `sed -n 300,450p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/btpyvsad0.txt`
 
-```text
+````text
    300	
    301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
    302	
@@ -248541,7 +248541,7 @@ Read review guide part 3
    448	## 10. Factory affordances
    449	
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:40Z)**_
@@ -248709,7 +248709,7 @@ Read review guide lines 450-589
 
 `sed -n 450,589p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
 
 ### Contracts
@@ -248850,7 +248850,7 @@ Review and refine commits, by provider (all by the maintainer):
 Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 
 Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:41Z)**_
@@ -248861,7 +248861,7 @@ Read review guide part 4
 
 `sed -n 450,600p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/btpyvsad0.txt`
 
-```text
+````text
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
    451	
    452	### Contracts
@@ -249002,7 +249002,7 @@ Read review guide part 4
    587	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    588	
    589	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:01:43Z)**_
@@ -250617,7 +250617,7 @@ Locate the four lines to fix in the drafts
 
 `grep -n '"unattributed" here is vague' docs/NEW-PROVIDER-REVIEW.md; grep -n 'Three identifiers exist' NEW-PROVIDER-GUIDE.md; grep -n 'register under a short lowercase id' NEW-PROVIDER-GUIDE.md; sed -n 478,494p docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 86:Three identifiers exist and they are not the same string:
 76:- `pkg/spi/factory/registry.go`: register under a short lowercase id (`muse`, `qwen`, `droid`).
 A provider release touches these, and the maintainer checks each. Version floors must agree everywhere they appear.
@@ -250637,7 +250637,7 @@ awk -v version="vX.Y.Z" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} e
 The version floor is the agent version actually run on release day, not the oldest the parser might handle and not the version the contributor tested ("we are using the Qwen as of today, which is 0.23.3, so updated the changelog for that", "why \"latest\", you know what we put in the Changelog", "dude.... v1.0.2+ isn't our agy min version").
 
 ### README.md (this directory)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:02:17Z)**_
@@ -251522,7 +251522,7 @@ Snapshot current docs and diff review doc against earlier read
 
 `S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad && mkdir -p "$S" && cp NEW-PROVIDER-GUIDE.md "$S/guide.md" && cp docs/NEW-PROVIDER-REVIEW.md "$S/review.md" && sed 's/^ *[0-9]*\t//' /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bpza9l49b.txt > "$S/review_old.md" && echo "=== review diff (old vs current) ===" && diff "$S/review_old.md" "$S/review.md"; echo "rc=$?"; echo "=== guide current, full ===" && cat -n "$S/guide.md"`
 
-```text
+````text
 === review diff (old vs current) ===
 484c484,486
 < > The SpecStory CLI now supports [<Agent>](<product url>) (i.e. `<binary or id>`) for sessions created from <Agent> version `<X.Y.Z>` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for <every previously released provider, linked, in the order of the previous entry, with the previous provider appended>.
@@ -251801,7 +251801,7 @@ rc=1
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:02:50Z)**_
@@ -253636,7 +253636,7 @@ Grep guides for robustness themes and read the delegated checklist and lint conf
 
 `echo "=== malformed / usage / tokens / determinism ===" && grep -n -i 'malformed\|non-object\|placeholder\|usage\|token\|time\.Now\|determinis\|orphan\|phantom\|no description' docs/NEW-PROVIDER-REVIEW.md NEW-PROVIDER-GUIDE.md; echo "=== pr-review.md checklist ==="; cat .claude/commands/pr-review.md; echo "=== golangci config ==="; ls -a | grep -i golangci; cat .golangci.yml 2>/dev/null || cat .golangci.yaml 2>/dev/null || echo "no golangci config file"`
 
-```text
+````text
 === malformed / usage / tokens / determinism ===
 NEW-PROVIDER-GUIDE.md:15:- Terminal agent with a JSONL or JSON store: `pkg/providers/claudecode` is the definitive reference for parsing, watching, and debug output. `pkg/providers/musecode` and `pkg/providers/antigravitycli` are the most recently refined and show the current shared-helper usage.
 NEW-PROVIDER-GUIDE.md:81:- `changelog.md`: an entry under a placeholder heading such as `## Unreleased` (the maintainer sets the version and date at release).
@@ -253741,7 +253741,7 @@ formatters:
   enable:
     - gofmt
     - goimports
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:03:39Z)**_
@@ -254459,7 +254459,7 @@ Re-read contributor guide lines 84-end after on-disk change
 
 `echo "=== GUIDE 84-end ===" && sed -n 84,300p NEW-PROVIDER-GUIDE.md | awk '{printf "%d\t%s\n", NR+83, $0}'`
 
-```text
+````text
 === GUIDE 84-end ===
 84	### Naming layers
 85	
@@ -254643,7 +254643,7 @@ Re-read contributor guide lines 84-end after on-disk change
 263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
 265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:03:53Z)**_
@@ -254800,7 +254800,7 @@ Re-read review guide lines 300-450
 
 `sed -n 300,450p docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+299, $0}'`
 
-```text
+````text
 300	
 301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
 302	
@@ -254952,7 +254952,7 @@ Re-read review guide lines 300-450
 448	## 10. Factory affordances
 449	
 450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:04:00Z)**_
@@ -254963,7 +254963,7 @@ Re-read review guide lines 450-591
 
 `sed -n 450,591p docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+449, $0}'`
 
-```text
+````text
 450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
 451	
 452	### Contracts
@@ -255106,7 +255106,7 @@ Re-read review guide lines 450-591
 589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 590	
 591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:04:01Z)**_
@@ -255117,7 +255117,7 @@ Re-read review guide lines 68-100
 
 `sed -n 68,100p docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+67, $0}'`
 
-```text
+````text
 68	4. Build, lint, test, Windows vet. Note any pre-existing failures separately from the PR's.
 69	
 70	A noisy diff wastes a review. If the PR still carries CI, toolchain, or history files from a stale branch point, get it merged with `dev` and re-run the review on the clean diff.
@@ -255151,7 +255151,7 @@ Re-read review guide lines 68-100
 98	
 99	Anything wrong here becomes the first items in the ledger.
 100
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:04:11Z)**_
@@ -255380,7 +255380,7 @@ Grep review guide for candidate gap terms
 
 `echo "=== REVIEW GUIDE greps ===" && for t in 'interleav' 'chronolog' 'in the order' 'duplicat' 'dedup' 'populated' 'empty copy' '%v' 'Sprintf' 'TTY' 'stdin' 'deserializ' 'loader' 'case-fold\|case fold\|case-insensitive\|case sensitiv' 'basename' 'phase' 'nothing-to-render\|nothing to render\|known.*kind' 'unknown kind\|Unknown response' 'subprocess' 'latency' 'multi-user\|another user\|other user' 'USERNAME\|os/user\|user.Current' 'exit code\|exit 0' 'tasklist' 'churn' 'one-time\|once on your next' 'zsh\|```bash\|writing convention' 'throwaway\|scratch test\|delete the test' 'variant' 'restart note' 'bundle' 'smoke'; do printf '%-45s' "[$t]"; grep -n -i -- "$t" docs/NEW-PROVIDER-REVIEW.md | cut -c1-140 | head -6 | tr '\n' '|' ; echo; done`
 
-```text
+````text
 === REVIEW GUIDE greps ===
 [interleav]                                  189:- IDE providers: `run` opens the project directory with the IDE's own CLI, canonicalizing the path first so a differently-cased spelling|323:Correct: the agent owns the terminal (no interleaved output for CLI agents; per-save lines for IDE providers); markdown appears after th|
 [chronolog]                                  
@@ -255414,7 +255414,7 @@ Grep review guide for candidate gap terms
 [restart note]                               200:- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user a|568:| IDE workspace discovery, minting, launching, restart notes | `pkg/providers/cursoride`, `pkg/providers/copilotide`, `pkg/providers/vsc|
 [bundle]                                     
 [smoke]                                      93:- `check` must not contradict the registry. The first Droid smoke test showed `check` advertising `specstory run droid` while `run droid`|281:Taken: dead code and seams; determinism (sorted map iteration, one total-order comparator); wrong or lying comments; log-level correctio|
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:04:23Z)**_
@@ -257036,7 +257036,7 @@ Re-read current review guide lines 60-200
 
 `wc -l docs/NEW-PROVIDER-REVIEW.md NEW-PROVIDER-GUIDE.md && sed -n 60,200p docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
      591 docs/NEW-PROVIDER-REVIEW.md
      265 NEW-PROVIDER-GUIDE.md
      856 total
@@ -257181,7 +257181,7 @@ The maintainer reads watchers for real races and startup behavior, and has rewri
 - It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
 - Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
 - IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:01Z)**_
@@ -257364,7 +257364,7 @@ Re-read current review guide lines 360-520
 
 `sed -n 360,520p docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 `list <id>` shows every synced session with the same slug as its markdown filename; `list --json` is well-formed; sessions with no user prompt are absent. `search` finds a distinctive phrase, previews the real markdown, and resumes through the same path as above. `reindex` counts the new agent's sessions across all projects, attributes them to the right project (an `unknown` project count means a transcript with no recorded cwd), and a second run reports everything up to date. `reindex` output wording is user-facing and gets reviewed too ("\"unattributed\" here is vague. \"unattributed sessions\"").
 
 ### Reporting a failure
@@ -257525,7 +257525,7 @@ Skills registry ("We added an Antigravity provider but failed to update pkg/skil
 Before recommending merge and release:
 
 - [ ] Ledger: every MIP resolved or explicitly deferred with a reason; skipped items listed.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:03Z)**_
@@ -257688,7 +257688,7 @@ Re-read current contributor guide lines 100-end
 
 `sed -n 100,300p NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
 ### Reuse the shared helpers in pkg/spi
 
 Every helper below replaced copies that had drifted apart across providers. Do not reimplement them.
@@ -257854,7 +257854,7 @@ IDE providers ship `latest-version` only and say why in its header.
 - [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 - [ ] Every command in the test table exercised against the real agent; resume verified in both directions
 - [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:05Z)**_
@@ -258051,7 +258051,7 @@ Snapshot and re-read the current guide with line numbers
 
 `S=/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad; cp NEW-PROVIDER-GUIDE.md $S/guide.md; cp docs/NEW-PROVIDER-REVIEW.md $S/review.md; wc -l $S/guide.md $S/review.md; echo "=== GUIDE (current) ==="; cat -n NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      265 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/guide.md
      591 /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/review.md
      856 total
@@ -258321,7 +258321,7 @@ Snapshot and re-read the current guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:07Z)**_
@@ -258728,7 +258728,7 @@ EOF
 chmod +x $S/qgrep.sh; timeout 110 $S/qgrep.sh $S/frags1.txt 2>&1 | head -150
 ```
 
-```text
+````text
 === Q1: address 6, 14, 27 (blank), 31 (local only), 33 (use directly), 39 add timeout
    NOT FOUND
 === Q2: MIP 1 and 4
@@ -258879,7 +258879,7 @@ chmod +x $S/qgrep.sh; timeout 110 $S/qgrep.sh $S/frags1.txt 2>&1 | head -150
    User  2026-08-11_15-10-08Z-write-this-exactly-as.md:22234  don't need those historical comments on 72-74
    User  2026-08-11_15-10-08Z-write-this-exactly-as.md:22957  - "don't need those historical comments on 72-74"
 === Q47: Fix comment (11)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:16Z)**_
@@ -259484,7 +259484,7 @@ Re-read current contributor guide rules and test sections
 
 `cat -n NEW-PROVIDER-GUIDE.md | sed -n '97,270p'`
 
-```text
+````text
     97	## Rules that will otherwise get your submission changed
     98	
     99	These are the changes reviewers make most often. Each one is a real review finding from a past provider.
@@ -259654,7 +259654,7 @@ Re-read current contributor guide rules and test sections
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:22Z)**_
@@ -260374,7 +260374,7 @@ Re-read current review guide lines 1-120
 
 `wc -l docs/NEW-PROVIDER-REVIEW.md NEW-PROVIDER-GUIDE.md && sed -n 1,120p docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      591 docs/NEW-PROVIDER-REVIEW.md
      265 NEW-PROVIDER-GUIDE.md
      856 total
@@ -260498,7 +260498,7 @@ Re-read current review guide lines 1-120
    118	- The registry id equals the `ProviderInfo.ID` stamped in session data for new providers.
    119	- The comparison baseline for a terminal agent is Claude Code ("That's not the best comparison, try Claude Code as the definitive provider."), refined by the newest accepted providers for `Check` shape, watcher startup policy, and exit handling. For an IDE agent the baseline is Cursor IDE plus `pkg/providers/vscode`.
    120
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:32Z)**_
@@ -260709,7 +260709,7 @@ Re-read current review guide lines 300-460
 
 `awk 'NR>=300 && NR<=460 {printf "%d\t%s\n", NR, $0}' docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 300	
 301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
 302	
@@ -260871,7 +260871,7 @@ Re-read current review guide lines 300-460
 458	- `list-tools`: runs in the current empty directory under an isolated `$HOME`; prefers the harness's own declaration (stream init event, extension hook) over a model self-report; prints names one per line as the agent records them in session data; extra facts to stderr; isolation flags so user config cannot leak in; the needed credential named and checked (none is best); bounded by a timeout; diagnostics left in the directory; exits non-zero rather than printing an empty or partial list.
 459	- IDE providers ship `latest-version` only (composite when several release trains change the on-disk format) and say why in the header.
 460
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:35Z)**_
@@ -260938,7 +260938,7 @@ Re-read current review guide lines 460-end
 
 `awk 'NR>=460 {printf "%d\t%s\n", NR, $0}' docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 460	
 461	### Validation
 462	
@@ -261071,7 +261071,7 @@ Re-read current review guide lines 460-end
 589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 590	
 591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:37Z)**_
@@ -261125,7 +261125,7 @@ Re-read current contributor guide lines 97-end
 
 `awk 'NR>=97 {printf "%d\t%s\n", NR, $0}' NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
 97	## Rules that will otherwise get your submission changed
 98	
 99	These are the changes reviewers make most often. Each one is a real review finding from a past provider.
@@ -261295,7 +261295,7 @@ Re-read current contributor guide lines 97-end
 263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
 265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:39Z)**_
@@ -261306,7 +261306,7 @@ Verify remaining behavior claims: scanner cap, versionFlag, TrackEvent drift, lo
 
 `echo "--- deepseektui scanner cap ---"; grep -n 'Buffer\|1024' pkg/providers/deepseektui/*.go | grep -v _test | head -5; echo "--- antigravitycli versionFlag def ---"; grep -n 'versionFlag' pkg/providers/antigravitycli/provider.go | head -3; echo "--- TrackEvent in providers ---"; grep -rn 'analytics.TrackEvent' --include='*.go' pkg/providers | grep -v _test | wc -l; grep -rln 'analytics.TrackEvent' --include='*.go' pkg/providers | grep -v _test; echo "--- backslash-escaped backticks ---"; grep -rn '\\\\`' --include='*.go' pkg/providers | grep -v _test | head -3; echo "--- structured keys ---"; grep -rhoE '"(sessionId|session_id|exitCode|exit_code|debugRaw|debug_raw|projectPath|project_path)"' --include='*.go' pkg/providers | grep -v _test | sort | uniq -c; echo "--- Method: prefix ---"; grep -rhoE 'slog\.Info\("(Check|ExecAgentAndWatch|WatchAgent):' --include='*.go' pkg/providers | sort | uniq -c | head; echo "--- fixture leak asserts ---"; grep -rln '\[topic\]\|diffLines\|systemPrompt' --include='*_test.go' pkg/providers | head -4; echo "--- cursorcli startup emit (PROVIDER-FIXES) ---"; grep -n -i 'cursorcli\|cursor cli' docs/PROVIDER-FIXES.md | head -6; echo "--- statistics.json / sessions.db ---"; grep -rn '"statistics.json"\|"sessions.db"' --include='*.go' pkg | grep -v _test | head -4; echo "--- import chain ---"; for p in session cloud telemetry; do echo -n "pkg/$p imports utils/factory: "; grep -rhoE '"github.com/specstoryai/getspecstory/specstory-cli/pkg/(utils|spi/factory)"' pkg/$p/*.go | sort -u | tr '\n' ' '; echo; done`
 
-```text
+````text
 --- deepseektui scanner cap ---
 pkg/providers/deepseektui/path_utils.go:141:	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 pkg/providers/deepseektui/provider.go:59:	var stdout, stderr bytes.Buffer
@@ -261351,7 +261351,7 @@ pkg/utils/path_utils.go:19:const STATISTICS_FILE = "statistics.json"
 pkg/session imports utils/factory: "github.com/specstoryai/getspecstory/specstory-cli/pkg/utils" 
 pkg/cloud imports utils/factory: "github.com/specstoryai/getspecstory/specstory-cli/pkg/utils" 
 pkg/telemetry imports utils/factory:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:05:40Z)**_
@@ -263618,7 +263618,7 @@ Read second half of report B
 
 `sed -n 220,430p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/history-droidcli-B.md`
 
-```text
+````text
 >
 > Take a look at the AskUserQuestion tool output from Claude Code, we want something like that:"
 
@@ -263830,7 +263830,7 @@ Sean explicitly asked for: table-driven tests (A:4730); DRY renderers (A:7023); 
 The agent did on its own (and Sean accepted without comment): kept `TestGenerateAgentSession_BasicFlow` separate from the table; introduced `keysFilePath`/`keysDirPath` constants and a `combineKeys`-style helper; the ctx-scoped fsnotify design and "no debouncing" decision (Sean approved via the plan); suppressing duplicate raw output for AskUser and GenerateDroid in `formatToolOutput`; adding `webfetch` alongside `fetchurl` in the read case; blockquote for the refined GenerateDroid description; the `errcheck` fix `defer func() { _ = watcher.Close() }()`.
 
 The agent proposed and Sean rejected: inverting tests (A, C); ExitPlanMode approval flow (B); omitting the system prompt (D:7075); nested `<details>` (D:7218); a Claude Code reference comment (D:6445).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:07:28Z)**_
@@ -263869,7 +263869,7 @@ Read first half of git report
 
 `sed -n 1,95p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-droidcli.md`
 
-```text
+`````text
 # Droid CLI provider (PR #150): what Sean changed during review
 
 Secondary, older example. Reconstructed from git in `specstory-cli/` (paths below are relative to that dir) plus the PR #150 inline review comments fetched from the GitHub API (the evidence file `scratchpad/evidence/pr-reviews-and-comments.txt:289-320` only carries the PR body, the review headers and the per-user comment counts: `33 Copilot`, `1 Itz-Antaripa`). The other evidence file, `sean-commits-per-review-window.txt`, has no Droid window at all (its windows are DeepSeek, CursorIDE, Antigravity, CursorIDE2, Copilot), so the commit list here comes straight from `git log --author=sean --since=2026-01-19 --until=2026-02-10 -- pkg/providers/droidcli`.
@@ -263965,7 +263965,7 @@ Sean left no review comments of his own on the PR (no `belucid` inline comments 
 
 **`eb61825` Allow Claude Code provider to skip bad JSON lines in a JSONL file as Codex and Droid providers do. Standardize this case as WARN level logging. Improve README docs.** `README.md`, `changelog.md`, `claudecode/jsonl_parser.go` (+test), `codexcli/provider.go`, `droidcli/parser.go`, `droidcli/provider.go`. Category: logging, consistency, docs-readme, test-added.
 - droidcli: `scanLines` callback signature changed to `func(lineNumber int, line string) error` so the parser can log the line number; the malformed-line log became `slog.Warn("Skipping corrupted JSONL line", "file", filepath.Base(filePath), "line", lineNumber, "error", err)` with the identical message and keys used in claudecode and codexcli. The two other `scanLines` callers in `provider.go` take `_ int`.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:07:32Z)**_
@@ -263976,7 +263976,7 @@ Read second half of git report
 
 `sed -n 95,187p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/git-droidcli.md`
 
-```text
+`````text
 - droidcli: `scanLines` callback signature changed to `func(lineNumber int, line string) error` so the parser can log the line number; the malformed-line log became `slog.Warn("Skipping corrupted JSONL line", "file", filepath.Base(filePath), "line", lineNumber, "error", err)` with the identical message and keys used in claudecode and codexcli. The two other `scanLines` callers in `provider.go` take `_ int`.
 - README: the bullet list of providers became a table `| Agent | Provider | Data Format | Source Location |` with rows for claudecode (JSONL, `~/.claude/projects/`), codexcli (JSONL, `~/.codex/sessions/`), cursorcli (SQLite, `~/.cursor/chats/`), droidcli (JSONL, `~/.factory/sessions/`), geminicli (JSON, `~/.gemini/tmp/`).
 - Reveals: the Droid provider's lenient parsing became the standard the older Claude Code provider was brought up to; identical log message text and key names across providers; the README provider table with Data Format and Source Location columns was born in this commit.
@@ -264070,7 +264070,7 @@ Pattern in the disposition: Sean acted on every comment that was about consisten
 20. The release is tagged on the last review commit the moment the last real tool renders correctly (`v1.4.0` -> `0d1dd24`, one minute before merge).
 
 Honest caveats about what this window does not show: Sean did not rewrite the contributor's comments into "why" comments here (his own added comments are mostly "what" style, e.g. `// Initial scan to process existing sessions`, `// Event loop` in `b2c095d`); he did not move anything into `pkg/spi` for droidcli during the review; he did not prune the alias cases in `formatToolInput`; and he did not add tests for `Check`/`DetectAgent`/`GetAgentChatSessions`. Those standards show up in later windows, not this one.
-```
+`````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:07:33Z)**_
@@ -264081,7 +264081,7 @@ Read review guide lines 1-200
 
 `sed -n 1,200p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 # New Provider Review
 
 This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -264282,7 +264282,7 @@ The maintainer reads watchers for real races and startup behavior, and has rewri
 - It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
 - Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
 - IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:07:34Z)**_
@@ -264513,7 +264513,7 @@ Read review guide lines 400-591
 
 `sed -n 400,591p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 - Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
 - Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
 - Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -264706,7 +264706,7 @@ Review and refine commits, by provider (all by the maintainer):
 Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 
 Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:07:36Z)**_
@@ -264717,7 +264717,7 @@ Read contributor guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -264983,7 +264983,7 @@ Read contributor guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:07:37Z)**_
@@ -266476,7 +266476,7 @@ Read report lines 1-120
 
 `sed -n 1,120p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-factory-affordances.md`
 
-```text
+````text
 # Software-factory affordances a provider must ship, and how to audit them
 
 Read-only research report. Sources: the provider-factory repo at `/Users/sean/source/SpecStory/provider-factory` (README, TEMPLATE, NEW-AGENT-VERSION, TOOL-AUDIT, SESSION-AUDIT, SENSOR-FAILURE, the two `scripts/tool-audit-*.sh`, `new-agent-version.yml`, `ci.yml`, `versions/*`, `tools/*`, `dry-runs/`, build plan, SETUP.md) and the CLI repo at `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (all 17 `pkg/providers/*/factory/*` scripts and commits 50fed4e, 633e9a0, 6b762a4, 5c64cb1, 1e49496, 7199e95). Every claim cites a file:line or a sha. Where I ran something, the observed output is quoted.
@@ -266596,7 +266596,7 @@ What to check:
 - Cross-check against the agent's real behaviour: install the agent the way a user would and compare `--version`. For npm channels `npm view <pkg> version` must equal what `npm i -g <pkg>` installs; for installer-manifest channels (cursorcli, droidcli) the value extracted from the installer must equal what that installer installs (`curl -fsSL https://cursor.com/install | grep -o 'lab/[^/]*'`). For Claude Code, `claude --version` on a fresh native install must equal the npm reading (the header claims "Homebrew and the native installer follow it", `claudecode/factory/latest-version:4-5`).
 - Every curl has `--connect-timeout 10 --max-time 30 --retry 2 --retry-delay 2` (`grep -c -- '--max-time 30' pkg/providers/*/factory/latest-version` must equal the number of curl calls: 1,5,1,1,1,1 for antigravitycli, copilotide, cursorcli, cursoride, droidcli, musecode).
 - Header has a `Channel:` paragraph that names the URL, why it and not the obvious alternatives, and a `Factory SPI contract:` paragraph with the exact three sentences.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:20Z)**_
@@ -266607,7 +266607,7 @@ Read report lines 120-260
 
 `sed -n 120,260p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-factory-affordances.md`
 
-```text
+````text
 ### 3.2 `install <version>` — isolated HOME, then verify placement and read-back
 
 ```zsh
@@ -266747,7 +266747,7 @@ Cross-repo
 - **getspecstory `.github/workflows/factory-relay.yml`, `release-pr-*.yml`, `main-from-dev-only.yml`** — other factory surfaces in the product repo (F README.md:131-135); unrelated to the provider scripts but part of the same "merged to dev is the trust gate" model.
 - **Labels** — `sf:coding-agent-version-changed`, `sf:provider:<id>` (created on the fly, `new-agent-version.yml:176-179`), `sf:sensor-broken` (SENSOR-FAILURE.md:26).
 - **Not a touchpoint despite the name:** `C/pkg/spi/factory/registry.go` is the Go provider registry (`docs/PROVIDER-SPI.md:29,41`), not the software factory. `docs/PROVIDER-SPI.md` does not mention the factory scripts at all (grep for `factory/` finds only the Go package).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:22Z)**_
@@ -266884,7 +266884,7 @@ Read review guide lines 1-120
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 1,120p`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -267005,7 +267005,7 @@ Read review guide lines 1-120
    118	- The registry id equals the `ProviderInfo.ID` stamped in session data for new providers.
    119	- The comparison baseline for a terminal agent is Claude Code ("That's not the best comparison, try Claude Code as the definitive provider."), refined by the newest accepted providers for `Check` shape, watcher startup policy, and exit handling. For an IDE agent the baseline is Cursor IDE plus `pkg/providers/vscode`.
    120
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:24Z)**_
@@ -267348,7 +267348,7 @@ Read review guide lines 1-200
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 1,200p`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -267549,7 +267549,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:27Z)**_
@@ -267560,7 +267560,7 @@ Read review guide lines 360-480
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 360,480p`
 
-```text
+````text
    360	
    361	`list <id>` shows every synced session with the same slug as its markdown filename; `list --json` is well-formed; sessions with no user prompt are absent. `search` finds a distinctive phrase, previews the real markdown, and resumes through the same path as above. `reindex` counts the new agent's sessions across all projects, attributes them to the right project (an `unknown` project count means a transcript with no recorded cwd), and a second run reports everything up to date. `reindex` output wording is user-facing and gets reviewed too ("\"unattributed\" here is vague. \"unattributed sessions\"").
    362	
@@ -267682,7 +267682,7 @@ Read review guide lines 360-480
    478	A provider release touches these, and the maintainer checks each. Version floors must agree everywhere they appear.
    479	
    480	### changelog.md
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:28Z)**_
@@ -267906,7 +267906,7 @@ Read review guide lines 400-591
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 400,600p`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -268099,7 +268099,7 @@ Read review guide lines 400-591
    589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    590	
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:30Z)**_
@@ -268110,7 +268110,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -268376,7 +268376,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:31Z)**_
@@ -268387,7 +268387,7 @@ Read review guide lines 480-591
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 480,591p`
 
-```text
+````text
    480	### changelog.md
    481	
    482	Heading `## vX.Y.Z YYYY-MM-DD` (a new provider is a minor bump; the date is the real release date and gets bumped if the release slips), section `### 📢 Announcements`, one bullet in the fixed sentence:
@@ -268500,7 +268500,7 @@ Read review guide lines 480-591
    589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    590	
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:32Z)**_
@@ -268511,7 +268511,7 @@ Read contributor guide lines 1-135
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md | sed -n 1,135p`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -268647,7 +268647,7 @@ Read contributor guide lines 1-135
    133	- Comments are self-contained. Do not reference other providers ("Claude Code uses X here"), plan documents, decision numbers, or the history of how the code came to be.
    134	- Magic values carry their provenance ("as observed in sessions written by version 3.12").
    135	- A comment that contradicts its code will be treated as a bug.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:33Z)**_
@@ -268658,7 +268658,7 @@ Read contributor guide lines 135-265
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md | sed -n 135,265p`
 
-```text
+````text
    135	- A comment that contradicts its code will be treated as a bug.
    136	
    137	### The watcher
@@ -268790,7 +268790,7 @@ Read contributor guide lines 135-265
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:08:34Z)**_
@@ -268904,7 +268904,7 @@ Read the cross-tool enumeration audit report
 
 `cat -n /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-tool-enumeration-audit.md`
 
-```text
+````text
 <persisted-output>
 Output too large (53.5KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/btacp762h.txt
 
@@ -268936,7 +268936,7 @@ Preview (first 2KB):
     25	  tools.txt                          # written BY THE AGENT during the session
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:23Z)**_
@@ -268947,7 +268947,7 @@ Read report lines 1-120
 
 `sed -n 1,120p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-tool-enumeration-audit.md`
 
-```text
+````text
 # Cross-provider tool enumeration + tool-output audit: the procedure, the standard, and what it has caught
 
 Path abbreviations used below:
@@ -269068,7 +269068,7 @@ Create a report in markdown at @<dir>/tool-use-audit.md with a table characteriz
 - quality - ✅ formatted, 😢 partial, 🆘 raw/unformatted,  🚫 missing
 - data file
 - data line number
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:23Z)**_
@@ -269086,7 +269086,7 @@ Read report lines 120-260
 
 `sed -n 120,260p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-tool-enumeration-audit.md`
 
-```text
+````text
 - data line number
 - comment
 ```
@@ -269228,7 +269228,7 @@ Result:
 - [Meta debuts Muse Spark 1.1 with preview open to developers](https://www.reuters.com/…)
 ```
 Bad: the pre-fix Muse block was "a huge raw single-line JSON blob (10 results with snippets). Worst block in the file" (audit row `web_search` 🆘); Claude Code `WebSearch` still shows the raw `Links: [{"title":…` JSON line before the prose (`MA/claude-code/…md:396-402`); DeepSeek `fetch_url` "body is a single escaped JSON string" (row 57 😢).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:25Z)**_
@@ -269239,7 +269239,7 @@ Read report lines 260-420
 
 `sed -n 260,420p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-tool-enumeration-audit.md`
 
-```text
+````text
 Bad: the pre-fix Muse block was "a huge raw single-line JSON blob (10 results with snippets). Worst block in the file" (audit row `web_search` 🆘); Claude Code `WebSearch` still shows the raw `Links: [{"title":…` JSON line before the prose (`MA/claude-code/…md:396-402`); DeepSeek `fetch_url` "body is a single escaped JSON string" (row 57 😢).
 
 ### 2.7 Todo / plan
@@ -269401,7 +269401,7 @@ Rendering, per block
 - [ ] Shell: description, `bash` fence, output `text` fence, exit code on failure only, PTY bytes sanitized, background/terminated state stated.
 - [ ] Web search results as a linked list with a count.
 - [ ] Todo lists as `- [x]/[⚡]/[ ]` with the real item text (check the item key: `text`, `content`, `description`, `title`, `step`).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:27Z)**_
@@ -269540,7 +269540,7 @@ Read review guide lines 1-200
 
 `wc -l /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md; echo ---; cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 1,200p`
 
-```text
+````text
      591 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md
      265 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md
      856 total
@@ -269745,7 +269745,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:32Z)**_
@@ -269790,7 +269790,7 @@ Read review guide lines 200-450
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 200,450p`
 
-```text
+````text
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
    201	- The error for the unfixable case is friendly and carries the remedy: "It's a scary error and what the user needs to do is buried behind error text."
    202	- By-id lookups on a global store verify project ownership; "corrupted output, not just a bad lookup."
@@ -270042,7 +270042,7 @@ Read review guide lines 200-450
    448	## 10. Factory affordances
    449	
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:32Z)**_
@@ -270060,7 +270060,7 @@ Read review guide lines 450-800
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 450,800p`
 
-```text
+````text
    450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
    451	
    452	### Contracts
@@ -270203,7 +270203,7 @@ Read review guide lines 450-800
    589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    590	
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:38Z)**_
@@ -270230,7 +270230,7 @@ Read contributor guide lines 1-300
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md | sed -n 1,300p`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -270496,7 +270496,7 @@ Read contributor guide lines 1-300
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:09:36Z)**_
@@ -271275,7 +271275,7 @@ Read report lines 200-420
 
 `sed -n 200,420p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bk6z9n873.txt`
 
-```text
+````text
    200	| missing canonical test files | – | – | exec_test, path_utils_test | provider_test, agent_session_test, watcher_test, markdown_tools_test, path_utils_test | provider_test | provider_test, watcher_test, path_utils_test | – | path_utils_test | exec_test (provider_test is 1.7 KB, watcher_test covers only `triggerCallback`) | – | agent_session_test/markdown_tools_test by name (covered by `format_test`, `parser_test`, `robustness_test`) | watcher_test covers only `triggerCallback` |
    201	| `var _ spi.Provider` assertion | Y `reconstruct.go:12` | **N** | **N** | **N** | **N** | **N** | **N** | **N** | **N** | **N** | Y `provider.go:32` | **N** |
    202	| `fmt.Print*` outside `DetectAgent(helpOutput)` | none | none (`:265,:273` inside helpOutput) | none (`:197-251` inside helpOutput) | none (`:142-167` inside helpOutput) | none | none (`:112-134` inside helpOutput) | none | none | none (`:105-107`) | none (`:142-165`) | none | none (`:113-114`) |
@@ -271368,7 +271368,7 @@ Read report lines 200-420
    289	16. `docs/PROVIDER-SPI.md` is stale on every axis a reviewer would use: the interface listing (`:79-129`) omits `ListAgentChatSessions`, the `progress` parameter, `ReconstructSession`/`NativeSessionPath`/`SupportsReconstruction`/`ListAllAgentChatSessions`; helper signatures are wrong (`GetDebugDir(projectPath, sessionID)` at `:409` vs actual `GetDebugDir(sessionID)` `path_utils.go:363`; `GenerateFilenameFromUserMessage(text, maxLen)` at `:405` vs actual single arg `:126`; `SplitCommandLine` returning `([]string, error)` at `:420` vs actual `[]string` `cmdline.go:26`); `Validate()` shown returning `error` (`:285-287`) vs actual `bool`; "Analytics tracking happens in command handlers and the registry, not in providers" (`:448`) is false for `Check`; the provider table (`:11-21`) lists 7 of 12; the example `ExecAgentAndWatch` (`:311-357`) shows exactly the unrecovered `go func` + `return process.Wait()` pattern the codebase moved away from. `docs/SPI-SESSION-DATA-SCHEMA.md` JSON-schema `provider.id` enum (`:186`) is `["claude","cursor","codex","gemini"]`, matching neither the registry ids nor the stamped ids; `:267` says `Validate` "returns true if valid" but `:285` of PROVIDER-SPI says it returns an error; the exchange-id suggestion (`:495`) matches no provider.
    290	17. Todo checkbox symbol is still split (`x` in droid/deepseek/gemini/muse/qwen vs `X` in claude/cursor/codex) — Sean's recorded decision (doc §7 D3) was to skip Phase 3 item 2, so this is not a bug, but a new provider needs to be told which side to join (`spi.TodoSymbol` returns `x`).
    291	18. Not verified: whether `piagent`'s watcher satisfies the no-emit-at-startup rule in the same way (its tests `TestWatch_EmitsOnNewSession` and `TestStopWatcher_SweepSkipsSessionAlreadyEmitted` at `piagent/watcher_test.go:95,553` suggest yes, and it post-dates FIXES); the behaviour of copilotide/cursoride `Check` against `analytics.CheckAttempt` (they have no binary probe, doc §5 says their DB-oriented error types are correct as-is).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:19Z)**_
@@ -271490,7 +271490,7 @@ Read report lines 1-120
 
 `sed -n 1,120p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bh0b8isbg.txt`
 
-```text
+````text
      1	# Cross-artifact release conventions for a new SpecStory CLI provider
      2	
      3	Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (subdir of the `getspecstory` monorepo). Branch at time of research: `qwen-provider-support` (HEAD `f367e1a`). All file:line cites are against the working tree unless a sha is given. History cites are `.specstory/history/<file>.md [L<n>]` and quote Sean's own `_**User**_` turns verbatim.
@@ -271611,7 +271611,7 @@ Read report lines 1-120
    118	- Section is `### 📢 Announcements` (only the Droid entry, v1.4.0, sits under `### ⚙️ Improvements`, `changelog.md:261-263`; Copilot v2.7.0 was first committed without a section header (`2046ca6`) and got `### 📢 Announcements` in `57503af`).
    119	- Date = actual release date; Sean bumps it if the release slips (`b858ac9` 07-16→07-17; `0e4e470` 08-07→08-10).
    120	- The `## Unreleased` placeholder is acceptable in a PR; it must be replaced before tagging (workflow awk matches `^## v2.11.0`).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:24Z)**_
@@ -271904,7 +271904,7 @@ Read report lines 70-130
 
 `sed -n 70,130p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bk6z9n873.txt`
 
-```text
+````text
     70	- Timestamps: the renderer parses with `time.RFC3339` (`pkg/session/markdown.go:104`) and the filename builder likewise (`session.go:60`), so `CreatedAt`/`StartTime`/message timestamps must be RFC3339-parseable. Reconstruction stamps use `spi.RFC3339Millis` (`reconstruct.go:139-141`; used by claudecode, codexcli, droidcli, geminicli, piagent, qwencode).
     71	- `PathHints`: every non-IDE provider assigns them in `agent_session.go` (10 hits); derive via `spi.NormalizePath` + `spi.ExtractShellPathHints` (`pkg/spi/shell_path_hints.go:33`, `:77`; the header at `:10-18` explains why it is shape-based string algebra, not `filepath`).
     72	- `Usage` is populated only by codexcli, droidcli, geminicli, musecode, piagent, qwencode (`grep -ln "schema.Usage{" pkg/providers/*/agent_session.go`); `deepseektui/agent_session.go:196-198` documents why it deliberately does not.
@@ -271966,7 +271966,7 @@ Read report lines 70-130
    128	GenerateReadableName          1    1    1    1    1         1         1    1    1    1    1    1
    129	WatchWindowDays/Cutoff/Dir    -    1/-/- 1/1/1 -    -        -         -    -    -    1/1/1 -   -
    130	DispatchSession               1    -    -    -    -         -         1    1    -    -    -    -
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:28Z)**_
@@ -271993,7 +271993,7 @@ Read report lines 130-200
 
 `sed -n 130,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bk6z9n873.txt`
 
-```text
+````text
    130	DispatchSession               1    -    -    -    -         -         1    1    -    -    -    -
    131	ScanSessionsInParallel/Rep.   -    1    1    -    -         -         -    -    -    1    1    1
    132	PrepareTurns                  -    1    1    1    1         1         1    1    1    1    1    1
@@ -272065,7 +272065,7 @@ Read report lines 130-200
    198	| `testdata/` fixtures | **none** | **none** | **none** | **none** | **none** | **none** | **none** | **none** | **none** | Y (6 jsonl) | Y (9 jsonl) | Y (5 jsonl) |
    199	| test funcs / test files | 66 / 9 | 40 / 8 | 27 / 5 | 23 / 3 | 40 / 9 | 30 / 4 | 33 / 7 | 19 / 7 | 26 / 7 | 85 / 8 | 61 / 9 | 48 / 8 |
    200	| missing canonical test files | – | – | exec_test, path_utils_test | provider_test, agent_session_test, watcher_test, markdown_tools_test, path_utils_test | provider_test | provider_test, watcher_test, path_utils_test | – | path_utils_test | exec_test (provider_test is 1.7 KB, watcher_test covers only `triggerCallback`) | – | agent_session_test/markdown_tools_test by name (covered by `format_test`, `parser_test`, `robustness_test`) | watcher_test covers only `triggerCallback` |
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:30Z)**_
@@ -272076,7 +272076,7 @@ Read review guide lines 1-150
 
 `sed -n 1,150p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 # New Provider Review
 
 This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -272226,7 +272226,7 @@ The maintainer removes rather than restructures. Look for:
 - Small utility files that split a provider into sprawl ("This is too much file sprawl. Put this function where the other providers have their similar functionality.").
 - Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
 - Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:31Z)**_
@@ -272237,7 +272237,7 @@ Read review guide lines 1-200
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 1,200p`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -272438,7 +272438,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:31Z)**_
@@ -272610,7 +272610,7 @@ Read review guide lines 300-450
 
 `sed -n 300,450p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
 
 Artifacts to inspect: `.specstory/history/*.md`, `.specstory/debug/<id>/session-data.json` and the raw files next to it, `.specstory/debug/debug.log`, `.specstory/statistics.json`, `~/.specstory/sessions.db`, and the agent's own native store.
@@ -272761,7 +272761,7 @@ GitHub Copilot reviews every PR, often across dozens of rounds. Its comments are
 ## 10. Factory affordances
 
 Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:32Z)**_
@@ -272985,7 +272985,7 @@ Read review guide lines 450-591
 
 `sed -n 450,591p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
 
 ### Contracts
@@ -273128,7 +273128,7 @@ Review and refine commits, by provider (all by the maintainer):
 Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 
 Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:33Z)**_
@@ -273139,7 +273139,7 @@ Read review guide lines 400-591
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | sed -n 400,591p`
 
-```text
+````text
    400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -273332,7 +273332,7 @@ Read review guide lines 400-591
    589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    590	
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:34Z)**_
@@ -273343,7 +273343,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -273609,7 +273609,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:34Z)**_
@@ -273620,7 +273620,7 @@ Read contributor guide lines 1-140
 
 `sed -n 1,140p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
 # New Provider Guide
 
 This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -273761,7 +273761,7 @@ Providers must never import `pkg/utils`, `pkg/session`, `pkg/cloud`, or `pkg/tel
 
 - Use fsnotify, never a polling ticker.
 - At startup, record what already exists and emit nothing. Emit only activity that happens after the watcher started. If a directory appears after the watch was armed, walk it once and adopt what landed inside, because those writes happened unobserved.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:35Z)**_
@@ -273772,7 +273772,7 @@ Read contributor guide lines 140-265
 
 `sed -n 140,265p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
 - At startup, record what already exists and emit nothing. Emit only activity that happens after the watcher started. If a directory appears after the watch was armed, walk it once and adopt what landed inside, because those writes happened unobserved.
 - Never let the watcher silently disable itself. If the agent's directory does not exist yet, watch the nearest existing ancestor and wait.
 - Watch every path the agent writes session content to, including asynchronous sidecar files, and fold their modification times into the freshness key.
@@ -273899,7 +273899,7 @@ IDE providers ship `latest-version` only and say why in its header.
 - [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
 - [ ] Every command in the test table exercised against the real agent; resume verified in both directions
 - [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:36Z)**_
@@ -274083,7 +274083,7 @@ Read first part of research report
 
 `sed -n 1,200p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/bigazvve4.txt`
 
-```text
+````text
 # Cross-platform standards for a provider (macOS, Linux, WSL, native Windows)
 
 Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (branch `qwen-provider-support`, Go 1.27.1).
@@ -274284,7 +274284,7 @@ Do:
 - `testutil.EqualPaths` after URI round-trips.
 - `t.Chdir`, `t.Setenv`, `t.Cleanup` for global state (`resetUserDataDirOverride` pattern, `99882a8`).
 - Table rows with Windows-shaped strings (`C:\proj\src\main.go`, `/c:/Users/x`, `file:///c%3A/...`) so Windows behavior runs on macOS: `TestWindowsFileURIPath` (`pkg/spi/path_utils_test.go:648-676`), `TestFileURIParts`, `TestNormalizePath` windows rows (`d4c4cf6`). Agent: "the payoff of shape-based — Windows behavior tested from macOS" (`P:6806`).
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:46Z)**_
@@ -274545,7 +274545,7 @@ Read the contributor-facing guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -274811,7 +274811,7 @@ Read the contributor-facing guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:55Z)**_
@@ -274822,7 +274822,7 @@ Read review guide lines 1-150
 
 `sed -n 1,150p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/blyrjpw51.txt`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -274973,7 +274973,7 @@ Read review guide lines 1-150
    148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
    149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
    150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:56Z)**_
@@ -275167,7 +275167,7 @@ Read review guide lines 320-470
 
 `sed -n 320,470p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/blyrjpw51.txt`
 
-```text
+````text
    320	
    321	Commands: `run <id>`, `run <id> -c "$(which <agent>)"`, `run <id> -c "<agent> --resume"` with `--resume <id>` (bare-flag repair), `run <id> --resume <id>`, `run <id> --log --debug`, `run <id>` with `<id>_cmd` set in `.specstory/cli/config.toml`.
    322	
@@ -275319,7 +275319,7 @@ Read review guide lines 320-470
    468	```
    469	
    470	Also: a negative test per script (broken channel, bogus version, missing credential) must fail non-zero, never print an empty reading; compare the reading with `<agent> --version` on a fresh user-style install; confirm the tool names match the spellings in the provider's `markdown_tools.go` and in a real session; run `bash -n` and shellcheck (neither CI lints these files); run the factory's own harness (`scripts/tool-audit-enumerate.sh` in the provider-factory repository) when a `versions/<id>` reading exists.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:10:59Z)**_
@@ -275330,7 +275330,7 @@ Read review guide lines 470-600
 
 `sed -n 470,600p /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/tool-results/blyrjpw51.txt`
 
-```text
+````text
    470	Also: a negative test per script (broken channel, bogus version, missing credential) must fail non-zero, never print an empty reading; compare the reading with `<agent> --version` on a fresh user-style install; confirm the tool names match the spellings in the provider's `markdown_tools.go` and in a real session; run `bash -n` and shellcheck (neither CI lints these files); run the factory's own harness (`scripts/tool-audit-enumerate.sh` in the provider-factory repository) when a `versions/<id>` reading exists.
    471	
    472	### Cross-repository touchpoints
@@ -275453,7 +275453,7 @@ Read review guide lines 470-600
    589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    590	
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:02Z)**_
@@ -275601,7 +275601,7 @@ Read report lines 1-200
 
 `sed -n 1,200p /private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/findings/cross-analytics-logging.md`
 
-```text
+````text
 # Cross-provider conventions: analytics, logging, observability
 
 Repo: `/Users/sean/Source/SpecStory/getspecstory/specstory-cli` (branch `qwen-provider-support`, HEAD `f367e1a`). All `file:line` cites are relative to that directory. Git shas are from the monorepo (`/Users/sean/Source/SpecStory/getspecstory`), whose paths carry a `specstory-cli/` prefix.
@@ -275802,7 +275802,7 @@ Commit `a31dc7a` ("use "deepseek-tui" as ProviderInfo.ID for parity with droid-c
 - `CLAUDE.md` (project): "Provide consistent observability and tracing with log/slog for logging, not fmt.Println or fmt.Printf"; "Start wait-group goroutines with `wg.Go(func() { ... })`, never `wg.Add(1)` plus `go func() { defer wg.Done() ... }()`".
 - `docs/PROVIDER-SPI.md:444`: "Use `slog` for logging (not `fmt.Print`)".
 - Sean, `.specstory/history/2026-02-11_16-29-09Z-provenancelogger-why-just-use.md:4902`: "provenanceLogger() ... why?? just use slog like we do everywhere else. What is that garbage?" and `.specstory/history/2026-02-23_16-02-56Z-i-just-merged-dev.md:13878`: "Why do we have @pkg/telemetry/logging.go ? This file should not be needed." **No logger wrappers or adapters; call `slog` directly.**
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:11Z)**_
@@ -275874,7 +275874,7 @@ Read the pr-review command checklist
 
 `cat .claude/commands/pr-review.md`
 
-```text
+````text
 ---
 allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
 description: Code review for pull request $1
@@ -275957,7 +275957,7 @@ For any new test cases that were added, confirm the tests are:
 - Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
 - Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
 - Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:13Z)**_
@@ -276390,7 +276390,7 @@ Read the contributor-facing guide in full with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -276656,7 +276656,7 @@ Read the contributor-facing guide in full with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:24Z)**_
@@ -276702,7 +276702,7 @@ Read reviewer guide lines 1-200
 
 `sed -n 1,200p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -276903,7 +276903,7 @@ Read reviewer guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:27Z)**_
@@ -277127,7 +277127,7 @@ Read reviewer guide lines 400-591
 
 `sed -n 400,591p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+399, $0}'`
 
-```text
+````text
 400	- Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
 401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
 402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -277320,7 +277320,7 @@ Read reviewer guide lines 400-591
 589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 590	
 591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:30Z)**_
@@ -277461,7 +277461,7 @@ Verify README default-provider claim, cloud resume path, and list silent exit
 
 `sed -n 75,79p README.md; echo ----; sed -n 376,400p pkg/cmd/resume.go; echo ----; sed -n 148,158p pkg/cmd/list.go`
 
-```text
+````text
 Interactive auto-save mode:
 
 ```zsh
@@ -277504,7 +277504,7 @@ func prepareCloudResumeTarget(plan *resumePlan, cwd string, out io.Writer) (stri
 	sessions, err := provider.ListAgentChatSessions(projectPath)
 	if err != nil {
 		return fmt.Errorf("failed to list sessions for %s: %w", provider.Name(), err)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:11:38Z)**_
@@ -278634,7 +278634,7 @@ View context and speaker for ambiguous quote hits
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history; sp(){ f=$1; ln=$2; head -n "$ln" "$f" | grep -E '^_\*\*(User|Agent)' | tail -1 | cut -c1-60; }; echo "### Q13 speaker: $(sp 2026-08-13_13-43-21Z-cross-provider-refactor-200.md 19213)"; sed -n 19211,19214p 2026-08-13_13-43-21Z-cross-provider-refactor-200.md | cut -c1-300; echo "### Q59 speaker: $(sp 2026-08-13_13-43-21Z-cross-provider-refactor-200.md 18446)"; sed -n 18446p 2026-08-13_13-43-21Z-cross-provider-refactor-200.md | cut -c1-400; echo "### Q100 speaker: $(sp 2026-08-13_13-43-21Z-cross-provider-refactor-200.md 18456)"; sed -n 18456p 2026-08-13_13-43-21Z-cross-provider-refactor-200.md | cut -c1-300; echo "### Q101 speaker: $(sp 2026-07-24_20-01-58Z-adress-68.md 8468)"; sed -n 8466,8468p 2026-07-24_20-01-58Z-adress-68.md | cut -c1-200; echo "### Q116 full"; sed -n 2243p 2026-07-20_15-13-10Z-uhhhhh-not-sure-i.md; echo "### Q92 full"; sed -n 11045p 2026-08-16_12-33-25Z-let-s-address-mip.md; echo "### Q61/63 maintainer paste context"; sed -n 5884,5896p 2026-05-18_12-47-08Z-that-s-not-the.md | cut -c1-200; echo "### Q27 agent lesson"; sed -n 15856p 2026-08-13_13-43-21Z-cross-provider-refactor-200.md | cut -c1-500; echo "### Q27 user 17503 context"; sed -n 17495,17504p 2026-08-13_13-43-21Z-cross-provider-refactor-200.md | cut -c1-160; echo "### Q12"; sed -n 14755p 2026-08-11_15-10-08Z-write-this-exactly-as.md | cut -c1-300; sed -n 14761,14763p 2026-08-11_15-10-08Z-write-this-exactly-as.md | cut -c1-400; echo "### Q1 full"; sed -n 8622p 2026-07-16_20-14-28Z-update-the-readme.md; echo "### Q69 context"; sed -n 5738,5747p 2026-05-18_13-34-43Z-finish-line-33-of.md | cut -c1-200; echo "### Q106 speaker: $(sp 2026-09-14_15-55-13Z-read-the-pr-going.md 626)"; sed -n 626p 2026-09-14_15-55-13Z-read-the-pr-going.md; echo "### Q107 speaker: $(sp 2026-09-14_21-57-06Z-we-are-going-to.md 1331)"; sed -n 1329,1331p 2026-09-14_21-57-06Z-we-are-going-to.md | cut -c1-300`
 
-```text
+````text
 ### Q13 speaker: _**Agent (claude-opus-5 2026-08-14 19:54:04Z)**_
 _**Agent (claude-opus-5 2026-08-14 19:54:04Z)**_
 
@@ -278703,7 +278703,7 @@ uhh... how would those be improvements if the Pi agent was never released before
 The " ... as for " statement for the Qwen provider is now out of date... it's missing Muse and Pi and VSC... base it on the one from Pi (but add Pi to it)
 
 Also we are using the Qwen as of today, which is 0.23.3, so updated the changelog for that.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:12:58Z)**_
@@ -278714,7 +278714,7 @@ Verify the release workflow awk extraction and the release doc steps
 
 `echo "=== release.yml awk ===" && sed -n 50,72p ../.github/workflows/release.yml; echo "=== CLI-RELEASE.md steps ===" && sed -n 1,20p docs/CLI-RELEASE.md; sed -n 44,52p docs/CLI-RELEASE.md`
 
-```text
+````text
 === release.yml awk ===
         continue-on-error: true
         run: |
@@ -278769,7 +278769,7 @@ Optional: Update the SpecStory CLI dependency version of Intent.
 Scan the [SpecStory CLI documentation](https://docs.specstory.com/) and update any product/feature changes in the [documentation](https://github.com/specstoryai/specstory-website/tree/main/content/docs) repository and push updates to `main`.
 
 ## What Gets Automated
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:12:59Z)**_
@@ -279817,7 +279817,7 @@ Read the pr-review and code-review command checklists the review guide builds on
 
 `echo "=== pr-review.md ===" && cat -n .claude/commands/pr-review.md 2>/dev/null | head -150; echo; echo "=== code-review.md ==="; cat -n .claude/commands/code-review.md 2>/dev/null | head -120`
 
-```text
+````text
 === pr-review.md ===
      1	---
      2	allowed-tools: Bash(gh pr view:*), Bash(gh pr diff:*), Bash(git diff:*), Bash(grep:*), Bash(awk:*), Bash(sed:*)
@@ -279984,7 +279984,7 @@ Read the pr-review and code-review command checklists the review guide builds on
     80	- Well-designed - Each assertion accurately verifies specific logic and complexity in the code being tested
     81	- Reliable - They won't be flaky, don't rely on external state, and don't catch false positives.
     82	- Not repetitive - They test different scenarios, and use data-driven testing rather than repetitive test code.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:13:27Z)**_
@@ -280011,7 +280011,7 @@ Verify DeepSeek literal fence and todo key drift still present
 
 `sed -n 60,80p pkg/providers/deepseektui/markdown_tools.go; echo ---; sed -n 290,302p pkg/providers/deepseektui/markdown_tools.go`
 
-```text
+````text
 		return spi.RenderGenericJSON(args)
 	default:
 		return spi.RenderGenericJSON(args)
@@ -280047,7 +280047,7 @@ func formatToolOutput(tool *ToolInfo) string {
 		}
 		fmt.Fprintf(&b, "- [%s] %s\n", spi.TodoSymbol(status), desc)
 	}
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:13:29Z)**_
@@ -280857,7 +280857,7 @@ Read the stale ExecAgentAndWatch example and analytics claim in the SPI doc
 
 `echo "=== PROVIDER-SPI.md 305-360 ===" && sed -n 305,360p docs/PROVIDER-SPI.md && echo "=== PROVIDER-SPI.md 440-452 ===" && sed -n 440,452p docs/PROVIDER-SPI.md`
 
-```text
+````text
 === PROVIDER-SPI.md 305-360 ===
 ```
 
@@ -280929,7 +280929,7 @@ Analytics tracking happens in command handlers and the registry, not in provider
 ## Testing
 
 Test your provider implementation:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:14:09Z)**_
@@ -282053,7 +282053,7 @@ Search other repos and view context for framing claims (part 1)
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; H=.specstory/history; echo "### 1. factory repo close enough"; grep -rn -F -i "close enough" /Users/sean/Source/SpecStory/provider-factory --include='*.md' --include='*.sh' --include='*' 2>/dev/null | grep -v node_modules | head -5 | cut -c1-220; echo "### 2. multi-agent deferred"; grep -rn -i "deferred\|tool search" /Users/sean/Source/SpecStory/specstory-cli-multi-agent/README.md | head -5 | cut -c1-220; grep -rln -i "deferred tools you can" /Users/sean/Source/SpecStory/specstory-cli-multi-agent 2>/dev/null | head -3; echo "### 3. cursoride comment"; sed -n 99,102p pkg/providers/cursoride/reconstruct.go; echo "### 8. byte-for-byte in code"; git grep -n "byte-for-byte" -- pkg | head -3; echo "### 5. tests? turn"; grep -n -x -i "tests?" $H/*.md | grep -v 2026-09-14 | head -3; echo "### ctx line21 grouped list"; sed -n 15296,15318p $H/2026-08-04_15-05-09Z-let-s-play-close.md | cut -c1-140; echo "### ctx line22 coding on hypothesis"; sed -n 22596,22615p $H/2026-08-04_15-05-09Z-let-s-play-close.md | cut -c1-160`
 
-```text
+````text
 ### 1. factory repo close enough
 /Users/sean/Source/SpecStory/provider-factory/Workflows/coding-agent-release/TOOL-AUDIT.md:36:- Two more SPI scripts per provider in getspecstory, next to `latest-version` (enrollment in this audit = both exist): `factor
 ### 2. multi-agent deferred
@@ -282113,7 +282113,7 @@ _**User (2026-08-06 22:04:15Z)**_
 _**User (2026-08-06 22:06:34Z)**_
 
 that's NOT the only problem... doesn't your .CLAUDE mention not just changing code but explaining what you're going to do?
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:15:04Z)**_
@@ -282337,7 +282337,7 @@ Search factory repo and view context for framing claims (part 2)
 
 `cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; H=.specstory/history; echo "### Q105"; grep -n -o -i ".\{80\}close enough.\{80\}" /Users/sean/Source/SpecStory/provider-factory/Workflows/coding-agent-release/TOOL-AUDIT.md | head -3; grep -rn -F -i "never close enough" /Users/sean/Source/SpecStory/provider-factory 2>/dev/null | grep -v node_modules | head -3 | cut -c1-200; cd /Users/sean/Source/SpecStory/provider-factory && git log --format='%h %an %ad %s' --date=short -S"close enough" -- Workflows/coding-agent-release/TOOL-AUDIT.md 2>/dev/null | tail -2; cd /Users/sean/Source/SpecStory/getspecstory/specstory-cli; echo "### Q86"; grep -rn -F -i "deferred tools" /Users/sean/Source/SpecStory/provider-factory 2>/dev/null | grep -v node_modules | head -3 | cut -c1-220; grep -rn -F -i "deferred tools you can" $H/2026-09-14*.md | head -2 | cut -c1-200; echo "### Q44 landed?"; git log --all --format='%h %an %ad %s' --date=short -S"byte-for-byte against real workspaceStorage" | tail -3; echo "### hoist ctx"; sed -n 9376,9412p $H/2026-07-24_20-01-58Z-adress-68.md | grep -v '^$' | cut -c1-200 | tail -14; echo "### MIP1-5 ctx"; sed -n 6640,6701p $H/2026-08-16_12-33-25Z-let-s-address-mip.md | grep -i -n "MIP\|defer\|watch.window\|follow-up" | cut -c1-220 | head -12; echo "### intentional accepted?"; awk 'NR>4823 && /^_\*\*User/ {c++} c>=1 && c<=2 && NR>4823' $H/2026-01-29_16-26-43Z-command-message-pr-review.md | grep -v '^$' | head -8 | cut -c1-200; echo "### Droid smoke ctx"; sed -n 5,30p $H/2026-01-28_13-42-57Z-this-isn-t-good.md | grep -v '^$' | cut -c1-160 | head -14; echo "### ditch inference options"; sed -n 6470,6567p $H/2026-07-24_19-13-09Z-adress-a-c-108.md | grep -n -i "option\|^[0-9]\.\|\*\*[A-D]\|recommend\|drop\|remove\|ditch" | cut -c1-200 | head -14`
 
-```text
+````text
 ### Q105
 403cc46 Sean Johnson 2026-09-05 Workflows/ to the repo root; README with workflow tables replaces WORKFLOWS.md; setup to docs/; CI guards the tables.
 ### Q86
@@ -282403,7 +282403,7 @@ This isn't good.
 71:**Cost:** ~15 lines, no filesystem access. **Loss:** an inferred workspace that is legitimately a *parent* of the project stops matching by workspace — but for the inference to have produced that a
 85:But: it costs `os.Stat` calls per session on the sync hot path; it silently drops any project directory that isn't a git repo (workspace becomes `""`, so the session goes unscoped and disappears fr
 89:## Recommendation
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:15:50Z)**_
@@ -283832,7 +283832,7 @@ Read review guide lines 1-200
 
 `sed -n 1,200p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 # New Provider Review
 
 This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -284033,7 +284033,7 @@ The maintainer reads watchers for real races and startup behavior, and has rewri
 - It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
 - Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
 - IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:19:01Z)**_
@@ -284257,7 +284257,7 @@ Read review guide lines 400-600
 
 `sed -n 400,600p /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 - Edit: `Path:`, the change as a `diff` fence, the tool's own result diff also as a `diff` fence with native markers stripped.
 - Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
 - Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
@@ -284450,7 +284450,7 @@ Review and refine commits, by provider (all by the maintainer):
 Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 
 Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:19:03Z)**_
@@ -284461,7 +284461,7 @@ Read contributor guide in full
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -284727,7 +284727,7 @@ Read contributor guide in full
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:20:16Z)**_
@@ -285803,7 +285803,7 @@ Verify PROVIDER-SPI.md stale example and schema doc enum/exchange-id claims
 
 `echo "=== PROVIDER-SPI example ===" ; sed -n 311,320p docs/PROVIDER-SPI.md ; sed -n 340,357p docs/PROVIDER-SPI.md ; sed -n 446,449p docs/PROVIDER-SPI.md ; echo "=== schema doc enum ===" ; sed -n 184,188p docs/SPI-SESSION-DATA-SCHEMA.md ; sed -n 492,496p docs/SPI-SESSION-DATA-SCHEMA.md ; echo "=== exchange ids ===" ; grep -rn 'ExchangeID:' pkg/providers --include='*.go' | grep -v _test | grep -o 'fmt.Sprintf([^)]*' | sort | uniq -c | head`
 
-```text
+````text
 === PROVIDER-SPI example ===
 ```go
 func (p *Provider) ExecAgentAndWatch(
@@ -285849,7 +285849,7 @@ Analytics tracking happens in command handlers and the registry, not in provider
 - Suggested format: `ex_<index>` or `ex_<hash>`
 - Can include context like `ex_0_9f86d081` (index + short hash)
 === exchange ids ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:22:00Z)**_
@@ -286324,7 +286324,7 @@ Read the contributor guide with line numbers
 
 `cat -n /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -286590,7 +286590,7 @@ Read the contributor guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:10Z)**_
@@ -286619,7 +286619,7 @@ Read the new provider guide with line numbers
 
 `cat -n NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -286885,7 +286885,7 @@ Read the new provider guide with line numbers
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:11Z)**_
@@ -286932,7 +286932,7 @@ Read guide lines 1-140
 
 `sed -n '1,140p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -287073,7 +287073,7 @@ Read guide lines 1-140
    138	### 4.3 The delete list
    139	
    140	The maintainer removes rather than restructures. Look for:
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:12Z)**_
@@ -287450,7 +287450,7 @@ Read review guide lines 1-200
 
 `sed -n '1,200p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -287651,7 +287651,7 @@ Read review guide lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:16Z)**_
@@ -287662,7 +287662,7 @@ Read review doc lines 1-200
 
 `sed -n 1,200p docs/NEW-PROVIDER-REVIEW.md | cat -n`
 
-```text
+````text
      1	# New Provider Review
      2	
      3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -287863,7 +287863,7 @@ Read review doc lines 1-200
    198	- It ends cleanly. If the agent writes an end-of-session record, synthesize one so the agent shows no crash warning ("could we synthesize a clean stop?"). Match the minimal shape the agent itself writes; do not fabricate telemetry.
    199	- Provenance back-link (`specstorySourceSessionId`) present. User-identifying data (account labels, auth metadata) omitted.
    200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:18Z)**_
@@ -288086,7 +288086,7 @@ Read guide lines 300-460
 
 `sed -n '300,460p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | nl -ba -v 300`
 
-```text
+````text
    300	
    301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
    302	
@@ -288248,7 +288248,7 @@ Read guide lines 300-460
    458	- `list-tools`: runs in the current empty directory under an isolated `$HOME`; prefers the harness's own declaration (stream init event, extension hook) over a model self-report; prints names one per line as the agent records them in session data; extra facts to stderr; isolation flags so user config cannot leak in; the needed credential named and checked (none is best); bounded by a timeout; diagnostics left in the directory; exits non-zero rather than printing an empty or partial list.
    459	- IDE providers ship `latest-version` only (composite when several release trains change the on-disk format) and say why in the header.
    460
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:19Z)**_
@@ -288259,7 +288259,7 @@ Read review guide lines 200-420
 
 `sed -n '200,420p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+199, $0}'`
 
-```text
+````text
 200	- IDE targets: workspace minted if the folder was never opened (with the IDE's exact id scheme), the running app detected and the user asked to quit it before writing, sidebar indexes updated in one transaction, restart note worded per OS ("Isn't Cmd+Q a mac specific affordance?").
 201	- The error for the unfixable case is friendly and carries the remedy: "It's a scary error and what the user needs to do is buried behind error text."
 202	- By-id lookups on a global store verify project ownership; "corrupted output, not just a bad lookup."
@@ -288481,7 +288481,7 @@ Read review guide lines 200-420
 418	grep -rn 'Getenv("HOME")\|Getenv("USER")' pkg/providers/<p>
 419	grep -rn 'pgrep\|"sh"\|"/bin/' pkg/providers/<p>
 420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:19Z)**_
@@ -288492,7 +288492,7 @@ Read review doc lines 401-591
 
 `sed -n 401,591p docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%6d\t%s\n", NR+400, $0}'`
 
-```text
+````text
    401	- Search: pattern and path, hits in a `text` fence (they are arbitrary content and can contain markdown).
    402	- Shell: description, command in a `bash` fence, `Directory:` when relevant, output in a `text` fence, exit code only on failure, PTY control bytes sanitized, background and terminated states stated.
    403	- Web: query in the summary; results as a linked list with a count; fetched bodies fenced; fetch is type `read`, search is type `search`.
@@ -288684,7 +288684,7 @@ Read review doc lines 401-591
    589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
    590	
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:19Z)**_
@@ -288695,7 +288695,7 @@ Read the full NEW-PROVIDER-GUIDE.md
 
 `cat -n NEW-PROVIDER-GUIDE.md`
 
-```text
+````text
      1	# New Provider Guide
      2	
      3	This guide is for anyone, human or agent, adding support for a new coding agent to the SpecStory CLI. It tells you what a complete provider contains, the standards a submission is held to, and how it will be exercised before release, so your pull request lands with as few review changes as possible.
@@ -288961,7 +288961,7 @@ Read the full NEW-PROVIDER-GUIDE.md
    263	- [ ] `gofmt -w .`, `golangci-lint run` (whole project), `go test ./...`, `GOOS=windows GOARCH=amd64 go vet ./...` all clean
    264	- [ ] Every command in the test table exercised against the real agent; resume verified in both directions
    265	- [ ] `factory/latest-version` present and tested under an isolated home; `install` and `list-tools` present if the agent runs headless
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:21Z)**_
@@ -289008,7 +289008,7 @@ Read review guide lines 420 to end
 
 `sed -n '420,700p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | awk '{printf "%d\t%s\n", NR+419, $0}'`
 
-```text
+````text
 420	grep -rn 'filepath.IsAbs\|filepath.Join\|filepath.Abs' pkg/providers/<p>   # each must be a local path, never a recorded one
 421	GOOS=windows GOARCH=amd64 go build ./... && GOOS=windows GOARCH=amd64 go vet ./...
 422	```
@@ -289181,7 +289181,7 @@ Read review guide lines 420 to end
 589	Recorded working sessions (`.specstory/history/`): Cursor IDE `2026-07-16_20-14-28Z`, `2026-07-20_12-35-45Z`, `2026-07-20_15-13-10Z`, `2026-08-03_15-41-34Z`; Copilot IDE `2026-08-04_00-58-51Z`, `2026-08-04_15-05-09Z`, `2026-08-11_15-10-08Z`; Antigravity `2026-07-21_14-19-33Z`, `2026-07-24_19-13-09Z`, `2026-07-24_20-01-58Z`, `2026-07-27_15-48-50Z`; DeepSeek `2026-05-13_13-48-53Z`, `2026-05-18_12-47-08Z`, `2026-05-18_13-34-43Z`; Muse `2026-08-13_13-43-21Z`, `2026-08-14_16-04-49Z`, `2026-08-16_12-33-25Z`; Droid `2026-01-28_13-36-04Z` through `2026-01-29_17-39-47Z`.
 590	
 591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:22Z)**_
@@ -289192,7 +289192,7 @@ Read guide lines 460-end
 
 `sed -n '460,620p' /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md | nl -ba -v 460; echo "---- total lines:"; wc -l /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
    460	
    461	### Validation
    462	
@@ -289327,7 +289327,7 @@ Read guide lines 460-end
    591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
 ---- total lines:
      591 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:22Z)**_
@@ -289622,7 +289622,7 @@ List code fences and dash characters in both docs
 
 `for f in NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md; do echo "=== $f: code fences ==="; grep -n '^\s*```' "$f"; echo "=== $f: em/en dashes ==="; grep -n '—\|–' "$f"; echo "=== $f: other unicode dashes/quotes ==="; grep -n '‒\|―\|‐' "$f"; done`
 
-```text
+````text
 Exit code 1
 === NEW-PROVIDER-GUIDE.md: code fences ===
 29:```
@@ -289648,7 +289648,7 @@ Exit code 1
 240:- Delete tests that cannot disagree with the code, including ones a reviewer wrote ("Delete tautological tests (T1, T2, T3, possibly T4) — they assert literal constants and dilute the signal of the rest of the suite.").
 539:- "If neither resolves, the workspace is unknown — do not guess."
 === docs/NEW-PROVIDER-REVIEW.md: other unicode dashes/quotes ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:32Z)**_
@@ -289724,7 +289724,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:34Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 1	# New Provider Review
 2	
 3	This document guides an agent through the work of taking a new provider contribution from "pull request opened" to "released", reproducing both the technical checks and the judgement the maintainer applies. It was distilled from the reviews of the Cursor IDE, VS Code Copilot, Antigravity CLI, DeepSeek TUI, and Muse Code providers (with the Factory Droid CLI review as an older secondary example): the commits the maintainer made on those branches, the pull request threads, and the recorded working sessions in which the maintainer directed an agent through each review.
@@ -289875,7 +289875,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:34Z)**_
 148	- Unexplained repository hygiene changes riding along, such as a widened `.gitignore` (history files are tracked in this repo) or an ignore entry for a directory that does not exist.
 149	- Workspace inference from tool paths. "hmmm why not just ditch the inference all together. Not sure we really care about -p sessions."
 150
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:36Z)**_
@@ -290044,7 +290044,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:37Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 300	
 301	Common flags: `--no-cloud-sync --no-usage-analytics` unless cloud sync is under test; `--log --debug` for anything being diagnosed; `--debug-raw` whenever markdown quality is being judged.
 302	
@@ -290195,7 +290195,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:37Z)**_
 447	
 448	## 10. Factory affordances
 449
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:39Z)**_
@@ -290219,7 +290219,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:38Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/NEW-PROVIDER-REVIEW.md`
 
-```text
+````text
 450	Every provider ships bash sensors under `pkg/providers/<id>/factory/`. Enrollment is file presence: `latest-version` enrolls the release sensor; `install` plus `list-tools` enroll the tool audit. The reference implementations are `pkg/providers/piagent/factory/`, `pkg/providers/claudecode/factory/`, and `pkg/providers/antigravitycli/factory/`; their header comments are the contract.
 451	
 452	### Contracts
@@ -290363,7 +290363,7 @@ _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:38Z)**_
 590	
 591	Tool enumeration sessions: the `specstory-cli-multi-agent` repository, one dated directory per agent, with `versions.txt`, `tools.txt`, the synced history, and `tool-use-audit.md` where an audit was written.
 592
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:53:42Z)**_
@@ -290374,7 +290374,7 @@ Check table column counts, checklist syntax, and duplicated lines
 
 `for f in NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md; do echo "=== $f: table rows with pipe counts ==="; grep -n '^|' "$f" | awk -F'|' '{print NR": line "$0" => cols="NF-2}' | sed -E 's/^([0-9]+): line ([0-9]+):.*=> cols=([0-9]+)$/row \1 line \2 cols=\3/'; echo "=== $f: checklist items ==="; grep -n -E '^\s*[-*] \[' "$f"; echo "=== $f: duplicate non-blank lines ==="; grep -v '^\s*$' "$f" | sort | uniq -d; done`
 
-```text
+````text
 === NEW-PROVIDER-GUIDE.md: table rows with pipe counts ===
 row 1 line 47 cols=2
 row 2 line 48 cols=2
@@ -290449,7 +290449,7 @@ row 13 line 572 cols=2
 === docs/NEW-PROVIDER-REVIEW.md: duplicate non-blank lines ===
 ```
 ```zsh
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:54:02Z)**_
@@ -290710,7 +290710,7 @@ Check which providers have os.Exit, wg.Add, backslash fences, local classify cop
 
 `echo "=== os.Exit in providers ===" && grep -rn 'os\.Exit' pkg/providers --include='*.go' | grep -v _test.go; echo "=== wg.Add in providers ===" && grep -rn 'wg\.Add' pkg/providers --include='*.go' | grep -v _test.go; echo "=== backslash-escaped backticks ===" && grep -rn '\\\\`' pkg/providers --include='*.go' | grep -v _test.go | head -20; echo "=== local classifyCheckError copies ===" && grep -rn -i 'func classifyCheckError\|func classifyError' pkg/providers --include='*.go'; echo "=== debug.go files ===" && ls pkg/providers/*/debug.go pkg/providers/*/text_utils.go pkg/providers/*/reader_utils.go 2>/dev/null`
 
-```text
+````text
 Exit code 1
 === os.Exit in providers ===
 pkg/providers/claudecode/claude_code_exec.go:133:			os.Exit(exitCode)
@@ -290733,7 +290733,7 @@ pkg/providers/codexcli/codex_cli_exec.go:218:func classifyCheckError(err error) 
 pkg/providers/piagent/provider.go:62:func classifyCheckError(err error) string {
 === debug.go files ===
 (eval):1: no matches found: pkg/providers/*/text_utils.go
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:54:24Z)**_
@@ -290751,7 +290751,7 @@ Check byte slicing, injected boilerplate strings, tool types, and error strings 
 
 `echo "=== byte slicing candidates (s[:N] on strings) ===" && grep -rn -E '\[:[0-9]+\]|\[:max[A-Z]|\[:limit\]|\[:n\]' pkg/providers --include='*.go' | grep -v _test.go | head -30; echo "=== Created At / proactively ===" && grep -rn -i 'Created At\|proactively' pkg/providers --include='*.go' | grep -v _test.go | head; echo "=== goals/cron/memory tool types ===" && grep -rln -i '"goals\|"cron\|"memory\|subagent' pkg/providers/*/markdown_tools.go; echo "=== source session has no data ===" && grep -rn 'no data to reconstruct' pkg --include='*.go' | head -5; echo "=== unattributed ===" && grep -rn 'unattributed' pkg --include='*.go' | head -5`
 
-```text
+````text
 === byte slicing candidates (s[:N] on strings) ===
 pkg/providers/codexcli/markdown_tools.go:121:	return strings.ToUpper(s[:1]) + s[1:]
 pkg/providers/codexcli/markdown_tools.go:241:				return fmt.Sprintf("\n\nInput (truncated): ```\n%s\n...\n```\n", input[:200])
@@ -290787,7 +290787,7 @@ pkg/cmd/reindex.go:152:	printReindexSummary(ids, foundPerAgent, dbPath, elapsed,
 pkg/cmd/reindex.go:157:		"unattributed": unattributed,
 pkg/cmd/reindex.go:832:	// final unattributed count comes from the DB at summary time).
 pkg/cmd/reindex.go:1106:func printReindexSummary(ids []string, perAgent map[string]int, dbPath string, elapsed time.Duration, indexed, unchanged, projects, unattributed int) {
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:54:28Z)**_
@@ -292006,7 +292006,7 @@ Check README headers, show README context, PROVIDER-SPI table, Windows CI
 
 `echo "=== README headers not followed by blank ==="; awk 'prev && $0 != "" {print "line "NR-1" header, line "NR" non-blank: "$0} {prev = ($0 ~ /^#{1,6} /)}' README.md; echo "(done)"; echo; echo "=== README lines 44-54 ==="; sed -n 44,54p README.md | cut -c1-160; echo; echo "=== PROVIDER-SPI.md provider table ==="; grep -n -E '^\| ' docs/PROVIDER-SPI.md | head -5; echo; echo "=== Windows CI job ==="; ls .github/workflows 2>/dev/null; grep -rln 'windows' .github/workflows 2>/dev/null | head`
 
-```text
+````text
 === README headers not followed by blank ===
 line 72 header, line 73 non-blank: specstory help run
 line 79 header, line 80 non-blank: specstory run <provider>
@@ -292096,7 +292096,7 @@ There is also an [Agent SPI (Service Provider Interface)](/pkg/spi/) that allows
 16:| `gemini` | Gemini CLI | `~/.gemini/tmp/<hash>/chats/<session-id>.json` |
 
 === Windows CI job ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:55:45Z)**_
@@ -292154,7 +292154,7 @@ Check literal fences and agent-state tool names across providers
 
 `echo "=== literal triple-backtick fences in non-test provider go files ===" && grep -rln '"```\|```\\n\|\\n```' pkg/providers --include='*.go' | grep -v _test | sort; echo "=== backslash-escaped backtick variants ===" && grep -rn -F '\\```' pkg/providers --include='*.go' | grep -v _test; grep -rn -F '\`' pkg/providers --include='*.go' | grep -v _test | grep -v 'ReplaceAll(needle' | head; echo "=== goals/cron/memory per provider ===" && for p in antigravitycli musecode qwencode piagent; do echo "-- $p"; grep -n -o -i '"goals*"\|"cron[a-z_]*"\|"memory[a-z_]*"\|"skills*"\|"subagent[a-z_]*"' pkg/providers/$p/markdown_tools.go 2>/dev/null | sort -u | head -12; done`
 
-```text
+````text
 === literal triple-backtick fences in non-test provider go files ===
 pkg/providers/claudecode/agent_session.go
 pkg/providers/codexcli/markdown_tools.go
@@ -292196,7 +292196,7 @@ pkg/providers/vscode/paths.go:183:	return strings.HasPrefix(lower, `\\wsl.localh
 44:"skill"
 45:"skill"
 -- piagent
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:55:56Z)**_
@@ -292254,7 +292254,7 @@ Check every docs and release artifact the guide lists for the muse entry
 
 `echo "== changelog muse ==" && grep -n -i 'muse' changelog.md | head -20; echo; V=$(grep -n -i -B30 'muse' changelog.md | grep -E '^[0-9]+-## v' | tail -1 | sed -E 's/.*## (v[0-9.]+).*/\1/'); echo "== awk preview for $V =="; awk -v version="$V" 'BEGIN{p=0} /^## /{if ($0 ~ "^## " version){p=1; next} else if (p==1 && /^## /){exit}} p==1{print}' changelog.md; echo; echo "== README muse ==" && grep -n -i 'muse' README.md; echo; echo "== monorepo README muse ==" && grep -n -i 'muse' ../README.md 2>&1 | head; echo; echo "== config.go muse ==" && grep -n -i 'muse' pkg/config/config.go; echo; echo "== TUI accent muse ==" && grep -n -i 'muse' pkg/cmd/session_tui_browser.go; echo; echo "== skills/agents.go muse ==" && grep -n -i 'muse' pkg/skills/agents.go; echo; echo "== PROVIDER-SPI.md muse ==" && grep -n -i 'muse' docs/PROVIDER-SPI.md; echo; echo "== MUSE-FORMAT.md head ==" && sed -n '1,12p' docs/MUSE-FORMAT.md; echo; echo "== PROVIDER-REFACTOR.md muse ==" && grep -n -i 'muse' docs/PROVIDER-REFACTOR.md | head -5; echo; echo "== POSTHOG.md muse/check ==" && grep -n -i -E 'muse|check_attempt|CheckAttempt' docs/POSTHOG.md | head -5; echo; echo "== code comments citing MUSE-FORMAT ==" && grep -rn 'MUSE-FORMAT\|muse-format\|MUSE_FORMAT' pkg --include='*.go' | head`
 
-```text
+````text
 == changelog muse ==
 7:- The SpecStory CLI now supports [Qwen Code](https://github.com/QwenLM/qwen-code) (i.e. `qwen`) for sessions created from Qwen Code version `0.23.3` or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI), [Muse Code](https://developer.meta.com/ai/products/muse-code/) and [Pi](https://pi.dev). Qwen Code sessions can also be resumed in other agents with `specstory resume`, and other agents' sessions can be resumed in Qwen Code.
 13:- The SpecStory CLI now supports [Pi](https://pi.dev) for agent sessions created from Pi `0.85.1` (the current `@earendil-works/pi-coding-agent` release) or higher. Sessions from earlier versions may work, but are not officially supported. This provides the same support for saving to local markdown files and to the SpecStory Cloud as for [Claude Code](https://claude.ai/docs/api/claude-code), [Cursor CLI](https://cursor.com/docs/cli), [Codex CLI](https://developers.openai.com/codex/cli/), Factory's [Droid CLI](https://factory.ai/product/cli), [Cursor IDE](https://cursor.com/product), [Visual Studio Code Copilot](https://code.visualstudio.com/docs/setup/copilot), Google's [Antigravity CLI](https://antigravity.google/), [DeepSeek TUI](https://github.com/Hmbown/DeepSeek-TUI) and [Muse Code](https://developer.meta.com/ai/products/muse-code/). `specstory sync`, `list`, `search`, `reindex` and `check` all understand Pi sessions, including Pi's branching, compaction and tool results. Pi's own `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR` settings are honored, so sessions are found wherever Pi keeps them.
@@ -292339,7 +292339,7 @@ Muse Code (`muse`, Meta's terminal coding agent, powered by Muse Spark models) r
 == code comments citing MUSE-FORMAT ==
 pkg/providers/musecode/agent_session_test.go:266:// enumerated them in a live all-tools session (see docs/MUSE-FORMAT.md). When
 pkg/providers/musecode/reconstruct.go:39:// run. See docs/SESSION-PORTABILITY.md and docs/MUSE-FORMAT.md.
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:56:00Z)**_
@@ -292350,7 +292350,7 @@ Identify what the three 2026-09-14 history sessions are
 
 `PI=.specstory/history/2026-09-14_15-55-13Z-read-the-pr-going.md; Q1=.specstory/history/2026-09-14_21-57-06Z-we-are-going-to.md; Q2=.specstory/history/2026-09-14_21-58-35Z-i-am-going-to.md; for f in $PI $Q1 $Q2; do echo "=== $f ==="; head -c 1500 "$f" | head -30; echo; done`
 
-```text
+````text
 === .specstory/history/2026-09-14_15-55-13Z-read-the-pr-going.md ===
 <!-- Generated by SpecStory, Markdown v2.1.0 -->
 
@@ -292446,7 +292446,7 @@ View PR 268 and search Homebrew for qwen
 
 ```text
 {"author":{"id":"MDQ6VXNlcjE1NjU5NTg=","is_bot":false,"login":"gregce","name":"Greg Ceccarelli"},"body":"## What this adds\n\nThis adds a `qwen` provider so the SpecStory CLI can save and resume Qwen Code sessions. Qwen Code stores each session as a JSONL file under `~/.qwen/projects/<sanitized-cwd>/chats/`. The provider reads those files, converts them to our shared session format, and renders markdown.\n\nThe provider covers the same commands as the claude and codex providers.\n\n- `check`, `sync`, `list`, `watch`, `run`, and `reindex` a
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:56:01Z)**_
@@ -293556,7 +293556,7 @@ Check fences commit for backslash origin, resume-helper origins, and Qwen gitign
 
 `echo "=== 57503af fences commit ===" && git show --stat 57503af | head -25; echo "=== backslash in 57503af diff ==="; git show 57503af | grep -n -i 'backslash\|\\\\```' | head; echo "=== slices.Concat / --resume= origins ==="; git log --oneline -S'slices.Concat' -- pkg/providers pkg/spi | tail -5; echo "--"; git log --oneline -S'"--resume="' -- pkg/providers | tail -5; echo "=== qwen .gitignore ==="; git diff dev...qwen-provider-support --stat -- .gitignore specstory-cli/.gitignore; git log --oneline dev..qwen-provider-support --name-only | grep -i gitignore`
 
-```text
+````text
 === 57503af fences commit ===
 commit 57503af4bfd6ab1091bcfd1c707aa4a9e20f3dae
 Author: Sean Johnson <sean@specstory.com>
@@ -293607,7 +293607,7 @@ b8512bc Add Qwen Code provider (qwen) with full resume support
 0381a52 Enabled Droid CLI resume support by passing --resume <sessionId>
 36a3ca5 Open source the SpecStory CLI under the Apache 2.0 licnese.
 === qwen .gitignore ===
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 12:57:28Z)**_
@@ -295535,7 +295535,7 @@ Check pre-Pi os.Exit discussions and the Pi changelog Improvements exchange
 
 `echo "=== pre-Pi os.Exit discussion context ===" && grep -n -i -B1 -A1 'os\.Exit' .specstory/history/2026-02-26_09-53-09Z-run-these-commands-to.md .specstory/history/2026-02-12_17-20-59Z-notice-what-we-did.md .specstory/history/2026-06-11_15-44-34Z-new-to-plan-out.md 2>/dev/null | grep -i -v 'main.go\|fang\|cobra' | head -16; echo "=== Pi session lines 600-640 (Improvements context) ===" && sed -n '600,640p' .specstory/history/2026-09-14_15-55-13Z-read-the-pr-going.md | cut -c1-220`
 
-```text
+````text
 === pre-Pi os.Exit discussion context ===
 .specstory/history/2026-02-12_17-20-59Z-notice-what-we-did.md-2047-  2356→			_ = cloud.Shutdown(cloud.CloudSyncTimeout)
 .specstory/history/2026-02-12_17-20-59Z-notice-what-we-did.md:2048:  2357→			os.Exit(2)
@@ -295594,7 +295594,7 @@ I'd fold it in. The env var part is worth keeping because a user who has relocat
 
 ```markdown
 ## v2.11.0 2026-09-14
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 13:00:37Z)**_
@@ -295612,7 +295612,7 @@ Verify README anchors, timeout availability, command files, format doc header, s
 
 `echo "=== README anchors ==="; grep -n "Agent Support\|^\[providers\]\|Configuration Options\|Debug Raw Mode\|currently supports\|now supports" README.md | head -10; echo "muse mentions:"; grep -c "Muse" README.md; echo "=== timeout on this mac ==="; which timeout gtimeout 2>&1; echo "=== .claude/commands ==="; ls .claude/commands 2>&1 | tr '\n' ' '; echo; echo "=== MUSE-FORMAT head ==="; sed -n 1,10p docs/MUSE-FORMAT.md; echo "=== sessions.db ==="; grep -rn '"sessions.db"' pkg --include='*.go' | grep -v _test | head -2; echo "=== curl-based sensors ==="; grep -n "curl" pkg/providers/claudecode/factory/latest-version pkg/providers/antigravitycli/factory/latest-version pkg/providers/musecode/factory/latest-version pkg/providers/droidcli/factory/latest-version | head -8; echo "=== schema Model ==="; grep -n "Model " pkg/spi/schema/types.go | head -4; echo "=== data-tool-name ==="; grep -rn "data-tool-name" pkg/session/*.go | grep -v _test | head -2; echo "=== config tests ==="; grep -c "GetProviderCmd" pkg/config/config_test.go; echo "=== go version ==="; grep -n "^go " go.mod`
 
-```text
+````text
 === README anchors ===
 23:## Agent Support
 301:[providers]
@@ -295652,7 +295652,7 @@ pkg/session/markdown.go:27:	ToolUseOpenTag       = "<tool-use data-tool-type=\"%
 20
 === go version ===
 8:go 1.27.1
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-fable-5-1 2026-09-15 13:00:49Z)**_
@@ -297016,7 +297016,7 @@ _**Agent (claude-fable-5-1 2026-09-15 13:07:26Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/verification/accuracy.md`
 
-```text
+````text
 1	# Accuracy findings
 2	
 3	## symbols-paths (checked 240)
@@ -297295,7 +297295,7 @@ _**Agent (claude-fable-5-1 2026-09-15 13:07:26Z)**_
 276	  PROBLEM: Same placeholder error as the guide: `<id>` denotes the registry id throughout this doc (`check <id>`, `sync <id>`, `<id>_cmd`), but the factory scripts live under the package directory. The validation commands at 464-466 fail as written for every provider.
 277	  EVIDENCE: `ls pkg/providers/muse` -> No such file or directory; scripts are at `pkg/providers/musecode/factory/latest-version`, `pkg/providers/piagent/factory/{install,latest-version,list-tools}`.
 278	  FIX: Replace `<id>` with `<package>` (or `<agent><kind>`) in lines 450, 464, 465, 466.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-15 13:07:27Z)**_
@@ -298187,7 +298187,7 @@ _**Agent (claude-fable-5-1 2026-09-15 13:07:35Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/368cb061-4f73-49a8-9c3b-b108ef78caf8/scratchpad/verification/usability.md`
 
-```text
+````text
 295	  CLAIM: "These are the changes reviewers make most often. Each one is a real review finding from a past provider."
 296	  PROBLEM: Voice check: the document is mostly direct guidance, but several lines slip into reviewer/historian voice or vague hedging instead of telling the implementer what to do: L99 (history framing), L135 "will be treated as a bug", L180 "is a defect", L195 "will be deleted", L199 argues with a hypothetical reviewer ("is not tautological; it guards against omission"), L210 "Reviewers exercise every command"; hedges at L72 "if the store can be large", L78 "ideally", L179 "even that should". The bulk of the rule bullets are third-person declaratives ("Tool inputs render as...") rather than imperatives, which is consistent but not second person.
 297	  EVIDENCE: Lines cited above in NEW-PROVIDER-GUIDE.md.
@@ -298317,7 +298317,7 @@ _**Agent (claude-fable-5-1 2026-09-15 13:07:35Z)**_
 421	  EVIDENCE: grep -rn 'wg.Add' pkg/providers --include='*.go' | grep -v _test -> only two comments in cursoride/watcher.go. git log -S'wg.Add(1)' -- pkg/providers/piagent pkg/providers/qwencode -> empty.
 422	  FIX: 
 423
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-15 13:07:37Z)**_
@@ -299744,7 +299744,7 @@ print("tables checked")
 PY
 ````
 
-```text
+````text
 === headers followed by blank line ===
 === fence tags ===
 NEW-PROVIDER-GUIDE.md:44:```text
@@ -299779,7 +299779,7 @@ docs/NEW-PROVIDER-REVIEW.md:380:Correct: "Reconstructed <Agent> session into Cla
 === vet without prefix ===
 === table column counts ===
 tables checked
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-15 13:20:31Z)**_
@@ -300136,7 +300136,7 @@ Read docs/PROVIDER-SPI.md in full
 
 `cat docs/PROVIDER-SPI.md`
 
-```text
+````text
 # SpecStory CLI's Agent SPI
 
 The SpecStory CLI's Agent SPI (Service Provider Interface) allows developers to extend the SpecStory CLI by implementing support for new AI coding agents.
@@ -300682,7 +300682,7 @@ func (p *Provider) WatchAgent(ctx context.Context, projectPath string, debugRaw 
     return fmt.Errorf("not implemented")
 }
 ```
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-15 14:39:41Z)**_

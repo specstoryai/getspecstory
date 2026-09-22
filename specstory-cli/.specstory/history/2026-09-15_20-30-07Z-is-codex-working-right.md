@@ -18,7 +18,8 @@ _**Agent (gpt-6-astra 2026-09-15 20:30:11Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"cat /Users/sean/.codex/skills/.system/openai-docs/SKILL.md",max_output_tokens:6000}));
 
 ```
@@ -28,7 +29,8 @@ _**Agent (gpt-6-astra 2026-09-15 20:30:13Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.web__run({open:[{ref_id:"https://status.openai.com/"}],response_length:"short"}));
 
 ```

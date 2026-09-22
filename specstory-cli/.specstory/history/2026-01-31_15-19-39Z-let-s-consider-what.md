@@ -144,7 +144,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:20:37Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -433,7 +433,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-31 15:20:37Z)**_
    286→
    287→SpecStory® is a registered trademark of SpecStory, Inc.
    288→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-01-31 15:20:38Z)**_

@@ -26,9 +26,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:00Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+```markdown
 # Cloud Resume & Search
 
 Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
@@ -51,8 +54,16 @@ Extend the CLI's local-only `resume` and `search` functionality to also surface 
 - **D5 — A `session_data_size INTEGER` (nullable) column on `sessions` tracks blob presence** (byte count, set in `Session.upsert` when the push carries `sessionData`), mirroring the existing `markdown_size` / `raw_data_size` columns. `NULL` = legacy/no blob; `> 0` = cloud-resumable. Both read paths filter on it so browse/search only surface resumable cloud sessions — but the filter is **opt-in, not unconditional**: the list endpoint (`GET …/{projectId}/sessions`) is shared with the web app, and a blanket `WHERE session_data_size > 0` would hide every legacy session from cloud.specstory.com until re-synced (regressing a surface this feature doesn't own, contrary to §3's additive promise). So the CLI passes a new **`?resumable=true`** query param, which adds `WHERE session_data_size > 0`; without the param the endpoint behaves exactly as today. The aligned FTS search (D18) applies the same predicate on the `sessions` row unconditionally — it's a new resume-only surface, so no opt-in is needed there. Nullable represents the back-catalog with no backfill. This is metadata *about* the blob — consistent with D3, not a contents column.
 - **D6 — Back-catalog heals by re-sync, not backfill.** Legacy sessions (`session_data_size IS NULL`) are filtered out of resume browse/search (D5) until a new-enough CLI re-syncs them and populates `SessionData`. No server-side backfill job.
 - **D7 — Self-heal triggers via an explicit `session_data_size` signal.** The server exposes `session_data_size` on both sync-skip paths. **HEAD:** a new `X-Session-Data-Size` header (`NULL` coerced to `0`, so "legacy" and "no blob" read the same). **Bulk sizes:** the `GET …/sessions/sizes` response is a flat `{"<sessionID>": markdownSize}` map whose value type must stay a bare number for deployed CLIs — so rather than changing the shape (or minting a v2 endpoint), the server adds a **suffixed key per session**: `"<sessionID>:sessionData": <blob byte size>`, emitted only when `session_data_size` is non-`NULL`. This is backward-compatible by construction: old CLIs unmarshal the map fine (values are still numbers) and only ever do point lookups by plain sessionID, so the extra entries are inert; and `:` can't appear in a UUID, so keys can't collide. The new CLI reads `bulkSizes[sessionID+":sessionData"]` — Go's zero-value map lookup makes a missing key read as `0`, which is exactly the re-send signal, with no NULL handling anywhere. The CLI's `requiresSync` (`sync.go:460-595`) re-sends when **markdown is newer OR `serverSessionDataSize == 0`** (currently it compares markdown size only). `X-Markdown-Size` keeps its true meaning. Applies to both the HEAD path and the batch bulk-sizes path (so `specstory sync` heals too).
-- **D8 — Resume fetches the `Ses
-... (truncated)
+- **D8 — Resume fetches the `SessionData` blob by streaming through the API*
+… (output truncated)
+```
+
+```json
+{
+  "details": {
+    "truncation": {
+      "content": "# Cloud Resume \u0026 Search\n\nPlanning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.\n\n\u003e Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–3 implemented; Chunk 4 (rollup data quality) and Chunk 5 (resume by session URI) designed.\n\n## Goal\n\nExtend the CLI's local-only `resume` and `search` functionality to also surface sessions that live in SpecStory Cloud (pushed there by other machines via cloud sync). This spans:\n\n- **CLI** (this repo, `getspecstory` / `specstory-cli`)\n- **Cloud API** — the `specstory-sync` Cloudflare Worker (`sync-cloud/worker/`, Hono + Drizzle/Postgres + Supabase Storage). **Note:** this is *not* in `specstory-monorepo` (which holds the CLI, VSCode extension, and a web frontend that consumes the same API).\n\n## Decisions\n\n- **D1 — `SessionData` is the canonical cloud representation.** The CLI fetches `SessionData` from the cloud and reconstructs from it; the raw provider transcript (`rawData`) is never the cloud-resume path.\n- **D2 — The CLI pushes `SessionData` on sync.** The server stores it verbatim and serves it back, making `SessionData` the genuine source of truth end-to-end. Chosen over deriving `SessionData` server-side from parsed `exchanges` (rejected: reconstruction fidelity would be hostage to a markdown-oriented parse).\n- **D3 — `SessionData`'s *contents* are stored as a new object-storage blob only** (Supabase Storage, `{workspace}/{session}/session-data.json`), mirroring how `rawData` is stored today — **no column holds the blob contents** and nothing indexes into it. Its only reader is resume, which needs the whole blob. Small filterable fields (agent/provider) already ride in the `sessions.metadata` JSONB for list/dedup.\n- **D4 — `rawData` stays as-is.** It has a (new) consumer of its own, so it is untouched: the push keeps sending it and the server keeps writing `raw-data.json`. `SessionData` is **added alongside** `rawData`, not a replacement — the push gains a new `sessionData` field and the server writes a new `session-data.json` blob in addition to the existing writes.\n- **D5 — A `session_data_size INTEGER` (nullable) column on `sessions` tracks blob presence** (byte count, set in `Session.upsert` when the push carries `sessionData`), mirroring the existing `markdown_size` / `raw_data_size` columns. `NULL` = legacy/no blob; `\u003e 0` = cloud-resumable. Both read paths filter on it so browse/search only surface resumable cloud sessions — but the filter is **opt-in, not unconditional**: the list endpoint (`GET …/{projectId}/sessions`) is shared with the web app, and a blanket `WHERE session_data_size \u003e 0` would hide every legacy session from cloud.specstory.com until re-synced (regressing a surface this feature doesn't own, contrary to §3's additive promise). So the CLI passes a new **`?resumable=true`** query param, which adds `WHERE session_data_size \u003e 0`; without the param the endpoint behaves exactly as today. The aligned FTS search (D18) applies the same predicate on the `sessions` row unconditionally — it's a new resume-only surface, so no opt-in is needed there. Nullable represents the back-catalog with no backfill. This is metadata *about* the blob — consistent with D3, not a contents column.\n- **D6 — Back-catalog heals by re-sync, not backfill.** Legacy sessions (`session_data_size IS NULL`) are filtered out of resume browse/search (D5) until a new-enough CLI re-syncs them and populates `SessionData`. No server-side backfill job.\n- **D7 — Self-heal triggers via an explicit `session_data_size` signal.** The server exposes `session_data_size` on both sync-skip paths. **HEAD:** a new `X-Session-Data-Size` header (`NULL` coerced to `0`, so \"legacy\" and \"no blob\" read the same). **Bulk sizes:** the `GET …/sessions/sizes` response is a flat `{\"\u003csessionID\u003e\": markdownSize}` map whose value type must stay a bare number for deployed CLIs — so rather than changing the shape (or minting a v2 endpoint), the server adds a **suffixed key per session**: `\"\u003csessionID\u003e:sessionData\": \u003cblob byte size\u003e`, emitted only when `session_data_size` is non-`NULL`. This is backward-compatible by construction: old CLIs unmarshal the map fine (values are still numbers) and only ever do point lookups by plain sessionID, so the extra entries are inert; and `:` can't appear in a UUID, so keys can't collide. The new CLI reads `bulkSizes[sessionID+\":sessionData\"]` — Go's zero-value map lookup makes a missing key read as `0`, which is exactly the re-send signal, with no NULL handling anywhere. The CLI's `requiresSync` (`sync.go:460-595`) re-sends when **markdown is newer OR `serverSessionDataSize == 0`** (currently it compares markdown size only). `X-Markdown-Size` keeps its true meaning. Applies to both the HEAD pat
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -60,9 +71,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:01Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`docs/CLOUD-RESUME.md`
-
+**Path:**
+```text
+docs/CLOUD-RESUME.md
 ```
+
+**Offset (line):**
+```text
+289
+```
+
+```markdown
+
 - **CLI:** thread `sessionData` through `SyncSessionToCloud → performSync → APIRequest`; add `metadata.machineName = os.Hostname()` (D2, D9). `rawData` untouched (D4). Extend `requiresSync` to re-send on `serverSessionDataSize == 0`, reading `X-Session-Data-Size` (HEAD) and the suffixed `"<sessionID>:sessionData"` bulk-sizes key (D7). Gzip the PUT body; raise the PUT timeout to 60s and `CloudSyncTimeout` to 180s (D22).
 - **Server:** accept `sessionData` (`WriteSessionRequestSchema`) + `machineName` (`SessionMetadataSchema`, `shared/types.ts:71`; metadata block in `handleWriteSession`); write the `session-data.json` blob (D3); add + set the `sessions.session_data_size` column (D5); expose `X-Session-Data-Size` on HEAD and the suffixed `"<sessionID>:sessionData"` keys in `GET …/sessions/sizes` (D7); accept `Content-Encoding: gzip` on the PUT — **deploy this before the CLI ships** (D22).
 - **Validation:** push from two machines; confirm `session-data.json` blobs + `session_data_size`/`machineName` land; force a legacy session (no blob) and confirm re-sync heals it (size populates, no re-send once present); confirm a gzipped PUT round-trips and a no-header PUT (old-CLI shape) still works (D22). Purely additive — confirm existing web-app/markdown surfaces are unaffected.
@@ -88,8 +108,8 @@ Cross-machine full-text search, semantics-aligned to local, reusing Chunk 2's TU
 The all-projects browser (`modeProjects`) blends cloud-only projects into the local list, but the rollup has three data-quality defects surfaced after Chunk 2 landed:
 
 1. **Date shows "now" instead of real activity on cloud rows.** `cloudToProjects` sets `LastActivity = c.LastUpdated`, and the server's `workspace_sessions_summary` view computes `last_session = MAX(s.updated_at)` — `updated_at` is the **sync/push** timestamp (reset to `now()` on every upsert), not real session activity. There is a stale TODO (`supabase.ts:158`) to use `GREATEST(ended_at, started_at, updated_at)`. The drill-in path doesn't have this bug for rows the duration worker has processed: `listResumableSessionsForWorkspace` orders by `ended_at` and `cloudToSessions` uses `firstNonEmpty(EndedAt, StartedAt, UpdatedAt)`. **But** the rollup takes a `max` over sessions, and `firstNonEmpty`'s `UpdatedAt` fallback is the sync time — so a single legacy/re-synced session with `NULL` `ended_at`/`started_at` (duration worker not run yet) poisons the project's `LastActivity` to "now" even when every other session has a real mid-June `ended_at`. (The drill-in hides this because each row shows its *own* time; only the rollup's max exposes it.) The fix (D27) is to compute `LastActivity` from real activity only, with sync time as a project-level fallback when *no* session has real activity.
-2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: 
-... (truncated)
+2. **Cloud-only projects lose the agent/session chips.** `cloudToProjects` sets `AgentCounts = nil` (the `ProjectSummary` comment says so: "the cloud list has no per-
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -126,9 +146,10 @@ Let me explore both codebases to understand the current state.
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:03Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `ls && echo "---" && ls ../../specstory-sync 2>/dev/null && echo "---" && ls ../../specstory-sync/apps 2>/dev/null`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 AGENT.md
 changelog.md
 CLAUDE.md
@@ -163,13 +184,31 @@ workers
 
 Command exited with code 1
 ```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "ls \u0026\u0026 echo \"---\" \u0026\u0026 ls ../../specstory-sync 2\u003e/dev/null \u0026\u0026 echo \"---\" \u0026\u0026 ls ../../specstory-sync/apps 2\u003e/dev/null"
+}
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:11Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls ../../specstory-sync/sync-cloud && echo "---" && find ../../specstory-sync -name "SessionHeader.tsx" -not -path "*/node_modules/*" 2>/dev/null && echo "---" && find ../../specstory-sync -name "SessionView.tsx" -not -path "*/node_modules/*" 2>/dev/null && echo "---" && find ../../specstory-sync -name "ProviderPicker.tsx" -not -path "*/node_modules/*" 2>/dev/null`</summary>
+**Command:**
+```bash
+ls ../../specstory-sync/sync-cloud && echo "---" && find ../../specstory-sync -name "SessionHeader.tsx" -not -path "*/node_modules/*" 2>/dev/null && echo "---" && find ../../specstory-sync -name "SessionView.tsx" -not -path "*/node_modules/*" 2>/dev/null && echo "---" && find ../../specstory-sync -name "ProviderPicker.tsx" -not -path "*/node_modules/*" 2>/dev/null
 ```
+
+```text
 components.json
 context.md
 DESIGN.md
@@ -203,6 +242,7 @@ wrangler.jsonc
 ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx
 ---
 ../../specstory-sync/sync-cloud/src/components/resume/ProviderPicker.tsx
+
 ```
 </details></tool-use>
 
@@ -218,9 +258,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:12Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
+
+```go
 package cmd
 
 import (
@@ -338,8 +381,9 @@ a known, installed provider, or the command errors.`
 			}
 
 			// Open (building if needed) the session index and run the interactive picker.
-			// builtFresh = the index was just rebuilt in the foreground, so the picker
-... (truncated)
+			// builtFresh = the index was just rebuilt in the foreground, so the picker skips
+			
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -353,7 +397,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "selectResumeViaTUI\|presetTarget\|presetTo\|modeTarget\|defaultTargetIndex" pkg/cmd --include="*.go" | head -50`</summary>
+**Command:**
+```bash
+grep -rn "selectResumeViaTUI\|presetTarget\|presetTo\|modeTarget\|defaultTargetIndex" pkg/cmd --include="*.go" | head -50
 ```
+
+```text
 pkg/cmd/resume.go:96:			// the target-selection step entirely (see selectResumeViaTUI / beginResume); whether
 pkg/cmd/resume.go:99:			presetTarget := ""
 pkg/cmd/resume.go:101:				presetTarget = strings.ToLower(strings.TrimSpace(args[0]))
@@ -384,6 +433,7 @@ pkg/cmd/session_tui_browser.go:113:			if strings.EqualFold(a.id, presetTo) {
 pkg/cmd/session_tui_browser.go:120:				"agent %q is not installed, so it can't be a resume target.", presetTo)}
 pkg/cmd/session_tui_browser.go:122:		presetTo = resolved
 pkg/cmd/session_tui_browser.go:133:		presetTo:  presetTo,
+
 ```
 </details></tool-use>
 
@@ -391,9 +441,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:19Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_browser.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
 ```
+
+```go
 package cmd
 
 import (
@@ -532,8 +585,8 @@ func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, p
 	})
 	p := tea.NewProgram(model)
 	cancelWarm := startIndexWarm(p, projectID, builtFresh)
-	final,
-... (truncated)
+	final, err :
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -547,9 +600,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:22Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui.go
 ```
+
+```go
 package cmd
 
 import (
@@ -659,8 +715,8 @@ type sessionTUI struct {
 	projTop          int
 	projectsLoaded   bool
 	startedInBrowser bool // launched straight into the browser (empty home project)
-	startedInSearch  bool // launched straight into the al
-... (truncated)
+	startedInSearch  bool // launched straight into the all-pr
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -676,9 +732,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:25Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/resume_client.go`
-
+**Path:**
+```text
+pkg/cloud/resume_client.go
 ```
+
+```go
 package cloud
 
 import (
@@ -764,8 +823,8 @@ type CloudProject struct {
 	ID           string         `json:"id"`
 	Name         string         `json:"name"`
 	Icon         string         `json:"icon"`
-	Color        string         `jso
-... (truncated)
+	Color        string         `json:"col
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -773,7 +832,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "func\|GetSession\|FingerprintKey\|ProjectSessionKey\|Session " pkg/sessionindex/store.go | head -60`</summary>
+**Command:**
+```bash
+grep -n "func\|GetSession\|FingerprintKey\|ProjectSessionKey\|Session " pkg/sessionindex/store.go | head -60
 ```
+
+```text
 49:// Session is one row of the restore index (the `sessions` table), plus Body, which is
 51:type Session struct {
 106:func DefaultPath() (string, error) {
@@ -834,6 +898,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:26Z)**_
 756:		out[pid] = append(out[pid], ProjectSessionKey{Agent: agent, SessionID: sid})
 763:func (s *Store) SessionBody(agent, sessionID string) (string, error) {
 788:func (s *Store) Search(query, projectID string) ([]Session, error) {
+
 ```
 </details></tool-use>
 
@@ -841,9 +906,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:27Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
+
+**Offset (line):**
+```text
+49
+```
+
+**Limit:**
+```text
+110
+```
+
+```go
 // Session is one row of the restore index (the `sessions` table), plus Body, which is
 // indexed into the FTS table rather than stored on the row. See docs/SESSIONS-DB.md.
 type Session struct {
@@ -948,8 +1026,9 @@ func openWith(path string, maxConns int) (*Store, error) {
 }
 
 // openStore opens sessions.db with the connection pragmas and ensures the schema exists.
-func openStore(path string, maxConns int) (*S
-... (truncated)
+func openStore(path string, maxConns int) (*Store, error) {
+	ds
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -957,9 +1036,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:30Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
+
+**Offset (line):**
+```text
+635
+```
+
+**Limit:**
+```text
+160
+```
+
+```go
 // GetSession returns the LIVE indexed session for (agent, sessionID), or ok=false when there is
 // no such row — never indexed, OR soft-deleted (deleted = 0 is required, unlike Exists). Body is
 // not populated. Used by resume's selection-time guard to prefer an in-place local resume over a
@@ -1087,8 +1179,8 @@ func (s *Store) ListAllSessionKeysByProject() (map[string][]ProjectSessionKey, e
 }
 
 // SessionBody returns the full-text conversation body for a session (for the preview
-// pane), or "" if the session has no indexed bod
-... (truncated)
+// pane), or "" if the session has no indexed body (e.g. Curs
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -1102,9 +1194,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:31Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+```go
 package cmd
 
 import (
@@ -1254,8 +1349,8 @@ func (m sessionTUI) machineScopeLabel() string {
 // critical path of a local resume: any failure degrades silently to local-only.
 
 // Footer nudges shown to users who can't yet use cloud resume. Eligibility = logged-in +
-// Pro; the two stat
-... (truncated)
+// Pro; the two states get diffe
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -1271,12 +1366,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "func.*Search\|launchResume\|resumePlan\|resumeSourceForSession\|searchCommand\|CreateSearchCommand" pkg/cmd/search.go | head -30`</summary>
+**Command:**
+```bash
+grep -rn "func.*Search\|launchResume\|resumePlan\|resumeSourceForSession\|searchCommand\|CreateSearchCommand" pkg/cmd/search.go | head -30
 ```
+
+```text
 pkg/cmd/search.go:19:// CreateSearchCommand builds `specstory search [query…]`. It is the same interactive UI as
 pkg/cmd/search.go:23:func CreateSearchCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
 pkg/cmd/search.go:130:			fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
 pkg/cmd/search.go:131:			plan := &resumePlan{
 pkg/cmd/search.go:141:			return launchResume(plan, cwd, launchOpts)
+
 ```
 </details></tool-use>
 
@@ -1284,9 +1385,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:34Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/search.go`
-
+**Path:**
+```text
+pkg/cmd/search.go
 ```
+
+```go
 package cmd
 
 import (
@@ -1417,8 +1521,9 @@ after the command pre-seeds the query, e.g. 'specstory search max cpu'.`,
 			// original cwd, not the current directory. The guard also prefers a local copy when a
 			// cloud-badged hit is actually present on this machine.
 			fromCloud, fromCwd := resumeSourceForSession(store, rm.result.session)
-			plan := &resum
-... (truncated)
+			plan := &resumePlan{
+	
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -1426,7 +1531,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:36Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "func GetAPIBaseURL\|func GetCloudToken\|func IsAuthenticated\|func DeviceID\|func GetUserAgent\|func SetAPIBaseURL\|cloudURL\|APIBaseURL\|defaultCloudURL\|cloud.specstory.com" pkg/cloud/*.go | grep -v "_test.go" | head -40`</summary>
+**Command:**
+```bash
+grep -rn "func GetAPIBaseURL\|func GetCloudToken\|func IsAuthenticated\|func DeviceID\|func GetUserAgent\|func SetAPIBaseURL\|cloudURL\|APIBaseURL\|defaultCloudURL\|cloud.specstory.com" pkg/cloud/*.go | grep -v "_test.go" | head -40
 ```
+
+```text
 pkg/cloud/auth.go:220:func IsAuthenticated() bool {
 pkg/cloud/auth.go:316:	apiURL := GetAPIBaseURL() + "/api/v1/device-login"
 pkg/cloud/auth.go:457:	apiURL := GetAPIBaseURL() + "/api/v1/device-refresh"
@@ -1448,6 +1558,7 @@ pkg/cloud/sync.go:679:	return DefaultAPIBaseURL
 pkg/cloud/sync.go:683:func GetUserAgent() string {
 pkg/cloud/sync.go:690:func DeviceID() string {
 pkg/cloud/sync.go:919:	apiURL := GetAPIBaseURL() + "/api/v1/projects/" + projectID + "/sessions/" + sessionID
+
 ```
 </details></tool-use>
 
@@ -1455,9 +1566,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:38Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/sync.go`
-
+**Path:**
+```text
+pkg/cloud/sync.go
 ```
+
+**Offset (line):**
+```text
+652
+```
+
+**Limit:**
+```text
+50
+```
+
+```go
 // SetAPIBaseURL sets the base URL for API requests. A trailing slash is stripped so
 // that callers can concatenate GetAPIBaseURL() + "/api/v1/..." without producing a
 // double slash (e.g. http://localhost:5173//api/v1/...).
@@ -1521,7 +1645,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:40Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "func createHash\|func ComputeProjectID\|unknownProjectID\|projectIDRegex\|hexChar" pkg/utils/project_identity.go pkg/cmd/*.go | head -30`</summary>
+**Command:**
+```bash
+grep -rn "func createHash\|func ComputeProjectID\|unknownProjectID\|projectIDRegex\|hexChar" pkg/utils/project_identity.go pkg/cmd/*.go | head -30
 ```
+
+```text
 pkg/utils/project_identity.go:515:func ComputeProjectID(cwd string) (id, name string, err error) {
 pkg/cmd/reindex_test.go:70:	if id != unknownProjectID || name != "" {
 pkg/cmd/reindex.go:29:	// unknownProjectID buckets sessions whose originating cwd could not be resolved
@@ -1536,6 +1665,7 @@ pkg/cmd/resume.go:128:				projectID, projectName = unknownProjectID, filepath.Ba
 pkg/cmd/search.go:60:				homeID, homeName = unknownProjectID, filepath.Base(cwd)
 pkg/cmd/session_tui_browser.go:525:	if p.ProjectID == unknownProjectID || p.ProjectID == "" {
 pkg/cmd/session_tui_browser.go:879:	if s.ProjectID == unknownProjectID || s.ProjectID == "" {
+
 ```
 </details></tool-use>
 
@@ -1543,10 +1673,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:41Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/utils/project_identity.go`
-
+**Path:**
+```text
+pkg/utils/project_identity.go
 ```
-// Handle implicit format (host/owner/repo) - already normalized
+
+**Offset (line):**
+```text
+250
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
+
+	// Handle implicit format (host/owner/repo) - already normalized
 	return normalized
 }
 
@@ -1592,10 +1736,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:43Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_view.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_view.go
 ```
-return styCloud.Render("☁") + strings.Repeat(" ", pad)
+
+**Offset (line):**
+```text
+40
+```
+
+**Limit:**
+```text
+80
+```
+
+```go
+	return styCloud.Render("☁") + strings.Repeat(" ", pad)
 }
 
 func (m sessionTUI) View() tea.View {
@@ -1684,12 +1841,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:45Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "renderTarget\|chosen" pkg/cmd/session_tui_view.go | head -20`</summary>
+**Command:**
+```bash
+grep -n "renderTarget\|chosen" pkg/cmd/session_tui_view.go | head -20
 ```
+
+```text
 51:		content = m.renderTarget()
 312:func (m sessionTUI) renderTarget() string {
 315:	if m.chosen != nil {
 316:		b.WriteString(styDim.Render("   " + sessionTitle(*m.chosen)))
 324:		if m.chosen != nil && a.id == m.chosen.Agent && !m.chosen.IsCloud {
+
 ```
 </details></tool-use>
 
@@ -1697,9 +1860,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_view.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_view.go
 ```
+
+**Offset (line):**
+```text
+310
+```
+
+**Limit:**
+```text
+50
+```
+
+```go
 }
 
 func (m sessionTUI) renderTarget() string {
@@ -1769,9 +1945,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:49Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+```typescript
 import {
   formatConversationDate,
   getProjectColorClasses,
@@ -1927,7 +2106,7 @@ export function SessionHeader({
   // Get current share status from session data, using type-safe conversion
   const currentShareStatus: ShareStateType = shareStatusToState(
     sessionData?.
-... (truncated)
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -1941,7 +2120,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "Download session markdown\|Delete session\|handleDownloadSessionMarkdown\|setShowDeleteDialog(true)\|<Download\|<Trash2" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`</summary>
+**Command:**
+```bash
+grep -n "Download session markdown\|Delete session\|handleDownloadSessionMarkdown\|setShowDeleteDialog(true)\|<Download\|<Trash2" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+```text
 305:  const handleDownloadSessionMarkdown = async () => {
 501:                      : "Download session markdown"
 506:                    onClick={() => handleDownloadSessionMarkdown()}
@@ -1951,6 +2135,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:51Z)**_
 520:                    onClick={() => setShowDeleteDialog(true)}
 522:                    title="Delete session"
 524:                    <Trash2 className="w-4 h-4" />
+
 ```
 </details></tool-use>
 
@@ -1958,10 +2143,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-</span>
+
+**Offset (line):**
+```text
+495
+```
+
+**Limit:**
+```text
+35
+```
+
+```typescript
+                  </span>
                 )}
                 <Tooltip
                   content={
@@ -2009,9 +2207,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:55Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ProviderPicker.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ProviderPicker.tsx
 ```
+
+```typescript
 import { useState } from "react";
 import { Check, Copy, RotateCcw } from "lucide-react";
 import {
@@ -2126,6 +2327,7 @@ export function ProviderPicker({
     </Dialog>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -2139,7 +2341,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `find ../../specstory-sync/sync-cloud/src -name "ResumeButton*" -not -path "*/node_modules/*" 2>/dev/null; echo "---"; grep -rln "ProviderPicker\|ResumeButton\|useFlag\|promptUpgrade" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | head; echo "--- /resume route ---"; grep -rn "/resume\|resume.*hub\|App.tsx:321" ../../specstory-sync/sync-cloud/src/App.tsx 2>/dev/null | head`</summary>
+**Command:**
+```bash
+find ../../specstory-sync/sync-cloud/src -name "ResumeButton*" -not -path "*/node_modules/*" 2>/dev/null; echo "---"; grep -rln "ProviderPicker\|ResumeButton\|useFlag\|promptUpgrade" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | head; echo "--- /resume route ---"; grep -rn "/resume\|resume.*hub\|App.tsx:321" ../../specstory-sync/sync-cloud/src/App.tsx 2>/dev/null | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ---
 ../../specstory-sync/sync-cloud/src/contexts/EntitlementContext.tsx
@@ -2155,6 +2362,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:58Z)**_
 --- /resume route ---
 ../../specstory-sync/sync-cloud/src/App.tsx:33:  import("@/components/resume/ResumeHub").then((m) => ({ default: m.ResumeHub }))
 ../../specstory-sync/sync-cloud/src/App.tsx:322:            path="/resume"
+
 ```
 </details></tool-use>
 
@@ -2162,9 +2370,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:54:59Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
+
+```typescript
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useEntitlement } from "@/contexts/EntitlementContext";
@@ -2223,6 +2434,7 @@ export function ResumeButton({
     </>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -2246,7 +2458,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:03Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "SessionDetail\|sessionDataSize\|interface SessionDetail\|type SessionDetail\|API_BASE\|window.location.origin" ../../specstory-sync/sync-cloud/src/services/api.ts | head -30`</summary>
+**Command:**
+```bash
+grep -n "SessionDetail\|sessionDataSize\|interface SessionDetail\|type SessionDetail\|API_BASE\|window.location.origin" ../../specstory-sync/sync-cloud/src/services/api.ts | head -30
 ```
+
+```text
 52:export interface SessionDetail {
 188:const API_BASE = window.location.origin;
 204:    ? `${API_BASE}/api/v1/admin/users/${encodeURIComponent(ownerId)}/analytics`
@@ -2277,6 +2494,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:03Z)**_
 921:      `${API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}`,
 944:    const url = `${API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}`;
 961:export async function fetchSessionDetail(
+
 ```
 </details></tool-use>
 
@@ -2284,9 +2502,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:05Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/services/api.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/services/api.ts
 ```
+
+**Offset (line):**
+```text
+52
+```
+
+**Limit:**
+```text
+40
+```
+
+```typescript
 export interface SessionDetail {
   id: string;
   clientId: string;
@@ -2342,7 +2573,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "SessionHeader\|sessionData=\|sessionData:" ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx | head; echo "---"; sed -n '95,125p' ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx`</summary>
+**Command:**
+```bash
+grep -n "SessionHeader\|sessionData=\|sessionData:" ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx | head; echo "---"; sed -n '95,125p' ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx
 ```
+
+```text
 19:import { SessionHeader } from "./SessionHeader";
 101:        <SessionHeader
 102:          sessionData={
@@ -2378,6 +2614,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:06Z)**_
           onDelete={onDelete}
           isOwner={isOwner}
         />
+
 ```
 </details></tool-use>
 
@@ -2385,10 +2622,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:08Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx
 ```
-<div className="flex flex-col flex-1 relative z-10 min-h-0">
+
+**Offset (line):**
+```text
+100
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
+      <div className="flex flex-col flex-1 relative z-10 min-h-0">
         <SessionHeader
           sessionData={
             searchResults
@@ -2433,7 +2683,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "sessionDataSize\|session_data_size" ../../specstory-sync/shared/types.ts ../../specstory-sync/sync-cloud/worker/supabase.ts 2>/dev/null | head -20`</summary>
+**Command:**
+```bash
+grep -rn "sessionDataSize\|session_data_size" ../../specstory-sync/shared/types.ts ../../specstory-sync/sync-cloud/worker/supabase.ts 2>/dev/null | head -20
 ```
+
+```text
 ../../specstory-sync/shared/types.ts:159:  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = legacy/no blob
 ../../specstory-sync/shared/types.ts:186:  sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = not cloud-resumable
 ../../specstory-sync/sync-cloud/worker/supabase.ts:179:// (session_data_size > 0), selected lean — no exchanges embed and, crucially, no per-session
@@ -2450,6 +2705,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:10Z)**_
 ../../specstory-sync/sync-cloud/worker/supabase.ts:688:      session_data_size,
 ../../specstory-sync/sync-cloud/worker/supabase.ts:728:    session_data_size: number | null;
 ../../specstory-sync/sync-cloud/worker/supabase.ts:785:    sessionDataSize: sessionData.session_data_size,
+
 ```
 </details></tool-use>
 
@@ -2463,10 +2719,24 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:12Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
-// Runtime validation: ensure summary is actually a string
+
+**Offset (line):**
+```text
+140
+```
+
+**Limit:**
+```text
+40
+```
+
+```typescript
+
+  // Runtime validation: ensure summary is actually a string
   if (typeof summary === "string") {
     return summary;
   }
@@ -2518,7 +2788,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:14Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "searchResults\|fetchSessionDetail\|useSearch\|sessionDataSize" ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx | head -20; echo "--- useFlag ---"; cat ../../specstory-sync/sync-cloud/src/contexts/FlagsContext.tsx`</summary>
+**Command:**
+```bash
+grep -n "searchResults\|fetchSessionDetail\|useSearch\|sessionDataSize" ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx | head -20; echo "--- useFlag ---"; cat ../../specstory-sync/sync-cloud/src/contexts/FlagsContext.tsx
 ```
+
+```text
 14:import { useSession } from "@/hooks/useSearch";
 41:    data: searchResults,
 63:    const exchange = searchResults?.exchanges?.find(
@@ -2616,6 +2891,7 @@ export function RequireFlag({
   if (!flags[flag]) return <NotFound />;
   return <>{children}</>;
 }
+
 ```
 </details></tool-use>
 
@@ -2623,7 +2899,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:16Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "resume" ../../specstory-sync/shared/featureFlags.ts; echo "--- copyToClipboard ---"; sed -n '1,60p' ../../specstory-sync/sync-cloud/src/lib/utils/share.ts`</summary>
+**Command:**
+```bash
+grep -n "resume" ../../specstory-sync/shared/featureFlags.ts; echo "--- copyToClipboard ---"; sed -n '1,60p' ../../specstory-sync/sync-cloud/src/lib/utils/share.ts
 ```
+
+```text
 15:  "resume",
 29:  resume: false,
 --- copyToClipboard ---
@@ -2687,6 +2968,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     return false;
   }
 }
+
 ```
 </details></tool-use>
 
@@ -2700,7 +2982,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "useSession\|fetchSessionDetail\|SessionDetail" ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts ../../specstory-sync/sync-cloud/src/services/api.ts | head; echo "--- fetchSessionDetail ---"; sed -n '961,1010p' ../../specstory-sync/sync-cloud/src/services/api.ts`</summary>
+**Command:**
+```bash
+grep -n "useSession\|fetchSessionDetail\|SessionDetail" ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts ../../specstory-sync/sync-cloud/src/services/api.ts | head; echo "--- fetchSessionDetail ---"; sed -n '961,1010p' ../../specstory-sync/sync-cloud/src/services/api.ts
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts:12:  fetchSessionDetail,
 ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts:14:  type SessionDetail,
 ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts:132:      const session = await fetchSessionDetail(projectId, sessionId);
@@ -2761,6 +3048,8 @@ export async function fetchSharedSession(
     if (response.status === 404) {
       throw new Error("This session is not shared or does not exist");
     }
+
+
 ```
 </details></tool-use>
 
@@ -2786,7 +3075,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "can\|promptUpgrade\|useEntitlement" ../../specstory-sync/sync-cloud/src/contexts/EntitlementContext.tsx | head -15; echo "--- useRoute/NavigationRibbon resume ---"; grep -rn "ResumeHub\|/resume" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head -3`</summary>
+**Command:**
+```bash
+grep -n "can\|promptUpgrade\|useEntitlement" ../../specstory-sync/sync-cloud/src/contexts/EntitlementContext.tsx | head -15; echo "--- useRoute/NavigationRibbon resume ---"; grep -rn "ResumeHub\|/resume" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head -3
 ```
+
+```text
 21:  can: (feature: Feature) => boolean;
 24:  promptUpgrade: (feature: Feature) => void;
 59:      can: (feature: Feature) => ent.features?.[feature] === true,
@@ -2798,6 +3092,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:21Z)**_
 101:  if (can(feature)) return <>{children}</>;
 --- useRoute/NavigationRibbon resume ---
 ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx:38:export function ResumeHub() {
+
 ```
 </details></tool-use>
 
@@ -2811,8 +3106,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "install\|docs\.\|specstory.com/docs\|getting-started\|cli.*install" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head -10`</summary>
+**Command:**
+```bash
+grep -rn "install\|docs\.\|specstory.com/docs\|getting-started\|cli.*install" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head -10
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx:144:              Learn how to resume a session with a short video and the docs.
+
 ```
 </details></tool-use>
 
@@ -2820,9 +3121,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:25Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
 ```
+
+```typescript
 import { useState } from "react";
 import { RotateCcw, CircleHelp } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -2934,8 +3238,8 @@ export function ResumeHub() {
           )}
           {recent?.map((r) => {
             const name = r.session.userTitle || r.session.name || "Untitled session";
-            const agent = r.session.metadata?.agentName as s
-... (truncated)
+            const agent = r.session.metadata?.agentName as str
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -2949,7 +3253,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:27Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "push\|navigate" ../../specstory-sync/sync-cloud/src/hooks/useRouter.ts* 2>/dev/null | head; echo "--- Dialog component ---"; ls ../../specstory-sync/sync-cloud/src/ui-components/ui/dialog* 2>/dev/null; echo "--- agents lib ---"; grep -n "install\|docs\|specstory.com" ../../specstory-sync/sync-cloud/src/lib/agents.ts 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -n "push\|navigate" ../../specstory-sync/sync-cloud/src/hooks/useRouter.ts* 2>/dev/null | head; echo "--- Dialog component ---"; ls ../../specstory-sync/sync-cloud/src/ui-components/ui/dialog* 2>/dev/null; echo "--- agents lib ---"; grep -n "install\|docs\|specstory.com" ../../specstory-sync/sync-cloud/src/lib/agents.ts 2>/dev/null | head
 ```
+
+```text
 9:  const navigate = useNavigate();
 14:    push: (href: string) => navigate(href),
 15:    replace: (href: string) => navigate(href, { replace: true }),
@@ -2958,6 +3267,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:27Z)**_
 --- Dialog component ---
 ../../specstory-sync/sync-cloud/src/ui-components/ui/dialog.tsx
 --- agents lib ---
+
 ```
 </details></tool-use>
 
@@ -3068,10 +3378,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "func skillsAPIRequest\|StatusForbidden\|403\|StatusUnauthorized\|requires SpecStory Pro\|upgrade_required" pkg/cloud/skills.go | head -20`</summary>
+**Command:**
+```bash
+grep -n "func skillsAPIRequest\|StatusForbidden\|403\|StatusUnauthorized\|requires SpecStory Pro\|upgrade_required" pkg/cloud/skills.go | head -20
 ```
+
+```text
 272:func skillsAPIRequest(method, path string, reqBody any, out any) error {
 309:	if resp.StatusCode == http.StatusUnauthorized {
 316:		// so 403 upgrade_required / 409 already-in-progress read clearly to the user.
+
 ```
 </details></tool-use>
 
@@ -3079,9 +3395,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:47Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cloud/skills.go`
-
+**Path:**
+```text
+pkg/cloud/skills.go
 ```
+
+**Offset (line):**
+```text
+272
+```
+
+**Limit:**
+```text
+70
+```
+
+```go
 func skillsAPIRequest(method, path string, reqBody any, out any) error {
 	apiURL := GetAPIBaseURL() + path
 
@@ -3143,6 +3472,7 @@ func skillsAPIRequest(method, path string, reqBody any, out any) error {
 	}
 	return nil
 }
+
 ```
 </details></tool-use>
 
@@ -3156,9 +3486,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:52Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "upgrade_required\|requireFeature\|Upgrade required\|requires.*Pro\|MIN_PLAN\|resume" ../../specstory-sync/sync-cloud/worker/handlers/billing.ts 2>/dev/null | head -20`</summary>
+**Command:**
+```bash
+grep -rn "upgrade_required\|requireFeature\|Upgrade required\|requires.*Pro\|MIN_PLAN\|resume" ../../specstory-sync/sync-cloud/worker/handlers/billing.ts 2>/dev/null | head -20
 ```
+
+```text
 ../../specstory-sync/sync-cloud/worker/handlers/billing.ts:303:export function requireFeature(feature: Feature) {
 ../../specstory-sync/sync-cloud/worker/handlers/billing.ts:311:        { success: false, error: "upgrade_required", data: { feature } },
+
 ```
 </details></tool-use>
 
@@ -3166,9 +3502,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:55:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/billing.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/billing.ts
 ```
+
+**Offset (line):**
+```text
+295
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
 // The user's derived entitlement (plan + can()). The security boundary —
 // re-read from the DB on every protected request, so it's always current.
 export async function getEntitlement(userId: string): Promise<Entitlement> {
@@ -3237,7 +3586,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:56:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "type SessionData\|Agent\|SchemaVersion\|CurrentSchemaVersion\|AgentName\|Provider" pkg/spi/schema/types.go | head -20`</summary>
+**Command:**
+```bash
+grep -n "type SessionData\|Agent\|SchemaVersion\|CurrentSchemaVersion\|AgentName\|Provider" pkg/spi/schema/types.go | head -20
 ```
+
+```text
 10:	RoleAgent = "agent"
 30:// CurrentSchemaVersion is the SessionData schema version this CLI produces and understands.
 31:// Cloud resume compares a fetched blob's SchemaVersion against this: a newer blob (produced by
@@ -3255,6 +3609,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:56:06Z)**_
 213:	if m.Role != RoleUser && m.Role != RoleAgent {
 235:	// Agent message constraints: must have at least one of content, tool, or pathHints
 236:	if m.Role == RoleAgent {
+
 ```
 </details></tool-use>
 
@@ -3262,9 +3617,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:56:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/spi/schema/types.go`
-
+**Path:**
+```text
+pkg/spi/schema/types.go
 ```
+
+**Offset (line):**
+```text
+36
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
 type SessionData struct {
 	SchemaVersion string       `json:"schemaVersion"`
 	Provider      ProviderInfo `json:"provider"`
@@ -3464,7 +3832,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:56:48Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "func.*ListIDs\|func.*Get(\|func.*GetProviderList\|func.*Check" pkg/spi/factory/registry.go 2>/dev/null | head; echo "---"; grep -rn "func.*Check(" pkg/spi/*.go | head -5; echo "--- IsAuthenticated ---"; sed -n '218,225p' pkg/cloud/auth.go`</summary>
+**Command:**
+```bash
+grep -n "func.*ListIDs\|func.*Get(\|func.*GetProviderList\|func.*Check" pkg/spi/factory/registry.go 2>/dev/null | head; echo "---"; grep -rn "func.*Check(" pkg/spi/*.go | head -5; echo "--- IsAuthenticated ---"; sed -n '218,225p' pkg/cloud/auth.go
 ```
+
+```text
 90:func (r *Registry) ListIDsUnsafe() []string {
 106:func (r *Registry) Get(id string) (spi.Provider, error) {
 149:func (r *Registry) ListIDs() []string {
@@ -3478,6 +3851,8 @@ func IsAuthenticated() bool {
 	if hasSessionToken {
 		return true
 	}
+
+
 ```
 </details></tool-use>
 
@@ -3485,7 +3860,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:56:50Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "openBrowser" pkg/cmd/*.go | head -3; echo "--- existing resume_test ---"; sed -n '140,200p' pkg/cmd/resume_test.go`</summary>
+**Command:**
+```bash
+grep -rn "openBrowser" pkg/cmd/*.go | head -3; echo "--- existing resume_test ---"; sed -n '140,200p' pkg/cmd/resume_test.go
 ```
+
+```text
 pkg/cmd/login.go:87:			if err := openBrowser(loginURL); err != nil {
 pkg/cmd/login.go:249:// openBrowser opens the default browser to the specified URL
 pkg/cmd/login.go:250:func openBrowser(url string) error {
@@ -3551,6 +3931,7 @@ type fakeProvider struct {
 }
 
 func (f *fakeProvider) Name() string                  { return f.name }
+
 ```
 </details></tool-use>
 
@@ -3764,10 +4145,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:23Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/supabase.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/supabase.ts
 ```
-return {
+
+**Offset (line):**
+```text
+340
+```
+
+**Limit:**
+```text
+60
+```
+
+```typescript
+  return {
     id: session.id as string,
     clientId: session.client_id as string,
     projectId: projectId,
@@ -3842,7 +4236,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "handleListProjects\|resumable\|sessions:\|toSessionSummary\|listAllResumableSessions\|resumableSessionsQuery" ../../specstory-sync/sync-cloud/worker/handlers/projects.ts | head -20`</summary>
+**Command:**
+```bash
+grep -n "handleListProjects\|resumable\|sessions:\|toSessionSummary\|listAllResumableSessions\|resumableSessionsQuery" ../../specstory-sync/sync-cloud/worker/handlers/projects.ts | head -20
 ```
+
+```text
 27:export async function handleListProjects(
 32:    // Opt-in cloud-resume rollup: the CLI passes ?resumable=true to get each project carrying
 33:    // its resumable session summaries inline, so it can dedup against its local index and
@@ -3855,6 +4254,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:26Z)**_
 142:    const sessions = resumable
 157:        sessions: sessionsWithETags,
 170:    console.error("Error handling list sessions:", error);
+
 ```
 </details></tool-use>
 
@@ -3862,9 +4262,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:28Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/worker/handlers/projects.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/worker/handlers/projects.ts
 ```
+
+**Offset (line):**
+```text
+27
+```
+
+**Limit:**
+```text
+130
+```
+
+```typescript
 export async function handleListProjects(
   request: ApiRequest
 ): Promise<Response> {
@@ -4010,7 +4423,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:30Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "listWorkspacesWithResumableSessions\|sessions:\|toSessionSummary\|projectId" ../../specstory-sync/sync-cloud/worker/supabase.ts | head -20`</summary>
+**Command:**
+```bash
+grep -n "listWorkspacesWithResumableSessions\|sessions:\|toSessionSummary\|projectId" ../../specstory-sync/sync-cloud/worker/supabase.ts | head -20
 ```
+
+```text
 30:  projectId: string; // String workspace ID
 48:  options?: { projectId?: string }
 55:  if (options?.projectId) {
@@ -4031,6 +4449,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:30Z)**_
 285:      sessions: bucket.sessions,
 334:function toSessionSummary(
 336:  projectId: string,
+
 ```
 </details></tool-use>
 
@@ -4086,9 +4505,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:42Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/sessionindex/store.go`
-
+**Path:**
+```text
+pkg/sessionindex/store.go
 ```
+
+**Offset (line):**
+```text
+635
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
 // GetSession returns the LIVE indexed session for (agent, sessionID), or ok=false when there is
 // no such row — never indexed, OR soft-deleted (deleted = 0 is required, unlike Exists). Body is
 // not populated. Used by resume's selection-time guard to prefer an in-place local resume over a
@@ -4123,10 +4555,130 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:57:46Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/sessionindex/store.go`
+**Path:**
+```text
+pkg/sessionindex/store.go
+```
+
+**Edit 1:**
+```diff
+-// ListByProject returns a project's sessions, newest activity first. Body is not
+-// populated (it lives only in the FTS index). Used by the `specstory resume` picker.
++// GetSessionByID looks up a LIVE indexed session by its native session id across ALL agents
++// (deleted = 0), most-recent-first. Used by `specstory resume --session <uuid>` to resolve a
++// bare session id locally (D31's local-first guard) without knowing the agent up front. A
++// native session id is a provider-generated UUID and reconstruction mints a fresh one, so two
++// agents sharing an id is near-impossible — but if it happens, the most recent row wins.
++func (s *Store) GetSessionByID(sessionID string) (Session, bool, error) {
++	rows, err := s.db.Query(`SELECT `+sessionColumns+`
++		FROM sessions WHERE session_id = ? AND deleted = 0
++		ORDER BY updated_at DESC, created_at DESC LIMIT 1`, sessionID)
++	if err != nil {
++		return Session{}, false, err
++	}
++	defer func() { _ = rows.Close() }()
++
++	sessions, err := scanSessions(rows)
++	if err != nil {
++		return Session{}, false, err
++	}
++	if len(sessions) == 0 {
++		return Session{}, false, nil
++	}
++	return sessions[0], true, nil
++}
++
++// ListByProject returns a project's sessions, newest activity first. Body is not
++// populated (it lives only in the FTS index). Used by the `specstory resume` picker.
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/sessionindex/store.go.
+```
+
+**diff:**
+```diff
+     ...
+ 653 	}
+ 654 	return sessions[0], true, nil
+ 655 }
+ 656 
++657 // GetSessionByID looks up a LIVE indexed session by its native session id across ALL agents
++658 // (deleted = 0), most-recent-first. Used by `specstory resume --session <uuid>` to resolve a
++659 // bare session id locally (D31's local-first guard) without knowing the agent up front. A
++660 // native session id is a provider-generated UUID and reconstruction mints a fresh one, so two
++661 // agents sharing an id is near-impossible — but if it happens, the most recent row wins.
++662 func (s *Store) GetSessionByID(sessionID string) (Session, bool, error) {
++663 	rows, err := s.db.Query(`SELECT `+sessionColumns+`
++664 		FROM sessions WHERE session_id = ? AND deleted = 0
++665 		ORDER BY updated_at DESC, created_at DESC LIMIT 1`, sessionID)
++666 	if err != nil {
++667 		return Session{}, false, err
++668 	}
++669 	defer func() { _ = rows.Close() }()
++670 
++671 	sessions, err := scanSessions(rows)
++672 	if err != nil {
++673 		return Session{}, false, err
++674 	}
++675 	if len(sessions) == 0 {
++676 		return Session{}, false, nil
++677 	}
++678 	return sessions[0], true, nil
++679 }
++680 
+ 657 // ListByProject returns a project's sessions, newest activity first. Body is not
+ 658 // populated (it lives only in the FTS index). Used by the `specstory resume` picker.
+ 659 func (s *Store) ListByProject(projectID string) ([]Session, error) {
+ 660 	rows, err := s.db.Query(`SELECT `+sessionColumns+`
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/sessionindex/store.go
++++ pkg/sessionindex/store.go
+@@ -653,8 +653,32 @@
+ 	}
+ 	return sessions[0], true, nil
+ }
+ 
++// GetSessionByID looks up a LIVE indexed session by its native session id across ALL agents
++// (deleted = 0), most-recent-first. Used by `specstory resume --session <uuid>` to resolve a
++// bare session id locally (D31's local-first guard) without knowing the agent up front. A
++// native session id is a provider-generated UUID and reconstruction mints a fresh one, so two
++// agents sharing an id is near-impossible — but if it happens, the most recent row wins.
++func (s *Store) GetSessionByID(sessionID string) (Session, bool, error) {
++	rows, err := s.db.Query(`SELECT `+sessionColumns+`
++		FROM sessions WHERE session_id = ? AND deleted = 0
++		ORDER BY updated_at DESC, created_at DESC LIMIT 1`, sessionID)
++	if err != nil {
++		return Session{}, false, err
++	}
++	defer func() { _ = rows.Close() }()
++
++	sessions, err := scanSessions(rows)
++	if err != nil {
++		return Session{}, false, err
++	}
++	if len(sessions) == 0 {
++		return Session{}, false, nil
++	}
++	return sessions[0], true, nil
++}
++
+ // ListByProject returns a project's sessions, newest activity first. Body is not
+ // populated (it lives only in the FTS index). Used by the `specstory resume` picker.
+ func (s *Store) ListByProject(projectID string) ([]Session, error) {
+ 	rows, err := s.db.Query(`SELECT `+sessionColumns+`
 
 ```
-Successfully replaced 1 block(s) in pkg/sessionindex/store.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 657
+}
 ```
 </details></tool-use>
 
@@ -4138,9 +4690,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:11Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`pkg/cmd/session_uri.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri.go
 ```
+
+**Content:**
+```go
 package cmd
 
 import (
@@ -4430,7 +4986,7 @@ func mapCloudResumeErr(err error) error {
 
 ```
 
-```
+```text
 Successfully wrote 11716 bytes to pkg/cmd/session_uri.go
 ```
 </details></tool-use>
@@ -4447,10 +5003,104 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:14Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-import (
+-	"fmt"
+-	"net/url"
+-	"regexp"
+-	"strings"
+-
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+-)
++import (
++	"errors"
++	"fmt"
++	"net/url"
++	"regexp"
++	"strings"
++
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
++)
+```
+
+**Edit 2:**
+```diff
+-	var authErr *cloud.ErrAuthenticationFailed
+-	if asErr(err, &authErr) {
++	var authErr *cloud.ErrAuthenticationFailed
++	if errors.As(err, &authErr) {
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+   1 package cmd
+   2 
+   3 import (
++  4 	"errors"
+   4 	"fmt"
+   5 	"net/url"
+   6 	"regexp"
+   7 	"strings"
+     ...
+ 275 	if err == nil {
+ 276 		return nil
+ 277 	}
+ 278 	var authErr *cloud.ErrAuthenticationFailed
+-279 	if asErr(err, &authErr) {
++280 	if errors.As(err, &authErr) {
+ 280 		return utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
+ 281 	}
+ 282 	if strings.Contains(err.Error(), "upgrade_required") {
+ 283 		return utils.ValidationError{Message: "Resuming cloud sessions requires SpecStory Pro."}
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -1,7 +1,8 @@
+ package cmd
+ 
+ import (
++	"errors"
+ 	"fmt"
+ 	"net/url"
+ 	"regexp"
+ 	"strings"
+@@ -275,9 +276,9 @@
+ 	if err == nil {
+ 		return nil
+ 	}
+ 	var authErr *cloud.ErrAuthenticationFailed
+-	if asErr(err, &authErr) {
++	if errors.As(err, &authErr) {
+ 		return utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
+ 	}
+ 	if strings.Contains(err.Error(), "upgrade_required") {
+ 		return utils.ValidationError{Message: "Resuming cloud sessions requires SpecStory Pro."}
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 4
+}
 ```
 </details></tool-use>
 
@@ -4470,10 +5120,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:17Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
-resumeCmd := &cobra.Command{
+
+**Offset (line):**
+```text
+82
+```
+
+**Limit:**
+```text
+45
+```
+
+```go
+	resumeCmd := &cobra.Command{
 		Use:   "resume [agent]",
 		Short: "Resume a past session, optionally in a different project or agent",
 		Long:  longDesc,
@@ -4527,10 +5190,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:18Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
-projectID, projectName, idErr := utils.ComputeProjectID(cwd)
+
+**Offset (line):**
+```text
+126
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+			projectID, projectName, idErr := utils.ComputeProjectID(cwd)
 			if idErr != nil || projectID == "" {
 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
 			}
@@ -4578,11 +5254,33 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:27Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/resume.go`
+**Error:**
 
-Error:
-```
+```text
 Could not find edits[0] in pkg/cmd/resume.go. The oldText must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker\nthen skips the target-selection step and resumes straight into that agent. The agent must be\na known, installed provider, or the command errors.\n\nPass --session \u003curi\u003e to resume a specific session without browsing: a specstory:// URI\n(specstory://projects/{projectId}/sessions/{sessionId}), a cloud permalink, or a bare session\nUUID. With an agent it is fully non-interactive; without one the target picker opens pinned to\nthat session. Cloud sessions (from your other machines) require SpecStory Cloud login + Pro.\"",
+      "oldText": "Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker\nthen skips the target-selection step and resumes straight into that agent. The agent must be\na known, installed provider, or the command errors.\""
+    },
+    {
+      "newText": "\t\t\t// --session \u003curi\u003e: direct session addressing (Chunk 5, D28–D36). The URI resolves to\n\t\t\t// the same session identity the picker would produce. With a preset agent the resume is\n\t\t\t// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned\n\t\t\t// to the resolved session (skipping the browse step).\n\t\t\tsessionArg, _ := cmd.Flags().GetString(\"session\")\n\t\t\tif sessionArg != \"\" {\n\t\t\t\tresolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))\n\t\t\t\tif rerr != nil {\n\t\t\t\t\treturn rerr\n\t\t\t\t}\n\t\t\t\tif presetTarget != \"\" {\n\t\t\t\t\t// `resume \u003cagent\u003e --session \u003curi\u003e`: build the plan directly and launch — no TUI.\n\t\t\t\t\tplan, perr := resumePlanFromSession(registry, store, resolved, presetTarget)\n\t\t\t\t\tif perr != nil {\n\t\t\t\t\t\treturn perr\n\t\t\t\t\t}\n\t\t\t\t\treturn launchResume(plan, cwd, launchOpts)\n\t\t\t\t}\n\t\t\t\t// `resume --session \u003curi\u003e`: open the TUI in modeTarget with the session pinned. A nil\n\t\t\t\t// plan means the user backed out (esc) — not an error.\n\t\t\t\tplan, perr := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, resolved)\n\t\t\t\tif perr != nil {\n\t\t\t\t\treturn perr\n\t\t\t\t}\n\t\t\t\tif plan == nil {\n\t\t\t\t\treturn nil\n\t\t\t\t}\n\t\t\t\treturn launchResume(plan, cwd, launchOpts)\n\t\t\t}\n\n\t\t\tplan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, nil)\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\tif plan == nil {\n\t\t\t\t// User quit or nothing to resume; the picker already explained why.\n\t\t\t\treturn nil\n\t\t\t}\n\n\t\t\treturn launchResume(plan, cwd, launchOpts)\n\t\t},\n\t}\n\n\tregisterResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)\n\t// --session is registered on `resume` only (D28), deliberately NOT in registerResumeLaunchFlags\n\t// so `search` is untouched.\n\tresumeCmd.Flags().String(\"session\", \"\", \"resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)\")\n\treturn resumeCmd",
+      "oldText": "\t\t\tplan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)\n\t\t\tif err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t\tif plan == nil {\n\t\t\t\t// User quit or nothing to resume; the picker already explained why.\n\t\t\t\treturn nil\n\t\t\t}\n\n\t\t\treturn launchResume(plan, cwd, launchOpts)\n\t\t},\n\t}\n\n\tregisterResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)\n\treturn resumeCmd"
+    }
+  ],
+  "path": "pkg/cmd/resume.go"
+}
 ```
 </details></tool-use>
 
@@ -4596,9 +5294,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:29Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
+
+**Offset (line):**
+```text
+68
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
 // the current project's sessions across all agents, pick one, choose a target agent, then
 // reconstruct (cross-agent) or native-resume (same agent) and launch with auto-save.
 func CreateResumeCommand(cloudURL *string, localTimeZone bool, debugDir string) *cobra.Command {
@@ -4623,10 +5334,254 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:36Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/resume.go`
+**Path:**
+```text
+pkg/cmd/resume.go
+```
+
+**Edit 1:**
+```diff
+-Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
+-then skips the target-selection step and resumes straight into that agent. The agent must be
+-a known, installed provider, or the command errors.`
++Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
++then skips the target-selection step and resumes straight into that agent. The agent must be
++a known, installed provider, or the command errors.
++
++Pass --session <uri> to resume a specific session without browsing: a specstory:// URI
++(specstory://projects/{projectId}/sessions/{sessionId}), a cloud permalink, or a bare session
++UUID. With an agent it is fully non-interactive; without one the target picker opens pinned to
++that session. Cloud sessions (from your other machines) require SpecStory Cloud login + Pro.`
+```
+
+**Edit 2:**
+```diff
+-			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)
+-			if err != nil {
+-				return err
+-			}
+-			if plan == nil {
+-				// User quit or nothing to resume; the picker already explained why.
+-				return nil
+-			}
+-
+-			return launchResume(plan, cwd, launchOpts)
+-		},
+-	}
+-
+-	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
+-	return resumeCmd
++			// --session <uri>: direct session addressing (Chunk 5, D28–D36). The URI resolves to
++			// the same session identity the picker would produce. With a preset agent the resume is
++			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
++			// to the resolved session (skipping the browse step).
++			sessionArg, _ := cmd.Flags().GetString("session")
++			if sessionArg != "" {
++				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
++				if rerr != nil {
++					return rerr
++				}
++				if presetTarget != "" {
++					// `resume <agent> --session <uri>`: build the plan directly and launch — no TUI.
++					plan, perr := resumePlanFromSession(registry, store, resolved, presetTarget)
++					if perr != nil {
++						return perr
++					}
++					return launchResume(plan, cwd, launchOpts)
++				}
++				// `resume --session <uri>`: open the TUI in modeTarget with the session pinned. A nil
++				// plan means the user backed out (esc) — not an error.
++				plan, perr := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, resolved)
++				if perr != nil {
++					return perr
++				}
++				if plan == nil {
++					return nil
++				}
++				return launchResume(plan, cwd, launchOpts)
++			}
++
++			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, nil)
++			if err != nil {
++				return err
++			}
++			if plan == nil {
++				// User quit or nothing to resume; the picker already explained why.
++				return nil
++			}
++
++			return launchResume(plan, cwd, launchOpts)
++		},
++	}
++
++	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
++	// --session is registered on `resume` only (D28), deliberately NOT in registerResumeLaunchFlags
++	// so `search` is untouched.
++	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
++	return resumeCmd
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/resume.go.
+```
+
+**diff:**
+```diff
+     ...
+  76 into that agent's native format first.
+  77 
+  78 Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
+  79 then skips the target-selection step and resumes straight into that agent. The agent must be
+- 80 a known, installed provider, or the command errors.`
++ 80 a known, installed provider, or the command errors.
+  81 
++ 82 Pass --session <uri> to resume a specific session without browsing: a specstory:// URI
++ 83 (specstory://projects/{projectId}/sessions/{sessionId}), a cloud permalink, or a bare session
++ 84 UUID. With an agent it is fully non-interactive; without one the target picker opens pinned to
++ 85 that session. Cloud sessions (from your other machines) require SpecStory Cloud login + Pro.`
++ 86 
+  82 	resumeCmd := &cobra.Command{
+  83 		Use:   "resume [agent]",
+  84 		Short: "Resume a past session, optionally in a different project or agent",
+  85 		Long:  longDesc,
+     ...
+ 127 			if idErr != nil || projectID == "" {
+ 128 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
+ 129 			}
+ 130 
+-131 			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)
++136 			// --session <uri>: direct session addressing (Chunk 5, D28–D36). The URI resolves to
++137 			// the same session identity the picker would produce. With a preset agent the resume is
++138 			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
++139 			// to the resolved session (skipping the browse step).
++140 			sessionArg, _ := cmd.Flags().GetString("session")
++141 			if sessionArg != "" {
++142 				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
++143 				if rerr != nil {
++144 					return rerr
++145 				}
++146 				if presetTarget != "" {
++147 					// `resume <agent> --session <uri>`: build the plan directly and launch — no TUI.
++148 					plan, perr := resumePlanFromSession(registry, store, resolved, presetTarget)
++149 					if perr != nil {
++150 						return perr
++151 					}
++152 					return launchResume(plan, cwd, launchOpts)
++153 				}
++154 				// `resume --session <uri>`: open the TUI in modeTarget with the session pinned. A nil
++155 				// plan means the user backed out (esc) — not an error.
++156 				plan, perr := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, resolved)
++157 				if perr != nil {
++158 					return perr
++159 				}
++160 				if plan == nil {
++161 					return nil
++162 				}
++163 				return launchResume(plan, cwd, launchOpts)
++164 			}
++165 
++166 			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, nil)
+ 132 			if err != nil {
+ 133 				return err
+ 134 			}
+ 135 			if plan == nil {
+     ...
+ 141 		},
+ 142 	}
+ 143 
+ 144 	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
++180 	// --session is registered on `resume` only (D28), deliberately NOT in registerResumeLaunchFlags
++181 	// so `search` is untouched.
++182 	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
+ 145 	return resumeCmd
+ 146 }
+ 147 
+ 148 // registerResumeLaunchFlags registers the run/watch flags that affect the resumed session,
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/resume.go
++++ pkg/cmd/resume.go
+@@ -76,10 +76,15 @@
+ into that agent's native format first.
+ 
+ Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker
+ then skips the target-selection step and resumes straight into that agent. The agent must be
+-a known, installed provider, or the command errors.`
++a known, installed provider, or the command errors.
+ 
++Pass --session <uri> to resume a specific session without browsing: a specstory:// URI
++(specstory://projects/{projectId}/sessions/{sessionId}), a cloud permalink, or a bare session
++UUID. With an agent it is fully non-interactive; without one the target picker opens pinned to
++that session. Cloud sessions (from your other machines) require SpecStory Cloud login + Pro.`
++
+ 	resumeCmd := &cobra.Command{
+ 		Use:   "resume [agent]",
+ 		Short: "Resume a past session, optionally in a different project or agent",
+ 		Long:  longDesc,
+@@ -127,9 +132,39 @@
+ 			if idErr != nil || projectID == "" {
+ 				projectID, projectName = unknownProjectID, filepath.Base(cwd)
+ 			}
+ 
+-			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh)
++			// --session <uri>: direct session addressing (Chunk 5, D28–D36). The URI resolves to
++			// the same session identity the picker would produce. With a preset agent the resume is
++			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
++			// to the resolved session (skipping the browse step).
++			sessionArg, _ := cmd.Flags().GetString("session")
++			if sessionArg != "" {
++				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
++				if rerr != nil {
++					return rerr
++				}
++				if presetTarget != "" {
++					// `resume <agent> --session <uri>`: build the plan directly and launch — no TUI.
++					plan, perr := resumePlanFromSession(registry, store, resolved, presetTarget)
++					if perr != nil {
++						return perr
++					}
++					return launchResume(plan, cwd, launchOpts)
++				}
++				// `resume --session <uri>`: open the TUI in modeTarget with the session pinned. A nil
++				// plan means the user backed out (esc) — not an error.
++				plan, perr := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, resolved)
++				if perr != nil {
++					return perr
++				}
++				if plan == nil {
++					return nil
++				}
++				return launchResume(plan, cwd, launchOpts)
++			}
++
++			plan, err := selectResumeViaTUI(registry, store, projectID, projectName, presetTarget, builtFresh, nil)
+ 			if err != nil {
+ 				return err
+ 			}
+ 			if plan == nil {
+@@ -141,8 +176,11 @@
+ 		},
+ 	}
+ 
+ 	registerResumeLaunchFlags(resumeCmd, cloudURL, localTimeZone, debugDir)
++	// --session is registered on `resume` only (D28), deliberately NOT in registerResumeLaunchFlags
++	// so `search` is untouched.
++	resumeCmd.Flags().String("session", "", "resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)")
+ 	return resumeCmd
+ }
+ 
+ // registerResumeLaunchFlags registers the run/watch flags that affect the resumed session,
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/resume.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 80
+}
 ```
 </details></tool-use>
 
@@ -4649,9 +5604,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:38Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_browser.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
 ```
+
+**Offset (line):**
+```text
+77
+```
+
+**Limit:**
+```text
+65
+```
+
+```go
 func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool) (*resumePlan, error) {
 	sessions, err := store.ListByProject(projectID)
 	if err != nil {
@@ -4726,10 +5694,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:39Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_browser.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
 ```
-return nil, fmt.Errorf("resume picker failed: %w", err)
+
+**Offset (line):**
+```text
+142
+```
+
+**Limit:**
+```text
+45
+```
+
+```go
+		return nil, fmt.Errorf("resume picker failed: %w", err)
 	}
 	rm, ok := final.(sessionTUI)
 	if !ok {
@@ -4796,10 +5777,168 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:48Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_browser.go`
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
+```
+
+**Edit 1:**
+```diff
+-func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool) (*resumePlan, error) {
+-	sessions, err := store.ListByProject(projectID)
+-	if err != nil {
+-		return nil, fmt.Errorf("loading sessions: %w", err)
+-	}
+-	// An empty current project is fine — the picker opens in the all-projects browser.
+-	// Only bail when the whole index is empty (nothing to resume anywhere).
+-	if total, _ := store.Count(); total == 0 {
+-		fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
+-		return nil, nil
+-	}
++func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool, pinned *sessionindex.Session) (*resumePlan, error) {
++	sessions, err := store.ListByProject(projectID)
++	if err != nil {
++		return nil, fmt.Errorf("loading sessions: %w", err)
++	}
++	// An empty current project is fine — the picker opens in the all-projects browser.
++	// Only bail when the whole index is empty (nothing to resume anywhere). A pinned session
++	// (--session) is itself something to resume, so skip the bail even on an empty index.
++	if pinned == nil {
++		if total, _ := store.Count(); total == 0 {
++			fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
++			return nil, nil
++		}
++	}
+```
+
+**Edit 2:**
+```diff
+-	model := newSessionTUI(store, registry, projectID, projectName, sessions, agents, installed, sessionTUIOpts{
+-		title:     "SpecStory Resume",
+-		presetTo:  presetTo,
+-		lastAgent: lastAgent,
+-		viewMode:  viewMode,
+-	})
++	model := newSessionTUI(store, registry, projectID, projectName, sessions, agents, installed, sessionTUIOpts{
++		title:         "SpecStory Resume",
++		presetTo:      presetTo,
++		lastAgent:     lastAgent,
++		viewMode:      viewMode,
++		pinnedSession: pinned,
++	})
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/session_tui_browser.go.
+```
+
+**diff:**
+```diff
+     ...
+  73 
+  74 // selectResumeViaTUI runs the picker for the current project and returns the chosen
+  75 // resume plan (or nil if the user cancelled). On a successful selection it persists the
+  76 // view-mode and target-agent preferences to the user config.
+- 77 func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool) (*resumePlan, error) {
++ 77 func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool, pinned *sessionindex.Session) (*resumePlan, error) {
+  78 	sessions, err := store.ListByProject(projectID)
+  79 	if err != nil {
+  80 		return nil, fmt.Errorf("loading sessions: %w", err)
+  81 	}
+  82 	// An empty current project is fine — the picker opens in the all-projects browser.
+- 83 	// Only bail when the whole index is empty (nothing to resume anywhere).
+- 84 	if total, _ := store.Count(); total == 0 {
+- 85 		fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
+- 86 		return nil, nil
++ 83 	// Only bail when the whole index is empty (nothing to resume anywhere). A pinned session
++ 84 	// (--session) is itself something to resume, so skip the bail even on an empty index.
++ 85 	if pinned == nil {
++ 86 		if total, _ := store.Count(); total == 0 {
++ 87 			fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
++ 88 			return nil, nil
++ 89 		}
+  87 	}
+  88 
+  89 	agents := map[string]agentMeta{}
+  90 	var installed []agentChoice
+     ...
+ 128 		lastAgent = cfg.GetResumeLastAgent()
+ 129 	}
+ 130 
+ 131 	model := newSessionTUI(store, registry, projectID, projectName, sessions, agents, installed, sessionTUIOpts{
+-132 		title:     "SpecStory Resume",
+-133 		presetTo:  presetTo,
+-134 		lastAgent: lastAgent,
+-135 		viewMode:  viewMode,
++135 		title:         "SpecStory Resume",
++136 		presetTo:      presetTo,
++137 		lastAgent:     lastAgent,
++138 		viewMode:      viewMode,
++139 		pinnedSession: pinned,
+ 136 	})
+ 137 	p := tea.NewProgram(model)
+ 138 	cancelWarm := startIndexWarm(p, projectID, builtFresh)
+ 139 	final, err := p.Run()
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_browser.go
++++ pkg/cmd/session_tui_browser.go
+@@ -73,18 +73,21 @@
+ 
+ // selectResumeViaTUI runs the picker for the current project and returns the chosen
+ // resume plan (or nil if the user cancelled). On a successful selection it persists the
+ // view-mode and target-agent preferences to the user config.
+-func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool) (*resumePlan, error) {
++func selectResumeViaTUI(registry *factory.Registry, store *sessionindex.Store, projectID, projectName, presetTo string, builtFresh bool, pinned *sessionindex.Session) (*resumePlan, error) {
+ 	sessions, err := store.ListByProject(projectID)
+ 	if err != nil {
+ 		return nil, fmt.Errorf("loading sessions: %w", err)
+ 	}
+ 	// An empty current project is fine — the picker opens in the all-projects browser.
+-	// Only bail when the whole index is empty (nothing to resume anywhere).
+-	if total, _ := store.Count(); total == 0 {
+-		fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
+-		return nil, nil
++	// Only bail when the whole index is empty (nothing to resume anywhere). A pinned session
++	// (--session) is itself something to resume, so skip the bail even on an empty index.
++	if pinned == nil {
++		if total, _ := store.Count(); total == 0 {
++			fprintln(os.Stderr, "\nNo agent sessions indexed yet. Run an agent here, then try again (or `specstory reindex`).")
++			return nil, nil
++		}
+ 	}
+ 
+ 	agents := map[string]agentMeta{}
+ 	var installed []agentChoice
+@@ -128,12 +131,13 @@
+ 		lastAgent = cfg.GetResumeLastAgent()
+ 	}
+ 
+ 	model := newSessionTUI(store, registry, projectID, projectName, sessions, agents, installed, sessionTUIOpts{
+-		title:     "SpecStory Resume",
+-		presetTo:  presetTo,
+-		lastAgent: lastAgent,
+-		viewMode:  viewMode,
++		title:         "SpecStory Resume",
++		presetTo:      presetTo,
++		lastAgent:     lastAgent,
++		viewMode:      viewMode,
++		pinnedSession: pinned,
+ 	})
+ 	p := tea.NewProgram(model)
+ 	cancelWarm := startIndexWarm(p, projectID, builtFresh)
+ 	final, err := p.Run()
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/session_tui_browser.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 77
+}
 ```
 </details></tool-use>
 
@@ -4811,10 +5950,197 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:53Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_browser.go`
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
+```
+
+**Edit 1:**
+```diff
+-// resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
++// agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
++// conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
++// the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
++// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
++func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
++	out := make(map[string]string)
++	for _, id := range registry.ListIDs() {
++		prov, err := registry.Get(id)
++		if err != nil {
++			continue
++		}
++		out[prov.Name()] = id
++	}
++	return out
++}
++
++// resumePlanFromSession builds a resumePlan for a directly-resolved session (the --session path
++// with a preset agent), reusing the same selection-time guard and plan shape as the TUI tail.
++// targetID is the preset agent; it must be a known, INSTALLED provider to resume into (mirroring
++// selectResumeViaTUI's installed check, which the non-interactive path can't inherit).
++func resumePlanFromSession(registry *factory.Registry, store *sessionindex.Store, s *sessionindex.Session, targetID string) (*resumePlan, error) {
++	fromProv, err := registry.Get(s.Agent)
++	if err != nil {
++		return nil, fmt.Errorf("unknown source agent %q: %w", s.Agent, err)
++	}
++	toProv, err := registry.Get(targetID)
++	if err != nil {
++		return nil, utils.ValidationError{Message: fmt.Sprintf(
++			"unknown agent %q. Valid agents: %s", targetID, registry.GetProviderList())}
++	}
++	if !toProv.Check("").Success {
++		return nil, utils.ValidationError{Message: fmt.Sprintf(
++			"agent %q is not installed, so it can't be a resume target.", targetID)}
++	}
++	fromCloud, fromCwd := resumeSourceForSession(store, s)
++	return &resumePlan{
++		from:      fromProv,
++		fromID:    s.Agent,
++		sessionID: s.SessionID,
++		fromCwd:   fromCwd,
++		to:        toProv,
++		toID:      targetID,
++		fromCloud: fromCloud,
++		projectID: s.ProjectID,
++	}, nil
++}
++
++// resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_browser.go.
+```
+
+**diff:**
+```diff
+     ...
+ 179 		projectID: rm.result.session.ProjectID,
+ 180 	}, nil
+ 181 }
+ 182 
++183 // agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
++184 // conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
++185 // the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
++186 // from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
++187 func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
++188 	out := make(map[string]string)
++189 	for _, id := range registry.ListIDs() {
++190 		prov, err := registry.Get(id)
++191 		if err != nil {
++192 			continue
++193 		}
++194 		out[prov.Name()] = id
++195 	}
++196 	return out
++197 }
++198 
++199 // resumePlanFromSession builds a resumePlan for a directly-resolved session (the --session path
++200 // with a preset agent), reusing the same selection-time guard and plan shape as the TUI tail.
++201 // targetID is the preset agent; it must be a known, INSTALLED provider to resume into (mirroring
++202 // selectResumeViaTUI's installed check, which the non-interactive path can't inherit).
++203 func resumePlanFromSession(registry *factory.Registry, store *sessionindex.Store, s *sessionindex.Session, targetID string) (*resumePlan, error) {
++204 	fromProv, err := registry.Get(s.Agent)
++205 	if err != nil {
++206 		return nil, fmt.Errorf("unknown source agent %q: %w", s.Agent, err)
++207 	}
++208 	toProv, err := registry.Get(targetID)
++209 	if err != nil {
++210 		return nil, utils.ValidationError{Message: fmt.Sprintf(
++211 			"unknown agent %q. Valid agents: %s", targetID, registry.GetProviderList())}
++212 	}
++213 	if !toProv.Check("").Success {
++214 		return nil, utils.ValidationError{Message: fmt.Sprintf(
++215 			"agent %q is not installed, so it can't be a resume target.", targetID)}
++216 	}
++217 	fromCloud, fromCwd := resumeSourceForSession(store, s)
++218 	return &resumePlan{
++219 		from:      fromProv,
++220 		fromID:    s.Agent,
++221 		sessionID: s.SessionID,
++222 		fromCwd:   fromCwd,
++223 		to:        toProv,
++224 		toID:      targetID,
++225 		fromCloud: fromCloud,
++226 		projectID: s.ProjectID,
++227 	}, nil
++228 }
++229 
+ 183 // resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
+ 184 // that is ALSO present locally (e.g. a cloud search hit that local FTS didn't match). When it is,
+ 185 // prefer the local copy — an in-place resume is instant, works offline, and doesn't mint a fresh
+ 186 // reconstructed session id — over the cloud fetch/reconstruct path. Returns the fromCloud flag and
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_browser.go
++++ pkg/cmd/session_tui_browser.go
+@@ -179,8 +179,55 @@
+ 		projectID: rm.result.session.ProjectID,
+ 	}, nil
+ }
+ 
++// agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
++// conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
++// the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
++// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
++func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
++	out := make(map[string]string)
++	for _, id := range registry.ListIDs() {
++		prov, err := registry.Get(id)
++		if err != nil {
++			continue
++		}
++		out[prov.Name()] = id
++	}
++	return out
++}
++
++// resumePlanFromSession builds a resumePlan for a directly-resolved session (the --session path
++// with a preset agent), reusing the same selection-time guard and plan shape as the TUI tail.
++// targetID is the preset agent; it must be a known, INSTALLED provider to resume into (mirroring
++// selectResumeViaTUI's installed check, which the non-interactive path can't inherit).
++func resumePlanFromSession(registry *factory.Registry, store *sessionindex.Store, s *sessionindex.Session, targetID string) (*resumePlan, error) {
++	fromProv, err := registry.Get(s.Agent)
++	if err != nil {
++		return nil, fmt.Errorf("unknown source agent %q: %w", s.Agent, err)
++	}
++	toProv, err := registry.Get(targetID)
++	if err != nil {
++		return nil, utils.ValidationError{Message: fmt.Sprintf(
++			"unknown agent %q. Valid agents: %s", targetID, registry.GetProviderList())}
++	}
++	if !toProv.Check("").Success {
++		return nil, utils.ValidationError{Message: fmt.Sprintf(
++			"agent %q is not installed, so it can't be a resume target.", targetID)}
++	}
++	fromCloud, fromCwd := resumeSourceForSession(store, s)
++	return &resumePlan{
++		from:      fromProv,
++		fromID:    s.Agent,
++		sessionID: s.SessionID,
++		fromCwd:   fromCwd,
++		to:        toProv,
++		toID:      targetID,
++		fromCloud: fromCloud,
++		projectID: s.ProjectID,
++	}, nil
++}
++
+ // resumeSourceForSession applies the selection-time guard: a cloud-badged row can be a session
+ // that is ALSO present locally (e.g. a cloud search hit that local FTS didn't match). When it is,
+ // prefer the local copy — an in-place resume is instant, works offline, and doesn't mint a fresh
+ // reconstructed session id — over the cloud fetch/reconstruct path. Returns the fromCloud flag and
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_browser.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 183
+}
 ```
 </details></tool-use>
 
@@ -4830,10 +6156,150 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:58:58Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui.go`
+**Path:**
+```text
+pkg/cmd/session_tui.go
+```
+
+**Edit 1:**
+```diff
+-// sessionTUIOpts carries the per-command entry configuration. The only real differences
+-// between `resume` and `search` live here: the header title, what the positional arg means
+-// (presetTo vs. initialQuery), and whether to open in the all-projects search.
+-type sessionTUIOpts struct {
+-	title         string // header title ("SpecStory Resume" / "SpecStory Search")
+-	presetTo      string // resume: pre-selected target agent (from `resume <agent>`)
+-	lastAgent     string // default target (last resumed), or ""
+-	viewMode      string // "dense" | "sparse"
+-	initialQuery  string // search: pre-seed the all-projects query
+-	startInSearch bool   // search: open in the all-projects FTS with the input focused
+-}
++// sessionTUIOpts carries the per-command entry configuration. The only real differences
++// between `resume` and `search` live here: the header title, what the positional arg means
++// (presetTo vs. initialQuery), and whether to open in the all-projects search.
++type sessionTUIOpts struct {
++	title         string // header title ("SpecStory Resume" / "SpecStory Search")
++	presetTo      string // resume: pre-selected target agent (from `resume <agent>`)
++	lastAgent     string // default target (last resumed), or ""
++	viewMode      string // "dense" | "sparse"
++	initialQuery  string // search: pre-seed the all-projects query
++	startInSearch bool   // search: open in the all-projects FTS with the input focused
++
++	// pinnedSession is a session resolved by `resume --session <uri>` (no preset agent). When
++	// set, the TUI opens straight at the target picker (modeTarget) with this session pinned as
++	// chosen — skipping the browse step — so the user only picks which agent to resume into. The
++	// default target highlight (last-resumed, else the session's own agent) still applies.
++	pinnedSession *sessionindex.Session
++}
+```
+
+**Edit 2:**
+```diff
+-	m.rebuildAgentCycle()
+-	m.applyFilter()
+-
+-	switch {
+-	case opts.startInSearch:
++	m.rebuildAgentCycle()
++	m.applyFilter()
++
++	switch {
++	case opts.pinnedSession != nil:
++		// `resume --session <uri>` (no preset agent): open at the target picker pinned to the
++		// resolved session, skipping the browse step. Takes precedence over the empty-project
++		// browser fallback and the search entry — a pinned session is the whole point of the
++		// invocation. esc at the target picker drops into the browse list (the escape hatch).
++		m.chosen = opts.pinnedSession
++		m.mode = modeTarget
++		m.targetCursor = m.defaultTargetIndex()
++	case opts.startInSearch:
+```
+
+```text
+Successfully replaced 2 block(s) in pkg/cmd/session_tui.go.
+```
+
+**diff:**
+```diff
+      ...
+  218 	lastAgent     string // default target (last resumed), or ""
+  219 	viewMode      string // "dense" | "sparse"
+  220 	initialQuery  string // search: pre-seed the all-projects query
+  221 	startInSearch bool   // search: open in the all-projects FTS with the input focused
++ 222 
++ 223 	// pinnedSession is a session resolved by `resume --session <uri>` (no preset agent). When
++ 224 	// set, the TUI opens straight at the target picker (modeTarget) with this session pinned as
++ 225 	// chosen — skipping the browse step — so the user only picks which agent to resume into. The
++ 226 	// default target highlight (last-resumed, else the session's own agent) still applies.
++ 227 	pinnedSession *sessionindex.Session
+  222 }
+  223 
+  224 func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projectID, projectName string,
+  225 	sessions []sessionindex.Session, agents map[string]agentMeta, installed []agentChoice, opts sessionTUIOpts) sessionTUI {
+      ...
+  261 	m.rebuildAgentCycle()
+  262 	m.applyFilter()
+  263 
+  264 	switch {
++ 271 	case opts.pinnedSession != nil:
++ 272 		// `resume --session <uri>` (no preset agent): open at the target picker pinned to the
++ 273 		// resolved session, skipping the browse step. Takes precedence over the empty-project
++ 274 		// browser fallback and the search entry — a pinned session is the whole point of the
++ 275 		// invocation. esc at the target picker drops into the browse list (the escape hatch).
++ 276 		m.chosen = opts.pinnedSession
++ 277 		m.mode = modeTarget
++ 278 		m.targetCursor = m.defaultTargetIndex()
+  265 	case opts.startInSearch:
+  266 		// `search`: land directly in the all-projects FTS, input focused (so the user types
+  267 		// immediately, exactly like before). Init fires the pre-seeded query, if any. The
+  268 		// search IS the root view here, so esc quits rather than unwinding into the browser.
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui.go
++++ pkg/cmd/session_tui.go
+@@ -218,8 +218,14 @@
+ 	lastAgent     string // default target (last resumed), or ""
+ 	viewMode      string // "dense" | "sparse"
+ 	initialQuery  string // search: pre-seed the all-projects query
+ 	startInSearch bool   // search: open in the all-projects FTS with the input focused
++
++	// pinnedSession is a session resolved by `resume --session <uri>` (no preset agent). When
++	// set, the TUI opens straight at the target picker (modeTarget) with this session pinned as
++	// chosen — skipping the browse step — so the user only picks which agent to resume into. The
++	// default target highlight (last-resumed, else the session's own agent) still applies.
++	pinnedSession *sessionindex.Session
+ }
+ 
+ func newSessionTUI(store *sessionindex.Store, registry *factory.Registry, projectID, projectName string,
+ 	sessions []sessionindex.Session, agents map[string]agentMeta, installed []agentChoice, opts sessionTUIOpts) sessionTUI {
+@@ -261,8 +267,16 @@
+ 	m.rebuildAgentCycle()
+ 	m.applyFilter()
+ 
+ 	switch {
++	case opts.pinnedSession != nil:
++		// `resume --session <uri>` (no preset agent): open at the target picker pinned to the
++		// resolved session, skipping the browse step. Takes precedence over the empty-project
++		// browser fallback and the search entry — a pinned session is the whole point of the
++		// invocation. esc at the target picker drops into the browse list (the escape hatch).
++		m.chosen = opts.pinnedSession
++		m.mode = modeTarget
++		m.targetCursor = m.defaultTargetIndex()
+ 	case opts.startInSearch:
+ 		// `search`: land directly in the all-projects FTS, input focused (so the user types
+ 		// immediately, exactly like before). Init fires the pre-seeded query, if any. The
+ 		// search IS the root view here, so esc quits rather than unwinding into the browser.
 
 ```
-Successfully replaced 2 block(s) in pkg/cmd/session_tui.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 222
+}
 ```
 </details></tool-use>
 
@@ -4845,7 +6311,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:02Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -40`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -40
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -4854,8 +6325,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:07Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | head -40`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | head -40
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -4867,9 +6344,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:16Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`pkg/cmd/session_uri_test.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri_test.go
 ```
+
+**Content:**
+```go
 package cmd
 
 import (
@@ -4978,7 +6459,7 @@ func TestParseSessionURI(t *testing.T) {
 
 ```
 
-```
+```text
 Successfully wrote 3773 bytes to pkg/cmd/session_uri_test.go
 ```
 </details></tool-use>
@@ -4987,7 +6468,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test -v -run TestParseSessionURI ./pkg/cmd 2>&1 | tail -40`</summary>
+**Command:**
+```bash
+go test -v -run TestParseSessionURI ./pkg/cmd 2>&1 | tail -40
 ```
+
+```text
 === RUN   TestParseSessionURI
 === RUN   TestParseSessionURI/specstory_canonical
 === RUN   TestParseSessionURI/specstory_case-insensitive_ids
@@ -5024,6 +6510,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:19Z)**_
     --- PASS: TestParseSessionURI/unsupported_scheme (0.00s)
 PASS
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.029s
+
 ```
 </details></tool-use>
 
@@ -5035,7 +6522,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go test ./... 2>&1 | tail -25`</summary>
+**Command:**
+```bash
+go test ./... 2>&1 | tail -25
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli	0.029s
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics	[no test files]
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud	(cached)
@@ -5057,6 +6549,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.023s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/schema	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
+
 ```
 </details></tool-use>
 
@@ -5064,8 +6557,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `gofmt -w . && golangci-lint run 2>&1 | tail -10`</summary>
+**Command:**
+```bash
+gofmt -w . && golangci-lint run 2>&1 | tail -10
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -5081,8 +6580,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:29Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `./specstory resume --help 2>&1 | grep -i "session"; echo "--- search (should be empty) ---"; ./specstory search --help 2>&1 | grep -i "\-\-session" || echo "(no --session on search — correct)"`</summary>
+**Command:**
+```bash
+./specstory resume --help 2>&1 | grep -i "session"; echo "--- search (should be empty) ---"; ./specstory search --help 2>&1 | grep -i "\-\-session" || echo "(no --session on search — correct)"
 ```
-Resume a past coding-agent session — in the same agent, or a different one.                                           
+
+```text
+  Resume a past coding-agent session — in the same agent, or a different one.                                           
   'resume' opens an interactive picker of the sessions in the current project across all                                
   agents. Press tab to switch projects. Pick a session, then choose which installed agent                               
   Pass --session <uri> to resume a specific session without browsing: a specstory:// URI                                
@@ -5091,6 +6595,7 @@ Resume a past coding-agent session — in the same agent, or a different one.
     --session                 Resume a specific session by URI or UUID (specstory://…, cloud permalink, or session UUID)
 --- search (should be empty) ---
 (no --session on search — correct)
+
 ```
 </details></tool-use>
 
@@ -5098,12 +6603,20 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `./specstory resume --session "not-a-session" 2>&1 | head -3; echo "---bad shape---"; ./specstory resume --session "specstory://projects/zzzz/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | head -3`</summary>
+**Command:**
+```bash
+./specstory resume --session "not-a-session" 2>&1 | head -3; echo "---bad shape---"; ./specstory resume --session "specstory://projects/zzzz/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | head -3
 ```
-ERROR  
+
+```text
+          
+   ERROR  
           
 ---bad shape---
           
-   ERROR
+   ERROR  
+          
+
 ```
 </details></tool-use>
 
@@ -5117,9 +6630,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `./specstory resume --session "not-a-session" 2>&1 | cat -A | head -20`</summary>
+**Command:**
+```bash
+./specstory resume --session "not-a-session" 2>&1 | cat -A | head -20
 ```
+
+```text
 cat: illegal option -- A
 usage: cat [-belnstuv] [file ...]
+
 ```
 </details></tool-use>
 
@@ -5127,11 +6646,20 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:39Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `./specstory resume --session "not-a-session" 2>&1 | sed -n '1,12p'`</summary>
+**Command:**
+```bash
+./specstory resume --session "not-a-session" 2>&1 | sed -n '1,12p'
 ```
-ERROR  
+
+```text
+          
+   ERROR  
           
   Unsupported session URI "not-a-session" — use specstory://projects/{projectId}/sessions/{sessionId}, a cloud        
-  permalink, or a session UUID.
+  permalink, or a session UUID.                                                                                       
+
+
+
 ```
 </details></tool-use>
 
@@ -5145,11 +6673,20 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `./specstory resume --session "https://cloud-dev.specstory.com/projects/abcd-1234-efab-5678/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | sed -n '1,10p'`</summary>
+**Command:**
+```bash
+./specstory resume --session "https://cloud-dev.specstory.com/projects/abcd-1234-efab-5678/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | sed -n '1,10p'
 ```
-ERROR  
+
+```text
+          
+   ERROR  
           
   This link points at https://cloud-dev.specstory.com, but the CLI is configured for https://cloud.specstory.com. Pass 
-  --cloud-url https://cloud-dev.specstory.com if this is intentional..
+  --cloud-url https://cloud-dev.specstory.com if this is intentional..                                                 
+
+
+
 ```
 </details></tool-use>
 
@@ -5165,10 +6702,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:47Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `./specstory --cloud-url https://cloud-dev.specstory.com resume --session "https://cloud-dev.specstory.com/projects/abcd-1234-efab-5678/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | sed -n '1,10p'`</summary>
+**Command:**
+```bash
+./specstory --cloud-url https://cloud-dev.specstory.com resume --session "https://cloud-dev.specstory.com/projects/abcd-1234-efab-5678/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | sed -n '1,10p'
 ```
-ERROR  
+
+```text
           
-  Log into SpecStory Cloud (specstory login) to resume sessions from your other machines..
+   ERROR  
+          
+  Log into SpecStory Cloud (specstory login) to resume sessions from your other machines..                            
+
+
+
 ```
 </details></tool-use>
 
@@ -5200,10 +6746,74 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 15:59:56Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/services/api.ts`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/services/api.ts
+```
+
+**Edit 1:**
+```diff
+-  markdownContent?: string;
+-  markdownSize: number;
+-  rawDataSize: number;
+-  metadata: Record<string, unknown>;
++  markdownContent?: string;
++  markdownSize: number;
++  rawDataSize: number;
++  // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++  // Carried on the wire (SessionDetailSchema) but dropped here previously — restored for the
++  // session-page Resume button's resumable gating (D33).
++  sessionDataSize?: number | null;
++  metadata: Record<string, unknown>;
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/services/api.ts.
+```
+
+**diff:**
+```diff
+      ...
+   60   shareStatus?: "private" | "unlisted"; // Share status: private or unlisted
+   61   markdownContent?: string;
+   62   markdownSize: number;
+   63   rawDataSize: number;
++  64   // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++  65   // Carried on the wire (SessionDetailSchema) but dropped here previously — restored for the
++  66   // session-page Resume button's resumable gating (D33).
++  67   sessionDataSize?: number | null;
+   64   metadata: Record<string, unknown>;
+   65   createdAt: string;
+   66   updatedAt: string;
+   67   startedAt?: string;
+      ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/services/api.ts
++++ ../../specstory-sync/sync-cloud/src/services/api.ts
+@@ -60,8 +60,12 @@
+   shareStatus?: "private" | "unlisted"; // Share status: private or unlisted
+   markdownContent?: string;
+   markdownSize: number;
+   rawDataSize: number;
++  // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++  // Carried on the wire (SessionDetailSchema) but dropped here previously — restored for the
++  // session-page Resume button's resumable gating (D33).
++  sessionDataSize?: number | null;
+   metadata: Record<string, unknown>;
+   createdAt: string;
+   updatedAt: string;
+   startedAt?: string;
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/services/api.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 64
+}
 ```
 </details></tool-use>
 
@@ -5215,10 +6825,75 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:00Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx
+```
+
+**Edit 1:**
+```diff
+-                  name: searchResults.name || "",
+-                  userTitle: searchResults.userTitle,
+-                  shareStatus: searchResults.shareStatus,
+-                  createdAt: searchResults.createdAt || "",
+-                  updatedAt: searchResults.updatedAt || "",
+-                  startedAt: sessionMetadata?.startedAt,
+-                  endedAt: sessionMetadata?.endedAt,
+-                  projectId,
+-                  metadata: searchResults.metadata,
++                  name: searchResults.name || "",
++                  userTitle: searchResults.userTitle,
++                  shareStatus: searchResults.shareStatus,
++                  createdAt: searchResults.createdAt || "",
++                  updatedAt: searchResults.updatedAt || "",
++                  startedAt: sessionMetadata?.startedAt,
++                  endedAt: sessionMetadata?.endedAt,
++                  projectId,
++                  sessionDataSize: searchResults.sessionDataSize,
++                  metadata: searchResults.metadata,
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 111                   updatedAt: searchResults.updatedAt || "",
+ 112                   startedAt: sessionMetadata?.startedAt,
+ 113                   endedAt: sessionMetadata?.endedAt,
+ 114                   projectId,
++115                   sessionDataSize: searchResults.sessionDataSize,
+ 115                   metadata: searchResults.metadata,
+ 116                 }
+ 117               : undefined
+ 118           }
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx
+@@ -111,8 +111,9 @@
+                   updatedAt: searchResults.updatedAt || "",
+                   startedAt: sessionMetadata?.startedAt,
+                   endedAt: sessionMetadata?.endedAt,
+                   projectId,
++                  sessionDataSize: searchResults.sessionDataSize,
+                   metadata: searchResults.metadata,
+                 }
+               : undefined
+           }
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionView.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 115
+}
 ```
 </details></tool-use>
 
@@ -5260,9 +6935,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:17Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
+
+**Content:**
+```typescript
 import { useEffect, useState } from "react";
 import { Copy, Check, RotateCcw } from "lucide-react";
 import {
@@ -5411,7 +7090,7 @@ export function ResumeCommandDialog({
 
 ```
 
-```
+```text
 Successfully wrote 5358 bytes to ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
 </details></tool-use>
@@ -5428,7 +7107,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "specstory.com/docs\|docs.specstory\|/docs/\|cli/install\|install.*cli" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | grep -iv node_modules | head -10`</summary>
+**Command:**
+```bash
+grep -rn "specstory.com/docs\|docs.specstory\|/docs/\|cli/install\|install.*cli" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | grep -iv node_modules | head -10
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:118:      "https://docs.specstory.com/cloud/quickstart#claude-code-%2F-cursor-cli",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:159:      "https://docs.specstory.com/cloud/quickstart#claude-code-%2F-cursor-cli",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:169:      "https://docs.specstory.com/cloud/quickstart#claude-code-%2F-cursor-cli-%2F-codex-cli",
@@ -5439,6 +7123,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:20Z)**_
 ../../specstory-sync/sync-cloud/src/components/resume/ResumeEducation.tsx:7:  "https://docs.specstory.com/integrations/terminal-coding-agents/resume";
 ../../specstory-sync/sync-cloud/src/components/resume/ResumeEducation.tsx:86:            docs.specstory.com
 ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx:122:                href="https://specstory.com/docs/cli/install"
+
 ```
 </details></tool-use>
 
@@ -5452,9 +7137,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:23Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeEducation.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeEducation.tsx
 ```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 import { useState } from "react";
 import { BookOpen, ExternalLink, X } from "lucide-react";
 
@@ -5500,7 +7193,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "docs.specstory.com" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | grep -iv node_modules | grep -i "install\|cli\|getting\|start\|setup" | head`</summary>
+**Command:**
+```bash
+grep -rn "docs.specstory.com" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | grep -iv node_modules | grep -i "install\|cli\|getting\|start\|setup" | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:118:      "https://docs.specstory.com/cloud/quickstart#claude-code-%2F-cursor-cli",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:159:      "https://docs.specstory.com/cloud/quickstart#claude-code-%2F-cursor-cli",
 ../../specstory-sync/sync-cloud/src/components/tools/toolConfig.ts:169:      "https://docs.specstory.com/cloud/quickstart#claude-code-%2F-cursor-cli-%2F-codex-cli",
@@ -5511,6 +7209,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:26Z)**_
 ../../specstory-sync/sync-cloud/src/components/dashboard/QuickNav.tsx:41:      onClick: () => window.open("https://docs.specstory.com/api-reference/introduction", "_blank"),
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:88:    docsUrl: "https://docs.specstory.com/integrations/cursor-cli",
 ../../specstory-sync/sync-cloud/src/lib/constants.ts:98:    docsUrl: "https://docs.specstory.com/integrations/codex-cli",
+
 ```
 </details></tool-use>
 
@@ -5526,10 +7225,76 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:30Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-              <a
+-                href="https://specstory.com/docs/cli/install"
+-                target="_blank"
+-                rel="noopener noreferrer"
+-                className="underline hover:text-foreground"
+-              >
+-                SpecStory CLI
+-              </a>{" "}
+-              installed on that machine.
++              <a
++                href="https://docs.specstory.com/cloud/quickstart"
++                target="_blank"
++                rel="noopener noreferrer"
++                className="underline hover:text-foreground"
++              >
++                SpecStory CLI
++              </a>{" "}
++              installed on that machine.
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 118           <ul className="mt-3 space-y-1 text-xs text-muted-foreground list-disc list-inside">
+ 119             <li>
+ 120               Requires the{" "}
+ 121               <a
+-122                 href="https://specstory.com/docs/cli/install"
++122                 href="https://docs.specstory.com/cloud/quickstart"
+ 123                 target="_blank"
+ 124                 rel="noopener noreferrer"
+ 125                 className="underline hover:text-foreground"
+ 126               >
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -118,9 +118,9 @@
+           <ul className="mt-3 space-y-1 text-xs text-muted-foreground list-disc list-inside">
+             <li>
+               Requires the{" "}
+               <a
+-                href="https://specstory.com/docs/cli/install"
++                href="https://docs.specstory.com/cloud/quickstart"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="underline hover:text-foreground"
+               >
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 122
+}
 ```
 </details></tool-use>
 
@@ -5541,10 +7306,163 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:35Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-import {
+-  Trash2,
+-  Download,
+-  Loader2,
+-  Check,
+-  X,
+-  Globe,
+-  Lock,
+-  Link2,
+-} from "lucide-react";
++import {
++  Trash2,
++  Download,
++  Loader2,
++  Check,
++  X,
++  Globe,
++  Lock,
++  Link2,
++  RotateCcw,
++} from "lucide-react";
+```
+
+**Edit 2:**
+```diff
+-import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
+-import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
+-import { ShareOnboardingModal } from "./ShareOnboardingModal";
+-import { ShareButtonHint } from "./ShareButtonHint";
++import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
++import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
++import { ShareOnboardingModal } from "./ShareOnboardingModal";
++import { ShareButtonHint } from "./ShareButtonHint";
++import { useFlag } from "@/contexts/FlagsContext";
++import { useEntitlement } from "@/contexts/EntitlementContext";
++import { ResumeCommandDialog } from "@/components/resume/ResumeCommandDialog";
+```
+
+**Edit 3:**
+```diff
+-        shareStatus?: "private" | "unlisted";
+-        createdAt: string;
+-        updatedAt: string;
+-        startedAt?: string;
+-        endedAt?: string;
+-        projectId?: string;
+-        metadata?: SessionMetadata;
+-      }
++        shareStatus?: "private" | "unlisted";
++        createdAt: string;
++        updatedAt: string;
++        startedAt?: string;
++        endedAt?: string;
++        projectId?: string;
++        // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++        // Gates the Resume button's enabled state (D33).
++        sessionDataSize?: number | null;
++        metadata?: SessionMetadata;
++      }
+```
+
+```text
+Successfully replaced 3 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  17   X,
+  18   Globe,
+  19   Lock,
+  20   Link2,
++ 21   RotateCcw,
+  21 } from "lucide-react";
+  22 import { ConfirmationDialog } from "@/components/common/ConfirmationDialog";
+  23 import {
+  24   useDeleteSessions,
+     ...
+  33 import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
+  34 import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
+  35 import { ShareOnboardingModal } from "./ShareOnboardingModal";
+  36 import { ShareButtonHint } from "./ShareButtonHint";
++ 38 import { useFlag } from "@/contexts/FlagsContext";
++ 39 import { useEntitlement } from "@/contexts/EntitlementContext";
++ 40 import { ResumeCommandDialog } from "@/components/resume/ResumeCommandDialog";
+  37 import {
+  38   shareStateToStatus,
+  39   shareStatusToState,
+  40   ShareStatus,
+     ...
+  54         updatedAt: string;
+  55         startedAt?: string;
+  56         endedAt?: string;
+  57         projectId?: string;
++ 62         // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++ 63         // Gates the Resume button's enabled state (D33).
++ 64         sessionDataSize?: number | null;
+  58         metadata?: SessionMetadata;
+  59       }
+  60     | undefined;
+  61   exchanges?: Array<{ id: string; hiddenFromShare?: boolean }>;
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -17,8 +17,9 @@
+   X,
+   Globe,
+   Lock,
+   Link2,
++  RotateCcw,
+ } from "lucide-react";
+ import { ConfirmationDialog } from "@/components/common/ConfirmationDialog";
+ import {
+   useDeleteSessions,
+@@ -33,8 +34,11 @@
+ import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
+ import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
+ import { ShareOnboardingModal } from "./ShareOnboardingModal";
+ import { ShareButtonHint } from "./ShareButtonHint";
++import { useFlag } from "@/contexts/FlagsContext";
++import { useEntitlement } from "@/contexts/EntitlementContext";
++import { ResumeCommandDialog } from "@/components/resume/ResumeCommandDialog";
+ import {
+   shareStateToStatus,
+   shareStatusToState,
+   ShareStatus,
+@@ -54,8 +58,11 @@
+         updatedAt: string;
+         startedAt?: string;
+         endedAt?: string;
+         projectId?: string;
++        // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++        // Gates the Resume button's enabled state (D33).
++        sessionDataSize?: number | null;
+         metadata?: SessionMetadata;
+       }
+     | undefined;
+   exchanges?: Array<{ id: string; hiddenFromShare?: boolean }>;
 
 ```
-Successfully replaced 3 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 21
+}
 ```
 </details></tool-use>
 
@@ -5556,10 +7474,82 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:39Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-  const [showShareButtonHint, setShowShareButtonHint] = useState(false);
+-  const [copiedLink, setCopiedLink] = useState(false);
++  const [showShareButtonHint, setShowShareButtonHint] = useState(false);
++  const [copiedLink, setCopiedLink] = useState(false);
++
++  // Resume (D33–D36): owner-only, under the `resume` feature flag. The button is enabled only
++  // when the session is cloud-resumable (sessionDataSize > 0); a legacy session shows a disabled
++  // tooltip. Entitled click opens the command dialog; non-entitled click navigates to /resume.
++  const resumeEnabled = useFlag("resume");
++  const { can } = useEntitlement();
++  const [showResumeDialog, setShowResumeDialog] = useState(false);
++  const isResumable = !!sessionData?.sessionDataSize && sessionData.sessionDataSize > 0;
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  90     useState(false);
+  91   const [showShareButtonHint, setShowShareButtonHint] = useState(false);
+  92   const [copiedLink, setCopiedLink] = useState(false);
+  93 
++ 94   // Resume (D33–D36): owner-only, under the `resume` feature flag. The button is enabled only
++ 95   // when the session is cloud-resumable (sessionDataSize > 0); a legacy session shows a disabled
++ 96   // tooltip. Entitled click opens the command dialog; non-entitled click navigates to /resume.
++ 97   const resumeEnabled = useFlag("resume");
++ 98   const { can } = useEntitlement();
++ 99   const [showResumeDialog, setShowResumeDialog] = useState(false);
++100   const isResumable = !!sessionData?.sessionDataSize && sessionData.sessionDataSize > 0;
++101 
+  94   // Show onboarding modal when openShareDialog query param is present
+  95   // This provides an educational modal that guides users through sharing
+  96   useEffect(() => {
+  97     if (router.query.openShareDialog) {
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -90,8 +90,16 @@
+     useState(false);
+   const [showShareButtonHint, setShowShareButtonHint] = useState(false);
+   const [copiedLink, setCopiedLink] = useState(false);
+ 
++  // Resume (D33–D36): owner-only, under the `resume` feature flag. The button is enabled only
++  // when the session is cloud-resumable (sessionDataSize > 0); a legacy session shows a disabled
++  // tooltip. Entitled click opens the command dialog; non-entitled click navigates to /resume.
++  const resumeEnabled = useFlag("resume");
++  const { can } = useEntitlement();
++  const [showResumeDialog, setShowResumeDialog] = useState(false);
++  const isResumable = !!sessionData?.sessionDataSize && sessionData.sessionDataSize > 0;
++
+   // Show onboarding modal when openShareDialog query param is present
+   // This provides an educational modal that guides users through sharing
+   useEffect(() => {
+     if (router.query.openShareDialog) {
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 94
+}
 ```
 </details></tool-use>
 
@@ -5573,13 +7563,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:41Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "<Download\|<Trash2\|Download session markdown\|Delete session" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | head`</summary>
+**Command:**
+```bash
+grep -n "<Download\|<Trash2\|Download session markdown\|Delete session" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | head
 ```
+
+```text
 516:                      : "Download session markdown"
 524:                    title="Download session markdown"
 529:                      <Download className="w-4 h-4" />
 533:                <Tooltip content="Delete session" side="bottom">
 537:                    title="Delete session"
 539:                    <Trash2 className="w-4 h-4" />
+
 ```
 </details></tool-use>
 
@@ -5587,10 +7583,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:43Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-) : (
+
+**Offset (line):**
+```text
+528
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
+                    ) : (
                       <Download className="w-4 h-4" />
                     )}
                   </button>
@@ -5625,10 +7634,144 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:49Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                    ) : (
+-                      <Download className="w-4 h-4" />
+-                    )}
+-                  </button>
+-                </Tooltip>
+-                <Tooltip content="Delete session" side="bottom">
++                    ) : (
++                      <Download className="w-4 h-4" />
++                    )}
++                  </button>
++                </Tooltip>
++                {isOwner && resumeEnabled && (
++                  <Tooltip
++                    content={
++                      isResumable
++                        ? "Resume this session in a terminal"
++                        : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
++                    }
++                    side="bottom"
++                  >
++                    <button
++                      onClick={() => {
++                        if (!sessionData?.projectId || !sessionData?.clientId) return;
++                        if (can("resume")) {
++                          setShowResumeDialog(true);
++                        } else {
++                          router.push("/resume");
++                        }
++                      }}
++                      disabled={!isResumable}
++                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++                      title="Resume this session"
++                    >
++                      <RotateCcw className="w-4 h-4" />
++                    </button>
++                  </Tooltip>
++                )}
++                <Tooltip content="Delete session" side="bottom">
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 529                       <Download className="w-4 h-4" />
+ 530                     )}
+ 531                   </button>
+ 532                 </Tooltip>
++533                 {isOwner && resumeEnabled && (
++534                   <Tooltip
++535                     content={
++536                       isResumable
++537                         ? "Resume this session in a terminal"
++538                         : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
++539                     }
++540                     side="bottom"
++541                   >
++542                     <button
++543                       onClick={() => {
++544                         if (!sessionData?.projectId || !sessionData?.clientId) return;
++545                         if (can("resume")) {
++546                           setShowResumeDialog(true);
++547                         } else {
++548                           router.push("/resume");
++549                         }
++550                       }}
++551                       disabled={!isResumable}
++552                       className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++553                       title="Resume this session"
++554                     >
++555                       <RotateCcw className="w-4 h-4" />
++556                     </button>
++557                   </Tooltip>
++558                 )}
+ 533                 <Tooltip content="Delete session" side="bottom">
+ 534                   <button
+ 535                     onClick={() => setShowDeleteDialog(true)}
+ 536                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -529,8 +529,34 @@
+                       <Download className="w-4 h-4" />
+                     )}
+                   </button>
+                 </Tooltip>
++                {isOwner && resumeEnabled && (
++                  <Tooltip
++                    content={
++                      isResumable
++                        ? "Resume this session in a terminal"
++                        : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
++                    }
++                    side="bottom"
++                  >
++                    <button
++                      onClick={() => {
++                        if (!sessionData?.projectId || !sessionData?.clientId) return;
++                        if (can("resume")) {
++                          setShowResumeDialog(true);
++                        } else {
++                          router.push("/resume");
++                        }
++                      }}
++                      disabled={!isResumable}
++                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++                      title="Resume this session"
++                    >
++                      <RotateCcw className="w-4 h-4" />
++                    </button>
++                  </Tooltip>
++                )}
+                 <Tooltip content="Delete session" side="bottom">
+                   <button
+                     onClick={() => setShowDeleteDialog(true)}
+                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 533
+}
 ```
 </details></tool-use>
 
@@ -5640,7 +7783,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "ShareOnboardingModal\|ConfirmationDialog\|<ConfirmationDialog\|showShareOnboardingModal\|showDeleteDialog" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | tail`</summary>
+**Command:**
+```bash
+grep -n "ShareOnboardingModal\|ConfirmationDialog\|<ConfirmationDialog\|showShareOnboardingModal\|showDeleteDialog" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | tail
 ```
+
+```text
 23:import { ConfirmationDialog } from "@/components/common/ConfirmationDialog";
 36:import { ShareOnboardingModal } from "./ShareOnboardingModal";
 87:  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -5651,6 +7799,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:51Z)**_
 635:        open={showDeleteDialog}
 656:      <ShareOnboardingModal
 657:        open={showShareOnboardingModal}
+
 ```
 </details></tool-use>
 
@@ -5658,10 +7807,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-{/* Share Onboarding Modal - shown when arriving from extension */}
+
+**Offset (line):**
+```text
+655
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
+      {/* Share Onboarding Modal - shown when arriving from extension */}
       <ShareOnboardingModal
         open={showShareOnboardingModal}
         onOpenChange={handleShareModalClose}
@@ -5676,6 +7838,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:53Z)**_
     </>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -5683,10 +7846,94 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:56Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-        isUpdatingShareStatus={updateShareStatusMutation.isPending}
+-      />
+-    </>
+-  );
+-}
++        isUpdatingShareStatus={updateShareStatusMutation.isPending}
++      />
++
++      {/* Resume command dialog — opened by the Resume button (D35/D36). */}
++      {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
++        <ResumeCommandDialog
++          open={showResumeDialog}
++          onClose={() => setShowResumeDialog(false)}
++          projectId={sessionData.projectId}
++          sessionId={sessionData.clientId}
++          sessionName={getSessionDisplayName(sessionData)}
++        />
++      )}
++    </>
++  );
++}
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 663         shareState={currentShareStatus}
+ 664         onShareStateChange={handleShareStateChange}
+ 665         isUpdatingShareStatus={updateShareStatusMutation.isPending}
+ 666       />
++667 
++668       {/* Resume command dialog — opened by the Resume button (D35/D36). */}
++669       {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
++670         <ResumeCommandDialog
++671           open={showResumeDialog}
++672           onClose={() => setShowResumeDialog(false)}
++673           projectId={sessionData.projectId}
++674           sessionId={sessionData.clientId}
++675           sessionName={getSessionDisplayName(sessionData)}
++676         />
++677       )}
+ 667     </>
+ 668   );
+ 669 }
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -663,7 +663,18 @@
+         shareState={currentShareStatus}
+         onShareStateChange={handleShareStateChange}
+         isUpdatingShareStatus={updateShareStatusMutation.isPending}
+       />
++
++      {/* Resume command dialog — opened by the Resume button (D35/D36). */}
++      {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
++        <ResumeCommandDialog
++          open={showResumeDialog}
++          onClose={() => setShowResumeDialog(false)}
++          projectId={sessionData.projectId}
++          sessionId={sessionData.clientId}
++          sessionName={getSessionDisplayName(sessionData)}
++        />
++      )}
+     </>
+   );
+ }
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 667
+}
 ```
 </details></tool-use>
 
@@ -5698,8 +7945,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:59Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && cat package.json | grep -A30 '"scripts"' | head -35`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && cat package.json | grep -A30 '"scripts"' | head -35
 ```
-"scripts": {
+
+```text
+  "scripts": {
     "dev": "vite --mode development",
     "build": "tsc -b && vite build",
     "build:staging": "npm run build -- --mode staging",
@@ -5730,6 +7982,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:00:59Z)**_
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.12",
+
 ```
 </details></tool-use>
 
@@ -5737,8 +7990,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:02Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | grep -E "SessionHeader|SessionView|ResumeCommandDialog|api\.ts|resume/" | head -30; echo "---exit---"; cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | tail -5`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | grep -E "SessionHeader|SessionView|ResumeCommandDialog|api\.ts|resume/" | head -30; echo "---exit---"; cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | tail -5
 ```
+
+```text
 ---exit---
+
 ```
 </details></tool-use>
 
@@ -5752,8 +8011,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:05Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -30; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -30; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -5765,13 +8030,20 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx eslint src/components/session/SessionHeader.tsx src/components/session/SessionView.tsx src/components/resume/ResumeCommandDialog.tsx src/services/api.ts 2>&1 | head -40; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx eslint src/components/session/SessionHeader.tsx src/components/session/SessionView.tsx src/components/resume/ResumeCommandDialog.tsx src/services/api.ts 2>&1 | head -40; echo "EXIT=$?"
 ```
+
+```text
+
 /Users/sean/Source/SpecStory/specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
   27:17  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
 
 ✖ 1 problem (1 error, 0 warnings)
 
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -5799,10 +8071,74 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:19Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-/**
+- * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
+- * host-free `specstory://` URI — never the page URL — so the copied command carries no host and
+- * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
+- * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
+- * self-hosted copies work with zero manual flags while production commands stay clean.
+- */
+-export function buildResumeCommand(projectId: string, sessionId: string): string {
++/**
++ * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
++ * host-free `specstory://` URI — never the page URL — so the copied command carries no host and
++ * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
++ * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
++ * self-hosted copies work with zero manual flags while production commands stay clean.
++ */
++function buildResumeCommand(projectId: string, sessionId: string): string {
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  23  * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
+  24  * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
+  25  * self-hosted copies work with zero manual flags while production commands stay clean.
+  26  */
+- 27 export function buildResumeCommand(projectId: string, sessionId: string): string {
++ 27 function buildResumeCommand(projectId: string, sessionId: string): string {
+  28   const uri = `specstory://projects/${projectId}/sessions/${sessionId}`;
+  29   const origin = window.location.origin;
+  30   if (origin !== PRODUCTION_CLOUD_ORIGIN) {
+  31     return `specstory resume --session ${uri} --cloud-url ${origin}`;
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -23,9 +23,9 @@
+  * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
+  * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
+  * self-hosted copies work with zero manual flags while production commands stay clean.
+  */
+-export function buildResumeCommand(projectId: string, sessionId: string): string {
++function buildResumeCommand(projectId: string, sessionId: string): string {
+   const uri = `specstory://projects/${projectId}/sessions/${sessionId}`;
+   const origin = window.location.origin;
+   if (origin !== PRODUCTION_CLOUD_ORIGIN) {
+     return `specstory resume --session ${uri} --cloud-url ${origin}`;
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 27
+}
 ```
 </details></tool-use>
 
@@ -5810,8 +8146,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:23Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx eslint src/components/session/SessionHeader.tsx src/components/session/SessionView.tsx src/components/resume/ResumeCommandDialog.tsx src/services/api.ts 2>&1 | head -20; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx eslint src/components/session/SessionHeader.tsx src/components/session/SessionView.tsx src/components/resume/ResumeCommandDialog.tsx src/services/api.ts 2>&1 | head -20; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -5823,7 +8165,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head; echo "TSC EXIT=$?"; npm test -- --run 2>&1 | tail -15`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head; echo "TSC EXIT=$?"; npm test -- --run 2>&1 | tail -15
 ```
+
+```text
 TSC EXIT=0
 
  Test Files   (5)
@@ -5840,6 +8187,7 @@ npm error workspace specstory-sync@0.0.0
 npm error location /Users/sean/Source/SpecStory/specstory-sync/sync-cloud
 npm error command failed
 npm error command sh -c vitest run --run
+
 ```
 </details></tool-use>
 
@@ -5847,7 +8195,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npm test 2>&1 | grep -iE "error|fail|SessionHeader|ResumeCommand|api" | head -20`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npm test 2>&1 | grep -iE "error|fail|SessionHeader|ResumeCommand|api" | head -20
 ```
+
+```text
 ⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
 Vitest caught 5 unhandled errors during the test run.
 This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
@@ -5868,6 +8221,7 @@ Error: Cannot find package 'jsdom' imported from /Users/sean/Source/SpecStory/sp
 Serialized Error: { code: 'ERR_MODULE_NOT_FOUND' }
      Errors  5 errors
 npm error Lifecycle script `test` failed with error:
+
 ```
 </details></tool-use>
 
@@ -5892,9 +8246,10 @@ The test failures are a pre-existing environment issue (`jsdom` package not inst
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:49Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `cd ../../specstory-sync && grep -rn "jsdom" sync-cloud/package.json package.json 2>/dev/null | head; echo "--- git status (my changes) ---"; cd ../../specstory-sync && git status --short 2>&1 | head -20`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 sync-cloud/package.json:92:    "jsdom": "^29.1.1",
 --- git status (my changes) ---
 /bin/bash: line 0: cd: ../../specstory-sync: No such file or directory
@@ -5902,14 +8257,32 @@ sync-cloud/package.json:92:    "jsdom": "^29.1.1",
 
 Command exited with code 1
 ```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "cd ../../specstory-sync \u0026\u0026 grep -rn \"jsdom\" sync-cloud/package.json package.json 2\u003e/dev/null | head; echo \"--- git status (my changes) ---\"; cd ../../specstory-sync \u0026\u0026 git status --short 2\u003e\u00261 | head -20"
+}
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:01:52Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git status --short 2>&1 | head -20; echo "--- is jsdom installed? ---"; ls node_modules/jsdom 2>&1 | head -1; ls sync-cloud/node_modules/jsdom 2>&1 | head -1`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git status --short 2>&1 | head -20; echo "--- is jsdom installed? ---"; ls node_modules/jsdom 2>&1 | head -1; ls sync-cloud/node_modules/jsdom 2>&1 | head -1
 ```
-M sync-cloud/src/components/session/SessionHeader.tsx
+
+```text
+ M sync-cloud/src/components/session/SessionHeader.tsx
  M sync-cloud/src/components/session/SessionView.tsx
  M sync-cloud/src/services/api.ts
 ?? .specstory/history/2026-07-09_22-31-58Z.md
@@ -5919,6 +8292,7 @@ M sync-cloud/src/components/session/SessionHeader.tsx
 --- is jsdom installed? ---
 ls: node_modules/jsdom: No such file or directory
 ls: sync-cloud/node_modules/jsdom: No such file or directory
+
 ```
 </details></tool-use>
 
@@ -5969,7 +8343,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:13Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory && go test ./... 2>&1 | tail -6 && echo "--- LINT ---" && golangci-lint run 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory && go test ./... 2>&1 | tail -6 && echo "--- LINT ---" && golangci-lint run 2>&1 | tail -3
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/skills	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi	0.020s
 ?   	github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory	[no test files]
@@ -5978,6 +8357,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/telemetry	(cached)
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/utils	(cached)
 --- LINT ---
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -5997,10 +8377,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "resume\|--session\|--cloud-url\|registerResumeLaunchFlags\|Flags" README.md | head -20`</summary>
+**Command:**
+```bash
+grep -n "resume\|--session\|--cloud-url\|registerResumeLaunchFlags\|Flags" README.md | head -20
 ```
+
+```text
 123:dev/staging cloud without passing `--cloud-url` each time, set an environment variable:
 131:Resolution order is `--cloud-url` flag → `SPECSTORY_CLOUD_URL` → production default, so a
 132:one-off `--cloud-url` still wins for a single command. `login` prints the target host when it
+
 ```
 </details></tool-use>
 
@@ -6008,7 +8394,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "specstory resume\|## \|resume " README.md | head -30`</summary>
+**Command:**
+```bash
+grep -n "specstory resume\|## \|resume " README.md | head -30
 ```
+
+```text
 7:## SpecStory CLI
 13:## Features
 22:## Agent Support
@@ -6039,6 +8430,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:19Z)**_
 512:## Testing
 545:## Linting
 549:### Running the linter
+
 ```
 </details></tool-use>
 
@@ -6046,9 +8438,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:20Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Offset (line):**
+```text
+43
+```
+
+**Limit:**
+```text
+45
+```
+
+````markdown
 ### Quickstart Usage
 
 Basic usage: `specstory [flags]`
@@ -6096,7 +8501,7 @@ SpecStory Cloud mines your synced sessions into reusable skills. The `skills` co
 ```zsh
 
 [512 more lines in file. Use offset=88 to continue.]
-```
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:29Z)**_
@@ -6119,10 +8524,59 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:29Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`docs/CLOUD-RESUME.md`
+**Path:**
+```text
+docs/CLOUD-RESUME.md
+```
+
+**Edit 1:**
+```diff
+-> Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–3 implemented; Chunk 4 (rollup data quality) and Chunk 5 (resume by session URI) designed.
++> Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–4 implemented; Chunk 5 (resume by session URI) implemented.
+```
+
+```text
+Successfully replaced 1 block(s) in docs/CLOUD-RESUME.md.
+```
+
+**diff:**
+```diff
+   1 # Cloud Resume & Search
+   2 
+   3 Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
+   4 
+-  5 > Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–3 implemented; Chunk 4 (rollup data quality) and Chunk 5 (resume by session URI) designed.
++  5 > Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–4 implemented; Chunk 5 (resume by session URI) implemented.
+   6 
+   7 ## Goal
+   8 
+   9 Extend the CLI's local-only `resume` and `search` functionality to also surface sessions that live in SpecStory Cloud (pushed there by other machines via cloud sync). This spans:
+     ...
+```
+
+**patch:**
+```diff
+--- docs/CLOUD-RESUME.md
++++ docs/CLOUD-RESUME.md
+@@ -1,9 +1,9 @@
+ # Cloud Resume & Search
+ 
+ Planning document for extending the CLI's `specstory resume` and `specstory search` to include sessions stored in SpecStory Cloud.
+ 
+-> Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–3 implemented; Chunk 4 (rollup data quality) and Chunk 5 (resume by session URI) designed.
++> Status: **DRAFT** — design converged (D1–D36), no open questions, implementation plan in §4 (five development chunks). Chunks 1–4 implemented; Chunk 5 (resume by session URI) implemented.
+ 
+ ## Goal
+ 
+ Extend the CLI's local-only `resume` and `search` functionality to also surface sessions that live in SpecStory Cloud (pushed there by other machines via cloud sync). This spans:
 
 ```
-Successfully replaced 1 block(s) in docs/CLOUD-RESUME.md.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 5
+}
 ```
 </details></tool-use>
 
@@ -6142,10 +8596,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:32Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
-if err != nil {
+
+**Offset (line):**
+```text
+128
+```
+
+**Limit:**
+```text
+40
+```
+
+```go
+			if err != nil {
 				return err
 			}
 			defer func() { _ = store.Close() }()
@@ -6202,8 +8669,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:02:35Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go vet ./pkg/cmd/... 2>&1 | head; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+go vet ./pkg/cmd/... 2>&1 | head; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -6263,9 +8736,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:08:34Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Offset (line):**
+```text
+13
+```
+
+**Limit:**
+```text
+120
+```
+
+````markdown
 ## Features
 
 - Cross-platform support (Linux, macOS)
@@ -6376,9 +8862,9 @@ watch it live). Runs mine your synced sessions in the cloud and take a few minut
 ### Targeting a non-production cloud
 
 By default the CLI talks to `https://cloud.specstory.com`. To point every command at a
-dev/staging cloud without passing
-... (truncated)
-```
+dev/staging cloud without passing `--clou
+… (output truncated)
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:08:37Z)**_
@@ -6404,7 +8890,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:08:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `ls docs/ | grep -iE "resume|search|session"; echo "---"; head -60 docs/RESUME-TUI.md 2>/dev/null`</summary>
+**Command:**
+```bash
+ls docs/ | grep -iE "resume|search|session"; echo "---"; head -60 docs/RESUME-TUI.md 2>/dev/null
 ```
+
+```text
 CLOUD-RESUME.md
 RESUME-TUI.md
 SESSION-PORTABILITY.md
@@ -6472,6 +8963,7 @@ it replaces the old plain numbered-menu selection in `pkg/cmd/resume.go`.
   mode-switches between the two.
 - **Search results show the match, not the title.** Each result row renders the FTS
   `snippet()` (matched terms highlighted) in place of the session title once the visible-row
+
 ```
 </details></tool-use>
 
@@ -6483,10 +8975,224 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:08:42Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Edit 1:**
+````diff
+-With a specific session UUID:
+-
+-```zsh
+-specstory sync -s <session-uuid>
+-```
+-
+-### Skills
++With a specific session UUID:
++
++```zsh
++specstory sync -s <session-uuid>
++```
++
++### Resume & Search
++
++SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
++a past session — in the same agent or a different one — without re-reading the transcript. Two
++commands share the same interactive picker:
++
++```zsh
++# Open a picker of the current project's sessions across all agents. Pick one, choose which
++# installed agent to continue it in, and go. `tab` switches to the all-projects browser.
++specstory resume
++
++# Pre-select the target agent — the picker then skips the target step and resumes straight
++# into that agent.
++specstory resume codex
++
++# Full-text search across every indexed session, then read or resume a match. Anything after
++# the command pre-seeds the query.
++specstory search
++specstory search max cpu
++```
++
++Inside the picker: `↑↓` move, `r` resumes, `space` previews (glamour-rendered), `/` searches,
++`a` cycles the agent filter, `v` toggles dense/sparse, and `d` soft-deletes (hides from the
++picker; native files on disk are untouched). See `docs/RESUME-TUI.md` and
++`docs/SESSION-SEARCH.md` for the full keymap.
++
++#### Resume a specific session directly (`--session`)
++
++Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
++without one the target-agent picker opens pinned to that session.
++
++```zsh
++# Canonical form (what the SpecStory Cloud web app's Resume button copies):
++specstory resume --session specstory://projects/{projectId}/sessions/{sessionId}
++
++# A cloud permalink pasted straight from a browser URL bar:
++specstory resume --session https://cloud.specstory.com/projects/{projectId}/sessions/{sessionId}
++
++# Shorthand — a bare session UUID, resolved local-first then cloud:
++specstory resume --session 550e8400-e29b-41d4-a716-446655440000
++
++# Fully non-interactive: pin both the session and the target agent.
++specstory resume claude --session specstory://projects/{projectId}/sessions/{sessionId}
++```
++
++A session that exists on this machine resumes in place (offline, instant) even when the URI
++came from the cloud. A session from another machine is fetched from SpecStory Cloud and
++reconstructed into the target agent — that path requires a SpecStory Cloud login
++(`specstory login`) and a Pro plan. A pasted permalink only contributes IDs; the CLI never
++sends your token to the permalink's host — if it differs from your configured cloud, pass
++`--cloud-url` to match (see [Targeting a non-production cloud](#targeting-a-non-production-cloud)).
++
++### Skills
+````
+
+```text
 Successfully replaced 1 block(s) in README.md.
+```
+
+**diff:**
+````diff
+     ...
+  79 ```zsh
+  80 specstory sync -s <session-uuid>
+  81 ```
+  82 
++ 83 ### Resume & Search
++ 84 
++ 85 SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
++ 86 a past session — in the same agent or a different one — without re-reading the transcript. Two
++ 87 commands share the same interactive picker:
++ 88 
++ 89 ```zsh
++ 90 # Open a picker of the current project's sessions across all agents. Pick one, choose which
++ 91 # installed agent to continue it in, and go. `tab` switches to the all-projects browser.
++ 92 specstory resume
++ 93 
++ 94 # Pre-select the target agent — the picker then skips the target step and resumes straight
++ 95 # into that agent.
++ 96 specstory resume codex
++ 97 
++ 98 # Full-text search across every indexed session, then read or resume a match. Anything after
++ 99 # the command pre-seeds the query.
++100 specstory search
++101 specstory search max cpu
++102 ```
++103 
++104 Inside the picker: `↑↓` move, `r` resumes, `space` previews (glamour-rendered), `/` searches,
++105 `a` cycles the agent filter, `v` toggles dense/sparse, and `d` soft-deletes (hides from the
++106 picker; native files on disk are untouched). See `docs/RESUME-TUI.md` and
++107 `docs/SESSION-SEARCH.md` for the full keymap.
++108 
++109 #### Resume a specific session directly (`--session`)
++110 
++111 Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
++112 without one the target-agent picker opens pinned to that session.
++113 
++114 ```zsh
++115 # Canonical form (what the SpecStory Cloud web app's Resume button copies):
++116 specstory resume --session specstory://projects/{projectId}/sessions/{sessionId}
++117 
++118 # A cloud permalink pasted straight from a browser URL bar:
++119 specstory resume --session https://cloud.specstory.com/projects/{projectId}/sessions/{sessionId}
++120 
++121 # Shorthand — a bare session UUID, resolved local-first then cloud:
++122 specstory resume --session 550e8400-e29b-41d4-a716-446655440000
++123 
++124 # Fully non-interactive: pin both the session and the target agent.
++125 specstory resume claude --session specstory://projects/{projectId}/sessions/{sessionId}
++126 ```
++127 
++128 A session that exists on this machine resumes in place (offline, instant) even when the URI
++129 came from the cloud. A session from another machine is fetched from SpecStory Cloud and
++130 reconstructed into the target agent — that path requires a SpecStory Cloud login
++131 (`specstory login`) and a Pro plan. A pasted permalink only contributes IDs; the CLI never
++132 sends your token to the permalink's host — if it differs from your configured cloud, pass
++133 `--cloud-url` to match (see [Targeting a non-production cloud](#targeting-a-non-production-cloud)).
++134 
+  83 ### Skills
+  84 
+  85 SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
+  86 
+     ...
+````
+
+**patch:**
+````diff
+--- README.md
++++ README.md
+@@ -79,8 +79,60 @@
+ ```zsh
+ specstory sync -s <session-uuid>
+ ```
+ 
++### Resume & Search
++
++SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
++a past session — in the same agent or a different one — without re-reading the transcript. Two
++commands share the same interactive picker:
++
++```zsh
++# Open a picker of the current project's sessions across all agents. Pick one, choose which
++# installed agent to continue it in, and go. `tab` switches to the all-projects browser.
++specstory resume
++
++# Pre-select the target agent — the picker then skips the target step and resumes straight
++# into that agent.
++specstory resume codex
++
++# Full-text search across every indexed session, then read or resume a match. Anything after
++# the command pre-seeds the query.
++specstory search
++specstory search max cpu
++```
++
++Inside the picker: `↑↓` move, `r` resumes, `space` previews (glamour-rendered), `/` searches,
++`a` cycles the agent filter, `v` toggles dense/sparse, and `d` soft-deletes (hides from the
++picker; native files on disk are untouched). See `docs/RESUME-TUI.md` and
++`docs/SESSION-SEARCH.md` for the full keymap.
++
++#### Resume a specific session directly (`--session`)
++
++Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
++without one the target-agent picker opens pinned to that session.
++
++```zsh
++# Canonical form (what the SpecStory Cloud web app's Resume button copies):
++specstory resume --session specstory://projects/{projectId}/sessions/{sessionId}
++
++# A cloud permalink pasted straight from a browser URL bar:
++specstory resume --session https://cloud.specstory.com/projects/{projectId}/sessions/{sessionId}
++
++# Shorthand — a bare session UUID, resolved local-first then cloud:
++specstory resume --session 550e8400-e29b-41d4-a716-446655440000
++
++# Fully non-interactive: pin both the session and the target agent.
++specstory resume claude --session specstory://projects/{projectId}/sessions/{sessionId}
++```
++
++A session that exists on this machine resumes in place (offline, instant) even when the URI
++came from the cloud. A session from another machine is fetched from SpecStory Cloud and
++reconstructed into the target agent — that path requires a SpecStory Cloud login
++(`specstory login`) and a Pro plan. A pasted permalink only contributes IDs; the CLI never
++sends your token to the permalink's host — if it differs from your configured cloud, pass
++`--cloud-url` to match (see [Targeting a non-production cloud](#targeting-a-non-production-cloud)).
++
+ ### Skills
+ 
+ SpecStory Cloud mines your synced sessions into reusable skills. The `skills` command lets you browse, approve, and install them into your coding agents. It requires a SpecStory Cloud login (`specstory login`) and a Pro plan.
+ 
+
+````
+
+**Details:**
+```json
+{
+  "firstChangedLine": 83
+}
 ```
 </details></tool-use>
 
@@ -6502,9 +9208,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:08:45Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`README.md`
-
+**Path:**
+```text
+README.md
 ```
+
+**Offset (line):**
+```text
+73
+```
+
+**Limit:**
+```text
+55
+```
+
+````markdown
 # Defaults to syncing for all providers if no provider is specified
 specstory sync <provider>
 ```
@@ -6562,7 +9281,7 @@ specstory resume claude --session specstory://projects/{projectId}/sessions/{ses
 
 
 [524 more lines in file. Use offset=128 to continue.]
-```
+````
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:08:49Z)**_
@@ -6599,7 +9318,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "title=\|content=\|<Tooltip\|Resume this session\|Download session markdown\|Delete session" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | head -40`</summary>
+**Command:**
+```bash
+grep -n "title=\|content=\|<Tooltip\|Resume this session\|Download session markdown\|Delete session" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | head -40
 ```
+
+```text
 427:                      title="Save (Enter)"
 439:                      title="Cancel (Esc)"
 450:                    title="Click to edit title"
@@ -6616,6 +9340,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:37Z)**_
 563:                    title="Delete session"
 604:                            <Tooltip content="Copy share link" side="bottom">
 637:        title="Delete Session"
+
 ```
 </details></tool-use>
 
@@ -6623,10 +9348,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:40Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-<span className="hidden md:inline text-xs">
+
+**Offset (line):**
+```text
+508
+```
+
+**Limit:**
+```text
+60
+```
+
+```typescript
+                  <span className="hidden md:inline text-xs">
                     via {getToolDisplayName(sessionData.metadata.agentName)}
                   </span>
                 )}
@@ -6695,11 +9433,37 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:44Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Error:**
 
-Error:
-```
+```text
 Could not find edits[1] in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx. The oldText must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "                  \u003cbutton\n                    onClick={() =\u003e handleDownloadSessionMarkdown()}\n                    disabled={preparingDownload}\n                    className=\"ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex\"\n                  \u003e",
+      "oldText": "                  \u003cbutton\n                    onClick={() =\u003e handleDownloadSessionMarkdown()}\n                    disabled={preparingDownload}\n                    className=\"ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex\"\n                    title=\"Download session markdown\"\n                  \u003e"
+    },
+    {
+      "newText": "                      content={\n                        isResumable\n                          ? \"Resume this session in an agent\"\n                          : \"This session predates resume support — re-sync it from its machine with a current CLI to enable.\"\n                      }\n                      side=\"bottom\"\n                    \u003e\n                      \u003cbutton\n                        onClick={() =\u003e {\n                          if (!sessionData?.projectId || !sessionData?.clientId) return;\n                          if (can(\"resume\")) {\n                            setShowResumeDialog(true);\n                          } else {\n                            router.push(\"/resume\");\n                          }\n                        }}\n                        disabled={!isResumable}\n                        className=\"p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent\"\n                      \u003e",
+      "oldText": "                      content={\n                        isResumable\n                          ? \"Resume this session in a terminal\"\n                          : \"This session predates resume support — re-sync it from its machine with a current CLI to enable.\"\n                      }\n                      side=\"bottom\"\n                    \u003e\n                      \u003cbutton\n                        onClick={() =\u003e {\n                          if (!sessionData?.projectId || !sessionData?.clientId) return;\n                          if (can(\"resume\")) {\n                            setShowResumeDialog(true);\n                          } else {\n                            router.push(\"/resume\");\n                          }\n                        }}\n                        disabled={!isResumable}\n                        className=\"p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent\"\n                        title=\"Resume this session\"\n                      \u003e"
+    },
+    {
+      "newText": "                \u003cTooltip content=\"Delete session\" side=\"bottom\"\u003e\n                  \u003cbutton\n                    onClick={() =\u003e setShowDeleteDialog(true)}\n                    className=\"p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors\"\n                  \u003e",
+      "oldText": "                \u003cTooltip content=\"Delete session\" side=\"bottom\"\u003e\n                  \u003cbutton\n                    onClick={() =\u003e setShowDeleteDialog(true)}\n                    className=\"p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors\"\n                    title=\"Delete session\"\n                  \u003e"
+    }
+  ],
+  "path": "../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx"
+}
 ```
 </details></tool-use>
 
@@ -6713,11 +9477,41 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:47Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Error:**
 
-Error:
-```
+```text
 Could not find edits[2] in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx. The oldText must match exactly including all whitespace and newlines.
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "edits": [
+    {
+      "newText": "                    className=\"ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex\"\n                  \u003e",
+      "oldText": "                    className=\"ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex\"\n                    title=\"Download session markdown\"\n                  \u003e"
+    },
+    {
+      "newText": "                        ? \"Resume this session in an agent\"",
+      "oldText": "                        ? \"Resume this session in a terminal\""
+    },
+    {
+      "newText": "                        className=\"p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent\"\n                      \u003e",
+      "oldText": "                        className=\"p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent\"\n                        title=\"Resume this session\"\n                      \u003e"
+    },
+    {
+      "newText": "                    className=\"p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors\"\n                  \u003e",
+      "oldText": "                    className=\"p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors\"\n                    title=\"Delete session\"\n                  \u003e"
+    }
+  ],
+  "path": "../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx"
+}
 ```
 </details></tool-use>
 
@@ -6731,10 +9525,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:50Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-if (!sessionData?.projectId || !sessionData?.clientId) return;
+
+**Offset (line):**
+```text
+544
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
+                        if (!sessionData?.projectId || !sessionData?.clientId) return;
                         if (can("resume")) {
                           setShowResumeDialog(true);
                         } else {
@@ -6766,10 +9573,61 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:52Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-                      title="Resume this session"
+-                    >
++                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++                    >
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 549                         }
+ 550                       }}
+ 551                       disabled={!isResumable}
+ 552                       className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-553                       title="Resume this session"
+ 554                     >
+ 555                       <RotateCcw className="w-4 h-4" />
+ 556                     </button>
+ 557                   </Tooltip>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -549,9 +549,8 @@
+                         }
+                       }}
+                       disabled={!isResumable}
+                       className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-                      title="Resume this session"
+                     >
+                       <RotateCcw className="w-4 h-4" />
+                     </button>
+                   </Tooltip>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 553
+}
 ```
 </details></tool-use>
 
@@ -6781,10 +9639,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:11:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n 'title="Download session markdown"\|title="Resume this session"\|title="Delete session"\|Resume this session in a terminal\|Resume this session in an agent' ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`</summary>
+**Command:**
+```bash
+grep -n 'title="Download session markdown"\|title="Resume this session"\|title="Delete session"\|Resume this session in a terminal\|Resume this session in an agent' ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+```text
 524:                    title="Download session markdown"
 537:                        ? "Resume this session in a terminal"
 562:                    title="Delete session"
+
 ```
 </details></tool-use>
 
@@ -6810,10 +9674,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:12:00Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                        ? "Resume this session in a terminal"
++                        ? "Resume this session in an agent"
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 533                 {isOwner && resumeEnabled && (
+ 534                   <Tooltip
+ 535                     content={
+ 536                       isResumable
+-537                         ? "Resume this session in a terminal"
++537                         ? "Resume this session in an agent"
+ 538                         : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
+ 539                     }
+ 540                     side="bottom"
+ 541                   >
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -533,9 +533,9 @@
+                 {isOwner && resumeEnabled && (
+                   <Tooltip
+                     content={
+                       isResumable
+-                        ? "Resume this session in a terminal"
++                        ? "Resume this session in an agent"
+                         : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
+                     }
+                     side="bottom"
+                   >
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 537
+}
 ```
 </details></tool-use>
 
@@ -6821,10 +9735,61 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:12:03Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                    className="ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex"
+-                    title="Download session markdown"
+-                  >
++                    className="ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex"
++                  >
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 520                   <button
+ 521                     onClick={() => handleDownloadSessionMarkdown()}
+ 522                     disabled={preparingDownload}
+ 523                     className="ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex"
+-524                     title="Download session markdown"
+ 525                   >
+ 526                     {preparingDownload ? (
+ 527                       <Loader2 className="w-4 h-4 animate-spin" />
+ 528                     ) : (
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -520,9 +520,8 @@
+                   <button
+                     onClick={() => handleDownloadSessionMarkdown()}
+                     disabled={preparingDownload}
+                     className="ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex"
+-                    title="Download session markdown"
+                   >
+                     {preparingDownload ? (
+                       <Loader2 className="w-4 h-4 animate-spin" />
+                     ) : (
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 524
+}
 ```
 </details></tool-use>
 
@@ -6832,10 +9797,61 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:12:06Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+-                    title="Delete session"
+-                  >
++                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
++                  >
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 557                 <Tooltip content="Delete session" side="bottom">
+ 558                   <button
+ 559                     onClick={() => setShowDeleteDialog(true)}
+ 560                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+-561                     title="Delete session"
+ 562                   >
+ 563                     <Trash2 className="w-4 h-4" />
+ 564                   </button>
+ 565                 </Tooltip>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -557,9 +557,8 @@
+                 <Tooltip content="Delete session" side="bottom">
+                   <button
+                     onClick={() => setShowDeleteDialog(true)}
+                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+-                    title="Delete session"
+                   >
+                     <Trash2 className="w-4 h-4" />
+                   </button>
+                 </Tooltip>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 561
+}
 ```
 </details></tool-use>
 
@@ -6843,10 +9859,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:12:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && grep -n 'title="Download session markdown"\|title="Resume this session"\|title="Delete session"\|Resume this session in a terminal\|Resume this session in an agent' src/components/session/SessionHeader.tsx; echo "--- typecheck+lint ---"; npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/session/SessionHeader.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && grep -n 'title="Download session markdown"\|title="Resume this session"\|title="Delete session"\|Resume this session in a terminal\|Resume this session in an agent' src/components/session/SessionHeader.tsx; echo "--- typecheck+lint ---"; npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/session/SessionHeader.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 536:                        ? "Resume this session in an agent"
 --- typecheck+lint ---
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -6879,9 +9901,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:13:21Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
+
+```typescript
 import { useEffect, useState } from "react";
 import { Copy, Check, RotateCcw } from "lucide-react";
 import {
@@ -7014,8 +10039,8 @@ export function ResumeCommandDialog({
             </li>
             <li>
               Log into SpecStory Cloud there with{" "}
-              <code className="font-mono">specstory lo
-... (truncated)
+              <code className="font-mono">specstory login</c
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -7054,10 +10079,139 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:13:44Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-/**
+- * Production cloud origin. When the web app is served from this origin, the copied command
+- * carries no --cloud-url (the CLI's default points here already). Any other origin (cloud-dev,
+- * self-hosted) appends `--cloud-url <origin>` so the command works against that deployment.
+- * Mirrors the CLI's `cloud.DefaultAPIBaseURL` constant.
+- */
+-const PRODUCTION_CLOUD_ORIGIN = "https://cloud.specstory.com";
+-
+-/**
+- * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
+- * host-free `specstory://` URI — never the page URL — so the copied command carries no host and
+- * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
+- * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
+- * self-hosted copies work with zero manual flags while production commands stay clean.
+- */
+-function buildResumeCommand(projectId: string, sessionId: string): string {
+-  const uri = `specstory://projects/${projectId}/sessions/${sessionId}`;
+-  const origin = window.location.origin;
+-  if (origin !== PRODUCTION_CLOUD_ORIGIN) {
+-    return `specstory resume --session ${uri} --cloud-url ${origin}`;
+-  }
+-  return `specstory resume --session ${uri}`;
+-}
++/**
++ * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
++ * host-free `specstory://` URI — never the page URL — so the copied command carries no host at
++ * all. Users of dev/staging clouds already point their CLI at the right server (via --cloud-url
++ * or SPECSTORY_CLOUD_URL), so the copied command never needs to carry one; it's the same clean
++ * form in every environment.
++ */
++function buildResumeCommand(projectId: string, sessionId: string): string {
++  return `specstory resume --session specstory://projects/${projectId}/sessions/${sessionId}`;
++}
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+   9 } from "@/ui-components/ui/dialog";
+  10 import { copyToClipboard } from "@/lib/utils/share";
+  11 
+  12 /**
+- 13  * Production cloud origin. When the web app is served from this origin, the copied command
+- 14  * carries no --cloud-url (the CLI's default points here already). Any other origin (cloud-dev,
+- 15  * self-hosted) appends `--cloud-url <origin>` so the command works against that deployment.
+- 16  * Mirrors the CLI's `cloud.DefaultAPIBaseURL` constant.
+- 17  */
+- 18 const PRODUCTION_CLOUD_ORIGIN = "https://cloud.specstory.com";
+- 19 
+- 20 /**
+  21  * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
+- 22  * host-free `specstory://` URI — never the page URL — so the copied command carries no host and
+- 23  * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
+- 24  * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
+- 25  * self-hosted copies work with zero manual flags while production commands stay clean.
++ 14  * host-free `specstory://` URI — never the page URL — so the copied command carries no host at
++ 15  * all. Users of dev/staging clouds already point their CLI at the right server (via --cloud-url
++ 16  * or SPECSTORY_CLOUD_URL), so the copied command never needs to carry one; it's the same clean
++ 17  * form in every environment.
+  26  */
+  27 function buildResumeCommand(projectId: string, sessionId: string): string {
+- 28   const uri = `specstory://projects/${projectId}/sessions/${sessionId}`;
+- 29   const origin = window.location.origin;
+- 30   if (origin !== PRODUCTION_CLOUD_ORIGIN) {
+- 31     return `specstory resume --session ${uri} --cloud-url ${origin}`;
+- 32   }
+- 33   return `specstory resume --session ${uri}`;
++ 20   return `specstory resume --session specstory://projects/${projectId}/sessions/${sessionId}`;
+  34 }
+  35 
+  36 /**
+  37  * Resume-command dialog for the session page's Resume button (D35). Auto-copies the command on
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -9,29 +9,16 @@
+ } from "@/ui-components/ui/dialog";
+ import { copyToClipboard } from "@/lib/utils/share";
+ 
+ /**
+- * Production cloud origin. When the web app is served from this origin, the copied command
+- * carries no --cloud-url (the CLI's default points here already). Any other origin (cloud-dev,
+- * self-hosted) appends `--cloud-url <origin>` so the command works against that deployment.
+- * Mirrors the CLI's `cloud.DefaultAPIBaseURL` constant.
+- */
+-const PRODUCTION_CLOUD_ORIGIN = "https://cloud.specstory.com";
+-
+-/**
+  * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
+- * host-free `specstory://` URI — never the page URL — so the copied command carries no host and
+- * the CLI's D30 host check never enters the picture for the product-emitted flow. On non-production
+- * origins the target host is expressed via `--cloud-url` (window.location.origin), so cloud-dev /
+- * self-hosted copies work with zero manual flags while production commands stay clean.
++ * host-free `specstory://` URI — never the page URL — so the copied command carries no host at
++ * all. Users of dev/staging clouds already point their CLI at the right server (via --cloud-url
++ * or SPECSTORY_CLOUD_URL), so the copied command never needs to carry one; it's the same clean
++ * form in every environment.
+  */
+ function buildResumeCommand(projectId: string, sessionId: string): string {
+-  const uri = `specstory://projects/${projectId}/sessions/${sessionId}`;
+-  const origin = window.location.origin;
+-  if (origin !== PRODUCTION_CLOUD_ORIGIN) {
+-    return `specstory resume --session ${uri} --cloud-url ${origin}`;
+-  }
+-  return `specstory resume --session ${uri}`;
++  return `specstory resume --session specstory://projects/${projectId}/sessions/${sessionId}`;
+ }
+ 
+ /**
+  * Resume-command dialog for the session page's Resume button (D35). Auto-copies the command on
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 13
+}
 ```
 </details></tool-use>
 
@@ -7065,8 +10219,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:13:47Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -7094,12 +10254,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:14:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "Paste this command\|sessionName" ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`</summary>
+**Command:**
+```bash
+grep -n "Paste this command\|sessionName" ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
+
+```text
 34:  sessionName,
 40:  sessionName: string;
 80:            Paste this command into a terminal on the machine where you want to continue the
 82:            {sessionName && (
 85:                <span className="text-muted-foreground">{sessionName}</span>
+
 ```
 </details></tool-use>
 
@@ -7107,10 +10273,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:14:41Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
-<RotateCcw size={16} className="text-brand flex-shrink-0" /> Resume session
+
+**Offset (line):**
+```text
+77
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+            <RotateCcw size={16} className="text-brand flex-shrink-0" /> Resume session
           </DialogTitle>
           <DialogDescription className="break-words">
             Paste this command into a terminal on the machine where you want to continue the
@@ -7131,10 +10310,90 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:14:44Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-          <DialogDescription className="break-words">
+-            Paste this command into a terminal on the machine where you want to continue the
+-            session.
+-            {sessionName && (
+-              <>
+-                {" "}
+-                <span className="text-muted-foreground">{sessionName}</span>
+-              </>
+-            )}
+-          </DialogDescription>
++          <DialogDescription className="break-words">
++            Paste this command into a terminal on the computer where you want to continue the
++            session.
++            {sessionName && (
++              <>
++                {" "}
++                <span className="font-semibold text-foreground">{sessionName}</span>
++              </>
++            )}
++          </DialogDescription>
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  76           <DialogTitle className="flex items-center gap-2 text-base">
+  77             <RotateCcw size={16} className="text-brand flex-shrink-0" /> Resume session
+  78           </DialogTitle>
+  79           <DialogDescription className="break-words">
+- 80             Paste this command into a terminal on the machine where you want to continue the
++ 80             Paste this command into a terminal on the computer where you want to continue the
+  81             session.
+  82             {sessionName && (
+  83               <>
+  84                 {" "}
+- 85                 <span className="text-muted-foreground">{sessionName}</span>
++ 85                 <span className="font-semibold text-foreground">{sessionName}</span>
+  86               </>
+  87             )}
+  88           </DialogDescription>
+  89         </DialogHeader>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -76,14 +76,14 @@
+           <DialogTitle className="flex items-center gap-2 text-base">
+             <RotateCcw size={16} className="text-brand flex-shrink-0" /> Resume session
+           </DialogTitle>
+           <DialogDescription className="break-words">
+-            Paste this command into a terminal on the machine where you want to continue the
++            Paste this command into a terminal on the computer where you want to continue the
+             session.
+             {sessionName && (
+               <>
+                 {" "}
+-                <span className="text-muted-foreground">{sessionName}</span>
++                <span className="font-semibold text-foreground">{sessionName}</span>
+               </>
+             )}
+           </DialogDescription>
+         </DialogHeader>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 80
+}
 ```
 </details></tool-use>
 
@@ -7142,8 +10401,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:14:47Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -7163,12 +10428,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:15:18Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "target-agent picker\|add an agent\|skip it\|<li>" ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`</summary>
+**Command:**
+```bash
+grep -n "target-agent picker\|add an agent\|skip it\|<li>" ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
+
+```text
 106:            <li>
 118:            <li>
 123:            <li>
 124:              The command opens a target-agent picker; add an agent (e.g.{" "}
 125:              <code className="font-mono">claude</code>) to skip it.
+
 ```
 </details></tool-use>
 
@@ -7176,10 +10447,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:15:20Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
-<li>
+
+**Offset (line):**
+```text
+118
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+            <li>
               Log into SpecStory Cloud there with{" "}
               <code className="font-mono">specstory login</code> to resume sessions from your
               other machines (SpecStory Pro).
@@ -7200,10 +10484,78 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:15:23Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-            <li>
+-              Log into SpecStory Cloud there with{" "}
+-              <code className="font-mono">specstory login</code> to resume sessions from your
+-              other machines (SpecStory Pro).
+-            </li>
+-            <li>
+-              The command opens a target-agent picker; add an agent (e.g.{" "}
+-              <code className="font-mono">claude</code>) to skip it.
+-            </li>
+-          </ul>
++            <li>
++              Log into SpecStory Cloud there with{" "}
++              <code className="font-mono">specstory login</code> to resume sessions from your
++              other machines (SpecStory Pro).
++            </li>
++          </ul>
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 119               Log into SpecStory Cloud there with{" "}
+ 120               <code className="font-mono">specstory login</code> to resume sessions from your
+ 121               other machines (SpecStory Pro).
+ 122             </li>
+-123             <li>
+-124               The command opens a target-agent picker; add an agent (e.g.{" "}
+-125               <code className="font-mono">claude</code>) to skip it.
+-126             </li>
+ 127           </ul>
+ 128         </div>
+ 129       </DialogContent>
+ 130     </Dialog>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -119,12 +119,8 @@
+               Log into SpecStory Cloud there with{" "}
+               <code className="font-mono">specstory login</code> to resume sessions from your
+               other machines (SpecStory Pro).
+             </li>
+-            <li>
+-              The command opens a target-agent picker; add an agent (e.g.{" "}
+-              <code className="font-mono">claude</code>) to skip it.
+-            </li>
+           </ul>
+         </div>
+       </DialogContent>
+     </Dialog>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 123
+}
 ```
 </details></tool-use>
 
@@ -7211,8 +10563,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:15:26Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -7232,10 +10590,73 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:18:26Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-            <li>
+-              Log into SpecStory Cloud there with{" "}
+-              <code className="font-mono">specstory login</code> to resume sessions from your
+-              other machines (SpecStory Pro).
+-            </li>
++            <li>
++              Be sure to login to SpecStory Cloud with{" "}
++              <code className="font-mono">specstory login</code> first.
++            </li>
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 115               </a>{" "}
+ 116               installed on that machine.
+ 117             </li>
+ 118             <li>
+-119               Log into SpecStory Cloud there with{" "}
+-120               <code className="font-mono">specstory login</code> to resume sessions from your
+-121               other machines (SpecStory Pro).
++119               Be sure to login to SpecStory Cloud with{" "}
++120               <code className="font-mono">specstory login</code> first.
+ 122             </li>
+ 123           </ul>
+ 124         </div>
+ 125       </DialogContent>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -115,11 +115,10 @@
+               </a>{" "}
+               installed on that machine.
+             </li>
+             <li>
+-              Log into SpecStory Cloud there with{" "}
+-              <code className="font-mono">specstory login</code> to resume sessions from your
+-              other machines (SpecStory Pro).
++              Be sure to login to SpecStory Cloud with{" "}
++              <code className="font-mono">specstory login</code> first.
+             </li>
+           </ul>
+         </div>
+       </DialogContent>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 119
+}
 ```
 </details></tool-use>
 
@@ -7243,8 +10664,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 16:18:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -7280,9 +10707,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:08Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_uri.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri.go
 ```
+
+**Offset (line):**
+```text
+144
+```
+
+**Limit:**
+```text
+120
+```
+
+```go
 func resolveSessionURI(
 	raw string,
 	store *sessionindex.Store,
@@ -7440,10 +10880,292 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:20Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-func resolveSessionURI(
+-	raw string,
+-	store *sessionindex.Store,
+-	homeProjectID string,
+-	agentIDByName map[string]string,
+-) (*sessionindex.Session, error) {
+-	uri, err := parseSessionURI(raw)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
+-	// permalink's host. If it differs from the configured cloud host, refuse and point at
+-	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
+-	if uri.host != "" {
+-		configured := cloud.GetAPIBaseURL()
+-		if !strings.EqualFold(uri.host, configured) {
+-			return nil, utils.ValidationError{Message: fmt.Sprintf(
+-				"This link points at %s, but the CLI is configured for %s. Pass --cloud-url %s if this is intentional.",
+-				uri.host, configured, uri.host)}
+-		}
+-	}
+-
+-	// (1) Local-first: a session present on this machine resumes in place, offline.
+-	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
+-		return nil, fmt.Errorf("looking up session locally: %w", lerr)
+-	} else if ok {
+-		return &local, nil
+-	}
+-
+-	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
+-	if !cloud.IsAuthenticated() {
+-		return nil, utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
+-	}
+-
+-	var (
+-		cs        *cloud.CloudSession
+-		projectID string
+-	)
+-	if uri.projectID != "" {
+-		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
+-		if err != nil {
+-			return nil, mapCloudResumeErr(err)
+-		}
+-		projectID = uri.projectID
+-	} else {
+-		// Bare UUID: try the current project first, then discover across all projects.
+-		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+-		if err != nil {
+-			return nil, mapCloudResumeErr(err)
+-		}
+-		if cs != nil {
+-			projectID = homeProjectID
+-		} else {
+-			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
+-			if err != nil {
+-				return nil, mapCloudResumeErr(err)
+-			}
+-		}
+-	}
++func resolveSessionURI(
++	raw string,
++	store *sessionindex.Store,
++	homeProjectID string,
++	agentIDByName map[string]string,
++) (*sessionindex.Session, error) {
++	uri, err := parseSessionURI(raw)
++	if err != nil {
++		return nil, err
++	}
++
++	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
++	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
++	// exists locally should resume offline without tripping the host-mismatch guard. The check
++	// only needs to gate the cloud call below (the token never goes to the permalink's host);
++	// a local hit makes no cloud call at all.
++	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
++		return nil, fmt.Errorf("looking up session locally: %w", lerr)
++	} else if ok {
++		return &local, nil
++	}
++
++	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
++	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
++	// refuse if the permalink's host differs from the configured cloud host and point at
++	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
++	if uri.host != "" {
++		configured := cloud.GetAPIBaseURL()
++		if !strings.EqualFold(uri.host, configured) {
++			return nil, utils.ValidationError{Message: fmt.Sprintf(
++				"This link points at %s, but the CLI is configured for %s. Pass --cloud-url %s if this is intentional.",
++				uri.host, configured, uri.host)}
++		}
++	}
++
++	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
++	if !cloud.IsAuthenticated() {
++		return nil, utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
++	}
++
++	var (
++		cs        *cloud.CloudSession
++		projectID string
++	)
++	if uri.projectID != "" {
++		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
++		if err != nil {
++			return nil, mapCloudResumeErr(err)
++		}
++		projectID = uri.projectID
++	} else {
++		// Bare UUID: try the current project first, then discover across all projects. The
++		// current-project probe is best-effort — the cwd's project may never have been synced
++		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
++		// 404). Either way that's "not found here", not an abort: degrade like the TUI's cloud
++		// fetch does (D11) and fall through to the all-projects discovery.
++		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
++		if err != nil {
++			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
++				"homeProjectID", homeProjectID, "error", err)
++			cs = nil
++			err = nil
++		}
++		if cs != nil {
++			projectID = homeProjectID
++		} else {
++			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
++			if err != nil {
++				return nil, mapCloudResumeErr(err)
++			}
++		}
++	}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+     ...
+ 151 	if err != nil {
+ 152 		return nil, err
+ 153 	}
+ 154 
++155 	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
++156 	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
++157 	// exists locally should resume offline without tripping the host-mismatch guard. The check
++158 	// only needs to gate the cloud call below (the token never goes to the permalink's host);
++159 	// a local hit makes no cloud call at all.
++160 	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
++161 		return nil, fmt.Errorf("looking up session locally: %w", lerr)
++162 	} else if ok {
++163 		return &local, nil
++164 	}
++165 
+ 155 	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
+-156 	// permalink's host. If it differs from the configured cloud host, refuse and point at
++167 	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
++168 	// refuse if the permalink's host differs from the configured cloud host and point at
+ 157 	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
+ 158 	if uri.host != "" {
+ 159 		configured := cloud.GetAPIBaseURL()
+ 160 		if !strings.EqualFold(uri.host, configured) {
+     ...
+ 163 				uri.host, configured, uri.host)}
+ 164 		}
+ 165 	}
+ 166 
+-167 	// (1) Local-first: a session present on this machine resumes in place, offline.
+-168 	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
+-169 		return nil, fmt.Errorf("looking up session locally: %w", lerr)
+-170 	} else if ok {
+-171 		return &local, nil
+-172 	}
+-173 
+ 174 	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
+ 175 	if !cloud.IsAuthenticated() {
+ 176 		return nil, utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
+ 177 	}
+     ...
+ 186 			return nil, mapCloudResumeErr(err)
+ 187 		}
+ 188 		projectID = uri.projectID
+ 189 	} else {
+-190 		// Bare UUID: try the current project first, then discover across all projects.
++195 		// Bare UUID: try the current project first, then discover across all projects. The
++196 		// current-project probe is best-effort — the cwd's project may never have been synced
++197 		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
++198 		// 404). Either way that's "not found here", not an abort: degrade like the TUI's cloud
++199 		// fetch does (D11) and fall through to the all-projects discovery.
+ 191 		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+ 192 		if err != nil {
+-193 			return nil, mapCloudResumeErr(err)
++202 			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
++203 				"homeProjectID", homeProjectID, "error", err)
++204 			cs = nil
++205 			err = nil
+ 194 		}
+ 195 		if cs != nil {
+ 196 			projectID = homeProjectID
+ 197 		} else {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -151,10 +151,22 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 
++	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
++	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
++	// exists locally should resume offline without tripping the host-mismatch guard. The check
++	// only needs to gate the cloud call below (the token never goes to the permalink's host);
++	// a local hit makes no cloud call at all.
++	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
++		return nil, fmt.Errorf("looking up session locally: %w", lerr)
++	} else if ok {
++		return &local, nil
++	}
++
+ 	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
+-	// permalink's host. If it differs from the configured cloud host, refuse and point at
++	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
++	// refuse if the permalink's host differs from the configured cloud host and point at
+ 	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
+ 	if uri.host != "" {
+ 		configured := cloud.GetAPIBaseURL()
+ 		if !strings.EqualFold(uri.host, configured) {
+@@ -163,15 +175,8 @@
+ 				uri.host, configured, uri.host)}
+ 		}
+ 	}
+ 
+-	// (1) Local-first: a session present on this machine resumes in place, offline.
+-	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
+-		return nil, fmt.Errorf("looking up session locally: %w", lerr)
+-	} else if ok {
+-		return &local, nil
+-	}
+-
+ 	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
+ 	if !cloud.IsAuthenticated() {
+ 		return nil, utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
+ 	}
+@@ -186,12 +191,19 @@
+ 			return nil, mapCloudResumeErr(err)
+ 		}
+ 		projectID = uri.projectID
+ 	} else {
+-		// Bare UUID: try the current project first, then discover across all projects.
++		// Bare UUID: try the current project first, then discover across all projects. The
++		// current-project probe is best-effort — the cwd's project may never have been synced
++		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
++		// 404). Either way that's "not found here", not an abort: degrade like the TUI's cloud
++		// fetch does (D11) and fall through to the all-projects discovery.
+ 		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+ 		if err != nil {
+-			return nil, mapCloudResumeErr(err)
++			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
++				"homeProjectID", homeProjectID, "error", err)
++			cs = nil
++			err = nil
+ 		}
+ 		if cs != nil {
+ 			projectID = homeProjectID
+ 		} else {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 155
+}
 ```
 </details></tool-use>
 
@@ -7455,9 +11177,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:22Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_uri.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri.go
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+15
+```
+
+```go
 package cmd
 
 import (
@@ -7482,10 +11217,79 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:24Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-import (
+-	"errors"
+-	"fmt"
+-	"net/url"
+-	"regexp"
+-	"strings"
+-
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+-)
++import (
++	"errors"
++	"fmt"
++	"log/slog"
++	"net/url"
++	"regexp"
++	"strings"
++
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
++)
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+     ...
+   2 
+   3 import (
+   4 	"errors"
+   5 	"fmt"
++  6 	"log/slog"
+   6 	"net/url"
+   7 	"regexp"
+   8 	"strings"
+   9 
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -2,8 +2,9 @@
+ 
+ import (
+ 	"errors"
+ 	"fmt"
++	"log/slog"
+ 	"net/url"
+ 	"regexp"
+ 	"strings"
+ 
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 6
+}
 ```
 </details></tool-use>
 
@@ -7493,8 +11297,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head; go test -v -run TestParseSessionURI ./pkg/cmd 2>&1 | tail -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head; go test -v -run TestParseSessionURI ./pkg/cmd 2>&1 | tail -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3
 ```
---- PASS: TestParseSessionURI/wrong_path_grammar (0.00s)
+
+```text
+    --- PASS: TestParseSessionURI/wrong_path_grammar (0.00s)
     --- PASS: TestParseSessionURI/missing_segments (0.00s)
     --- PASS: TestParseSessionURI/unsupported_scheme (0.00s)
 PASS
@@ -7503,6 +11312,7 @@ ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.029s
 			^
 1 issues:
 * ineffassign: 1
+
 ```
 </details></tool-use>
 
@@ -7514,12 +11324,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:34Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `golangci-lint run 2>&1 | head -20`</summary>
+**Command:**
+```bash
+golangci-lint run 2>&1 | head -20
 ```
+
+```text
 pkg/cmd/session_uri.go:206:4: ineffectual assignment to err (ineffassign)
 			err = nil
 			^
 1 issues:
 * ineffassign: 1
+
 ```
 </details></tool-use>
 
@@ -7527,10 +11343,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:36Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_uri.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri.go
 ```
-} else {
+
+**Offset (line):**
+```text
+195
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+	} else {
 		// Bare UUID: try the current project first, then discover across all projects. The
 		// current-project probe is best-effort — the cwd's project may never have been synced
 		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
@@ -7572,10 +11401,73 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:42Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+-		if err != nil {
+-			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
+-				"homeProjectID", homeProjectID, "error", err)
+-			cs = nil
+-			err = nil
+-		}
++		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
++		if err != nil {
++			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
++				"homeProjectID", homeProjectID, "error", err)
++			cs = nil // not found here → fall through to all-projects discovery
++		}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+     ...
+ 201 		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+ 202 		if err != nil {
+ 203 			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
+ 204 				"homeProjectID", homeProjectID, "error", err)
+-205 			cs = nil
+-206 			err = nil
++205 			cs = nil // not found here → fall through to all-projects discovery
+ 207 		}
+ 208 		if cs != nil {
+ 209 			projectID = homeProjectID
+ 210 		} else {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -201,10 +201,9 @@
+ 		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+ 		if err != nil {
+ 			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
+ 				"homeProjectID", homeProjectID, "error", err)
+-			cs = nil
+-			err = nil
++			cs = nil // not found here → fall through to all-projects discovery
+ 		}
+ 		if cs != nil {
+ 			projectID = homeProjectID
+ 		} else {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 205
+}
 ```
 </details></tool-use>
 
@@ -7583,10 +11475,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:49Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head; go test ./... 2>&1 | grep -E "FAIL|ok.*cmd" | head; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head; go test ./... 2>&1 | grep -E "FAIL|ok.*cmd" | head; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.190s
 --- LINT ---
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -7598,6 +11496,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:13:53Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash**</summary>
+**Command:**
 ```bash
 # Bug 1 repro: cloud-dev permalink against default config. With no local session, should still
 # trip the host check (now AFTER the local lookup, so only when a cloud call is actually needed).
@@ -7606,12 +11505,15 @@ echo "--- with --cloud-url matching (proceeds past host check to login gate) ---
 ./specstory --cloud-url https://cloud-dev.specstory.com resume --session "https://cloud-dev.specstory.com/projects/abcd-1234-efab-5678/sessions/550e8400-e29b-41d4-a716-446655440000" 2>&1 | sed -n '4,6p'
 ```
 
-```
-This link points at https://cloud-dev.specstory.com, but the CLI is configured for https://cloud.specstory.com. Pass 
+```text
+  This link points at https://cloud-dev.specstory.com, but the CLI is configured for https://cloud.specstory.com. Pass 
   --cloud-url https://cloud-dev.specstory.com if this is intentional..                                                 
 
 --- with --cloud-url matching (proceeds past host check to login gate) ---
-  Log into SpecStory Cloud (specstory login) to resume sessions from your other machines..
+  Log into SpecStory Cloud (specstory login) to resume sessions from your other machines..                            
+
+
+
 ```
 </details></tool-use>
 
@@ -7909,10 +11811,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:14:36Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_uri.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri.go
 ```
-homeProjectID string,
+
+**Offset (line):**
+```text
+148
+```
+
+**Limit:**
+```text
+85
+```
+
+```go
+	homeProjectID string,
 	agentIDByName map[string]string,
 ) (*sessionindex.Session, error) {
 	uri, err := parseSessionURI(raw)
@@ -8006,10 +11921,305 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:14:45Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-	raw string,
+-	store *sessionindex.Store,
+-	homeProjectID string,
+-	agentIDByName map[string]string,
+-) (*sessionindex.Session, error) {
+-	uri, err := parseSessionURI(raw)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
+-	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
+-	// exists locally should resume offline without tripping the host-mismatch guard. The check
+-	// only needs to gate the cloud call below (the token never goes to the permalink's host);
+-	// a local hit makes no cloud call at all.
+-	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
+-		return nil, fmt.Errorf("looking up session locally: %w", lerr)
+-	} else if ok {
+-		return &local, nil
+-	}
+-
+-	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
+-	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
+-	// refuse if the permalink's host differs from the configured cloud host and point at
+-	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
+-	if uri.host != "" {
+-		configured := cloud.GetAPIBaseURL()
+-		if !strings.EqualFold(uri.host, configured) {
+-			return nil, utils.ValidationError{Message: fmt.Sprintf(
+-				"This link points at %s, but the CLI is configured for %s. Pass --cloud-url %s if this is intentional.",
+-				uri.host, configured, uri.host)}
+-		}
+-	}
+-
+-	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
+-	if !cloud.IsAuthenticated() {
+-		return nil, utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
+-	}
+-
+-	var (
+-		cs        *cloud.CloudSession
+-		projectID string
+-	)
+-	if uri.projectID != "" {
+-		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
+-		if err != nil {
+-			return nil, mapCloudResumeErr(err)
+-		}
+-		projectID = uri.projectID
+-	} else {
+-		// Bare UUID: try the current project first, then discover across all projects. The
+-		// current-project probe is best-effort — the cwd's project may never have been synced
+-		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
+-		// 404). Either way that's "not found here", not an abort: degrade like the TUI's cloud
+-		// fetch does (D11) and fall through to the all-projects discovery.
+-		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+-		if err != nil {
+-			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
+-				"homeProjectID", homeProjectID, "error", err)
+-			cs = nil // not found here → fall through to all-projects discovery
+-		}
+-		if cs != nil {
+-			projectID = homeProjectID
+-		} else {
+-			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
+-			if err != nil {
+-				return nil, mapCloudResumeErr(err)
+-			}
+-		}
+-	}
++	raw string,
++	store *sessionindex.Store,
++	agentIDByName map[string]string,
++) (*sessionindex.Session, error) {
++	uri, err := parseSessionURI(raw)
++	if err != nil {
++		return nil, err
++	}
++
++	// (1) Local-first: a session present on this machine resumes in place, offline. This runs
++	// BEFORE the D30 host check on purpose — a pasted cloud-dev permalink for a session that
++	// exists locally should resume offline without tripping the host-mismatch guard. The check
++	// only needs to gate the cloud call below (the token never goes to the permalink's host);
++	// a local hit makes no cloud call at all.
++	if local, ok, lerr := store.GetSessionByID(uri.sessionID); lerr != nil {
++		return nil, fmt.Errorf("looking up session locally: %w", lerr)
++	} else if ok {
++		return &local, nil
++	}
++
++	// D30: a pasted permalink contributes IDs only — the Bearer token never goes to the
++	// permalink's host. Now that we know the session isn't local (so a cloud call is required),
++	// refuse if the permalink's host differs from the configured cloud host and point at
++	// --cloud-url. specstory:// and bare-UUID forms carry no host, so the check is skipped.
++	if uri.host != "" {
++		configured := cloud.GetAPIBaseURL()
++		if !strings.EqualFold(uri.host, configured) {
++			return nil, utils.ValidationError{Message: fmt.Sprintf(
++				"This link points at %s, but the CLI is configured for %s. Pass --cloud-url %s if this is intentional.",
++				uri.host, configured, uri.host)}
++		}
++	}
++
++	// (2) Cloud. Not-logged-in is surfaced up front; Pro is surfaced via the API's 403.
++	if !cloud.IsAuthenticated() {
++		return nil, utils.ValidationError{Message: "Log into SpecStory Cloud (specstory login) to resume sessions from your other machines."}
++	}
++
++	var (
++		cs        *cloud.CloudSession
++		projectID string
++	)
++	if uri.projectID != "" {
++		// Direct form: recover the session summary from the named project. The per-project list
++		// is capped at 500 (cloudResumeLimit), so a resumable session older than the project's
++		// newest 500 misses it — fall back to the uncapped all-projects listing (D25 embeds every
++		// resumable session) on a miss, accepting only a match in the named project.
++		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
++		if err != nil {
++			return nil, mapCloudResumeErr(err)
++		}
++		projectID = uri.projectID
++		if cs == nil {
++			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
++			if err != nil {
++				return nil, mapCloudResumeErr(err)
++			}
++			// The URI's project is authoritative for the direct form. A match in a different
++			// project (a near-impossible UUID collision, or a stale/wrong URI) means the session
++			// isn't in the named project — treat as not found.
++			if cs != nil && projectID != uri.projectID {
++				cs = nil
++			}
++		}
++	} else {
++		// Bare UUID: the all-projects ?resumable=true listing embeds every resumable session
++		// uncapped (D25), including the current project's, so a dedicated current-project probe
++		// is redundant — scan all projects directly to discover the owning project.
++		cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
++		if err != nil {
++			return nil, mapCloudResumeErr(err)
++		}
++	}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+     ...
+ 144 // resumePlan and TUI need; the blob fetch happens later, once, in prepareCloudResumeTarget.
+ 145 func resolveSessionURI(
+ 146 	raw string,
+ 147 	store *sessionindex.Store,
+-148 	homeProjectID string,
+ 149 	agentIDByName map[string]string,
+ 150 ) (*sessionindex.Session, error) {
+ 151 	uri, err := parseSessionURI(raw)
+ 152 	if err != nil {
+     ...
+ 186 		cs        *cloud.CloudSession
+ 187 		projectID string
+ 188 	)
+ 189 	if uri.projectID != "" {
++189 		// Direct form: recover the session summary from the named project. The per-project list
++190 		// is capped at 500 (cloudResumeLimit), so a resumable session older than the project's
++191 		// newest 500 misses it — fall back to the uncapped all-projects listing (D25 embeds every
++192 		// resumable session) on a miss, accepting only a match in the named project.
+ 190 		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
+ 191 		if err != nil {
+ 192 			return nil, mapCloudResumeErr(err)
+ 193 		}
+ 194 		projectID = uri.projectID
+-195 	} else {
+-196 		// Bare UUID: try the current project first, then discover across all projects. The
+-197 		// current-project probe is best-effort — the cwd's project may never have been synced
+-198 		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
+-199 		// 404). Either way that's "not found here", not an abort: degrade like the TUI's cloud
+-200 		// fetch does (D11) and fall through to the all-projects discovery.
+-201 		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+-202 		if err != nil {
+-203 			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
+-204 				"homeProjectID", homeProjectID, "error", err)
+-205 			cs = nil // not found here → fall through to all-projects discovery
+-206 		}
+-207 		if cs != nil {
+-208 			projectID = homeProjectID
+-209 		} else {
++198 		if cs == nil {
+ 210 			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
+ 211 			if err != nil {
+ 212 				return nil, mapCloudResumeErr(err)
+ 213 			}
++203 			// The URI's project is authoritative for the direct form. A match in a different
++204 			// project (a near-impossible UUID collision, or a stale/wrong URI) means the session
++205 			// isn't in the named project — treat as not found.
++206 			if cs != nil && projectID != uri.projectID {
++207 				cs = nil
++208 			}
+ 214 		}
++210 	} else {
++211 		// Bare UUID: the all-projects ?resumable=true listing embeds every resumable session
++212 		// uncapped (D25), including the current project's, so a dedicated current-project probe
++213 		// is redundant — scan all projects directly to discover the owning project.
++214 		cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
++215 		if err != nil {
++216 			return nil, mapCloudResumeErr(err)
++217 		}
+ 215 	}
+ 216 
+ 217 	if cs == nil {
+ 218 		return nil, utils.ValidationError{Message: fmt.Sprintf(
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -144,9 +144,8 @@
+ // resumePlan and TUI need; the blob fetch happens later, once, in prepareCloudResumeTarget.
+ func resolveSessionURI(
+ 	raw string,
+ 	store *sessionindex.Store,
+-	homeProjectID string,
+ 	agentIDByName map[string]string,
+ ) (*sessionindex.Session, error) {
+ 	uri, err := parseSessionURI(raw)
+ 	if err != nil {
+@@ -186,33 +185,37 @@
+ 		cs        *cloud.CloudSession
+ 		projectID string
+ 	)
+ 	if uri.projectID != "" {
++		// Direct form: recover the session summary from the named project. The per-project list
++		// is capped at 500 (cloudResumeLimit), so a resumable session older than the project's
++		// newest 500 misses it — fall back to the uncapped all-projects listing (D25 embeds every
++		// resumable session) on a miss, accepting only a match in the named project.
+ 		cs, err = findCloudSessionInProject(uri.projectID, uri.sessionID)
+ 		if err != nil {
+ 			return nil, mapCloudResumeErr(err)
+ 		}
+ 		projectID = uri.projectID
+-	} else {
+-		// Bare UUID: try the current project first, then discover across all projects. The
+-		// current-project probe is best-effort — the cwd's project may never have been synced
+-		// (the server 404s), or homeProjectID may be "unknown" (unresolvable cwd, guaranteed
+-		// 404). Either way that's "not found here", not an abort: degrade like the TUI's cloud
+-		// fetch does (D11) and fall through to the all-projects discovery.
+-		cs, err = findCloudSessionInProject(homeProjectID, uri.sessionID)
+-		if err != nil {
+-			slog.Debug("session URI: current-project cloud probe failed, trying all-projects",
+-				"homeProjectID", homeProjectID, "error", err)
+-			cs = nil // not found here → fall through to all-projects discovery
+-		}
+-		if cs != nil {
+-			projectID = homeProjectID
+-		} else {
++		if cs == nil {
+ 			cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
+ 			if err != nil {
+ 				return nil, mapCloudResumeErr(err)
+ 			}
++			// The URI's project is authoritative for the direct form. A match in a different
++			// project (a near-impossible UUID collision, or a stale/wrong URI) means the session
++			// isn't in the named project — treat as not found.
++			if cs != nil && projectID != uri.projectID {
++				cs = nil
++			}
+ 		}
++	} else {
++		// Bare UUID: the all-projects ?resumable=true listing embeds every resumable session
++		// uncapped (D25), including the current project's, so a dedicated current-project probe
++		// is redundant — scan all projects directly to discover the owning project.
++		cs, projectID, err = findCloudSessionAnywhere(uri.sessionID)
++		if err != nil {
++			return nil, mapCloudResumeErr(err)
++		}
+ 	}
+ 
+ 	if cs == nil {
+ 		return nil, utils.ValidationError{Message: fmt.Sprintf(
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 148
+}
 ```
 </details></tool-use>
 
@@ -8021,22 +12231,99 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:14:49Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-// findCloudSessionInProject lists a project's resumable cloud sessions and returns the one whose
+-// native session id (clientId) matches, or nil if none. The per-project list is capped at 500 by
+-// the server, so this is a cheap linear scan over the same summaries the browse picker uses.
+-func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession, error) {
++// findCloudSessionInProject lists a project's resumable cloud sessions and returns the one whose
++// native session id (clientId) matches, or nil if none. NOTE: the per-project list is capped at
++// cloudResumeLimit (500) by the server, so a resumable session older than the project's newest 500
++// misses it — callers that must not miss should fall back to findCloudSessionAnywhere (uncapped).
++func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession, error) {
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+     ...
+ 237 	return &s, nil
+ 238 }
+ 239 
+ 240 // findCloudSessionInProject lists a project's resumable cloud sessions and returns the one whose
+-241 // native session id (clientId) matches, or nil if none. The per-project list is capped at 500 by
+-242 // the server, so this is a cheap linear scan over the same summaries the browse picker uses.
++241 // native session id (clientId) matches, or nil if none. NOTE: the per-project list is capped at
++242 // cloudResumeLimit (500) by the server, so a resumable session older than the project's newest 500
++243 // misses it — callers that must not miss should fall back to findCloudSessionAnywhere (uncapped).
+ 243 func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession, error) {
+ 244 	if projectID == "" {
+ 245 		return nil, nil
+ 246 	}
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -237,10 +237,11 @@
+ 	return &s, nil
+ }
+ 
+ // findCloudSessionInProject lists a project's resumable cloud sessions and returns the one whose
+-// native session id (clientId) matches, or nil if none. The per-project list is capped at 500 by
+-// the server, so this is a cheap linear scan over the same summaries the browse picker uses.
++// native session id (clientId) matches, or nil if none. NOTE: the per-project list is capped at
++// cloudResumeLimit (500) by the server, so a resumable session older than the project's newest 500
++// misses it — callers that must not miss should fall back to findCloudSessionAnywhere (uncapped).
+ func findCloudSessionInProject(projectID, sessionID string) (*cloud.CloudSession, error) {
+ 	if projectID == "" {
+ 		return nil, nil
+ 	}
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 241
+}
 ```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:14:53Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
-<summary>Tool use: **bash** `grep -n "slog\." pkg/cmd/session_uri.go`</summary>
-Error:
-```
+<summary>Tool use: **bash**</summary>
+**Error:**
+
+```text
 (no output)
 
 Command exited with code 1
+```
+
+```json
+{
+  "details": {}
+}
+```
+
+**Input:**
+```json
+{
+  "command": "grep -n \"slog\\.\" pkg/cmd/session_uri.go"
+}
 ```
 </details></tool-use>
 
@@ -8048,10 +12335,79 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:14:56Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_uri.go`
+**Path:**
+```text
+pkg/cmd/session_uri.go
+```
+
+**Edit 1:**
+```diff
+-import (
+-	"errors"
+-	"fmt"
+-	"log/slog"
+-	"net/url"
+-	"regexp"
+-	"strings"
+-
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+-	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
+-)
++import (
++	"errors"
++	"fmt"
++	"net/url"
++	"regexp"
++	"strings"
++
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/cloud"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
++	"github.com/specstoryai/getspecstory/specstory-cli/pkg/utils"
++)
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+```
+
+**diff:**
+```diff
+     ...
+   2 
+   3 import (
+   4 	"errors"
+   5 	"fmt"
+-  6 	"log/slog"
+   7 	"net/url"
+   8 	"regexp"
+   9 	"strings"
+  10 
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_uri.go
++++ pkg/cmd/session_uri.go
+@@ -2,9 +2,8 @@
+ 
+ import (
+ 	"errors"
+ 	"fmt"
+-	"log/slog"
+ 	"net/url"
+ 	"regexp"
+ 	"strings"
+ 
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_uri.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 6
+}
 ```
 </details></tool-use>
 
@@ -8063,10 +12419,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:15:02Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/resume.go`
+**Path:**
+```text
+pkg/cmd/resume.go
+```
+
+**Edit 1:**
+```diff
+-				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
++				resolved, rerr := resolveSessionURI(sessionArg, store, agentIDByNameFromRegistry(registry))
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+```
+
+**diff:**
+```diff
+     ...
+ 132 			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
+ 133 			// to the resolved session (skipping the browse step).
+ 134 			sessionArg, _ := cmd.Flags().GetString("session")
+ 135 			if sessionArg != "" {
+-136 				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
++136 				resolved, rerr := resolveSessionURI(sessionArg, store, agentIDByNameFromRegistry(registry))
+ 137 				if rerr != nil {
+ 138 					return rerr
+ 139 				}
+ 140 				if presetTarget != "" {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/resume.go
++++ pkg/cmd/resume.go
+@@ -132,9 +132,9 @@
+ 			// fully non-interactive (no TUI); without one the TUI opens at the target picker pinned
+ 			// to the resolved session (skipping the browse step).
+ 			sessionArg, _ := cmd.Flags().GetString("session")
+ 			if sessionArg != "" {
+-				resolved, rerr := resolveSessionURI(sessionArg, store, projectID, agentIDByNameFromRegistry(registry))
++				resolved, rerr := resolveSessionURI(sessionArg, store, agentIDByNameFromRegistry(registry))
+ 				if rerr != nil {
+ 					return rerr
+ 				}
+ 				if presetTarget != "" {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 136
+}
 ```
 </details></tool-use>
 
@@ -8074,11 +12480,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:15:10Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head; go test ./... 2>&1 | grep -E "FAIL|ok.*cmd|ok.*sessionindex" | head; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head; go test ./... 2>&1 | grep -E "FAIL|ok.*cmd|ok.*sessionindex" | head; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3
 ```
+
+```text
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.186s
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex	(cached)
 --- LINT ---
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -8090,9 +12502,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:15:11Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_uri.go`
-
+**Path:**
+```text
+pkg/cmd/session_uri.go
 ```
+
+**Offset (line):**
+```text
+143
+```
+
+**Limit:**
+```text
+70
+```
+
+```go
 // resumePlan and TUI need; the blob fetch happens later, once, in prepareCloudResumeTarget.
 func resolveSessionURI(
 	raw string,
@@ -8252,10 +12677,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git status --short sync-cloud/src/components/resume/ 2>&1; echo "--- is it tracked? ---"; git ls-files sync-cloud/src/components/resume/ResumeCommandDialog.tsx 2>&1; echo "(empty above = not tracked)"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git status --short sync-cloud/src/components/resume/ 2>&1; echo "--- is it tracked? ---"; git ls-files sync-cloud/src/components/resume/ResumeCommandDialog.tsx 2>&1; echo "(empty above = not tracked)"
 ```
+
+```text
 ?? sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 --- is it tracked? ---
 (empty above = not tracked)
+
 ```
 </details></tool-use>
 
@@ -8269,8 +12700,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git add sync-cloud/src/components/resume/ResumeCommandDialog.tsx && git status --short sync-cloud/src/components/resume/ sync-cloud/src/components/session/ sync-cloud/src/services/`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git add sync-cloud/src/components/resume/ResumeCommandDialog.tsx && git status --short sync-cloud/src/components/resume/ sync-cloud/src/components/session/ sync-cloud/src/services/
 ```
+
+```text
 A  sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+
 ```
 </details></tool-use>
 
@@ -8282,8 +12719,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:40Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git status --short sync-cloud/src/`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git status --short sync-cloud/src/
 ```
+
+```text
 A  sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+
 ```
 </details></tool-use>
 
@@ -8291,11 +12734,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:43Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git status --short`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git status --short
 ```
+
+```text
 A  sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ?? .specstory/history/2026-07-09_22-31-58Z.md
 ?? .specstory/history/2026-07-09_22-36-24Z.md
 ?? .specstory/history/2026-07-13_16-57-43Z.md
+
 ```
 </details></tool-use>
 
@@ -8307,12 +12756,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:45Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git log --oneline -3 -- sync-cloud/src/components/session/SessionHeader.tsx; echo "--- last commit touched these 3 files? ---"; git log --oneline -1 -- sync-cloud/src/components/session/SessionView.tsx sync-cloud/src/services/api.ts sync-cloud/src/components/session/SessionHeader.tsx`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git log --oneline -3 -- sync-cloud/src/components/session/SessionHeader.tsx; echo "--- last commit touched these 3 files? ---"; git log --oneline -1 -- sync-cloud/src/components/session/SessionView.tsx sync-cloud/src/services/api.ts sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+```text
 865f8638 Web resume.
 19aa7c9a fix(sync-cloud): put h-14 + border-b on one element so the seam aligns exactly
 18d030c2 fix(sync-cloud): invert ~100 components for dark mode via theme tokens
 --- last commit touched these 3 files? ---
 865f8638 Web resume.
+
 ```
 </details></tool-use>
 
@@ -8320,7 +12775,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:48Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git show --stat 865f8638 | head -20`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git show --stat 865f8638 | head -20
 ```
+
+```text
 commit 865f8638af9c10a62635a7d6bd872fe35dcec6bf
 Author: Sean Johnson <sean@specstory.com>
 Date:   Tue Jul 14 15:10:11 2026 -0400
@@ -8331,6 +12791,7 @@ Date:   Tue Jul 14 15:10:11 2026 -0400
  sync-cloud/src/components/session/SessionView.tsx  |  1 +
  sync-cloud/src/services/api.ts                     |  4 ++
  3 files changed, 56 insertions(+), 2 deletions(-)
+
 ```
 </details></tool-use>
 
@@ -8342,10 +12803,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git log --oneline -1; echo "--- HEAD is the 'Web resume.' commit? ---"; git rev-parse HEAD`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git log --oneline -1; echo "--- HEAD is the 'Web resume.' commit? ---"; git rev-parse HEAD
 ```
+
+```text
 703b556a Merge branch 'dev' of github.com:specstoryai/specstory-sync into dev
 --- HEAD is the 'Web resume.' commit? ---
 703b556a80d28f27e92d6119dacbfc1becea6f46
+
 ```
 </details></tool-use>
 
@@ -8357,9 +12824,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:17:54Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && git diff --cached --stat`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && git diff --cached --stat
 ```
-.../src/components/resume/ResumeCommandDialog.tsx  | 127 +++++++++++++++++++++
+
+```text
+ .../src/components/resume/ResumeCommandDialog.tsx  | 127 +++++++++++++++++++++
  1 file changed, 127 insertions(+)
+
 ```
 </details></tool-use>
 
@@ -8405,10 +12878,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:30Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "EventResumeActivated\|EventResumeReconstructed\|EventSearchActivated" pkg/analytics/*.go | head`</summary>
+**Command:**
+```bash
+grep -n "EventResumeActivated\|EventResumeReconstructed\|EventSearchActivated" pkg/analytics/*.go | head
 ```
+
+```text
 pkg/analytics/events.go:13:	EventResumeActivated        = "ext_resume_activated"         // Tracks when `resume` command is started
 pkg/analytics/events.go:15:	EventResumeReconstructed    = "ext_resume_reconstructed"     // Tracks the outcome of a cross-agent session reconstruction (success/unsupported/error)
 pkg/analytics/events.go:16:	EventSearchActivated        = "ext_search_activated"         // Tracks when `search` command is started
+
 ```
 </details></tool-use>
 
@@ -8416,8 +12895,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "EventResumeActivated" pkg/cmd/*.go`</summary>
+**Command:**
+```bash
+grep -n "EventResumeActivated" pkg/cmd/*.go
 ```
+
+```text
 pkg/cmd/resume.go:267:	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
+
 ```
 </details></tool-use>
 
@@ -8425,10 +12910,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:35Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
-return err
+
+**Offset (line):**
+```text
+255
+```
+
+**Limit:**
+```text
+25
+```
+
+```go
+		return err
 	}
 	if _, err := utils.NewProjectIdentityManager(cwd).EnsureProjectIdentity(); err != nil {
 		slog.Error("Failed to ensure project identity", "error", err)
@@ -8466,9 +12964,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:38Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
+
+**Offset (line):**
+```text
+36
+```
+
+**Limit:**
+```text
+30
+```
+
+```go
+
 // resumePlan captures the user's choices from the interactive selection.
 type resumePlan struct {
 	from      spi.Provider
@@ -8507,10 +13019,86 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:44Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/resume.go`
+**Path:**
+```text
+pkg/cmd/resume.go
+```
+
+**Edit 1:**
+```diff
+-	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
+-	// local index. It has no local native file, so resume always fetches its SessionData from the
+-	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
+-	// from (the source session's project_id).
+-	fromCloud bool
+-	projectID string
+-}
++	// fromCloud marks a session sourced from SpecStory Cloud (another machine) rather than the
++	// local index. It has no local native file, so resume always fetches its SessionData from the
++	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
++	// from (the source session's project_id).
++	fromCloud bool
++	projectID string
++
++	// via records how the session was chosen, so EventResumeActivated can attribute the resume to
++	// its entry point: "picker" (the `resume` TUI), "search" (the `search` TUI's `r` action), or
++	// "session_uri" (`resume --session <uri>`, the web-copy funnel). Empty for older callers reads
++	// as "picker" at the analytics site.
++	via string
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+```
+
+**diff:**
+```diff
+     ...
+  54 	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
+  55 	// from (the source session's project_id).
+  56 	fromCloud bool
+  57 	projectID string
++ 58 
++ 59 	// via records how the session was chosen, so EventResumeActivated can attribute the resume to
++ 60 	// its entry point: "picker" (the `resume` TUI), "search" (the `search` TUI's `r` action), or
++ 61 	// "session_uri" (`resume --session <uri>`, the web-copy funnel). Empty for older callers reads
++ 62 	// as "picker" at the analytics site.
++ 63 	via string
+  58 }
+  59 
+  60 // agentChoice pairs a registry ID with its provider.
+  61 type agentChoice struct {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/resume.go
++++ pkg/cmd/resume.go
+@@ -54,8 +54,14 @@
+ 	// cloud and reconstructs — even into the same agent. projectID is the cloud project to fetch
+ 	// from (the source session's project_id).
+ 	fromCloud bool
+ 	projectID string
++
++	// via records how the session was chosen, so EventResumeActivated can attribute the resume to
++	// its entry point: "picker" (the `resume` TUI), "search" (the `search` TUI's `r` action), or
++	// "session_uri" (`resume --session <uri>`, the web-copy funnel). Empty for older callers reads
++	// as "picker" at the analytics site.
++	via string
+ }
+ 
+ // agentChoice pairs a registry ID with its provider.
+ type agentChoice struct {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 58
+}
 ```
 </details></tool-use>
 
@@ -8522,10 +13110,92 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:48Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/resume.go`
+**Path:**
+```text
+pkg/cmd/resume.go
+```
+
+**Edit 1:**
+```diff
+-	analytics.SetAgentProviders([]string{plan.to.Name()})
+-	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
+-		"from_provider": plan.fromID,
+-		"to_provider":   plan.toID,
+-		"cross_agent":   plan.fromID != plan.toID,
+-	})
++	analytics.SetAgentProviders([]string{plan.to.Name()})
++	via := plan.via
++	if via == "" {
++		via = "picker"
++	}
++	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
++		"from_provider": plan.fromID,
++		"to_provider":   plan.toID,
++		"cross_agent":   plan.fromID != plan.toID,
++		"via":           via,
++		"from_cloud":    plan.fromCloud,
++	})
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+```
+
+**diff:**
+```diff
+     ...
+ 269 		return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+ 270 	}
+ 271 
+ 272 	analytics.SetAgentProviders([]string{plan.to.Name()})
++273 	via := plan.via
++274 	if via == "" {
++275 		via = "picker"
++276 	}
+ 273 	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
+ 274 		"from_provider": plan.fromID,
+ 275 		"to_provider":   plan.toID,
+ 276 		"cross_agent":   plan.fromID != plan.toID,
++281 		"via":           via,
++282 		"from_cloud":    plan.fromCloud,
+ 277 	})
+ 278 
+ 279 	resumeSessionID, err := prepareResumeTarget(plan, cwd, os.Stdout)
+ 280 	if err != nil {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/resume.go
++++ pkg/cmd/resume.go
+@@ -269,12 +269,18 @@
+ 		return utils.ValidationError{Message: "--only-cloud-sync requires authentication. Please run 'specstory login' first"}
+ 	}
+ 
+ 	analytics.SetAgentProviders([]string{plan.to.Name()})
++	via := plan.via
++	if via == "" {
++		via = "picker"
++	}
+ 	analytics.TrackEvent(analytics.EventResumeActivated, analytics.Properties{
+ 		"from_provider": plan.fromID,
+ 		"to_provider":   plan.toID,
+ 		"cross_agent":   plan.fromID != plan.toID,
++		"via":           via,
++		"from_cloud":    plan.fromCloud,
+ 	})
+ 
+ 	resumeSessionID, err := prepareResumeTarget(plan, cwd, os.Stdout)
+ 	if err != nil {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 273
+}
 ```
 </details></tool-use>
 
@@ -8541,8 +13211,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:53Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "require an active\|requires an active\|Resuming SpecStory Cloud" pkg/ ../../specstory-sync/sync-cloud/src 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "require an active\|requires an active\|Resuming SpecStory Cloud" pkg/ ../../specstory-sync/sync-cloud/src 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 pkg/cmd/resume.go:85:Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
+
 ```
 </details></tool-use>
 
@@ -8550,9 +13226,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:55Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/resume.go`
-
+**Path:**
+```text
+pkg/cmd/resume.go
 ```
+
+**Offset (line):**
+```text
+82
+```
+
+**Limit:**
+```text
+8
+```
+
+```go
+
 Pass --session <uri> to resume a specific session without first browsing: specstory:// URI (i.e. specstory://...), a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
 
 Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
@@ -8569,10 +13259,60 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:21:58Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/resume.go`
+**Path:**
+```text
+pkg/cmd/resume.go
+```
+
+**Edit 1:**
+```diff
+-Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
++Resuming SpecStory Cloud sessions (from your other machines) requires an active SpecStory Cloud login + SpecStory Pro.`
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+```
+
+**diff:**
+```diff
+     ...
+  81 Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker then skips the target-selection step and resumes straight into that agent. The agent must be a known, installed provider, or the command errors.
+  82 
+  83 Pass --session <uri> to resume a specific session without first browsing: specstory:// URI (i.e. specstory://...), a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
+  84 
+- 85 Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
++ 85 Resuming SpecStory Cloud sessions (from your other machines) requires an active SpecStory Cloud login + SpecStory Pro.`
+  86 
+  87 	resumeCmd := &cobra.Command{
+  88 		Use:   "resume [agent]",
+  89 		Short: "Resume a past session, optionally in a different project or agent",
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/resume.go
++++ pkg/cmd/resume.go
+@@ -81,9 +81,9 @@
+ Pass an agent to set the resume target up front, e.g. 'specstory resume codex' — the picker then skips the target-selection step and resumes straight into that agent. The agent must be a known, installed provider, or the command errors.
+ 
+ Pass --session <uri> to resume a specific session without first browsing: specstory:// URI (i.e. specstory://...), a cloud permalink, or a bare session UUID. When you also specify a target agent, you launch right into the resumed session; without a target agent the agent picker opens first.
+ 
+-Resuming SpecStory Cloud sessions (from your other machines) require an active SpecStory Cloud login + SpecStory Pro.`
++Resuming SpecStory Cloud sessions (from your other machines) requires an active SpecStory Cloud login + SpecStory Pro.`
+ 
+ 	resumeCmd := &cobra.Command{
+ 		Use:   "resume [agent]",
+ 		Short: "Resume a past session, optionally in a different project or agent",
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/resume.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 85
+}
 ```
 </details></tool-use>
 
@@ -8580,8 +13320,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:22:05Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -8607,8 +13353,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:22:56Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "non-TUI callers\|can build it" pkg/cmd/session_tui_browser.go`</summary>
+**Command:**
+```bash
+grep -n "non-TUI callers\|can build it" pkg/cmd/session_tui_browser.go
 ```
+
+```text
 186:// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
+
 ```
 </details></tool-use>
 
@@ -8616,10 +13368,63 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:22:58Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_browser.go`
+**Path:**
+```text
+pkg/cmd/session_tui_browser.go
+```
+
+**Edit 1:**
+```diff
+-// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
++// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)
++// can build it without constructing a picker.
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_browser.go.
+```
+
+**diff:**
+```diff
+     ...
+ 182 
+ 183 // agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
+ 184 // conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
+ 185 // the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
+-186 // from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
++186 // from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)
++187 // can build it without constructing a picker.
+ 187 func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
+ 188 	out := make(map[string]string)
+ 189 	for _, id := range registry.ListIDs() {
+ 190 		prov, err := registry.Get(id)
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_browser.go
++++ pkg/cmd/session_tui_browser.go
+@@ -182,9 +182,10 @@
+ 
+ // agentIDByNameFromRegistry builds the agent display-name → provider-id map that cloud row
+ // conversion (cloudToSessions) needs to resolve a cloud session's metadata.agentName back to
+ // the provider id the resume/reconstruct path keys on. Mirrors the map newSessionTUI builds
+-// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)// can build it without constructing a picker.
++// from the TUI's agentMeta set, but from the registry alone so non-TUI callers (--session)
++// can build it without constructing a picker.
+ func agentIDByNameFromRegistry(registry *factory.Registry) map[string]string {
+ 	out := make(map[string]string)
+ 	for _, id := range registry.ListIDs() {
+ 		prov, err := registry.Get(id)
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_browser.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 186
+}
 ```
 </details></tool-use>
 
@@ -8627,8 +13432,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:23:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3
 ```
+
+```text
 0 issues.
+
 ```
 </details></tool-use>
 
@@ -8650,9 +13461,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:27:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-14-15.27.16.png`
-
+**Path:**
+```text
+/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/Xnapper-2026-07-14-15.27.16.png
 ```
+
+```png
 Read image file [image/png]
 [Current model does not support images. The image will be omitted from this request.]
 ```
@@ -8662,7 +13476,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:27:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "RotateCcw\|Download\|Trash2\|text-muted-foreground\|text-gray-400\|text-brand" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | grep -E "className|RotateCcw|Download|Trash2" | head`</summary>
+**Command:**
+```bash
+grep -n "RotateCcw\|Download\|Trash2\|text-muted-foreground\|text-gray-400\|text-brand" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | grep -E "className|RotateCcw|Download|Trash2" | head
 ```
+
+```text
 13:  Trash2,
 14:  Download,
 21:  RotateCcw,
@@ -8673,6 +13492,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:27:58Z)**_
 276:                <span className="hidden sm:inline text-muted-foreground">•</span>
 320:  const handleDownloadSessionMarkdown = async () => {
 322:      setPreparingDownload(true);
+
 ```
 </details></tool-use>
 
@@ -8680,10 +13500,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:28:01Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-<button
+
+**Offset (line):**
+```text
+520
+```
+
+**Limit:**
+```text
+45
+```
+
+```typescript
+                  <button
                     onClick={() => handleDownloadSessionMarkdown()}
                     disabled={preparingDownload}
                     className="ml-2 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors flex"
@@ -8747,10 +13580,86 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:28:14Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                    <button
+-                      onClick={() => {
+-                        if (!sessionData?.projectId || !sessionData?.clientId) return;
+-                        if (can("resume")) {
+-                          setShowResumeDialog(true);
+-                        } else {
+-                          router.push("/resume");
+-                        }
+-                      }}
+-                      disabled={!isResumable}
+-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-                    >
+-                      <RotateCcw className="w-4 h-4" />
+-                    </button>
++                    <button
++                      onClick={() => {
++                        if (!sessionData?.projectId || !sessionData?.clientId) return;
++                        if (can("resume")) {
++                          setShowResumeDialog(true);
++                        } else {
++                          router.push("/resume");
++                        }
++                      }}
++                      disabled={!isResumable}
++                      className="p-1.5 text-brand hover:bg-brand/10 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++                    >
++                      <RotateCcw className="w-4 h-4" />
++                    </button>
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 547                           router.push("/resume");
+ 548                         }
+ 549                       }}
+ 550                       disabled={!isResumable}
+-551                       className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++551                       className="p-1.5 text-brand hover:bg-brand/10 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+ 552                     >
+ 553                       <RotateCcw className="w-4 h-4" />
+ 554                     </button>
+ 555                   </Tooltip>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -547,9 +547,9 @@
+                           router.push("/resume");
+                         }
+                       }}
+                       disabled={!isResumable}
+-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
++                      className="p-1.5 text-brand hover:bg-brand/10 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                     >
+                       <RotateCcw className="w-4 h-4" />
+                     </button>
+                   </Tooltip>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 551
+}
 ```
 </details></tool-use>
 
@@ -8758,8 +13667,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:28:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/session/SessionHeader.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/session/SessionHeader.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -8785,7 +13700,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:42:57Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "ResumeButton\|onHover\|hover.*resume\|RotateCcw\|resume" ../../specstory-sync/sync-cloud/src/components/projects/ 2>/dev/null | head -20; echo "--- SessionCard ---"; grep -n "ResumeButton\|resume\|RotateCcw\|hover" ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx | head -20`</summary>
+**Command:**
+```bash
+grep -rn "ResumeButton\|onHover\|hover.*resume\|RotateCcw\|resume" ../../specstory-sync/sync-cloud/src/components/projects/ 2>/dev/null | head -20; echo "--- SessionCard ---"; grep -n "ResumeButton\|resume\|RotateCcw\|hover" ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx | head -20
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx:4:import { ResumeButton } from "@/components/resume/ResumeButton";
 ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx:39:  const showResume = useFlag("resume");
 ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx:138:          {/* Resume is env-flagged: the /resume route gate does NOT cover this
@@ -8800,6 +13720,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:42:57Z)**_
 145:              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
 148:          <ChevronRight className="w-5 h-5 group-hover:translate-x-1 group-hover:text-foreground transition-all" />
 152:        <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground group-hover:translate-x-1 group-hover:text-foreground transition-all flex-shrink-0 lg:hidden" />
+
 ```
 </details></tool-use>
 
@@ -8807,9 +13728,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:42:59Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+160
+```
+
+```typescript
 import { Card } from "@/ui-components/ui/card";
 import { Checkbox } from "@/ui-components/ui/checkbox";
 import { ChevronRight } from "lucide-react";
@@ -8944,8 +13878,8 @@ export function SessionCard({
             {formatConversationDate(
               session.startedAt,
               session.endedAt,
- 
-... (truncated)
+       
+… (output truncated)
 ```
 </details></tool-use>
 
@@ -8957,9 +13891,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:01Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
+
+```typescript
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useEntitlement } from "@/contexts/EntitlementContext";
@@ -9018,6 +13955,7 @@ export function ResumeButton({
     </>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -9036,9 +13974,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:05Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx`</summary>
+**Command:**
+```bash
+grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
 ```
+
+```text
 16:import { ResumeButton } from "./ResumeButton";
 118:                <ResumeButton sessionName={name} sourceAgent={agent} />
+
 ```
 </details></tool-use>
 
@@ -9046,10 +13990,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:09Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
 ```
-to={`/projects/${r.projectId}/sessions/${r.session.id}`}
+
+**Offset (line):**
+```text
+110
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+                  to={`/projects/${r.projectId}/sessions/${r.session.id}`}
                   className="min-w-0 flex-1"
                 >
                   <span className="block truncate text-sm text-foreground">{name}</span>
@@ -9070,7 +14027,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:13Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "session\.\|r\.session\.\|recent\|useRecentSessions\|sessionDataSize\|clientId\|projectId" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head -20; echo "--- useRecentSessions return shape ---"; grep -n "useRecentSessions\|r\.session\|r\.projectId\|projectId\|clientId\|sessionDataSize" ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts | head -20`</summary>
+**Command:**
+```bash
+grep -n "session\.\|r\.session\.\|recent\|useRecentSessions\|sessionDataSize\|clientId\|projectId" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head -20; echo "--- useRecentSessions return shape ---"; grep -n "useRecentSessions\|r\.session\|r\.projectId\|projectId\|clientId\|sessionDataSize" ../../specstory-sync/sync-cloud/src/hooks/useSearch.ts | head -20
 ```
+
+```text
 13:import { useRecentSessions } from "@/hooks/useSearch";
 39:  const { data: recent, isLoading } = useRecentSessions(12);
 98:          {!isLoading && (!recent || recent.length === 0) && (
@@ -9095,6 +14057,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:13Z)**_
 174:        sessionQueryOptions(projectId, sessionId, getToken)
 181:export function useRecentSessions(limit: number = 5) {
 231:          projectId: item.projectId, // Use the session's projectId, not workspace.id
+
 ```
 </details></tool-use>
 
@@ -9102,9 +14065,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:16Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/hooks/useSearch.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/hooks/useSearch.ts
 ```
+
+**Offset (line):**
+```text
+181
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 export function useRecentSessions(limit: number = 5) {
   const getToken = useAuthToken();
 
@@ -9144,10 +14120,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:19Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/hooks/useSearch.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/hooks/useSearch.ts
 ```
-}
+
+**Offset (line):**
+```text
+220
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
+        }
 
         return {
           session: {
@@ -9169,6 +14158,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:19Z)**_
     gcTime: 1000 * 60 * 5, // 5 minutes
   });
 }
+
 ```
 </details></tool-use>
 
@@ -9180,7 +14170,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:22Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "export interface Session\b\|export type Session\b\|sessionDataSize\|clientId\|projectId" ../../specstory-sync/sync-cloud/src/services/api.ts | head -20`</summary>
+**Command:**
+```bash
+grep -n "export interface Session\b\|export type Session\b\|sessionDataSize\|clientId\|projectId" ../../specstory-sync/sync-cloud/src/services/api.ts | head -20
 ```
+
+```text
 30:export interface Session {
 32:  clientId: string;
 34:  projectId: string;
@@ -9201,6 +14196,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:22Z)**_
 966:  projectId: string,
 973:        projectId
 1034:  projectId: string,
+
 ```
 </details></tool-use>
 
@@ -9208,9 +14204,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:27Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/services/api.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/services/api.ts
 ```
+
+**Offset (line):**
+```text
+30
+```
+
+**Limit:**
+```text
+50
+```
+
+```typescript
 export interface Session {
   id: string;
   clientId: string;
@@ -9274,10 +14283,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:30Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/shared/types.ts`
-
+**Path:**
+```text
+../../specstory-sync/shared/types.ts
 ```
-updatedAt: z.string(),
+
+**Offset (line):**
+```text
+183
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
+  updatedAt: z.string(),
   startedAt: z.string().optional(),
   endedAt: z.string().optional(),
   sessionDataSize: z.number().nullish(), // byte size of the SessionData blob; null/absent = not cloud-resumable
@@ -9320,10 +14342,72 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:34Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/services/api.ts`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/services/api.ts
+```
+
+**Edit 1:**
+```diff
+-  markdownSize: number;
+-  rawDataSize: number;
+-  createdAt: string;
++  markdownSize: number;
++  rawDataSize: number;
++  // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++  // Carried on the wire (SessionSummarySchema) — decoded for the session-row Resume button's
++  // resumable gating (D33).
++  sessionDataSize?: number | null;
++  createdAt: string;
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/services/api.ts.
+```
+
+**diff:**
+```diff
+      ...
+   36   userTitle?: string | null; // User-customized title (takes priority over summary)
+   37   shareStatus?: "private" | "unlisted"; // Share status: private or unlisted
+   38   markdownSize: number;
+   39   rawDataSize: number;
++  40   // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++  41   // Carried on the wire (SessionSummarySchema) — decoded for the session-row Resume button's
++  42   // resumable gating (D33).
++  43   sessionDataSize?: number | null;
+   40   createdAt: string;
+   41   updatedAt: string;
+   42   startedAt?: string;
+   43   endedAt?: string;
+      ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/services/api.ts
++++ ../../specstory-sync/sync-cloud/src/services/api.ts
+@@ -36,8 +36,12 @@
+   userTitle?: string | null; // User-customized title (takes priority over summary)
+   shareStatus?: "private" | "unlisted"; // Share status: private or unlisted
+   markdownSize: number;
+   rawDataSize: number;
++  // Byte size of the SessionData blob; > 0 = cloud-resumable, null/0/absent = legacy.
++  // Carried on the wire (SessionSummarySchema) — decoded for the session-row Resume button's
++  // resumable gating (D33).
++  sessionDataSize?: number | null;
+   createdAt: string;
+   updatedAt: string;
+   startedAt?: string;
+   endedAt?: string;
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/services/api.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 40
+}
 ```
 </details></tool-use>
 
@@ -9335,7 +14419,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `sed -n '1,40p' ../../specstory-sync/sync-cloud/src/ui-components/ui/tooltip.tsx`</summary>
+**Command:**
+```bash
+sed -n '1,40p' ../../specstory-sync/sync-cloud/src/ui-components/ui/tooltip.tsx
 ```
+
+```text
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -9376,6 +14465,7 @@ export function Tooltip({
         )}
       >
         {content}
+
 ```
 </details></tool-use>
 
@@ -9391,9 +14481,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:45Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
+
+**Content:**
+```typescript
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useEntitlement } from "@/contexts/EntitlementContext";
@@ -9491,7 +14585,7 @@ export function ResumeButton({
 
 ```
 
-```
+```text
 Successfully wrote 3301 bytes to ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
 </details></tool-use>
@@ -9504,10 +14598,174 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:49Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
+```
+
+**Edit 1:**
+```diff
+-import { Card } from "@/ui-components/ui/card";
+-import { Checkbox } from "@/ui-components/ui/checkbox";
+-import { ChevronRight } from "lucide-react";
+-import { ResumeButton } from "@/components/resume/ResumeButton";
+-import { useFlag } from "@/contexts/FlagsContext";
+-import {
++import { Card } from "@/ui-components/ui/card";
++import { Checkbox } from "@/ui-components/ui/checkbox";
++import { ChevronRight } from "lucide-react";
++import { ResumeButton } from "@/components/resume/ResumeButton";
++import {
+```
+
+**Edit 2:**
+```diff
+-  const agentName = session.metadata?.agentName as string;
+-  const showResume = useFlag("resume");
+-  const projectColors = getProjectColorClasses(projectColor);
++  const agentName = session.metadata?.agentName as string;
++  const projectColors = getProjectColorClasses(projectColor);
+```
+
+**Edit 3:**
+```diff
+-          {/* Resume is env-flagged: the /resume route gate does NOT cover this
+-              inline button on every session row, so it must be hidden separately. */}
+-          {showResume && (
+-            <ResumeButton
+-              sessionName={getSessionDisplayName(session)}
+-              sourceAgent={agentName}
+-              compact
+-              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+-            />
+-          )}
++          {/* Resume button — env-flagged and resumable-gated inside ResumeButton. */}
++          <ResumeButton
++            sessionName={getSessionDisplayName(session)}
++            projectId={session.projectId}
++            clientId={session.clientId}
++            sessionDataSize={session.sessionDataSize}
++            compact
++            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
++          />
+```
+
+```text
+Successfully replaced 3 block(s) in ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx.
+```
+
+**diff:**
+```diff
+   1 import { Card } from "@/ui-components/ui/card";
+   2 import { Checkbox } from "@/ui-components/ui/checkbox";
+   3 import { ChevronRight } from "lucide-react";
+   4 import { ResumeButton } from "@/components/resume/ResumeButton";
+-  5 import { useFlag } from "@/contexts/FlagsContext";
+   6 import {
+   7   getToolDisplayName,
+   8   formatConversationDate,
+   9   formatFullLocalSessionDate,
+     ...
+  35   onShiftToggleSelection,
+  36   onSessionClick,
+  37 }: SessionCardProps) {
+  38   const agentName = session.metadata?.agentName as string;
+- 39   const showResume = useFlag("resume");
+  40   const projectColors = getProjectColorClasses(projectColor);
+  41 
+  42   return (
+  43     <Card
+     ...
+ 134               session.endedAt,
+ 135               session.updatedAt
+ 136             )}
+ 137           </span>
+-138           {/* Resume is env-flagged: the /resume route gate does NOT cover this
+-139               inline button on every session row, so it must be hidden separately. */}
+-140           {showResume && (
+-141             <ResumeButton
+-142               sessionName={getSessionDisplayName(session)}
+-143               sourceAgent={agentName}
+-144               compact
+-145               className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+-146             />
+-147           )}
++136           {/* Resume button — env-flagged and resumable-gated inside ResumeButton. */}
++137           <ResumeButton
++138             sessionName={getSessionDisplayName(session)}
++139             projectId={session.projectId}
++140             clientId={session.clientId}
++141             sessionDataSize={session.sessionDataSize}
++142             compact
++143             className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
++144           />
+ 148           <ChevronRight className="w-5 h-5 group-hover:translate-x-1 group-hover:text-foreground transition-all" />
+ 149         </div>
+ 150 
+ 151         {/* Mobile/Tablet: Arrow only */}
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
++++ ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
+@@ -1,9 +1,8 @@
+ import { Card } from "@/ui-components/ui/card";
+ import { Checkbox } from "@/ui-components/ui/checkbox";
+ import { ChevronRight } from "lucide-react";
+ import { ResumeButton } from "@/components/resume/ResumeButton";
+-import { useFlag } from "@/contexts/FlagsContext";
+ import {
+   getToolDisplayName,
+   formatConversationDate,
+   formatFullLocalSessionDate,
+@@ -35,9 +34,8 @@
+   onShiftToggleSelection,
+   onSessionClick,
+ }: SessionCardProps) {
+   const agentName = session.metadata?.agentName as string;
+-  const showResume = useFlag("resume");
+   const projectColors = getProjectColorClasses(projectColor);
+ 
+   return (
+     <Card
+@@ -134,18 +132,17 @@
+               session.endedAt,
+               session.updatedAt
+             )}
+           </span>
+-          {/* Resume is env-flagged: the /resume route gate does NOT cover this
+-              inline button on every session row, so it must be hidden separately. */}
+-          {showResume && (
+-            <ResumeButton
+-              sessionName={getSessionDisplayName(session)}
+-              sourceAgent={agentName}
+-              compact
+-              className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+-            />
+-          )}
++          {/* Resume button — env-flagged and resumable-gated inside ResumeButton. */}
++          <ResumeButton
++            sessionName={getSessionDisplayName(session)}
++            projectId={session.projectId}
++            clientId={session.clientId}
++            sessionDataSize={session.sessionDataSize}
++            compact
++            className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
++          />
+           <ChevronRight className="w-5 h-5 group-hover:translate-x-1 group-hover:text-foreground transition-all" />
+         </div>
+ 
+         {/* Mobile/Tablet: Arrow only */}
 
 ```
-Successfully replaced 3 block(s) in ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 5
+}
 ```
 </details></tool-use>
 
@@ -9519,10 +14777,75 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:52Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
+```
+
+**Edit 1:**
+```diff
+-                <ResumeButton sessionName={name} sourceAgent={agent} />
++                <ResumeButton
++                  sessionName={name}
++                  projectId={r.projectId}
++                  clientId={r.session.clientId}
++                  sessionDataSize={r.session.sessionDataSize}
++                />
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 114                   <span className="block truncate text-xs text-muted-foreground">
+ 115                     {r.projectName} · {relativeTime(r.session.updatedAt)}
+ 116                   </span>
+ 117                 </Link>
+-118                 <ResumeButton sessionName={name} sourceAgent={agent} />
++118                 <ResumeButton
++119                   sessionName={name}
++120                   projectId={r.projectId}
++121                   clientId={r.session.clientId}
++122                   sessionDataSize={r.session.sessionDataSize}
++123                 />
+ 119               </div>
+ 120             );
+ 121           })}
+ 122         </div>
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
+@@ -114,9 +114,14 @@
+                   <span className="block truncate text-xs text-muted-foreground">
+                     {r.projectName} · {relativeTime(r.session.updatedAt)}
+                   </span>
+                 </Link>
+-                <ResumeButton sessionName={name} sourceAgent={agent} />
++                <ResumeButton
++                  sessionName={name}
++                  projectId={r.projectId}
++                  clientId={r.session.clientId}
++                  sessionDataSize={r.session.sessionDataSize}
++                />
+               </div>
+             );
+           })}
+         </div>
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 118
+}
 ```
 </details></tool-use>
 
@@ -9534,9 +14857,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:43:57Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
 import {
   formatConversationDate,
   getProjectColorClasses,
@@ -9576,9 +14912,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:00Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+**Offset (line):**
+```text
+31
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
 import { Tooltip } from "@/ui-components/ui/tooltip";
 import { fetchSessionMarkdown } from "@/services/api";
 import { downloadMarkdown } from "@/lib/utils/download";
@@ -9603,10 +14952,119 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:04Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-import {
+-  Trash2,
+-  Download,
+-  Loader2,
+-  Check,
+-  X,
+-  Globe,
+-  Lock,
+-  Link2,
+-  RotateCcw,
+-} from "lucide-react";
++import {
++  Trash2,
++  Download,
++  Loader2,
++  Check,
++  X,
++  Globe,
++  Lock,
++  Link2,
++} from "lucide-react";
+```
+
+**Edit 2:**
+```diff
+-import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
+-import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
+-import { ShareOnboardingModal } from "./ShareOnboardingModal";
+-import { ShareButtonHint } from "./ShareButtonHint";
+-import { useFlag } from "@/contexts/FlagsContext";
+-import { useEntitlement } from "@/contexts/EntitlementContext";
+-import { ResumeCommandDialog } from "@/components/resume/ResumeCommandDialog";
++import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
++import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
++import { ShareOnboardingModal } from "./ShareOnboardingModal";
++import { ShareButtonHint } from "./ShareButtonHint";
++import { ResumeButton } from "@/components/resume/ResumeButton";
+```
+
+```text
+Successfully replaced 2 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  17   X,
+  18   Globe,
+  19   Lock,
+  20   Link2,
+- 21   RotateCcw,
+  22 } from "lucide-react";
+  23 import { ConfirmationDialog } from "@/components/common/ConfirmationDialog";
+  24 import {
+  25   useDeleteSessions,
+     ...
+  34 import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
+  35 import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
+  36 import { ShareOnboardingModal } from "./ShareOnboardingModal";
+  37 import { ShareButtonHint } from "./ShareButtonHint";
+- 38 import { useFlag } from "@/contexts/FlagsContext";
+- 39 import { useEntitlement } from "@/contexts/EntitlementContext";
+- 40 import { ResumeCommandDialog } from "@/components/resume/ResumeCommandDialog";
++ 37 import { ResumeButton } from "@/components/resume/ResumeButton";
+  41 import {
+  42   shareStateToStatus,
+  43   shareStatusToState,
+  44   ShareStatus,
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -17,9 +17,8 @@
+   X,
+   Globe,
+   Lock,
+   Link2,
+-  RotateCcw,
+ } from "lucide-react";
+ import { ConfirmationDialog } from "@/components/common/ConfirmationDialog";
+ import {
+   useDeleteSessions,
+@@ -34,11 +33,9 @@
+ import { generateShareLink, copyToClipboard } from "@/lib/utils/share";
+ import { ShareDropdown, type ShareStateType } from "./ShareDropdown";
+ import { ShareOnboardingModal } from "./ShareOnboardingModal";
+ import { ShareButtonHint } from "./ShareButtonHint";
+-import { useFlag } from "@/contexts/FlagsContext";
+-import { useEntitlement } from "@/contexts/EntitlementContext";
+-import { ResumeCommandDialog } from "@/components/resume/ResumeCommandDialog";
++import { ResumeButton } from "@/components/resume/ResumeButton";
+ import {
+   shareStateToStatus,
+   shareStatusToState,
+   ShareStatus,
 
 ```
-Successfully replaced 2 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 21
+}
 ```
 </details></tool-use>
 
@@ -9618,10 +15076,82 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:08Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-  const [showShareButtonHint, setShowShareButtonHint] = useState(false);
+-  const [copiedLink, setCopiedLink] = useState(false);
+-
+-  // Resume (D33–D36): owner-only, under the `resume` feature flag. The button is enabled only
+-  // when the session is cloud-resumable (sessionDataSize > 0); a legacy session shows a disabled
+-  // tooltip. Entitled click opens the command dialog; non-entitled click navigates to /resume.
+-  const resumeEnabled = useFlag("resume");
+-  const { can } = useEntitlement();
+-  const [showResumeDialog, setShowResumeDialog] = useState(false);
+-  const isResumable = !!sessionData?.sessionDataSize && sessionData.sessionDataSize > 0;
++  const [showShareButtonHint, setShowShareButtonHint] = useState(false);
++  const [copiedLink, setCopiedLink] = useState(false);
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  87     useState(false);
+  88   const [showShareButtonHint, setShowShareButtonHint] = useState(false);
+  89   const [copiedLink, setCopiedLink] = useState(false);
+  90 
+- 91   // Resume (D33–D36): owner-only, under the `resume` feature flag. The button is enabled only
+- 92   // when the session is cloud-resumable (sessionDataSize > 0); a legacy session shows a disabled
+- 93   // tooltip. Entitled click opens the command dialog; non-entitled click navigates to /resume.
+- 94   const resumeEnabled = useFlag("resume");
+- 95   const { can } = useEntitlement();
+- 96   const [showResumeDialog, setShowResumeDialog] = useState(false);
+- 97   const isResumable = !!sessionData?.sessionDataSize && sessionData.sessionDataSize > 0;
+- 98 
+  99   // Show onboarding modal when openShareDialog query param is present
+ 100   // This provides an educational modal that guides users through sharing
+ 101   useEffect(() => {
+ 102     if (router.query.openShareDialog) {
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -87,16 +87,8 @@
+     useState(false);
+   const [showShareButtonHint, setShowShareButtonHint] = useState(false);
+   const [copiedLink, setCopiedLink] = useState(false);
+ 
+-  // Resume (D33–D36): owner-only, under the `resume` feature flag. The button is enabled only
+-  // when the session is cloud-resumable (sessionDataSize > 0); a legacy session shows a disabled
+-  // tooltip. Entitled click opens the command dialog; non-entitled click navigates to /resume.
+-  const resumeEnabled = useFlag("resume");
+-  const { can } = useEntitlement();
+-  const [showResumeDialog, setShowResumeDialog] = useState(false);
+-  const isResumable = !!sessionData?.sessionDataSize && sessionData.sessionDataSize > 0;
+-
+   // Show onboarding modal when openShareDialog query param is present
+   // This provides an educational modal that guides users through sharing
+   useEffect(() => {
+     if (router.query.openShareDialog) {
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 91
+}
 ```
 </details></tool-use>
 
@@ -9633,10 +15163,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:11Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-{preparingDownload ? (
+
+**Offset (line):**
+```text
+514
+```
+
+**Limit:**
+```text
+35
+```
+
+```typescript
+                    {preparingDownload ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Download className="w-4 h-4" />
@@ -9680,10 +15223,152 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:15Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-                {isOwner && resumeEnabled && (
+-                  <Tooltip
+-                    content={
+-                      isResumable
+-                        ? "Resume this session in an agent"
+-                        : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
+-                    }
+-                    side="bottom"
+-                  >
+-                    <button
+-                      onClick={() => {
+-                        if (!sessionData?.projectId || !sessionData?.clientId) return;
+-                        if (can("resume")) {
+-                          setShowResumeDialog(true);
+-                        } else {
+-                          router.push("/resume");
+-                        }
+-                      }}
+-                      disabled={!isResumable}
+-                      className="p-1.5 text-brand hover:bg-brand/10 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-                    >
+-                      <RotateCcw className="w-4 h-4" />
+-                    </button>
+-                  </Tooltip>
+-                )}
++                {isOwner && (
++                  <ResumeButton
++                    sessionName={getSessionDisplayName(sessionData)}
++                    projectId={sessionData?.projectId}
++                    clientId={sessionData?.clientId}
++                    sessionDataSize={sessionData?.sessionDataSize}
++                    compact
++                  />
++                )}
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 517                       <Download className="w-4 h-4" />
+ 518                     )}
+ 519                   </button>
+ 520                 </Tooltip>
+-521                 {isOwner && resumeEnabled && (
+-522                   <Tooltip
+-523                     content={
+-524                       isResumable
+-525                         ? "Resume this session in an agent"
+-526                         : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
+-527                     }
+-528                     side="bottom"
+-529                   >
+-530                     <button
+-531                       onClick={() => {
+-532                         if (!sessionData?.projectId || !sessionData?.clientId) return;
+-533                         if (can("resume")) {
+-534                           setShowResumeDialog(true);
+-535                         } else {
+-536                           router.push("/resume");
+-537                         }
+-538                       }}
+-539                       disabled={!isResumable}
+-540                       className="p-1.5 text-brand hover:bg-brand/10 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-541                     >
+-542                       <RotateCcw className="w-4 h-4" />
+-543                     </button>
+-544                   </Tooltip>
++521                 {isOwner && (
++522                   <ResumeButton
++523                     sessionName={getSessionDisplayName(sessionData)}
++524                     projectId={sessionData?.projectId}
++525                     clientId={sessionData?.clientId}
++526                     sessionDataSize={sessionData?.sessionDataSize}
++527                     compact
++528                   />
+ 545                 )}
+ 546                 <Tooltip content="Delete session" side="bottom">
+ 547                   <button
+ 548                     onClick={() => setShowDeleteDialog(true)}
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -517,32 +517,16 @@
+                       <Download className="w-4 h-4" />
+                     )}
+                   </button>
+                 </Tooltip>
+-                {isOwner && resumeEnabled && (
+-                  <Tooltip
+-                    content={
+-                      isResumable
+-                        ? "Resume this session in an agent"
+-                        : "This session predates resume support — re-sync it from its machine with a current CLI to enable."
+-                    }
+-                    side="bottom"
+-                  >
+-                    <button
+-                      onClick={() => {
+-                        if (!sessionData?.projectId || !sessionData?.clientId) return;
+-                        if (can("resume")) {
+-                          setShowResumeDialog(true);
+-                        } else {
+-                          router.push("/resume");
+-                        }
+-                      }}
+-                      disabled={!isResumable}
+-                      className="p-1.5 text-brand hover:bg-brand/10 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+-                    >
+-                      <RotateCcw className="w-4 h-4" />
+-                    </button>
+-                  </Tooltip>
++                {isOwner && (
++                  <ResumeButton
++                    sessionName={getSessionDisplayName(sessionData)}
++                    projectId={sessionData?.projectId}
++                    clientId={sessionData?.clientId}
++                    sessionDataSize={sessionData?.sessionDataSize}
++                    compact
++                  />
+                 )}
+                 <Tooltip content="Delete session" side="bottom">
+                   <button
+                     onClick={() => setShowDeleteDialog(true)}
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 521
+}
 ```
 </details></tool-use>
 
@@ -9695,10 +15380,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:19Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "ResumeCommandDialog\|showResumeDialog" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`</summary>
+**Command:**
+```bash
+grep -n "ResumeCommandDialog\|showResumeDialog" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
+
+```text
 639:      {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
 640:        <ResumeCommandDialog
 641:          open={showResumeDialog}
+
 ```
 </details></tool-use>
 
@@ -9706,10 +15397,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:23Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
 ```
-isUpdatingShareStatus={updateShareStatusMutation.isPending}
+
+**Offset (line):**
+```text
+635
+```
+
+**Limit:**
+```text
+20
+```
+
+```typescript
+        isUpdatingShareStatus={updateShareStatusMutation.isPending}
       />
 
       {/* Resume command dialog — opened by the Resume button (D35/D36). */}
@@ -9725,6 +15429,7 @@ isUpdatingShareStatus={updateShareStatusMutation.isPending}
     </>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -9732,10 +15437,94 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:28Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-        isUpdatingShareStatus={updateShareStatusMutation.isPending}
+-      />
+-
+-      {/* Resume command dialog — opened by the Resume button (D35/D36). */}
+-      {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
+-        <ResumeCommandDialog
+-          open={showResumeDialog}
+-          onClose={() => setShowResumeDialog(false)}
+-          projectId={sessionData.projectId}
+-          sessionId={sessionData.clientId}
+-          sessionName={getSessionDisplayName(sessionData)}
+-        />
+-      )}
+-    </>
+-  );
+-}
++        isUpdatingShareStatus={updateShareStatusMutation.isPending}
++      />
++    </>
++  );
++}
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 633         shareState={currentShareStatus}
+ 634         onShareStateChange={handleShareStateChange}
+ 635         isUpdatingShareStatus={updateShareStatusMutation.isPending}
+ 636       />
+-637 
+-638       {/* Resume command dialog — opened by the Resume button (D35/D36). */}
+-639       {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
+-640         <ResumeCommandDialog
+-641           open={showResumeDialog}
+-642           onClose={() => setShowResumeDialog(false)}
+-643           projectId={sessionData.projectId}
+-644           sessionId={sessionData.clientId}
+-645           sessionName={getSessionDisplayName(sessionData)}
+-646         />
+-647       )}
+ 648     </>
+ 649   );
+ 650 }
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx
+@@ -633,18 +633,7 @@
+         shareState={currentShareStatus}
+         onShareStateChange={handleShareStateChange}
+         isUpdatingShareStatus={updateShareStatusMutation.isPending}
+       />
+-
+-      {/* Resume command dialog — opened by the Resume button (D35/D36). */}
+-      {showResumeDialog && sessionData?.projectId && sessionData?.clientId && (
+-        <ResumeCommandDialog
+-          open={showResumeDialog}
+-          onClose={() => setShowResumeDialog(false)}
+-          projectId={sessionData.projectId}
+-          sessionId={sessionData.clientId}
+-          sessionName={getSessionDisplayName(sessionData)}
+-        />
+-      )}
+     </>
+   );
+ }
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 637
+}
 ```
 </details></tool-use>
 
@@ -9747,8 +15536,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:32Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "ProviderPicker" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | grep -v node_modules`</summary>
+**Command:**
+```bash
+grep -rn "ProviderPicker" ../../specstory-sync/sync-cloud/src --include="*.tsx" --include="*.ts" 2>/dev/null | grep -v node_modules
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/resume/ProviderPicker.tsx:19:export function ProviderPicker({
+
 ```
 </details></tool-use>
 
@@ -9760,8 +15555,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:34Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `rm ../../specstory-sync/sync-cloud/src/components/resume/ProviderPicker.tsx && echo "deleted"`</summary>
+**Command:**
+```bash
+rm ../../specstory-sync/sync-cloud/src/components/resume/ProviderPicker.tsx && echo "deleted"
 ```
+
+```text
 deleted
+
 ```
 </details></tool-use>
 
@@ -9773,7 +15574,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:38Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "router\." ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | head`</summary>
+**Command:**
+```bash
+grep -n "router\." ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx | head
 ```
+
+```text
 94:    if (router.query.openShareDialog) {
 97:  }, [router.query.openShareDialog]);
 103:    if (!open && router.query.openShareDialog) {
@@ -9783,6 +15589,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:38Z)**_
 114:      router.replace(newUrl);
 219:        router.push(
 305:      router.push(projectUrl);
+
 ```
 </details></tool-use>
 
@@ -9794,8 +15601,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:42Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -20; echo "TSC EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -20; echo "TSC EXIT=$?"
 ```
+
+```text
 TSC EXIT=0
+
 ```
 </details></tool-use>
 
@@ -9803,8 +15616,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:47Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx eslint src/components/resume/ResumeButton.tsx src/components/resume/ResumeCommandDialog.tsx src/components/resume/ResumeHub.tsx src/components/session/SessionHeader.tsx src/components/session/SessionView.tsx src/components/projects/SessionCard.tsx src/services/api.ts 2>&1 | head -20; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx eslint src/components/resume/ResumeButton.tsx src/components/resume/ResumeCommandDialog.tsx src/components/resume/ResumeHub.tsx src/components/session/SessionHeader.tsx src/components/session/SessionView.tsx src/components/projects/SessionCard.tsx src/services/api.ts 2>&1 | head -20; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -9816,7 +15635,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:51Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "agent\b" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head`</summary>
+**Command:**
+```bash
+grep -n "agent\b" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx | head
 ```
+
+```text
 32: * Resume hub: pick a session and continue it in any agent. Cross-machine resume from
 34: * the shipped `specstory resume` CLI flow. Source-agent badges arrive when the cloud
 53:                Continue any session, on any machine, in any agent
@@ -9824,6 +15648,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:51Z)**_
 69:              can pick it up even in a different agent than the one that created it. Resume into:
 105:            const agent = r.session.metadata?.agentName as string | undefined;
 108:                <AgentBadge agent={agent} showLabel={false} className="flex-shrink-0" />
+
 ```
 </details></tool-use>
 
@@ -9835,7 +15660,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `echo "=== SessionHeader (icon button) ==="; grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx; echo "=== SessionCard (compact icon, hover) ==="; grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx; echo "=== ResumeHub (labelled) ==="; grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx`</summary>
+**Command:**
+```bash
+echo "=== SessionHeader (icon button) ==="; grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/session/SessionHeader.tsx; echo "=== SessionCard (compact icon, hover) ==="; grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx; echo "=== ResumeHub (labelled) ==="; grep -n "ResumeButton" ../../specstory-sync/sync-cloud/src/components/resume/ResumeHub.tsx
 ```
+
+```text
 === SessionHeader (icon button) ===
 37:import { ResumeButton } from "@/components/resume/ResumeButton";
 522:                  <ResumeButton
@@ -9846,6 +15676,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:55Z)**_
 === ResumeHub (labelled) ===
 16:import { ResumeButton } from "./ResumeButton";
 118:                <ResumeButton
+
 ```
 </details></tool-use>
 
@@ -9857,10 +15688,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:44:58Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
 ```
-session.updatedAt
+
+**Offset (line):**
+```text
+133
+```
+
+**Limit:**
+```text
+18
+```
+
+```typescript
+              session.updatedAt
             )}
           </span>
           {/* Resume button — env-flagged and resumable-gated inside ResumeButton. */}
@@ -10029,9 +15873,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:53:07Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/ui-components/ui/dialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/ui-components/ui/dialog.tsx
 ```
+
+```typescript
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -10152,6 +15999,7 @@ export {
   DialogTitle,
   DialogDescription,
 };
+
 ```
 </details></tool-use>
 
@@ -10325,10 +16173,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:53:52Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
-});
+
+**Offset (line):**
+```text
+55
+```
+
+**Limit:**
+```text
+12
+```
+
+```typescript
+    });
     return () => {
       cancelled = true;
     };
@@ -10349,10 +16210,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:53:54Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
-};
+
+**Offset (line):**
+```text
+67
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -10376,10 +16250,79 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:53:58Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+```
+
+**Edit 1:**
+```diff
+-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+-      <DialogContent
+-        className="overflow-hidden"
+-        style={{ width: "min(32rem, calc(100vw - 2rem))" }}
+-      >
++    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
++      <DialogContent
++        className="overflow-hidden"
++        style={{ width: "min(32rem, calc(100vw - 2rem))" }}
++        // Disable click-outside-to-dismiss. Radix closes on the overlay's pointerdown and
++        // unmounts the overlay before the click event resolves, so the click "falls through"
++        // to the session card behind the dialog and triggers navigation. Escape and the X
++        // button still dismiss (and are clearer intents for a command you're reading).
++        onInteractOutside={(e) => e.preventDefault()}
++      >
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  70     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+  71       <DialogContent
+  72         className="overflow-hidden"
+  73         style={{ width: "min(32rem, calc(100vw - 2rem))" }}
++ 74         // Disable click-outside-to-dismiss. Radix closes on the overlay's pointerdown and
++ 75         // unmounts the overlay before the click event resolves, so the click "falls through"
++ 76         // to the session card behind the dialog and triggers navigation. Escape and the X
++ 77         // button still dismiss (and are clearer intents for a command you're reading).
++ 78         onInteractOutside={(e) => e.preventDefault()}
+  74       >
+  75         <DialogHeader className="min-w-0">
+  76           <DialogTitle className="flex items-center gap-2 text-base">
+  77             <RotateCcw size={16} className="text-brand flex-shrink-0" /> Resume session
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
+@@ -70,8 +70,13 @@
+     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+       <DialogContent
+         className="overflow-hidden"
+         style={{ width: "min(32rem, calc(100vw - 2rem))" }}
++        // Disable click-outside-to-dismiss. Radix closes on the overlay's pointerdown and
++        // unmounts the overlay before the click event resolves, so the click "falls through"
++        // to the session card behind the dialog and triggers navigation. Escape and the X
++        // button still dismiss (and are clearer intents for a command you're reading).
++        onInteractOutside={(e) => e.preventDefault()}
+       >
+         <DialogHeader className="min-w-0">
+           <DialogTitle className="flex items-center gap-2 text-base">
+             <RotateCcw size={16} className="text-brand flex-shrink-0" /> Resume session
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 74
+}
 ```
 </details></tool-use>
 
@@ -10387,8 +16330,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:54:03Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/resume/ResumeCommandDialog.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -10414,9 +16363,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:05Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
+
+```typescript
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useEntitlement } from "@/contexts/EntitlementContext";
@@ -10511,6 +16463,7 @@ export function ResumeButton({
     </>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -10530,12 +16483,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "onClick\|onSessionClick\|stopPropagation" ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx | head`</summary>
+**Command:**
+```bash
+grep -n "onClick\|onSessionClick\|stopPropagation" ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx | head
 ```
+
+```text
 23:  onSessionClick: (session: Session) => void;
 35:  onSessionClick,
 43:      onClick={() => onSessionClick(session)}
 48:          onClick={(e: React.MouseEvent) => {
 49:            e.stopPropagation();
+
 ```
 </details></tool-use>
 
@@ -10543,10 +16502,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:11Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
 ```
-className="p-3 sm:p-4 lg:p-5 bg-card border border-border rounded-lg hover:border-border hover:shadow-md hover:bg-muted/50 transition-all duration-200 group cursor-pointer"
+
+**Offset (line):**
+```text
+42
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
+      className="p-3 sm:p-4 lg:p-5 bg-card border border-border rounded-lg hover:border-border hover:shadow-md hover:bg-muted/50 transition-all duration-200 group cursor-pointer"
       onClick={() => onSessionClick(session)}
     >
       <div className="flex items-start gap-2 sm:gap-3 lg:gap-4">
@@ -10582,13 +16554,19 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "onSessionClick\|SessionCard" ../../specstory-sync/sync-cloud/src/components/projects/*.tsx ../../specstory-sync/sync-cloud/src/components/projects/*.ts 2>/dev/null | grep -v "SessionCard.tsx" | head`</summary>
+**Command:**
+```bash
+grep -rn "onSessionClick\|SessionCard" ../../specstory-sync/sync-cloud/src/components/projects/*.tsx ../../specstory-sync/sync-cloud/src/components/projects/*.ts 2>/dev/null | grep -v "SessionCard.tsx" | head
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx:181:            onSessionClick={handleSessionClick}
 ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx:4:import { SessionCard } from "./SessionCard";
 ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx:16:  onSessionClick: (session: Session) => void;
 ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx:28:  onSessionClick,
 ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx:50:          <SessionCard
 ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx:59:            onSessionClick={onSessionClick}
+
 ```
 </details></tool-use>
 
@@ -10596,9 +16574,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:20Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "handleSessionClick" ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx`</summary>
+**Command:**
+```bash
+grep -n "handleSessionClick" ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx
 ```
+
+```text
 86:  const handleSessionClick = (session: Session) => {
 181:            onSessionClick={handleSessionClick}
+
 ```
 </details></tool-use>
 
@@ -10606,10 +16590,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:23Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx
 ```
-const handleSessionClick = (session: Session) => {
+
+**Offset (line):**
+```text
+86
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
+  const handleSessionClick = (session: Session) => {
     // Navigate to session page using path params only
     router.push(`/projects/${projectId}/sessions/${session.clientId}`);
   };
@@ -10660,7 +16657,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:31Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "onPointerDown\|onMouseDown\|addEventListener.*click\|window.onclick" ../../specstory-sync/sync-cloud/src/components/projects/ ../../specstory-sync/sync-cloud/src/components/session/ 2>/dev/null | grep -v node_modules | head`</summary>
+**Command:**
+```bash
+grep -rn "onPointerDown\|onMouseDown\|addEventListener.*click\|window.onclick" ../../specstory-sync/sync-cloud/src/components/projects/ ../../specstory-sync/sync-cloud/src/components/session/ 2>/dev/null | grep -v node_modules | head
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -10673,12 +16675,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:34Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -E "react-dialog|@radix-ui/react-dialog" ../../specstory-sync/sync-cloud/package.json; echo "---"; grep -rn "onInteractOutside\|onPointerDownOutside\|DismissableLayer" ../../specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.d.ts 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -E "react-dialog|@radix-ui/react-dialog" ../../specstory-sync/sync-cloud/package.json; echo "---"; grep -rn "onInteractOutside\|onPointerDownOutside\|DismissableLayer" ../../specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.d.ts 2>/dev/null | head
 ```
-"@radix-ui/react-dialog": "^1.1.15",
+
+```text
+    "@radix-ui/react-dialog": "^1.1.15",
 ---
 ../../specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.d.ts:3:import { DismissableLayer } from '@radix-ui/react-dismissable-layer';
 ../../specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.d.ts:56:type DismissableLayerProps = React.ComponentPropsWithoutRef<typeof DismissableLayer>;
 ../../specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.d.ts:58:interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'> {
+
 ```
 </details></tool-use>
 
@@ -10686,9 +16694,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "onInteractOutside\|onPointerDownOutside" ../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.d.ts 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -rn "onInteractOutside\|onPointerDownOutside" ../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.d.ts 2>/dev/null | head
 ```
+
+```text
 ../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.d.ts:21:    onPointerDownOutside?: (event: PointerDownOutsideEvent) => void;
 ../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.d.ts:32:    onInteractOutside?: (event: PointerDownOutsideEvent | FocusOutsideEvent) => void;
+
 ```
 </details></tool-use>
 
@@ -10708,10 +16722,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:43Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx
 ```
-className="p-3 sm:p-4 lg:p-5 bg-card border border-border rounded-lg hover:border-border hover:shadow-md hover:bg-muted/50 transition-all duration-200 group cursor-pointer"
+
+**Offset (line):**
+```text
+42
+```
+
+**Limit:**
+```text
+25
+```
+
+```typescript
+      className="p-3 sm:p-4 lg:p-5 bg-card border border-border rounded-lg hover:border-border hover:shadow-md hover:bg-muted/50 transition-all duration-200 group cursor-pointer"
       onClick={() => onSessionClick(session)}
     >
       <div className="flex items-start gap-2 sm:gap-3 lg:gap-4">
@@ -10764,7 +16791,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:50Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "onInteractOutside\|onPointerDownOutside\|preventDefault\|isCancel" ../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs 2>/dev/null | head -20`</summary>
+**Command:**
+```bash
+grep -n "onInteractOutside\|onPointerDownOutside\|preventDefault\|isCancel" ../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs 2>/dev/null | head -20
 ```
+
+```text
 26:      onPointerDownOutside,
 28:      onInteractOutside,
 47:      onPointerDownOutside?.(event);
@@ -10773,6 +16805,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:50Z)**_
 64:        event.preventDefault();
 135:function usePointerDownOutside(onPointerDownOutside, ownerDocument = globalThis?.document) {
 136:  const handlePointerDownOutside = useCallbackRef(onPointerDownOutside);
+
 ```
 </details></tool-use>
 
@@ -10780,10 +16813,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs`
-
+**Path:**
+```text
+../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs
 ```
-const index = node ? layers.indexOf(node) : -1;
+
+**Offset (line):**
+```text
+40
+```
+
+**Limit:**
+```text
+30
+```
+
+```mjs
+    const index = node ? layers.indexOf(node) : -1;
     const isBodyPointerEventsDisabled = context.layersWithOutsidePointerEventsDisabled.size > 0;
     const isPointerEventsEnabled = index >= highestLayerWithOutsidePointerEventsDisabledIndex;
     const pointerDownOutside = usePointerDownOutside((event) => {
@@ -10828,9 +16874,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:57:59Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs`
-
+**Path:**
+```text
+../../specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs
 ```
+
+**Offset (line):**
+```text
+135
+```
+
+**Limit:**
+```text
+45
+```
+
+```mjs
 function usePointerDownOutside(onPointerDownOutside, ownerDocument = globalThis?.document) {
   const handlePointerDownOutside = useCallbackRef(onPointerDownOutside);
   const isPointerInsideReactTreeRef = React.useRef(false);
@@ -10930,10 +16989,195 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:58:19Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
+```
+
+**Edit 1:**
+```diff
+-export function ResumeButton({
+-  sessionName,
+-  projectId,
+-  clientId,
+-  sessionDataSize,
+-  compact = false,
+-  className,
+-}: {
+-  sessionName: string;
+-  projectId?: string;
+-  clientId?: string;
+-  sessionDataSize?: number | null;
+-  compact?: boolean;
+-  className?: string;
+-}) {
+-  const resumeEnabled = useFlag("resume");
+-  const { can } = useEntitlement();
+-  const router = useRouter();
+-  const [open, setOpen] = useState(false);
+-
+-  if (!resumeEnabled) return null;
+-
+-  const isResumable = !!sessionDataSize && sessionDataSize > 0;
+-  const hasIds = !!projectId && !!clientId;
+-
+-  const handle = (e: React.MouseEvent) => {
+-    // Resume buttons often sit inside clickable session cards/rows.
+-    e.preventDefault();
+-    e.stopPropagation();
+-    if (!hasIds || !isResumable) return;
+-    if (can("resume")) {
+-      setOpen(true);
+-    } else {
+-      router.push("/resume");
+-    }
+-  };
++export function ResumeButton({
++  sessionName,
++  projectId,
++  clientId,
++  sessionDataSize,
++  compact = false,
++  className,
++}: {
++  sessionName: string;
++  projectId?: string;
++  clientId?: string;
++  sessionDataSize?: number | null;
++  compact?: boolean;
++  className?: string;
++}) {
++  const resumeEnabled = useFlag("resume");
++  const { can } = useEntitlement();
++  const router = useRouter();
++  const [open, setOpen] = useState(false);
++
++  if (!resumeEnabled) return null;
++
++  const isResumable = !!sessionDataSize && sessionDataSize > 0;
++  const hasIds = !!projectId && !!clientId;
++
++  const handle = (e: React.MouseEvent) => {
++    // Resume buttons often sit inside clickable session cards/rows. Stop BOTH the React
++    // synthetic event (so the card's onClick doesn't fire) and the native event (so any
++    // document-level native listeners don't see it) — the opening click must not navigate.
++    e.preventDefault();
++    e.stopPropagation();
++    if (e.nativeEvent && typeof e.nativeEvent.stopImmediatePropagation === "function") {
++      e.nativeEvent.stopImmediatePropagation();
++    }
++    if (!hasIds || !isResumable) return;
++    if (can("resume")) {
++      setOpen(true);
++    } else {
++      router.push("/resume");
++    }
++  };
++
++  // Defer the close so the dialog unmounts AFTER the dismiss click's event chain fully
++  // resolves. Radix dismisses on pointerdown; if we unmount synchronously the subsequent click
++  // falls through to whatever is now under the cursor (often the session card behind the
++  // overlay), triggering unintended navigation. Clearing `open` on the next tick lets the
++  // click event complete against the still-mounted overlay (which swallows it) before we
++  // tear the portal down.
++  const close = () => {
++    setTimeout(() => setOpen(false), 0);
++  };
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx.
+```
+
+**diff:**
+```diff
+     ...
+  47   const isResumable = !!sessionDataSize && sessionDataSize > 0;
+  48   const hasIds = !!projectId && !!clientId;
+  49 
+  50   const handle = (e: React.MouseEvent) => {
+- 51     // Resume buttons often sit inside clickable session cards/rows.
++ 51     // Resume buttons often sit inside clickable session cards/rows. Stop BOTH the React
++ 52     // synthetic event (so the card's onClick doesn't fire) and the native event (so any
++ 53     // document-level native listeners don't see it) — the opening click must not navigate.
+  52     e.preventDefault();
+  53     e.stopPropagation();
++ 56     if (e.nativeEvent && typeof e.nativeEvent.stopImmediatePropagation === "function") {
++ 57       e.nativeEvent.stopImmediatePropagation();
++ 58     }
+  54     if (!hasIds || !isResumable) return;
+  55     if (can("resume")) {
+  56       setOpen(true);
+  57     } else {
+  58       router.push("/resume");
+  59     }
+  60   };
+  61 
++ 67   // Defer the close so the dialog unmounts AFTER the dismiss click's event chain fully
++ 68   // resolves. Radix dismisses on pointerdown; if we unmount synchronously the subsequent click
++ 69   // falls through to whatever is now under the cursor (often the session card behind the
++ 70   // overlay), triggering unintended navigation. Clearing `open` on the next tick lets the
++ 71   // click event complete against the still-mounted overlay (which swallows it) before we
++ 72   // tear the portal down.
++ 73   const close = () => {
++ 74     setTimeout(() => setOpen(false), 0);
++ 75   };
++ 76 
+  62   const tooltip = isResumable
+  63     ? "Resume this session in an agent"
+  64     : "This session predates resume support — re-sync it from its machine with a current CLI to enable.";
+  65 
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
++++ ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
+@@ -47,19 +47,34 @@
+   const isResumable = !!sessionDataSize && sessionDataSize > 0;
+   const hasIds = !!projectId && !!clientId;
+ 
+   const handle = (e: React.MouseEvent) => {
+-    // Resume buttons often sit inside clickable session cards/rows.
++    // Resume buttons often sit inside clickable session cards/rows. Stop BOTH the React
++    // synthetic event (so the card's onClick doesn't fire) and the native event (so any
++    // document-level native listeners don't see it) — the opening click must not navigate.
+     e.preventDefault();
+     e.stopPropagation();
++    if (e.nativeEvent && typeof e.nativeEvent.stopImmediatePropagation === "function") {
++      e.nativeEvent.stopImmediatePropagation();
++    }
+     if (!hasIds || !isResumable) return;
+     if (can("resume")) {
+       setOpen(true);
+     } else {
+       router.push("/resume");
+     }
+   };
+ 
++  // Defer the close so the dialog unmounts AFTER the dismiss click's event chain fully
++  // resolves. Radix dismisses on pointerdown; if we unmount synchronously the subsequent click
++  // falls through to whatever is now under the cursor (often the session card behind the
++  // overlay), triggering unintended navigation. Clearing `open` on the next tick lets the
++  // click event complete against the still-mounted overlay (which swallows it) before we
++  // tear the portal down.
++  const close = () => {
++    setTimeout(() => setOpen(false), 0);
++  };
++
+   const tooltip = isResumable
+     ? "Resume this session in an agent"
+     : "This session predates resume support — re-sync it from its machine with a current CLI to enable.";
+ 
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 51
+}
 ```
 </details></tool-use>
 
@@ -11081,9 +17325,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:58:49Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/lib/utils/share.ts`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/lib/utils/share.ts
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+15
+```
+
+```typescript
 /**
  * Share utility functions for generating share links and copying to clipboard
  */
@@ -11108,10 +17365,101 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:58:52Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/lib/utils/share.ts`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/lib/utils/share.ts
+```
+
+**Edit 1:**
+```diff
+-/**
+- * Share utility functions for generating share links and copying to clipboard
+- */
+-
+-/**
+- * Generate a share link for a session
+- */
++/**
++ * Share utility functions for generating share links and copying to clipboard
++ */
++
++/**
++ * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
++ * host-free `specstory://` URI — never the page URL — so the copied command carries no host at
++ * all. Users of dev/staging clouds already point their CLI at the right server (via --cloud-url
++ * or SPECSTORY_CLOUD_URL), so the copied command never needs to carry one; it's the same clean
++ * form in every environment.
++ */
++export function buildResumeCommand(projectId: string, sessionId: string): string {
++  return `specstory resume --session specstory://projects/${projectId}/sessions/${sessionId}`;
++}
++
++/**
++ * Generate a share link for a session
++ */
+```
+
+```text
+Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/lib/utils/share.ts.
+```
+
+**diff:**
+```diff
+    ...
+  2  * Share utility functions for generating share links and copying to clipboard
+  3  */
+  4 
+  5 /**
++ 6  * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
++ 7  * host-free `specstory://` URI — never the page URL — so the copied command carries no host at
++ 8  * all. Users of dev/staging clouds already point their CLI at the right server (via --cloud-url
++ 9  * or SPECSTORY_CLOUD_URL), so the copied command never needs to carry one; it's the same clean
++10  * form in every environment.
++11  */
++12 export function buildResumeCommand(projectId: string, sessionId: string): string {
++13   return `specstory resume --session specstory://projects/${projectId}/sessions/${sessionId}`;
++14 }
++15 
++16 /**
+  6  * Generate a share link for a session
+  7  */
+  8 export function generateShareLink(sessionId: string): string {
+  9   const baseUrl = window.location.origin;
+    ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/lib/utils/share.ts
++++ ../../specstory-sync/sync-cloud/src/lib/utils/share.ts
+@@ -2,8 +2,19 @@
+  * Share utility functions for generating share links and copying to clipboard
+  */
+ 
+ /**
++ * Build the `specstory resume --session` command for a session (D35/D36). Uses the canonical,
++ * host-free `specstory://` URI — never the page URL — so the copied command carries no host at
++ * all. Users of dev/staging clouds already point their CLI at the right server (via --cloud-url
++ * or SPECSTORY_CLOUD_URL), so the copied command never needs to carry one; it's the same clean
++ * form in every environment.
++ */
++export function buildResumeCommand(projectId: string, sessionId: string): string {
++  return `specstory resume --session specstory://projects/${projectId}/sessions/${sessionId}`;
++}
++
++/**
+  * Generate a share link for a session
+  */
+ export function generateShareLink(sessionId: string): string {
+   const baseUrl = window.location.origin;
 
 ```
-Successfully replaced 1 block(s) in ../../specstory-sync/sync-cloud/src/lib/utils/share.ts.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 6
+}
 ```
 </details></tool-use>
 
@@ -11123,9 +17471,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:58:55Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
+
+```typescript
 import { useEffect, useState } from "react";
 import { Copy, Check, RotateCcw } from "lucide-react";
 import {
@@ -11258,6 +17609,7 @@ export function ResumeCommandDialog({
     </Dialog>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -11265,9 +17617,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:59:06Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
+
+**Content:**
+```typescript
 import { useState } from "react";
 import { Copy, Check, RotateCcw } from "lucide-react";
 import {
@@ -11380,7 +17736,7 @@ export function ResumeCommandDialog({
 
 ```
 
-```
+```text
 Successfully wrote 3994 bytes to ../../specstory-sync/sync-cloud/src/components/resume/ResumeCommandDialog.tsx
 ```
 </details></tool-use>
@@ -11393,9 +17749,13 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:59:13Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="write"><details>
 <summary>Tool use: **write**</summary>
-`../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
+
+**Content:**
+```typescript
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useEntitlement } from "@/contexts/EntitlementContext";
@@ -11523,7 +17883,7 @@ export function ResumeButton({
 
 ```
 
-```
+```text
 Successfully wrote 4958 bytes to ../../specstory-sync/sync-cloud/src/components/resume/ResumeButton.tsx
 ```
 </details></tool-use>
@@ -11532,9 +17892,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:59:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -20; echo "TSC=$?"; npx eslint src/components/resume/ResumeButton.tsx src/components/resume/ResumeCommandDialog.tsx src/lib/utils/share.ts 2>&1 | head -10; echo "ESLINT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -20; echo "TSC=$?"; npx eslint src/components/resume/ResumeButton.tsx src/components/resume/ResumeCommandDialog.tsx src/lib/utils/share.ts 2>&1 | head -10; echo "ESLINT=$?"
 ```
+
+```text
 TSC=0
 ESLINT=0
+
 ```
 </details></tool-use>
 
@@ -11546,12 +17912,18 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 19:59:22Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && grep -rn "buildResumeCommand" src/ | grep -v node_modules`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && grep -rn "buildResumeCommand" src/ | grep -v node_modules
 ```
+
+```text
 src/components/resume/ResumeCommandDialog.tsx:10:import { buildResumeCommand, copyToClipboard } from "@/lib/utils/share";
 src/components/resume/ResumeCommandDialog.tsx:35:  const command = buildResumeCommand(projectId, sessionId);
 src/components/resume/ResumeButton.tsx:8:import { buildResumeCommand, copyToClipboard } from "@/lib/utils/share";
 src/components/resume/ResumeButton.tsx:72:      void copyToClipboard(buildResumeCommand(projectId!, clientId!)).then((ok) => {
 src/lib/utils/share.ts:12:export function buildResumeCommand(projectId: string, sessionId: string): string {
+
 ```
 </details></tool-use>
 
@@ -11945,10 +18317,16 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:02:41Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync && grep -rn "onSessionClick\|handleSessionClick\|onClick" sync-cloud/src/components/projects/SessionList.tsx | head`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync && grep -rn "onSessionClick\|handleSessionClick\|onClick" sync-cloud/src/components/projects/SessionList.tsx | head
 ```
+
+```text
 sync-cloud/src/components/projects/SessionList.tsx:16:  onSessionClick: (session: Session) => void;
 sync-cloud/src/components/projects/SessionList.tsx:28:  onSessionClick,
 sync-cloud/src/components/projects/SessionList.tsx:59:            onSessionClick={onSessionClick}
+
 ```
 </details></tool-use>
 
@@ -11956,9 +18334,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:02:43Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx
 ```
+
+**Offset (line):**
+```text
+1
+```
+
+**Limit:**
+```text
+70
+```
+
+```typescript
 import { Card } from "@/ui-components/ui/card";
 import { FileText } from "lucide-react";
 import { m } from "framer-motion";
@@ -12024,6 +18415,7 @@ export function SessionList({
     </div>
   );
 }
+
 ```
 </details></tool-use>
 
@@ -12035,7 +18427,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:02:46Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cat ../../specstory-sync/sync-cloud/src/ui-components/ui/card.tsx 2>/dev/null | head -30`</summary>
+**Command:**
+```bash
+cat ../../specstory-sync/sync-cloud/src/ui-components/ui/card.tsx 2>/dev/null | head -30
 ```
+
+```text
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -12066,6 +18463,7 @@ const CardHeader = React.forwardRef<
   />
 ))
 CardHeader.displayName = "CardHeader"
+
 ```
 </details></tool-use>
 
@@ -12090,43 +18488,46 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:03:05Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="subagent"><details>
 <summary>Tool use: **subagent**</summary>
-
 **Input:**
-
-- agent: `librarian`
-- agentScope: `both`
-- task: `I have a bug in a React 18 + Radix UI Dialog (`@radix-ui/react-dialog@^1.1.15`) app that I cannot figure out. I need a definitive explanation of the event flow and a fix.
-
-## The setup
-
-- A `SessionCard` component renders a `<Card onClick={() => onSessionClick(session)}>` — clicking anywhere on the card navigates to the session page (router.push).
-- Inside that card, a `ResumeButton` renders a `<button onClick={handle}>`. `handle` calls `e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()` and then `setTimeout(() => setOpen(true), 0)` to open a `ResumeCommandDialog`.
-- `ResumeCommandDialog` uses the standard Radix `Dialog` / `DialogContent` (portaled to `document.body` via `DialogPortal`). The `Dialog` root is `<Dialog open={open} onOpenChange={(o) => !o && close()}>` where `close = () => setTimeout(() => { setOpen(false); setCopied(false); }, 0)`.
-- `DialogContent` has `onInteractOutside={(e) => e.preventDefault()}` (to block overlay-click dismiss).
-- The dialog's X button is the standard `DialogPrimitive.Close` from the Radix dialog component.
-
-## The bug
-
-When the user clicks the **X button** in the dialog to dismiss it, the session card's `onClick` fires and navigates to the session page — as if the click "fell through" to the card behind the dialog.
-
-## What I've ruled out (in theory)
-
-- The opening click: `stopPropagation` + `stopImmediatePropagation` + deferred `setOpen(true)`.
-- Overlay-click dismiss: `onInteractOutside` + `preventDefault` blocks it.
-- The X button is inside `DialogContent` portaled to `document.body`, so its click shouldn't bubble to the card (which lives under `#root`).
-
-## What I need
-
-1. A definitive explanation of WHY the X-button click causes the card's `onClick` to fire. Is it React 18 event delegation + portals? Is it Radix's `DialogPrimitive.Close` doing something with the event? Is it the `setTimeout(0)` deferral of `setOpen(false)`? Is `onInteractOutside` somehow involved even for the X button?
-
-2. The correct, reliable fix — ideally one that doesn't require restructuring the component tree (the dialog must stay inside `ResumeButton` which is inside the card). I want to know the canonical pattern for "Radix Dialog rendered inside a clickable parent, where dismissing the dialog must not trigger the parent's click handler."
-
-Please research the Radix source (@radix-ui/react-dialog, @radix-ui/react-dismissable-layer) and React 18 portal event delegation to give an authoritative answer with code citations. Specifically look at how `DialogPrimitive.Close` triggers `onOpenChange` and whether that path can synthesize/click-through to elements behind the portal.`
-
-**Result:**
-
+```json
+{
+  "agent": "librarian",
+  "agentScope": "both",
+  "task": "I have a bug in a React 18 + Radix UI Dialog (`@radix-ui/react-dialog@^1.1.15`) app that I cannot figure out. I need a definitive explanation of the event flow and a fix.\n\n## The setup\n\n- A `SessionCard` component renders a `\u003cCard onClick={() =\u003e onSessionClick(session)}\u003e` — clicking anywhere on the card navigates to the session page (router.push).\n- Inside that card, a `ResumeButton` renders a `\u003cbutton onClick={handle}\u003e`. `handle` calls `e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()` and then `setTimeout(() =\u003e setOpen(true), 0)` to open a `ResumeCommandDialog`.\n- `ResumeCommandDialog` uses the standard Radix `Dialog` / `DialogContent` (portaled to `document.body` via `DialogPortal`). The `Dialog` root is `\u003cDialog open={open} onOpenChange={(o) =\u003e !o \u0026\u0026 close()}\u003e` where `close = () =\u003e setTimeout(() =\u003e { setOpen(false); setCopied(false); }, 0)`.\n- `DialogContent` has `onInteractOutside={(e) =\u003e e.preventDefault()}` (to block overlay-click dismiss).\n- The dialog's X button is the standard `DialogPrimitive.Close` from the Radix dialog component.\n\n## The bug\n\nWhen the user clicks the **X button** in the dialog to dismiss it, the session card's `onClick` fires and navigates to the session page — as if the click \"fell through\" to the card behind the dialog.\n\n## What I've ruled out (in theory)\n\n- The opening click: `stopPropagation` + `stopImmediatePropagation` + deferred `setOpen(true)`.\n- Overlay-click dismiss: `onInteractOutside` + `preventDefault` blocks it.\n- The X button is inside `DialogContent` portaled to `document.body`, so its click shouldn't bubble to the card (which lives under `#root`).\n\n## What I need\n\n1. A definitive explanation of WHY the X-button click causes the card's `onClick` to fire. Is it React 18 event delegation + portals? Is it Radix's `DialogPrimitive.Close` doing something with the event? Is it the `setTimeout(0)` deferral of `setOpen(false)`? Is `onInteractOutside` somehow involved even for the X button?\n\n2. The correct, reliable fix — ideally one that doesn't require restructuring the component tree (the dialog must stay inside `ResumeButton` which is inside the card). I want to know the canonical pattern for \"Radix Dialog rendered inside a clickable parent, where dismissing the dialog must not trigger the parent's click handler.\"\n\nPlease research the Radix source (@radix-ui/react-dialog, @radix-ui/react-dismissable-layer) and React 18 portal event delegation to give an authoritative answer with code citations. Specifically look at how `DialogPrimitive.Close` triggers `onOpenChange` and whether that path can synthesize/click-through to elements behind the portal."
+}
 ```
+
+```text
 Agent failed: Unknown agent: "librarian". Available agents: "planner", "reviewer", "scout", "vision", "worker".
+```
+
+```json
+{
+  "details": {
+    "agentScope": "both",
+    "mode": "single",
+    "projectAgentsDir": null,
+    "results": [
+      {
+        "agent": "librarian",
+        "agentSource": "unknown",
+        "exitCode": 1,
+        "messages": [],
+        "stderr": "Unknown agent: \"librarian\". Available agents: \"planner\", \"reviewer\", \"scout\", \"vision\", \"worker\".",
+        "task": "I have a bug in a React 18 + Radix UI Dialog (`@radix-ui/react-dialog@^1.1.15`) app that I cannot figure out. I need a definitive explanation of the event flow and a fix.\n\n## The setup\n\n- A `SessionCard` component renders a `\u003cCard onClick={() =\u003e onSessionClick(session)}\u003e` — clicking anywhere on the card navigates to the session page (router.push).\n- Inside that card, a `ResumeButton` renders a `\u003cbutton onClick={handle}\u003e`. `handle` calls `e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()` and then `setTimeout(() =\u003e setOpen(true), 0)` to open a `ResumeCommandDialog`.\n- `ResumeCommandDialog` uses the standard Radix `Dialog` / `DialogContent` (portaled to `document.body` via `DialogPortal`). The `Dialog` root is `\u003cDialog open={open} onOpenChange={(o) =\u003e !o \u0026\u0026 close()}\u003e` where `close = () =\u003e setTimeout(() =\u003e { setOpen(false); setCopied(false); }, 0)`.\n- `DialogContent` has `onInteractOutside={(e) =\u003e e.preventDefault()}` (to block overlay-click dismiss).\n- The dialog's X button is the standard `DialogPrimitive.Close` from the Radix dialog component.\n\n## The bug\n\nWhen the user clicks the **X button** in the dialog to dismiss it, the session card's `onClick` fires and navigates to the session page — as if the click \"fell through\" to the card behind the dialog.\n\n## What I've ruled out (in theory)\n\n- The opening click: `stopPropagation` + `stopImmediatePropagation` + deferred `setOpen(true)`.\n- Overlay-click dismiss: `onInteractOutside` + `preventDefault` blocks it.\n- The X button is inside `DialogContent` portaled to `document.body`, so its click shouldn't bubble to the card (which lives under `#root`).\n\n## What I need\n\n1. A definitive explanation of WHY the X-button click causes the card's `onClick` to fire. Is it React 18 event delegation + portals? Is it Radix's `DialogPrimitive.Close` doing something with the event? Is it the `setTimeout(0)` deferral of `setOpen(false)`? Is `onInteractOutside` somehow involved even for the X button?\n\n2. The correct, reliable fix — ideally one that doesn't require restructuring the component tree (the dialog must stay inside `ResumeButton` which is inside the card). I want to know the canonical pattern for \"Radix Dialog rendered inside a clickable parent, where dismissing the dialog must not trigger the parent's click handler.\"\n\nPlease research the Radix source (@radix-ui/react-dialog, @radix-ui/react-dismissable-layer) and React 18 portal event delegation to give an authoritative answer with code citations. Specifically look at how `DialogPrimitive.Close` triggers `onOpenChange` and whether that path can synthesize/click-through to elements behind the portal.",
+        "usage": {
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "contextTokens": 0,
+          "cost": 0,
+          "input": 0,
+          "output": 0,
+          "turns": 0
+        }
+      }
+    ]
+  }
+}
 ```
 </details></tool-use>
 
@@ -12134,54 +18535,52 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:03:14Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="subagent"><details>
 <summary>Tool use: **subagent**</summary>
-
 **Input:**
-
-- agent: `scout`
-- agentScope: `both`
-- task: `I have a bug in a React 18 + Radix UI Dialog (`@radix-ui/react-dialog@^1.1.15`) app that I cannot figure out. I need a definitive explanation of the event flow and a fix.
-
-## The setup
-
-- A `SessionCard` component renders a `<Card onClick={() => onSessionClick(session)}>` — clicking anywhere on the card navigates to the session page (router.push).
-- Inside that card, a `ResumeButton` renders a `<button onClick={handle}>`. `handle` calls `e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()` and then `setTimeout(() => setOpen(true), 0)` to open a `ResumeCommandDialog`.
-- `ResumeCommandDialog` uses the standard Radix `Dialog` / `DialogContent` (portaled to `document.body` via `DialogPortal`). The `Dialog` root is `<Dialog open={open} onOpenChange={(o) => !o && close()}>` where `close = () => setTimeout(() => { setOpen(false); setCopied(false); }, 0)`.
-- `DialogContent` has `onInteractOutside={(e) => e.preventDefault()}` (to block overlay-click dismiss).
-- The dialog's X button is the standard `DialogPrimitive.Close` from the Radix dialog component.
-
-## The bug
-
-When the user clicks the **X button** in the dialog to dismiss it, the session card's `onClick` fires and navigates to the session page — as if the click "fell through" to the card behind the dialog.
-
-## What I've ruled out (in theory)
-
-- The opening click: `stopPropagation` + `stopImmediatePropagation` + deferred `setOpen(true)`.
-- Overlay-click dismiss: `onInteractOutside` + `preventDefault` blocks it.
-- The X button is inside `DialogContent` portaled to `document.body`, so its click shouldn't bubble to the card (which lives under `#root`).
-
-## What I need
-
-1. A definitive explanation of WHY the X-button click causes the card's `onClick` to fire. Is it React 18 event delegation + portals? Is it Radix's `DialogPrimitive.Close` doing something with the event? Is it the `setTimeout(0)` deferral of `setOpen(false)`? Is `onInteractOutside` somehow involved even for the X button?
-
-2. The correct, reliable fix — ideally one that doesn't require restructuring the component tree (the dialog must stay inside `ResumeButton` which is inside the card). I want to know the canonical pattern for "Radix Dialog rendered inside a clickable parent, where dismissing the dialog must not trigger the parent's click handler."
-
-Please research the Radix source (@radix-ui/react-dialog, @radix-ui/react-dismissable-layer) and React 18 portal event delegation to give an authoritative answer with code citations. Specifically look at how `DialogPrimitive.Close` triggers `onOpenChange` and whether that path can synthesize/click-through to elements behind the portal.
-
-The installed Radix source is at:
-/Users/sean/Source/SpecStory/specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.mjs
-/Users/sean/Source/SpecStory/specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs
-
-Please read those files and trace the event flow precisely.`
-
-**Result:**
-
+```json
+{
+  "agent": "scout",
+  "agentScope": "both",
+  "task": "I have a bug in a React 18 + Radix UI Dialog (`@radix-ui/react-dialog@^1.1.15`) app that I cannot figure out. I need a definitive explanation of the event flow and a fix.\n\n## The setup\n\n- A `SessionCard` component renders a `\u003cCard onClick={() =\u003e onSessionClick(session)}\u003e` — clicking anywhere on the card navigates to the session page (router.push).\n- Inside that card, a `ResumeButton` renders a `\u003cbutton onClick={handle}\u003e`. `handle` calls `e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()` and then `setTimeout(() =\u003e setOpen(true), 0)` to open a `ResumeCommandDialog`.\n- `ResumeCommandDialog` uses the standard Radix `Dialog` / `DialogContent` (portaled to `document.body` via `DialogPortal`). The `Dialog` root is `\u003cDialog open={open} onOpenChange={(o) =\u003e !o \u0026\u0026 close()}\u003e` where `close = () =\u003e setTimeout(() =\u003e { setOpen(false); setCopied(false); }, 0)`.\n- `DialogContent` has `onInteractOutside={(e) =\u003e e.preventDefault()}` (to block overlay-click dismiss).\n- The dialog's X button is the standard `DialogPrimitive.Close` from the Radix dialog component.\n\n## The bug\n\nWhen the user clicks the **X button** in the dialog to dismiss it, the session card's `onClick` fires and navigates to the session page — as if the click \"fell through\" to the card behind the dialog.\n\n## What I've ruled out (in theory)\n\n- The opening click: `stopPropagation` + `stopImmediatePropagation` + deferred `setOpen(true)`.\n- Overlay-click dismiss: `onInteractOutside` + `preventDefault` blocks it.\n- The X button is inside `DialogContent` portaled to `document.body`, so its click shouldn't bubble to the card (which lives under `#root`).\n\n## What I need\n\n1. A definitive explanation of WHY the X-button click causes the card's `onClick` to fire. Is it React 18 event delegation + portals? Is it Radix's `DialogPrimitive.Close` doing something with the event? Is it the `setTimeout(0)` deferral of `setOpen(false)`? Is `onInteractOutside` somehow involved even for the X button?\n\n2. The correct, reliable fix — ideally one that doesn't require restructuring the component tree (the dialog must stay inside `ResumeButton` which is inside the card). I want to know the canonical pattern for \"Radix Dialog rendered inside a clickable parent, where dismissing the dialog must not trigger the parent's click handler.\"\n\nPlease research the Radix source (@radix-ui/react-dialog, @radix-ui/react-dismissable-layer) and React 18 portal event delegation to give an authoritative answer with code citations. Specifically look at how `DialogPrimitive.Close` triggers `onOpenChange` and whether that path can synthesize/click-through to elements behind the portal.\n\nThe installed Radix source is at:\n/Users/sean/Source/SpecStory/specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.mjs\n/Users/sean/Source/SpecStory/specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs\n\nPlease read those files and trace the event flow precisely."
+}
 ```
+
+```text
 Agent failed: No API key found for anthropic.
 
 Use /login to log into a provider via OAuth or API key. See:
   /Users/sean/.nvm/versions/node/v22.20.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/providers.md
   /Users/sean/.nvm/versions/node/v22.20.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/models.md
 
+```
+
+```json
+{
+  "details": {
+    "agentScope": "both",
+    "mode": "single",
+    "projectAgentsDir": null,
+    "results": [
+      {
+        "agent": "scout",
+        "agentSource": "user",
+        "exitCode": 1,
+        "messages": [],
+        "model": "claude-haiku-4-5",
+        "stderr": "No API key found for anthropic.\n\nUse /login to log into a provider via OAuth or API key. See:\n  /Users/sean/.nvm/versions/node/v22.20.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/providers.md\n  /Users/sean/.nvm/versions/node/v22.20.0/lib/node_modules/@earendil-works/pi-coding-agent/docs/models.md\n",
+        "task": "I have a bug in a React 18 + Radix UI Dialog (`@radix-ui/react-dialog@^1.1.15`) app that I cannot figure out. I need a definitive explanation of the event flow and a fix.\n\n## The setup\n\n- A `SessionCard` component renders a `\u003cCard onClick={() =\u003e onSessionClick(session)}\u003e` — clicking anywhere on the card navigates to the session page (router.push).\n- Inside that card, a `ResumeButton` renders a `\u003cbutton onClick={handle}\u003e`. `handle` calls `e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation()` and then `setTimeout(() =\u003e setOpen(true), 0)` to open a `ResumeCommandDialog`.\n- `ResumeCommandDialog` uses the standard Radix `Dialog` / `DialogContent` (portaled to `document.body` via `DialogPortal`). The `Dialog` root is `\u003cDialog open={open} onOpenChange={(o) =\u003e !o \u0026\u0026 close()}\u003e` where `close = () =\u003e setTimeout(() =\u003e { setOpen(false); setCopied(false); }, 0)`.\n- `DialogContent` has `onInteractOutside={(e) =\u003e e.preventDefault()}` (to block overlay-click dismiss).\n- The dialog's X button is the standard `DialogPrimitive.Close` from the Radix dialog component.\n\n## The bug\n\nWhen the user clicks the **X button** in the dialog to dismiss it, the session card's `onClick` fires and navigates to the session page — as if the click \"fell through\" to the card behind the dialog.\n\n## What I've ruled out (in theory)\n\n- The opening click: `stopPropagation` + `stopImmediatePropagation` + deferred `setOpen(true)`.\n- Overlay-click dismiss: `onInteractOutside` + `preventDefault` blocks it.\n- The X button is inside `DialogContent` portaled to `document.body`, so its click shouldn't bubble to the card (which lives under `#root`).\n\n## What I need\n\n1. A definitive explanation of WHY the X-button click causes the card's `onClick` to fire. Is it React 18 event delegation + portals? Is it Radix's `DialogPrimitive.Close` doing something with the event? Is it the `setTimeout(0)` deferral of `setOpen(false)`? Is `onInteractOutside` somehow involved even for the X button?\n\n2. The correct, reliable fix — ideally one that doesn't require restructuring the component tree (the dialog must stay inside `ResumeButton` which is inside the card). I want to know the canonical pattern for \"Radix Dialog rendered inside a clickable parent, where dismissing the dialog must not trigger the parent's click handler.\"\n\nPlease research the Radix source (@radix-ui/react-dialog, @radix-ui/react-dismissable-layer) and React 18 portal event delegation to give an authoritative answer with code citations. Specifically look at how `DialogPrimitive.Close` triggers `onOpenChange` and whether that path can synthesize/click-through to elements behind the portal.\n\nThe installed Radix source is at:\n/Users/sean/Source/SpecStory/specstory-sync/node_modules/@radix-ui/react-dialog/dist/index.mjs\n/Users/sean/Source/SpecStory/specstory-sync/node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs\n\nPlease read those files and trace the event flow precisely.",
+        "usage": {
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "contextTokens": 0,
+          "cost": 0,
+          "input": 0,
+          "output": 0,
+          "turns": 0
+        }
+      }
+    ]
+  }
+}
 ```
 </details></tool-use>
 
@@ -12245,9 +18644,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:10:30Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TemporaryItems/NSIRD_screencaptureui_9QsuJd/Screenshot 2026-07-14 at 16.09.25.png`
-
+**Path:**
+```text
+/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TemporaryItems/NSIRD_screencaptureui_9QsuJd/Screenshot 2026-07-14 at 16.09.25.png
 ```
+
+```png
 Read image file [image/png]
 [Current model does not support images. The image will be omitted from this request.]
 ```
@@ -12281,7 +18683,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:10:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Checkbox\|checkbox\|CheckSquare\|CheckCircle\|SquareCheck" ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx 2>/dev/null | head`</summary>
+**Command:**
+```bash
+grep -rn "Checkbox\|checkbox\|CheckSquare\|CheckCircle\|SquareCheck" ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx ../../specstory-sync/sync-cloud/src/components/projects/SessionList.tsx 2>/dev/null | head
 ```
+
+```text
 (no output)
 ```
 </details></tool-use>
@@ -12302,17 +18709,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:10:57Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="subagent"><details>
 <summary>Tool use: **subagent**</summary>
-
 **Input:**
-
-- agent: `vision`
-- task: `Describe what's in this screenshot, focusing on: (1) any checkbox/checkmark-in-a-box icon in the top-right area, (2) any tooltip that appears to be clipped or off-screen, (3) the overall layout context (what page/view is this). Be specific about the location and state of UI elements in the top-right region.
-
-Image: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TemporaryItems/NSIRD_screencaptureui_9QsuJd/Screenshot 2026-07-14 at 16.09.25.png`
-
-**Result:**
-
+```json
+{
+  "agent": "vision",
+  "task": "Describe what's in this screenshot, focusing on: (1) any checkbox/checkmark-in-a-box icon in the top-right area, (2) any tooltip that appears to be clipped or off-screen, (3) the overall layout context (what page/view is this). Be specific about the location and state of UI elements in the top-right region.\n\nImage: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TemporaryItems/NSIRD_screencaptureui_9QsuJd/Screenshot 2026-07-14 at 16.09.25.png"
+}
 ```
+
+```text
 
 
 ## Description
@@ -12341,6 +18746,82 @@ At the **very top-center of the viewport**, just below the browser's extension/t
 - **Clipped tooltip**: Yes — a dark tooltip/popup is partially visible at the top-center of the viewport, cut off by the top edge of the screen. Only its bottom edge is showing.
 - **Page context**: A prompt/conversation history listing page in a web app, showing AI session entries with titles, prompt counts, and dates.
 ```
+
+```json
+{
+  "details": {
+    "agentScope": "user",
+    "mode": "single",
+    "projectAgentsDir": null,
+    "results": [
+      {
+        "agent": "vision",
+        "agentSource": "user",
+        "exitCode": 0,
+        "messages": [
+          {
+            "content": [
+              {
+                "text": "Task: Describe what's in this screenshot, focusing on: (1) any checkbox/checkmark-in-a-box icon in the top-right area, (2) any tooltip that appears to be clipped or off-screen, (3) the overall layout context (what page/view is this). Be specific about the location and state of UI elements in the top-right region.\n\nImage: /var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TemporaryItems/NSIRD_screencaptureui_9QsuJd/Screenshot 2026-07-14 at 16.09.25.png",
+                "type": "text"
+              }
+            ],
+            "role": "user",
+            "timestamp": 1784059852879
+          },
+          {
+            "api": "anthropic-messages",
+            "content": [
+              {
+                "thinking": "Let me read the image file to see what's in the screenshot.\n",
+                "thinkingSignature": "",
+                "type": "thinking"
+              },
+              {
+                "text": "\n\n",
+                "type": "text"
+              },
+              {
+                "arguments": {
+                  "path": "/var/folders/jc/p0flb9dx5x3bck7thdb0wfxr0000gn/T/TemporaryItems/NSIRD_screencaptureui_9QsuJd/Screenshot 2026-07-14 at 16.09.25.png"
+                },
+                "id": "call_87ec2fecbf1b4b61913f3c75",
+                "name": "read",
+                "type": "toolCall"
+              }
+            ],
+            "model": "accounts/fireworks/models/qwen3p7-plus",
+            "provider": "fireworks",
+            "responseId": "msg_a694bb863982590b14f2903d",
+            "role": "assistant",
+            "stopReason": "toolUse",
+            "timestamp": 1784059852903,
+            "usage": {
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "cacheWrite1h": 0,
+              "cost": {
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "input": 0.00042120000000000005,
+                "output": 0.00017600000000000002,
+                "total": 0.0005972000000000001
+              },
+              "input": 1053,
+              "output": 110,
+              "totalTokens": 1163
+            }
+          },
+          {
+            "content": [
+              {
+                "text": "Read image file [image/png]",
+                "type": "text"
+              },
+              {
+                "data": "iVBORw0KGgoAAAANSUhEUgAABKYAAASOCAYAAAD/4SS9AAABRGlDQ1BJQ0MgUHJvZmlsZQAAKJF9kE1LQkEUhh/LsMJComXBXQRFmIRWEEFgLiRoIZbQx+p6NQ3UxvFGteoP9BeCFu3btGrVsm0EUX+hXQQSlNzOaKUVdeDwPrxzZnjnQJffVqrkB8oVV6eTS9b6xqYVeCTAAL2MEbSdmoqnUisywqd+r/odPqO3U+at3+f/Vn8uX3NE36QnHaVd8E0Ip/ZdZfhAeFhLKOFjw4UWnxrOtviiObOWTghfC4ecop0TvhcOZzv8QgeXS3vORwaTPpivZFZFB6VHyBAjSppZ5pEEf8zONGcT7KI4RLNDgSIuFnFxFCXywstUcIgQFo4yLT1ndvxzd23PTcLCkzlse1tHcH4DQ5G2Nx6Sby/CVZ+ytf21UV/dX9uORVsc1NDz4nnPoxC4hIb2vNcTz2ucQfeD3K2+A+fvWYcgfczuAAAAVmVYSWZNTQAqAAAACAABh2kABAAAAAEAAAAaAAAAAAADkoYABwAAABIAAABEoAIABAAAAAEAAASmoAMABAAAAAEAAASOAAAAAEFTQ0lJAAAAU2NyZWVuc2hvdI9SjWwAAAHYaVRYdFhNTDpjb20uYWRvYmUueG1wAAAAAAA8eDp4bXBtZXRhIHhtbG5zOng9ImFkb2JlOm5zOm1ldGEvIiB4OnhtcHRrPSJYTVAgQ29yZSA2LjAuMCI+CiAgIDxyZGY6UkRGIHhtbG5zOnJkZj0iaHR0cDovL3d3dy53My5vcmcvMTk5OS8wMi8yMi1yZGYtc3ludGF4LW5zIyI+CiAgICAgIDxyZGY6RGVzY3JpcHRpb24gcmRmOmFib3V0PSIiCiAgICAgICAgICAgIHhtbG5zOmV4aWY9Imh0dHA6Ly9ucy5hZG9iZS5jb20vZXhpZi8xLjAvIj4KICAgICAgICAgPGV4aWY6UGl4ZWxZRGltZW5zaW9uPjExNjY8L2V4aWY6UGl4ZWxZRGltZW5zaW9uPgogICAgICAgICA8ZXhpZjpQaXhlbFhEaW1lbnNpb24+MTE5MDwvZXhpZjpQaXhlbFhEaW1lbnNpb24+CiAgICAgICAgIDxleGlmOlVzZXJDb21tZW50PlNjcmVlbnNob3Q8L2V4aWY6VXNlckNvbW1lbnQ+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgq2LSnMAABAAElEQVR4AeydBYBV1dbH/zenC2bo7m5EwAJF5YECgvp4ioqtqKjY+ez39CkW2KifEoISCiph0N2h5NBDTPfMrW+tfedc5g5zp7jnTrC2DvfEPvvs/dsn/2ettQ0N6jd1QZIQEAJCQAgIASEgBISAEBACQkAICAEhcM4EXC4HGjZsiti4eudcViALSDx9AseOHYLBYArkbmVfNZRAVnYGcuxZaPRYW8Rd38irladnHcXR/+1GiDkMrVq2htlrrcwIASEgBISAEBACQkAICAEhIASEgBAQAhUm4HK5EBEZXeHtK2tDrrPr6EESpiqrBrLfmkQgJDgM9kwbjk/ah9z4LIR3d58TmZtTkfxzAiywgvNkZGSIMFWTOl7aIgSEgBAQAkJACAgBISAEhIAQEAKVScAF0qUQZA2uzEpUaN9cZ647wP+IOlUhiLKRh4DRaER4WCRycrKROOMoTk07rNbx8uCgUISEhYKnMzOzRJjyUJMJISAEhIAQEAJCQAgIASEgBISAEBAC50yAhJ3qqOuoOitl6pwJSAFCgAmYTGaEh0ciNJSsp+x2BcVsNpMg5e0uKq58crwIASEgBISAEBACQkAICAEhIASEgBAQAkJACOhCgIUoq9VbjCq8I3Ov5y/DlrdWwp5rK7y82kwbyAHWaDHBZKZGGoxKmCbjSThtDthtpMi5bRGrXHsMVFeXy4nw5gNRf9AbVHXyt3SxRG2A0+lESJQBtp3v4+9fPoTRZITT4axybdAqZIhqB2vT0bBEd6LqW7XFxf+68mFL3QHboalwpu0pPk8lLCXEqCjic9lW76YWPT94fy5qKP85SLFm//cqm4LrILjteJiju6hzG3S+FJvoXOJ19tRtyN39HpB7qthslbZQ2lFp6IvbsSHIgKBLY2HtGQ5DMN03Cp0DfL54zgmeznUgf2Mm8pYmwpVXxc6VGnJc1YT7Bx9n0o6qcz/n/jCGN4a15e0wRXah56sgWuLr/KXz3JlL94/NsMX/H5yZR3jzqpNqyHmOmtIOH0cG3zuaNwhB3w7huKxzNDbHZ2PynKM+cletxdX6OdEHyurcH4WbxO1oFAt0bepC96YG7D1lwIzlPp6FC29YxaZdRrcdjMHp
+… (output truncated)
+```
 </details></tool-use>
 
 _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:02Z)**_
@@ -12351,9 +18832,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:02Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "Checkbox\|checkbox\|CheckSquare\|CheckCircle\|ListChecks\|select.*all\|SelectAll\|Tooltip" ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx | head -20`</summary>
+**Command:**
+```bash
+grep -rn "Checkbox\|checkbox\|CheckSquare\|CheckCircle\|ListChecks\|select.*all\|SelectAll\|Tooltip" ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx | head -20
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx:95:    // On shift click, select all session between the last clicked session and the current session
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx:162:          onSelectAllSessions={() =>
+
 ```
 </details></tool-use>
 
@@ -12361,7 +18848,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "onSelectAllSessions\|SelectAll\|select.*all\|Checkbox\|Tooltip\|side=" ../../specstory-sync/sync-cloud/src/components/projects/*.tsx ../../specstory-sync/sync-cloud/src/components/projects/*.ts 2>/dev/null | grep -iE "checkbox|selectall|tooltip|side=" | head -20`</summary>
+**Command:**
+```bash
+grep -rn "onSelectAllSessions\|SelectAll\|select.*all\|Checkbox\|Tooltip\|side=" ../../specstory-sync/sync-cloud/src/components/projects/*.tsx ../../specstory-sync/sync-cloud/src/components/projects/*.ts 2>/dev/null | grep -iE "checkbox|selectall|tooltip|side=" | head -20
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx:27:import { Tooltip } from "@/ui-components/ui/tooltip";
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx:39:  onSelectAllSessions: () => void;
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx:53:  onSelectAllSessions,
@@ -12373,6 +18865,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:06Z)**_
 ../../specstory-sync/sync-cloud/src/components/projects/ProjectPage.tsx:162:          onSelectAllSessions={() =>
 ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx:2:import { Checkbox } from "@/ui-components/ui/checkbox";
 ../../specstory-sync/sync-cloud/src/components/projects/SessionCard.tsx:57:          <Checkbox
+
 ```
 </details></tool-use>
 
@@ -12380,10 +18873,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:10Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx
 ```
-Delete {selectedSessionsCount} session
+
+**Offset (line):**
+```text
+150
+```
+
+**Limit:**
+```text
+30
+```
+
+```typescript
+                Delete {selectedSessionsCount} session
                 {selectedSessionsCount !== 1 ? "s" : ""}
               </button>
             )}
@@ -12426,9 +18932,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:16Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`../../specstory-sync/sync-cloud/src/ui-components/ui/tooltip.tsx`
-
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/ui-components/ui/tooltip.tsx
 ```
+
+```typescript
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -12484,6 +18993,7 @@ export function TooltipTrigger({
 }) {
   return <div className={className}>{children}</div>;
 }
+
 ```
 </details></tool-use>
 
@@ -12497,8 +19007,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:21Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "sticky\|top-0\|z-" ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx | head`</summary>
+**Command:**
+```bash
+grep -n "sticky\|top-0\|z-" ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx | head
 ```
+
+```text
 94:    <div className="sticky top-0 z-10 h-14 flex items-center border-b border-border bg-background/90 backdrop-blur-md">
+
 ```
 </details></tool-use>
 
@@ -12510,10 +19026,92 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:25Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx`
+**Path:**
+```text
+../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx
+```
+
+**Edit 1:**
+```diff
+-            {selectedSessionsCount < sessions.length && (
+-              <Tooltip content="Select All" side="top">
++            {selectedSessionsCount < sessions.length && (
++              <Tooltip content="Select All" side="bottom">
+```
+
+**Edit 2:**
+```diff
+-            {selectedSessionsCount > 0 && (
+-              <Tooltip content="Deselect All" side="top">
++            {selectedSessionsCount > 0 && (
++              <Tooltip content="Deselect All" side="bottom">
+```
+
+```text
+Successfully replaced 2 block(s) in ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx.
+```
+
+**diff:**
+```diff
+     ...
+ 151                 {selectedSessionsCount !== 1 ? "s" : ""}
+ 152               </button>
+ 153             )}
+ 154             {selectedSessionsCount < sessions.length && (
+-155               <Tooltip content="Select All" side="top">
++155               <Tooltip content="Select All" side="bottom">
+ 156                 <button
+ 157                   onClick={onSelectAllSessions}
+ 158                   className="flex items-center justify-center p-1.5 max-sm:min-h-[44px] max-sm:min-w-[44px] text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+ 159                 >
+     ...
+ 161                 </button>
+ 162               </Tooltip>
+ 163             )}
+ 164             {selectedSessionsCount > 0 && (
+-165               <Tooltip content="Deselect All" side="top">
++165               <Tooltip content="Deselect All" side="bottom">
+ 166                 <button
+ 167                   onClick={onSelectNoneSessions}
+ 168                   className="flex items-center justify-center p-1.5 max-sm:min-h-[44px] max-sm:min-w-[44px] text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+ 169                 >
+     ...
+```
+
+**patch:**
+```diff
+--- ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx
++++ ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx
+@@ -151,9 +151,9 @@
+                 {selectedSessionsCount !== 1 ? "s" : ""}
+               </button>
+             )}
+             {selectedSessionsCount < sessions.length && (
+-              <Tooltip content="Select All" side="top">
++              <Tooltip content="Select All" side="bottom">
+                 <button
+                   onClick={onSelectAllSessions}
+                   className="flex items-center justify-center p-1.5 max-sm:min-h-[44px] max-sm:min-w-[44px] text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                 >
+@@ -161,9 +161,9 @@
+                 </button>
+               </Tooltip>
+             )}
+             {selectedSessionsCount > 0 && (
+-              <Tooltip content="Deselect All" side="top">
++              <Tooltip content="Deselect All" side="bottom">
+                 <button
+                   onClick={onSelectNoneSessions}
+                   className="flex items-center justify-center p-1.5 max-sm:min-h-[44px] max-sm:min-w-[44px] text-xs sm:text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                 >
 
 ```
-Successfully replaced 2 block(s) in ../../specstory-sync/sync-cloud/src/components/projects/ProjectHeader.tsx.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 155
+}
 ```
 </details></tool-use>
 
@@ -12525,8 +19123,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:28Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn 'side="top"' ../../specstory-sync/sync-cloud/src/components/projects/ ../../specstory-sync/sync-cloud/src/components/header/ ../../specstory-sync/sync-cloud/src/components/navigation/ 2>/dev/null | grep -v node_modules`</summary>
+**Command:**
+```bash
+grep -rn 'side="top"' ../../specstory-sync/sync-cloud/src/components/projects/ ../../specstory-sync/sync-cloud/src/components/header/ ../../specstory-sync/sync-cloud/src/components/navigation/ 2>/dev/null | grep -v node_modules
 ```
+
+```text
 ../../specstory-sync/sync-cloud/src/components/navigation/UserPill.tsx:68:          <DropdownMenuContent align="start" side="top" className="w-56">
+
 ```
 </details></tool-use>
 
@@ -12538,8 +19142,14 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:11:35Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/projects/ProjectHeader.tsx 2>&1 | head -5; echo "EXIT=$?"`</summary>
+**Command:**
+```bash
+cd ../../specstory-sync/sync-cloud && npx tsc --noEmit 2>&1 | head -5; npx eslint src/components/projects/ProjectHeader.tsx 2>&1 | head -5; echo "EXIT=$?"
 ```
+
+```text
 EXIT=0
+
 ```
 </details></tool-use>
 
@@ -12561,7 +19171,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:22:41Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "checkoutURL\|/checkout\|upgradeCmd\|cloudNudgeUpgrade\|u -" pkg/cmd/*.go | head`</summary>
+**Command:**
+```bash
+grep -rn "checkoutURL\|/checkout\|upgradeCmd\|cloudNudgeUpgrade\|u -" pkg/cmd/*.go | head
 ```
+
+```text
 pkg/cmd/session_tui_browser.go:369:		if cmd := m.upgradeCmd(); cmd != nil {
 pkg/cmd/session_tui_browser.go:726:		if cmd := m.upgradeCmd(); cmd != nil {
 pkg/cmd/session_tui_cloud.go:153:	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to search and resume sessions from your other computers"
@@ -12572,6 +19187,7 @@ pkg/cmd/session_tui_cloud.go:162:// upgradeCmd opens the Pro checkout page in th
 pkg/cmd/session_tui_cloud.go:164:func (m sessionTUI) upgradeCmd() tea.Cmd {
 pkg/cmd/session_tui_cloud.go:165:	if m.cloudNudge != cloudNudgeUpgrade {
 pkg/cmd/session_tui_cloud.go:168:	url := checkoutURL()
+
 ```
 </details></tool-use>
 
@@ -12579,9 +19195,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:22:45Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/session_tui_cloud.go`
-
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
 ```
+
+**Offset (line):**
+```text
+156
+```
+
+**Limit:**
+```text
+20
+```
+
+```go
 // checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
 // SPECSTORY_CLOUD_URL), so a dev/staging build opens its own checkout rather than production.
 func checkoutURL() string {
@@ -12611,10 +19240,143 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:22:52Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+-// SPECSTORY_CLOUD_URL), so a dev/staging build opens its own checkout rather than production.
+-func checkoutURL() string {
+-	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
+-}
+-
+-// upgradeCmd opens the Pro checkout page in the browser, but only while the upgrade nudge is
+-// showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+-func (m sessionTUI) upgradeCmd() tea.Cmd {
+-	if m.cloudNudge != cloudNudgeUpgrade {
+-		return nil
+-	}
+-	url := checkoutURL()
+-	return func() tea.Msg {
+-		if err := openBrowser(url); err != nil {
+-			slog.Debug("cloud resume: failed to open upgrade checkout", "url", url, "error", err)
+-		}
+-		return nil
+-	}
+-}
++// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
++// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
++// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
++func upgradeURL() string {
++	return cloud.GetAPIBaseURL() + "/resume"
++}
++
++// upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
++// showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
++func (m sessionTUI) upgradeCmd() tea.Cmd {
++	if m.cloudNudge != cloudNudgeUpgrade {
++		return nil
++	}
++	url := upgradeURL()
++	return func() tea.Msg {
++		if err := openBrowser(url); err != nil {
++			slog.Debug("cloud resume: failed to open upgrade page", "url", url, "error", err)
++		}
++		return nil
++	}
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 152 	cloudNudgeLogin   = "Log into SpecStory Cloud to search & resume sessions from your other machines"
+ 153 	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to search and resume sessions from your other computers"
+ 154 )
+ 155 
+-156 // checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+-157 // SPECSTORY_CLOUD_URL), so a dev/staging build opens its own checkout rather than production.
+-158 func checkoutURL() string {
+-159 	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
++156 // upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
++157 // explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
++158 // SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
++159 func upgradeURL() string {
++160 	return cloud.GetAPIBaseURL() + "/resume"
+ 160 }
+ 161 
+-162 // upgradeCmd opens the Pro checkout page in the browser, but only while the upgrade nudge is
++163 // upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
+ 163 // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+ 164 func (m sessionTUI) upgradeCmd() tea.Cmd {
+ 165 	if m.cloudNudge != cloudNudgeUpgrade {
+ 166 		return nil
+ 167 	}
+-168 	url := checkoutURL()
++169 	url := upgradeURL()
+ 169 	return func() tea.Msg {
+ 170 		if err := openBrowser(url); err != nil {
+-171 			slog.Debug("cloud resume: failed to open upgrade checkout", "url", url, "error", err)
++172 			slog.Debug("cloud resume: failed to open upgrade page", "url", url, "error", err)
+ 172 		}
+ 173 		return nil
+ 174 	}
+ 175 }
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -152,24 +152,25 @@
+ 	cloudNudgeLogin   = "Log into SpecStory Cloud to search & resume sessions from your other machines"
+ 	cloudNudgeUpgrade = "u - Upgrade to SpecStory Pro to search and resume sessions from your other computers"
+ )
+ 
+-// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+-// SPECSTORY_CLOUD_URL), so a dev/staging build opens its own checkout rather than production.
+-func checkoutURL() string {
+-	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
++// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
++// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
++// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
++func upgradeURL() string {
++	return cloud.GetAPIBaseURL() + "/resume"
+ }
+ 
+-// upgradeCmd opens the Pro checkout page in the browser, but only while the upgrade nudge is
++// upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
+ // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+ func (m sessionTUI) upgradeCmd() tea.Cmd {
+ 	if m.cloudNudge != cloudNudgeUpgrade {
+ 		return nil
+ 	}
+-	url := checkoutURL()
++	url := upgradeURL()
+ 	return func() tea.Msg {
+ 		if err := openBrowser(url); err != nil {
+-			slog.Debug("cloud resume: failed to open upgrade checkout", "url", url, "error", err)
++			slog.Debug("cloud resume: failed to open upgrade page", "url", url, "error", err)
+ 		}
+ 		return nil
+ 	}
+ }
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 156
+}
 ```
 </details></tool-use>
 
@@ -12622,7 +19384,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:22:58Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3; go test ./pkg/cmd/ 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3; go test ./pkg/cmd/ 2>&1 | tail -3
 ```
+
+```text
 # github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd
 pkg/cmd/skills.go:145:10: undefined: checkoutURL
 // Package cmd contains CLI command implementations for the SpecStory CLI.
@@ -12631,6 +19398,7 @@ pkg/cmd/skills.go:145:10: undefined: checkoutURL
 pkg/cmd/skills.go:145:10: undefined: checkoutURL
 FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd [build failed]
 FAIL
+
 ```
 </details></tool-use>
 
@@ -12642,7 +19410,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:23:04Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "checkoutURL\|checkout\?plan\|/checkout\|u -\|Upgrade\|skills.*upgrade\|skillsNudge\|cloudNudgeUpgrade" pkg/cmd/skills.go | head`</summary>
+**Command:**
+```bash
+grep -n "checkoutURL\|checkout\?plan\|/checkout\|u -\|Upgrade\|skills.*upgrade\|skillsNudge\|cloudNudgeUpgrade" pkg/cmd/skills.go | head
 ```
+
+```text
 57:				return promptSkillsUpgrade()
 111:// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
 122:			"skills require a Pro plan. Upgrade at %s to enable skills.", cloud.GetAPIBaseURL())}
@@ -12652,6 +19425,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:23:04Z)**_
 134:	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
 141:		slog.Debug("skills upgrade prompt: failed to read key", "error", err)
 145:		url := checkoutURL()
+
 ```
 </details></tool-use>
 
@@ -12663,10 +19437,87 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:23:08Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
+-// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
+-// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
+-func upgradeURL() string {
+-	return cloud.GetAPIBaseURL() + "/resume"
+-}
++// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
++// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
++// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
++func upgradeURL() string {
++	return cloud.GetAPIBaseURL() + "/resume"
++}
++
++// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
++// SPECSTORY_CLOUD_URL). Used by the `skills` command's upgrade prompt, which lands on the
++// checkout flow (the resume/search `u` hotkey uses upgradeURL → /resume instead).
++func checkoutURL() string {
++	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 159 func upgradeURL() string {
+ 160 	return cloud.GetAPIBaseURL() + "/resume"
+ 161 }
+ 162 
++163 // checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
++164 // SPECSTORY_CLOUD_URL). Used by the `skills` command's upgrade prompt, which lands on the
++165 // checkout flow (the resume/search `u` hotkey uses upgradeURL → /resume instead).
++166 func checkoutURL() string {
++167 	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
++168 }
++169 
+ 163 // upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
+ 164 // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+ 165 func (m sessionTUI) upgradeCmd() tea.Cmd {
+ 166 	if m.cloudNudge != cloudNudgeUpgrade {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -159,8 +159,15 @@
+ func upgradeURL() string {
+ 	return cloud.GetAPIBaseURL() + "/resume"
+ }
+ 
++// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
++// SPECSTORY_CLOUD_URL). Used by the `skills` command's upgrade prompt, which lands on the
++// checkout flow (the resume/search `u` hotkey uses upgradeURL → /resume instead).
++func checkoutURL() string {
++	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
++}
++
+ // upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
+ // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+ func (m sessionTUI) upgradeCmd() tea.Cmd {
+ 	if m.cloudNudge != cloudNudgeUpgrade {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 163
+}
 ```
 </details></tool-use>
 
@@ -12678,9 +19529,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:23:11Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+127
+```
+
+**Limit:**
+```text
+8
+```
+
+```go
 // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
 // single keypress: 'u' opens the checkout page, anything else quits. It reuses the resume TUI's
 // checkout URL (checkoutURL, honouring the active cloud base), so the two upgrade paths land in the
@@ -12698,10 +19562,77 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:23:16Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-// promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+-// single keypress: 'u' opens the checkout page, anything else quits. It reuses the resume TUI's
+-// checkout URL (checkoutURL, honouring the active cloud base), so the two upgrade paths land in the
+-// same place. Returns nil in every case — declining to upgrade isn't an error.
++// promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
++// single keypress: 'u' opens the checkout page, anything else quits. It uses checkoutURL
++// (honouring the active cloud base) — the `skills` upgrade path lands on the checkout flow,
++// distinct from the resume/search TUI's `u` hotkey which opens the /resume hub instead.
++// Returns nil in every case — declining to upgrade isn't an error.
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  124 	return nil
+  125 }
+  126 
+  127 // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+- 128 // single keypress: 'u' opens the checkout page, anything else quits. It reuses the resume TUI's
+- 129 // checkout URL (checkoutURL, honouring the active cloud base), so the two upgrade paths land in the
+- 130 // same place. Returns nil in every case — declining to upgrade isn't an error.
++ 128 // single keypress: 'u' opens the checkout page, anything else quits. It uses checkoutURL
++ 129 // (honouring the active cloud base) — the `skills` upgrade path lands on the checkout flow,
++ 130 // distinct from the resume/search TUI's `u` hotkey which opens the /resume hub instead.
++ 131 // Returns nil in every case — declining to upgrade isn't an error.
+  131 func promptSkillsUpgrade() error {
+  132 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+  133 	fmt.Println()
+  134 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -124,11 +124,12 @@
+ 	return nil
+ }
+ 
+ // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+-// single keypress: 'u' opens the checkout page, anything else quits. It reuses the resume TUI's
+-// checkout URL (checkoutURL, honouring the active cloud base), so the two upgrade paths land in the
+-// same place. Returns nil in every case — declining to upgrade isn't an error.
++// single keypress: 'u' opens the checkout page, anything else quits. It uses checkoutURL
++// (honouring the active cloud base) — the `skills` upgrade path lands on the checkout flow,
++// distinct from the resume/search TUI's `u` hotkey which opens the /resume hub instead.
++// Returns nil in every case — declining to upgrade isn't an error.
+ func promptSkillsUpgrade() error {
+ 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+ 	fmt.Println()
+ 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 128
+}
 ```
 </details></tool-use>
 
@@ -12709,9 +19640,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:23:25Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3; go test ./pkg/cmd/ 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -3; golangci-lint run 2>&1 | tail -3; go test ./pkg/cmd/ 2>&1 | tail -3
 ```
+
+```text
 0 issues.
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.189s
+
 ```
 </details></tool-use>
 
@@ -12739,7 +19676,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "checkoutURL\|/checkout\|promptSkillsUpgrade\|Upgrade.*Pro\|requires.*Pro\|pro.*plan\|SpecStory Pro\|entitlement\|Entitlement\|Features\.\|\.Resume\|\.Skills\|GetEntitlement\|ResumeEligibility" pkg/cmd/skills.go pkg/cmd/skills_*.go 2>/dev/null | head -40`</summary>
+**Command:**
+```bash
+grep -rn "checkoutURL\|/checkout\|promptSkillsUpgrade\|Upgrade.*Pro\|requires.*Pro\|pro.*plan\|SpecStory Pro\|entitlement\|Entitlement\|Features\.\|\.Resume\|\.Skills\|GetEntitlement\|ResumeEligibility" pkg/cmd/skills.go pkg/cmd/skills_*.go 2>/dev/null | head -40
 ```
+
+```text
 pkg/cmd/skills.go:57:				return promptSkillsUpgrade()
 pkg/cmd/skills.go:94:// whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
 pkg/cmd/skills.go:101:	ent, err := cloud.GetEntitlement()
@@ -12752,6 +19694,7 @@ pkg/cmd/skills.go:132:func promptSkillsUpgrade() error {
 pkg/cmd/skills.go:133:	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
 pkg/cmd/skills.go:146:		url := checkoutURL()
 pkg/cmd/skills.go:448:			// Local detection only — no login or entitlement needed (like `status`).
+
 ```
 </details></tool-use>
 
@@ -12759,10 +19702,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:14Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-return skillsCmd
+
+**Offset (line):**
+```text
+88
+```
+
+**Limit:**
+```text
+75
+```
+
+```go
+	return skillsCmd
 }
 
 // ---- access gating ----
@@ -12850,7 +19806,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:17Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "ensureSkillsAccess\|skillsAccess\|promptSkillsUpgrade" pkg/cmd/skills.go pkg/cmd/skills_*.go 2>/dev/null | head -30`</summary>
+**Command:**
+```bash
+grep -rn "ensureSkillsAccess\|skillsAccess\|promptSkillsUpgrade" pkg/cmd/skills.go pkg/cmd/skills_*.go 2>/dev/null | head -30
 ```
+
+```text
 pkg/cmd/skills.go:48:			loggedIn, entitled, err := skillsAccess()
 pkg/cmd/skills.go:57:				return promptSkillsUpgrade()
 pkg/cmd/skills.go:93:// skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
@@ -12870,6 +19831,7 @@ pkg/cmd/skills.go:299:			if err := ensureSkillsAccess(); err != nil {
 pkg/cmd/skills.go:330:			if err := ensureSkillsAccess(); err != nil {
 pkg/cmd/skills.go:390:			if err := ensureSkillsAccess(); err != nil {
 pkg/cmd/skills.go:416:			if err := ensureSkillsAccess(); err != nil {
+
 ```
 </details></tool-use>
 
@@ -12888,9 +19850,22 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:24Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
+
+**Offset (line):**
+```text
+40
+```
+
+**Limit:**
+```text
+45
+```
+
+```go
 Requires an active SpecStory Cloud login and a Pro plan. Every action is also available as a non-interactive subcommand with '--json' for scripting and front-end integration.`
 
 	skillsCmd := &cobra.Command{
@@ -12960,10 +19935,335 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:37Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-// ---- access gating ----
+-
+-// skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
+-// whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
+-// gate (ensureSkillsAccess, used by the subcommands) and the interactive upgrade prompt, so the two
+-// never disagree about who's allowed in.
+-func skillsAccess() (loggedIn, entitled bool, err error) {
+-	if !cloud.IsAuthenticated() {
+-		return false, false, nil
+-	}
+-	ent, err := cloud.GetEntitlement()
+-	if err != nil {
+-		return true, false, fmt.Errorf("checking your plan: %w", err)
+-	}
+-	return true, ent.Features.Skills, nil
+-}
+-
+-// ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+-// It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+-// so this is a fast, friendly client-side check, not the security boundary. (The interactive
+-// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
+-func ensureSkillsAccess() error {
+-	loggedIn, entitled, err := skillsAccess()
+-	if err != nil {
+-		return err
+-	}
+-	if !loggedIn {
+-		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+-	}
+-	if !entitled {
+-		return utils.ValidationError{Message: fmt.Sprintf(
+-			"skills require a Pro plan. Upgrade at %s to enable skills.", cloud.GetAPIBaseURL())}
+-	}
+-	return nil
+-}
+-
+-// promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+-// single keypress: 'u' opens the checkout page, anything else quits. It uses checkoutURL
+-// (honouring the active cloud base) — the `skills` upgrade path lands on the checkout flow,
+-// distinct from the resume/search TUI's `u` hotkey which opens the /resume hub instead.
+-// Returns nil in every case — declining to upgrade isn't an error.
+-func promptSkillsUpgrade() error {
+-	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+-	fmt.Println()
+-	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+-	fmt.Println()
+-	fmt.Print("  Press u to upgrade, or any other key to quit: ")
+-
+-	key, err := readSingleKey()
+-	fmt.Println()
+-	if err != nil {
+-		slog.Debug("skills upgrade prompt: failed to read key", "error", err)
+-		return nil // a read failure is treated as "quit" — nothing is lost either way
+-	}
+-	if key == 'u' || key == 'U' {
+-		url := checkoutURL()
+-		if err := openBrowser(url); err != nil {
+-			fmt.Printf("  Couldn't open your browser automatically. Visit:\n  %s\n", url)
+-		}
+-	}
+-	return nil
+-}
++// ---- access gating ----
++
++// skillsUpgradeURL is the page the skills upgrade flow opens — the SpecStory Cloud /skills
++// hub. Honours --cloud-url / SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /skills
++// rather than production. Used by both the interactive `skills` `u` prompt and the non-
++// interactive subcommands' upgrade error, so the two always land in the same place.
++func skillsUpgradeURL() string {
++	return cloud.GetAPIBaseURL() + "/skills"
++}
++
++// skillsProMessage is the single SpecStory Pro upsell message for skills, shown to a logged-in
++// user whose plan doesn't include them. Both the interactive `skills` command (via
++// promptSkillsUpgrade) and the non-interactive subcommands (via ensureSkillsAccess) surface this
++// exact text, so a user hitting the gate from any entry point sees the same response.
++const skillsProMessage = "skills require a SpecStory Pro plan. Open %s to upgrade and enable skills."
++
++// skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
++// whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
++// gate (ensureSkillsAccess, used by the subcommands) and the interactive upgrade prompt, so the two
++// never disagree about who's allowed in.
++func skillsAccess() (loggedIn, entitled bool, err error) {
++	if !cloud.IsAuthenticated() {
++		return false, false, nil
++	}
++	ent, err := cloud.GetEntitlement()
++	if err != nil {
++		return true, false, fmt.Errorf("checking your plan: %w", err)
++	}
++	return true, ent.Features.Skills, nil
++}
++
++// ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
++// It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
++// so this is a fast, friendly client-side check, not the security boundary. (The interactive
++// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.) The
++// not-Pro message is the shared skillsProMessage, so the subcommands and the interactive `u`
++// prompt read identically and point at the same /skills page.
++func ensureSkillsAccess() error {
++	loggedIn, entitled, err := skillsAccess()
++	if err != nil {
++		return err
++	}
++	if !loggedIn {
++		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
++	}
++	if !entitled {
++		return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
++	}
++	return nil
++}
++
++// promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
++// single keypress: 'u' opens the /skills page, anything else quits. It prints the same
++// skillsProMessage the non-interactive subcommands return (so the gate reads identically from
++// any entry point), then layers the interactive `u`-to-upgrade affordance on top. Returns nil
++// in every case — declining to upgrade isn't an error.
++func promptSkillsUpgrade() error {
++	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
++	url := skillsUpgradeURL()
++	fmt.Println()
++	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
++", pro)
++	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
++	fmt.Println()
++	fmt.Print("  Press u to upgrade, or any other key to quit: ")
++
++	key, err := readSingleKey()
++	fmt.Println()
++	if err != nil {
++		slog.Debug("skills upgrade prompt: failed to read key", "error", err)
++		return nil // a read failure is treated as "quit" — nothing is lost either way
++	}
++	if key == 'u' || key == 'U' {
++		if err := openBrowser(url); err != nil {
++			fmt.Printf("  Couldn't open your browser automatically. Visit:\n  %s\n", url)
++		}
++	}
++	return nil
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+   89 }
+   90 
+   91 // ---- access gating ----
+   92 
++  93 // skillsUpgradeURL is the page the skills upgrade flow opens — the SpecStory Cloud /skills
++  94 // hub. Honours --cloud-url / SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /skills
++  95 // rather than production. Used by both the interactive `skills` `u` prompt and the non-
++  96 // interactive subcommands' upgrade error, so the two always land in the same place.
++  97 func skillsUpgradeURL() string {
++  98 	return cloud.GetAPIBaseURL() + "/skills"
++  99 }
++ 100 
++ 101 // skillsProMessage is the single SpecStory Pro upsell message for skills, shown to a logged-in
++ 102 // user whose plan doesn't include them. Both the interactive `skills` command (via
++ 103 // promptSkillsUpgrade) and the non-interactive subcommands (via ensureSkillsAccess) surface this
++ 104 // exact text, so a user hitting the gate from any entry point sees the same response.
++ 105 const skillsProMessage = "skills require a SpecStory Pro plan. Open %s to upgrade and enable skills."
++ 106 
+   93 // skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
+   94 // whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
+   95 // gate (ensureSkillsAccess, used by the subcommands) and the interactive upgrade prompt, so the two
+   96 // never disagree about who's allowed in.
+      ...
+  107 
+  108 // ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+  109 // It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+  110 // so this is a fast, friendly client-side check, not the security boundary. (The interactive
+- 111 // `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
++ 125 // `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.) The
++ 126 // not-Pro message is the shared skillsProMessage, so the subcommands and the interactive `u`
++ 127 // prompt read identically and point at the same /skills page.
+  112 func ensureSkillsAccess() error {
+  113 	loggedIn, entitled, err := skillsAccess()
+  114 	if err != nil {
+  115 		return err
+      ...
+  117 	if !loggedIn {
+  118 		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+  119 	}
+  120 	if !entitled {
+- 121 		return utils.ValidationError{Message: fmt.Sprintf(
+- 122 			"skills require a Pro plan. Upgrade at %s to enable skills.", cloud.GetAPIBaseURL())}
++ 137 		return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
+  123 	}
+  124 	return nil
+  125 }
+  126 
+  127 // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+- 128 // single keypress: 'u' opens the checkout page, anything else quits. It uses checkoutURL
+- 129 // (honouring the active cloud base) — the `skills` upgrade path lands on the checkout flow,
+- 130 // distinct from the resume/search TUI's `u` hotkey which opens the /resume hub instead.
+- 131 // Returns nil in every case — declining to upgrade isn't an error.
++ 143 // single keypress: 'u' opens the /skills page, anything else quits. It prints the same
++ 144 // skillsProMessage the non-interactive subcommands return (so the gate reads identically from
++ 145 // any entry point), then layers the interactive `u`-to-upgrade affordance on top. Returns nil
++ 146 // in every case — declining to upgrade isn't an error.
+  132 func promptSkillsUpgrade() error {
+  133 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
++ 149 	url := skillsUpgradeURL()
+  134 	fmt.Println()
+- 135 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
++ 151 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
++ 152 ", pro)
++ 153 	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
+  136 	fmt.Println()
+  137 	fmt.Print("  Press u to upgrade, or any other key to quit: ")
+  138 
+  139 	key, err := readSingleKey()
+      ...
+  142 		slog.Debug("skills upgrade prompt: failed to read key", "error", err)
+  143 		return nil // a read failure is treated as "quit" — nothing is lost either way
+  144 	}
+  145 	if key == 'u' || key == 'U' {
+- 146 		url := checkoutURL()
+  147 		if err := openBrowser(url); err != nil {
+  148 			fmt.Printf("  Couldn't open your browser automatically. Visit:\n  %s\n", url)
+  149 		}
+  150 	}
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -89,8 +89,22 @@
+ }
+ 
+ // ---- access gating ----
+ 
++// skillsUpgradeURL is the page the skills upgrade flow opens — the SpecStory Cloud /skills
++// hub. Honours --cloud-url / SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /skills
++// rather than production. Used by both the interactive `skills` `u` prompt and the non-
++// interactive subcommands' upgrade error, so the two always land in the same place.
++func skillsUpgradeURL() string {
++	return cloud.GetAPIBaseURL() + "/skills"
++}
++
++// skillsProMessage is the single SpecStory Pro upsell message for skills, shown to a logged-in
++// user whose plan doesn't include them. Both the interactive `skills` command (via
++// promptSkillsUpgrade) and the non-interactive subcommands (via ensureSkillsAccess) surface this
++// exact text, so a user hitting the gate from any entry point sees the same response.
++const skillsProMessage = "skills require a SpecStory Pro plan. Open %s to upgrade and enable skills."
++
+ // skillsAccess reports the user's access to skills: whether they're logged into SpecStory Cloud and
+ // whether their plan carries the Pro "skills" entitlement. It's the shared basis for both the strict
+ // gate (ensureSkillsAccess, used by the subcommands) and the interactive upgrade prompt, so the two
+ // never disagree about who's allowed in.
+@@ -107,9 +121,11 @@
+ 
+ // ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+ // It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+ // so this is a fast, friendly client-side check, not the security boundary. (The interactive
+-// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
++// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.) The
++// not-Pro message is the shared skillsProMessage, so the subcommands and the interactive `u`
++// prompt read identically and point at the same /skills page.
+ func ensureSkillsAccess() error {
+ 	loggedIn, entitled, err := skillsAccess()
+ 	if err != nil {
+ 		return err
+@@ -117,23 +133,25 @@
+ 	if !loggedIn {
+ 		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+ 	}
+ 	if !entitled {
+-		return utils.ValidationError{Message: fmt.Sprintf(
+-			"skills require a Pro plan. Upgrade at %s to enable skills.", cloud.GetAPIBaseURL())}
++		return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
+ 	}
+ 	return nil
+ }
+ 
+ // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+-// single keypress: 'u' opens the checkout page, anything else quits. It uses checkoutURL
+-// (honouring the active cloud base) — the `skills` upgrade path lands on the checkout flow,
+-// distinct from the resume/search TUI's `u` hotkey which opens the /resume hub instead.
+-// Returns nil in every case — declining to upgrade isn't an error.
++// single keypress: 'u' opens the /skills page, anything else quits. It prints the same
++// skillsProMessage the non-interactive subcommands return (so the gate reads identically from
++// any entry point), then layers the interactive `u`-to-upgrade affordance on top. Returns nil
++// in every case — declining to upgrade isn't an error.
+ func promptSkillsUpgrade() error {
+ 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
++	url := skillsUpgradeURL()
+ 	fmt.Println()
+-	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
++	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
++", pro)
++	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
+ 	fmt.Println()
+ 	fmt.Print("  Press u to upgrade, or any other key to quit: ")
+ 
+ 	key, err := readSingleKey()
+@@ -142,9 +160,8 @@
+ 		slog.Debug("skills upgrade prompt: failed to read key", "error", err)
+ 		return nil // a read failure is treated as "quit" — nothing is lost either way
+ 	}
+ 	if key == 'u' || key == 'U' {
+-		url := checkoutURL()
+ 		if err := openBrowser(url); err != nil {
+ 			fmt.Printf("  Couldn't open your browser automatically. Visit:\n  %s\n", url)
+ 		}
+ 	}
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 93
+}
 ```
 </details></tool-use>
 
@@ -12975,9 +20275,15 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:39Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -rn "checkoutURL" pkg/ 2>/dev/null`</summary>
+**Command:**
+```bash
+grep -rn "checkoutURL" pkg/ 2>/dev/null
 ```
+
+```text
 pkg/cmd/session_tui_cloud.go:163:// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
 pkg/cmd/session_tui_cloud.go:166:func checkoutURL() string {
+
 ```
 </details></tool-use>
 
@@ -12989,10 +20295,87 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:43Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/session_tui_cloud.go`
+**Path:**
+```text
+pkg/cmd/session_tui_cloud.go
+```
+
+**Edit 1:**
+```diff
+-// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
+-// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
+-// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
+-func upgradeURL() string {
+-	return cloud.GetAPIBaseURL() + "/resume"
+-}
+-
+-// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+-// SPECSTORY_CLOUD_URL). Used by the `skills` command's upgrade prompt, which lands on the
+-// checkout flow (the resume/search `u` hotkey uses upgradeURL → /resume instead).
+-func checkoutURL() string {
+-	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
+-}
++// upgradeURL is the page the `u` hotkey opens — the SpecStory Cloud /resume hub, which
++// explains cross-machine resume and hosts the Pro upsell. Honours --cloud-url /
++// SPECSTORY_CLOUD_URL, so a dev/staging build opens its own /resume rather than production.
++func upgradeURL() string {
++	return cloud.GetAPIBaseURL() + "/resume"
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+```
+
+**diff:**
+```diff
+     ...
+ 159 func upgradeURL() string {
+ 160 	return cloud.GetAPIBaseURL() + "/resume"
+ 161 }
+ 162 
+-163 // checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+-164 // SPECSTORY_CLOUD_URL). Used by the `skills` command's upgrade prompt, which lands on the
+-165 // checkout flow (the resume/search `u` hotkey uses upgradeURL → /resume instead).
+-166 func checkoutURL() string {
+-167 	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
+-168 }
+-169 
+ 170 // upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
+ 171 // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+ 172 func (m sessionTUI) upgradeCmd() tea.Cmd {
+ 173 	if m.cloudNudge != cloudNudgeUpgrade {
+     ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/session_tui_cloud.go
++++ pkg/cmd/session_tui_cloud.go
+@@ -159,15 +159,8 @@
+ func upgradeURL() string {
+ 	return cloud.GetAPIBaseURL() + "/resume"
+ }
+ 
+-// checkoutURL is the Pro checkout page on the active SpecStory Cloud (honours --cloud-url /
+-// SPECSTORY_CLOUD_URL). Used by the `skills` command's upgrade prompt, which lands on the
+-// checkout flow (the resume/search `u` hotkey uses upgradeURL → /resume instead).
+-func checkoutURL() string {
+-	return cloud.GetAPIBaseURL() + "/checkout?plan=pro"
+-}
+-
+ // upgradeCmd opens the /resume page in the browser, but only while the upgrade nudge is
+ // showing — so the `u` hotkey is inert for users who are already Pro or aren't logged in.
+ func (m sessionTUI) upgradeCmd() tea.Cmd {
+ 	if m.cloudNudge != cloudNudgeUpgrade {
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/session_tui_cloud.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 163
+}
 ```
 </details></tool-use>
 
@@ -13000,7 +20383,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:49Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -5; echo "--- TESTS ---"; go test ./pkg/cmd/ 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -5; echo "--- TESTS ---"; go test ./pkg/cmd/ 2>&1 | tail -3
 ```
+
+```text
 # github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd
 pkg/cmd/skills.go:151:105: newline in string
 pkg/cmd/skills.go:151:105: syntax error: unexpected newline in argument list; possibly missing comma or )
@@ -13016,6 +20404,7 @@ pkg/cmd/skills.go:161:3: expected operand, found 'return' (typecheck)
 pkg/cmd/skills.go:153:57: syntax error: unexpected ) at end of statement
 FAIL	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd [build failed]
 FAIL
+
 ```
 </details></tool-use>
 
@@ -13027,10 +20416,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:25:53Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+
+**Offset (line):**
+```text
+148
+```
+
+**Limit:**
+```text
+8
+```
+
+```go
+	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
 	url := skillsUpgradeURL()
 	fmt.Println()
 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
@@ -13051,10 +20453,63 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:26:00Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
+-", pro)
++	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  147 func promptSkillsUpgrade() error {
+  148 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+  149 	url := skillsUpgradeURL()
+  150 	fmt.Println()
+- 151 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
+- 152 ", pro)
++ 151 	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+  153 	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
+  154 	fmt.Println()
+  155 	fmt.Print("  Press u to upgrade, or any other key to quit: ")
+  156 
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -147,10 +147,9 @@
+ func promptSkillsUpgrade() error {
+ 	pro := lipgloss.NewStyle().Bold(true).Render("SpecStory Pro")
+ 	url := skillsUpgradeURL()
+ 	fmt.Println()
+-	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.
+-", pro)
++	fmt.Printf("  Upgrade to %s for automatic skills generation from your SpecStory histories in the Cloud.\n", pro)
+ 	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
+ 	fmt.Println()
+ 	fmt.Print("  Press u to upgrade, or any other key to quit: ")
+ 
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 151
+}
 ```
 </details></tool-use>
 
@@ -13062,11 +20517,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:26:09Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3; echo "--- TESTS ---"; go test ./pkg/cmd/ 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3; echo "--- TESTS ---"; go test ./pkg/cmd/ 2>&1 | tail -3
 ```
+
+```text
 --- LINT ---
 0 issues.
 --- TESTS ---
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.186s
+
 ```
 </details></tool-use>
 
@@ -13078,7 +20539,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:26:13Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "skillsProMessage\|skillsUpgradeURL\|require a SpecStory Cloud login\|require a Pro plan\|require a SpecStory Pro" pkg/cmd/skills.go`</summary>
+**Command:**
+```bash
+grep -n "skillsProMessage\|skillsUpgradeURL\|require a SpecStory Cloud login\|require a Pro plan\|require a SpecStory Pro" pkg/cmd/skills.go
 ```
+
+```text
 53:				return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
 93:// skillsUpgradeURL is the page the skills upgrade flow opens — the SpecStory Cloud /skills
 97:func skillsUpgradeURL() string {
@@ -13090,6 +20556,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:26:13Z)**_
 144:// skillsProMessage the non-interactive subcommands return (so the gate reads identically from
 149:	url := skillsUpgradeURL()
 152:	fmt.Printf("  %s\n", fmt.Sprintf(skillsProMessage, url))
+
 ```
 </details></tool-use>
 
@@ -13142,10 +20609,23 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:25Z)**_
 
 <tool-use data-tool-type="read" data-tool-name="read"><details>
 <summary>Tool use: **read**</summary>
-`pkg/cmd/skills.go`
-
+**Path:**
+```text
+pkg/cmd/skills.go
 ```
-if !term.IsTerminal(fd) {
+
+**Offset (line):**
+```text
+175
+```
+
+**Limit:**
+```text
+45
+```
+
+```go
+	if !term.IsTerminal(fd) {
 		return bufio.NewReader(os.Stdin).ReadByte()
 	}
 	oldState, err := term.MakeRaw(fd)
@@ -13199,7 +20679,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:27Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "if err := ensureSkillsAccess(); err != nil {" pkg/cmd/skills.go`</summary>
+**Command:**
+```bash
+grep -n "if err := ensureSkillsAccess(); err != nil {" pkg/cmd/skills.go
 ```
+
+```text
 199:			if err := ensureSkillsAccess(); err != nil {
 224:			if err := ensureSkillsAccess(); err != nil {
 250:			if err := ensureSkillsAccess(); err != nil {
@@ -13208,6 +20693,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:27Z)**_
 346:			if err := ensureSkillsAccess(); err != nil {
 406:			if err := ensureSkillsAccess(); err != nil {
 432:			if err := ensureSkillsAccess(); err != nil {
+
 ```
 </details></tool-use>
 
@@ -13221,7 +20707,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:33Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `for ln in 199 224 250 286 315 346 406 432; do echo "--- line $ln ---"; sed -n "$((ln-3)),$((ln+1))p" pkg/cmd/skills.go; done`</summary>
+**Command:**
+```bash
+for ln in 199 224 250 286 315 346 406 432; do echo "--- line $ln ---"; sed -n "$((ln-3)),$((ln+1))p" pkg/cmd/skills.go; done
 ```
+
+```text
 --- line 199 ---
 		Short: "List your cloud skills and their local install state",
 		Args:  cobra.NoArgs,
@@ -13270,6 +20761,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:33Z)**_
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := ensureSkillsAccess(); err != nil {
 				return err
+
 ```
 </details></tool-use>
 
@@ -13283,7 +20775,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:37Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `grep -n "jsonOut\|\"json\"\|BoolVar.*json" pkg/cmd/skills.go | head -20`</summary>
+**Command:**
+```bash
+grep -n "jsonOut\|\"json\"\|BoolVar.*json" pkg/cmd/skills.go | head -20
 ```
+
+```text
 193:	var jsonOut bool
 206:			if jsonOut {
 213:	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
@@ -13304,6 +20801,7 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:37Z)**_
 365:	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
 371:	var jsonOut bool
 382:			if jsonOut {
+
 ```
 </details></tool-use>
 
@@ -13317,10 +20815,167 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:46Z)**_
 
 <tool-use data-tool-type="write" data-tool-name="edit"><details>
 <summary>Tool use: **edit**</summary>
-`pkg/cmd/skills.go`
+**Path:**
+```text
+pkg/cmd/skills.go
+```
+
+**Edit 1:**
+```diff
+-// ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+-// It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+-// so this is a fast, friendly client-side check, not the security boundary. (The interactive
+-// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.) The
+-// not-Pro message is the shared skillsProMessage, so the subcommands and the interactive `u`
+-// prompt read identically and point at the same /skills page.
+-func ensureSkillsAccess() error {
+-	loggedIn, entitled, err := skillsAccess()
+-	if err != nil {
+-		return err
+-	}
+-	if !loggedIn {
+-		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+-	}
+-	if !entitled {
+-		return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
+-	}
+-	return nil
+-}
++// ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
++// It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
++// so this is a fast, friendly client-side check, not the security boundary. (The interactive
++// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
++//
++// The not-Pro case mirrors the interactive `skills` command's experience when stdin is a
++// terminal: promptSkillsUpgrade prints the shared skillsProMessage and offers the `u`-to-upgrade
++// hotkey, so a user hitting the gate from `specstory skills run` (or any subcommand) in a real
++// terminal sees the same affordance as from `specstory skills` — not a bare capitalized ERROR.
++// When stdin isn't a terminal (piped / --json / CI), it returns the not-Pro message as an error
++// instead, so scripts and front-ends get a machine-readable failure rather than a hung prompt.
++func ensureSkillsAccess() error {
++	loggedIn, entitled, err := skillsAccess()
++	if err != nil {
++		return err
++	}
++	if !loggedIn {
++		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
++	}
++	if entitled {
++		return nil
++	}
++	// Not Pro. Offer the interactive upgrade prompt in a real terminal (same experience as
++	// `specstory skills`); otherwise surface the shared message as an error for non-interactive
++	// callers (--json, piped stdin, CI).
++	if term.IsTerminal(int(os.Stdin.Fd())) {
++		return promptSkillsUpgrade()
++	}
++	return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
++}
+```
+
+```text
+Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+```
+
+**diff:**
+```diff
+      ...
+  121 
+  122 // ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+  123 // It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+  124 // so this is a fast, friendly client-side check, not the security boundary. (The interactive
+- 125 // `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.) The
+- 126 // not-Pro message is the shared skillsProMessage, so the subcommands and the interactive `u`
+- 127 // prompt read identically and point at the same /skills page.
++ 125 // `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
++ 126 //
++ 127 // The not-Pro case mirrors the interactive `skills` command's experience when stdin is a
++ 128 // terminal: promptSkillsUpgrade prints the shared skillsProMessage and offers the `u`-to-upgrade
++ 129 // hotkey, so a user hitting the gate from `specstory skills run` (or any subcommand) in a real
++ 130 // terminal sees the same affordance as from `specstory skills` — not a bare capitalized ERROR.
++ 131 // When stdin isn't a terminal (piped / --json / CI), it returns the not-Pro message as an error
++ 132 // instead, so scripts and front-ends get a machine-readable failure rather than a hung prompt.
+  128 func ensureSkillsAccess() error {
+  129 	loggedIn, entitled, err := skillsAccess()
+  130 	if err != nil {
+  131 		return err
+  132 	}
+  133 	if !loggedIn {
+  134 		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+  135 	}
+- 136 	if !entitled {
+- 137 		return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
++ 141 	if entitled {
++ 142 		return nil
+  138 	}
+- 139 	return nil
++ 144 	// Not Pro. Offer the interactive upgrade prompt in a real terminal (same experience as
++ 145 	// `specstory skills`); otherwise surface the shared message as an error for non-interactive
++ 146 	// callers (--json, piped stdin, CI).
++ 147 	if term.IsTerminal(int(os.Stdin.Fd())) {
++ 148 		return promptSkillsUpgrade()
++ 149 	}
++ 150 	return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
+  140 }
+  141 
+  142 // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+  143 // single keypress: 'u' opens the /skills page, anything else quits. It prints the same
+      ...
+```
+
+**patch:**
+```diff
+--- pkg/cmd/skills.go
++++ pkg/cmd/skills.go
+@@ -121,23 +121,34 @@
+ 
+ // ensureSkillsAccess verifies the user is logged in and has the Pro "skills" entitlement.
+ // It is the gate for the non-interactive subcommands. The server also enforces the entitlement,
+ // so this is a fast, friendly client-side check, not the security boundary. (The interactive
+-// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.) The
+-// not-Pro message is the shared skillsProMessage, so the subcommands and the interactive `u`
+-// prompt read identically and point at the same /skills page.
++// `skills` command uses skillsAccess directly so it can offer an upgrade prompt instead.)
++//
++// The not-Pro case mirrors the interactive `skills` command's experience when stdin is a
++// terminal: promptSkillsUpgrade prints the shared skillsProMessage and offers the `u`-to-upgrade
++// hotkey, so a user hitting the gate from `specstory skills run` (or any subcommand) in a real
++// terminal sees the same affordance as from `specstory skills` — not a bare capitalized ERROR.
++// When stdin isn't a terminal (piped / --json / CI), it returns the not-Pro message as an error
++// instead, so scripts and front-ends get a machine-readable failure rather than a hung prompt.
+ func ensureSkillsAccess() error {
+ 	loggedIn, entitled, err := skillsAccess()
+ 	if err != nil {
+ 		return err
+ 	}
+ 	if !loggedIn {
+ 		return utils.ValidationError{Message: "skills require a SpecStory Cloud login. Run 'specstory login' first."}
+ 	}
+-	if !entitled {
+-		return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
++	if entitled {
++		return nil
+ 	}
+-	return nil
++	// Not Pro. Offer the interactive upgrade prompt in a real terminal (same experience as
++	// `specstory skills`); otherwise surface the shared message as an error for non-interactive
++	// callers (--json, piped stdin, CI).
++	if term.IsTerminal(int(os.Stdin.Fd())) {
++		return promptSkillsUpgrade()
++	}
++	return utils.ValidationError{Message: fmt.Sprintf(skillsProMessage, skillsUpgradeURL())}
+ }
+ 
+ // promptSkillsUpgrade shows the Pro upsell for skills to a logged-in free user and waits for a
+ // single keypress: 'u' opens the /skills page, anything else quits. It prints the same
 
 ```
-Successfully replaced 1 block(s) in pkg/cmd/skills.go.
+
+**Details:**
+```json
+{
+  "firstChangedLine": 125
+}
 ```
 </details></tool-use>
 
@@ -13332,7 +20987,12 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:30:55Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `sed -n '1,20p' pkg/cmd/skills.go`</summary>
+**Command:**
+```bash
+sed -n '1,20p' pkg/cmd/skills.go
 ```
+
+```text
 package cmd
 
 import (
@@ -13352,6 +21012,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+
+
 ```
 </details></tool-use>
 
@@ -13363,11 +21025,17 @@ _**Agent (accounts/fireworks/routers/glm-5p2-fast 2026-07-14 20:31:06Z)**_
 
 <tool-use data-tool-type="shell" data-tool-name="bash"><details>
 <summary>Tool use: **bash** `go build -o specstory 2>&1 | head -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3; echo "--- TESTS ---"; go test ./pkg/cmd/ 2>&1 | tail -3`</summary>
+**Command:**
+```bash
+go build -o specstory 2>&1 | head -5; echo "--- LINT ---"; golangci-lint run 2>&1 | tail -3; echo "--- TESTS ---"; go test ./pkg/cmd/ 2>&1 | tail -3
 ```
+
+```text
 --- LINT ---
 0 issues.
 --- TESTS ---
 ok  	github.com/specstoryai/getspecstory/specstory-cli/pkg/cmd	0.183s
+
 ```
 </details></tool-use>
 

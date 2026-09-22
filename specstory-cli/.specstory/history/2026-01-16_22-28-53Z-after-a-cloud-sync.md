@@ -41,7 +41,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:29:46Z)**_
 <summary>Tool use: **Task**</summary>
 Explore cloud sync output
 
-```text
+````text
 Excellent! Now I have gathered all the information needed. Let me compile a comprehensive report.
 
 ## Cloud Sync Functionality Analysis
@@ -186,7 +186,7 @@ When syncing individual sessions, you have access to:
 
 This data is passed through `SyncSessionToCloud()` function at `pkg/cloud/sync.go` line 1040 and collected in the global `CloudSyncStats` structure accessible during shutdown.
 agentId: ae1302c (for resuming to continue this agent's work if needed)
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-01-16 22:29:04Z)**_
@@ -5870,7 +5870,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:31:20Z)**_
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
 
-```text
+````text
 The file /Users/sean/.claude/plans/wiggly-churning-petal.md has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
     20→## Proposed Change
     21→
@@ -5891,7 +5891,7 @@ The file /Users/sean/.claude/plans/wiggly-churning-petal.md has been updated. He
     36→## Implementation
     37→
     38→### File to modify
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 22:31:23Z)**_
@@ -5905,7 +5905,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:31:26Z)**_
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
 
-```text
+````text
 The file /Users/sean/.claude/plans/wiggly-churning-petal.md has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
     42→### Code change
     43→
@@ -5927,7 +5927,7 @@ The file /Users/sean/.claude/plans/wiggly-churning-petal.md has been updated. He
     59→### Styling details
     60→
     61→- Uses 🔍 emoji (magnifying glass) to convey search capability
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 22:31:29Z)**_
@@ -5941,7 +5941,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:31:30Z)**_
 <tool-use data-tool-type="write" data-tool-name="Edit"><details>
 <summary>Tool use: **Edit**</summary>
 
-```text
+````text
 The file /Users/sean/.claude/plans/wiggly-churning-petal.md has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
     55→    }
     56→}
@@ -5954,7 +5954,7 @@ The file /Users/sean/.claude/plans/wiggly-churning-petal.md has been updated. He
     63→- Two-line format for readability (text on one line, URL indented on next)
     64→- Only shown when:
     65→  1. Not in silent mode
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 22:31:32Z)**_
@@ -6031,7 +6031,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-16 22:32:17Z)**_
 <tool-use data-tool-type="generic" data-tool-name="ExitPlanMode"><details>
 <summary>Tool use: **ExitPlanMode**</summary>
 
-```text
+````text
 User has approved your plan. You can now start coding. Start with updating your todo list if applicable
 
 Your plan has been saved to: /Users/sean/.claude/plans/wiggly-churning-petal.md
@@ -6114,7 +6114,7 @@ if cwdErr == nil {
 4. Test that the link is not shown in silent mode (`./specstory sync --silent`)
 5. Run linter: `golangci-lint run`
 6. Run tests: `go test ./...`
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-16 22:32:21Z)**_

@@ -22,10 +22,11 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:12Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"pwd; rg --files -g 'AGENTS.md' -g '*muse*' -g '*factory*' -g '*TOOL-AUDIT*' -g 'go.mod' -g '*AgentExit*'","max_output_tokens":6000}));
-text(ALL_TOOLS.filter(x=>/sea
-...
+text(ALL_TOOLS.filter(x=>/search|factory|testmo/.test(x.name+" "+x.description)).map(x=>({name:x.name,description:x.description.slice(0,160)})));
+
 ```
 </details></tool-use>
 
@@ -33,10 +34,13 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:21Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
-tools.exec_command({cmd:"git status --short; rg --files --hidden -g 'AGENTS.md' -g '!vendor' -g '!.git'; rg -n 'AgentExitError|musecode|Muse Code|TOOL-AUDIT|dist-tag
-...
+tools.exec_command({cmd:"git status --short; rg --files --hidden -g 'AGENTS.md' -g '!vendor' -g '!.git'; rg -n 'AgentExitError|musecode|Muse Code|TOOL-AUDIT|dist-tag' pkg/providers scripts .github docs","max_output_tokens":13000}),
+tools.exec_command({cmd:"cat /Users/sean/.agents/skills/testmo-change-evaluator/SKILL.md; for p in /AGENTS.md /Users/AGENTS.md /Users/sean/AGENTS.md /Users/sean/Source/AGENTS.md /Users/sean/Source/SpecStory/AGENTS.md /Users/sean/Source/SpecStory/getspecstory/AGENTS.md; do if test -f \"$p\"; then cat \"$p\"; fi; done","max_output_tokens":6000})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -44,9 +48,10 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:25Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"git rev-parse --show-toplevel; ls -a ..; ls /Users/sean/Source/SpecStory; cat pkg/providers/musecode/muse_exec.go; sed -n '420,485p' pkg/providers/musecode/provider
-...
+Input:
+```
+text(await tools.exec_command({cmd:"git rev-parse --show-toplevel; ls -a ..; ls /Users/sean/Source/SpecStory; cat pkg/providers/musecode/muse_exec.go; sed -n '420,485p' pkg/providers/musecode/provider.go; cat pkg/providers/musecode/factory/latest-version; cat pkg/providers/piagent/piagent_exec.go; sed -n '155,225p' pkg/providers/piagent/provider.go; cat pkg/providers/piagent/piagent_exec_test.go; rg -n 'factory|TOOL-AUDIT' ../AGENTS.md ../CLAUDE.md docs/PROVIDER-SPI.md ../../factory 2>/dev/null","max_output_tokens":10000}));
+
 ```
 </details></tool-use>
 
@@ -54,9 +59,10 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:29Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"ls -a /Users/sean/Source/SpecStory/provider-factory; rg --files --hidden /Users/sean/Source/SpecStory/provider-factory -g AGENTS.md -g '*TOOL-AUDIT*' -g '*README*';
-...
+Input:
+```
+text(await tools.exec_command({cmd:"ls -a /Users/sean/Source/SpecStory/provider-factory; rg --files --hidden /Users/sean/Source/SpecStory/provider-factory -g AGENTS.md -g '*TOOL-AUDIT*' -g '*README*'; cat pkg/providers/musecode/watcher.go; cat pkg/providers/musecode/muse_exec_test.go; cat pkg/spi/agent_exit.go; rg -n 'muse|dist-tag|headless|list-tools|seed' /Users/sean/Source/SpecStory/provider-factory --glob '*.md'","max_output_tokens":12000}));
+
 ```
 </details></tool-use>
 
@@ -68,9 +74,11 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:37Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat pkg/providers/codexcli/factory/install pkg/providers/codexcli/factory/list-tools; rg -n 'prerelease|dist-tag|header|enroll' /Users/sean/Source/SpecStory/provide
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat pkg/providers/codexcli/factory/install pkg/providers/codexcli/factory/list-tools; rg -n 'prerelease|dist-tag|header|enroll' /Users/sean/Source/SpecStory/provider-factory/Workflows/coding-agent-release/NEW-AGENT-VERSION.md; cat /Users/sean/Source/SpecStory/provider-factory/scripts/tool-audit-enumerate.sh; rg --files /Users/sean/Source/SpecStory/specstory-cli-multi-agent | rg 'muse|AGENTS'; ls /Users/sean/Source/SpecStory/provider-factory/tools; command -v muse; rg -n 'exec|auth|token|version' docs/MUSE-FORMAT.md; rg -n 'func.*[Ss]ession|StopWatcher|Join|Callback' pkg/providers/musecode/watcher_test.go; rg -n 'type AgentExitError' pkg/spi; git -C /Users/sean/Source/SpecStory/provider-factory status --short","max_output_tokens":6200}));
+text(await tools.web__run({open:[{ref_id:"https://api.meta.ai/muse-code/channels/muse-stable"},{ref_id:"https://api.meta.ai/muse-launcher.sh"}],response_length:"short"}));
+
 ```
 </details></tool-use>
 
@@ -78,10 +86,13 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:46Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"curl -fsSL --connect-timeout 10 --max-time 30 https://api.meta.ai/muse-code/channels/muse-stable; curl -fsSL --connect-timeout 10 --max-tim
-...
+tools.exec_command({cmd:"curl -fsSL --connect-timeout 10 --max-time 30 https://api.meta.ai/muse-code/channels/muse-stable; curl -fsSL --connect-timeout 10 --max-time 30 https://api.meta.ai/muse-launcher.sh -o /tmp/muse-launcher-factory-review.sh","max_output_tokens":1700}),
+tools.exec_command({cmd:"head -70 /Users/sean/.local/bin/muse; cat /Users/sean/Source/SpecStory/specstory-cli-multi-agent/muse-code/2026-08-16/tools.txt; cat /Users/sean/Source/SpecStory/specstory-cli-multi-agent/muse-code/2026-08-16/versions.txt; sed -n '1,85p' pkg/providers/musecode/watcher_test.go; cat pkg/spi/exit.go; sed -n '1,85p' pkg/providers/musecode/path_utils_test.go; git -C /Users/sean/Source/SpecStory/provider-factory diff --stat; rg -n 'dist-tag|prerelease|Factory' docs ../scripts --glob '*.md'","max_output_tokens":2800})
+]); rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -89,9 +100,10 @@ _**Agent (gpt-6-astra 2026-09-15 14:58:56Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg -n 'pin|version|auth|install|MUSE_' /tmp/muse-launcher-factory-review.sh | tail -90; rg -n 'case .*|--version|--help|exec .*binary|binary_path' /Users/sean/.loca
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg -n 'pin|version|auth|install|MUSE_' /tmp/muse-launcher-factory-review.sh | tail -90; rg -n 'case .*|--version|--help|exec .*binary|binary_path' /Users/sean/.local/bin/muse | tail -35; rg --files /Users/sean/.local/share/muse | rg '/(muse|muse-code)$|manifest' | head -15; cat /Users/sean/Source/SpecStory/provider-factory/versions/musecode; head -10 /Users/sean/Source/SpecStory/provider-factory/tools/codexcli","max_output_tokens":2700}));
+
 ```
 </details></tool-use>
 
@@ -105,9 +117,10 @@ _**Agent (gpt-6-astra 2026-09-15 14:59:16Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/muse_exec.go\n@@\n // ExecuteMuse runs the Muse Code CLI,
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/muse_exec.go\n@@\n // ExecuteMuse runs the Muse Code CLI, optionally resuming an existing session.\n+// Return the agent's exit status so ExecAgentAndWatch can stop the watcher and\n+// join in-flight saves before the CLI applies that status to the process.\n@@\n-\t\t\tos.Exit(exitCode)\n+\t\t\treturn &spi.AgentExitError{Agent: \"Muse Code\", Code: exitCode}\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/factory/latest-version\n@@\n # Muse is not on npm and its GitHub repo is not public.\n+# Dist-tag/prerelease policy: there is no npm dist-tag. Track only muse-stable,\n+# including its full -R build suffix (for example, 1.3.0-R3057.1). That suffix\n+# is part of the stable channel's release identity, not a reason to filter the\n+# version as a prerelease. Build-only changes must trigger the factory too.\n+# Other channels are not tracked. See README.md for audit enrollment gaps.\n*** Add File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/factory/README.md\n+# Muse Code factory enrollment\n+\n+Muse currently enrolls in **NEW-AGENT-VERSION only**, through `latest-version`.\n+`install` and `list-tools` are deliberately absent until the factory can satisfy\n+their contracts. Muse supports `muse exec \"<prompt>\"`; lack of a headless mode is\n+not the blocker.\n+\n+## Requirements for tool-audit enrollment\n+\n+- **Exact installation:** Meta's [launcher](https://api.meta.ai/muse-launcher.sh)\n+  follows the moving `muse-stable` channel. Implement and verify installation of\n+  the factory's recorded release, including its `-R` suffix, under the isolated\n+  `$HOME`; read back and compare the installed version. Prevent automatic\n+  updates during enumeration (`MUSE_NO_AUTO_UPDATE=1`, or invoke the pinned\n+  binary directly). Running the default installer alone does not pin a release.\n+- **Credentials:** the factory's `scripts/tool-audit-enumerate.sh` runs with\n+  `env -i` and a fresh `$HOME`. It currently provisions no Muse credentials.\n+  Muse uses an OAuth credential file (`$HOME/.config/muse/auth.json`, with XDG\n+  and `MUSE_AUTH_PATH` overrides in the launcher) and device login. Establish\n+  factory-owned credential provisioning and refresh before enrolling; do not\n+  depend on the developer's login or an interactive device flow in CI.\n+- **Enumeration:** verify `muse exec` in that isolated environment, select a\n+  harness-declared inventory if available or the factory's self-report prompt\n+  including deferred tools, and fail non-zero on agent/auth errors or missing\n+  or empty output. Take the two independent readings required by TOOL-AUDIT.\n+\n+Add executable `install` and `list-tools` scripts together once these paths\n+have been verified. Their presence enrolls the provider in TOOL-AUDIT; a\n+placeholder script would advertise support the factory cannot yet exercise.\n+\n+## Historical inventory seed\n+\n+The factory's `tools/musecode` baseline comes from\n+`specstory-cli-multi-agent/muse-code/2026-08-16/tools.txt`: 29 names reported by\n+Muse Code `0.1.0-R708.1`. Sort the names while preserving the original `muse.`\n+prefix. This is a historical self-report for the first comparison, not a claim\n+about the current tool surface. TOOL-AUDIT's judge handles normalization against\n+new readings. Seeding this file does not enroll the provider in tool audits.\n*** End Patch"));
+
 ```
 </details></tool-use>
 
@@ -115,9 +128,12 @@ _**Agent (gpt-6-astra 2026-09-15 14:59:41Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/muse_exec_test.go\n@@\n import (\n+\t\"errors\"\n+\t\"fmt
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/muse_exec_test.go\n@@\n import (\n+\t\"errors\"\n+\t\"fmt\"\n+\t\"os\"\n+\t\"path/filepath\"\n+\t\"runtime\"\n \t\"slices\"\n+\t\"sync\"\n \t\"testing\"\n+\t\"time\"\n+\n+\t\"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi\"\n@@\n }\n+\n+// The stand-in waits until a save starts before exiting. This isolates the\n+// shutdown join from fsnotify delivery timing: returning the exit status must\n+// never let the caller exit while that save is still in flight.\n+func TestExecAgentAndWatch_JoinsSaveBeforeReturningExitStatus(t *testing.T) {\n+\tif runtime.GOOS == \"windows\" {\n+\t\tt.Skip(\"the stand-in Muse is a POSIX shell script\")\n+\t}\n+\tfor _, code := range []int{0, 7} {\n+\t\tt.Run(fmt.Sprintf(\"exit_%d\", code), func(t *testing.T) {\n+\t\t\troot := seedStore(t)\n+\t\t\tproject := t.TempDir()\n+\t\t\tstaged := writeSession(t, t.TempDir(), time.Now().Format(\"2006/01/02\"), basicSessionID, \"session-basic.jsonl\", project)\n+\t\t\ttarget := filepath.Join(root, time.Now().Format(\"2006/01/02\"), basicSessionID, sessionFileName)\n+\t\t\tif err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {\n+\t\t\t\tt.Fatal(err)\n+\t\t\t}\n+\t\t\tstarted := filepath.Join(t.TempDir(), \"save-started\")\n+\t\t\tt.Setenv(\"FAKE_MUSE_STAGED\", staged)\n+\t\t\tt.Setenv(\"FAKE_MUSE_SESSION\", target)\n+\t\t\tt.Setenv(\"FAKE_MUSE_SAVE_STARTED\", started)\n+\t\t\tt.Setenv(\"FAKE_MUSE_EXIT\", fmt.Sprint(code))\n+\t\t\tfakeMuse := filepath.Join(t.TempDir(), \"muse.sh\")\n+\t\t\tscript := `#!/bin/sh\n+set -eu\n+i=0\n+while [ ! -f \"$FAKE_MUSE_SAVE_STARTED\" ]; do\n+  cat \"$FAKE_MUSE_STAGED\" > \"$FAKE_MUSE_SESSION\"\n+  i=$((i + 1))\n+  if [ \"$i\" -ge 500 ]; then exit 99; fi\n+  sleep 0.01\n+done\n+exit \"$FAKE_MUSE_EXIT\"\n+`\n+\t\t\tif err := os.WriteFile(fakeMuse, []byte(script), 0o700); err != nil {\n+\t\t\t\tt.Fatal(err)\n+\t\t\t}\n+\t\t\tsaved := make(chan struct{})\n+\t\t\tvar once sync.Once\n+\t\t\tcallback := func(s *spi.AgentChatSession) {\n+\t\t\t\tonce.Do(func() {\n+\t\t\t\t\tif s.SessionID != basicSessionID {\n+\t\t\t\t\t\tt.Errorf(\"session ID = %q, want %q\", s.SessionID, basicSessionID)\n+\t\t\t\t\t}\n+\t\t\t\t\tif err := os.WriteFile(started, nil, 0o600); err != nil {\n+\t\t\t\t\t\tt.Error(err)\n+\t\t\t\t\t}\n+\t\t\t\t\t// Keep the save in flight after the child observes the marker.\n+\t\t\t\t\ttime.Sleep(100 * time.Millisecond)\n+\t\t\t\t\tclose(saved)\n+\t\t\t\t})\n+\t\t\t}\n+\t\t\tt.Cleanup(func() {\n+\t\t\t\tStopWatcher()\n+\t\t\t\tSetWatcherCallback(nil)\n+\t\t\t\tSetWatcherWorkspaceRoot(\"\")\n+\t\t\t})\n+\t\t\terr := NewProvider().ExecAgentAndWatch(project, fmt.Sprintf(\"%q\", fakeMuse), \"\", false, callback)\n+\t\t\tif code == 0 {\n+\t\t\t\tif err != nil {\n+\t\t\t\t\tt.Fatalf(\"ExecAgentAndWatch: %v\", err)\n+\t\t\t\t}\n+\t\t\t} else {\n+\t\t\t\tvar agentExit *spi.AgentExitError\n+\t\t\t\tif !errors.As(err, &agentExit) || agentExit.Code != code || agentExit.Agent != \"Muse Code\" {\n+\t\t\t\t\tt.Fatalf(\"error = %v, want Muse Code AgentExitError with code %d\", err, code)\n+\t\t\t\t}\n+\t\t\t}\n+\t\t\tselect {\n+\t\t\tcase <-saved:\n+\t\t\tdefault:\n+\t\t\t\tt.Fatal(\"ExecAgentAndWatch returned before the save finished\")\n+\t\t\t}\n+\t\t})\n+\t}\n+}\n+\n+func TestExecuteMuse_StartFailure(t *testing.T) {\n+\terr := ExecuteMuse(fmt.Sprintf(\"%q\", filepath.Join(t.TempDir(), \"missing-muse\")), \"\")\n+\tvar agentExit *spi.AgentExitError\n+\tif err == nil || errors.As(err, &agentExit) {\n+\t\tt.Fatalf(\"error = %v, want a start failure rather than an agent exit status\", err)\n+\t}\n+}\n*** End Patch"));
+text(await tools.exec_command({cmd:"gofmt -w pkg/providers/musecode/muse_exec.go pkg/providers/musecode/muse_exec_test.go; go test ./pkg/providers/musecode ./pkg/spi","yield_time_ms":1000,"max_output_tokens":2200}));
+text(await tools.exec_command({cmd:"LC_ALL=C sort -u /Users/sean/Source/SpecStory/specstory-cli-multi-agent/muse-code/2026-08-16/tools.txt > /tmp/musecode-factory-seed; cat /tmp/musecode-factory-seed; bash -n pkg/providers/musecode/factory/latest-version; git diff --check","max_output_tokens":1400}));
+
 ```
 </details></tool-use>
 
@@ -125,9 +141,11 @@ _**Agent (gpt-6-astra 2026-09-15 14:59:45Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"go test ./pkg/providers/musecode ./pkg/spi","yield_time_ms":1000,"max_output_tokens":2000,"sandbox_permissions":"require_escalated","justification":"Allow the Muse 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"go test ./pkg/providers/musecode ./pkg/spi","yield_time_ms":1000,"max_output_tokens":2000,"sandbox_permissions":"require_escalated","justification":"Allow the Muse and SPI tests to write Go build and dependency caches outside the workspace?","prefix_rule":["go","test"]}));
+text(await tools.exec_command({cmd:"cp -n /tmp/musecode-factory-seed /Users/sean/Source/SpecStory/provider-factory/tools/musecode","sandbox_permissions":"require_escalated","justification":"Allow adding the reviewed, sorted 29-tool Muse seed to the provider-factory checkout? That repository is outside this workspace's writable roots.","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -148,11 +166,13 @@ _**Agent (gpt-6-astra 2026-09-15 15:01:49Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
 tools.write_stdin({session_id:27046,chars:"","yield_time_ms":1000,"max_output_tokens":2000}),
-tools.exec_command({cmd:"git diff --stat; git status --short; git diff
-...
+tools.exec_command({cmd:"git diff --stat; git status --short; git diff --check; git -C /Users/sean/Source/SpecStory/provider-factory status --short; cmp /tmp/musecode-factory-seed /Users/sean/Source/SpecStory/provider-factory/tools/musecode; rg -n 'AgentExitError|ExecAgentAndWatch' cmd/root.go cmd/run.go pkg/utils/watch_agents.go; ls -a | head -25; rg -n 'golangci|go test' Makefile ../.github/workflows --glob '*.yml'","max_output_tokens":2000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -164,9 +184,11 @@ _**Agent (gpt-6-astra 2026-09-15 15:01:55Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat AGENT.md CLAUDE.md; rg -n 'AgentExitError' main.go internal; sed -n '1,75p' ../.github/workflows/ci.yml; git diff -- pkg/providers/musecode/muse_exec.go pkg/pro
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat AGENT.md CLAUDE.md; rg -n 'AgentExitError' main.go internal; sed -n '1,75p' ../.github/workflows/ci.yml; git diff -- pkg/providers/musecode/muse_exec.go pkg/providers/musecode/factory/latest-version","max_output_tokens":4000}));
+text(await tools.exec_command({cmd:"golangci-lint run","yield_time_ms":1000,"max_output_tokens":2000,"sandbox_permissions":"require_escalated","justification":"Allow the repository lint check to use Go and lint caches outside the workspace?","prefix_rule":["golangci-lint","run"]}));
+
 ```
 </details></tool-use>
 
@@ -174,10 +196,11 @@ _**Agent (gpt-6-astra 2026-09-15 15:01:59Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.write_stdin({session_id:61277,chars:"","yield_time_ms":1000,"max_output_tokens":2000}));
-text(await tools.exec_command({cmd:"git diff --check; wc -l /Users/sean/Source/SpecStory/provi
-...
+text(await tools.exec_command({cmd:"git diff --check; wc -l /Users/sean/Source/SpecStory/provider-factory/tools/musecode; git status --short","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -185,7 +208,8 @@ _**Agent (gpt-6-astra 2026-09-15 15:02:07Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.write_stdin({session_id:61277,chars:"","yield_time_ms":1000,"max_output_tokens":2000}));
 
 ```
@@ -195,7 +219,8 @@ _**Agent (gpt-6-astra 2026-09-15 15:02:16Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.write_stdin({session_id:61277,chars:"","yield_time_ms":1000,"max_output_tokens":3000}));
 
 ```
@@ -205,7 +230,8 @@ _**Agent (gpt-6-astra 2026-09-15 15:02:23Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.write_stdin({session_id:61277,chars:"","yield_time_ms":1000,"max_output_tokens":3000}));
 
 ```
@@ -237,9 +263,11 @@ _**Agent (gpt-6-astra 2026-09-15 15:04:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"git status --short; cat pkg/providers/musecode/factory/README.md pkg/providers/musecode/factory/latest-version; sed -n '95,130p' /tmp/muse-launcher-factory-review.s
-...
+Input:
+```
+text(await tools.exec_command({cmd:"git status --short; cat pkg/providers/musecode/factory/README.md pkg/providers/musecode/factory/latest-version; sed -n '95,130p' /tmp/muse-launcher-factory-review.sh; sed -n '365,430p' /tmp/muse-launcher-factory-review.sh; sed -n '940,1028p' /tmp/muse-launcher-factory-review.sh; cat pkg/providers/antigravitycli/factory/install pkg/providers/piagent/factory/install","max_output_tokens":6500}));
+text(await tools.web__run({open:[{ref_id:"https://api.meta.ai/muse-code/channels/muse-stable"}],response_length:"short"}));
+
 ```
 </details></tool-use>
 
@@ -247,10 +275,13 @@ _**Agent (gpt-6-astra 2026-09-15 15:04:12Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"curl -fsSL --connect-timeout 10 --max-time 30 'https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.2.1-R2847.1&f
-...
+tools.exec_command({cmd:"curl -fsSL --connect-timeout 10 --max-time 30 'https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.2.1-R2847.1&file=manifest.json' -o /tmp/muse-pinned-manifest.json; cat /tmp/muse-pinned-manifest.json","max_output_tokens":2500}),
+tools.exec_command({cmd:"pkg/providers/musecode/factory/latest-version; ls /Users/sean/.local/bin/muse-bin-*; rg --files -g '*factory*test*' -g '*test*.sh' -g '!.specstory/**' . ../scripts","max_output_tokens":1800})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -258,9 +289,12 @@ _**Agent (gpt-6-astra 2026-09-15 15:04:22Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"curl -fsSL --connect-timeout 10 --max-time 30 'https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.2.1-R2847.1&file=manifest.json' -o /tm
-...
+Input:
+```
+text(await tools.exec_command({cmd:"curl -fsSL --connect-timeout 10 --max-time 30 'https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=1.2.1-R2847.1&file=manifest.json' -o /tmp/muse-pinned-manifest.json","sandbox_permissions":"require_escalated","justification":"Allow fetching Muse's public manifest for the exact factory-recorded release to verify pinned installation?","prefix_rule":["curl"],"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"pkg/providers/musecode/factory/latest-version","sandbox_permissions":"require_escalated","justification":"Allow running Muse's version sensor against Meta's public release endpoint?","max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"cat /tmp/muse-pinned-manifest.json; MUSE_NO_AUTO_UPDATE=1 /Users/sean/.local/bin/muse-bin-1.3.0-R3057.1 --version","max_output_tokens":2000}));
+
 ```
 </details></tool-use>
 
@@ -274,9 +308,11 @@ _**Agent (gpt-6-astra 2026-09-15 15:05:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Add File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/factory/install\n+#!/usr/bin/env bash\n+# Install Muse Code 
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Add File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/factory/install\n+#!/usr/bin/env bash\n+# Install Muse Code at an exact release, for the factory's audits.\n+#\n+# Channel: Meta's public, version-addressed release manifests and artifacts —\n+# the same downloads used by the official launcher. No login is needed to\n+# download them. Install the binary directly at $HOME/.local/bin/muse so the\n+# launcher's automatic updates cannot move an audit off its requested version.\n+# The caller isolates the install by pointing $HOME at a throwaway directory.\n+#\n+# Factory SPI contract: `install <version>` installs under $HOME, prints the\n+# full version read back from the binary (including -R...), and exits 0.\n+# Download, integrity, or version mismatches fail non-zero. Requires jq and\n+# sha256sum or shasum, as used by the version sensor and vendor launcher.\n+set -euo pipefail\n+version=${1:?usage: install <version>}\n+if [[ ! \"$version\" =~ ^[0-9]+\\.[0-9]+\\.[0-9]+-R[0-9]+(\\.[0-9]+)?$ ]]; then\n+  echo \"install: invalid Muse release version: $version\" >&2\n+  exit 1\n+fi\n+case \"$(uname -s):$(uname -m)\" in\n+  Darwin:arm64|Darwin:aarch64) platform=aarch64_macos ;;\n+  Darwin:x86_64|Darwin:amd64) platform=x86_macos ;;\n+  Linux:arm64|Linux:aarch64) platform=aarch64_linux ;;\n+  Linux:x86_64|Linux:amd64) platform=x86_linux ;;\n+  *) echo \"install: unsupported platform $(uname -s):$(uname -m)\" >&2; exit 1 ;;\n+esac\n+\n+# Stage beside the destination so only a verified binary replaces an install.\n+mkdir -p \"$HOME/.local/bin\"\n+tmp=$(mktemp -d \"$HOME/.local/bin/.muse-install.XXXXXX\")\n+trap 'rm -rf \"$tmp\"' EXIT\n+manifest=\"https://lookaside.facebook.com/lookaside/muse/download/?channel=muse&version=$version&file=manifest.json\"\n+curl -fsSL --connect-timeout 10 --max-time 30 --retry 2 \"$manifest\" -o \"$tmp/manifest.json\"\n+if ! artifact=$(jq -er --arg version \"$version\" --arg platform \"$platform\" '\n+  select(.version == $version and .checksum_algorithm == \"sha256\")\n+  | .artifacts[$platform]\n+  | select((.url | type) == \"string\" and (.checksum | type) == \"string\" and (.size | type) == \"number\")\n+  | select((.url | startswith(\"https://\")) and (.checksum | test(\"^[0-9a-f]{64}$\")) and .size > 0 and .size == (.size | floor))\n+  | [.url, .checksum, (.size | tostring)] | @tsv\n+' \"$tmp/manifest.json\"); then\n+  echo \"install: invalid release manifest for $version / $platform\" >&2\n+  exit 1\n+fi\n+IFS=$'\\t' read -r url checksum size <<< \"$artifact\"\n+curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 300 --retry 2 \"$url\" -o \"$tmp/muse\"\n+actual_size=$(wc -c < \"$tmp/muse\" | tr -d '[:space:]')\n+if [ \"$actual_size\" != \"$size\" ]; then\n+  echo \"install: artifact size mismatch: expected $size, got $actual_size\" >&2\n+  exit 1\n+fi\n+if command -v sha256sum >/dev/null 2>&1; then\n+  actual_checksum=$(sha256sum \"$tmp/muse\")\n+else\n+  actual_checksum=$(shasum -a 256 \"$tmp/muse\")\n+fi\n+if [ \"${actual_checksum%% *}\" != \"$checksum\" ]; then\n+  echo \"install: artifact checksum mismatch\" >&2\n+  exit 1\n+fi\n+chmod 755 \"$tmp/muse\"\n+reported=$(\"$tmp/muse\" --version) # \"Muse Code X.Y.Z (X.Y.Z-R...)\"\n+installed=$(printf '%s\\n' \"$reported\" | sed -n 's/^Muse Code [^ ]* (\\([^()]*\\))$/\\1/p')\n+if [ \"$installed\" != \"$version\" ]; then\n+  echo \"install: wanted $version, binary reports $reported\" >&2\n+  exit 1\n+fi\n+mv -f \"$tmp/muse\" \"$HOME/.local/bin/muse\"\n+printf '%s\\n' \"$installed\"\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/factory/README.md\n@@\n-Muse currently enrolls in **NEW-AGENT-VERSION only**, through `latest-version`.\n-`install` and `list-tools` are deliberately absent until the factory can satisfy\n-their contracts. Muse supports `muse exec \"<prompt>\"`; lack of a headless mode is\n-not the blocker.\n+Muse supports release detection through `latest-version` and exact installation\n+through `install <version>`. TOOL-AUDIT enrollment still awaits `list-tools` and\n+factory credential provisioning. Muse supports `muse exec \"<prompt>\"`; lack of\n+a headless mode is not the blocker.\n+\n+## Release detection and installation\n+\n+`latest-version` reads Meta's public `muse-stable` channel and preserves the full\n+`-R` build suffix. `install` fetches the requested version's public release\n+manifest, selects the macOS/Linux artifact for the current architecture, checks\n+its size and SHA-256 checksum, and verifies the full version from `--version`\n+before placing it at `$HOME/.local/bin/muse`.\n+\n+Neither operation needs credentials. The installer uses the same release\n+artifacts as Meta's [launcher](https://api.meta.ai/muse-launcher.sh), but installs\n+the binary directly so the launcher cannot auto-update it during an audit.\n+An unavailable historical release or any verification failure exits non-zero.\n@@\n-- **Exact installation:** Meta's [launcher](https://api.meta.ai/muse-launcher.sh)\n-  follows the moving `muse-stable` channel. Implement and verify installation of\n-  the factory's recorded release, including its `-R` suffix, under the isolated\n-  `$HOME`; read back and compare the installed version. Prevent automatic\n-  updates during enumeration (`MUSE_NO_AUTO_UPDATE=1`, or invoke the pinned\n-  binary directly). Running the default installer alone does not pin a release.\n@@\n-Add executable `install` and `list-tools` scripts together once these paths\n-have been verified. Their presence enrolls the provider in TOOL-AUDIT; a\n-placeholder script would advertise support the factory cannot yet exercise.\n+Add executable `list-tools` once that path has been verified. The presence of\n+both `install` and `list-tools` enrolls the provider in TOOL-AUDIT.\n*** End Patch"));
+text(await tools.exec_command({cmd:"chmod +x pkg/providers/musecode/factory/install; bash -n pkg/providers/musecode/factory/install pkg/providers/musecode/factory/latest-version; git diff --check; mktemp -d /tmp/muse-factory-install.XXXXXX","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -284,9 +320,10 @@ _**Agent (gpt-6-astra 2026-09-15 15:05:09Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"env -i HOME=/tmp/muse-factory-install.pLd6SP PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/provide
-...
+Input:
+```
+text(await tools.exec_command({cmd:"env -i HOME=/tmp/muse-factory-install.pLd6SP PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/musecode/factory/install 1.2.1-R2847.1","sandbox_permissions":"require_escalated","justification":"Allow testing the pinned Muse installer by downloading the public release into a temporary home, with no user credentials or configuration?","yield_time_ms":1000,"max_output_tokens":1500}));
+
 ```
 </details></tool-use>
 
@@ -294,9 +331,11 @@ _**Agent (gpt-6-astra 2026-09-15 15:05:31Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport hashlib, json, os, pathlib, subprocess, tempfile\nscript = str(pathlib.Path('pkg/providers/musecode/factory/install').resolve())\nwith temp
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport hashlib, json, os, pathlib, subprocess, tempfile\nscript = str(pathlib.Path('pkg/providers/musecode/factory/install').resolve())\nwith tempfile.TemporaryDirectory(prefix='muse-install-checks-') as tmp:\n    root = pathlib.Path(tmp)\n    mocks = root / 'bin'\n    mocks.mkdir()\n    curl = mocks / 'curl'\n    curl.write_text('''#!/bin/sh\nwhile [ \"$#\" -gt 0 ]; do\n  case \"$1\" in\n    -o) shift; dest=$1 ;;\n    https:*) url=$1 ;;\n  esac\n  shift\ndone\ncase \"$url\" in\n  *manifest.json) cp \"$FIXTURE_MANIFEST\" \"$dest\" ;;\n  *) cp \"$FIXTURE_BINARY\" \"$dest\" ;;\nesac\n''')\n    curl.chmod(0o755)\n    version = '1.2.1-R2847.1'\n    binary = root / 'binary'\n    binary.write_text('#!/bin/sh\\necho \"Muse Code 1.2.1 (1.2.1-R2847.1)\"\\n')\n    data = binary.read_bytes()\n    checksum = hashlib.sha256(data).hexdigest()\n    manifest = root / 'manifest.json'\n    for case in ['success', 'wrong_manifest_version', 'wrong_size', 'wrong_checksum', 'wrong_binary_version', 'missing_platform', 'invalid_version']:\n        target_home = root / case\n        target = target_home / '.local/bin/muse'\n        target.parent.mkdir(parents=True)\n        target.write_text('existing install\\n')\n        artifact = {'url': 'https://example.com/muse', 'size': len(data), 'checksum': checksum}\n        if case == 'wrong_size': artifact['size'] += 1\n        if case == 'wrong_checksum': artifact['checksum'] = '0' * 64\n        expected = '1.2.1-R2847.2' if case == 'wrong_binary_version' else version\n        release = {'version': '1.0.0-R1' if case == 'wrong_manifest_version' else expected,\n                   'checksum_algorithm': 'sha256', 'artifacts': {p: artifact for p in ['aarch64_macos', 'x86_macos', 'aarch64_linux', 'x86_linux']}}\n        if case == 'missing_platform': release['artifacts'] = {}\n        manifest.write_text(json.dumps(release))\n        env = dict(os.environ, HOME=str(target_home), PATH=str(mocks) + os.pathsep + os.environ['PATH'], FIXTURE_MANIFEST=str(manifest), FIXTURE_BINARY=str(binary))\n        result = subprocess.run([script, '../bad' if case == 'invalid_version' else expected], env=env, text=True, capture_output=True)\n        if case == 'success':\n            assert result.returncode == 0 and result.stdout.strip() == version, result\n            assert target.read_bytes() == data\n        else:\n            assert result.returncode != 0 and not result.stdout, result\n            assert target.read_text() == 'existing install\\n'\n        assert not list(target.parent.glob('.muse-install.*'))\n        print(case + ': PASS')\nPY","max_output_tokens":1800}));
+text(await tools.write_stdin({session_id:22067,chars:"","yield_time_ms":1000,"max_output_tokens":1800}));
+
 ```
 </details></tool-use>
 
@@ -310,9 +349,10 @@ _**Agent (gpt-6-astra 2026-09-15 15:05:38Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"git diff --check; git status --short; command -v shellcheck; ls -l pkg/providers/musecode/factory/install; env -i HOME=/tmp/muse-factory-install.pLd6SP PATH=/usr/bi
-...
+Input:
+```
+text(await tools.exec_command({cmd:"git diff --check; git status --short; command -v shellcheck; ls -l pkg/providers/musecode/factory/install; env -i HOME=/tmp/muse-factory-install.pLd6SP PATH=/usr/bin:/bin /tmp/muse-factory-install.pLd6SP/.local/bin/muse --version","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 

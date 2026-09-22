@@ -459,7 +459,7 @@ _**Agent (claude-fable-5 2026-08-11 15:10:45Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/tool-results/bzu0mnwy1.txt`
 
-```text
+````text
 150	diff --git a/specstory-cli/docs/COPILOTIDE-PROVIDER.md b/specstory-cli/docs/COPILOTIDE-PROVIDER.md
 151	index 0758a219..edf98eb2 100644
 152	--- a/specstory-cli/docs/COPILOTIDE-PROVIDER.md
@@ -1110,7 +1110,7 @@ _**Agent (claude-fable-5 2026-08-11 15:10:45Z)**_
 797	index 00000000..28adb3ae
 798	--- /dev/null
 799	+++ b/specstory-cli/docs/EXTENSION-ARCHITECTURE.md
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:10:51Z)**_
@@ -1119,7 +1119,7 @@ _**Agent (claude-fable-5 2026-08-11 15:10:51Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/tool-results/bzu0mnwy1.txt`
 
-```text
+````text
 799	+++ b/specstory-cli/docs/EXTENSION-ARCHITECTURE.md
 800	@@ -0,0 +1,561 @@
 801	+# Extension Architecture for Remote Workspaces
@@ -1690,7 +1690,7 @@ _**Agent (claude-fable-5 2026-08-11 15:10:51Z)**_
 1366	+++ b/specstory-cli/docs/stats-collection-plan.md
 1367	@@ -0,0 +1,304 @@
 1368	+# Implementation Plan: Statistics Collection for Sync Command
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:11:03Z)**_
@@ -1699,7 +1699,7 @@ _**Agent (claude-fable-5 2026-08-11 15:11:03Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/39f50f12-ab33-4779-a169-2f7b5aa56176/tool-results/bzu0mnwy1.txt`
 
-```text
+````text
 1368	+# Implementation Plan: Statistics Collection for Sync Command
 1369	+
 1370	+## Context
@@ -1800,7 +1800,7 @@ _**Agent (claude-fable-5 2026-08-11 15:11:03Z)**_
 1465	+Update file writing condition (around line 1050):
 1466	+```go
 1467	+// Write file if needed (skip if only-cloud-sync or only-stats is enabled)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:11:17Z)**_
@@ -9053,7 +9053,7 @@ Count specstory-dir doc mentions and view README usage section
 
 `grep -n "specstory-dir" docs/EXTENSION-ARCHITECTURE.md | head -20; echo "---"; sed -n '47,90p' README.md`
 
-```text
+````text
 191:For local workspaces (including WSL with bidirectional filesystem access), the CLI can write directly to the workspace. The extension passes the workspace's own `.specstory/` directory as `--specstory-dir`. No copying is needed.
 205:│  │ --specstory-dir {workspace}/    │           │
 235:       '--specstory-dir', specstoryDir
@@ -9111,7 +9111,7 @@ With a specific session UUID:
 ```zsh
 specstory sync -s <session-uuid>
 ```
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:52:03Z)**_
@@ -9120,7 +9120,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:03Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/EXTENSION-ARCHITECTURE.md`
 
-```text
+````text
 185	## Extension-Integrated Usage
 186	
 187	When the VS Code extension runs the CLI, it operates in one of two modes depending on the workspace type.
@@ -9186,7 +9186,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:03Z)**_
 247	│ Windows Client                                  │
 248	│                                                 │
 249	│  ┌─────────────────┐                           │
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:52:15Z)**_
@@ -9195,7 +9195,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:15Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/EXTENSION-ARCHITECTURE.md`
 
-```text
+````text
 250	│  │ VS Code         │                           │
 251	│  │ Extension       │                           │
 252	│  └────────┬────────┘                           │
@@ -9296,7 +9296,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:15Z)**_
 347	   // Copy each new or changed markdown file
 348	   for (const file of markdownFiles) {
 349	       const content = await fs.readFile(path.join(tempDir, 'history', file));
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:52:19Z)**_
@@ -9305,7 +9305,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:19Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/EXTENSION-ARCHITECTURE.md`
 
-```text
+````text
 349	       const content = await fs.readFile(path.join(tempDir, 'history', file));
 350	       await vscode.workspace.fs.writeFile(
 351	           vscode.Uri.joinPath(workspaceUri, '.specstory', 'history', file),
@@ -9321,7 +9321,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:19Z)**_
 361	| **Local** | ✅ | ✅ | ✅ | N/A |
 362	| **WSL** | ✅ | ✅ | ✅ (Windows) | ❌ (WSL) |
 363	| **SSH** | ✅ | ✅ | ✅ (Windows) | ❌ (Remote) |
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:52:20Z)**_
@@ -9330,7 +9330,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:20Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/EXTENSION-ARCHITECTURE.md`
 
-```text
+````text
 455	| **CLI execution location** | Windows or WSL (both work) | Windows or remote (neither perfect) |
 456	| **Complexity** | Low (shared filesystem) | High (network boundary) |
 457	| **Our choice** | Run on Windows | Run on Windows |
@@ -9421,7 +9421,7 @@ _**Agent (claude-fable-5 2026-08-11 15:52:20Z)**_
 542	
 543	### Trade-offs
 544
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:52:50Z)**_
@@ -9660,7 +9660,7 @@ _**Agent (claude-fable-5 2026-08-11 15:54:10Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
 80	```zsh
 81	# Defaults to syncing for all providers if no provider is specified
 82	specstory sync <provider>
@@ -9675,7 +9675,7 @@ _**Agent (claude-fable-5 2026-08-11 15:54:10Z)**_
 91	### Resume & Search
 92	
 93	SpecStory indexes every session it sees into `~/.specstory/sessions.db` so you can pick up
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 15:54:10Z)**_
@@ -11548,7 +11548,7 @@ View the doc's cursor-context-manager mention
 
 `sed -n '1120,1145p' docs/COPILOTIDE-PROVIDER.md`
 
-```text
+````text
 | **Project Matching** | Workspace URI matching via `workspace.json` | Same - workspace URI matching |
 | **SQLite Library** | `modernc.org/sqlite` (pure Go) | `modernc.org/sqlite` (only for workspace matching) |
 | **Execution** | ❌ Cannot execute (IDE-based) | ❌ Cannot execute (IDE-based) |
@@ -11575,7 +11575,7 @@ View the doc's cursor-context-manager mention
 ```
 ~/Library/Application Support/Code/User/workspaceStorage/
   └── [workspace-id]/
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 19:42:07Z)**_
@@ -11584,7 +11584,7 @@ _**Agent (claude-fable-5 2026-08-11 19:42:07Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/COPILOTIDE-PROVIDER.md`
 
-```text
+````text
 1127	### Key Architectural Differences
 1128	
 1129	**cursoride (SQLite):**
@@ -11599,7 +11599,7 @@ _**Agent (claude-fable-5 2026-08-11 19:42:07Z)**_
 1138	- **Complex:** Global database + workspace filtering with SQL queries
 1139	- **WAL Mode:** Required for non-blocking reads
 1140	- **Query Optimization:** IN clauses and LIKE patterns
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 19:42:15Z)**_
@@ -12237,7 +12237,7 @@ Fetch Copilot inline review comments on PR 191
 
 `gh api repos/specstoryai/getspecstory/pulls/191/comments --paginate -q '.[] | select(.user.login | test("copilot"; "i")) | "=== " + .path + ":" + (.line // .original_line | tostring) + "\n" + .body + "\n"' 2>/dev/null | head -200`
 
-```text
+````text
 === specstory-cli/pkg/utils/path_utils.go:154
 OutputPathConfig now exposes GetSpecstoryDir() but the same type also defines GetSpecStoryDir() later in the file. Keeping both similarly-named methods is confusing and makes it easy for call sites to drift. Consider consolidating to a single method name and updating internal callers (e.g., GetStatisticsPath) to use it consistently.
 
@@ -12306,7 +12306,7 @@ UNC roots are valid native Windows workspace paths, so explicitly leaving them u
 Deduplicating by the first parsed copy can discard the actual current session. Workspace enumeration is ordered by workspace hash, not recency, and copies with the same session ID can differ; additionally, an empty first copy is marked seen before the content check and suppresses a populated copy. Group duplicates and select the highest `LastMessageDate` (or newest file) before filtering/handling them.
 
 This issue also appears on line 590 of the same file.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-11 21:07:53Z)**_
@@ -26862,7 +26862,7 @@ Inspect a sample history diff
 
 `cd /Users/sean/Source/SpecStory/getspecstory && git diff -- specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md | head -80`
 
-```text
+````text
 diff --git a/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md b/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
 index 31c6cfb..80a00a3 100644
 --- a/specstory-cli/.specstory/history/2026-01-12_15-08-38Z-update-our-docs-to.md
@@ -26901,7 +26901,7 @@ index 31c6cfb..80a00a3 100644
  
  <local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-08-12 20:58:09Z)**_

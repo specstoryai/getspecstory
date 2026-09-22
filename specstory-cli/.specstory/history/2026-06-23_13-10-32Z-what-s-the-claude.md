@@ -1683,7 +1683,7 @@ echo "=== sample of non-cwd jakelevirne references ==="
 grep -o '[^"]*jakelevirne[^"]*' "$F" | grep -v '^/Users/jakelevirne/dev/stoa-website' | sort -u | head -20
 ```
 
-```text
+````text
 size / lines:
  2585598 /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-compositions-cross-portable-error-1/affbe2c5-92e8-491a-94a2-8bc9b9b408a3.jsonl
     1293 /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-compositions-cross-portable-error-1/affbe2c5-92e8-491a-94a2-8bc9b9b408a3.jsonl
@@ -1715,7 +1715,7 @@ size / lines:
 ));\n<   }, []);\n<   if (editPath) return <PathEditor />;\n< \n<   return <HeroDemoInner />;\n< }\n< \n< function HeroDemoInner() {\nEXIT=1\nShell cwd was reset to /Users/jakelevirne/dev/stoa-website
 ));\n<   }, []);\n<   if (editPath) return <PathEditor />;\n< \n<   return <HeroDemoInner />;\n< }\n< \n< function HeroDemoInner() {\nShell cwd was reset to /Users/jakelevirne/dev/stoa-website
 ** = KV propagation lag (the worker writes the slug record at finalize via its edge binding; Next read it via the KV REST API a beat too early). Fixed by gating registration on the **claim token** (Next-written, read-consistent) instead of the laggy slug record. Committed to `main` (`c5f68f1`), deployed.\n- **`APP_URL`** = it really was missing in prod. Now set to `https://withstoa.com`, so the magic-link URL and the session cookie it sets will land on `withstoa.com` (not a `*.vercel.app` host). This wasn't the cause of the 410, but it would've bitten you at the next step.\n\n**I just triggered a real magic-link email** to `anthropic@jakelevirne.com` (for test slug `quiet-ember-52`) from the live prod flow. Click it — it should verify, set your session, and drop you on `withstoa.com/share/mine/quiet-ember-52`. That confirms the full register→verify→manage chain in prod.\n\nThen retry your own upload + register on `withstoa.com/share` — should work start to finish now.\n\nOne housekeeping note: this hotfix is on `main` only; `product-planning` doesn't have it (main was squashed). If you keep iterating on `product-planning`, tell me and I'll port the fix over so they don't drift.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-23 13:26:11Z)**_

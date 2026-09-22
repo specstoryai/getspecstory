@@ -756,7 +756,7 @@ _**Agent (claude-opus-4-8 2026-06-18 14:56:47Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/Source/SpecStory/getspecstory/lore/AS-BUILT-ARCHITECTURE.md`
 
-```text
+````text
 1	# Lore As-Built Architecture
 2	
 3	**Last Updated**: 2026-06-10
@@ -1074,7 +1074,7 @@ _**Agent (claude-opus-4-8 2026-06-18 14:56:47Z)**_
 315	2. Semantic intent clustering (local embeddings cached in the corpus) if lexical signatures prove too coarse in practice.
 316	3. Cursor/Gemini machine-level install points for the forge fan-out, once their skills directories are verified.
 317
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-18 14:56:57Z)**_
@@ -3687,7 +3687,7 @@ _**Agent (claude-opus-4-8 2026-06-18 20:54:04Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/RESTORE-DB.md`
 
-```text
+````text
 98	
 99	## The missing SPI capability: project-*discovering* enumeration
 100	
@@ -3790,7 +3790,7 @@ _**Agent (claude-opus-4-8 2026-06-18 20:54:04Z)**_
 197	- [PROVIDER-SPI.md](PROVIDER-SPI.md) — the provider interface the new enumeration method joins.
 198	- `pkg/utils/project_identity.go` — `git_id` / `workspace_id` / `GetProjectID()`.
 199
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-18 20:54:12Z)**_
@@ -4301,7 +4301,7 @@ _**Agent (claude-opus-4-8 2026-06-18 21:20:46Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/RESTORE-DB.md`
 
-```text
+````text
 228	1. **Read-only identity helper** — extend `pkg/utils/project_identity.go` with
 229	   `ComputeProjectID(cwd) (id, name, err)`: walk **up** from `cwd` to the git root (nearest
 230	   ancestor with `.git`); compute `git_id` from *that root's* `.git/config` (reusing
@@ -4347,7 +4347,7 @@ _**Agent (claude-opus-4-8 2026-06-18 21:20:46Z)**_
 270	
 271	- **The picker rewiring.** `specstory resume`'s interactive flow still uses the project-scoped
 272	  `ListAgentChatSessions` until a later chunk points it at `restore.db`.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-18 21:20:50Z)**_
@@ -13704,7 +13704,7 @@ btdir=$(go list -m -f '{{.Dir}}' charm.land/bubbletea/v2)
 sed -n '40,130p' "$btdir"/tea.go
 ```
 
-```text
+````text
 // ErrProgramKilled is returned by [Program.Run] when the program gets killed.
 var ErrProgramKilled = errors.New("program was killed")
 
@@ -13795,7 +13795,7 @@ type View struct {
 	// Cursor represents the cursor position, style, and visibility on the
 	// screen. When not nil, the cursor will be shown at the specified
 	// position.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-19 10:08:31Z)**_
@@ -13844,7 +13844,7 @@ btdir=$(go list -m -f '{{.Dir}}' charm.land/bubbletea/v2)
 sed -n '198,265p' "$btdir"/README.md
 ```
 
-```text
+````text
 ### The View Method
 
 At last, it’s time to render our UI. Of all the methods, the view is the
@@ -13911,7 +13911,7 @@ look at the [Command Tutorial][cmd]. It's pretty simple.
 
 There are also several [Bubble Tea examples][examples] available and, of course,
 there are [Go Docs][docs].
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-19 10:09:01Z)**_
@@ -17421,7 +17421,7 @@ echo "=== column order sanity (so col 3 = body) ==="
 sqlite3 ~/.specstory/sessions.db "SELECT sql FROM sqlite_master WHERE name='sessions_fts';" | tr ',' '\n' | grep -nE "session_id|agent|name|body"
 ```
 
-```text
+````text
 === FTS5 snippet() over body (col 3), matches wrapped in «» ===
 …2. **Added a trailing empty line** before `«reindex»` exits (a…
 …«reindexVersion» = 1
@@ -17438,7 +17438,7 @@ sqlite3 ~/.specstory/sessions.db "SELECT sql FROM sqlite_master WHERE name='sess
 4:		agent UNINDEXED
 6:		name
 8:		body
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-19 15:49:20Z)**_
@@ -20957,7 +20957,7 @@ _**Agent (claude-opus-4-8 2026-06-19 19:40:52Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/cmd/search_tui.go`
 
-```text
+````text
 280		h := m.resultsHeight()
 281		if m.cursor < m.top {
 282			m.top = m.cursor
@@ -21088,7 +21088,7 @@ _**Agent (claude-opus-4-8 2026-06-19 19:40:52Z)**_
 407			m.cursor = len(m.results) - 1
 408		}
 409		if m.cursor < 0 {
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-8 2026-06-19 19:41:14Z)**_

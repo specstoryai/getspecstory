@@ -4444,7 +4444,7 @@ _**Agent (claude-fable-5 2026-07-16 20:16:13Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/c2d509ef-560d-4c4c-ab6e-12956ab11b03/scratchpad/prdiff/pkg__providers__cursoride__tool_handlers.go.diff`
 
-```text
+````text
 1	diff --git a/specstory-cli/pkg/providers/cursoride/tool_handlers.go b/specstory-cli/pkg/providers/cursoride/tool_handlers.go
 2	new file mode 100644
 3	index 00000000..93cc961a
@@ -4793,7 +4793,7 @@ _**Agent (claude-fable-5 2026-07-16 20:16:13Z)**_
 346	+	return string(runes[:max]) + "\n… (output truncated)"
 347	+}
 348
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:16:14Z)**_
@@ -6990,7 +6990,7 @@ _**Agent (claude-fable-5 2026-07-16 20:16:40Z)**_
 <summary>Tool use: **Read**</summary>
  `/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/c2d509ef-560d-4c4c-ab6e-12956ab11b03/scratchpad/prdiff/pkg__providers__cursoride__tool_handlers_test.go.diff`
 
-```text
+```````text
 1	diff --git a/specstory-cli/pkg/providers/cursoride/tool_handlers_test.go b/specstory-cli/pkg/providers/cursoride/tool_handlers_test.go
 2	new file mode 100644
 3	index 00000000..8cfca31b
@@ -7107,7 +7107,7 @@ _**Agent (claude-fable-5 2026-07-16 20:16:40Z)**_
 114	+	}
 115	+}
 116
-```
+```````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:16:40Z)**_
@@ -7738,7 +7738,7 @@ Skim the two new docs files
 
 `head -60 "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/c2d509ef-560d-4c4c-ab6e-12956ab11b03/scratchpad/prdiff/docs__CURSOR-IDE.md.diff"; echo "===="; head -40 "/private/tmp/claude-501/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/c2d509ef-560d-4c4c-ab6e-12956ab11b03/scratchpad/prdiff/docs__CURSORIDE-PROVIDER.md.diff"`
 
-```text
+````text
 diff --git a/specstory-cli/docs/CURSOR-IDE.md b/specstory-cli/docs/CURSOR-IDE.md
 new file mode 100644
 index 00000000..5d38c4c5
@@ -7840,7 +7840,7 @@ index 00000000..08e4c351
 +## Critical Files
 +
 +### New Files to Create
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:19:35Z)**_
@@ -8154,7 +8154,7 @@ _**Agent (claude-fable-5 2026-07-16 20:28:30Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
 1	<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
 2	
 3	# Intent is the new source code
@@ -8265,7 +8265,7 @@ _**Agent (claude-fable-5 2026-07-16 20:28:30Z)**_
 108	
 109	#### Resume a specific session directly (`--session`)
 110
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:28:31Z)**_
@@ -8287,7 +8287,7 @@ _**Agent (claude-fable-5 2026-07-16 20:28:48Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
 110	
 111	Skip the picker entirely by passing a session URI. With an agent it is fully non-interactive;
 112	without one the target-agent picker opens pinned to that session.
@@ -8363,7 +8363,7 @@ _**Agent (claude-fable-5 2026-07-16 20:28:48Z)**_
 182	
 183	Resolution order is `--cloud-url` flag → `SPECSTORY_CLOUD_URL` → production default, so a
 184	one-off `--cloud-url` still wins for a single command. `login` prints the target host when it
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:28:49Z)**_
@@ -8414,7 +8414,7 @@ Check watch mentions and debug-raw section in README
 
 `grep -n "watch" README.md | head; echo "---"; sed -n '505,560p' README.md`
 
-```text
+````text
 143:#   • Run Activity — see past runs, kick one off (`m`), and watch it live.
 170:watch it live). Runs mine your synced sessions in the cloud and take a few minutes.
 361:   specstory watch
@@ -8475,7 +8475,7 @@ Sync specific session with debug output:
 Each JSON file is pretty-printed with 2-space indentation. For Claude Code, files are numbered sequentially based on their position in the JSONL file. For Cursor CLI, files are numbered based on the SQLite rowid.
 
 **Example:**
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:29:24Z)**_
@@ -8486,7 +8486,7 @@ Read watch section context in README
 
 `sed -n '345,375p' README.md`
 
-```text
+````text
 ### Enabling Telemetry
 
 Optional OpenTelemetry data can be enabled in three ways:
@@ -8517,7 +8517,7 @@ Optional OpenTelemetry data can be enabled in three ways:
    [telemetry]
    # OTLP gRPC collector endpoint (e.g., "localhost:4317" or "http://localhost:4317")
    endpoint = "localhost:4317"
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 20:29:56Z)**_
@@ -14299,7 +14299,7 @@ Verify the new session is now discoverable via sync --print
 
 `cd ~/source/SpecStory/compositions/cross-portable-1 && /Users/sean/Source/SpecStory/getspecstory/specstory-cli/specstory sync cursoride -s 90369e88-750d-4cba-9f75-07f077d5d7f1 --print 2>/dev/null | head -30`
 
-```text
+````text
 <!-- Generated by SpecStory, Markdown v2.1.0 -->
 
 # 2026-07-16 22:06:25Z
@@ -14330,7 +14330,7 @@ _**Agent (claude-opus-4-8)**_
 ls -la
 ```
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5 2026-07-16 22:18:10Z)**_

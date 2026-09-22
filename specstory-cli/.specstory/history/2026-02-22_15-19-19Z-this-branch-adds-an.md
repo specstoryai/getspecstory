@@ -36,7 +36,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:20:13Z)**_
 <summary>Tool use: **Task**</summary>
 Explore config package
 
-```text
+````text
 Perfect! Now I have a comprehensive understanding. Let me create a thorough report:
 
 ## Configuration System Analysis for SpecStory CLI
@@ -192,7 +192,7 @@ agentId: a13a7db (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 57328
 tool_uses: 20
 duration_ms: 45088</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 15:19:28Z)**_
@@ -257,7 +257,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:19:57Z)**_
 <summary>Tool use: **Task**</summary>
 Explore CLI startup flow
 
-```text
+````text
 Perfect! I now have a comprehensive understanding of the CLI startup flow. Let me provide a detailed report.
 
 ## CLI Startup Flow Analysis
@@ -424,7 +424,7 @@ agentId: ad4d774 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 47466
 tool_uses: 8
 duration_ms: 25140</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 15:19:31Z)**_
@@ -5264,7 +5264,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-22 15:19:47Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -5615,7 +5615,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-22 15:19:47Z)**_
    348→
    349→SpecStory® is a registered trademark of SpecStory, Inc.
    350→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-22 15:19:48Z)**_
@@ -7044,7 +7044,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:22:38Z)**_
 <summary>Tool use: **Task**</summary>
 Plan default config creation
 
-```text
+````text
 I now have a complete understanding of the codebase. Here is the implementation plan.
 
 ---
@@ -7435,7 +7435,7 @@ agentId: a0e6887 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 56770
 tool_uses: 12
 duration_ms: 113691</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-22 15:20:45Z)**_

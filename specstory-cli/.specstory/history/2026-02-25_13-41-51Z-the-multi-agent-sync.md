@@ -1361,7 +1361,7 @@ _**Agent (claude-opus-4-6 2026-02-25 14:01:41Z)**_
 <summary>Tool use: **Task**</summary>
 Explore stats collector flow
 
-```text
+````text
 Perfect! I have all the information you need. Let me provide a comprehensive analysis of the `StatisticsCollector` and `syncProvider` flow.
 
 ## 1. **How `syncProvider` is called from both `syncAllProviders` and `syncSingleProvider`**
@@ -1495,7 +1495,7 @@ agentId: a022bf8 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 40744
 tool_uses: 2
 duration_ms: 14867</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-25 14:01:26Z)**_

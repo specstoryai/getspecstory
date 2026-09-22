@@ -430,7 +430,7 @@ Full diff for CLI-RELEASE.md
 
 `git diff main...HEAD -- docs/CLI-RELEASE.md`
 
-```text
+````text
 diff --git a/specstory-cli/docs/CLI-RELEASE.md b/specstory-cli/docs/CLI-RELEASE.md
 index 4c3cbf5..9458f5a 100644
 --- a/specstory-cli/docs/CLI-RELEASE.md
@@ -453,7 +453,7 @@ index 4c3cbf5..9458f5a 100644
  ### Update Any Product/Feature Changes in the Documentation
  
  Scan the [SpecStory CLI documentation](https://docs.specstory.com/) and update any product/feature changes in the [documentation](https://github.com/specstoryai/specstory-website/tree/main/content/docs) repository and push updates to `main`.
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-12 15:08:49Z)**_
@@ -805,7 +805,7 @@ _**Agent (claude-opus-4-6 2026-02-12 15:08:58Z)**_
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `func validateSessionData`
 
-```text
+````text
 main.go:985:func validateSessionData(session *spi.AgentChatSession, debugRaw bool) bool {
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go-986-	if !debugRaw || session.SessionData == nil {
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/main.go-987-		return true
@@ -882,7 +882,7 @@ main.go:985:func validateSessionData(session *spi.AgentChatSession, debugRaw boo
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-01-31_15-39-29Z-when-running-specstory-sync.md-1315-   943→	}
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-01-31_15-39-29Z-when-running-specstory-sync.md-1316-   944→	if !session.SessionData.Validate() {
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-01-31_15-39-29Z-when-running-specstory-sync.md-1317-   945→		slog.Warn("SessionData failed schema validation, proceeding anyway",
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-12 15:08:59Z)**_

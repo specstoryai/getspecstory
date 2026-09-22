@@ -41,13 +41,40 @@ jobs:
       - name: Fetch main and dev refs
         run: git fetch origin main dev --no-tags --depth=200
 
+      # release-pr-sync gates its dispatch on dev being ahead of main, but that
+      # check happens in a different run, so the release PR can merge (or close)
+      # between the dispatch and this checkout. With main == dev there is nothing
+      # to summarize: skip the agent (no LLM call, no cost) and the apply step
+      # instead of letting the agent discover an empty range and fail downstream.
+      - name: Decide whether a rewrite is needed
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          AHEAD_COUNT="$(git rev-list --count --no-merges origin/main..origin/dev)"
+          PR_STATE="$(gh pr view "${PR_NUMBER}" --repo "${REPO}" --json state --jq .state 2>/dev/null || echo "UNKNOWN")"
+          echo "dev is ${AHEAD_COUNT} non-merge commits ahead of main; PR #${PR_NUMBER} is ${PR_STATE}"
+          if [[ "${AHEAD_COUNT}" -eq 0 ]]; then
+            echo "::notice::main already contains everything on dev; skipping release summary for PR #${PR_NUMBER}"
+            echo "should_rewrite=false" >> "$GITHUB_OUTPUT"
+          elif [[ "${PR_STATE}" != "OPEN" ]]; then
+            echo "::notice::PR #${PR_NUMBER} is ${PR_STATE}, not open; skipping release summary"
+            echo "should_rewrite=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_rewrite=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build release PR context
+        if: steps.gate.outputs.should_rewrite == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash ./scripts/ci/build-release-pr-context.sh origin/main origin/dev out/context.md
 
       # Credential-less beyond its own auth; writes only out/body.md.
       - name: Write release summary (agent)
+        if: steps.gate.outputs.should_rewrite == 'true'
         uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de # v1 (2026-09-01)
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -96,6 +123,7 @@ jobs:
             tracked file, do not post, do not touch the PR — a following step applies your file.
 
       - name: Apply body to the release PR
+        if: steps.gate.outputs.should_rewrite == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
