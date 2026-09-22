@@ -1084,7 +1084,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:59:43Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -1435,7 +1435,7 @@ _**Agent (claude-opus-4-6 2026-02-22 15:59:43Z)**_
    348→
    349→SpecStory® is a registered trademark of SpecStory, Inc.
    350→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-22 15:59:49Z)**_
@@ -1983,7 +1983,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:48:50Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/plans/goofy-conjuring-wombat.md`
 
-```text
+````text
      1→# Plan: Fix Config Paths + Auto-Create Default User Config
      2→
      3→## Context
@@ -2148,7 +2148,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:48:50Z)**_
    162→3. Manual: delete `~/.specstory/cli/config.toml`, run `./specstory sync`, verify file created with commented-out content
    163→4. Manual: run again, verify file not overwritten
    164→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 11:48:50Z)**_
@@ -2550,7 +2550,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:49:44Z)**_
 <summary>Tool use: **Task**</summary>
 Explore flag definitions and cmd
 
-```text
+````text
 Perfect. Now let me create a comprehensive summary document. Let me compile all my findings:
 
 ## Summary of CLI Flag/Command Definitions in SpecStory CLI
@@ -2697,7 +2697,7 @@ agentId: aa689f5 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 61829
 tool_uses: 16
 duration_ms: 44439</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:48:59Z)**_
@@ -2749,7 +2749,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:49:42Z)**_
 <summary>Tool use: **Task**</summary>
 Explore output dir usage
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me compile a comprehensive report.
 
 ## Comprehensive Analysis: Output Dir and Debug Directories in SpecStory CLI
@@ -2893,7 +2893,7 @@ agentId: a449db0 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 55675
 tool_uses: 16
 duration_ms: 38138</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:49:04Z)**_
@@ -3109,7 +3109,7 @@ _**Agent (claude-opus-4-6 2026-02-23 11:49:50Z)**_
 <summary>Tool use: **Task**</summary>
 Explore print and local_time_zone
 
-```text
+````text
 Perfect! Now I have all the information I need. Let me create a comprehensive report of my findings.
 
 ## Comprehensive Flag Analysis Report
@@ -3327,7 +3327,7 @@ agentId: ae9c2cd (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 59175
 tool_uses: 15
 duration_ms: 42837</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:49:07Z)**_
@@ -10905,7 +10905,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-23 11:49:20Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/session/markdown.go`
 
-```text
+````text
     80→	// Fallback to session creation time if no exchanges or no start time
     81→	return formatTimestamp(sessionData.CreatedAt, useUTC)
     82→}
@@ -11117,7 +11117,7 @@ _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-23 11:49:20Z)**_
    288→	return currentRole != prevRole
    289→}
    290→
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-haiku-4-5-20251001 2026-02-23 11:49:21Z)**_
@@ -13959,7 +13959,7 @@ _**Agent (claude-opus-4-6 2026-02-23 12:01:22Z)**_
 <summary>Tool use: **Task**</summary>
 Design implementation plan
 
-```text
+````text
 Good. No `processTemplate` function exists yet. No project-level default config creation either. Now I have all the information needed to produce the implementation plan. Let me organize this carefully.
 
 Here is the detailed implementation plan, organized by dependency order with exact file references and code-level specifics.
@@ -14538,7 +14538,7 @@ agentId: ac13455 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 87456
 tool_uses: 21
 duration_ms: 163338</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 11:58:39Z)**_
@@ -18839,7 +18839,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:58:56Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -18940,7 +18940,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:58:56Z)**_
     98→output_dir = "/path/to/output"
     99→
    100→[version_check]
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:58:57Z)**_
@@ -19022,7 +19022,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:59:02Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
    100→[version_check]
    101→# Check for newer versions on startup (default: true)
    102→enabled = true
@@ -19123,7 +19123,7 @@ _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:59:02Z)**_
    197→
    198→```zsh
    199→./specstory run --debug-raw
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (claude-opus-4-6 2026-02-23 11:59:04Z)**_

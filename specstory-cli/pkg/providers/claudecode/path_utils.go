@@ -6,7 +6,22 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 )
+
+// claudeConfigDir returns Claude Code's base config directory. Claude Code honors
+// CLAUDE_CONFIG_DIR (used to run separate profiles/accounts side by side) and
+// otherwise defaults to ~/.claude, so read sessions from the same place it writes them.
+func claudeConfigDir() (string, error) {
+	if dir := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")); dir != "" {
+		return dir, nil
+	}
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %v", err)
+	}
+	return filepath.Join(homeDir, ".claude"), nil
+}
 
 // projectDirNameRegex matches any character that is not alphanumeric or a dash.
 // Claude Code replaces each such character with a dash to map a working directory
@@ -28,9 +43,9 @@ func encodeProjectDirName(realPath string) string {
 // the directory). Distinct from GetClaudeCodeProjectDir, which requires the
 // projects directory to already exist.
 func resolveClaudeProjectDir(projectPath string) (string, error) {
-	homeDir, err := os.UserHomeDir()
+	configDir, err := claudeConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
+		return "", err
 	}
 
 	cwd := projectPath
@@ -48,19 +63,16 @@ func resolveClaudeProjectDir(projectPath string) (string, error) {
 		realPath = cwd
 	}
 
-	return filepath.Join(homeDir, ".claude", "projects", encodeProjectDirName(realPath)), nil
+	return filepath.Join(configDir, "projects", encodeProjectDirName(realPath)), nil
 }
 
 // GetClaudeCodeProjectsDir returns the path to the Claude Code projects directory
 func GetClaudeCodeProjectsDir() (string, error) {
-	// Get user's home directory
-	homeDir, err := os.UserHomeDir()
+	configDir, err := claudeConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
+		return "", err
 	}
-
-	// Construct the path to .claude/projects
-	projectsDir := filepath.Join(homeDir, ".claude", "projects")
+	projectsDir := filepath.Join(configDir, "projects")
 
 	// Check if the directory exists
 	if _, err := os.Stat(projectsDir); err != nil {

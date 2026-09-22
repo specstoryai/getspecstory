@@ -2356,7 +2356,7 @@ _**Agent (claude-opus-4-6 2026-02-12 22:22:27Z)**_
 <tool-use data-tool-type="generic" data-tool-name="ExitPlanMode"><details>
 <summary>Tool use: **ExitPlanMode**</summary>
 
-```text
+````text
 User has approved your plan. You can now start coding. Start with updating your todo list if applicable
 
 Your plan has been saved to: /Users/sean/.claude/plans/nifty-meandering-candy.md
@@ -2452,7 +2452,7 @@ This reduces `main.go` by ~500 lines and follows the established pattern.
 2. `go test ./...` — confirms all tests pass
 3. `golangci-lint run` — confirms no lint issues
 4. Quick smoke test: `./specstory help`, `./specstory version`, `./specstory check`, `./specstory login --help`, `./specstory logout --help`
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-12 22:22:31Z)**_

@@ -210,7 +210,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:57:06Z)**_
 <summary>Tool use: **Grep**</summary>
  path `./` pattern `RoleAgent|RoleUser|schema\.Role`
 
-```text
+````text
 <persisted-output>
 Output too large (141.2KB). Full output saved to: /Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/ab42e73a-3e8a-47fe-8ff9-17ac6e60e7de/tool-results/toolu_01Cu9JpFQK3Z6SHJn9SNpnJJ.txt
 
@@ -237,7 +237,7 @@ main.go:735:										if msg.Role == schema.RoleUser {
 /Users/sean/Source/SpecStory/getspecstory/specstory-cli/.specstory/history/2026-02-20_22-54-02Z-command-message-pr-review.md-5883-     7→// Role constants for message types
 ...
 </persisted-output>
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-20 23:57:09Z)**_
@@ -945,7 +945,7 @@ _**Agent (claude-opus-4-6 2026-02-21 01:59:09Z)**_
 <summary>Tool use: **Task**</summary>
 Trace watch callback flow
 
-```text
+````text
 Perfect! Now I have a complete picture. Let me create a comprehensive report tracing the callback invocation flow:
 
 ## Full Trace of WatchAgent Callback Invocation Flow
@@ -1201,7 +1201,7 @@ agentId: a779e89 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 57884
 tool_uses: 10
 duration_ms: 31345</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-21 01:58:38Z)**_
@@ -6375,7 +6375,7 @@ _**Agent (claude-opus-4-6 2026-02-21 11:59:19Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/Source/SpecStory/compositions/watch-2/.specstory/debug/019c7d4b-22b8-7b22-ad07-df6bcffdd205/session-data.json`
 
-```text
+````text
      1→{
      2→  "schemaVersion": "1.0",
      3→  "provider": {
@@ -6456,7 +6456,7 @@ _**Agent (claude-opus-4-6 2026-02-21 11:59:19Z)**_
     78→          "content": [
     79→            {
     80→              "type": "thinking",
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-21 11:59:24Z)**_
@@ -11367,7 +11367,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:21:03Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/plans/wobbly-tickling-pretzel.md`
 
-```text
+````text
      1→# Plan: Improve `specstory watch` human-readable output
      2→
      3→## Context
@@ -11463,7 +11463,7 @@ _**Agent (claude-opus-4-6 2026-02-21 14:21:03Z)**_
     93→3. Manual: `go build -o specstory && ./specstory watch` — confirm new human-friendly format
     94→4. Manual: `./specstory watch --json` — confirm JSON still works, now includes `agent_msgs`
     95→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-21 14:21:24Z)**_

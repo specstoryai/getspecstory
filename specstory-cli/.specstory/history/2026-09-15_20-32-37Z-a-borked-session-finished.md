@@ -34,7 +34,8 @@ _**Agent (gpt-6-astra 2026-09-15 20:32:40Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"cat docs/QWEN-REVIEW.md","max_output_tokens":14000}));
 
 ```
@@ -44,7 +45,8 @@ _**Agent (gpt-6-astra 2026-09-15 20:32:44Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"rg -n 'Interactive resume|Windows and WSL|Pasted-image|Qwen into Claude|GOOS=windows|Behavioral matrix' docs/QWEN-REVIEW.md","max_output_tokens":1000}));
 
 ```
@@ -84,10 +86,11 @@ _**Agent (gpt-6-astra 2026-09-15 20:34:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"rg -n 'resume|pasted|image' README.md pkg/cmd/resume.go pkg/providers/qwencode/QWEN-FORMAT.md docs/QWEN-REVIEW.md","max_output_tokens":6500}));
-text(await tools.exe
-...
+text(await tools.exec_command({cmd:"rg --files -g AGENTS.md -g '*resume*' -g '*picker*' -g '*selector*' pkg .agents","max_output_tokens":2000}));
+
 ```
 </details></tool-use>
 
@@ -95,10 +98,11 @@ _**Agent (gpt-6-astra 2026-09-15 20:34:08Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"rg -n 'KeyMsg|case \"|help|preview|filter|tab' pkg/cmd/resume_tui* pkg/cmd/*picker* pkg/tui/*resume*","max_output_tokens":5000}));
-text(await tools.exec_command({cm
-...
+text(await tools.exec_command({cmd:"sed -n '73,95p' pkg/cmd/resume.go\nsed -n '185,215p' pkg/cmd/resume.go\nrg -n 'func registerSessionProcessingFlags|no-cloud|cloud-sync' pkg/cmd\nrg --files pkg | rg 'tui|resume|select'","max_output_tokens":4000}));
+
 ```
 </details></tool-use>
 
@@ -106,9 +110,10 @@ _**Agent (gpt-6-astra 2026-09-15 20:34:11Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg -n 'case \"|KeyMsg|key.NewBinding' pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/session_tui_view.go\nsed -n '1,165p' docs/RESUME-TUI.md\nsed -n 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg -n 'case \"|KeyMsg|key.NewBinding' pkg/cmd/session_tui.go pkg/cmd/session_tui_browser.go pkg/cmd/session_tui_view.go\nsed -n '1,165p' docs/RESUME-TUI.md\nsed -n '92,110p' pkg/providers/qwencode/QWEN-FORMAT.md","max_output_tokens":6200}));
+
 ```
 </details></tool-use>
 
@@ -280,10 +285,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:09:34Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"pwd\nrg --files -g AGENTS.md -g NEW-PROVIDER-REVIEW-REVIEW.md -g QWEN-REVIEW.md -g NEW-PROVIDER-REVIEW.md\n git status --short","max_output_tokens":3000}));
-text(aw
-...
+text(await tools.exec_command({cmd:"for p in /AGENTS.md /Users/AGENTS.md /Users/sean/AGENTS.md /Users/sean/Source/AGENTS.md /Users/sean/Source/SpecStory/AGENTS.md /Users/sean/Source/SpecStory/getspecstory/AGENTS.md; do if [ -f \"$p\" ]; then printf '\\n%s\\n' \"$p\"; cat \"$p\"; fi; done","max_output_tokens":4000}));
+
 ```
 </details></tool-use>
 
@@ -291,7 +297,8 @@ _**Agent (gpt-6-astra 2026-09-15 21:09:39Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"for p in AGENTS.md docs/AGENTS.md; do if [ -f \"$p\" ]; then cat \"$p\"; fi; done\nsed -n '205,247p' docs/QWEN-REVIEW.md","max_output_tokens":3000}));
 
 ```
@@ -301,9 +308,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:09:46Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nsource = Path('docs/QWEN-REVIEW.md')\ntarget = Path('docs/NEW-PROVIDER-REVIEW-REVIEW.md')\noriginal = source.read_text()
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nsource = Path('docs/QWEN-REVIEW.md')\ntarget = Path('docs/NEW-PROVIDER-REVIEW-REVIEW.md')\noriginal = source.read_text()\nstart = original.index('## Suggestions for NEW-PROVIDER-REVIEW.md\\n')\nend = original.index('\\n## Changed-file inventory', start)\nsection = original[start:end].rstrip()\nsection = section.replace('## Suggestions for NEW-PROVIDER-REVIEW.md', '# Suggestions for NEW-PROVIDER-REVIEW.md', 1)\nsection = section.replace('The guide itself is unchanged; proposed improvements are part of this report.', 'These suggestions come from the [Qwen Code provider review](QWEN-REVIEW.md).\\nThe guide itself is unchanged.', 1)\nwith target.open('x') as out:\n    out.write(section + '\\n')\nsource.write_text(original[:start] + original[end + 1:])\nassert '## Suggestions for NEW-PROVIDER-REVIEW.md' not in source.read_text()\nassert target.read_text().split('\\n1. ', 1)[1] == original[start:end].rstrip().split('\\n1. ', 1)[1] + '\\n'\nprint('Moved all 10 suggestions; verified their text is unchanged.')\nPY\n git diff --check\n git status --short docs/QWEN-REVIEW.md docs/NEW-PROVIDER-REVIEW-REVIEW.md","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -327,10 +335,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:25:59Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(ALL_TOOLS.filter(x=> /search|github|fetch/.test(x.name+" "+x.description)).map(x=>({name:x.name,description:x.description.slice(0,130)})).slice(0,180));
-text(await tools.exec_command({cmd:"git re
-...
+text(await tools.exec_command({cmd:"git remote -v\n git status --short\ncommand -v gh\nrg --files -g AGENTS.md -g '*qwen*' -g '*QWEN*' -g '*REVIEW*'","max_output_tokens":3500}));
+
 ```
 </details></tool-use>
 
@@ -338,10 +347,14 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const results=await Promise.allSettled([
-tools.exec_command({cmd:"gh pr view 267 --repo specstoryai/getspecstory --json title,body,author,state,url,baseRefName,headRefName,headRefOid,files,comments,re
-...
+tools.exec_command({cmd:"gh pr view 267 --repo specstoryai/getspecstory --json title,body,author,state,url,baseRefName,headRefName,headRefOid,files,comments,reviews","max_output_tokens":10000}),
+tools.exec_command({cmd:"git log -3 --oneline\nrg --files pkg/providers/qwencode\nsed -n '1,240p' pkg/providers/qwencode/QWEN-FORMAT.md","max_output_tokens":6000}),
+tools.web__run({open:[{ref_id:"https://github.com/specstoryai/getspecstory/pull/267"}],response_length:"short"})
+]);results.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -349,9 +362,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:08Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh pr view 267 --repo specstoryai/getspecstory --json title,body,author,state,url,baseRefName,headRefName,headRefOid,files,comments,reviews","sandbox_permissions":"
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh pr view 267 --repo specstoryai/getspecstory --json title,body,author,state,url,baseRefName,headRefName,headRefOid,files,comments,reviews","sandbox_permissions":"require_escalated","justification":"May I read PR #267 from GitHub to compare its Qwen provider with this implementation?","prefix_rule":["gh","pr","view"],"max_output_tokens":14000}));
+
 ```
 </details></tool-use>
 
@@ -359,9 +373,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:16Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh pr diff 267 --repo specstoryai/getspecstory > /tmp/qwen-pr267.diff","sandbox_permissions":"require_escalated","justification":"May I download PR #267’s diff in
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh pr diff 267 --repo specstoryai/getspecstory > /tmp/qwen-pr267.diff","sandbox_permissions":"require_escalated","justification":"May I download PR #267’s diff into /tmp for a read-only comparison?","prefix_rule":["gh","pr","diff"],"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"sed -n '1,260p' pkg/providers/qwencode/agent_session.go\nsed -n '1,230p' pkg/providers/qwencode/jsonl_parser.go","max_output_tokens":8500}));
+
 ```
 </details></tool-use>
 
@@ -369,9 +385,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:26Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport re\npatch = Path('/tmp/qwen-pr267.diff').read_text()\nroot = Path('/tmp/qwen-pr267-review')\nroot.mkdir(exist_ok=
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport re\npatch = Path('/tmp/qwen-pr267.diff').read_text()\nroot = Path('/tmp/qwen-pr267-review')\nroot.mkdir(exist_ok=True)\nfor chunk in patch.split('diff --git ')[1:]:\n    header, *lines = chunk.splitlines()\n    path = header.split(' b/', 1)[1]\n    if 'new file mode' not in '\\n'.join(lines[:4]):\n        continue\n    dest = root / path\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    dest.write_text('\\n'.join(line[1:] for line in lines if line.startswith('+') and not line.startswith('+++')) + '\\n')\nprint(root)\nPY\n diff -u /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/agent_session.go\n diff -u /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/markdown_tools.go pkg/providers/qwencode/markdown_tools.go","max_output_tokens":13000}));
+
 ```
 </details></tool-use>
 
@@ -383,10 +400,15 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:35Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/jsonl_parser.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwe
-...
+tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/jsonl_parser.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/path_utils.go","max_output_tokens":7500}),
+tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider.go","max_output_tokens":8500}),
+tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/watcher.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/qwen_exec.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/reconstruct.go","max_output_tokens":6500}),
+tools.exec_command({cmd:"sed -n '1,135p' /tmp/qwen-pr267.diff\nrg -n '^func Test|directory|toolsToken|CurrentSchemaVersion|UserAccount|Chinese|中文' /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode pkg/providers/qwencode pkg/spi/schema/schema.go","max_output_tokens":7000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -394,9 +416,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:38Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '140,290p' /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider.go\nsed -n '310,576p' /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwen
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '140,290p' /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider.go\nsed -n '310,576p' /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider.go","max_output_tokens":6500}));
+
 ```
 </details></tool-use>
 
@@ -404,9 +427,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:42Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/watcher.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/qwen_exec.go\ncat /tmp/q
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/watcher.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/qwen_exec.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/reconstruct.go","max_output_tokens":5600}));
+
 ```
 </details></tool-use>
 
@@ -414,9 +438,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:46Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '1,150p' /tmp/qwen-pr267.diff\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/jsonl_parser_test.go\ncat /tmp/qwen-pr267-review/specstory-cli
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '1,150p' /tmp/qwen-pr267.diff\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/jsonl_parser_test.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/agent_session_test.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/markdown_tools_test.go","max_output_tokens":8000}));
+
 ```
 </details></tool-use>
 
@@ -424,10 +449,13 @@ _**Agent (gpt-6-astra 2026-09-15 21:26:57Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"sed -n '320,375p' pkg/providers/qwencode/provider.go\nsed -n '417,550p' pkg/providers/qwencode/provider.go\nsed -n '234,310p' pkg/providers
-...
+tools.exec_command({cmd:"sed -n '320,375p' pkg/providers/qwencode/provider.go\nsed -n '417,550p' pkg/providers/qwencode/provider.go\nsed -n '234,310p' pkg/providers/qwencode/jsonl_parser.go\nrg -n 'CurrentSchemaVersion|ContentTypeText|ContentTypeThinking|ToolTokens' pkg/spi/schema\nrg -n 'qwen|Qwen' docs/PROVIDER-SPI.md pkg/config/config_test.go\nsed -n '1,60p' pkg/providers/qwencode/reconstruct.go\nsed -n '26,58p' pkg/providers/qwencode/markdown_tools_test.go","max_output_tokens":4700}),
+tools.exec_command({cmd:"cat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/qwen_exec_test.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/path_utils_test.go\ncat /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider_test.go","max_output_tokens":6400})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -439,9 +467,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:27:17Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat > /tmp/qwen-pr267-review/probe.go <<'EOF'\npackage main\n\nimport (\n    \"encoding/json\"\n    \"fmt\"\n    \"os\"\n    \"path/filepath\"\n    \"strings\"\n   
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat > /tmp/qwen-pr267-review/probe.go <<'EOF'\npackage main\n\nimport (\n    \"encoding/json\"\n    \"fmt\"\n    \"os\"\n    \"path/filepath\"\n    \"strings\"\n    q \"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode\"\n)\n\nfunc main() {\n    files, err := filepath.Glob(\"/tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/testdata/*.jsonl\")\n    if err != nil { panic(err) }\n    p := q.NewProvider()\n    for _, file := range files {\n        s, err := p.GetAgentChatSessionByPath(file, \"/tmp/qwen-fixture-project\", false)\n        if err != nil { panic(err) }\n        if s == nil { fmt.Printf(\"fixture %s: skipped\\n\", filepath.Base(file)); continue }\n        tools := 0\n        for _, ex := range s.SessionData.Exchanges { for _, msg := range ex.Messages { if msg.Tool != nil { tools++ } } }\n        fmt.Printf(\"fixture %s: exchanges=%d tools=%d rawJSONL=%t\\n\", filepath.Base(file), len(s.SessionData.Exchanges), tools, strings.Contains(s.RawData, \"\\n\"))\n    }\n    session := &q.QwenSession{\n        ID: \"shell-context-probe\", StartTime: \"2026-09-15T12:00:00Z\", LastUpdated: \"2026-09-15T12:00:02Z\",\n        Records: []q.QwenRecord{\n            {UUID: \"u1\", Type: \"user\", Provenance: \"real_user\", Timestamp: \"2026-09-15T12:00:00Z\", Message: &q.QwenMessage{Role: \"user\", Parts: []q.QwenPart{{Text: \"Run the command\"}}}},\n            {UUID: \"a1\", Type: \"assistant\", Timestamp: \"2026-09-15T12:00:01Z\", Message: &q.QwenMessage{Role: \"model\", Parts: []q.QwenPart{{FunctionCall: &q.QwenFunctionCall{ID: \"call1\", Name: \"run_shell_command\", Args: map[string]any{\"command\":\"ls -la\", \"directory\":\"/tmp/other-directory\", \"description\":\"List files\"}}}}}},\n            {UUID: \"t1\", Type: \"tool_result\", Timestamp: \"2026-09-15T12:00:02Z\", Message: &q.QwenMessage{Role: \"user\", Parts: []q.QwenPart{{FunctionResponse: &q.QwenFunctionResponse{ID: \"call1\", Response: map[string]any{\"output\":\"Command: ls -la\\nDirectory: /tmp/other-directory\\nOutput: file.txt\\nExit Code: 0\"}}}}}, ToolCallResult: &q.QwenToolCallResult{CallID:\"call1\", Status:\"success\", ResultDisplay:json.RawMessage(`\"file.txt\"`)}},\n        },\n    }\n    data, err := q.GenerateAgentSession(session, \"/tmp/project\")\n    if err != nil { panic(err) }\n    for _, ex := range data.Exchanges { for _, msg := range ex.Messages { if msg.Tool != nil {\n        fmt.Printf(\"shell directory retained in structured input: %v\\n\", msg.Tool.Input[\"directory\"])\n        fmt.Printf(\"shell directory visible in markdown: %t\\n%s\\n\", strings.Contains(*msg.Tool.FormattedMarkdown, \"/tmp/other-directory\"), *msg.Tool.FormattedMarkdown)\n    } } }\n    _ = os.Stdout\n}\nEOF\ngo run /tmp/qwen-pr267-review/probe.go","max_output_tokens":3000,"yield_time_ms":1000}));
+text(await tools.exec_command({cmd:"command -v qwen\nrg -n 'var _ spi\\.|SchemaVersion:|ContentType|formatShellBodyFromInput|scanQwenSession|found everything' pkg/providers/qwencode /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/reconstruct.go /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider.go\nrg --files docs | rg 'PROVIDER|SPI'","max_output_tokens":1600}));
+
 ```
 </details></tool-use>
 
@@ -449,10 +479,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:27:22Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.write_stdin({session_id:13628,chars:"","max_output_tokens":2500,"yield_time_ms":1000}));
-text(await tools.exec_command({cmd:"ls -l /opt/homebrew/bin/qwen\nsed -n '1,70p' pkg/providers
-...
+text(await tools.exec_command({cmd:"ls -l /opt/homebrew/bin/qwen\nsed -n '1,70p' pkg/providers/qwencode/factory/list-tools\nsed -n '1,85p' NEW-PROVIDER-GUIDE.md\nsed -n '370,405p' /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/agent_session.go","max_output_tokens":2200}));
+
 ```
 </details></tool-use>
 
@@ -460,10 +491,13 @@ _**Agent (gpt-6-astra 2026-09-15 21:27:39Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"rg -n --max-count 5 'toolsTokenCount|toolUsePromptTokenCount|directory:|directory\\?' /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/nod
-...
+tools.exec_command({cmd:"rg -n --max-count 5 'toolsTokenCount|toolUsePromptTokenCount|directory:|directory\\?' /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/dist --glob '*.js' --glob '*.d.ts'","max_output_tokens":2200}),
+tools.exec_command({cmd:"nl -ba pkg/providers/qwencode/markdown_tools.go | sed -n '175,203p;227,250p'\nnl -ba pkg/providers/qwencode/jsonl_parser.go | sed -n '148,182p'\nnl -ba /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/provider.go | sed -n '473,490p'\nnl -ba /tmp/qwen-pr267-review/specstory-cli/pkg/providers/qwencode/markdown_tools.go | sed -n '158,182p'\n git diff --stat\n git status --short","max_output_tokens":2000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -471,9 +505,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:27:43Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg --files /opt/homebrew/Cellar/qwen-code/0.23.4 | head -25\nsed -n '1,35p' pkg/spi/schema/types.go\nsed -n '1,85p' pkg/providers/qwencode/path_utils.go","max_outpu
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg --files /opt/homebrew/Cellar/qwen-code/0.23.4 | head -25\nsed -n '1,35p' pkg/spi/schema/types.go\nsed -n '1,85p' pkg/providers/qwencode/path_utils.go","max_output_tokens":1400}));
+
 ```
 </details></tool-use>
 
@@ -481,9 +516,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:27:53Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nroot = Path('/tmp/qwen-pr267-review')\nsource = root / 'specstory-cli/pkg/providers/qwencode/jsonl_parser.go'\n(root / '
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nroot = Path('/tmp/qwen-pr267-review')\nsource = root / 'specstory-cli/pkg/providers/qwencode/jsonl_parser.go'\n(root / 'parser267.go').write_text(source.read_text().replace('package qwencode', 'package main', 1))\n(root / 'parser267_main.go').write_text('''package main\nimport \"fmt\"\nfunc main() {\n    for _, name := range []string{\"session-current.jsonl\", \"session-tools.jsonl\"} {\n        s, err := ParseSessionFile(\"pkg/providers/qwencode/testdata/\" + name)\n        if err != nil { panic(err) }\n        fmt.Printf(\"PR267 parser: %s records=%d\\\\n\", name, len(s.Entries))\n    }\n}\n''')\nPY\ngo run /tmp/qwen-pr267-review/parser267.go /tmp/qwen-pr267-review/parser267_main.go","max_output_tokens":1800,"yield_time_ms":1000}));
+text(await tools.exec_command({cmd:"rg -n --max-count 2 'toolsTokenCount|toolUsePromptTokenCount' /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code --glob '*.js' --glob '*.d.ts' --glob '!locales/**'","max_output_tokens":1800}));
+
 ```
 </details></tool-use>
 
@@ -579,10 +616,14 @@ _**Agent (gpt-6-astra 2026-09-15 21:33:53Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"git status --short\nrg --files -g AGENTS.md\nsed -n '1,160p' changelog.md\nrg -n -i 'thank|contribut|JinYang|Qwen' changelog.md","max_outpu
-...
+tools.exec_command({cmd:"git status --short\nrg --files -g AGENTS.md\nsed -n '1,160p' changelog.md\nrg -n -i 'thank|contribut|JinYang|Qwen' changelog.md","max_output_tokens":6500}),
+tools.exec_command({cmd:"cat /Users/sean/.agents/skills/testmo-change-evaluator/SKILL.md\ncat NEW-PROVIDER-GUIDE.md","max_output_tokens":12500}),
+tools.exec_command({cmd:"cat docs/NEW-PROVIDER-REVIEW.md","max_output_tokens":15000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -590,10 +631,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:33:59Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"cat /Users/sean/.agents/skills/testmo-change-evaluator/SKILL.md","max_output_tokens":4500}));
-text(await tools.exec_command({cmd:"rg -n '^#{1,4} |constants|assertio
-...
+text(await tools.exec_command({cmd:"rg -n '^#{1,4} |constants|assertion|SchemaVersion|schema\\.|interface|shared helpers' NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md\nsed -n '75,145p' NEW-PROVIDER-GUIDE.md\nsed -n '125,210p' docs/NEW-PROVIDER-REVIEW.md\nsed -n '1,115p' pkg/providers/qwencode/agent_session.go\nsed -n '205,237p' pkg/providers/qwencode/agent_session.go","max_output_tokens":6500}));
+
 ```
 </details></tool-use>
 
@@ -601,9 +643,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:34:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '85,104p' NEW-PROVIDER-GUIDE.md\nsed -n '130,151p' NEW-PROVIDER-GUIDE.md\nsed -n '127,156p' docs/NEW-PROVIDER-REVIEW.md\nsed -n '1,48p' pkg/providers/qwencod
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '85,104p' NEW-PROVIDER-GUIDE.md\nsed -n '130,151p' NEW-PROVIDER-GUIDE.md\nsed -n '127,156p' docs/NEW-PROVIDER-REVIEW.md\nsed -n '1,48p' pkg/providers/qwencode/provider.go\nsed -n '25,60p' pkg/providers/qwencode/markdown_tools_test.go\nsed -n '1,60p' pkg/spi/global.go\nsed -n '319,335p' NEW-PROVIDER-GUIDE.md","max_output_tokens":3300}));
+
 ```
 </details></tool-use>
 
@@ -611,9 +654,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:34:10Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '1,34p' pkg/providers/qwencode/provider.go\nsed -n '139,154p' docs/NEW-PROVIDER-REVIEW.md\nrg -n '\"text\"|\"thinking\"|\"1.0\"' pkg/providers/qwencode --glo
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '1,34p' pkg/providers/qwencode/provider.go\nsed -n '139,154p' docs/NEW-PROVIDER-REVIEW.md\nrg -n '\"text\"|\"thinking\"|\"1.0\"' pkg/providers/qwencode --glob '*.go'","max_output_tokens":1500}));
+
 ```
 </details></tool-use>
 
@@ -625,9 +669,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:34:34Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n-\t\tSchemaVersion: \"1.0\",\n+\t\t
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n-\t\tSchemaVersion: \"1.0\",\n+\t\tSchemaVersion: schema.CurrentSchemaVersion,\n@@\n-\t\t\t\t\tContent:   []ContentPart{{Type: \"text\", Text: content}},\n+\t\t\t\t\tContent:   []ContentPart{{Type: schema.ContentTypeText, Text: content}},\n@@\n-\t\t\t\tkind := \"text\"\n+\t\t\t\tkind := schema.ContentTypeText\n \t\t\t\tif part.Thought {\n-\t\t\t\t\tkind = \"thinking\"\n+\t\t\t\t\tkind = schema.ContentTypeThinking\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go\n@@\n func formatShellBodyFromInput(input map[string]any) string {\n \tcommand := spi.StringValue(input, \"command\")\n \tdescription := spi.StringValue(input, \"description\")\n+\tdirectory := spi.StringValue(input, \"directory\")\n \n-\tif command == \"\" && description == \"\" {\n+\tif command == \"\" && description == \"\" && directory == \"\" {\n@@\n \tif description != \"\" {\n \t\tfmt.Fprintf(&builder, \"%s\\n\\n\", description)\n \t}\n+\tif directory != \"\" {\n+\t\tfmt.Fprintf(&builder, \"Directory: `%s`\\n\\n\", directory)\n+\t}\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools_test.go\n@@\n \t\tInput: map[string]any{\n \t\t\t\"command\":     \"ls -la\",\n \t\t\t\"description\": \"List files\",\n+\t\t\t\"directory\":   \"/tmp\",\n@@\n \tif !strings.Contains(md, \"List files\") {\n \t\tt.Errorf(\"shell description missing:\\n%s\", md)\n \t}\n+\tif !strings.Contains(md, \"Directory: `/tmp`\") {\n+\t\tt.Errorf(\"shell working directory missing when resultDisplay omits it:\\n%s\", md)\n+\t}\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/NEW-PROVIDER-GUIDE.md\n@@\n Every helper below replaced copies that had drifted apart across providers. Do not reimplement them.\n \n+- Use `schema.CurrentSchemaVersion` and the shared `schema.ContentTypeText` / `schema.ContentTypeThinking` constants when constructing `SessionData`, rather than repeating their string values. Native record fields and code-fence language labels follow their own formats.\n - `spi.CodeFence` for every fenced block, sized past any backtick run in the content. Never write a literal triple backtick, and never backslash-escape backticks.\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/docs/NEW-PROVIDER-REVIEW.md\n@@\n-- Every method on `spi.Provider` present (twelve today; count them against the file); a compile-time `_ spi.Provider = (*Provider)(nil)` assertion present, in a `var` line or a grouped block.\n+- Every method on `spi.Provider` present (twelve today; count them against the file); a compile-time `_ spi.Provider = (*Provider)(nil)` assertion present, in a `var` line or a grouped block. Check assertions for each implemented optional interface too (`spi.PathSessionReader`, `spi.ProgressEnumerator`).\n@@\n Check specifically:\n \n+- `SessionData` construction uses `schema.CurrentSchemaVersion` and `schema.ContentTypeText` / `schema.ContentTypeThinking`, not duplicated string values. Do not apply these constants to native record fields or code-fence language labels.\n - Fences: the reliable check is which call sites do not go through `spi.CodeFence`, not which lines contain backticks. Fences assembled across `WriteString` calls hide from grep. Backslash-escaped backticks are a bug.\n*** End Patch"));
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\npath = Path('changelog.md')\ntext = path.read_text()\nend = text.index('\\n', text.index('- The SpecStory CLI now supports [Qwen Code]'))\ncredit = ' Thanks to [JinYang88](https://github.com/JinYang88) for the alternative Qwen Code provider in [PR 267](https://github.com/specstoryai/getspecstory/pull/267), which contributed clearer shell working-directory rendering and shared schema-constant cleanup.'\npath.write_text(text[:end] + credit + text[end:])\nPY\ngofmt -w pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/markdown_tools.go pkg/providers/qwencode/markdown_tools_test.go\ngit diff --check\ngit diff --stat","max_output_tokens":1200}));
+
 ```
 </details></tool-use>
 
@@ -635,11 +681,14 @@ _**Agent (gpt-6-astra 2026-09-15 21:34:40Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs = await Promise.allSettled([
 tools.exec_command({cmd:"go test ./pkg/providers/qwencode ./pkg/spi/factory","max_output_tokens":2500,"yield_time_ms":1000}),
-tools.exec_command({cmd:"golangci-li
-...
+tools.exec_command({cmd:"golangci-lint run","max_output_tokens":2000,"yield_time_ms":1000}),
+tools.exec_command({cmd:"git diff -- NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md changelog.md pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/markdown_tools.go pkg/providers/qwencode/markdown_tools_test.go","max_output_tokens":4500})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -647,9 +696,14 @@ _**Agent (gpt-6-astra 2026-09-15 21:34:51Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\npath = Path('changelog.md')\ntext = path.read_text().replace('which contributed clearer shell working-directory renderin
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\npath = Path('changelog.md')\ntext = path.read_text().replace('which contributed clearer shell working-directory rendering and shared schema-constant cleanup.', 'which informed clearer shell command transcripts that show the working directory and more consistent use of the shared session schema.')\npath.write_text(text)\nPY","max_output_tokens":500}));
+const rs=await Promise.allSettled([
+tools.write_stdin({session_id:47349,chars:"","max_output_tokens":1500,"yield_time_ms":1000}),
+tools.write_stdin({session_id:14100,chars:"","max_output_tokens":1500,"yield_time_ms":1000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -657,7 +711,8 @@ _**Agent (gpt-6-astra 2026-09-15 21:34:53Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"git diff --check\ngit status --short","max_output_tokens":1000}));
 
 ```
@@ -692,10 +747,13 @@ _**Agent (gpt-6-astra 2026-09-15 21:42:34Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs = await Promise.allSettled([
-tools.exec_command({cmd:"git status --short\ngit log -3 --oneline\ngh run view 35026652129 --repo specstoryai/getspecstory --job 104575163878 --log-failed","max_o
-...
+tools.exec_command({cmd:"git status --short\ngit log -3 --oneline\ngh run view 35026652129 --repo specstoryai/getspecstory --job 104575163878 --log-failed","max_output_tokens":5500,"yield_time_ms":1000}),
+tools.web__run({open:[{ref_id:"https://github.com/specstoryai/getspecstory/actions/runs/35026652129/job/104575163878"}],response_length:"short"})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -703,9 +761,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:42:39Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh run view 35026652129 --repo specstoryai/getspecstory --job 104575163878 --log-failed","sandbox_permissions":"require_escalated","justification":"May I read the l
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh run view 35026652129 --repo specstoryai/getspecstory --job 104575163878 --log-failed","sandbox_permissions":"require_escalated","justification":"May I read the linked GitHub Actions job’s failure log to diagnose and fix the CI failure?","prefix_rule":["gh","run","view"],"max_output_tokens":6500,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -713,10 +772,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:42:51Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.write_stdin({session_id:18262,chars:"","max_output_tokens":6500,"yield_time_ms":1000}));
-text(await tools.exec_command({cmd:"rg --files ../.github/workflows -g '*.yml' -g '*.yaml'\nse
-...
+text(await tools.exec_command({cmd:"rg --files ../.github/workflows -g '*.yml' -g '*.yaml'\nsed -n '1,250p' pkg/providers/qwencode/qwen_exec_test.go\nsed -n '1,230p' pkg/providers/qwencode/watcher_test.go","max_output_tokens":5500}));
+
 ```
 </details></tool-use>
 
@@ -724,10 +784,14 @@ _**Agent (gpt-6-astra 2026-09-15 21:42:57Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs = await Promise.allSettled([
-tools.exec_command({cmd:"rg -n 'func SplitCommandLine|SplitCommandLine|ToSlash\\(exe|Sprintf\\(`.*test.run|Quote.*Command|ShellQuote' pkg/spi internal pkg/provide
-...
+tools.exec_command({cmd:"rg -n 'func SplitCommandLine|SplitCommandLine|ToSlash\\(exe|Sprintf\\(`.*test.run|Quote.*Command|ShellQuote' pkg/spi internal pkg/providers --glob '*.go'","max_output_tokens":4500}),
+tools.exec_command({cmd:"cat pkg/spi/command.go\nsed -n '1,110p' pkg/providers/qwencode/qwen_exec.go\ncat ../.github/workflows/ci.yml","max_output_tokens":4000}),
+tools.exec_command({cmd:"gh run view 35026652129 --repo specstoryai/getspecstory --json headSha,headBranch,conclusion,jobs","sandbox_permissions":"require_escalated","justification":"May I check the CI run’s commit and other job results to confirm the scope of the failure?","prefix_rule":["gh","run","view"],"max_output_tokens":2000,"yield_time_ms":1000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -735,9 +799,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:43:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat pkg/spi/cmdline.go\nsed -n '1,145p' pkg/spi/cmdline_test.go\nrg -n 'backslash|command.*quot|Windows.*command|single.quote|forward.slash' README.md NEW-PROVIDER-
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat pkg/spi/cmdline.go\nsed -n '1,145p' pkg/spi/cmdline_test.go\nrg -n 'backslash|command.*quot|Windows.*command|single.quote|forward.slash' README.md NEW-PROVIDER-GUIDE.md docs/NEW-PROVIDER-REVIEW.md internal/testutil pkg/providers/piagent/*test.go","max_output_tokens":3300}));
+
 ```
 </details></tool-use>
 
@@ -751,9 +816,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:43:26Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/qwen_exec_test.go\n@@\n-\tcommand := fmt.Sprintf(`\"%s\" 
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/qwen_exec_test.go\n@@\n-\tcommand := fmt.Sprintf(`\"%s\" -test.run=^TestQwenExecChild$ -- --resume old`, exe)\n+\t// The command parser consumes backslash escapes, including in quoted Windows paths.\n+\tcommand := fmt.Sprintf(`%q -test.run=^TestQwenExecChild$ -- --resume old`, exe)\n@@\n-\t\t\tcommand := fmt.Sprintf(`\"%s\" -test.run=^TestQwenExecChild$`, exe)\n+\t\t\t// Quote spaces and escape Windows path separators for the command parser.\n+\t\t\tcommand := fmt.Sprintf(`%q -test.run=^TestQwenExecChild$`, exe)\n*** End Patch"));
+text(await tools.exec_command({cmd:"cat > /tmp/qwen-ci-command-probe.go <<'EOF'\npackage main\n\nimport (\n    \"fmt\"\n    \"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi\"\n)\n\nfunc main() {\n    paths := []string{\n        `C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\go-build4076270678\\b835\\qwencode.test.exe`,\n        `C:\\Program Files\\Qwen Test\\qwencode.test.exe`,\n        `\\\\server\\share\\Qwen Test\\qwencode.test.exe`,\n        `/tmp/Qwen Test/qwencode.test`,\n    }\n    for _, path := range paths {\n        before := spi.SplitCommandLine(fmt.Sprintf(`\"%s\" -test.run=^TestQwenExecChild$`, path))\n        after := spi.SplitCommandLine(fmt.Sprintf(`%q -test.run=^TestQwenExecChild$`, path))\n        if len(after) != 2 || after[0] != path || after[1] != \"-test.run=^TestQwenExecChild$\" { panic(fmt.Sprintf(\"round trip failed: %#v\", after)) }\n        fmt.Printf(\"path=%q beforePreserved=%t afterPreserved=true\\n\", path, before[0] == path)\n    }\n}\nEOF\ngofmt -w pkg/providers/qwencode/qwen_exec_test.go\ngo run /tmp/qwen-ci-command-probe.go\ngit diff --check","max_output_tokens":1800,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -761,11 +828,14 @@ _**Agent (gpt-6-astra 2026-09-15 21:43:32Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
 tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi","max_output_tokens":2000,"yield_time_ms":1000}),
-tools.exec_command({cmd:"GOOS=windows GO
-...
+tools.exec_command({cmd:"GOOS=windows GOARCH=amd64 go test -c -o /tmp/qwencode-ci.test.exe ./pkg/providers/qwencode","max_output_tokens":2000,"yield_time_ms":1000}),
+tools.exec_command({cmd:"golangci-lint run","max_output_tokens":2000,"yield_time_ms":1000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -773,11 +843,15 @@ _**Agent (gpt-6-astra 2026-09-15 21:43:41Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"git diff -- pkg/providers/qwencode/qwen_exec_test.go\ngit status --short","max_output_tokens":1400}));
 const rs=await Promise.allSettled([
-tools.write_stdin({sessio
-...
+tools.write_stdin({session_id:91274,chars:"","max_output_tokens":2000,"yield_time_ms":1000}),
+tools.write_stdin({session_id:37413,chars:"","max_output_tokens":1000,"yield_time_ms":1000}),
+tools.write_stdin({session_id:55456,chars:"","max_output_tokens":1000,"yield_time_ms":1000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -815,9 +889,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:46:38Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"git status --short\ngit log -3 --oneline\ngh pr view --json number,url,headRefOid","sandbox_permissions":"require_escalated","justification":"May I read the current
-...
+Input:
+```
+text(await tools.exec_command({cmd:"git status --short\ngit log -3 --oneline\ngh pr view --json number,url,headRefOid","sandbox_permissions":"require_escalated","justification":"May I read the current PR and its Copilot review threads?","prefix_rule":["gh","pr","view"],"max_output_tokens":1200,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -825,9 +900,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:46:46Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql -f query='query { repository(owner: \"specstoryai\", name: \"getspecstory\") { pullRequest(number: 268) { reviewThreads(first: 100) { pageInfo { hasN
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql -f query='query { repository(owner: \"specstoryai\", name: \"getspecstory\") { pullRequest(number: 268) { reviewThreads(first: 100) { pageInfo { hasNextPage endCursor } nodes { id isResolved isOutdated path line comments(first: 100) { nodes { databaseId author { login } body url } } } } } } }'","sandbox_permissions":"require_escalated","justification":"May I retrieve the active review threads on PR #268 so I can assess and resolve the settled Copilot comments?","prefix_rule":["gh","api","graphql"],"max_output_tokens":14000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -835,10 +911,13 @@ _**Agent (gpt-6-astra 2026-09-15 21:46:56Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"sed -n '110,225p' pkg/providers/qwencode/provider.go\nsed -n '478,550p' pkg/providers/qwencode/provider.go\nrg -n 'WalkDir|IsRegular|Symlin
-...
+tools.exec_command({cmd:"sed -n '110,225p' pkg/providers/qwencode/provider.go\nsed -n '478,550p' pkg/providers/qwencode/provider.go\nrg -n 'WalkDir|IsRegular|Symlink|Lstat|func ScanSessionsInParallel' pkg/spi/global.go\nsed -n '140,285p' pkg/spi/global.go\nsed -n '205,275p' pkg/providers/qwencode/provider_test.go\nsed -n '145,165p' docs/QWEN-REVIEW.md","max_output_tokens":5000}),
+tools.exec_command({cmd:"sed -n '20,53p' pkg/providers/qwencode/qwen_exec.go\nsed -n '85,114p' pkg/providers/qwencode/provider_test.go\nsed -n '1,100p' pkg/providers/qwencode/qwen_exec_test.go\nrg -n 'GetAgentChatSessionByPath\\(|Lstat|ModeSymlink' pkg/sessionindex pkg/cmd/reindex* pkg/providers/qwencode","max_output_tokens":2800})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -852,9 +931,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:21Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '85,137p' pkg/spi/global.go\nsed -n '630,665p' pkg/cmd/reindex.go\ncat > /tmp/qwen-symlink-review-probe.go <<'EOF'\npackage main\n\nimport (\n    \"encoding/
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '85,137p' pkg/spi/global.go\nsed -n '630,665p' pkg/cmd/reindex.go\ncat > /tmp/qwen-symlink-review-probe.go <<'EOF'\npackage main\n\nimport (\n    \"encoding/json\"\n    \"fmt\"\n    \"os\"\n    \"path/filepath\"\n    q \"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode\"\n)\n\nfunc main() {\n    root, err := os.MkdirTemp(\"\", \"qwen-symlink-review-\")\n    if err != nil { panic(err) }\n    defer os.RemoveAll(root)\n    project := filepath.Join(root, \"project\")\n    store := filepath.Join(root, \"store\")\n    if err := os.MkdirAll(project, 0755); err != nil { panic(err) }\n    if err := os.Setenv(\"QWEN_RUNTIME_DIR\", store); err != nil { panic(err) }\n    const id = \"11111111-2222-3333-4444-555555555555\"\n    chats := filepath.Join(store, \"projects\", q.SanitizeQwenCwd(project), \"chats\")\n    if err := os.MkdirAll(chats, 0755); err != nil { panic(err) }\n    external := filepath.Join(root, \"external.jsonl\")\n    record := map[string]any{\"uuid\":\"user1\", \"sessionId\":id, \"type\":\"user\", \"provenance\":\"real_user\", \"cwd\":project, \"timestamp\":\"2026-09-15T12:00:00Z\", \"message\":map[string]any{\"role\":\"user\", \"parts\":[]map[string]string{{\"text\":\"external transcript marker\"}}}}\n    data, err := json.Marshal(record)\n    if err != nil { panic(err) }\n    if err := os.WriteFile(external, append(data, '\\n'), 0644); err != nil { panic(err) }\n    link := filepath.Join(chats, id+\".jsonl\")\n    if err := os.Symlink(external, link); err != nil { panic(err) }\n    p := q.NewProvider()\n    byID, err := p.GetAgentChatSession(project, id, false)\n    if err != nil { panic(err) }\n    refs, err := p.ListAllAgentChatSessions()\n    if err != nil { panic(err) }\n    byPath, err := p.GetAgentChatSessionByPath(link, project, false)\n    if err != nil { panic(err) }\n    fmt.Printf(\"direct lookup rejected symlink: %t\\n\", byID == nil)\n    fmt.Printf(\"global enumeration included symlink: %t (refs=%d)\\n\", len(refs)==1 && refs[0].NativePath == link, len(refs))\n    fmt.Printf(\"path-based loading read external transcript: %t\\n\", byPath != nil)\n}\nEOF\ngo run /tmp/qwen-symlink-review-probe.go\ngo test ./pkg/providers/qwencode -run '^(TestGetAgentChatSessions_EmptyProjectPathUsesCwd|TestEnsureResumeArgs)$'","max_output_tokens":2200,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -862,10 +942,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:31Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.write_stdin({session_id:14945,chars:"","max_output_tokens":1000,"yield_time_ms":1000}));
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\nq
-...
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\nquery = 'mutation($thread: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $thread, body: $body}) { comment { url } } }'\ncomments = [\n    ('cwd', 'PRRT_kwDONdK4HM6XXTdW', 'Already addressed in the current implementation. Both GetAgentChatSessions and GetAgentChatSession call defaultProjectPath before discovery or conversion, so an omitted project path becomes the canonical current working directory and SessionData.WorkspaceRoot is populated. The review in b01d3dc retained and strengthened this behavior. TestGetAgentChatSessions_EmptyProjectPathUsesCwd verifies the exported workspace matches the canonical cwd; it passes on current HEAD. Resolving as fixed.'),\n    ('resume', 'PRRT_kwDONdK4HM6XXTdo', 'Already addressed in the current implementation. ensureResumeArgs inserts the requested session ID immediately after a bare --resume/-r, including when another flag follows, rather than appending a duplicate resume flag. It also replaces pinned/equals-form IDs and clones the argument slice so the caller is not mutated. TestEnsureResumeArgs covers these cases and passes on current HEAD. Resolving as fixed.')\n]\nfor name, thread, body in comments:\n    Path('/tmp/qwen-review-reply-' + name + '.json').write_text(json.dumps({'query': query, 'variables': {'thread':thread, 'body':body}}))\n    Path('/tmp/qwen-review-resolve-' + name + '.json').write_text(json.dumps({'query':'mutation($thread: ID!) { resolveReviewThread(input: {threadId: $thread}) { thread { id isResolved } } }', 'variables':{'thread':thread}}))\nPY","max_output_tokens":500}));
+
 ```
 </details></tool-use>
 
@@ -873,9 +954,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:35Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-reply-cwd.json","sandbox_permissions":"require_escalated","justification":"May I post the requested explanation that the emp
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-reply-cwd.json","sandbox_permissions":"require_escalated","justification":"May I post the requested explanation that the empty-workspace finding is already fixed?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -883,7 +965,8 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:41Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.write_stdin({session_id:47574,chars:"","max_output_tokens":1000,"yield_time_ms":1000}));
 
 ```
@@ -893,9 +976,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:44Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-resolve-cwd.json","sandbox_permissions":"require_escalated","justification":"May I resolve the empty-workspace thread now th
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-resolve-cwd.json","sandbox_permissions":"require_escalated","justification":"May I resolve the empty-workspace thread now that the explanation has been posted?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -903,9 +987,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:51Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-reply-resume.json","sandbox_permissions":"require_escalated","justification":"May I post the requested explanation that the 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-reply-resume.json","sandbox_permissions":"require_escalated","justification":"May I post the requested explanation that the bare-resume-flag finding is already fixed?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -913,7 +998,8 @@ _**Agent (gpt-6-astra 2026-09-15 21:47:57Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.write_stdin({session_id:80468,chars:"","max_output_tokens":1000,"yield_time_ms":1000}));
 
 ```
@@ -923,9 +1009,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:48:02Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-resolve-resume.json","sandbox_permissions":"require_escalated","justification":"May I resolve the resume-flag thread now tha
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-resolve-resume.json","sandbox_permissions":"require_escalated","justification":"May I resolve the resume-flag thread now that the explanation has been posted?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -939,9 +1026,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:48:13Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql -f query='query { repository(owner: \"specstoryai\", name: \"getspecstory\") { pullRequest(number: 268) { reviewThreads(first: 100) { nodes { id isRe
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql -f query='query { repository(owner: \"specstoryai\", name: \"getspecstory\") { pullRequest(number: 268) { reviewThreads(first: 100) { nodes { id isResolved isOutdated comments(first: 1) { nodes { url } } } } } } }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false)'","sandbox_permissions":"require_escalated","justification":"May I verify that the two settled threads are resolved and only the new finding remains open?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+text(await tools.exec_command({cmd:"git status --short","max_output_tokens":500}));
+
 ```
 </details></tool-use>
 
@@ -981,9 +1070,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:50:19Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"git status --short\nsed -n '175,220p' pkg/providers/qwencode/provider.go\nsed -n '490,531p' pkg/providers/qwencode/provider.go\nsed -n '125,160p' pkg/providers/qwen
-...
+Input:
+```
+text(await tools.exec_command({cmd:"git status --short\nsed -n '175,220p' pkg/providers/qwencode/provider.go\nsed -n '490,531p' pkg/providers/qwencode/provider.go\nsed -n '125,160p' pkg/providers/qwencode/provider_test.go\nsed -n '320,385p' pkg/providers/qwencode/provider_test.go\nrg -n 'Symlink|symlink' internal/testutil pkg/providers/qwencode/*test.go pkg/providers/musecode/*test.go","max_output_tokens":2600}));
+
 ```
 </details></tool-use>
 
@@ -991,9 +1081,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:50:26Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '1,65p' pkg/providers/qwencode/provider_test.go\nsed -n '125,153p' pkg/providers/qwencode/path_utils_test.go\nsed -n '65,83p' pkg/spi/global.go","max_output_
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '1,65p' pkg/providers/qwencode/provider_test.go\nsed -n '125,153p' pkg/providers/qwencode/path_utils_test.go\nsed -n '65,83p' pkg/spi/global.go","max_output_tokens":1400}));
+
 ```
 </details></tool-use>
 
@@ -1001,9 +1092,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:50:51Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider.go\n@@\n func (p *Provider) GetAgentChatSessionB
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider.go\n@@\n func (p *Provider) GetAgentChatSessionByPath(nativePath string, originCwd string, debugRaw bool) (*spi.AgentChatSession, error) {\n+\t// Recheck indexed paths: a transcript may have been replaced with a symlink.\n+\tinfo, err := os.Lstat(nativePath)\n+\tif os.IsNotExist(err) {\n+\t\treturn nil, nil\n+\t}\n+\tif err != nil {\n+\t\treturn nil, err\n+\t}\n+\tif !info.Mode().IsRegular() {\n+\t\treturn nil, nil\n+\t}\n \tsession, err := ParseSessionFile(nativePath)\n@@\n \t\tif !isSessionFile(filepath.Base(path)) || filepath.Base(filepath.Dir(path)) != \"chats\" || filepath.Dir(filepath.Dir(filepath.Dir(path))) != projectsDir {\n \t\t\treturn nil, nil\n \t\t}\n+\t\t// The shared walker includes symlink entries; do not follow them into other stores.\n+\t\tinfo, err := os.Lstat(path)\n+\t\tif os.IsNotExist(err) {\n+\t\t\treturn nil, nil\n+\t\t}\n+\t\tif err != nil {\n+\t\t\treturn nil, err\n+\t\t}\n+\t\tif !info.Mode().IsRegular() {\n+\t\t\treturn nil, nil\n+\t\t}\n \n \t\tsession, err := parseSessionFile(path, true)\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/provider_test.go\n@@\n \t\"path/filepath\"\n+\t\"runtime\"\n@@\n func TestGetAgentChatSessionByPath(t *testing.T) {\n@@\n }\n+\n+func TestReindexRejectsSymlinkedTranscripts(t *testing.T) {\n+\thome := withFakeHome(t)\n+\tproject := t.TempDir()\n+\tpath := seedFakeSession(t, home, project, \"session-basic.jsonl\", \"11111111-2222-3333-4444-555555555555\")\n+\tdata, err := os.ReadFile(path)\n+\tif err != nil {\n+\t\tt.Fatal(err)\n+\t}\n+\texternal := filepath.Join(t.TempDir(), \"external.jsonl\")\n+\tif err := os.WriteFile(external, data, 0644); err != nil {\n+\t\tt.Fatal(err)\n+\t}\n+\tlink := filepath.Join(filepath.Dir(path), \"linked.jsonl\")\n+\tif err := os.Symlink(external, link); err != nil {\n+\t\tif runtime.GOOS == \"windows\" {\n+\t\t\tt.Skipf(\"creating symlinks requires Windows developer mode or privileges: %v\", err)\n+\t\t}\n+\t\tt.Fatal(err)\n+\t}\n+\n+\tp := NewProvider()\n+\tvar progress spi.ScanReporter\n+\trefs, err := p.ListAllAgentChatSessionsProgress(&progress)\n+\tif err != nil {\n+\t\tt.Fatal(err)\n+\t}\n+\tif len(refs) != 1 || refs[0].NativePath != path || progress.Found() != 1 {\n+\t\tt.Errorf(\"enumeration must include only the regular transcript: refs=%+v found=%d\", refs, progress.Found())\n+\t}\n+\tif session, err := p.GetAgentChatSessionByPath(link, project, false); err != nil || session != nil {\n+\t\tt.Errorf(\"path lookup followed symlink: session=%v error=%v\", session, err)\n+\t}\n+\tif session, err := p.GetAgentChatSessionByPath(path, project, false); err != nil || session == nil {\n+\t\tt.Fatalf(\"regular transcript must still load: session=%v error=%v\", session, err)\n+\t}\n+\n+\t// A previously enumerated path must also be rejected if replaced before full loading.\n+\tif err := os.Remove(path); err != nil {\n+\t\tt.Fatal(err)\n+\t}\n+\tif err := os.Symlink(external, path); err != nil {\n+\t\tt.Fatal(err)\n+\t}\n+\tif session, err := p.GetAgentChatSessionByPath(path, project, false); err != nil || session != nil {\n+\t\tt.Errorf(\"replaced transcript followed symlink: session=%v error=%v\", session, err)\n+\t}\n+}\n*** End Patch"));
+text(await tools.exec_command({cmd:"gofmt -w pkg/providers/qwencode/provider.go pkg/providers/qwencode/provider_test.go\ngit diff --check","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1011,11 +1104,15 @@ _**Agent (gpt-6-astra 2026-09-15 21:50:59Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
 tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory","max_output_tokens":1600,"yield_time_ms":1000}),
-tools.exec_command({cmd:"GOOS=wi
-...
+tools.exec_command({cmd:"GOOS=windows GOARCH=amd64 go test -c -o /tmp/qwencode-symlink.test.exe ./pkg/providers/qwencode","max_output_tokens":1200,"yield_time_ms":1000}),
+tools.exec_command({cmd:"golangci-lint run","max_output_tokens":1200,"yield_time_ms":1000}),
+tools.exec_command({cmd:"go run /tmp/qwen-symlink-review-probe.go","max_output_tokens":1000,"yield_time_ms":1000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1023,9 +1120,15 @@ _**Agent (gpt-6-astra 2026-09-15 21:51:05Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"GOOS=windows GOARCH=amd64 go test -c -o /tmp/qwencode-symlink.test.exe ./pkg/providers/qwencode","sandbox_permissions":"require_escalated","justification":"May I us
-...
+Input:
+```
+text(await tools.exec_command({cmd:"GOOS=windows GOARCH=amd64 go test -c -o /tmp/qwencode-symlink.test.exe ./pkg/providers/qwencode","sandbox_permissions":"require_escalated","justification":"May I use the existing Go build cache to compile the updated Qwen tests for Windows?","prefix_rule":["go","test"],"max_output_tokens":1200,"yield_time_ms":1000}));
+const rs=await Promise.allSettled([
+tools.write_stdin({session_id:39597,chars:"","max_output_tokens":1600,"yield_time_ms":1000}),
+tools.write_stdin({session_id:97716,chars:"","max_output_tokens":1200,"yield_time_ms":1000}),
+tools.write_stdin({session_id:68642,chars:"","max_output_tokens":1000,"yield_time_ms":1000})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1033,10 +1136,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:51:19Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.write_stdin({session_id:48357,chars:"","max_output_tokens":1000,"yield_time_ms":1000}));
-text(await tools.exec_command({cmd:"git diff --check\ngit diff --stat\npython3 - <<'PY'\nimpor
-...
+text(await tools.exec_command({cmd:"git diff --check\ngit diff --stat\npython3 - <<'PY'\nimport json\nfrom pathlib import Path\nthread = 'PRRT_kwDONdK4HM6itLyA'\nbody = '''Confirmed and fixed in the local working tree; the changes are pending commit/push. Global enumeration and GetAgentChatSessionByPath now use os.Lstat and skip nonregular files before parsing, matching direct lookup's existing policy. The path-based check also rejects an indexed transcript that has been replaced by a symlink before full loading.\n\nTestReindexRejectsSymlinkedTranscripts verifies that an external transcript symlink is excluded from enumeration and progress counts, rejected by path-based loading, and still rejected after replacing a previously enumerated file; ordinary transcripts remain readable. The original reproduction now rejects the symlink in all three paths. Qwen and registry tests pass with race detection, Windows test-binary compilation passes, and whole-project lint reports zero issues. Resolving this finding with that fix.'''\nPath('/tmp/qwen-review-reply-symlink.json').write_text(json.dumps({'query':'mutation($thread: ID!, $body: String!) { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $thread, body: $body}) { comment { url } } }', 'variables':{'thread':thread, 'body':body}}))\nPath('/tmp/qwen-review-resolve-symlink.json').write_text(json.dumps({'query':'mutation($thread: ID!) { resolveReviewThread(input: {threadId: $thread}) { thread { id isResolved } } }', 'variables':{'thread':thread}}))\nPY","max_output_tokens":800}));
+
 ```
 </details></tool-use>
 
@@ -1050,9 +1154,10 @@ _**Agent (gpt-6-astra 2026-09-15 21:51:23Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-reply-symlink.json","sandbox_permissions":"require_escalated","justification":"May I post the requested explanation of the s
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-reply-symlink.json","sandbox_permissions":"require_escalated","justification":"May I post the requested explanation of the symlink fix and its verification on PR #268?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -1060,7 +1165,8 @@ _**Agent (gpt-6-astra 2026-09-15 21:51:28Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.write_stdin({session_id:45534,chars:"","max_output_tokens":1000,"yield_time_ms":1000}));
 
 ```
@@ -1070,9 +1176,11 @@ _**Agent (gpt-6-astra 2026-09-15 21:51:32Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-resolve-symlink.json","sandbox_permissions":"require_escalated","justification":"May I resolve the Copilot thread now that t
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh api graphql --input /tmp/qwen-review-resolve-symlink.json","sandbox_permissions":"require_escalated","justification":"May I resolve the Copilot thread now that the fix and verification have been explained?","prefix_rule":["gh","api","graphql"],"max_output_tokens":1000,"yield_time_ms":1000}));
+text(await tools.exec_command({cmd:"git status --short","max_output_tokens":500}));
+
 ```
 </details></tool-use>
 
@@ -1104,9 +1212,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:16:25Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg --files -g AGENTS.md /Users/sean/source/SpecStory/specstory-cli-multi-agent /Users/sean/Source/SpecStory/getspecstory/specstory-cli\nrg --files --hidden /Users/s
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg --files -g AGENTS.md /Users/sean/source/SpecStory/specstory-cli-multi-agent /Users/sean/Source/SpecStory/getspecstory/specstory-cli\nrg --files --hidden /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15 | head -100","max_output_tokens":3500}));
+
 ```
 </details></tool-use>
 
@@ -1114,9 +1223,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:16:35Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json, collections\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15')\nfor 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json, collections\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15')\nfor p in root.rglob('*'):\n if p.is_file() and '.git' not in p.parts and ('.specstory/debug' not in str(p) or p.name in ['1.json','session-data.json']): print(str(p.relative_to(root)), p.stat().st_size)\ndebug=root/'.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355'\nr=json.loads((debug/'1.json').read_text()); print('FIRST RECORD:',json.dumps(r,ensure_ascii=False)[:1800])\ns=json.loads((debug/'session-data.json').read_text()); print('SESSION KEYS:',list(s)); print('PROVIDER:',s.get('provider'))\ncalls=collections.Counter();results=collections.Counter(); types=collections.Counter(); n=0\nfor p in sorted(debug.glob('*.json'),key=lambda p:int(p.stem) if p.stem.isdigit() else 100000):\n if not p.stem.isdigit():continue\n r=json.loads(p.read_text()); n+=1;types[r.get('type')]+=1\n for part in (r.get('message') or {}).get('parts',[]):\n  if 'functionCall' in part:calls[part['functionCall']['name']]+=1\n  if 'functionResponse' in part:results[part['functionResponse'].get('name')]+=1\nprint('RAW RECORDS',n,'TYPES',types,'CALLS',sum(calls.values()),'UNIQUE',len(calls)); print(json.dumps(calls,indent=2));print('RESULTS',results)\nPY","max_output_tokens":4000}));
+
 ```
 </details></tool-use>
 
@@ -1124,10 +1234,13 @@ _**Agent (gpt-6-astra 2026-09-15 22:16:43Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const rs=await Promise.allSettled([
-tools.exec_command({cmd:"cat /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/tools.txt\ncat /Users/sean/source/SpecStory/specstory-cli-m
-...
+tools.exec_command({cmd:"cat /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/tools.txt\ncat /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/versions.txt\nsed -n '1,155p' /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md\nsed -n '1,180p' pkg/providers/qwencode/markdown_tools.go","max_output_tokens":4000}),
+tools.exec_command({cmd:"rg --files --hidden /Users/sean/.qwen/projects | rg '45fd265b-4fdc-4714-99e2-2504a1036355.*jsonl$'\nrg -n '<summary>|^## |^### ' /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md","max_output_tokens":4200})
+]);rs.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1135,9 +1248,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:17:06Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat > /tmp/audit-qwen-tools.py <<'PY'\nfrom pathlib import Path\nimport json,re,collections\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat > /tmp/audit-qwen-tools.py <<'PY'\nfrom pathlib import Path\nimport json,re,collections\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15')\ndebug=root/'.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355'\nmdpath=next((root/'.specstory/history').glob('*.md')); md=mdpath.read_text()\nnative=Path('/Users/sean/.qwen/projects/-Users-sean-Source-SpecStory-specstory-cli-multi-agent-qwen-code-2026-09-15/chats/45fd265b-4fdc-4714-99e2-2504a1036355.jsonl')\nraw=[json.loads(l) for l in native.read_text().splitlines() if l.strip()]\nrecords=[(int(p.stem),json.loads(p.read_text())) for p in debug.glob('*.json') if p.stem.isdigit()];records.sort()\nstructured=json.loads((debug/'session-data.json').read_text())\nmessages=[m for e in structured['exchanges'] for m in e['messages'] if m.get('tool')]\nblocks=list(re.finditer(r'^<tool-use\\b[^>]*>.*?</details></tool-use>',md,re.M|re.S))\nprint('native records:',len(raw),'debug:',len(records),'debug matches native:',all(r==raw[n-1] for n,r in records))\nprint('native kinds:',dict(collections.Counter(r['type'] for r in raw)))\nprint('structured tool messages:',len(messages),'markdown tool blocks:',len(blocks))\nprint('tool schema keys:',list(messages[0]['tool']))\ncalls=[]; outcomes={}\nfor n,r in records:\n for p in (r.get('message') or {}).get('parts',[]):\n  if 'functionCall' in p:calls.append({'record':n,'call':p['functionCall'],'uuid':r['uuid']})\n  if 'functionResponse' in p:\n   resp=p['functionResponse'];outcomes[resp.get('id') or r.get('toolCallResult',{}).get('callId')]={'record':n,'response':resp,'envelope':r.get('toolCallResult',{})}\nbyid={m['tool']['useId']:m for m in messages}\naudit=[]\nfor i,c in enumerate(calls):\n call=c['call']; m=byid.get(call['id']); block=blocks[i] if i<len(blocks) else None\n item={**c,'outcome':outcomes.get(call['id']), 'message':m, 'md_line':md.count('\\n',0,block.start())+1 if block else None, 'md_block':block.group() if block else None}\n audit.append(item)\n if m is None:print('MISSING TOOL',call['name'],call['id'])\n elif m['tool']['name']!=call['name']:print('NAME MISMATCH',call['name'])\n elif m['tool']['formattedMarkdown'].strip() not in block.group():print('MD MISMATCH',call['name'])\nPath('/tmp/qwen-tool-audit.json').write_text(json.dumps(audit,ensure_ascii=False,indent=2))\nprint('calls',len(calls),'missing outcomes',sum(a['outcome'] is None for a in audit))\nfor a in audit:\n c=a['call'];out=a['outcome'];tool=a['message']['tool']\n print(f\"{c['name']:20} raw={a['record']:3}/{out['record']:3} md={a['md_line']:4} status={out['envelope'].get('status')} args={list(c.get('args',{}))} resp={list(out['response'].get('response',{}))} display={type(out['envelope'].get('resultDisplay')).__name__} type={tool.get('type')}\")\nPY\npython3 /tmp/audit-qwen-tools.py","max_output_tokens":5000}));
+
 ```
 </details></tool-use>
 
@@ -1151,9 +1265,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:17:15Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nrows=json.load(open('/tmp/qwen-tool-audit.json'))\nnames={'ask_user_question','agent','write_file','edit','notebook_edit','run_shell_
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nrows=json.load(open('/tmp/qwen-tool-audit.json'))\nnames={'ask_user_question','agent','write_file','edit','notebook_edit','run_shell_command','monitor'}\nfor a in rows:\n if a['call']['name'] in names or a['call']['name']=='read_file':continue\n print('\\nTOOL',a['call']['name'],'RAW',a['record'],a['outcome']['record'],'MD',a['md_line'])\n for label,v in [('INPUT',a['call'].get('args')),('NATIVE RESPONSE',a['outcome']['response'].get('response')),('NATIVE DISPLAY',a['outcome']['envelope'].get('resultDisplay')),('MD',a['md_block'])]:\n  s=v if isinstance(v,str) else json.dumps(v,ensure_ascii=False)\n  print(label,s if len(s)<1400 else s[:1050]+' ... [omitted '+str(len(s)-1300)+' chars] ... '+s[-250:])\nPY","max_output_tokens":12000}));
+
 ```
 </details></tool-use>
 
@@ -1161,9 +1276,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:17:30Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nrows=json.load(open('/tmp/qwen-tool-audit.json'))\nfor a in rows:\n if a['call']['name'] not in {'ask_user_question','agent','noteboo
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nrows=json.load(open('/tmp/qwen-tool-audit.json'))\nfor a in rows:\n if a['call']['name'] not in {'ask_user_question','agent','notebook_edit','monitor','run_shell_command','enter_plan_mode','exit_plan_mode'}:continue\n print('\\nTOOL',a['call']['name'],'RAW',a['record'],a['outcome']['record'],'MD',a['md_line'])\n for label,v in [('INPUT',a['call'].get('args')),('RESPONSE',a['outcome']['response'].get('response')),('DISPLAY',a['outcome']['envelope'].get('resultDisplay')),('MD',a['md_block'])]:\n  s=v if isinstance(v,str) else json.dumps(v,ensure_ascii=False)\n  print(label,s if len(s)<2500 else s[:1900]+' ... ['+str(len(s))+' chars total] ... '+s[-200:])\nPY","max_output_tokens":10500}));
+
 ```
 </details></tool-use>
 
@@ -1171,9 +1287,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:17:47Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json,re,difflib\nfrom pathlib import Path\nrows=json.load(open('/tmp/qwen-tool-audit.json'))\nfor a in rows:\n if a['call']['name'] not in 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json,re,difflib\nfrom pathlib import Path\nrows=json.load(open('/tmp/qwen-tool-audit.json'))\nfor a in rows:\n if a['call']['name'] not in {'write_file','edit','read_file'}:continue\n c=a['call']; inp=c['args']; out=a['outcome']['response']['response']; disp=a['outcome']['envelope'].get('resultDisplay');md=a['md_block'];tool=a['message']['tool']\n print('\\nTOOL',c['name'],'RAW',a['record'],a['outcome']['record'],'MD',a['md_line'],'PATH',inp.get('file_path'))\n print('INPUT KEYS',list(inp),'OUT LENGTH',len(out.get('output','')),'DISPLAY KEYS',list(disp) if isinstance(disp,dict) else type(disp).__name__)\n for key,val in inp.items():\n  if key in ('file_path','content','old_string','new_string'):continue\n  print('OPTION',key,repr(val),'key in MD',key in md)\n if c['name']=='write_file':\n  print('INPUT CONTENT preserved',inp['content'].strip() in md, 'length',len(inp['content']),'OUTPUT preserved',out.get('output','').strip() in md)\n if c['name']=='edit':\n  print('DIFF preserved',disp['fileDiff'].strip() in md,'OUT preserved',out.get('output','').strip() in md)\n  print('DIFF:',disp['fileDiff'])\n if c['name']=='read_file':\n  text=out.get('output','')\n  print('OUT preserved',text.strip() in md,'STRUCTURED OUTPUT unchanged',tool['output'].get('output')==text,'FORMAT in MD',tool['formattedMarkdown'].strip() in md)\n  if 'settings.json' not in inp['file_path']:\n   print('OUT PREVIEW:',repr(text[:280]),'...END:',repr(text[-140:]))\n  else:\n   # Report changed regions without exposing settings values.\n   fmt=tool['formattedMarkdown'].strip(); inside=md[md.index('</summary>')+len('</summary>'):md.rindex('</details>')].strip()\n   for op,i,j,k,l in difflib.SequenceMatcher(None,fmt,inside).get_opcodes():\n    if op!='equal':print('MD modification:',op,'original chars',j-i,'replacement',repr(inside[k:l]))\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355')\nfor p in sorted(root.glob('*.json'),key=lambda p:int(p.stem) if p.stem.isdigit() else 100000):\n if not p.stem.isdigit():continue\n r=json.loads(p.read_text());parts=(r.get('message') or {}).get('parts',[])\n if r.get('type')=='user': print('USER',p.stem,'PROVENANCE',r.get('provenance'),'SUBTYPE',r.get('subtype'),'TEXT',str(parts)[:650])\n if r.get('type')=='tool_result':\n  for part in parts:\n   if not part.get('functionResponse'): print('NON RESPONSE PART',p.stem,{k:(len(str(v)) if isinstance(v,(str,dict)) else v) for k,v in part.items()})\nprint('SYSTEM SUBTYPES')\nfrom collections import Counter\nprint(Counter(json.loads(p.read_text()).get('subtype') for p in root.glob('*.json') if p.stem.isdigit() and json.loads(p.read_text()).get('type')=='system'))\nPY","max_output_tokens":5100}));
+
 ```
 </details></tool-use>
 
@@ -1181,9 +1298,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:18:01Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '695,715p' /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md\nrg -n '
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '695,715p' /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md\nrg -n 'PONG|tick [123]|task-notification|record_as_artifact|REDACTED|truncated' /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md\nsed -n '340,414p' pkg/providers/qwencode/jsonl_parser.go\nrg -n 'func CodeFence|func Format' pkg/spi/fence* pkg/spi/markdown*","max_output_tokens":2200}));
+
 ```
 </details></tool-use>
 
@@ -1191,7 +1309,8 @@ _**Agent (gpt-6-astra 2026-09-15 22:19:36Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"sed -n '1,240p' /tmp/audit-qwen-tools.py","max_output_tokens":5000}));
 
 ```
@@ -1207,9 +1326,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:19:47Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json,re\nfrom pathlib import Path\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\np=Path('/Users/sean/.qwen/projects/-Users-s
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json,re\nfrom pathlib import Path\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\np=Path('/Users/sean/.qwen/projects/-Users-sean-Source-SpecStory-specstory-cli-multi-agent-qwen-code-2026-09-15/chats/45fd265b-4fdc-4714-99e2-2504a1036355.jsonl')\nraw=[json.loads(x) for x in p.read_text().splitlines()]\nfor n in [93,115]:\n print('RECORD',n,json.dumps(raw[n-1],ensure_ascii=False)[:13000])\nprint('MONITOR STRING RECORDS')\nfor n,r in enumerate(raw,1):\n s=json.dumps(r)\n if any(t in s for t in ['tick 1','tick 2','tick 3','mon_6c0e5fc1be9042a3']):print(n,r['type'],r.get('subtype'),[p.get('text','')[:300] for p in r.get('message',{}).get('parts',[])])\nprint('FENCE CHECK')\nfor item in a:\n fence=None\n for ln in item['md_block'].splitlines():\n  m=re.match(r'^\\s{0,3}(`{3,}|~{3,})(.*)$',ln)\n  if not m:continue\n  f=m.group(1)\n  if fence is None:fence=f\n  elif f[0]==fence[0] and len(f)>=len(fence) and not m.group(2).strip():fence=None\n if fence: print('UNCLOSED',item['call']['name'],item['md_line'],fence)\nfor item in a:\n if item['call']['name'] in ['monitor','notebook_edit','update_goal','agent']:\n  print('BLOCK',item['call']['name'],item['md_line'],item['md_block'])\nPY","max_output_tokens":10500}));
+
 ```
 </details></tool-use>
 
@@ -1217,9 +1337,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:19:52Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nfor x in a:\n n=x['call']['name']\n print(n,x[
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nfor x in a:\n n=x['call']['name']\n print(n,x['md_line'],'ARGS',json.dumps(x['call'].get('args'),ensure_ascii=False) if n not in ['write_file','edit','run_shell_command','propose_goal','update_goal','exit_plan_mode'] else list(x['call'].get('args',{})))\n if n in ['run_shell_command','web_fetch','write_file','edit','display_image','zoom_image']:\n  out=x['outcome']['response']['response']; dis=x['outcome']['envelope'].get('resultDisplay'); print(' response chars',len(str(out)), 'display type',type(dis).__name__)\n if n in ['run_shell_command','display_image','zoom_image','report_findings']:\n  print(x['md_block'])\nPY","max_output_tokens":7000}));
+
 ```
 </details></tool-use>
 
@@ -1227,9 +1348,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:19:59Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nfor x in a:\n if x['call']['name'] in ['run_sh
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nfor x in a:\n if x['call']['name'] in ['run_shell_command','web_fetch','notebook_edit','edit','write_file']:\n  print(x['call']['name'],x['md_line'])\n  print('OUTPUT',json.dumps(x['outcome']['response']['response'],ensure_ascii=False)[:1400])\n  d=x['outcome']['envelope'].get('resultDisplay')\n  if isinstance(d,dict):print('DISPLAY KEYS',list(d))\nPY","max_output_tokens":3500}));
+
 ```
 </details></tool-use>
 
@@ -1237,11 +1359,13 @@ _**Agent (gpt-6-astra 2026-09-15 22:20:06Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const results = await Promise.allSettled([
 tools.exec_command({cmd:"sed -n '1,240p' pkg/providers/qwencode/markdown_tools.go","max_output_tokens":6500}),
-tools.exec_command({cmd:"rg -n 'IsRealUserTurn
-...
+tools.exec_command({cmd:"rg -n 'IsRealUserTurn|provenance|collectToolOutcomes|notification' pkg/providers/qwencode/{jsonl_parser.go,agent_session.go}\ngit status --short","max_output_tokens":1500})
+]); results.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1249,9 +1373,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:20:13Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15')\nraw=json.loads((r
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport json\nfrom pathlib import Path\nroot=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15')\nraw=json.loads((root/'.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355/154.json').read_text())\nmd=next((root/'.specstory/history').glob('*.md')).read_text()\nprint('154',json.dumps(raw,ensure_ascii=False)[:3000])\nprint('MD lines1550-1586','\\n'.join(md.splitlines()[1549:1586]))\na=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nfor x in a:\n if x['call']['name'] in ['enter_worktree','exit_worktree','get_goal','propose_goal']:\n  print(x['call']['name'],x['md_line'],x['md_block'][:850])\nPY","max_output_tokens":3000}));
+
 ```
 </details></tool-use>
 
@@ -1259,9 +1384,10 @@ _**Agent (gpt-6-astra 2026-09-15 22:20:18Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"sed -n '323,345p' pkg/providers/qwencode/jsonl_parser.go\npython3 - <<'PY'\nfrom pathlib import Path\nmd=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agen
-...
+Input:
+```
+text(await tools.exec_command({cmd:"sed -n '323,345p' pkg/providers/qwencode/jsonl_parser.go\npython3 - <<'PY'\nfrom pathlib import Path\nmd=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md').read_text()\nfor i,l in enumerate(md.splitlines(),1):\n if 1567<=i<=1577: print(i,l)\nfor word in ['synthetic continuation','Continue working on the active Goal.','<task-notification>','tick 1','Request was aborted']:\n print(repr(word),[i for i,l in enumerate(md.splitlines(),1) if word in l])\nPY","max_output_tokens":1700}));
+
 ```
 </details></tool-use>
 
@@ -1379,10 +1505,11 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:21Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.exec_command({cmd:"pwd; rg --files -g AGENTS.md -g '*qwen*' -g '*markdown_tools*' -g '*agent_session*' -g '*Makefile*'; git status --short","max_output_tokens":3500}));
-text(ALL_TOOLS
-...
+text(ALL_TOOLS.filter(x=>/search|file|shell|exec/.test(x.name)).map(x=>({name:x.name,description:x.description.slice(0,100)})).slice(0,60));
+
 ```
 </details></tool-use>
 
@@ -1390,10 +1517,13 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:26Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const results=await Promise.allSettled([
-tools.exec_command({cmd:"for p in /AGENTS.md /Users/AGENTS.md /Users/sean/AGENTS.md /Users/sean/Source/AGENTS.md /Users/sean/Source/SpecStory/AGENTS.md /Users/
-...
+tools.exec_command({cmd:"for p in /AGENTS.md /Users/AGENTS.md /Users/sean/AGENTS.md /Users/sean/Source/AGENTS.md /Users/sean/Source/SpecStory/AGENTS.md /Users/sean/Source/SpecStory/getspecstory/AGENTS.md; do if test -f \"$p\"; then cat \"$p\"; fi; done\nsed -n '1,300p' pkg/providers/qwencode/agent_session.go\nsed -n '1,150p' pkg/providers/qwencode/jsonl_parser.go","max_output_tokens":8500}),
+tools.exec_command({cmd:"cat pkg/providers/qwencode/markdown_tools.go\nrg -n 'qwen|render|session' scripts/* | head -80\nls","max_output_tokens":9500})
+]);results.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1401,10 +1531,13 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:31Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
-tools.exec_command({cmd:"cat AGENT.md\nsed -n '1,230p' pkg/providers/qwencode/markdown_tools_test.go\nsed -n '1,230p' pkg/providers/qwencode/agent_session_test.go","
-...
+tools.exec_command({cmd:"cat AGENT.md\nsed -n '1,230p' pkg/providers/qwencode/markdown_tools_test.go\nsed -n '1,230p' pkg/providers/qwencode/agent_session_test.go","max_output_tokens":8000}),
+tools.exec_command({cmd:"rg -n 'GenerateMarkdown|Generate.*Markdown|func.*Markdown|func.*Process|func.*Sync' pkg/session pkg/providers/qwencode/provider.go\nrg -n 'sync|output-dir|session|dry-run|cloud' internal/*/*sync* main.go | head -90\nrg -n 'subagent|notif|monitor' pkg/providers/qwencode/QWEN-FORMAT.md\nls /tmp/*qwen*","max_output_tokens":2500})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1412,9 +1545,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:43Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg -n --glob '!**/.specstory/**' '<task-notification>|<tool-use-id>|<event-count>' /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-co
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg -n --glob '!**/.specstory/**' '<task-notification>|<tool-use-id>|<event-count>' /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/dist | head -30\ncat /tmp/qwen_export_review.go\nsed -n '1,105p' pkg/session/markdown.go\nsed -n '60,110p' pkg/providers/qwencode/QWEN-FORMAT.md","max_output_tokens":3500}));
+
 ```
 </details></tool-use>
 
@@ -1422,9 +1556,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:48Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg --files /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code | head -15\nsed -n '110,138p' pkg/providers/qwencode/QWEN-FORMAT.md\n
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg --files /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code | head -15\nsed -n '110,138p' pkg/providers/qwencode/QWEN-FORMAT.md\nrg -n 'redact|Redact' pkg/session/session.go pkg/redact/*.go | head -40\nsed -n '100,175p' pkg/session/session.go\nrg -n 'sync.*Flags|BoolVar.*cloud|no-cloud|local|dry-run|output-dir|outputDir' pkg/cmd -g '*.go' -g '!**/.specstory/**' | head -55","max_output_tokens":2300}));
+
 ```
 </details></tool-use>
 
@@ -1432,9 +1567,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:53Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\ns=Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/cli.js').read_text()\nfor te
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\ns=Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/cli.js').read_text()\nfor term in ['<task-notification>','<tool-use-id>','<event-count>']:\n start=0\n for _ in range(3):\n  pos=s.find(term,start)\n  if pos<0:break\n  print(s[max(0,pos-500):pos+1000]);start=pos+len(term)\nPY","max_output_tokens":3300}));
+
 ```
 </details></tool-use>
 
@@ -1442,7 +1578,8 @@ _**Agent (gpt-6-astra 2026-09-16 00:53:57Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"rg -l --glob '*.js' '<task-notification>' /opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code | head","max_output_tokens":500}));
 
 ```
@@ -1456,9 +1593,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:54:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nfor name in ['chunk-I6JRN375.js','chunk-DCRVSIK6.js']:\n s=(Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nfor name in ['chunk-I6JRN375.js','chunk-DCRVSIK6.js']:\n s=(Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/chunks')/name).read_text()\n start=0\n for _ in range(4):\n  pos=s.find('<task-notification>',start)\n  if pos<0:break\n  print(s[max(0,pos-350):pos+1800]);start=pos+19\nPY","max_output_tokens":3600}));
+
 ```
 </details></tool-use>
 
@@ -1466,9 +1604,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:54:30Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n import (\n+\t\"encoding/xml\"\n \t
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n import (\n+\t\"encoding/xml\"\n \t\"fmt\"\n@@\n \t\"maps\"\n+\t\"regexp\"\n@@\n type toolOutcome struct {\n \tResponse *QwenFunctionResponse\n \tResult   *QwenToolCallResult\n+\tNotifications []any\n }\n+\n+// Qwen XML-escapes task notification fields. Decode the fields rather than\n+// treating these system-injected records as human prompts or agent prose.\n+type notificationElement struct {\n+\tName xml.Name `xml:\"\"`\n+\tText string `xml:\",chardata\"`\n+\tChildren []notificationElement `xml:\",any\"`\n+}\n+\n+var taskNotificationPattern = regexp.MustCompile(`(?s)<task-notification>.*?</task-notification>`)\n+\n+func notificationFields(elements []notificationElement) map[string]any {\n+\tfields := make(map[string]any, len(elements))\n+\tfor _, element := range elements {\n+\t\tvar value any = strings.TrimSpace(element.Text)\n+\t\tif len(element.Children) > 0 {\n+\t\t\tvalue = notificationFields(element.Children)\n+\t\t}\n+\t\tkey := element.Name.Local\n+\t\t// A notification can carry both a result and an error in separate\n+\t\t// <result> elements; keep both rather than replacing the first.\n+\t\tif previous, exists := fields[key]; exists {\n+\t\t\tif values, ok := previous.([]any); ok {\n+\t\t\t\tfields[key] = append(values, value)\n+\t\t\t} else {\n+\t\t\t\tfields[key] = []any{previous, value}\n+\t\t\t}\n+\t\t} else {\n+\t\t\tfields[key] = value\n+\t\t}\n+\t}\n+\treturn fields\n+}\n@@\n \t}\n+\t// Background results arrive later, sometimes bundled into one notification\n+\t// record. Retain each event in append order without replacing the launch\n+\t// response or collapsing a completed-then-cancelled sequence into one status.\n+\tfor _, record := range records {\n+\t\tif record.Type != \"user\" || record.Provenance != \"system\" || record.Subtype != \"notification\" || record.Message == nil {\n+\t\t\tcontinue\n+\t\t}\n+\t\tfor _, part := range record.Message.Parts {\n+\t\t\tfor _, block := range taskNotificationPattern.FindAllString(part.Text, -1) {\n+\t\t\t\tvar notification notificationElement\n+\t\t\t\tif err := xml.Unmarshal([]byte(block), &notification); err != nil {\n+\t\t\t\t\tslog.Debug(\"Skipping malformed Qwen task notification\", \"recordID\", record.UUID, \"error\", err)\n+\t\t\t\t\tcontinue\n+\t\t\t\t}\n+\t\t\t\tfields := notificationFields(notification.Children)\n+\t\t\t\tcallID, _ := fields[\"tool-use-id\"].(string)\n+\t\t\t\tif callID == \"\" {\n+\t\t\t\t\tcontinue\n+\t\t\t\t}\n+\t\t\t\toutcome := outcomes[callID]\n+\t\t\t\toutcome.Notifications = append(outcome.Notifications, map[string]any{\n+\t\t\t\t\t\"timestamp\": record.Timestamp,\n+\t\t\t\t\t\"fields\": fields,\n+\t\t\t\t})\n+\t\t\t\toutcomes[callID] = outcome\n+\t\t\t}\n+\t\t}\n+\t}\n \treturn outcomes\n }\n@@\n-// (task notifications) are skipped; tool_result records only contribute their\n+// (task notifications) are folded into their original tool calls; tool_result records only contribute their\n@@\n \tif outcome.Result != nil {\n@@\n \t}\n+\tif len(outcome.Notifications) > 0 {\n+\t\tif output == nil {\n+\t\t\toutput = make(map[string]any)\n+\t\t}\n+\t\toutput[\"notifications\"] = outcome.Notifications\n+\t}\n*** End Patch"));
+
 ```
 </details></tool-use>
 
@@ -1476,9 +1615,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:55:04Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n-\tName xml.Name `xml:\"\"`\n+\tXML
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n-\tName xml.Name `xml:\"\"`\n+\tXMLName xml.Name\n@@\n-\t\tkey := element.Name.Local\n+\t\tkey := element.XMLName.Local\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go\n@@\n import (\n+\t\"bytes\"\n@@\n \tif result != \"\" {\n@@\n \t\tbuilder.WriteString(result)\n \t}\n+\tif notifications := formatTaskNotifications(tool.Output); notifications != \"\" {\n+\t\tbuilder.WriteString(\"\\n\\n\")\n+\t\tbuilder.WriteString(notifications)\n+\t}\n@@\n \t\tif source := spi.StringValue(tool.Input, \"new_source\"); source != \"\" {\n \t\t\tb.WriteString(spi.CodeFence(lang, source))\n \t\t}\n+\t\tif diff := spi.StringValue(tool.Output, \"resultDisplay\"); strings.Contains(diff, \"@@\") {\n+\t\t\tfmt.Fprintf(&b, \"\\n\\nChanges:\\n%s\", spi.CodeFence(\"diff\", strings.TrimSpace(diff)))\n+\t\t}\n@@\n-\tcase \"run_shell_command\", \"monitor\":\n+\tcase \"run_shell_command\":\n \t\treturn formatShellResultFromOutput(tool.Output)\n+\tcase \"monitor\":\n+\t\t// The monitor display is only a startup toast. Its model-facing output\n+\t\t// also records event limits and lifecycle details worth retaining.\n+\t\treturn formatDefaultResultFromOutput(tool.Output)\n@@\n func formatShellResultFromOutput(output map[string]any) string {\n@@\n-\treturn fmt.Sprintf(\"Result:\\n%s\", spi.CodeFence(\"text\", content))\n+\tresult := fmt.Sprintf(\"Result:\\n%s\", spi.CodeFence(\"text\", content))\n+\tif display := spi.StringValue(output, \"resultDisplay\"); strings.TrimSpace(display) != \"\" {\n+\t\t// Use the last envelope markers: stdout itself can contain lines that\n+\t\t// look like status fields. Never infer an exit code from arbitrary text.\n+\t\tenvelope := spi.StringValue(output, \"output\")\n+\t\tif strings.HasPrefix(envelope, \"Command: \") {\n+\t\t\tif start := strings.LastIndex(envelope, \"\\nExit Code: \"); start >= 0 {\n+\t\t\t\tfor _, line := range strings.Split(envelope[start+1:], \"\\n\") {\n+\t\t\t\t\tif strings.HasPrefix(line, \"Exit Code: \") || (strings.HasPrefix(line, \"Signal: \") && line != \"Signal: (none)\") {\n+\t\t\t\t\tresult += \"\\n\\n\" + line\n+\t\t\t\t\t}\n+\t\t\t\t}\n+\t\t\t}\n+\t\t}\n+\t}\n+\treturn result\n@@\n func formatOutputText(output string) string {\n+\t// Indent the original JSON bytes rather than decoding through float64:\n+\t// large integer IDs and counters must retain their exact values.\n+\ttrimmed := strings.TrimSpace(output)\n+\tif strings.HasPrefix(trimmed, \"{\") || strings.HasPrefix(trimmed, \"[\") {\n+\t\tvar pretty bytes.Buffer\n+\t\tif err := json.Indent(&pretty, []byte(trimmed), \"\", \"  \"); err == nil {\n+\t\t\treturn spi.CodeFence(\"json\", pretty.String())\n+\t\t}\n+\t}\n@@\n \tif path != \"\" {\n \t\tfmt.Fprintf(&builder, \"Path: `%s`\\n\\n\", path)\n \t}\n+\tif value, supplied := input[\"record_as_artifact\"]; supplied {\n+\t\tfmt.Fprintf(&builder, \"record_as_artifact: %v\\n\\n\", value)\n+\t}\n@@\n-// formatAgentBodyFromInput shows a subagent delegation as its prompt. Subagent\n-// transcripts are inline in the parent session (the delegation is an ordinary\n-// functionCall/tool_result pair), so the prompt plus the folded-in result is\n-// the complete record of the sub-task.\n+// formatAgentBodyFromInput shows the delegation prompt. Immediate responses\n+// and later task notifications are rendered separately in the same tool block;\n+// the child's complete transcript remains in Qwen's separate subagent file.\n@@\n-\t\t\t\tfmt.Fprintf(&b, \"%s: %s\\n\", key, text)\n+\t\t\t\tfmt.Fprintf(&b, \"%s: %s\\n\\n\", key, text)\n@@\n }\n+\n+// formatTaskNotifications keeps lifecycle events distinct from the immediate\n+// tool response. Their timestamps are delivery times in the parent transcript.\n+func formatTaskNotifications(output map[string]any) string {\n+\tnotifications, _ := output[\"notifications\"].([]any)\n+\tvar b strings.Builder\n+\tfor i, raw := range notifications {\n+\t\tnotification, ok := raw.(map[string]any)\n+\t\tif !ok {\n+\t\t\tcontinue\n+\t\t}\n+\t\tfields, ok := notification[\"fields\"].(map[string]any)\n+\t\tif !ok {\n+\t\t\tcontinue\n+\t\t}\n+\t\tif b.Len() == 0 {\n+\t\t\tb.WriteString(\"Background events:\\n\\n\")\n+\t\t}\n+\t\tfmt.Fprintf(&b, \"**Event %d — %s**\\n\\n\", i+1, spi.StringValue(notification, \"timestamp\"))\n+\t\tmetadata := maps.Clone(fields)\n+\t\tdelete(metadata, \"result\")\n+\t\tb.WriteString(formatInputFields(metadata))\n+\t\tif result, exists := fields[\"result\"]; exists {\n+\t\t\tif text, ok := result.(string); ok {\n+\t\t\t\tfmt.Fprintf(&b, \"\\n\\nResult:\\n%s\", spi.CodeFence(\"text\", text))\n+\t\t\t} else {\n+\t\t\t\tfmt.Fprintf(&b, \"\\n\\nResult:\\n%s\", spi.RenderGenericJSON(result))\n+\t\t\t}\n+\t\t}\n+\t\tb.WriteString(\"\\n\\n\")\n+\t}\n+\treturn strings.TrimSpace(b.String())\n+}\n*** End Patch"));
+
 ```
 </details></tool-use>
 
@@ -1486,9 +1626,11 @@ _**Agent (gpt-6-astra 2026-09-16 00:55:12Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"rg -n 'func RenderGenericJSON|formatTaskNotifications|record_as_artifact|Notifications|Background results' pkg/spi pkg/providers/qwencode/{agent_session.go,markdown
-...
+Input:
+```
+text(await tools.exec_command({cmd:"rg -n 'func RenderGenericJSON|formatTaskNotifications|record_as_artifact|Notifications|Background results' pkg/spi pkg/providers/qwencode/{agent_session.go,markdown_tools.go} -g '*.go' -g '!**/.specstory/**'\ngofmt -w pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/markdown_tools.go\ngo test ./pkg/providers/qwencode > /tmp/qwen-render-fix-tests.log 2>&1","max_output_tokens":1500,"yield_time_ms":1000}));
+text(await tools.exec_command({cmd:"golangci-lint run > /tmp/qwen-render-fix-lint.log 2>&1","max_output_tokens":1000,"yield_time_ms":1000}));
+
 ```
 </details></tool-use>
 
@@ -1496,9 +1638,10 @@ _**Agent (gpt-6-astra 2026-09-16 00:55:21Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat /tmp/qwen-render-fix-tests.log /tmp/qwen-render-fix-lint.log\nsed -n '160,225p' pkg/providers/qwencode/markdown_tools.go\nsed -n '325,355p' pkg/providers/qwenco
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat /tmp/qwen-render-fix-tests.log /tmp/qwen-render-fix-lint.log\nsed -n '160,225p' pkg/providers/qwencode/markdown_tools.go\nsed -n '325,355p' pkg/providers/qwencode/agent_session.go\nsed -n '140,185p' pkg/spi/tool_markdown.go","max_output_tokens":1800}));
+
 ```
 </details></tool-use>
 
@@ -1506,9 +1649,11 @@ _**Agent (gpt-6-astra 2026-09-16 00:55:44Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go\n@@\n \t\tif strings.HasPrefix(envelope
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go\n@@\n \t\tif strings.HasPrefix(envelope, \"Command: \") {\n+\t\t\tif _, directory, found := strings.Cut(envelope, \"\\nDirectory: \"); found {\n+\t\t\t\tif value, _, found := strings.Cut(directory, \"\\nOutput: \"); found {\n+\t\t\t\t\tresult += \"\\n\\nDirectory: \" + value\n+\t\t\t\t}\n+\t\t\t}\n \t\t\tif start := strings.LastIndex(envelope, \"\\nExit Code: \"); start >= 0 {\n+\t\t\t\tif errorStart := strings.LastIndex(envelope[:start], \"\\nError: \"); errorStart >= 0 {\n+\t\t\t\t\tif detail := envelope[errorStart+len(\"\\nError: \"):start]; detail != \"(none)\" && detail != \"\" {\n+\t\t\t\t\t\tresult += \"\\n\\nError:\\n\" + spi.CodeFence(\"text\", detail)\n+\t\t\t\t\t}\n+\t\t\t\t}\n@@\n \t\t\t} else {\n-\t\t\t\tfmt.Fprintf(&b, \"\\n\\nResult:\\n%s\", spi.RenderGenericJSON(result))\n+\t\t\t\tb.WriteString(\"\\n\\n\" + formatInputFields(map[string]any{\"result\": result}))\n*** End Patch"));
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/QWEN-FORMAT.md\n@@\n-| System-provenance `user` | Skipped as injected notification/context |\n+| System-provenance `user` | Task notifications are folded into their original tool calls by `tool-use-id`; other injected context is skipped |\n@@\n-Questions show choices, notebook edits show source, and `exec` shows JavaScript.\n+Questions show choices, notebook edits show source and native diffs, and `exec`\n+shows JavaScript. Writes retain explicit `record_as_artifact` options. JSON\n+result strings are indented without converting numeric values. Shell results\n+show compact stdout/stderr plus recorded directory, exit code and error/signal\n+details; monitor results retain the complete startup response and limits.\n@@\n-Subagent calls and their returned output are represented in the parent's tool\n-blocks; separate child-session files are discovered according to the same\n-store layout rather than inferred from tool names.\n+Subagent launches and asynchronous results are represented in the parent's\n+tool blocks. XML-escaped task notifications are decoded and retained in delivery\n+order, including monitor events and completion/cancellation sequences. These\n+notifications never become human prompts or replace the immediate tool response.\n+Separate child transcripts live under `subagents/<session-id>/`, outside the\n+`chats/` files enumerated as top-level sessions; the parent export includes the\n+reported result, not the child's complete internal transcript.\n*** End Patch"));
+
 ```
 </details></tool-use>
 
@@ -1516,19 +1661,22 @@ _**Agent (gpt-6-astra 2026-09-16 00:56:30Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat >> pkg/providers/qwencode/agent_session_test.go <<'EOF'\n\nfunc TestGenerateAgentSession_BackgroundNotifications(t *testing.T) {\n\tcallRecord := QwenRecord{Typ
-...
-```
+Input:
+````
+text(await tools.exec_command({cmd:"cat >> pkg/providers/qwencode/agent_session_test.go <<'EOF'\n\nfunc TestGenerateAgentSession_BackgroundNotifications(t *testing.T) {\n\tcallRecord := QwenRecord{Type: \"assistant\", UUID: \"calls\", Message: &QwenMessage{Parts: []QwenPart{\n\t\t{FunctionCall: &QwenFunctionCall{ID: \"agent-call\", Name: \"agent\"}},\n\t\t{FunctionCall: &QwenFunctionCall{ID: \"monitor-call\", Name: \"monitor\"}},\n\t\t{FunctionCall: &QwenFunctionCall{ID: \"other-call\", Name: \"read_file\"}},\n\t}}}\n\tnotifications := `<task-notification><tool-use-id>agent-call</tool-use-id><task-id>agent-task</task-id><status>completed</status><result>PONG &amp; &lt;done&gt;</result><usage><total_tokens>42</total_tokens></usage></task-notification>\n<task-notification><tool-use-id>monitor-call</tool-use-id><status>running</status><event-count>1</event-count><result>tick 1</result></task-notification>\n<task-notification><tool-use-id>agent-call</tool-use-id><status>cancelled</status><result>Request was aborted.</result><result>Error: stopped</result></task-notification>\n<task-notification><tool-use-id>monitor-call</tool-use-id><status>running</status><event-count>2</event-count><result>tick 2</result></task-notification>\n<task-notification><tool-use-id>monitor-call</tool-use-id><status>completed</status><result>Exited with code 0</result></task-notification>\n<task-notification><tool-use-id>unknown-call</tool-use-id><result>orphan</result></task-notification>\n<task-notification><result>no call id</result></task-notification>\n<task-notification><tool-use-id>agent-call</tool-use-id><result>malformed</task-notification>`\n\tnotice := QwenRecord{Type: \"user\", Provenance: \"system\", Subtype: \"notification\", Timestamp: \"2026-09-15T21:30:30Z\", Message: &QwenMessage{Parts: []QwenPart{{Text: notifications}}}}\n\tsession := &QwenSession{ID: \"background\", Records: []QwenRecord{\n\t\t{Type: \"user\", Provenance: \"real_user\", Message: &QwenMessage{Parts: []QwenPart{{Text: \"Try the tools\"}}}},\n\t\tcallRecord,\n\t\tnotice,\n\t\t// Collecting later response records must not replace notifications.\n\t\t{Type: \"tool_result\", Message: &QwenMessage{Parts: []QwenPart{{FunctionResponse: &QwenFunctionResponse{ID: \"agent-call\", Response: map[string]any{\"output\": \"Background agent launched.\"}}}}}, ToolCallResult: &QwenToolCallResult{Status: \"success\"}},\n\t\t{Type: \"tool_result\", Message: &QwenMessage{Parts: []QwenPart{{FunctionResponse: &QwenFunctionResponse{ID: \"monitor-call\", Response: map[string]any{\"output\": \"Monitor started.\"}}}}}},\n\t}}\n\tdata, err := GenerateAgentSession(session, \"/project\")\n\tif err != nil {\n\t\tt.Fatal(err)\n\t}\n\tif len(data.Exchanges) != 1 || len(data.Exchanges[0].Messages) != 4 {\n\t\tt.Fatalf(\"notifications must not create exchanges or phantom tools: %+v\", data.Exchanges)\n\t}\n\tagent := data.Exchanges[0].Messages[1].Tool\n\tmonitor := data.Exchanges[0].Messages[2].Tool\n\tother := data.Exchanges[0].Messages[3].Tool\n\tfor _, tt := range []struct {\n\t\ttool *ToolInfo\n\t\twant []string\n\t}{\n\t\t{agent, []string{\"Background agent launched.\", \"status: completed\", \"PONG & <done>\", `\"total_tokens\": \"42\"`, \"status: cancelled\", \"Request was aborted.\", \"Error: stopped\"}},\n\t\t{monitor, []string{\"Monitor started.\", \"event-count: 1\", \"tick 1\", \"event-count: 2\", \"tick 2\", \"Exited with code 0\"}},\n\t} {\n\t\tmd := *tt.tool.FormattedMarkdown\n\t\tprevious := -1\n\t\tfor _, want := range tt.want {\n\t\t\tindex := strings.Index(md, want)\n\t\t\tif index < 0 {\n\t\t\t\tt.Errorf(\"%s missing %q in %s\", tt.tool.Name, want, md)\n\t\t\t}\n\t\t\t// Result fields appear after metadata, so only assert lifecycle order below.\n\t\t\t_ = previous\n\t\t}\n\t\tif strings.Contains(md, \"orphan\") || strings.Contains(md, \"malformed\") {\n\t\t\tt.Errorf(\"unmatched/malformed notification attached to %s\", tt.tool.Name)\n\t\t}\n\t}\n\tif strings.Index(*agent.FormattedMarkdown, \"status: completed\") >= strings.Index(*agent.FormattedMarkdown, \"status: cancelled\") {\n\t\tt.Error(\"agent lifecycle events reordered\")\n\t}\n\tif strings.Index(*monitor.FormattedMarkdown, \"tick 1\") >= strings.Index(*monitor.FormattedMarkdown, \"tick 2\") {\n\t\tt.Error(\"monitor events reordered\")\n\t}\n\tif agent.Output[\"status\"] != \"success\" || len(agent.Output[\"notifications\"].([]any)) != 2 || len(monitor.Output[\"notifications\"].([]any)) != 3 {\n\t\tt.Error(\"launch status or individual background events were lost\")\n\t}\n\tif strings.Contains(*other.FormattedMarkdown, \"Background events\") {\n\t\tt.Error(\"unrelated tool received notifications\")\n\t}\n\t// A quoted notification in a human prompt must never become a tool result.\n\tsession.Records[2].Provenance = \"real_user\"\n\tif got := collectToolOutcomes(session.Records)[\"agent-call\"].Notifications; len(got) != 0 {\n\t\tt.Errorf(\"human text treated as system notifications: %v\", got)\n\t}\n}\nEOF\ncat >> pkg/providers/qwencode/markdown_tools_test.go <<'EOF'\n\nfunc TestToolResultJSONFormatting(t *testing.T) {\n\tfor _, tt := range []struct{ name, output, want string }{\n\t\t{\"object\", `{\"active\":true,\"id\":9007199254740993,\"text\":\"<tag>\\nline\"}`, \"```json\\n{\\n  \\\"active\\\": true,\\n  \\\"id\\\": 9007199254740993,\"},\n\t\t{\"array\", `[{\"name\":\"first\"},false]`, \"```json\\n[\\n  {\\n    \\\"name\\\": \\\"first\\\"\"},\n\t\t{\"invalid\", `{not json}`, \"Result: {not json}\"},\n\t\t{\"text\", \"Nothing found\", \"Result: Nothing found\"},\n\t} {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tmd := renderToolMarkdown(&ToolInfo{Name: \"get_goal\", Output: map[string]any{\"output\": tt.output}})\n\t\t\tif !strings.Contains(md, tt.want) {\n\t\t\t\tt.Errorf(\"result not preserved/formatted: %s\", md)\n\t\t\t}\n\t\t})\n\t}\n\t// Reading a JSON file must retain its original whitespace/content.\n\tmd := renderToolMarkdown(&ToolInfo{Name: \"read_file\", Input: map[string]any{\"file_path\": \"a.json\"}, Output: map[string]any{\"output\": `{\"a\":1}`}})\n\tif !strings.Contains(md, \"```json\\n{\\\"a\\\":1}\\n```\") {\n\t\tt.Fatalf(\"JSON file content was reformatted: %s\", md)\n\t}\n}\n\nfunc TestToolRenderingOptionalDetails(t *testing.T) {\n\tfor _, tt := range []struct {\n\t\tname string\n\t\ttool ToolInfo\n\t\twant []string\n\t}{\n\t\t{\"write option false\", ToolInfo{Name: \"write_file\", Input: map[string]any{\"file_path\": \"a.md\", \"content\": \"hello\", \"record_as_artifact\": false}}, []string{\"record_as_artifact: false\", \"hello\"}},\n\t\t{\"write option true\", ToolInfo{Name: \"write_file\", Input: map[string]any{\"file_path\": \"a.md\", \"content\": \"hello\", \"record_as_artifact\": true}}, []string{\"record_as_artifact: true\"}},\n\t\t{\"notebook diff\", ToolInfo{Name: \"notebook_edit\", Input: map[string]any{\"notebook_path\": \"a.ipynb\", \"cell_id\": \"cell-0\", \"edit_mode\": \"insert\", \"cell_type\": \"markdown\", \"new_source\": \"# Heading\"}, Output: map[string]any{\"output\": \"Inserted cell-1\", \"resultDisplay\": \"@@ -1 +1 @@\\n-old\\n+new\"}}, []string{\"Cell: cell-0 (insert)\", \"```markdown\\n# Heading\", \"```diff\\n@@\", \"Inserted cell-1\"}},\n\t\t{\"monitor limits\", ToolInfo{Name: \"monitor\", Input: map[string]any{\"command\": \"echo tick\"}, Output: map[string]any{\"output\": \"Monitor started.\\nmax_events: 1000\\nidle_timeout: 300000ms\", \"resultDisplay\": \"Monitor started\"}}, []string{\"max_events: 1000\", \"idle_timeout: 300000ms\"}},\n\t\t{\"shell failed exit\", ToolInfo{Name: \"run_shell_command\", Output: map[string]any{\"output\": \"Command: check\\nDirectory: (root)\\nOutput: Exit Code: 0\\nError: check failed\\nExit Code: 2\\nSignal: SIGTERM\\nProcess Group PGID: 42\", \"resultDisplay\": \"Exit Code: 0\"}}, []string{\"Result:\\n```text\\nExit Code: 0\", \"Directory: (root)\", \"check failed\", \"Exit Code: 2\", \"Signal: SIGTERM\"}},\n\t} {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tmd := renderToolMarkdown(&tt.tool)\n\t\t\tfor _, want := range tt.want {\n\t\t\t\tif !strings.Contains(md, want) {\n\t\t\t\t\tt.Errorf(\"missing %q in %s\", want, md)\n\t\t\t\t}\n\t\t\t}\n\t\t})\n\t}\n}\nEOF\ngofmt -w pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/markdown_tools.go pkg/providers/qwencode/agent_session_test.go pkg/providers/qwencode/markdown_tools_test.go\ngo test ./pkg/providers/qwencode > /tmp/qwen-render-fix-tests.log 2>&1","yield_time_ms":1000,"max_output_tokens":1000}));
+
+````
 </details></tool-use>
 
 _**Agent (gpt-6-astra 2026-09-16 00:56:37Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\np='pkg/providers/qwencode/agent_session_test.go'\ns=open(p).read().replace('\\n\\t\\tprevious := -1','').replace('\\n\\t\\t\\t// Result fields app
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\np='pkg/providers/qwencode/agent_session_test.go'\ns=open(p).read().replace('\\n\\t\\tprevious := -1','').replace('\\n\\t\\t\\t// Result fields appear after metadata, so only assert lifecycle order below.\\n\\t\\t\\t_ = previous','')\nopen(p,'w').write(s)\nPY\ngofmt -w pkg/providers/qwencode/agent_session_test.go\ngolangci-lint run > /tmp/qwen-render-fix-lint.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the required project linter with access to the Go build cache outside the workspace?","prefix_rule":["golangci-lint","run"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.write_stdin({session_id:91443,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1542,11 +1690,14 @@ _**Agent (gpt-6-astra 2026-09-16 00:56:51Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
 tools.exec_command({cmd:"go test -v ./... > /tmp/qwen-render-full-tests.log 2>&1","yield_time_ms":1000,"max_output_tokens":1000}),
-tools.exec_command({cmd:"go test -
-...
+tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory > /tmp/qwen-render-race-tests.log 2>&1","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.exec_command({cmd:"rg -n 'func .*sync|syncCmd|no-cloud|local-only|session-id|debug-raw|output-dir|cloud-sync' pkg/cmd/sync.go pkg/cmd/root.go pkg/cmd/*.go -g '!**/.specstory/**' | head -75\ncat /tmp/qwen-render-fix-lint.log\nsed -n '20,220p' pkg/providers/qwencode/agent_session.go","max_output_tokens":3500})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1554,9 +1705,11 @@ _**Agent (gpt-6-astra 2026-09-16 00:56:58Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat /tmp/qwen-render-race-tests.log\nrg -n 'syncCmd|Use:.*sync|session-uuid|sessionUUID|no-cloud-sync|output-dir|String.*uuid|String.*provider' main.go -g '!**/.spe
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cat /tmp/qwen-render-race-tests.log\nrg -n 'syncCmd|Use:.*sync|session-uuid|sessionUUID|no-cloud-sync|output-dir|String.*uuid|String.*provider' main.go -g '!**/.specstory/**' | head -60\ngit diff --stat\ngo build -o specstory","yield_time_ms":1000,"max_output_tokens":2000}));
+text(await tools.write_stdin({session_id:95598,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1564,9 +1717,13 @@ _**Agent (gpt-6-astra 2026-09-16 00:57:05Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory > /tmp/qwen-render-race-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I ru
-...
+Input:
+```
+text(await tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory > /tmp/qwen-render-race-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the race checks with access to the Go build cache outside the workspace?","prefix_rule":["go","test"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"go build -o specstory","sandbox_permissions":"require_escalated","justification":"May I build the updated CLI using the Go build cache outside the workspace?","prefix_rule":["go","build"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.write_stdin({session_id:12036,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"tail -6 /tmp/qwen-render-full-tests.log\nsed -n '560,705p' main.go\nsed -n '1400,1448p' main.go","max_output_tokens":2300}));
+
 ```
 </details></tool-use>
 
@@ -1574,9 +1731,11 @@ _**Agent (gpt-6-astra 2026-09-16 00:57:20Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"go test -v ./... > /tmp/qwen-render-full-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the required full test suite with loca
-...
+Input:
+```
+text(await tools.exec_command({cmd:"go test -v ./... > /tmp/qwen-render-full-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the required full test suite with local test listeners and the Go build cache available?","prefix_rule":["go","test"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"sed -n '715,795p' main.go\nrg -n 'project-path' main.go | tail -5\nrg -n 'func.*Debug|session-data.json|RawData' pkg/utils/debug.go pkg/session/session.go pkg/providers/qwencode/provider.go -g '!**/.specstory/**'\ncat /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/cli/config.toml | head -90","max_output_tokens":2000}));
+
 ```
 </details></tool-use>
 
@@ -1584,11 +1743,14 @@ _**Agent (gpt-6-astra 2026-09-16 00:57:32Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
 tools.write_stdin({session_id:61418,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
-tools.write_stdin({session_id:66926,chars:"","yield_time_ms":1000,"max_
-...
+tools.write_stdin({session_id:66926,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.exec_command({cmd:"sed -n '25,60p' pkg/session/session.go\nsed -n '395,430p' pkg/providers/qwencode/provider.go","max_output_tokens":1000})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1596,9 +1758,11 @@ _**Agent (gpt-6-astra 2026-09-16 00:57:40Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"mkdir -p /tmp/qwen-render-audit\ncp /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-t
-...
+Input:
+```
+text(await tools.exec_command({cmd:"mkdir -p /tmp/qwen-render-audit\ncp /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md /tmp/qwen-render-audit/before.md\n./specstory sync qwen -s 45fd265b-4fdc-4714-99e2-2504a1036355 --print --debug-raw --debug-dir /tmp/qwen-render-audit/debug --config-dir /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/cli --project-path /Users/sean/Source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15 --no-cloud-sync --no-stats --no-usage-analytics --no-version-check > /tmp/qwen-render-audit/after.md","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.write_stdin({session_id:99999,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1606,19 +1770,22 @@ _**Agent (gpt-6-astra 2026-09-16 00:58:08Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json,re,collections,xml.etree.ElementTree as ET\np=Path('/tmp/qwen-render-audit'); before=(p/'before.md').read_te
-...
-```
+Input:
+````
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json,re,collections,xml.etree.ElementTree as ET\np=Path('/tmp/qwen-render-audit'); before=(p/'before.md').read_text(); after=(p/'after.md').read_text()\nold=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nnew=json.loads((p/'debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json').read_text())\nmsgs=[m for e in new['exchanges'] for m in e['messages'] if m.get('tool')]\nblocks=list(re.finditer(r'^<tool-use\\b[^>]*>.*?</details></tool-use>',after,re.M|re.S))\nassert len(msgs)==len(old)==len(blocks)==58\npattern=r'^<tool-use\\b[^>]*>.*?</details></tool-use>'\nassert re.sub(pattern,'TOOL',before,flags=re.M|re.S)==re.sub(pattern,'TOOL',after,flags=re.M|re.S)\ncounts=collections.Counter(); events=0;json_results=0\nfor o,m,b in zip(old,msgs,blocks):\n t=m['tool'];ob=o['message']['tool'];name=t['name'];counts[name]+=1\n assert t['useId']==o['call']['id'] and t['name']==o['call']['name'] and t['input']==o['call']['args']\n out=dict(t.get('output') or {}); ns=out.pop('notifications',[]);events+=len(ns)\n assert out==(ob.get('output') or {}),name\n block=b.group();line=after.count('\\n',0,b.start())+1\n if name!='read_file': assert t['formattedMarkdown'].strip() in block\n for n in ns:\n  assert n['fields']['tool-use-id']==t['useId']\n  assert n['fields']['result'] in block\n  assert 'status: '+n['fields']['status'] in block\n if name=='write_file' and 'record_as_artifact' in t['input']:assert 'record_as_artifact: false' in block\n if name=='notebook_edit':assert t['output']['resultDisplay'].strip() in block\n if name=='monitor':assert t['output']['output'] in block\n if name=='run_shell_command':assert 'Exit Code: 0' in block and 'Directory: (root)' in block\n if name in ['get_goal','enter_worktree','exit_worktree','propose_goal','update_goal']:\n  try:expected=json.loads(out.get('output',''))\n  except (ValueError,TypeError):pass\n  else:\n   match=re.search(r'Result:\\n```json\\n(.*?)\\n```',block,re.S)\n   assert match and json.loads(match[1])==expected,name\n   json_results+=1\n fence=None\n for l in block.splitlines():\n  f=re.match(r'^\\s{0,3}(`{3,}|~{3,})(.*)$',l)\n  if not f:continue\n  if fence is None:fence=f[1]\n  elif f[1][0]==fence[0] and len(f[1])>=len(fence) and not f[2].strip():fence=None\n assert fence is None,(name,line)\n print(f'{name:20} line={line:5} notifications={len(ns)} changed={block!=o[\"md_block\"]}')\nassert events==6\nassert '[REDACTED:anthropic-api-key]' in after\nassert not re.search(r'sk-ant-[A-Za-z0-9_-]{20,}',after)\nrawdir=p/'debug/45fd265b-4fdc-4714-99e2-2504a1036355'\norig=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355')\nfor i in range(1,208):assert json.loads((rawdir/f'{i}.json').read_text())==json.loads((orig/f'{i}.json').read_text())\nprint('PASS 33 tools / 58 calls; 6 background events; JSON results:',json_results,'; all non-tool text unchanged; 207 raw records unchanged; secret redacted; fences balanced')\nprint('COUNTS',dict(sorted(counts.items())))\nPY","max_output_tokens":3000}));
+
+````
 </details></tool-use>
 
 _**Agent (gpt-6-astra 2026-09-16 00:58:20Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n-// toolOutcome pairs the two place
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n-// toolOutcome pairs the two places a tool call's result lives on a tool_result\n-// record: the functionResponse payload (what the model saw) and the envelope's\n-// toolCallResult (status plus display-oriented output like fileDiff).\n+// toolOutcome combines the functionResponse payload (what the model saw),\n+// envelope status/display data, and any later background task notifications.\n@@\n \tfor _, element := range elements {\n \t\tvar value any = strings.TrimSpace(element.Text)\n+\t\tif element.XMLName.Local == \"result\" {\n+\t\t\t// Monitor output and agent answers can contain significant indentation.\n+\t\t\tvalue = element.Text\n+\t\t}\n@@\n-// until the next user turn. System records and system-injected user records\n-// (task notifications) are folded into their original tool calls; tool_result records only contribute their\n-// end-time since their payloads are folded into the tool messages.\n+// until the next user turn. Task notifications are folded into the original\n+// tool calls; other injected context and system records are skipped.\n+// tool_result records only contribute their end-time since their payloads\n+// are folded into the tool messages.\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go\n@@\n func formatDefaultResultFromOutput(output map[string]any) string {\n \tcontent := outputAsString(output)\n \tif content == \"\" {\n-\t\treturn spi.RenderGenericJSON(output)\n+\t\t// Notifications have their own section, including when the immediate\n+\t\t// response is absent from an interrupted/incomplete transcript.\n+\t\treturn spi.RenderGenericJSON(output, \"notifications\")\n*** End Patch"));
+text(await tools.exec_command({cmd:"gofmt -w pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/markdown_tools.go\ngit diff --check\ntail -3 /tmp/qwen-render-full-tests.log\ncat /tmp/qwen-render-race-tests.log","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1626,9 +1793,12 @@ _**Agent (gpt-6-astra 2026-09-16 00:58:31Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"go test -v ./... > /tmp/qwen-render-full-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I rerun the full test suite after the final 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"go test -v ./... > /tmp/qwen-render-full-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I rerun the full test suite after the final rendering adjustments, with local test listeners and the Go cache available?","prefix_rule":["go","test"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"golangci-lint run > /tmp/qwen-render-fix-lint.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the required final lint check using the Go cache?","prefix_rule":["golangci-lint","run"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"go build -o specstory","sandbox_permissions":"require_escalated","justification":"May I build the final provider changes before regenerating the session Markdown?","prefix_rule":["go","build"],"yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1640,31 +1810,37 @@ _**Agent (gpt-6-astra 2026-09-16 00:59:05Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat > /tmp/qwen-render-audit/check.py <<'PY'\nfrom pathlib import Path\nimport json,re,collections,xml.etree.ElementTree as ET\np=Path('/tmp/qwen-render-audit'); be
-...
-```
+Input:
+````
+text(await tools.exec_command({cmd:"cat > /tmp/qwen-render-audit/check.py <<'PY'\nfrom pathlib import Path\nimport json,re,collections,xml.etree.ElementTree as ET\np=Path('/tmp/qwen-render-audit'); before=(p/'before.md').read_text(); after=(p/'after.md').read_text()\nold=json.loads(Path('/tmp/qwen-tool-audit.json').read_text())\nnew=json.loads((p/'debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json').read_text())\nmsgs=[m for e in new['exchanges'] for m in e['messages'] if m.get('tool')]\npattern=r'^<tool-use\\b[^>]*>.*?</details></tool-use>'\nblocks=list(re.finditer(pattern,after,re.M|re.S))\nassert len(msgs)==len(old)==len(blocks)==58\nassert re.sub(pattern,'TOOL',before,flags=re.M|re.S)==re.sub(pattern,'TOOL',after,flags=re.M|re.S)\ncounts=collections.Counter(); events=0; json_results=0; lines={}\nfor o,m,b in zip(old,msgs,blocks):\n t=m['tool'];ob=o['message']['tool'];name=t['name'];counts[name]+=1\n assert t['useId']==o['call']['id'] and t['name']==o['call']['name'] and t.get('input',{})==o['call'].get('args',{})\n out=dict(t.get('output') or {}); ns=out.pop('notifications',[]);events+=len(ns)\n assert out==(ob.get('output') or {}),name\n block=b.group();line=after.count('\\n',0,b.start())+1;lines.setdefault(name,[]).append(line)\n if name!='read_file': assert t['formattedMarkdown'].strip() in block\n for n in ns:\n  assert n['fields']['tool-use-id']==t['useId']\n  assert n['fields']['result'] in block\n  assert 'status: '+n['fields']['status'] in block\n if name=='write_file' and 'record_as_artifact' in t['input']:assert 'record_as_artifact: false' in block\n if name=='notebook_edit':assert t['output']['resultDisplay'].strip() in block\n if name=='monitor':assert t['output']['output'] in block\n if name=='run_shell_command':assert 'Exit Code: 0' in block and 'Directory: (root)' in block\n if name in ['get_goal','enter_worktree','exit_worktree','propose_goal','update_goal']:\n  try:expected=json.loads(out.get('output',''))\n  except (ValueError,TypeError):pass\n  else:\n   match=re.search(r'Result:\\n```json\\n(.*?)\\n```',block,re.S)\n   assert match and json.loads(match[1])==expected,name\n   json_results+=1\n fence=None\n for l in block.splitlines():\n  f=re.match(r'^\\s{0,3}(`{3,}|~{3,})(.*)$',l)\n  if not f:continue\n  if fence is None:fence=f[1]\n  elif f[1][0]==fence[0] and len(f[1])>=len(fence) and not f[2].strip():fence=None\n assert fence is None,(name,line)\nassert events==6\nassert '[REDACTED:anthropic-api-key]' in after\nassert not re.search(r'sk-ant-[A-Za-z0-9_-]{20,}',after)\nrawdir=p/'debug/45fd265b-4fdc-4714-99e2-2504a1036355'\norig=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355')\nfor i in range(1,208):assert json.loads((rawdir/f'{i}.json').read_text())==json.loads((orig/f'{i}.json').read_text())\n# Compare every notification field with the native XML, including usage and output file.\nnative=json.loads((orig/'115.json').read_text())\nexpected=[]\ndef fields(el):\n return {e.tag:fields(e) if list(e) else (e.text or '') for e in el}\nfor part in native['message']['parts']:\n for block in re.findall(r'<task-notification>.*?</task-notification>',part.get('text',''),re.S):\n  expected.append(fields(ET.fromstring(block)))\nactual=[n['fields'] for m in msgs for n in m['tool'].get('output',{}).get('notifications',[])]\nassert sorted(expected,key=lambda d:(d['tool-use-id'],d.get('event-count',''),d['status']))==sorted(actual,key=lambda d:(d['tool-use-id'],d.get('event-count',''),d['status']))\nprint('PASS 33 tools / 58 calls; 6 background events with exact native fields; JSON results:',json_results,'; all non-tool text unchanged; 207 raw records unchanged; secret redacted; fences balanced')\nfor name in sorted(lines):print(f'{name:20} calls={counts[name]} lines={lines[name]}')\n(p/'audit-counts.json').write_text(json.dumps({'calls':dict(counts),'lines':lines,'events':events,'json_results':json_results},indent=2))\nPY\npython3 /tmp/qwen-render-audit/check.py","max_output_tokens":2000}));
+
+````
 </details></tool-use>
 
 _**Agent (gpt-6-astra 2026-09-16 00:59:12Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport re\nfrom pathlib import Path\ns=Path('/tmp/qwen-render-audit/after.md').read_text()\nfor b in re.findall(r'<tool-use.*?</details></tool-use
-...
-```
+Input:
+````
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nimport re\nfrom pathlib import Path\ns=Path('/tmp/qwen-render-audit/after.md').read_text()\nfor b in re.findall(r'<tool-use.*?</details></tool-use>',s,re.S):\n if 'data-tool-name=\"get_goal\"' in b: print(b[:400])\np=Path('/tmp/qwen-render-audit/check.py');s=p.read_text().replace(\"r'Result:\\\\n```json\\\\n(.*?)\\\\n```'\",\"r'Result:\\\\n(`{3,})json\\\\n(.*?)\\\\n\\\\1'\").replace('json.loads(match[1])==expected','json.loads(match[2])==expected');p.write_text(s)\nPY\npython3 /tmp/qwen-render-audit/check.py","max_output_tokens":2000}));
+
+````
 </details></tool-use>
 
 _**Agent (gpt-6-astra 2026-09-16 00:59:25Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
 tools.write_stdin({session_id:35488,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
-tools.write_stdin({session_id:91984,chars:"","yield_time_ms":1000,"max_
-...
+tools.write_stdin({session_id:91984,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.write_stdin({session_id:7011,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.exec_command({cmd:"sed -n '658,742p' /tmp/qwen-render-audit/after.md\nsed -n '1082,1185p' /tmp/qwen-render-audit/after.md\nsed -n '1313,1360p' /tmp/qwen-render-audit/after.md\ncat /tmp/qwen-render-fix-lint.log","max_output_tokens":3000})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1672,9 +1848,12 @@ _**Agent (gpt-6-astra 2026-09-16 00:59:34Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"./specstory sync qwen -s 45fd265b-4fdc-4714-99e2-2504a1036355 --print --debug-raw --debug-dir /tmp/qwen-render-audit/debug --config-dir /Users/sean/source/SpecStory
-...
+Input:
+```
+text(await tools.exec_command({cmd:"./specstory sync qwen -s 45fd265b-4fdc-4714-99e2-2504a1036355 --print --debug-raw --debug-dir /tmp/qwen-render-audit/debug --config-dir /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/cli --project-path /Users/sean/Source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15 --no-cloud-sync --no-stats --no-usage-analytics --no-version-check > /tmp/qwen-render-audit/after.md\npython3 /tmp/qwen-render-audit/check.py\ncp /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json /tmp/qwen-render-audit/before-session-data.json","yield_time_ms":1000,"max_output_tokens":2300}));
+text(await tools.exec_command({cmd:"GOOS=windows GOARCH=amd64 go test -c -o /tmp/qwen-render-audit/qwencode.test.exe ./pkg/providers/qwencode","sandbox_permissions":"require_escalated","justification":"May I verify the updated provider still compiles for Windows using the Go cache?","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory > /tmp/qwen-render-race-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the final provider race checks after the last rendering adjustment?","prefix_rule":["go","test"],"yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1682,9 +1861,12 @@ _**Agent (gpt-6-astra 2026-09-16 00:59:53Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cp /tmp/qwen-render-audit/after.md /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-te
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cp /tmp/qwen-render-audit/after.md /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md\ncp /tmp/qwen-render-audit/debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json","sandbox_permissions":"require_escalated","justification":"May I replace the supplied session’s Markdown and structured debug export with the regenerated, verified versions? These files are outside the writable CLI workspace; backups are in /tmp/qwen-render-audit.","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"git diff --check\ngit diff --stat\ngit status --short\npython3 - <<'PY'\nfrom pathlib import Path\np=Path('/tmp/qwen-render-audit');r=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory')\nassert (p/'after.md').read_bytes()==(r/'history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md').read_bytes()\nassert (p/'debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json').read_bytes()==(r/'debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json').read_bytes()\nprint('Installed Markdown and structured debug data exactly match the verified outputs.')\nPY","max_output_tokens":1700}));
+text(await tools.write_stdin({session_id:88641,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1781,7 +1963,8 @@ _**Agent (gpt-6-astra 2026-09-16 01:17:58Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input: ```
+Input:
+```
 text(await tools.exec_command({cmd:"git status --short\ngit branch --show-current\ngit log -3 --oneline\ngit diff --stat","max_output_tokens":2500}));
 
 ```
@@ -1791,11 +1974,14 @@ _**Agent (gpt-6-astra 2026-09-16 01:18:05Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+````
 const r=await Promise.allSettled([
-tools.exec_command({cmd:"git status -sb\ngit log -8 --oneline\nrg -n 'Background events:|taskNotificationPattern|record_as_artifact|Indent\\(&pretty' pkg/providers/q
-...
-```
+tools.exec_command({cmd:"git status -sb\ngit log -8 --oneline\nrg -n 'Background events:|taskNotificationPattern|record_as_artifact|Indent\\(&pretty' pkg/providers/qwencode/{agent_session.go,markdown_tools.go}\ngit show --stat --oneline HEAD","max_output_tokens":2400}),
+tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\np=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md')\ns=p.read_text()\nprint('Regenerated Markdown exists:', p.exists())\nfor term in ['Background events:', 'record_as_artifact: false', 'Changes:\\n```diff', 'Result:\\n```json']:\n print(term.replace('\\n',' / '),s.count(term))\nPY","max_output_tokens":500})
+]);r.forEach(text);
+
+````
 </details></tool-use>
 
 ---
@@ -1814,9 +2000,11 @@ _**Agent (gpt-6-astra 2026-09-16 01:18:27Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"git status --short\nls /tmp/qwen-render-audit\nsed -n '1,180p' /tmp/qwen-render-audit/check.py\nrg -n 'no-version-check|no-usage-analytics' main.go | tail -6","max_
-...
+Input:
+```
+text(await tools.exec_command({cmd:"git status --short\nls /tmp/qwen-render-audit\nsed -n '1,180p' /tmp/qwen-render-audit/check.py\nrg -n 'no-version-check|no-usage-analytics' main.go | tail -6","max_output_tokens":3500}));
+text(await tools.exec_command({cmd:"go build -o specstory","sandbox_permissions":"require_escalated","justification":"May I build the current provider code using the Go cache so I can regenerate and re-audit the supplied session?","prefix_rule":["go","build"],"yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1824,10 +2012,11 @@ _**Agent (gpt-6-astra 2026-09-16 01:18:43Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 text(await tools.write_stdin({session_id:22690,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
-text(await tools.exec_command({cmd:"cp /tmp/qwen-render-audit/after.md /tmp/qwen-render-audit/
-...
+text(await tools.exec_command({cmd:"cp /tmp/qwen-render-audit/after.md /tmp/qwen-render-audit/previous-regeneration.md\n./specstory sync qwen -s 45fd265b-4fdc-4714-99e2-2504a1036355 --print --debug-raw --debug-dir /tmp/qwen-render-audit/debug --config-dir /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/cli --project-path /Users/sean/Source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15 --no-cloud-sync --no-stats --no-usage-analytics --no-version-check > /tmp/qwen-render-audit/after.md\npython3 /tmp/qwen-render-audit/check.py","yield_time_ms":1000,"max_output_tokens":2300}));
+
 ```
 </details></tool-use>
 
@@ -1835,9 +2024,10 @@ _**Agent (gpt-6-astra 2026-09-16 01:18:59Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json,re,difflib\np=Path('/tmp/qwen-render-audit')\nnative=Path('/Users/sean/.qwen/projects/-Users-sean-Source-Spe
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json,re,difflib\np=Path('/tmp/qwen-render-audit')\nnative=Path('/Users/sean/.qwen/projects/-Users-sean-Source-SpecStory-specstory-cli-multi-agent-qwen-code-2026-09-15/chats/45fd265b-4fdc-4714-99e2-2504a1036355.jsonl')\nrecords=[json.loads(x) for x in native.read_text().splitlines() if x.strip()]\ndebug=p/'debug/45fd265b-4fdc-4714-99e2-2504a1036355'\nassert len(records)==207\nassert all(r==json.loads((debug/f'{i}.json').read_text()) for i,r in enumerate(records,1))\ndata=json.loads((debug/'session-data.json').read_text())\ntools=[m['tool'] for e in data['exchanges'] for m in e['messages'] if m.get('tool')]\nby_id={t['useId']:t for t in tools}\ncall_count=0;result_count=0\nfor r in records:\n for part in r.get('message',{}).get('parts',[]):\n  if 'functionCall' in part:\n   c=part['functionCall'];t=by_id[c['id']]\n   assert t['name']==c['name'] and t.get('input',{})==c.get('args',{})\n   call_count+=1\n  if 'functionResponse' in part:\n   response=part['functionResponse'];out=by_id[response['id']]['output']\n   assert all(out.get(k)==v for k,v in response['response'].items())\n   result_count+=1\nassert call_count==result_count==58\nmd=(p/'after.md').read_text();blocks=re.findall(r'^<tool-use\\b[^>]*>.*?</details></tool-use>',md,re.M|re.S)\nredacted=0\nfor tool,block in zip(tools,blocks):\n rendered=tool['formattedMarkdown'].strip()\n if rendered not in block:\n  assert tool['name']=='read_file' and tool['input']['file_path']=='/Users/sean/.qwen/settings.json'\n  start=block.index('\\n',block.index('</summary>'))\n  actual=block[start:block.rindex('</details></tool-use>')].strip()\n  changes=[(a,b) for op,a1,a2,b1,b2 in difflib.SequenceMatcher(None,rendered,actual,autojunk=False).get_opcodes() if op!='equal' for a,b in [(rendered[a1:a2],actual[b1:b2])]]\n  assert '[REDACTED:anthropic-api-key]' in actual\n  # Check complete file content matches the raw tool markdown once its key is redacted.\n  safe=re.sub(r'sk-ant-[A-Za-z0-9_-]+','[REDACTED:anthropic-api-key]',rendered)\n  assert safe==actual\n  redacted+=1\nassert redacted==1\nprint('Fresh native comparison: 207/207 records, 58/58 inputs, and 58/58 immediate responses match.')\nprint('All 58 rendered bodies match structured output; only difference is one intentional API-key redaction.')\nprint('Fresh output byte-identical to previous regeneration:',(p/'after.md').read_bytes()==(p/'previous-regeneration.md').read_bytes())\nPY","max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -1849,9 +2039,11 @@ _**Agent (gpt-6-astra 2026-09-16 01:19:10Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cp /tmp/qwen-render-audit/after.md /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-te
-...
+Input:
+```
+text(await tools.exec_command({cmd:"cp /tmp/qwen-render-audit/after.md /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md\ncp /tmp/qwen-render-audit/debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/debug/45fd265b-4fdc-4714-99e2-2504a1036355/session-data.json","sandbox_permissions":"require_escalated","justification":"May I write the freshly regenerated and re-audited Markdown and structured debug data back to the session folder you supplied, outside this workspace?","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport hashlib\nsrc=Path('/tmp/qwen-render-audit/after.md')\ndst=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md')\nassert src.read_bytes()==dst.read_bytes()\nprint('Verified installed Markdown:', len(dst.read_bytes()), 'bytes;', len(dst.read_text().splitlines()),'lines')\nprint('SHA256:',hashlib.sha256(dst.read_bytes()).hexdigest())\nPY","max_output_tokens":350}));
+
 ```
 </details></tool-use>
 
@@ -1931,11 +2123,13 @@ _**Agent (gpt-6-astra 2026-09-16 01:26:07Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
 tools.exec_command({cmd:"git status --short\ngit log -5 --oneline\ncat docs/QWEN-REVIEW.md\ncat docs/QWEN-CODE-REVIEW.md","max_output_tokens":10500}),
-tools.exec_com
-...
+tools.exec_command({cmd:"cat pkg/providers/qwencode/QWEN-FORMAT.md\nrg -n 'TODO|FIXME|follow.up|remaining|not tested|unverified|release|notification|symlink' pkg/providers/qwencode docs/QWEN-REVIEW.md docs/QWEN-CODE-REVIEW.md -g '!**/.specstory/**' -g '!testdata/**'","max_output_tokens":7000})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -1943,9 +2137,11 @@ _**Agent (gpt-6-astra 2026-09-16 01:26:18Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"gh pr view 268 --repo specstoryai/getspecstory --json url,state,headRefOid,mergeable,mergeStateStatus,statusCheckRollup","sandbox_permissions":"require_escalated","
-...
+Input:
+```
+text(await tools.exec_command({cmd:"gh pr view 268 --repo specstoryai/getspecstory --json url,state,headRefOid,mergeable,mergeStateStatus,statusCheckRollup","sandbox_permissions":"require_escalated","justification":"May I read the current PR checks and merge status to ground the readiness recommendation in the latest results?","prefix_rule":["gh","pr","view"],"yield_time_ms":1000,"max_output_tokens":4000}));
+text(await tools.exec_command({cmd:"sed -n '325,365p' docs/QWEN-CODE-REVIEW.md\nsed -n '171,215p' docs/QWEN-REVIEW.md\nsed -n '1,95p' pkg/providers/qwencode/testdata/tools.json\nsed -n '150,200p' pkg/providers/qwencode/agent_session.go\nsed -n '175,225p' pkg/providers/qwencode/path_utils.go\nrg -n 'case|SameFile|Ownership' pkg/providers/qwencode/path_utils_test.go\ncat /tmp/qwen-render-fix-lint.log /tmp/qwen-render-race-tests.log","max_output_tokens":3500}));
+
 ```
 </details></tool-use>
 
@@ -1953,9 +2149,10 @@ _**Agent (gpt-6-astra 2026-09-16 01:26:35Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json\ninv=json.loads(Path('pkg/providers/qwencode/testdata/tools.json').read_text())['tools']\naudit=json.loads(P
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json\ninv=json.loads(Path('pkg/providers/qwencode/testdata/tools.json').read_text())['tools']\naudit=json.loads(Path('/tmp/qwen-render-audit/audit-counts.json').read_text())['calls']\nmissing=[t['name'] for t in inv if t['name'] not in audit]\nprint('Declared inventory:',len(inv),'Not in live audit:',missing)\np=Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/chunks/chunk-DCRVSIK6.js')\ns=p.read_text()\nfor needle in ['<kind>shell</kind>','Background shell started','Shell started in background','run_in_background','background: true','shell_id:']:\n start=0\n for _ in range(2):\n  pos=s.find(needle,start)\n  if pos<0:break\n  print('\\nNATIVE',needle,'\\n',s[max(0,pos-450):pos+900]);start=pos+len(needle)\nPY\nrg -n 'RawTranscript|convertToAgentChatSession|SameFile|before.*after|compaction' pkg/providers/qwencode/{provider.go,jsonl_parser.go,provider_test.go,path_utils_test.go,jsonl_parser_test.go,agent_session_test.go} -g '!**/.specstory/**'","max_output_tokens":3500}));
+
 ```
 </details></tool-use>
 
@@ -1967,9 +2164,11 @@ _**Agent (gpt-6-astra 2026-09-16 01:26:56Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json\nproject=Path('/private/tmp/qwen-readiness-project');project.mkdir(exist_ok=True)\nstore=Path('/tmp/qwen-rea
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\nimport json\nproject=Path('/private/tmp/qwen-readiness-project');project.mkdir(exist_ok=True)\nstore=Path('/tmp/qwen-readiness-probe/projects')/str(project).replace('/','-')/'chats';store.mkdir(parents=True,exist_ok=True)\nsid='11111111-2222-4333-8444-555555555555'\nrecords=[]\ndef record(kind,parts,**kw):\n r=dict(uuid=f'r{len(records)+1}',sessionId=sid,timestamp='2026-09-16T01:30:00.000Z',type=kind,cwd=str(project),version='0.23.4',message=dict(role='model' if kind=='assistant' else 'user',parts=parts));r.update(kw);records.append(r)\nrecord('user',[dict(text='Run a background check')],provenance='real_user')\nrecord('assistant',[dict(functionCall=dict(id='call-background',name='run_shell_command',args=dict(command='echo BACKGROUND_OUTPUT; exit 7',description='Background check',is_background=True)))])\nrecord('tool_result',[dict(functionResponse=dict(id='call-background',name='run_shell_command',response=dict(output='Background shell started.\\nid: shell-test\\noutput file: /tmp/shell-test.output')))],toolCallResult=dict(callId='call-background',status='success',resultDisplay='Background shell shell-test started.'))\nrecord('user',[dict(text='<task-notification>\\n<task-id>shell-test</task-id>\\n<kind>shell</kind>\\n<status>failed</status>\\n<summary>Background check failed.</summary>\\n<command>echo BACKGROUND_OUTPUT; exit 7</command>\\n<cwd>'+str(project)+'</cwd>\\n<exit-code>7</exit-code>\\n<output-tail truncated=\"false\">BACKGROUND_OUTPUT</output-tail>\\n<output-file>/tmp/shell-test.output</output-file>\\n</task-notification>')],provenance='system',subtype='notification')\n(store/f'{sid}.jsonl').write_text(''.join(json.dumps(r)+'\\n' for r in records))\nPY\nQWEN_HOME=/tmp/qwen-readiness-probe ./specstory sync qwen -s 11111111-2222-4333-8444-555555555555 --print --project-path /private/tmp/qwen-readiness-project --config-dir /tmp/qwen-readiness-probe/config --no-cloud-sync --no-stats --no-usage-analytics --no-version-check > /tmp/qwen-readiness-probe/rendered.md\ncat /tmp/qwen-readiness-probe/rendered.md","max_output_tokens":1500,"yield_time_ms":1000}));
+text(await tools.exec_command({cmd:"gh pr view 268 --repo specstoryai/getspecstory --json headRefOid,statusCheckRollup","sandbox_permissions":"require_escalated","justification":"May I refresh the PR check results now that the remaining test job has had time to finish?","prefix_rule":["gh","pr","view"],"yield_time_ms":1000,"max_output_tokens":2000}));
+
 ```
 </details></tool-use>
 
@@ -2023,10 +2222,13 @@ _**Agent (gpt-6-astra 2026-09-16 01:31:15Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
+Input:
+```
 const r=await Promise.allSettled([
-tools.exec_command({cmd:"git status --short\nsed -n '1,215p' pkg/providers/qwencode/agent_session.go\nsed -n '85,335p' pkg/providers/qwencode/markdown_tools.go\nsed 
-...
+tools.exec_command({cmd:"git status --short\nsed -n '1,215p' pkg/providers/qwencode/agent_session.go\nsed -n '85,335p' pkg/providers/qwencode/markdown_tools.go\nsed -n '475,540p' pkg/providers/qwencode/markdown_tools.go","max_output_tokens":6600}),
+tools.exec_command({cmd:"sed -n '320,410p' pkg/providers/qwencode/agent_session_test.go\nsed -n '370,530p' pkg/providers/qwencode/markdown_tools_test.go\ncat /tmp/qwen-readiness-probe/rendered.md\nsed -n '108,143p' pkg/providers/qwencode/QWEN-FORMAT.md","max_output_tokens":3300})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -2034,9 +2236,10 @@ _**Agent (gpt-6-astra 2026-09-16 01:31:21Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\ns=Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/chunks/chunk-DCRVSIK6.js').r
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\nfrom pathlib import Path\ns=Path('/opt/homebrew/Cellar/qwen-code/0.23.4/libexec/lib/node_modules/@qwen-code/qwen-code/chunks/chunk-DCRVSIK6.js').read_text()\nfor needle in ['Background shell started.', 'backgrounded', 'moved to background', 'background.\\\\nid:', 'is_background: {']:\n pos=0\n for _ in range(3):\n  i=s.find(needle,pos)\n  if i<0:break\n  print(s[max(0,i-180):i+600]);pos=i+len(needle)\nPY","max_output_tokens":2000}));
+
 ```
 </details></tool-use>
 
@@ -2044,9 +2247,10 @@ _**Agent (gpt-6-astra 2026-09-16 01:31:53Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n type notificationElement struct {\
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/agent_session.go\n@@\n type notificationElement struct {\n \tXMLName  xml.Name\n \tText     string                `xml:\",chardata\"`\n \tChildren []notificationElement `xml:\",any\"`\n+\tAttributes []xml.Attr          `xml:\",any,attr\"`\n@@\n-\t\tif element.XMLName.Local == \"result\" {\n+\t\tif element.XMLName.Local == \"result\" || element.XMLName.Local == \"output-tail\" {\n@@\n \t\tif len(element.Children) > 0 {\n \t\t\tvalue = notificationFields(element.Children)\n \t\t}\n+\t\t// Background shells annotate output tails as truncated or unreadable.\n+\t\t// Preserve those attributes so a partial/absent tail is not misleading.\n+\t\tif len(element.Attributes) > 0 {\n+\t\t\tattributes := make(map[string]any, len(element.Attributes))\n+\t\t\tfor _, attribute := range element.Attributes {\n+\t\t\t\tattributes[attribute.Name.Local] = attribute.Value\n+\t\t\t}\n+\t\t\tvalue = map[string]any{\"text\": value, \"attributes\": attributes}\n+\t\t}\n@@\n \t}\n+\t// Shell notifications have a task ID but no tool-use-id. Only associate\n+\t// IDs from a shell tool's native launch acknowledgment, never from a\n+\t// command's stdout or the task_stop invocation targeting that shell.\n+\tshellCalls := make(map[string]string)\n+\tfor _, record := range records {\n+\t\tif record.Type != \"assistant\" || record.Message == nil {\n+\t\t\tcontinue\n+\t\t}\n+\t\tfor _, part := range record.Message.Parts {\n+\t\t\tcall := part.FunctionCall\n+\t\t\tif call == nil || call.Name != \"run_shell_command\" {\n+\t\t\t\tcontinue\n+\t\t\t}\n+\t\t\tresponse := outcomes[call.ID].Response\n+\t\t\tif response == nil {\n+\t\t\t\tcontinue\n+\t\t\t}\n+\t\t\tif taskID := backgroundShellTaskID(spi.StringValue(response.Response, \"output\")); taskID != \"\" {\n+\t\t\t\tif previous, exists := shellCalls[taskID]; exists && previous != call.ID {\n+\t\t\t\t\t// Ambiguous IDs cannot safely identify one originating call.\n+\t\t\t\t\tshellCalls[taskID] = \"\"\n+\t\t\t\t} else {\n+\t\t\t\t\tshellCalls[taskID] = call.ID\n+\t\t\t\t}\n+\t\t\t}\n+\t\t}\n+\t}\n \t// Background results arrive later, sometimes bundled into one notification\n@@\n \t\t\t\tfields := notificationFields(notification.Children)\n \t\t\t\tcallID, _ := fields[\"tool-use-id\"].(string)\n+\t\t\t\tif callID == \"\" && fields[\"kind\"] == \"shell\" {\n+\t\t\t\t\tcallID = shellCalls[spi.StringValue(fields, \"task-id\")]\n+\t\t\t\t}\n@@\n \treturn outcomes\n }\n+\n+// backgroundShellTaskID recognizes Qwen's launch envelope, not arbitrary shell\n+// output (foreground responses start with \"Command:\"). It is also used to\n+// retain the full launch response instead of its shorter display toast.\n+func backgroundShellTaskID(output string) string {\n+\trest, found := strings.CutPrefix(strings.ReplaceAll(output, \"\\r\\n\", \"\\n\"), \"Background shell started.\\nid: \")\n+\tif !found {\n+\t\treturn \"\"\n+\t}\n+\tid, _, _ := strings.Cut(rest, \"\\n\")\n+\treturn strings.TrimSpace(id)\n+}\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/markdown_tools.go\n@@\n func formatShellResultFromOutput(output map[string]any) string {\n+\tif backgroundShellTaskID(spi.StringValue(output, \"output\")) != \"\" {\n+\t\treturn formatDefaultResultFromOutput(output)\n+\t}\n@@\n \tif directory != \"\" {\n \t\tfmt.Fprintf(&builder, \"Directory: `%s`\\n\\n\", directory)\n \t}\n+\tif value, supplied := input[\"is_background\"]; supplied {\n+\t\tfmt.Fprintf(&builder, \"is_background: %v\\n\\n\", value)\n+\t}\n@@\n \t\tmetadata := maps.Clone(fields)\n \t\tdelete(metadata, \"result\")\n+\t\tdelete(metadata, \"output-tail\")\n@@\n \t\tif result, exists := fields[\"result\"]; exists {\n@@\n \t\t}\n+\t\tif tail, exists := fields[\"output-tail\"]; exists {\n+\t\t\tb.WriteString(\"\\n\\nOutput tail:\\n\")\n+\t\t\tif annotated, ok := tail.(map[string]any); ok {\n+\t\t\t\tattributes, _ := annotated[\"attributes\"].(map[string]any)\n+\t\t\t\tb.WriteString(\"\\n\" + formatInputFields(attributes) + \"\\n\\n\")\n+\t\t\t\ttail = annotated[\"text\"]\n+\t\t\t}\n+\t\t\tif text, ok := tail.(string); ok && text != \"\" {\n+\t\t\t\tb.WriteString(spi.CodeFence(\"text\", text))\n+\t\t\t}\n+\t\t}\n*** End Patch"));
+
 ```
 </details></tool-use>
 
@@ -2054,10 +2258,12 @@ _**Agent (gpt-6-astra 2026-09-16 01:32:34Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"cat >> pkg/providers/qwencode/agent_session_test.go <<'EOF'\n\nfunc TestGenerateAgentSession_BackgroundShellNotifications(t *testing.T) {\n\tfor _, tt := range []st
-...
-```
+Input:
+`````
+text(await tools.exec_command({cmd:"cat >> pkg/providers/qwencode/agent_session_test.go <<'EOF'\n\nfunc TestGenerateAgentSession_BackgroundShellNotifications(t *testing.T) {\n\tfor _, tt := range []struct {\n\t\tname, taskID, extra, status, tail string\n\t\twant                            []string\n\t\tattached                        bool\n\t}{\n\t\t{\"completed\", \"shell-a\", \"<exit-code>0</exit-code>\", \"completed\", \"<output-tail truncated=\\\"false\\\">  hello &amp; &lt;world&gt;\\n```\\n</output-tail>\", []string{\"exit-code: 0\", \"truncated: false\", \"````text\\n  hello & <world>\\n```\\n\"}, true},\n\t\t{\"failed\", \"shell-a\", \"<exit-code>7</exit-code><result>Command failed</result>\", \"failed\", \"<output-tail truncated=\\\"true\\\">last output</output-tail>\", []string{\"exit-code: 7\", \"Command failed\", \"truncated: true\", \"last output\"}, true},\n\t\t{\"cancelled unreadable tail\", \"shell-a\", \"\", \"cancelled\", \"<output-tail error=\\\"unreadable\\\" />\", []string{\"error: unreadable\"}, true},\n\t\t{\"unmatched task\", \"unknown-shell\", \"\", \"completed\", \"\", nil, false},\n\t\t{\"non-shell response cannot establish ownership\", \"shell-fake\", \"\", \"completed\", \"\", nil, false},\n\t\t{\"explicit unknown call is not reassigned\", \"shell-a\", \"<tool-use-id>unknown-call</tool-use-id>\", \"completed\", \"\", nil, false},\n\t} {\n\t\tt.Run(tt.name, func(t *testing.T) {\n\t\t\tlaunch := func(callID, taskID string) QwenRecord {\n\t\t\t\treturn QwenRecord{Type: \"tool_result\", Message: &QwenMessage{Parts: []QwenPart{{FunctionResponse: &QwenFunctionResponse{\n\t\t\t\t\tID: callID, Response: map[string]any{\"output\": \"Background shell started.\\nid: \" + taskID + \"\\npid: 123\\noutput file: /tmp/\" + taskID + \".output\"},\n\t\t\t\t}}}}, ToolCallResult: &QwenToolCallResult{Status: \"success\", ResultDisplay: json.RawMessage(`\"Background shell started\"`)}}\n\t\t\t}\n\t\t\tsession := &QwenSession{ID: \"background-shell\", Records: []QwenRecord{\n\t\t\t\t{Type: \"user\", Provenance: \"real_user\", Message: &QwenMessage{Parts: []QwenPart{{Text: \"Run background checks\"}}}},\n\t\t\t\t{Type: \"assistant\", Message: &QwenMessage{Parts: []QwenPart{\n\t\t\t\t\t{FunctionCall: &QwenFunctionCall{ID: \"call-a\", Name: \"run_shell_command\", Args: map[string]any{\"command\": \"check a\", \"is_background\": true}}},\n\t\t\t\t\t{FunctionCall: &QwenFunctionCall{ID: \"call-b\", Name: \"run_shell_command\", Args: map[string]any{\"command\": \"check b\", \"is_background\": true}}},\n\t\t\t\t\t{FunctionCall: &QwenFunctionCall{ID: \"call-stop\", Name: \"task_stop\", Args: map[string]any{\"task_id\": \"shell-a\"}}},\n\t\t\t\t\t{FunctionCall: &QwenFunctionCall{ID: \"call-fake\", Name: \"read_file\"}},\n\t\t\t\t}}},\n\t\t\t\t// Results can arrive in a different order from the parallel calls.\n\t\t\t\tlaunch(\"call-b\", \"shell-b\"), launch(\"call-a\", \"shell-a\"), launch(\"call-fake\", \"shell-fake\"),\n\t\t\t\t{Type: \"user\", Provenance: \"system\", Subtype: \"notification\", Timestamp: \"2026-09-16T01:30:00Z\", Message: &QwenMessage{Parts: []QwenPart{{Text:\n\t\t\t\t\t\"<task-notification><task-id>\" + tt.taskID + \"</task-id><kind>shell</kind><status>\" + tt.status + \"</status>\" + tt.extra + tt.tail + \"<output-file>/tmp/shell-a.output</output-file></task-notification>\",\n\t\t\t\t}}}},\n\t\t\t}}\n\t\t\tdata, err := GenerateAgentSession(session, \"/project\")\n\t\t\tif err != nil {\n\t\t\t\tt.Fatal(err)\n\t\t\t}\n\t\t\tif len(data.Exchanges) != 1 || len(data.Exchanges[0].Messages) != 5 {\n\t\t\t\tt.Fatalf(\"notification created extra messages: %+v\", data.Exchanges)\n\t\t\t}\n\t\t\tshell := data.Exchanges[0].Messages[1].Tool\n\t\t\tmd := *shell.FormattedMarkdown\n\t\t\tfor _, want := range []string{\"is_background: true\", \"id: shell-a\", \"pid: 123\", \"output file: /tmp/shell-a.output\"} {\n\t\t\t\tif !strings.Contains(md, want) {\n\t\t\t\t\tt.Errorf(\"launch information missing %q: %s\", want, md)\n\t\t\t\t}\n\t\t\t}\n\t\t\tif strings.Contains(md, \"Background events:\") != tt.attached {\n\t\t\t\tt.Fatalf(\"notification association mismatch: %s\", md)\n\t\t\t}\n\t\t\tif tt.attached {\n\t\t\t\tfor _, want := range append(tt.want, \"status: \"+tt.status, \"2026-09-16T01:30:00Z\") {\n\t\t\t\t\tif !strings.Contains(md, want) {\n\t\t\t\t\t\tt.Errorf(\"background result missing %q: %s\", want, md)\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\tif shell.Output[\"status\"] != \"success\" {\n\t\t\t\t\tt.Error(\"completion must not replace the immediate launch status\")\n\t\t\t\t}\n\t\t\t}\n\t\t\tfor _, message := range data.Exchanges[0].Messages[2:] {\n\t\t\t\tif strings.Contains(*message.Tool.FormattedMarkdown, \"Background events:\") {\n\t\t\t\t\tt.Errorf(\"notification attached to unrelated call %s\", message.Tool.UseID)\n\t\t\t\t}\n\t\t\t}\n\t\t})\n\t}\n}\nEOF\ncat >> pkg/providers/qwencode/markdown_tools_test.go <<'EOF'\n\nfunc TestBackgroundShellLaunchRecognition(t *testing.T) {\n\tfor _, tt := range []struct{ output, want string }{\n\t\t{\"Background shell started.\\nid: shell-a\\noutput file: /tmp/a\", \"shell-a\"},\n\t\t{\"Background shell started.\\r\\nid: shell-b\\r\\noutput file: /tmp/b\", \"shell-b\"},\n\t\t{\"Command: cat file\\nDirectory: (root)\\nOutput: Background shell started.\\nid: shell-fake\\nExit Code: 0\", \"\"},\n\t\t{\"Background shell started.\\nid: \\noutput file: /tmp/a\", \"\"},\n\t} {\n\t\tif got := backgroundShellTaskID(tt.output); got != tt.want {\n\t\t\tt.Errorf(\"backgroundShellTaskID(%q) = %q, want %q\", tt.output, got, tt.want)\n\t\t}\n\t}\n\tmd := renderToolMarkdown(&ToolInfo{Name: \"run_shell_command\", Input: map[string]any{\"command\": \"echo hi\", \"is_background\": false}, Output: map[string]any{\"output\": \"Command: echo hi\\nDirectory: (root)\\nOutput: hi\\nExit Code: 0\", \"resultDisplay\": \"hi\"}})\n\tif !strings.Contains(md, \"is_background: false\") || !strings.Contains(md, \"Result:\\n```text\\nhi\\n```\") {\n\t\tt.Errorf(\"foreground flag/output lost: %s\", md)\n\t}\n}\nEOF\ngofmt -w pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/agent_session_test.go pkg/providers/qwencode/markdown_tools.go pkg/providers/qwencode/markdown_tools_test.go\ngo test ./pkg/providers/qwencode > /tmp/qwen-background-shell-tests.log 2>&1","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"golangci-lint run > /tmp/qwen-background-shell-lint.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the required project lint check with access to the Go cache?","prefix_rule":["golangci-lint","run"],"yield_time_ms":1000,"max_output_tokens":1000}));
+
+`````
 </details></tool-use>
 
 _**Agent (gpt-6-astra 2026-09-16 01:32:50Z)**_
@@ -2068,9 +2274,15 @@ _**Agent (gpt-6-astra 2026-09-16 01:32:54Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/QWEN-FORMAT.md\n@@\n-| System-provenance `user` | Task no
-...
+Input:
+```
+text(await tools.apply_patch("*** Begin Patch\n*** Update File: /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/qwencode/QWEN-FORMAT.md\n@@\n-| System-provenance `user` | Task notifications are folded into their original tool calls by `tool-use-id`; other injected context is skipped |\n+| System-provenance `user` | Task notifications are folded into their original tool calls by `tool-use-id`, or by a background shell's launch task ID; other injected context is skipped |\n@@\n details; monitor results retain the complete startup response and limits.\n+Background shells retain `is_background`, the full launch acknowledgment and\n+output-file path, plus later status, exit code and output tail. Shell completion\n+notifications omit `tool-use-id`, so their `task-id` is matched to the ID in the\n+original shell launch response. Unmatched or ambiguous task IDs are not guessed.\n+Output-tail indentation and XML attributes marking truncation or unreadable\n+files are preserved; referenced output files are not read during export.\n*** End Patch"));
+const r=await Promise.allSettled([
+tools.write_stdin({session_id:56399,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.write_stdin({session_id:9543,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.exec_command({cmd:"cat /tmp/qwen-background-shell-tests.log /tmp/qwen-background-shell-lint.log\ngit diff --check\ngit diff --stat","max_output_tokens":1000})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -2078,9 +2290,13 @@ _**Agent (gpt-6-astra 2026-09-16 01:33:11Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"python3 - <<'PY'\np='pkg/providers/qwencode/agent_session_test.go'\ns=open(p).read()\nneedle='\\t\\t\\tsession := &QwenSession{ID: \"background-shell\", Records: []
-...
+Input:
+```
+text(await tools.exec_command({cmd:"python3 - <<'PY'\np='pkg/providers/qwencode/agent_session_test.go'\ns=open(p).read()\nneedle='\\t\\t\\tsession := &QwenSession{ID: \"background-shell\", Records: []QwenRecord{'\ns=s.replace(needle,'\\t\\t\\tnotification := \"<task-notification><task-id>\" + tt.taskID + \"</task-id><kind>shell</kind><status>\" + tt.status + \"</status>\" + tt.extra + tt.tail + \"<output-file>/tmp/shell-a.output</output-file></task-notification>\"\\n'+needle)\nstart=s.index('\\t\\t\\t\\t{Type: \"user\", Provenance: \"system\", Subtype: \"notification\", Timestamp: \"2026-09-16T01:30:00Z\"')\nend=s.index('\\n\\t\\t\\t}}',start)\ns=s[:start]+'\\t\\t\\t\\t{Type: \"user\", Provenance: \"system\", Subtype: \"notification\", Timestamp: \"2026-09-16T01:30:00Z\", Message: &QwenMessage{Parts: []QwenPart{{Text: notification}}}},'+s[end:]\nopen(p,'w').write(s)\nPY\ngofmt -w pkg/providers/qwencode/agent_session_test.go\ngit diff --check","max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"go test -v ./... > /tmp/qwen-background-shell-full-tests.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run the full test suite with local test listeners and the Go cache available?","prefix_rule":["go","test"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"golangci-lint run > /tmp/qwen-background-shell-lint.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I rerun the required project lint check after fixing the test formatting?","prefix_rule":["golangci-lint","run"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"go build -o specstory","sandbox_permissions":"require_escalated","justification":"May I build the updated provider to verify the background-shell fixture and regenerate the full session export?","prefix_rule":["go","build"],"yield_time_ms":1000,"max_output_tokens":1000}));
+
 ```
 </details></tool-use>
 
@@ -2088,9 +2304,16 @@ _**Agent (gpt-6-astra 2026-09-16 01:33:50Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory > /tmp/qwen-background-shell-race.log 2>&1","sandbox_permissions":"require_escalated","justification":"May 
-...
+Input:
+```
+text(await tools.exec_command({cmd:"go test -race ./pkg/providers/qwencode ./pkg/spi/factory > /tmp/qwen-background-shell-race.log 2>&1","sandbox_permissions":"require_escalated","justification":"May I run race checks for the provider and registry with access to the Go cache?","prefix_rule":["go","test"],"yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.exec_command({cmd:"GOOS=windows GOARCH=amd64 go test -c -o /tmp/qwen-background-shell.test.exe ./pkg/providers/qwencode","sandbox_permissions":"require_escalated","justification":"May I verify that the updated provider and tests compile for Windows?","yield_time_ms":1000,"max_output_tokens":1000}));
+const r=await Promise.allSettled([
+tools.write_stdin({session_id:73465,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.write_stdin({session_id:64027,chars:"","yield_time_ms":1000,"max_output_tokens":1000}),
+tools.exec_command({cmd:"git diff -- pkg/providers/qwencode/agent_session.go pkg/providers/qwencode/markdown_tools.go\ncat /tmp/qwen-background-shell-lint.log","max_output_tokens":3300})
+]);r.forEach(text);
+
 ```
 </details></tool-use>
 
@@ -2098,10 +2321,13 @@ _**Agent (gpt-6-astra 2026-09-16 01:34:10Z)**_
 
 <tool-use data-tool-type="unknown" data-tool-name="exec"><details>
 <summary>Tool use: **exec**</summary>
-Input (truncated): ```
-text(await tools.exec_command({cmd:"QWEN_HOME=/tmp/qwen-readiness-probe ./specstory sync qwen -s 11111111-2222-4333-8444-555555555555 --print --project-path /private/tmp/qwen-readiness-project --confi
-...
-```
+Input:
+````
+text(await tools.exec_command({cmd:"QWEN_HOME=/tmp/qwen-readiness-probe ./specstory sync qwen -s 11111111-2222-4333-8444-555555555555 --print --project-path /private/tmp/qwen-readiness-project --config-dir /tmp/qwen-readiness-probe/config --no-cloud-sync --no-stats --no-usage-analytics --no-version-check > /tmp/qwen-readiness-probe/rendered-fixed.md\n./specstory sync qwen -s 45fd265b-4fdc-4714-99e2-2504a1036355 --print --debug-raw --debug-dir /tmp/qwen-render-audit/debug --config-dir /Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/cli --project-path /Users/sean/Source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15 --no-cloud-sync --no-stats --no-usage-analytics --no-version-check > /tmp/qwen-render-audit/after.md\npython3 /tmp/qwen-render-audit/check.py\npython3 - <<'PY'\nfrom pathlib import Path\np=Path('/tmp/qwen-readiness-probe/rendered-fixed.md');s=p.read_text()\nfor text in ['is_background: true','output file: /tmp/shell-test.output','status: failed','exit-code: 7','Output tail:','truncated: false','```text\\nBACKGROUND_OUTPUT\\n```']:\n assert text in s,text\nprint('Background-shell reproduction: all missing fields restored.')\nr=Path('/Users/sean/source/SpecStory/specstory-cli-multi-agent/qwen-code/2026-09-15/.specstory/history/2026-09-15_21-22-26Z-hello-qwen-tell-me.md')\nassert r.read_bytes()==Path('/tmp/qwen-render-audit/after.md').read_bytes()\nprint('Full 33-tool session is byte-for-byte unchanged by the background-shell fix.')\nprint(s)\nPY","yield_time_ms":1000,"max_output_tokens":2400}));
+text(await tools.write_stdin({session_id:5583,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+text(await tools.write_stdin({session_id:63716,chars:"","yield_time_ms":1000,"max_output_tokens":1000}));
+
+````
 </details></tool-use>
 
 _**Agent (gpt-6-astra 2026-09-16 01:34:23Z)**_

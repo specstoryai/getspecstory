@@ -873,7 +873,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:55:18Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/plans/wobbly-tickling-pretzel.md`
 
-```text
+````text
      1→# Plan: Add `--json` flag to `specstory watch`
      2→
      3→## Context
@@ -930,7 +930,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:55:18Z)**_
     54→3. Manual: `go build -o specstory && ./specstory watch --json` — confirm JSONL output
     55→4. Manual: `./specstory watch` (no flag) — confirm text output unchanged
     56→
-```
+````
 </details></tool-use>
 
 ---
@@ -959,7 +959,7 @@ _**Agent (claude-opus-4-6 2026-02-20 23:55:46Z)**_
 <summary>Tool use: **Task**</summary>
 Explore message roles/schema
 
-```text
+````text
 Perfect! Here's all the information you need to count agent messages:
 
 ## Role Constants
@@ -1015,7 +1015,7 @@ agentId: acf074c (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 17742
 tool_uses: 4
 duration_ms: 10889</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-20 23:55:36Z)**_

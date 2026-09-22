@@ -42,7 +42,7 @@ _**Agent (claude-opus-4-6 2026-02-23 16:03:02Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
      1→<img width="1649" height="158" alt="Group 6 (1)" src="https://github.com/user-attachments/assets/93f0210f-c3ce-4035-91df-ec597e00a3ce" />
      2→
      3→# Intent is the new source code
@@ -595,7 +595,7 @@ _**Agent (claude-opus-4-6 2026-02-23 16:03:02Z)**_
    550→
    551→SpecStory® is a registered trademark of SpecStory, Inc.
    552→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 16:03:02Z)**_
@@ -3837,7 +3837,7 @@ _**Agent (claude-opus-4-6 2026-02-23 16:14:49Z)**_
 <summary>Tool use: **Read**</summary>
  `./README.md`
 
-```text
+````text
    130→
    131→# Suppress all non-error output (default: false)
    132→# silent = true # equivalent to --silence
@@ -3938,7 +3938,7 @@ _**Agent (claude-opus-4-6 2026-02-23 16:14:49Z)**_
    227→- golangci-lint, latest version
    228→- Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
    229→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-6 2026-02-23 16:14:53Z)**_
@@ -4088,7 +4088,7 @@ _**Agent (claude-opus-4-6 2026-02-23 16:18:21Z)**_
 <summary>Tool use: **Task**</summary>
 Research telemetry integration
 
-```text
+````text
 Perfect. Now I have a complete picture. Let me provide a comprehensive summary:
 
 ## Summary: Telemetry Integration with Session Processing
@@ -4273,7 +4273,7 @@ agentId: aaafe47 (for resuming to continue this agent's work if needed)
 <usage>total_tokens: 52401
 tool_uses: 9
 duration_ms: 31737</usage>
-```
+````
 </details></tool-use>
 
 _**Agent - sidechain (2026-02-23 16:17:49Z)**_

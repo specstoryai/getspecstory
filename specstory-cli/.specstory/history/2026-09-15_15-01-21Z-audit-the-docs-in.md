@@ -263,7 +263,7 @@ _**Agent (claude-opus-5 2026-09-15 15:01:38Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/23e46363-9c84-4f7c-b742-dcfdbe14b724/tool-results/bsrclirro.txt`
 
-```text
+````text
 1	════════════════════════════ AGENT-PLUGIN-FEASIBILITY.md
 2	# SpecStory as an Agent Plugin: feasibility analysis
 3	
@@ -1164,7 +1164,7 @@ _**Agent (claude-opus-5 2026-09-15 15:01:38Z)**_
 898	5. **Non-blocking failures**: Statistics collection failures should warn but never fail the sync operation.
 899	
 900
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:01:40Z)**_
@@ -1733,7 +1733,7 @@ Read README config section
 
 `sed -n '212,232p;337,400p' README.md`
 
-```text
+````text
 ## Configuration File
 
 SpecStory CLI supports configuration files in TOML format. Settings can be configured at two levels:
@@ -1819,7 +1819,7 @@ Analytics are disabled in development builds by default. To enable analytics dur
 ```zsh
 export POSTHOG_API_KEY="your-posthog-api-key"
 go build -ldflags "-X github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics.apiKey=$POSTHOG_API_KEY" -o specstory ./
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:01:57Z)**_
@@ -2077,7 +2077,7 @@ Extract Go type blocks from schema doc
 
 `diff <(sed -n '/^### SessionData (Top-Level)/,/^## /p' docs/SPI-SESSION-DATA-SCHEMA.md) /dev/null | head -5; echo "--- extract go blocks from doc ---"; awk '/^```go/,/^```$/' docs/SPI-SESSION-DATA-SCHEMA.md | head -120`
 
-```text
+````text
 1,146d0
 < ### SessionData (Top-Level)
 < 
@@ -2141,7 +2141,7 @@ type ToolInfo struct {
     FormattedMarkdown *string                `json:"formattedMarkdown,omitempty"`   // Pre-formatted markdown
 }
 ```
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:02:06Z)**_
@@ -2272,7 +2272,7 @@ PROVIDER-SPI outline
 
 `grep -n '^#' docs/PROVIDER-SPI.md; echo "=== registry snippet in doc ==="; sed -n '/registry.go/,+20p' docs/PROVIDER-SPI.md | head -40`
 
-```text
+````text
 1:# SpecStory CLI's Agent SPI
 5:## Overview
 9:### Currently Supported Providers
@@ -2342,7 +2342,7 @@ func (r *Registry) registerAll() {
 #### Name() and Check()
 
 The `Name()` method returns the display name for UI/logging. The `Check()` method verifies installation:
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:02:12Z)**_
@@ -2568,7 +2568,7 @@ Read README usage section
 
 `sed -n '60,212p' README.md`
 
-```text
+````text
 ```zsh
 specstory help
 ```
@@ -2721,7 +2721,7 @@ one-off `--cloud-url` still wins for a single command. `login` prints the target
 isn't production, so you always know which cloud you're authenticating against.
 
 ## Configuration File
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:02:28Z)**_
@@ -2732,7 +2732,7 @@ README development section and Go version
 
 `sed -n '535,640p' README.md; echo "=== go.mod go version ==="; grep -E '^go |^toolchain' go.mod`
 
-```text
+````text
 ## Development
 
 ### Development Prerequisites
@@ -2841,7 +2841,7 @@ go test -v ./...
 
 === go.mod go version ===
 go 1.27.1
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:02:30Z)**_
@@ -3212,7 +3212,7 @@ Read extension doc proposal section
 
 `sed -n '490,540p' docs/EXTENSION-ARCHITECTURE.md; echo "=== outline ==="; grep -n '^#' docs/EXTENSION-ARCHITECTURE.md`
 
-```text
+````text
 - Each agent tool provides its own sync mechanism
 - Extension uses agent's API to fetch remote data
 - Cleaner separation of concerns
@@ -3302,7 +3302,7 @@ specstory list \
 518:## Summary
 520:### Architecture Decisions
 531:### Trade-offs
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:02:56Z)**_
@@ -4090,7 +4090,7 @@ _**Agent (claude-opus-5 2026-09-15 15:10:13Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/CURSORIDE-PROVIDER.md`
 
-```text
+````text
 1	# Implementation Plan: Add Cursor IDE Provider (cursoride)
 2	
 3	## Overview
@@ -4629,7 +4629,7 @@ _**Agent (claude-opus-5 2026-09-15 15:10:13Z)**_
 536	- No crashes or panics with missing/invalid data
 537	- Graceful error messages for common issues
 538
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:10:16Z)**_
@@ -8949,7 +8949,7 @@ _**Agent (claude-opus-5 2026-09-15 15:26:52Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/POSTHOG.md`
 
-```text
+````text
 1	# PostHog Analytics
 2	
 3	This document describes the analytics implementation in SpecStory CLI.
@@ -9042,7 +9042,7 @@ _**Agent (claude-opus-5 2026-09-15 15:26:52Z)**_
 90	- `events.go` - Event constants and the `TrackEvent` function
 91	- `shared_id.go` - Shared analytics ID management
 92
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:26:56Z)**_
@@ -9151,7 +9151,7 @@ Read Message, Validation, Versioning sections
 
 `sed -n '89,131p;265,282p;498,510p' docs/SPI-SESSION-DATA-SCHEMA.md`
 
-```text
+````text
 ### Message
 
 Messages can be from users or the agent.
@@ -9226,7 +9226,7 @@ A single renderer consumes `exchanges[].messages[]`:
 1. Process messages in order (user → agent → agent ...)
 2. Render `content` parts as text (detect and format code blocks)
 3. Show tool uses with type/name and list any `pathHints`
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:27:06Z)**_
@@ -9843,7 +9843,7 @@ Read remaining stale-framing lines in context
 
 `sed -n '177,182p;194,198p;462,472p' docs/SESSIONS-DB.md`
 
-```text
+````text
 ### Catchup — cold rebuild / explicit reindex
 
 Triggered explicitly by the user via `specstory reindex` (and, in a later chunk, automatically
@@ -9866,7 +9866,7 @@ already performs; the rest come from the lightweight enumeration ref.
 - **User naming / rename.** No `custom_name`; sessions are not renameable in the first cut.
   Keeps `sessions` a purely rebuildable cache (no user-authoritative fields to preserve across
   `reindex`).
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:28:20Z)**_
@@ -10036,7 +10036,7 @@ Read flags and future-enhancements sections
 
 `sed -n '454,520p' docs/EXTENSION-ARCHITECTURE.md`
 
-```text
+````text
 ## CLI Flags for Extension Integration
 
 ### `--output-dir <path>`
@@ -10104,7 +10104,7 @@ specstory list \
 ## Summary
 
 ### Architecture Decisions
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:28:40Z)**_
@@ -10344,7 +10344,7 @@ _**Agent (claude-opus-5 2026-09-15 15:29:05Z)**_
 <summary>Tool use: **Read**</summary>
  `./docs/PROJECT-IDENTITY.md`
 
-```text
+````text
 1	# Project Identity
 2	
 3	On extension activation, if Auto-save is enabled, AFTER we create the `.specstory` directory (if it didn't already exist) create a `.specstory/.project.json` file to capture project identity ONLY if the file doesn't already exist.
@@ -10404,7 +10404,7 @@ _**Agent (claude-opus-5 2026-09-15 15:29:05Z)**_
 57	- With Git User can move/rename/modify the workspace and then change the git origin and remove .specstory
 58	(in the future for these SOL cases, we can use interaction with the user to reidentity the project)
 59
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:29:08Z)**_
@@ -11096,7 +11096,7 @@ Locate the Core Components table
 
 `sed -n '55,70p' docs/AI-PROVENANCE.md`
 
-```text
+````text
 | `/project/xsrc/foo.go`   | `src/foo.go`          | `/src/foo.go`         | No           | Not at `/` boundary |
 
 ### SQLite Storage
@@ -11113,7 +11113,7 @@ SQLite with WAL mode handles concurrent access from multiple processes.
 **Schema:**
 
 ```sql
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:30:06Z)**_
@@ -11792,7 +11792,7 @@ Read README regions to edit
 
 `sed -n '556,570p' README.md; echo "=== 13-17 ==="; sed -n '13,18p' README.md; echo "=== 535,545 ==="; sed -n '535,545p' README.md`
 
-```text
+````text
 ### Building from source
 
 ```zsh
@@ -11826,7 +11826,7 @@ You can then run the built executable from there.
 - Access to one or more terminal coding agents (e.g. Claude Code, Codex CLI, etc.)
 
 You'll want [Homebrew](https://brew.sh/) installed on your macOS system. Then:
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:46:03Z)**_
@@ -11903,7 +11903,7 @@ Read README Analytics section
 
 `sed -n '/^## Analytics/,/^### Development Analytics/p' README.md`
 
-```text
+````text
 ## Analytics
 
 SpecStory CLI collects anonymous usage analytics to PostHog to help improve the product. The following events are tracked:
@@ -11927,7 +11927,7 @@ specstory --no-usage-analytics [other options]
 **Note**: Error tracking events include a 500ms delay before the program exits to ensure events are sent successfully. This is necessary because PostHog sends events asynchronously.
 
 ### Development Analytics
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:46:07Z)**_
@@ -12046,7 +12046,7 @@ Check debug-raw output structure block
 
 `sed -n '598,615p' README.md`
 
-```text
+````text
 ./specstory sync --debug-raw
 ```
 
@@ -12065,7 +12065,7 @@ Sync specific session with debug output:
     ├── 2.json      # Cursor CLI: based on rowid
     ├── 3.json
     ├── ...
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:46:19Z)**_
@@ -12303,7 +12303,7 @@ Read qwen section 13
 
 `BASE=$(git merge-base HEAD MERGE_HEAD) && git show HEAD:./docs/PROVIDER-REFACTOR.md | sed -n '/^## 13\./,$p'`
 
-```text
+````text
 ## 13. Follow-on: bringing `qwencode` in line
 
 `qwencode` was developed on its own branch alongside this refactor and merged after it, so it reintroduced four of the consolidated helpers. It was already clean on the worst issue — it used `spi.CodeFence` at all eight fence sites, so it never had the §2.2 hardcoded-fence bug — and its exact-match tool dispatch needs no name normalization.
@@ -12334,7 +12334,7 @@ Two fixes outside the dedup:
 - **No `FormatDiffBlock` overlap.** Edits render from the tool outcome's pre-formed unified diff (`resultDisplay`), not from a find/replace pair.
 
 Left alone deliberately: `inputAsString` (single-key, with a `json.Marshal` fallback where `spi.StringValue` returns `""`), `truncate` (duplicates `spi.CapRunes` with a different visible marker), and `todoStatusSymbol` (symbols already match `spi.TodoSymbol`; switching is free but belongs with the skipped item 2).
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 15:52:18Z)**_

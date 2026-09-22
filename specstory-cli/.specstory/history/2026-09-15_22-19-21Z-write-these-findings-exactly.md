@@ -274,7 +274,7 @@ View PR 268 details
 
 `gh pr view 268`
 
-```text
+``````text
 title:	Add Qwen Code provider (qwen) with resume support
 state:	OPEN
 author:	gregce (Greg Ceccarelli)
@@ -443,7 +443,7 @@ For each issue above, determine whether it is valid and should be fixed. If so, 
 > Greptile also left **3 inline comments** on this PR.
 
 <!-- /greptile_comment -->
-```
+``````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 22:32:11Z)**_
@@ -4789,7 +4789,7 @@ Read markdown tools test
 
 `cat -n markdown_tools_test.go | head -200`
 
-```text
+````text
      1	package qwencode
      2	
      3	import (
@@ -4990,7 +4990,7 @@ Read markdown tools test
    198	
    199	func TestFormatToolAsMarkdown_GrepSummary(t *testing.T) {
    200		tool := &ToolInfo{
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 22:32:45Z)**_
@@ -5001,7 +5001,7 @@ Rest of markdown test and agent session test function list
 
 `sed -n '199,400p' markdown_tools_test.go && echo "===AGENT SESSION TEST===" && grep -n '^func Test' agent_session_test.go`
 
-```text
+`````text
 func TestFormatToolAsMarkdown_GrepSummary(t *testing.T) {
 	tool := &ToolInfo{
 		Name:   "grep_search",
@@ -5179,7 +5179,7 @@ func TestQuestionAndExecRendering(t *testing.T) {
 254:func TestAssistantPartOrderAndUniqueIDs(t *testing.T) {
 281:func TestDeclaredToolInventory(t *testing.T) {
 302:func TestCurrentQwenRecorderFixture(t *testing.T) {
-```
+`````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 22:32:47Z)**_
@@ -5766,7 +5766,7 @@ Check specstory-cli README diff
 
 `git diff origin/dev...HEAD -- README.md | head -140`
 
-```text
+````text
 diff --git a/specstory-cli/README.md b/specstory-cli/README.md
 index d15ca45..b436d1f 100644
 --- a/specstory-cli/README.md
@@ -5907,7 +5907,7 @@ index d15ca45..b436d1f 100644
 +| `[providers]`     | `antigravity_cmd`                  | `"agy"`              | Antigravity CLI command                                             |
 +| `[providers]`     | `muse_cmd`                         | `"muse"`             | Muse Code command                                                   |
 +| `[providers]`     | `pi_cmd`                           | `"pi"`               | Pi command                                                          |
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 22:33:53Z)**_
@@ -5918,7 +5918,7 @@ Check for removed Pi note and qwen mentions in README
 
 `grep -n "session-id\|Qwen\|qwen" README.md | head -20 && echo "=== git diff tail of README ===" && git diff origin/dev...HEAD -- README.md | tail -20`
 
-```text
+````text
 9:SpecStory CLI is a cross-platform command-line tool for saving AI coding conversations from coding agents — terminal agents (e.g. Claude Code, Cursor CLI, Codex CLI, Gemini CLI, Droid CLI, Antigravity CLI, Muse Code, Qwen Code) as well as the Cursor IDE and VS Code Copilot (including VS Code Insiders, VSCodium, and VSCodium Insiders).
 40:| [Qwen Code](https://github.com/QwenLM/qwen-code)               | [qwencode](pkg/providers/qwencode/)             | JSONL       | `~/.qwen/projects/`             |
 340:# Qwen Code command
@@ -5946,7 +5946,7 @@ Check for removed Pi note and qwen mentions in README
 +Each JSON file is pretty-printed with 2-space indentation. For Claude Code and Qwen Code, files are numbered sequentially in JSONL record order. Qwen Code preserves unknown native fields and clears stale numbered files before each debug export. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE and VS Code Copilot, a single file (`raw-composer.json` / `raw-session.json`) holds the complete session record instead of numbered per-record files.
  
  **Example:**
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-15 22:33:56Z)**_
@@ -14870,7 +14870,7 @@ Read the hallucination correction and the chosen fix
 
 `sed -n '11528,11542p' .specstory/history/2026-02-20_21-04-48Z-recent-cursor-cli-session.md && echo "=== ... decision ... ===" && sed -n '12118,12160p' .specstory/history/2026-02-20_21-04-48Z-recent-cursor-cli-session.md | grep -v '^\s*$' | head -25`
 
-```text
+````text
 The case mismatch is the harder problem - even if timing were perfect, the match would have failed. The fix would need case-insensitive path comparison on macOS (or normalizing paths to a canonical case, e.g., using `filepath.EvalSymlinks` or similar).
 
 ---
@@ -14912,7 +14912,7 @@ Find canonical path normalizer
 I can see the intent repository doesn't exist in either location. However, I found the canonical path normalizer function in the CLI repository. Here's my report:
 ## Found: GetCanonicalPath Function
 **Location:** `/Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/spi/path_utils.go` (lines 118-207)
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-16 01:18:16Z)**_
@@ -14990,7 +14990,7 @@ Read review doc cross-platform section
 
 `sed -n '/^## 8. Cross-platform/,/^## 9\./p' docs/NEW-PROVIDER-REVIEW.md | head -40 | cut -c1-165`
 
-```text
+````text
 ## 8. Cross-platform
 
 Native Windows is a release target and the CI workflow runs the full test suite on `windows-latest`; nothing in branch protection enforces it, so the reviewer confir
@@ -15023,7 +15023,7 @@ Review rules:
 Process: CI runs only on `pull_request` (path-filtered; docs-only changes run nothing) and on pushes to `dev` and `main`, so open the PR to get a run. Pull failures 
 
 ## 9. Bot review triage
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-16 01:19:31Z)**_
@@ -15221,7 +15221,7 @@ PYEOF
 sed -n '/^## 8. Cross-platform/,/^Review rules:/p' docs/NEW-PROVIDER-REVIEW.md | tail -16
 ```
 
-```text
+````text
 ok
 Native Windows is a release target and the CI workflow runs the full test suite on `windows-latest`; nothing in branch protection enforces it, so the reviewer confirms the job passed. The rules are in `CLAUDE.md` and the shared helpers; the recurring failures are in the Windows fixes of PR #191 (Appendix C).
 
@@ -15239,7 +15239,7 @@ GOOS=windows GOARCH=amd64 go build ./... && GOOS=windows GOARCH=amd64 go vet ./.
 ```
 
 Review rules:
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-5 2026-09-16 01:20:07Z)**_

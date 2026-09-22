@@ -212,7 +212,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:33Z)**_
 <summary>Tool use: **Read**</summary>
  `/Users/sean/.claude/projects/-Users-sean-Source-SpecStory-getspecstory-specstory-cli/fd7590b3-62e3-49dd-b0bb-f6e4755245e8/tool-results/ca5af1eb-2489-4001-afe2-8d42f292d928.txt`
 
-```text
+````text
      1→diff --git a/.gitignore b/.gitignore
      2→index 528aa98..b38778e 100644
      3→--- a/.gitignore
@@ -713,7 +713,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:33Z)**_
    498→+    56→diff --git a/.github/workflows/release.yml b/.github/workflows/release.yml
    499→+    57→index 1c0453b..57eae3c 100644
    500→+    58→--- a/.github/workflows/release.yml
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:36Z)**_
@@ -2132,7 +2132,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:54Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools.go`
 
-```text
+````text
      1→package droidcli
      2→
      3→import (
@@ -2697,7 +2697,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:54Z)**_
    562→	return strings.TrimRight(builder.String(), "\n")
    563→}
    564→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 14:35:54Z)**_
@@ -3283,7 +3283,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:00Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools_test.go`
 
-```text
+````text
      1→package droidcli
      2→
      3→import (
@@ -3394,7 +3394,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:00Z)**_
    108→	}
    109→}
    110→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 14:36:03Z)**_
@@ -4778,7 +4778,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:42:05Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools_test.go`
 
-```text
+````text
      1→package droidcli
      2→
      3→import (
@@ -4889,7 +4889,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 14:42:05Z)**_
    108→	}
    109→}
    110→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 14:42:10Z)**_
@@ -5089,7 +5089,7 @@ func TestToolTypeMappings(t *testing.T) {
 
 ````
 
-```text
+````text
 The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/droidcli/markdown_tools_test.go has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
      1→package droidcli
      2→
@@ -5262,7 +5262,7 @@ The file /Users/sean/Source/SpecStory/getspecstory/specstory-cli/pkg/providers/d
    169→	}
    170→}
    171→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 15:16:05Z)**_
@@ -7049,7 +7049,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:46:41Z)**_
 <summary>Tool use: **Read**</summary>
  `./pkg/providers/droidcli/markdown_tools.go`
 
-```text
+````text
      1→package droidcli
      2→
      3→import (
@@ -7614,7 +7614,7 @@ _**Agent (claude-opus-4-5-20251101 2026-01-29 15:46:41Z)**_
    562→	return strings.TrimRight(builder.String(), "\n")
    563→}
    564→
-```
+````
 </details></tool-use>
 
 _**Agent (claude-opus-4-5-20251101 2026-01-29 15:47:13Z)**_

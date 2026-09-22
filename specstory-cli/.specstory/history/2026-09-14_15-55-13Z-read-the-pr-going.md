@@ -1061,7 +1061,7 @@ Locate the release doc, goreleaser config, and examine tag-related lines in work
 
 `cd /Users/sean/Source/SpecStory/getspecstory && find . -iname 'CLI-RELEASE.md' -not -path '*/node_modules/*' -not -path '*/.specstory/*'; echo ---; f=$(find . -iname 'CLI-RELEASE.md' -not -path '*/node_modules/*' -not -path '*/.specstory/*' | head -1); [ -n "$f" ] && cat "$f"; echo ---; find . -name '.goreleaser*' -not -path '*/node_modules/*'; echo ---; git show 6e8191a -- .github/workflows/release.yml | grep -n 'tag\|TAG\|ref' | head -20; echo ---; git log --format='%h %ad %an %s' --date=short -8 --all -- .github/workflows/release.yml`
 
-```text
+````text
 ./specstory-cli/docs/CLI-RELEASE.md
 ---
 # Releasing SpecStory CLI
@@ -1203,7 +1203,7 @@ Then update [Formula/specstory.rb](https://github.com/specstoryai/homebrew-tap/b
 4a936b5 2026-06-18 dependabot[bot] Bump actions/checkout from 4 to 7
 959bd86 2026-06-18 Sean Johnson Merge pull request #226 from specstoryai/dependabot/github_actions/goreleaser/goreleaser-action-7
 Shell cwd was reset to /Users/sean/Source/SpecStory/getspecstory/specstory-cli
-```
+````
 </details></tool-use>
 
 _**Agent (claude-fable-5-1 2026-09-14 16:40:05Z)**_
