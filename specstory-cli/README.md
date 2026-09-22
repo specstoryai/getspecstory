@@ -642,10 +642,11 @@ Sync specific session with debug output:
     ├── raw-session.json  # DeepSeek TUI / VS Code Copilot: session JSON
     ├── raw-transcript.jsonl # Antigravity: accepted transcript records
     ├── tasks/task-6.log  # Antigravity: native async task output
+    ├── native-sidecars.json # Grok Build: summary, updates, events, and subagent metadata
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, and Muse Code use sequentially numbered JSON files in source order. Codex preserves native number precision and key order. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
+Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, Muse Code, and Grok Build use sequentially numbered JSON files in source order. Codex and Grok preserve native number precision and key order. Grok also exports the sidecars used for conversion and refreshes debug files even when its accepted records contain no rendered conversation. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
 
 All numbered exporters refresh their provider-owned debug files on each export, removing obsolete records while preserving `session-data.json` and unrelated files. Native exports use the same input snapshot as conversion. Cursor CLI filenames include both DAG position and SQLite rowid, with separate orphan files. Cursor IDE and VS Code Copilot use a single `raw-composer.json` or `raw-session.json` instead of numbered records.
 

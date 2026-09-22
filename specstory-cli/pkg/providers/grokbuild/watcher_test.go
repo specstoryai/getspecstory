@@ -2,6 +2,7 @@ package grokbuild
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -145,6 +147,9 @@ func TestProcessSessionChange_WaitsForMetadata(t *testing.T) {
 }
 
 func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	SetWatcherDebugRaw(true)
+	t.Cleanup(func() { SetWatcherDebugRaw(false) })
 	dir := t.TempDir()
 	sessionDir := filepath.Join(dir, "dddddddd-eeee-7fff-8000-111111111111")
 	copyFixture(t, "session-noquery", sessionDir)
@@ -156,6 +161,13 @@ func TestProcessSessionChange_IgnoresEmptyTranscript(t *testing.T) {
 	// than none.
 	if len(*published) != 0 {
 		t.Errorf("a session with no conversation must not be published, got %v", *published)
+	}
+	// Accepted context records still need native debug output when no Markdown
+	// is emitted, including on the live conversion path.
+	for _, name := range []string{"1.json", "2.json", "native-sidecars.json"} {
+		if _, err := os.Stat(filepath.Join(spi.GetDebugDir(filepath.Base(sessionDir)), name)); err != nil {
+			t.Errorf("non-rendered live record missing from debug export: %s (%v)", name, err)
+		}
 	}
 }
 
@@ -296,6 +308,79 @@ func TestWatcherRestartAndShutdownDrain(t *testing.T) {
 		if !strings.Contains(latest.RawData, text) {
 			t.Fatal("callback did not finish with the final reply")
 		}
+	}
+}
+
+func TestWatcherDebugRefreshesTranscriptAndSidecars(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	home := withFakeGrokHome(t)
+	project := t.TempDir()
+	id := "11111111-2222-7333-8444-555555555555"
+	dir := seedSession(t, home, project, "session-basic", id)
+	first := `{"type":"user","content":[{"type":"text","text":"<user_query>live debug</user_query>"}]}`
+	second := `{"type":"assistant","content":"current reply"}`
+	body := first + "\n" + second + "\n"
+	if err := os.WriteFile(filepath.Join(dir, chatHistoryFile), []byte(body+`{"type":"assistant","content":"obsolete reply"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	SetWatcherDebugRaw(true)
+	SetWatcherWorkspaceRoot(project)
+	t.Cleanup(func() {
+		StopWatcher()
+		SetWatcherDebugRaw(false)
+		SetWatcherWorkspaceRoot("")
+	})
+	delivered := make(chan *spi.AgentChatSession, 20)
+	start := func() {
+		t.Helper()
+		if err := WatchGrokProject(project, func(s *spi.AgentChatSession) { delivered <- s }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start()
+	// A sidecar-only filesystem event must export the full parsing snapshot.
+	if err := os.WriteFile(filepath.Join(dir, eventsFile), []byte(`{"type":"future_event","state":"old"}`+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-delivered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("sidecar change did not trigger a live debug export")
+	}
+	StopWatcher()
+	debugDir := spi.GetDebugDir(id)
+	data, err := os.ReadFile(filepath.Join(debugDir, "native-sidecars.json"))
+	if err != nil || !strings.Contains(string(data), `"state": "old"`) {
+		t.Fatalf("live sidecar snapshot missing: %s (%v)", data, err)
+	}
+	testutil.AssertDebugRefresh(t, debugDir, []string{"3.json"}, []string{"session-data.json", "03.json", "+3.json"}, func() {
+		start()
+		if err := os.WriteFile(filepath.Join(dir, chatHistoryFile), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, eventsFile), []byte(`{"type":"future_event","state":"new"}`+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(filepath.Join(dir, updatesFile)); err != nil {
+			t.Fatal(err)
+		}
+		// Drain pending writes before inspecting output, including removed sidecars.
+		StopWatcher()
+	})
+	data, err = os.ReadFile(filepath.Join(debugDir, "2.json"))
+	if err != nil || !strings.Contains(string(data), "current reply") {
+		t.Fatalf("live transcript snapshot stale: %s (%v)", data, err)
+	}
+	data, err = os.ReadFile(filepath.Join(debugDir, "native-sidecars.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sidecars map[string]json.RawMessage
+	if err := json.Unmarshal(data, &sidecars); err != nil {
+		t.Fatal(err)
+	}
+	if string(sidecars[updatesFile]) != "null" || !strings.Contains(string(sidecars[eventsFile]), `"state": "new"`) || strings.Contains(string(sidecars[eventsFile]), `"state": "old"`) {
+		t.Fatalf("live sidecar refresh stale: %s", data)
 	}
 }
 

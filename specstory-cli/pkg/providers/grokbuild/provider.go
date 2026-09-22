@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/analytics"
@@ -412,6 +411,15 @@ func extractSessionMetadata(session *GrokSession) *spi.SessionMetadata {
 // form. Returns nil for sessions that hold no conversation, so an aborted
 // session never produces an empty markdown file.
 func convertToAgentChatSession(session *GrokSession, workspaceRoot string, debugRaw bool) *spi.AgentChatSession {
+	// Accepted native records remain useful for diagnosis even when none of
+	// them render as conversation or conversion fails.
+	if debugRaw {
+		if err := writeDebugRawFiles(session); err != nil {
+			slog.Warn("convertToAgentChatSession: failed to write debug files",
+				"sessionID", session.ID, "path", spi.GetDebugDir(session.ID), "error", err)
+		}
+	}
+
 	sessionData, err := GenerateAgentSession(session, workspaceRoot)
 	if err != nil {
 		slog.Error("convertToAgentChatSession: failed to generate session data",
@@ -438,13 +446,6 @@ func convertToAgentChatSession(session *GrokSession, workspaceRoot string, debug
 		}
 	}
 
-	if debugRaw {
-		if err := writeDebugRawFiles(session); err != nil {
-			slog.Debug("convertToAgentChatSession: failed to write debug files",
-				"sessionID", session.ID, "error", err)
-		}
-	}
-
 	return &spi.AgentChatSession{
 		SessionID:   session.ID,
 		CreatedAt:   session.CreatedAt,
@@ -458,35 +459,14 @@ func convertToAgentChatSession(session *GrokSession, workspaceRoot string, debug
 // .specstory/debug/<session-id>/.
 func writeDebugRawFiles(session *GrokSession) error {
 	debugDir := spi.GetDebugDir(session.ID)
-	if err := os.MkdirAll(debugDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create debug dir: %w", err)
+	records := make([]json.RawMessage, len(session.Records))
+	for i, record := range session.Records {
+		records[i] = record.Raw
 	}
-
-	// Remove only provider-owned numbered records; the CLI owns session-data.json.
-	entries, err := os.ReadDir(debugDir)
-	if err != nil {
+	if err := spi.WriteDebugRecords(debugDir, records); err != nil {
 		return err
 	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if !entry.IsDir() && strings.HasSuffix(name, ".json") {
-			if n, err := strconv.Atoi(strings.TrimSuffix(name, ".json")); err == nil && n > len(session.Records) {
-				if err := os.Remove(filepath.Join(debugDir, name)); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	for idx, record := range session.Records {
-		var data bytes.Buffer
-		if err := json.Indent(&data, record.Raw, "", "  "); err != nil {
-			return err
-		}
-		filename := filepath.Join(debugDir, fmt.Sprintf("%d.json", idx+1))
-		if err := os.WriteFile(filename, data.Bytes(), 0o644); err != nil {
-			return err
-		}
-	}
+
 	sidecars := map[string]any{summaryFile: session.RawSummary}
 	if session.RawSummary != nil && !json.Valid(session.RawSummary) {
 		// Preserve malformed native bytes as text inside the valid debug JSON.
@@ -504,12 +484,13 @@ func writeDebugRawFiles(session *GrokSession) error {
 		}
 		sidecars["subagents"] = metas
 	}
+	path := filepath.Join(debugDir, "native-sidecars.json")
 	data, err := json.MarshalIndent(sidecars, "", "  ")
 	if err != nil {
-		return err
+		return fmt.Errorf("format debug file %s: %w", path, err)
 	}
-	if err := os.WriteFile(filepath.Join(debugDir, "native-sidecars.json"), data, 0o644); err != nil {
-		return err
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("write debug file %s: %w", path, err)
 	}
 
 	return nil

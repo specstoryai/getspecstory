@@ -1,14 +1,17 @@
 package grokbuild
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
 
@@ -289,51 +292,153 @@ func TestGetAgentChatSessionByPath(t *testing.T) {
 }
 
 func TestRawSnapshotAndDebugRefresh(t *testing.T) {
-	spi.SetDebugBaseDir(t.TempDir())
-	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	testutil.IsolateDebugDir(t)
 	dir := filepath.Join(t.TempDir(), "11111111-2222-7333-8444-555555555555")
 	copyFixture(t, "session-basic", dir)
 	path := filepath.Join(dir, chatHistoryFile)
 	first := `{"type":"user","content":[{"type":"text","text":"<user_query>snapshot</user_query>"}],"future_field":{"keep":true}}`
 	second := `{"type":"assistant","content":"original reply"}`
-	if err := os.WriteFile(path, []byte(first+"\nmalformed\n"+second+"\n"), 0o600); err != nil {
+	third := `{"type":"future_record","z":9007199254740993,"a":1.234567890123456789}`
+	if err := os.WriteFile(path, []byte(first+"\nmalformed\n"+second+"\n"+third+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	parsed, err := ParseSessionDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	debugDir := spi.GetDebugDir(parsed.ID)
+	convertToAgentChatSession(parsed, dir, false)
+	if _, err := os.Stat(debugDir); !os.IsNotExist(err) {
+		t.Fatalf("debug=false created exports: %v", err)
+	}
 	// A later native write cannot change the raw export of an already parsed session.
-	if err := os.WriteFile(path, []byte(first+"\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(first+"\n"+second+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	chat := convertToAgentChatSession(parsed, dir, true)
-	if chat == nil || chat.RawData != first+"\n"+second+"\n" {
+	if chat == nil || chat.RawData != first+"\n"+second+"\n"+third+"\n" {
 		t.Fatalf("inconsistent raw snapshot: %+v", chat)
 	}
-	debugDir := spi.GetDebugDir(parsed.ID)
 	debug, err := os.ReadFile(filepath.Join(debugDir, "1.json"))
 	if err != nil || !strings.Contains(string(debug), "future_field") {
 		t.Fatalf("native field missing: %s, %v", debug, err)
 	}
-	cliFile := filepath.Join(debugDir, "session-data.json")
-	if err := os.WriteFile(cliFile, []byte("CLI owned"), 0o600); err != nil {
-		t.Fatal(err)
+	debug, err = os.ReadFile(filepath.Join(debugDir, "3.json"))
+	if err != nil || !bytes.Contains(debug, []byte("\n  \"z\": ")) {
+		t.Fatalf("native record not pretty-printed: %s (%v)", debug, err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, debug); err != nil || compact.String() != third {
+		t.Fatalf("native precision or key order lost: %s (%v)", debug, err)
 	}
 	shorter, err := ParseSessionDir(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	convertToAgentChatSession(shorter, dir, false)
-	if _, err := os.Stat(filepath.Join(debugDir, "2.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(debugDir, "3.json")); err != nil {
 		t.Fatal("debug=false changed exports", err)
 	}
-	convertToAgentChatSession(shorter, dir, true)
-	if _, err := os.Stat(filepath.Join(debugDir, "2.json")); !os.IsNotExist(err) {
-		t.Fatalf("stale record remains: %v", err)
+	testutil.AssertDebugRefresh(t, debugDir, []string{"3.json"},
+		[]string{"session-data.json", "03.json", "+3.json", "notes.json", "nested/notes.md"}, func() {
+			if convertToAgentChatSession(shorter, dir, true) == nil {
+				t.Fatal("refresh prevented conversion")
+			}
+		})
+}
+
+func TestDebugRefreshWithoutRenderedConversation(t *testing.T) {
+	for _, mode := range []string{"bulk", "single", "path"} {
+		t.Run(mode, func(t *testing.T) {
+			testutil.IsolateDebugDir(t)
+			home := withFakeGrokHome(t)
+			project := t.TempDir()
+			id := "11111111-2222-7333-8444-555555555555"
+			dir := seedSession(t, home, project, "session-basic", id)
+			provider := NewProvider()
+			read := func(debug bool) int {
+				t.Helper()
+				if mode == "bulk" {
+					sessions, err := provider.GetAgentChatSessions(project, debug, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					return len(sessions)
+				}
+				var session *spi.AgentChatSession
+				var err error
+				if mode == "single" {
+					session, err = provider.GetAgentChatSession(project, id, debug)
+				} else {
+					session, err = provider.GetAgentChatSessionByPath(filepath.Join(dir, chatHistoryFile), project, debug)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if session != nil {
+					return 1
+				}
+				return 0
+			}
+			if read(true) != 1 {
+				t.Fatal("initial conversation missing")
+			}
+			native := `{"type":"system","content":"context only"}`
+			if err := os.WriteFile(filepath.Join(dir, chatHistoryFile), []byte(native+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			debugDir := spi.GetDebugDir(id)
+			if read(false) != 0 {
+				t.Fatal("context-only session produced a conversation")
+			}
+			// The helper verifies the stale files still exist after debug=false.
+			testutil.AssertDebugRefresh(t, debugDir, []string{"2.json", "3.json"}, []string{"session-data.json"}, func() {
+				if read(true) != 0 {
+					t.Fatal("debug export produced an empty conversation")
+				}
+			})
+			data, err := os.ReadFile(filepath.Join(debugDir, "1.json"))
+			if err != nil || !bytes.Contains(data, []byte("context only")) {
+				t.Fatalf("non-rendered record not refreshed: %s (%v)", data, err)
+			}
+		})
 	}
-	if data, err := os.ReadFile(cliFile); err != nil || string(data) != "CLI owned" {
-		t.Fatalf("CLI file changed: %s, %v", data, err)
+}
+
+func TestDebugExportFailureWarnsWithoutPreventingConversion(t *testing.T) {
+	for _, filename := range []string{"1.json", "native-sidecars.json"} {
+		t.Run(filename, func(t *testing.T) {
+			testutil.IsolateDebugDir(t)
+			dir := filepath.Join(t.TempDir(), "11111111-2222-7333-8444-555555555555")
+			copyFixture(t, "session-basic", dir)
+			session, err := ParseSessionDir(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			debugDir := spi.GetDebugDir(session.ID)
+			path := filepath.Join(debugDir, filename)
+			// A directory at the output filename fails writes on every platform.
+			if err := os.MkdirAll(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeDebugRawFiles(session); err == nil || !strings.Contains(err.Error(), path) {
+				t.Fatalf("expected error with output path, got %v", err)
+			}
+			var logs bytes.Buffer
+			previous := slog.Default()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+			t.Cleanup(func() { slog.SetDefault(previous) })
+			if chat := convertToAgentChatSession(session, dir, true); chat == nil || chat.RawData == "" {
+				t.Fatal("debug failure prevented conversion")
+			}
+			var warning map[string]any
+			if err := json.Unmarshal(logs.Bytes(), &warning); err != nil {
+				t.Fatalf("expected one warning, got %s (%v)", logs.Bytes(), err)
+			}
+			if warning["level"] != "WARN" || warning["sessionID"] != session.ID || warning["path"] != debugDir {
+				t.Fatalf("warning lacks export context: %v", warning)
+			}
+		})
 	}
 }
 
@@ -366,12 +471,11 @@ func TestGetSessionDoesNotFollowCrossProjectSymlink(t *testing.T) {
 }
 
 func TestDebugSidecarsPreserveTheParsingSnapshot(t *testing.T) {
-	spi.SetDebugBaseDir(t.TempDir())
-	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	testutil.IsolateDebugDir(t)
 	dir := filepath.Join(t.TempDir(), "11111111-2222-7333-8444-555555555555")
 	copyFixture(t, "session-basic", dir)
 	path := filepath.Join(dir, eventsFile)
-	event := `{"type":"future_event","future_field":"original-sidecar"}`
+	event := `{"type":"future_event","future_field":"original-sidecar","z":9007199254740993,"a":1.234567890123456789}`
 	if err := os.WriteFile(path, []byte(event+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -393,6 +497,18 @@ func TestDebugSidecarsPreserveTheParsingSnapshot(t *testing.T) {
 		if !strings.Contains(string(raw), want) {
 			t.Errorf("sidecar debug missing %q", want)
 		}
+	}
+	var sidecars map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sidecars); err != nil {
+		t.Fatal(err)
+	}
+	var events []json.RawMessage
+	if err := json.Unmarshal(sidecars[eventsFile], &events); err != nil || len(events) != 1 {
+		t.Fatalf("expected original sidecar event: %s (%v)", sidecars[eventsFile], err)
+	}
+	var compact bytes.Buffer
+	if err := json.Compact(&compact, events[0]); err != nil || compact.String() != event {
+		t.Fatalf("sidecar precision or key order lost: %s (%v)", events[0], err)
 	}
 }
 
@@ -470,9 +586,7 @@ func TestInvalidSummaryIDCannotChooseDebugPath(t *testing.T) {
 			if err := os.WriteFile(path, raw, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			debug := t.TempDir()
-			spi.SetDebugBaseDir(debug)
-			t.Cleanup(func() { spi.SetDebugBaseDir("") })
+			debug := testutil.IsolateDebugDir(t)
 			session, err := NewProvider().GetAgentChatSession(project, id, true)
 			if err != nil || session == nil || session.SessionID != id {
 				t.Fatalf("unsafe summary identity accepted: %v, %v", session, err)
@@ -573,9 +687,7 @@ func TestMalformedSummaryRetainedInDebugSnapshot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, summaryFile), []byte(`{}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	debug := t.TempDir()
-	spi.SetDebugBaseDir(debug)
-	t.Cleanup(func() { spi.SetDebugBaseDir("") })
+	debug := testutil.IsolateDebugDir(t)
 	if err := writeDebugRawFiles(session); err != nil {
 		t.Fatal(err)
 	}
