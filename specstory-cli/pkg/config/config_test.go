@@ -1045,6 +1045,7 @@ func TestGetProviderCmd(t *testing.T) {
 			DeepSeekCmd:                   "deepseek --model r1",
 			DroidCmd:                      "droid --verbose",
 			GeminiCmd:                     "gemini --model pro",
+			GrokCmd:                       "grok --permission-mode auto",
 			MuseCmd:                       "muse --reasoning-effort high",
 			PiCmd:                         "pi --model sonnet",
 			QwenCmd:                       "qwen --approval-mode yolo",
@@ -1067,6 +1068,8 @@ func TestGetProviderCmd(t *testing.T) {
 		{"droid", "droid --verbose"},
 		{"gemini", "gemini --model pro"},
 		{"antigravity", "agy --sandbox"},
+		{"grok", "grok --permission-mode auto"},
+		{"GROK", "grok --permission-mode auto"}, // case-insensitive
 		{"muse", "muse --reasoning-effort high"},
 		{"MUSE", "muse --reasoning-effort high"}, // case-insensitive
 		{"pi", "pi --model sonnet"},
@@ -1228,7 +1231,7 @@ claude_cmd = "claude --project-level"
 		for _, id := range []string{
 			"antigravity", "claude", "codex",
 			"copilotide", "copilotide-insiders", "copilotide-vscodium", "copilotide-vscodium-insiders",
-			"cursor", "cursoride", "deepseek", "droid", "gemini", "muse", "qwen",
+			"cursor", "cursoride", "deepseek", "droid", "gemini", "grok", "muse", "pi", "qwen",
 		} {
 			if got := cfg.GetProviderCmd(id); got != "" {
 				t.Errorf("GetProviderCmd(%s) = %q, want empty", id, got)

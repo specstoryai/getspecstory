@@ -299,10 +299,8 @@ specstory run --output-dir ~/my-sessions`
 
 	// Determine default agent name
 	defaultAgent := "the default agent"
-	if len(ids) > 0 {
-		if provider, err := registry.Get(ids[0]); err == nil {
-			defaultAgent = provider.Name()
-		}
+	if provider, err := registry.GetDefault(); err == nil {
+		defaultAgent = provider.Name()
 	}
 
 	longDesc := fmt.Sprintf(`Launch terminal coding agents in interactive mode with auto-save markdown file generation.
@@ -347,16 +345,8 @@ By default, launches %s. Specify a specific agent ID to use a different agent.`,
 
 			// Get the provider
 			registry := factory.GetRegistry()
-			var providerID string
-			if len(args) == 0 {
-				// Default to first registered provider
-				ids := registry.ListIDs()
-				if len(ids) > 0 {
-					providerID = ids[0]
-				} else {
-					return fmt.Errorf("no providers registered")
-				}
-			} else {
+			providerID := factory.DefaultProviderID
+			if len(args) > 0 {
 				providerID = args[0]
 			}
 

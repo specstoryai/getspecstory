@@ -19,6 +19,7 @@ import (
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/deepseektui"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/droidcli"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/geminicli"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/grokbuild"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/musecode"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/piagent"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/providers/qwencode"
@@ -119,6 +120,10 @@ func (r *Registry) registerAll() {
 	r.providers["antigravity"] = antigravityProvider
 	slog.Debug("Registered provider", "id", "antigravity", "name", antigravityProvider.Name())
 
+	grokProvider := grokbuild.NewProvider()
+	r.providers["grok"] = grokProvider
+	slog.Debug("Registered provider", "id", "grok", "name", grokProvider.Name())
+
 	museProvider := musecode.NewProvider()
 	r.providers["muse"] = museProvider
 	slog.Debug("Registered provider", "id", "muse", "name", museProvider.Name())
@@ -208,11 +213,14 @@ func (r *Registry) ListIDs() []string {
 	return ids
 }
 
+// DefaultProviderID is the default agent for commands that launch one provider.
+const DefaultProviderID = "claude"
+
 // GetDefault returns the default provider (Claude)
 func (r *Registry) GetDefault() (spi.Provider, error) {
 	r.ensureInitialized()
 	slog.Debug("Getting default provider (claude)")
-	return r.Get("claude")
+	return r.Get(DefaultProviderID)
 }
 
 // GetProviderList returns a formatted string listing all providers.
