@@ -94,9 +94,6 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 	var firstTimestamp string
 
 	scanErr := scanLines(file, filePath, func(lineNumber int, line string) error {
-		rawBuilder.WriteString(line)
-		rawBuilder.WriteByte('\n')
-
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			return nil
@@ -111,6 +108,10 @@ func parseFactorySession(filePath string) (*fdSession, error) {
 				"error", err)
 			return nil
 		}
+
+		// Retain accepted envelopes for raw exports, including unknown kinds.
+		rawBuilder.WriteString(line)
+		rawBuilder.WriteByte('\n')
 
 		switch env.Type {
 		case "session_start":

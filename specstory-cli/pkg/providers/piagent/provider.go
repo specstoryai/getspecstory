@@ -357,8 +357,8 @@ func (snapshot *sessionSnapshot) agentSession(path, projectPath string, debugRaw
 		return nil, err
 	}
 	if debugRaw {
-		if dErr := writeDebugRaw(data.SessionID, snapshot.records[1:]); dErr != nil {
-			slog.Warn("pi: debug-raw write failed", "error", dErr)
+		if dErr := writeDebugRaw(data.SessionID, snapshot.records); dErr != nil {
+			slog.Warn("pi: debug-raw write failed", "sessionId", data.SessionID, "path", spi.GetDebugDir(data.SessionID), "error", dErr)
 		}
 	}
 	var raw strings.Builder

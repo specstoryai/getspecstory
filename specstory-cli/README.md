@@ -600,9 +600,10 @@ go list -m -u all
 
 The `--debug-raw` flag enables a debug mode that is useful for developers working on the SpecStory CLI. It outputs the raw data from AI coding agents in a pretty-printed format. This hidden flag works with all operation modes and supports all providers.
 
-When enabled, it creates a debug directory structure under `.specstory/debug/` with individual pretty-printed JSON files for each record in the session as well as a JSON version of the SessionData returned from the provider for that session.
+When enabled, it creates a debug directory structure under `.specstory/debug/` (or the `--debug-dir` override) with provider-specific native files alongside `session-data.json`, the normalized SessionData written by the CLI.
 
 This mode is useful for:
+
 - Understanding the raw data structure from different AI coding agents
 - Analyzing conversation flow and metadata
 - Debugging parsing issues
@@ -631,16 +632,22 @@ Sync specific session with debug output:
 ```
 .specstory/debug/
 └── <session-uuid>/
-    ├── 1.json      # Claude Code: sequential numbering
-    ├── 2.json      # Cursor CLI: based on rowid
+    ├── 1.json      # JSONL providers: sequential numbering
+    ├── 2.json
     ├── 3.json
     ├── ...
     ├── raw-composer.json # Cursor IDE: the full raw composer record for the session
-    ├── raw-session.json  # VS Code Copilot: the full raw session record
+    ├── 1-42.json         # Cursor CLI: DAG position and SQLite rowid
+    ├── orphan-57.json    # Cursor CLI: an unconnected blob
+    ├── raw-session.json  # DeepSeek TUI / VS Code Copilot: session JSON
+    ├── raw-transcript.jsonl # Antigravity: accepted transcript records
+    ├── tasks/task-6.log  # Antigravity: native async task output
     └── session-data.json # JSON version of the SessionData returned from the provider for this session
 ```
 
-Each JSON file is pretty-printed with 2-space indentation. For Claude Code and Qwen Code, files are numbered sequentially in JSONL record order. Qwen Code preserves unknown native fields and clears stale numbered files before each debug export. For Cursor CLI, files are numbered based on the SQLite rowid. For Cursor IDE and VS Code Copilot, a single file (`raw-composer.json` / `raw-session.json`) holds the complete session record instead of numbered per-record files.
+Claude Code, Codex CLI, Qwen Code, Factory Droid, Pi, and Muse Code use sequentially numbered JSON files in source order. Codex preserves native number precision and key order. Gemini uses numbered per-message diagnostic objects. Pi includes its session header and inactive branches. Muse preserves native envelopes, metadata, diagnostics, and task-stream records even when they are omitted from Markdown. Antigravity numbers records in native `step_index` order, retains the accepted transcript in source order, and copies async task logs into `tasks/` with their original names and bytes. DeepSeek TUI pretty-prints the original session JSON, including unknown fields, to `raw-session.json`.
+
+All numbered exporters refresh their provider-owned debug files on each export, removing obsolete records while preserving `session-data.json` and unrelated files. Native exports use the same input snapshot as conversion. Cursor CLI filenames include both DAG position and SQLite rowid, with separate orphan files. Cursor IDE and VS Code Copilot use a single `raw-composer.json` or `raw-session.json` instead of numbered records.
 
 **Example:**
 

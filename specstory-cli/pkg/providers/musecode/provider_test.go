@@ -1,11 +1,77 @@
 package musecode
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/specstoryai/getspecstory/specstory-cli/internal/testutil"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 )
+
+func TestDebugRawPreservesAllNativeEnvelopesFromSnapshot(t *testing.T) {
+	testutil.IsolateDebugDir(t)
+	fixture, err := os.ReadFile(filepath.Join("testdata", "session-basic.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Foreign streams and new payload kinds do not render, but must remain
+	// inspectable along with the fixture's metadata and diagnostic records.
+	hidden := `{"id":"hidden","stream":{"kind":"task","id":"foreign"},"payload_type":"future","payload":{"unknown":true},"unknownNative":9007199254740993}`
+	body := strings.ReplaceAll(strings.TrimSpace(string(fixture)), "\n", "\r\n") + "\r\n" + hidden
+	path := filepath.Join(t.TempDir(), "session.jsonl")
+	if err := os.WriteFile(path, []byte("{broken\n"+body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := ParseSessionFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := t.TempDir()
+	chat := convertToAgentChatSession(snapshot, project, false)
+	if chat == nil || chat.RawData != body {
+		t.Fatal("native snapshot lost accepted envelopes or retained malformed data")
+	}
+	dir := spi.GetDebugDir(snapshot.ID)
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		t.Fatalf("debug-disabled conversion created output: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(body), "\n")
+	// Conversion must not read this newer, shorter transcript.
+	if err := os.WriteFile(path, []byte(strings.Join(lines[:2], "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	chat = convertToAgentChatSession(snapshot, project, true)
+	if chat == nil || chat.RawData != body {
+		t.Fatal("conversion reread a changed transcript")
+	}
+	for i, line := range lines {
+		data, err := os.ReadFile(filepath.Join(dir, fmt.Sprintf("%d.json", i+1)))
+		if err != nil || !bytes.Contains(data, []byte("\n  \"")) {
+			t.Fatalf("record %d missing or not pretty printed: %v", i+1, err)
+		}
+		var want, got bytes.Buffer
+		if err := json.Compact(&want, []byte(line)); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Compact(&got, data); err != nil || want.String() != got.String() {
+			t.Fatalf("record %d changed: %s (%v)", i+1, data, err)
+		}
+	}
+	var stale []string
+	for i := 3; i <= len(lines); i++ {
+		stale = append(stale, fmt.Sprintf("%d.json", i))
+	}
+	testutil.AssertDebugRefresh(t, dir, stale, []string{"session-data.json", "3-notes.json"}, func() {
+		if chat, err := NewProvider().GetAgentChatSessionByPath(path, project, true); err != nil || chat == nil {
+			t.Fatalf("refresh failed: %v", err)
+		}
+	})
+}
 
 func TestProviderName(t *testing.T) {
 	if got := NewProvider().Name(); got != "Muse Code" {
