@@ -11,6 +11,7 @@ import (
 
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/session"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/sessionindex"
+	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi"
 	"github.com/specstoryai/getspecstory/specstory-cli/pkg/spi/factory"
 )
 
@@ -519,7 +520,10 @@ func sessionMarkdown(registry *factory.Registry, store *sessionindex.Store, s *s
 		}
 	}
 	if body, _ := store.SessionBody(s.Agent, s.SessionID); strings.TrimSpace(body) != "" {
-		return "```\n" + body + "\n```"
+		// Size the fence past any backtick runs in the body, as every markdown
+		// renderer in the codebase does, so an FTS body that quotes a code
+		// block cannot end the preview early.
+		return spi.CodeFence("", body)
 	}
 	return "_(no readable content for this session)_"
 }
