@@ -415,6 +415,37 @@ func TestSpecializedToolKeepsUnknownArguments(t *testing.T) {
 	}
 }
 
+func TestToolParametersPreserveJSONValues(t *testing.T) {
+	for _, name := range []string{"read_file", "run_terminal_command"} {
+		for _, tc := range []struct {
+			name  string
+			value any
+			want  string
+		}{
+			{"null", nil, "null"},
+			{"empty string", "", ""},
+			{"false", false, "false"},
+			{"zero", float64(0), "0"},
+			{"array", []any{nil, false}, "[null,false]"},
+			{"object", map[string]any{"nested": nil}, `{"nested":null}`},
+		} {
+			t.Run(name+"/"+tc.name, func(t *testing.T) {
+				tool := &ToolInfo{
+					Name:   name,
+					Input:  map[string]any{"new_option": tc.value},
+					Output: map[string]any{"new_result": tc.value},
+				}
+				md := formatToolAsMarkdown(tool)
+				for _, key := range []string{"new_option", "new_result"} {
+					if want := key + ": `" + tc.want + "`"; !strings.Contains(md, want) {
+						t.Errorf("missing %q in rendered tool:\n%s", want, md)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestDeclaredToolInventoryAlwaysRenders(t *testing.T) {
 	inventory, err := os.ReadFile(filepath.Join("testdata", "session-1.0.34", "tools.txt"))
 	if err != nil {

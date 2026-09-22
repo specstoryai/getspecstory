@@ -140,6 +140,11 @@ func formatParameters(input map[string]any) string {
 	var b strings.Builder
 	for _, key := range keys {
 		value := stringArg(input, key)
+		// Every key here is present: preserve explicit null separately from
+		// the empty string used by optional-argument lookups.
+		if input[key] == nil {
+			value = "null"
+		}
 		label := map[string]string{"target_file": "Path", "target_directory": "Directory", "file_path": "Path", "offset": "Offset", "limit": "Limit", "pattern": "Pattern", "path": "Path", "glob": "Glob", "background": "Background", "timeout_ms": "Timeout (ms)", "persistent": "Persistent", "head_limit": "Result limit", "task_id": "Task ID", "task_ids": "Task IDs"}[key]
 		if label == "" {
 			label = key

@@ -318,11 +318,26 @@ func TestEncodeCwdDirname_RoundTripsWithDecode(t *testing.T) {
 }
 
 func TestNativeSessionPathRejectsEscapingFilename(t *testing.T) {
-	withFakeGrokHome(t)
-	for _, name := range []string{filepath.Join("..", "outside", chatHistoryFile), filepath.Join("not-a-session", chatHistoryFile), "summary.json"} {
-		if path, err := NewProvider().NativeSessionPath(t.TempDir(), name); err == nil {
+	home := withFakeGrokHome(t)
+	id := "019ffaaa-1111-7222-8333-444444444444"
+	for _, name := range []string{
+		filepath.Join("..", "outside", chatHistoryFile),
+		filepath.Join("..", id, chatHistoryFile),
+		filepath.Join("nested", id, chatHistoryFile),
+		filepath.Join(t.TempDir(), id, chatHistoryFile),
+		filepath.Join("not-a-session", chatHistoryFile),
+		"summary.json",
+	} {
+		if path, err := NewProvider().NativeSessionPath(t.TempDir(), name); err == nil || path != "" {
 			t.Errorf("accepted %q as %q", name, path)
 		}
+	}
+	entries, err := os.ReadDir(home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("invalid filenames created store entries: %v", entries)
 	}
 }
 
